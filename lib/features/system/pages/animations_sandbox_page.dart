@@ -10,6 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
+import 'cat_trace_decomposition_poc.dart';
 import 'cat_trace_poc_data.dart';
 import 'pixel_lab_page.dart';
 
@@ -461,10 +462,33 @@ class _CatTracePipelinePocSectionState
     extends State<_CatTracePipelinePocSection> {
   var _mode = _CatTracePocMode.reconstructed;
   var _inspectionScale = 2;
+  late final _decomposition = CatTraceDecomposition.medium();
+  late final _reconstructionMetrics = _decomposition.measure(
+    width: 256,
+    height: 128,
+  );
 
   @override
   Widget build(BuildContext context) {
     final level = _mode.level;
+    final painter = switch (_mode) {
+      _CatTracePocMode.reconstructed => CatTracePocPainter(
+        presentationScale: _inspectionScale,
+      ),
+      _CatTracePocMode.high ||
+      _CatTracePocMode.medium ||
+      _CatTracePocMode.low => CatTraceVectorPainter(
+        level: level!,
+        presentationScale: _inspectionScale,
+      ),
+      _CatTracePocMode.decomposed ||
+      _CatTracePocMode.overlay ||
+      _CatTracePocMode.diff => CatTraceDecompositionPainter(
+        decomposition: _decomposition,
+        display: _mode.decompositionDisplay!,
+        presentationScale: _inspectionScale,
+      ),
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -484,12 +508,7 @@ class _CatTracePipelinePocSectionState
                 height: 190,
                 child: CustomPaint(
                   key: const ValueKey('cat-trace-poc-canvas'),
-                  painter: _mode == _CatTracePocMode.reconstructed
-                      ? CatTracePocPainter(presentationScale: _inspectionScale)
-                      : CatTraceVectorPainter(
-                          level: level!,
-                          presentationScale: _inspectionScale,
-                        ),
+                  painter: painter,
                 ),
               ),
               AppSpacing.gapSM,
@@ -525,7 +544,10 @@ class _CatTracePipelinePocSectionState
               ),
               AppSpacing.gapSM,
               Text(
-                level == null
+                _mode.decompositionDisplay != null
+                    ? "C vs C' · IoU ${(_reconstructionMetrics.iou * 100).toStringAsFixed(3)}% · "
+                          'pixel disagreement ${(_reconstructionMetrics.disagreement * 100).toStringAsFixed(3)}%'
+                    : level == null
                     ? 'RECONSTRUCTED CONTROL · authored Bezier · source metric unavailable'
                     : '${level.name} · RDP ${level.tolerance}px · '
                           '${level.sourcePointCount} points · '
@@ -544,7 +566,15 @@ class _CatTracePipelinePocSectionState
   }
 }
 
-enum _CatTracePocMode { reconstructed, high, medium, low }
+enum _CatTracePocMode {
+  reconstructed,
+  high,
+  medium,
+  low,
+  decomposed,
+  overlay,
+  diff,
+}
 
 extension on _CatTracePocMode {
   String get name => switch (this) {
@@ -552,6 +582,9 @@ extension on _CatTracePocMode {
     _CatTracePocMode.high => 'high',
     _CatTracePocMode.medium => 'medium',
     _CatTracePocMode.low => 'low',
+    _CatTracePocMode.decomposed => 'decomposed',
+    _CatTracePocMode.overlay => 'overlay',
+    _CatTracePocMode.diff => 'diff',
   };
 
   String get label => switch (this) {
@@ -559,6 +592,9 @@ extension on _CatTracePocMode {
     _CatTracePocMode.high => 'B · TRACE HIGH',
     _CatTracePocMode.medium => 'C · TRACE MEDIUM',
     _CatTracePocMode.low => 'D · TRACE LOW',
+    _CatTracePocMode.decomposed => "C' · RECONSTRUCTED",
+    _CatTracePocMode.overlay => 'C / C′ · OVERLAY',
+    _CatTracePocMode.diff => 'C / C′ · DIFF',
   };
 
   CatTraceVectorLevel? get level => switch (this) {
@@ -566,6 +602,16 @@ extension on _CatTracePocMode {
     _CatTracePocMode.high => generatedCatTraceVectorLevels[0],
     _CatTracePocMode.medium => generatedCatTraceVectorLevels[1],
     _CatTracePocMode.low => generatedCatTraceVectorLevels[2],
+    _CatTracePocMode.decomposed ||
+    _CatTracePocMode.overlay ||
+    _CatTracePocMode.diff => null,
+  };
+
+  CatTraceDecompositionDisplay? get decompositionDisplay => switch (this) {
+    _CatTracePocMode.decomposed => CatTraceDecompositionDisplay.reconstructed,
+    _CatTracePocMode.overlay => CatTraceDecompositionDisplay.overlay,
+    _CatTracePocMode.diff => CatTraceDecompositionDisplay.diff,
+    _ => null,
   };
 }
 
@@ -895,6 +941,101 @@ class CatTraceVectorPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CatTraceVectorPainter oldDelegate) =>
       oldDelegate.level != level ||
+      oldDelegate.presentationScale != presentationScale;
+}
+
+enum CatTraceDecompositionDisplay { reconstructed, overlay, diff }
+
+/// Sandbox-only C/C' comparison. It draws neutral component paths only; no
+/// joint transform or wildlife production renderer is involved.
+class CatTraceDecompositionPainter extends CustomPainter {
+  const CatTraceDecompositionPainter({
+    required this.decomposition,
+    required this.display,
+    required this.presentationScale,
+  });
+
+  final CatTraceDecomposition decomposition;
+  final CatTraceDecompositionDisplay display;
+  final int presentationScale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()
+      ..color = const Color(0xFF101010)
+      ..isAntiAlias = true;
+    final silhouette = Paint()
+      ..color = const Color(0xFFB8B8B8)
+      ..isAntiAlias = true;
+    canvas.drawRect(Offset.zero & size, background);
+
+    final points = decomposition.sourceLevel.points;
+    final maxY = points.map((point) => point.dy).reduce(math.max);
+    final base = math.min(size.width * .88 / 4, size.height * .82 / (maxY * 4));
+    final scale = base * presentationScale;
+    canvas.save();
+    canvas.translate(
+      (size.width - scale) / 2,
+      (size.height - maxY * scale) / 2,
+    );
+    canvas.scale(scale);
+
+    final original = decomposition.originalPath();
+    final reconstructed = decomposition.reconstructedPath();
+    switch (display) {
+      case CatTraceDecompositionDisplay.reconstructed:
+        for (final component in decomposition.componentPaths()) {
+          canvas.drawPath(component, silhouette);
+        }
+      case CatTraceDecompositionDisplay.overlay:
+        canvas.drawPath(
+          original,
+          Paint()
+            ..color = const Color(0x704ECDC4)
+            ..isAntiAlias = true,
+        );
+        canvas.drawPath(
+          reconstructed,
+          Paint()
+            ..color = const Color(0xFFF6C445)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1 / scale
+            ..isAntiAlias = true,
+        );
+      case CatTraceDecompositionDisplay.diff:
+        canvas.drawPath(
+          original,
+          Paint()
+            ..color = const Color(0x443A506B)
+            ..isAntiAlias = true,
+        );
+        final difference = Path.combine(
+          PathOperation.xor,
+          original,
+          reconstructed,
+        );
+        canvas.drawPath(
+          difference,
+          Paint()
+            ..color = const Color(0xFFFF7043)
+            ..isAntiAlias = true,
+        );
+        canvas.drawPath(
+          original,
+          Paint()
+            ..color = const Color(0xFFB8B8B8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1 / scale
+            ..isAntiAlias = true,
+        );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CatTraceDecompositionPainter oldDelegate) =>
+      oldDelegate.decomposition != decomposition ||
+      oldDelegate.display != display ||
       oldDelegate.presentationScale != presentationScale;
 }
 

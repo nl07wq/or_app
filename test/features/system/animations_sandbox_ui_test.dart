@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/system/pages/cat_trace_decomposition_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
@@ -216,12 +217,127 @@ void main() {
     },
   );
 
+  test('CAT TRACE decomposition preserves TRACE MEDIUM in neutral', () {
+    final decomposition = CatTraceDecomposition.medium();
+    final canonicalMedium = generatedCatTraceVectorLevels[1];
+    expect(decomposition.sourceLevel, same(canonicalMedium));
+    expect(decomposition.sourceLevel.sourcePointCount, 85);
+    expect(decomposition.components, hasLength(7));
+    expect(
+      decomposition.components.map((component) => component.id),
+      orderedEquals([
+        CatTraceComponentId.headNeck,
+        CatTraceComponentId.torso,
+        CatTraceComponentId.forelegNear,
+        CatTraceComponentId.forelegFar,
+        CatTraceComponentId.hindLegFar,
+        CatTraceComponentId.hindLegNear,
+        CatTraceComponentId.tail,
+      ]),
+    );
+
+    final torso = decomposition.components.singleWhere(
+      (component) => component.id == CatTraceComponentId.torso,
+    );
+    for (final component in decomposition.components) {
+      expect(
+        component.pivot.dx.isFinite && component.pivot.dy.isFinite,
+        isTrue,
+      );
+      expect(component.hiddenRootZone.width, greaterThan(0));
+      expect(component.hiddenRootZone.height, greaterThan(0));
+      expect(component.neutralTransform.translation, Offset.zero);
+      expect(component.neutralTransform.rotationRadians, 0);
+      expect(component.neutralTransform.scale, 1);
+      expect(
+        component.visibleContourRanges.every(
+          (range) =>
+              range.startInclusive >= 0 &&
+              range.endInclusive < decomposition.sourceLevel.sourcePointCount &&
+              range.startInclusive <= range.endInclusive,
+        ),
+        isTrue,
+      );
+      expect(
+        component.pathFrom(decomposition.originalPath()).getBounds().isEmpty,
+        isFalse,
+      );
+    }
+    for (final id in [
+      CatTraceComponentId.forelegNear,
+      CatTraceComponentId.forelegFar,
+      CatTraceComponentId.hindLegNear,
+      CatTraceComponentId.hindLegFar,
+      CatTraceComponentId.tail,
+    ]) {
+      final component = decomposition.components.singleWhere(
+        (candidate) => candidate.id == id,
+      );
+      expect(component.hiddenRootZone.overlaps(torso.hiddenRootZone), isTrue);
+      expect(component.parent, CatTraceComponentId.torso);
+      expect(component.visibleContourRanges, isNotEmpty);
+    }
+
+    final metrics = decomposition.measure(width: 256, height: 128);
+    expect(metrics.iou, greaterThanOrEqualTo(.99));
+    expect(metrics.iou, greaterThanOrEqualTo(.995));
+    expect(metrics.disagreement, lessThan(.005));
+    expect(metrics.iou, closeTo(.9998342175, .000000001));
+    expect(metrics.disagreement, closeTo(.0000305176, .000000001));
+    expect(metrics.originalPixels, greaterThan(0));
+    expect(metrics.reconstructedPixels, greaterThan(0));
+  });
+
+  testWidgets('CAT TRACE decomposition exposes C/C′ static comparison modes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('cat-trace-poc-section')),
+      300,
+    );
+    for (final key in [
+      'cat-trace-poc-decomposed',
+      'cat-trace-poc-overlay',
+      'cat-trace-poc-diff',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
+    final decomposed = find.byKey(const ValueKey('cat-trace-poc-decomposed'));
+    await tester.ensureVisible(decomposed);
+    await tester.tap(decomposed);
+    await tester.pump();
+    final canvas = find.byKey(const ValueKey('cat-trace-poc-canvas'));
+    expect(
+      tester.widget<CustomPaint>(canvas).painter,
+      isA<CatTraceDecompositionPainter>(),
+    );
+    expect(find.textContaining("C vs C' · IoU"), findsOneWidget);
+    for (final key in [
+      'cat-trace-poc-scale-1',
+      'cat-trace-poc-scale-2',
+      'cat-trace-poc-scale-4',
+    ]) {
+      final scaleControl = find.byKey(ValueKey(key));
+      await tester.ensureVisible(scaleControl);
+      await tester.tap(scaleControl);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets(
     'CAT TRACE POC comparison controls remain usable at narrow widths',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      for (final width in [320.0, 390.0]) {
+      for (final width in [320.0, 390.0, 900.0]) {
         tester.view.physicalSize = Size(width, 1800);
         tester.view.devicePixelRatio = 1;
         await tester.pumpWidget(
