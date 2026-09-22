@@ -820,7 +820,21 @@ const _batPoses = [
   ),
 ];
 
-/// Samples one of six organic key poses and interpolates to its successor.
+const _phaseWeights = <WildlifeKind, List<double>>{
+  WildlifeKind.cat: [.22, .11, .10, .24, .19, .14],
+  WildlifeKind.fox: [.20, .10, .09, .29, .19, .13],
+  WildlifeKind.birds: [.18, .16, .10, .12, .25, .19],
+  WildlifeKind.bat: [.17, .12, .14, .11, .27, .19],
+};
+
+/// Relative dwell times for the six canonical poses. They sum to one cycle;
+/// frequency remains independent and unchanged.
+List<double> wildlifePhaseWeightsFor(WildlifeKind kind) =>
+    List<double>.unmodifiable(_phaseWeights[kind]!);
+
+/// Samples one of six organic key poses with species-specific phase timing.
+/// The tiny sinusoidal warp is bounded and keeps the velocity directed through
+/// a boundary instead of using a stop/start ease on every segment.
 WildlifePoseSample wildlifePoseFor(WildlifeKind kind, double phase) {
   final poses = switch (kind) {
     WildlifeKind.cat => _catPoses,
@@ -829,12 +843,22 @@ WildlifePoseSample wildlifePoseFor(WildlifeKind kind, double phase) {
     WildlifeKind.bat => _batPoses,
   };
   final wrapped = phase - phase.floorToDouble();
-  final position = wrapped * poses.length;
-  final index = position.floor() % poses.length;
+  final weights = _phaseWeights[kind]!;
+  var accumulated = 0.0;
+  var index = weights.length - 1;
+  for (var candidate = 0; candidate < weights.length; candidate++) {
+    if (wrapped < accumulated + weights[candidate]) {
+      index = candidate;
+      break;
+    }
+    accumulated += weights[candidate];
+  }
+  final local = ((wrapped - accumulated) / weights[index]).clamp(0.0, 1.0);
+  final shaped = local + math.sin(local * math.pi * 2) * .012;
   return WildlifePoseSample.lerp(
     poses[index],
     poses[(index + 1) % poses.length],
-    position - position.floorToDouble(),
+    shaped,
   );
 }
 
@@ -1266,14 +1290,22 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
   void _drawBird(Canvas canvas, Paint paint, WildlifePoseSample pose) {
     const scale = 8.0;
     _drawBirdFarWing(canvas, paint, pose, scale);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: const Offset(0, 0),
-        width: pose.bodyLength * scale,
-        height: pose.bodyHeight * scale,
-      ),
-      paint,
-    );
+    final body = Path()
+      ..moveTo(-pose.bodyLength * scale * .46, .15)
+      ..quadraticBezierTo(
+        -pose.bodyLength * scale * .12,
+        -pose.bodyHeight * scale * .64,
+        pose.bodyLength * scale * .42,
+        -.12,
+      )
+      ..quadraticBezierTo(
+        pose.bodyLength * scale * .36,
+        pose.bodyHeight * scale * .52,
+        -pose.bodyLength * scale * .42,
+        .38,
+      )
+      ..close();
+    canvas.drawPath(body, paint);
     final head = Offset(pose.headForward * scale, -.35);
     canvas.drawCircle(head, 1.15, paint);
     final beak = Path()
@@ -1284,8 +1316,9 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     canvas.drawPath(beak, paint);
     final tail = Path()
       ..moveTo(-pose.bodyLength * scale * .42, 0)
-      ..lineTo(-pose.tailRear * scale, 1.7)
-      ..lineTo(-pose.bodyLength * scale * .34, 1.45)
+      ..lineTo(-pose.tailRear * scale, 1.15)
+      ..lineTo(-pose.tailRear * scale * .82, 1.9)
+      ..lineTo(-pose.bodyLength * scale * .34, 1.25)
       ..close();
     canvas.drawPath(tail, paint);
     _drawBirdNearWing(canvas, paint, pose, scale);
@@ -1294,14 +1327,22 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
   void _drawBat(Canvas canvas, Paint paint, WildlifePoseSample pose) {
     const scale = 8.4;
     _drawBatFarWing(canvas, paint, pose, scale);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: const Offset(0, 0),
-        width: pose.bodyLength * scale,
-        height: pose.bodyHeight * scale,
-      ),
-      paint,
-    );
+    final body = Path()
+      ..moveTo(-pose.bodyLength * scale * .42, .08)
+      ..quadraticBezierTo(
+        -pose.bodyLength * scale * .08,
+        -pose.bodyHeight * scale * .62,
+        pose.bodyLength * scale * .36,
+        -.05,
+      )
+      ..quadraticBezierTo(
+        pose.bodyLength * scale * .30,
+        pose.bodyHeight * scale * .54,
+        -pose.bodyLength * scale * .38,
+        .36,
+      )
+      ..close();
+    canvas.drawPath(body, paint);
     final head = Offset(pose.headForward * scale, -.35);
     canvas.drawCircle(head, 1.05, paint);
     final rear = Path()
@@ -1343,15 +1384,15 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
     final wing = Path()
       ..moveTo(-scale * .02, -.28)
       ..quadraticBezierTo(
-        -span * .58,
+        -span * .42,
         -pose.wingUp * scale,
         -span,
         -pose.wingUp * scale * .50,
       )
       ..quadraticBezierTo(
-        -span * .88,
+        -span * 1.02,
         pose.wingDown * scale,
-        -span * .38,
+        -span * .48,
         pose.wingDown * scale + pose.wingFold * scale * .18,
       )
       ..quadraticBezierTo(
@@ -1391,8 +1432,9 @@ class DashboardAmbientWildlifePainter extends CustomPainter {
       ..moveTo(-scale * .02, -.24)
       ..lineTo(-span * .68, -pose.wingUp * scale)
       ..lineTo(-span, -pose.wingUp * scale * .38)
-      ..lineTo(-span * .84, pose.wingDown * scale)
-      ..lineTo(-span * .52, pose.wingDown * scale + pose.wingFold * scale * .48)
+      ..lineTo(-span * .90, pose.wingDown * scale)
+      ..lineTo(-span * .68, pose.wingDown * scale + pose.wingFold * scale * .40)
+      ..lineTo(-span * .45, pose.wingDown * scale + pose.wingFold * scale * .58)
       ..lineTo(-span * .24, pose.wingFold * scale * .30)
       ..lineTo(scale * .03, .30)
       ..close();

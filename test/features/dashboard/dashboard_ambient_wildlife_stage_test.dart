@@ -266,6 +266,49 @@ void main() {
     expect(wildlifeCycleFrequencyFor(WildlifeKind.bat), lessThan(10.5));
   });
 
+  test('V3.2 uses non-uniform bounded phase timing for every species', () {
+    for (final kind in WildlifeKind.values) {
+      final weights = wildlifePhaseWeightsFor(kind);
+      expect(weights.length, 6);
+      expect(weights.reduce((a, b) => a + b), closeTo(1, .000001));
+      expect(weights.toSet().length, greaterThan(1));
+    }
+    expect(
+      wildlifePhaseWeightsFor(WildlifeKind.birds)[3],
+      isNot(wildlifePhaseWeightsFor(WildlifeKind.birds)[4]),
+    );
+    expect(
+      wildlifePhaseWeightsFor(WildlifeKind.bat)[3],
+      isNot(wildlifePhaseWeightsFor(WildlifeKind.bat)[4]),
+    );
+  });
+
+  test(
+    'V3.2 pose interpolation stays finite and bounded at phase boundaries',
+    () {
+      for (final kind in WildlifeKind.values) {
+        final weights = wildlifePhaseWeightsFor(kind);
+        var boundary = 0.0;
+        for (final weight in weights) {
+          final before = wildlifePoseFor(kind, boundary - .0001);
+          final after = wildlifePoseFor(kind, boundary + .0001);
+          for (final value in [
+            before.bodyLength,
+            after.bodyLength,
+            before.bodyHeight,
+            after.bodyHeight,
+            before.wingSpan,
+            after.wingSpan,
+          ]) {
+            expect(value.isFinite, isTrue);
+          }
+          expect((after.bodyLength - before.bodyLength).abs(), lessThan(.03));
+          boundary += weight;
+        }
+      }
+    },
+  );
+
   test('V3 CAT poses compress, extend, fly, and change limbs and tail', () {
     final gather = wildlifePoseFor(WildlifeKind.cat, 1 / 6);
     final flight = wildlifePoseFor(WildlifeKind.cat, 3 / 6);
