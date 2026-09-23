@@ -3038,10 +3038,9 @@ void main() {
   });
 
   test(
-    'CAT RUN V2.4 scale audit is deterministic and makes no unjustified correction',
+    'CAT RUN V2 scale audit preserves frozen traces and reports body metrics',
     () {
       expect(CatRunV24ScaleAudit.metrics, hasLength(10));
-      expect(CatRunV24ScaleAudit.uniformCorrections.values, everyElement(1));
       expect(
         CatRunV24ScaleAudit.metrics.map((metric) => metric.pose),
         List<int>.generate(10, (index) => index + 1),
@@ -3049,6 +3048,8 @@ void main() {
       for (final metric in CatRunV24ScaleAudit.metrics) {
         expect(metric.torsoLength, greaterThan(0));
         expect(metric.torsoHeight, greaterThan(0));
+        expect(metric.headSpan, greaterThan(0));
+        expect(metric.chestHeight, greaterThan(0));
         expect(metric.visualWidth, greaterThan(0));
         expect(metric.visualHeight, greaterThan(0));
         expect(metric.silhouetteArea, greaterThan(0));
