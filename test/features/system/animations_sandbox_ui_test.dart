@@ -3048,6 +3048,7 @@ void main() {
       );
       for (final metric in CatRunV24ScaleAudit.metrics) {
         expect(metric.torsoLength, greaterThan(0));
+        expect(metric.torsoHeight, greaterThan(0));
         expect(metric.visualWidth, greaterThan(0));
         expect(metric.visualHeight, greaterThan(0));
         expect(metric.silhouetteArea, greaterThan(0));

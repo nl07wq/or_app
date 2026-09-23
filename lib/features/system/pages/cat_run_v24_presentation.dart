@@ -13,6 +13,7 @@ class CatRunV24ScaleMetrics {
   const CatRunV24ScaleMetrics({
     required this.pose,
     required this.torsoLength,
+    required this.torsoHeight,
     required this.visualWidth,
     required this.visualHeight,
     required this.silhouetteArea,
@@ -20,6 +21,7 @@ class CatRunV24ScaleMetrics {
 
   final int pose;
   final double torsoLength;
+  final double torsoHeight;
   final double visualWidth;
   final double visualHeight;
   final double silhouetteArea;
@@ -71,6 +73,30 @@ class CatRunV24ScaleAudit {
     final maxY = points.map((point) => point.dy).reduce(math.max);
     final frame = CatRunV2Registration.registrationFor(trace.pose);
     final transform = CatRunV2Registration.transformFor(trace);
+    final shoulder = transform.apply(frame.shoulder * (1 / 800));
+    final pelvis = transform.apply(frame.pelvis * (1 / 800));
+    final torsoAxis = pelvis - shoulder;
+    final torsoLength = torsoAxis.distance;
+    final torsoBand = points
+        .where((point) {
+          final relative = point - shoulder;
+          final projection =
+              ((relative.dx * torsoAxis.dx) + (relative.dy * torsoAxis.dy)) /
+              (torsoLength * torsoLength);
+          return projection >= .2 && projection <= .8;
+        })
+        .toList(growable: false);
+    final perpendiculars = torsoBand
+        .map(
+          (point) =>
+              ((point - shoulder).dx * -torsoAxis.dy +
+                  (point - shoulder).dy * torsoAxis.dx) /
+              torsoLength,
+        )
+        .toList(growable: false);
+    perpendiculars.sort();
+    final lowerTorsoBandIndex = (perpendiculars.length * .2).floor();
+    final upperTorsoBandIndex = (perpendiculars.length * .8).floor();
     var doubleArea = 0.0;
     for (var index = 0; index < points.length; index++) {
       final next = points[(index + 1) % points.length];
@@ -78,7 +104,10 @@ class CatRunV24ScaleAudit {
     }
     return CatRunV24ScaleMetrics(
       pose: trace.pose,
-      torsoLength: frame.torsoAxis.distance / 800 * transform.uniformScale,
+      torsoLength: torsoLength,
+      torsoHeight:
+          perpendiculars[upperTorsoBandIndex] -
+          perpendiculars[lowerTorsoBandIndex],
       visualWidth: maxX - minX,
       visualHeight: maxY - minY,
       silhouetteArea: doubleArea.abs() / 2,
