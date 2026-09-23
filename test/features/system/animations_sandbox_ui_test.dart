@@ -3119,71 +3119,80 @@ void main() {
     },
   );
 
-  test(
-    'CAT RUN Pose 01 replacement preserves V2.8 timing and neutral display scale',
-    () {
+  test('CAT RUN V2.10 replaces only Pose 01 and prevents double scaling', () {
+    expect(
+      CatRunV28Timing.frameDurations.map((duration) => duration.inMilliseconds),
+      [90, 25, 25, 90, 88, 25, 30, 90, 88, 90],
+    );
+    // The specified 01–10 holds sum to 641ms.
+    expect(CatRunV28Timing.cycleDuration, const Duration(milliseconds: 641));
+    for (final index in [1, 2, 5, 6]) {
       expect(
-        CatRunV28Timing.frameDurations.map(
-          (duration) => duration.inMilliseconds,
-        ),
-        [90, 25, 25, 90, 88, 25, 30, 90, 88, 90],
+        CatRunV28Timing.frameDurations[index].inMilliseconds,
+        inInclusiveRange(25, 30),
       );
-      // The specified 01–10 holds sum to 641ms.
-      expect(CatRunV28Timing.cycleDuration, const Duration(milliseconds: 641));
-      for (final index in [1, 2, 5, 6]) {
-        expect(
-          CatRunV28Timing.frameDurations[index].inMilliseconds,
-          inInclusiveRange(25, 30),
-        );
-      }
-      for (final index in [0, 3, 4, 7, 8, 9]) {
-        expect(
-          CatRunV28Timing.frameDurations[index].inMilliseconds,
-          inInclusiveRange(85, 95),
-        );
-      }
-      expect(CatRunV28Timing.frameAtCycleProgress(0), 0);
-      expect(CatRunV28Timing.frameAtCycleProgress(.999999), 9);
-      for (final trace in catRunV2HighTraces) {
-        expect(CatRunV24ScaleAudit.correctionFor(trace.pose), 1);
-      }
+    }
+    for (final index in [0, 3, 4, 7, 8, 9]) {
       expect(
-        CatRunV24ScaleAudit.uniformCorrections.values.every(
-          (scale) => scale >= 1 && scale <= 1.06,
-        ),
-        isTrue,
+        CatRunV28Timing.frameDurations[index].inMilliseconds,
+        inInclusiveRange(85, 95),
       );
-      expect(
-        CatRunV24ScaleAudit.verticalProportionCorrections.values,
-        everyElement(1),
-      );
-      expect(
-        CatRunV24ScaleAudit.verticalProportionCorrections.values.every(
-          (scale) => scale >= 1 && scale <= 1.04,
-        ),
-        isTrue,
-      );
-      expect(CatRunV24ScaleAudit.scaleXFor(1), 1);
-      expect(CatRunV24ScaleAudit.scaleYFor(1), 1);
-      final verticalEnvelope = List<double>.generate(
-        10,
-        (index) =>
-            CatRunV24ScaleAudit.verticalProportionCorrections[index + 1]!,
-      );
-      for (var index = 0; index < verticalEnvelope.length; index++) {
-        final next = verticalEnvelope[(index + 1) % verticalEnvelope.length];
-        expect((verticalEnvelope[index] - next).abs(), lessThan(.031));
-      }
-      final contactTrace = catRunV2HighTraces[1];
-      final stancePaw = CatRunV2Registration.stancePaw(contactTrace)!;
-      expect(
-        CatRunV24ScaleAudit.correctedPoints(
-          contactTrace,
-        ).any((point) => (point - stancePaw).distance < 1e-10),
-        isTrue,
-      );
-    },
-  );
+    }
+    expect(CatRunV28Timing.frameAtCycleProgress(0), 0);
+    expect(CatRunV28Timing.frameAtCycleProgress(.999999), 9);
+    expect(CatRunV24ScaleAudit.correctionFor(1), 1);
+    expect(CatRunV24ScaleAudit.verticalProportionCorrections[1], 1);
+    expect(CatRunV24ScaleAudit.scaleXFor(1), 1);
+    expect(CatRunV24ScaleAudit.scaleYFor(1), 1);
+    expect(CatRunV24ScaleAudit.correctionFor(2), 1.02);
+    expect(CatRunV24ScaleAudit.verticalProportionCorrections[2], 1.02);
+    expect(CatRunV24ScaleAudit.correctionFor(10), 1.02);
+    expect(CatRunV24ScaleAudit.verticalProportionCorrections[10], 1.01);
+    expect(catRunV2HighTraces.skip(1).map((trace) => trace.rawCount), [
+      1684,
+      1870,
+      1506,
+      1474,
+      1598,
+      2014,
+      1954,
+      2020,
+      1966,
+    ]);
+    expect(
+      CatRunV2Registration.registrationFor(1).sourceOrigin,
+      const Offset(163, 58),
+    );
+    expect(CatRunV2Registration.registrationFor(1).sourceExtent, 474);
+    expect(
+      CatRunV24ScaleAudit.uniformCorrections.values.every(
+        (scale) => scale >= 1 && scale <= 1.06,
+      ),
+      isTrue,
+    );
+    expect(
+      CatRunV24ScaleAudit.verticalProportionCorrections.values.every(
+        (scale) => scale >= 1 && scale <= 1.04,
+      ),
+      isTrue,
+    );
+    final verticalEnvelope = List<double>.generate(
+      10,
+      (index) => CatRunV24ScaleAudit.verticalProportionCorrections[index + 1]!,
+    );
+    for (var index = 0; index < verticalEnvelope.length; index++) {
+      final next = verticalEnvelope[(index + 1) % verticalEnvelope.length];
+      expect((verticalEnvelope[index] - next).abs(), lessThan(.031));
+    }
+    final contactTrace = catRunV2HighTraces[1];
+    final stancePaw = CatRunV2Registration.stancePaw(contactTrace)!;
+    expect(
+      CatRunV24ScaleAudit.correctedPoints(
+        contactTrace,
+      ).any((point) => (point - stancePaw).distance < 1e-10),
+      isTrue,
+    );
+  });
 
   test(
     'CAT RUN V2 registers frozen frames without changing their geometry',

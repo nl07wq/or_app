@@ -77,11 +77,12 @@ class CatRunV24ScaleAudit {
     catRunV2HighTraces.map(_measure),
   );
 
-  /// The replacement Pose 01 source is area- and torso-registered with the
-  /// cycle, so no presentation-scale correction is applied.
+  /// Pose 01's replacement source is area- and torso-registered, so it has
+  /// no display compensation. Pose 02 and 10 retain their V2.9 comparison
+  /// anchor corrections unchanged.
   static const uniformCorrections = <int, double>{
     1: 1,
-    2: 1,
+    2: 1.02,
     3: 1,
     4: 1,
     5: 1,
@@ -89,16 +90,16 @@ class CatRunV24ScaleAudit {
     7: 1,
     8: 1,
     9: 1,
-    10: 1,
+    10: 1.02,
   };
 
   static double correctionFor(int pose) => uniformCorrections[pose]!;
 
-  /// The source replacement removes the former extended-pose vertical dip.
-  /// These stay explicit to keep the display transform deterministic.
+  /// Pose 01 is explicitly neutral; the pre-existing Pose 02 and 10
+  /// comparison-anchor corrections remain frozen.
   static const verticalProportionCorrections = <int, double>{
     1: 1,
-    2: 1,
+    2: 1.02,
     3: 1,
     4: 1,
     5: 1,
@@ -106,7 +107,7 @@ class CatRunV24ScaleAudit {
     7: 1,
     8: 1,
     9: 1,
-    10: 1,
+    10: 1.01,
   };
 
   static double scaleXFor(int pose) => correctionFor(pose);
