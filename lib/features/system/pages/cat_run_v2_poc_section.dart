@@ -72,6 +72,8 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
     final trace = catRunV2HighTraces[_frame];
     final registeredPoints = CatRunV2Registration.registeredPoints(trace);
     final frameDuration = CatRunV2Registration.frameDurations[_frame];
+    final registration = CatRunV2Registration.registrationFor(trace.pose);
+    final transform = CatRunV2Registration.transformFor(trace);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -142,11 +144,14 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
                 'IoU ${(trace.iou * 100).toStringAsFixed(2)}% · '
                 '${(frameDuration.inMilliseconds / _speed).round()}ms hold at $_speed×',
               ),
-              const Text(
-                'REGISTERED: COMMON TORSO / UNIFORM SCALE / VIRTUAL GROUND',
+              Text(
+                '${registration.state.label} · uniform '
+                '${transform.uniformScale.toStringAsFixed(3)} · '
+                '${(transform.rotationRadians * 180 / math.pi).toStringAsFixed(1)}°',
               ),
               const Text(
-                'DIRECT VECTOR FRAME PLAYBACK · NO MORPH / RESAMPLING / ARTICULATION',
+                'V2.2: SHOULDER / PELVIS / VIRTUAL GROUND · '
+                'NO MORPH / RESAMPLING / ARTICULATION',
               ),
             ],
           ),
@@ -172,13 +177,6 @@ class _CatRunV2Painter extends CustomPainter {
     canvas.save();
     canvas.translate((size.width - unit) / 2, (size.height - unit * .48) / 2);
     canvas.scale(unit);
-    canvas.drawLine(
-      Offset(-.25, CatRunV2Registration.virtualGround),
-      Offset(1.25, CatRunV2Registration.virtualGround),
-      Paint()
-        ..color = const Color(0xFF3A3A3A)
-        ..strokeWidth = 1 / unit,
-    );
     canvas.drawPath(
       path,
       Paint()

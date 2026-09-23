@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -3038,7 +3039,7 @@ void main() {
     'CAT RUN V2 registers frozen frames without changing their geometry',
     () {
       expect(CatRunV2Registration.frames, hasLength(10));
-      expect(CatRunV2Registration.commonTorsoAnchor, const Offset(400, 130));
+      expect(CatRunV2Registration.commonTorsoAnchorX, .5);
       expect(CatRunV2Registration.virtualGroundSourceY, 216);
 
       for (final trace in catRunV2HighTraces) {
@@ -3050,6 +3051,33 @@ void main() {
           registered.every((point) => point.dx.isFinite && point.dy.isFinite),
           isTrue,
         );
+        final frame = CatRunV2Registration.registrationFor(trace.pose);
+        final transform = CatRunV2Registration.transformFor(trace);
+        expect(
+          frame.shoulder.dx.isFinite && frame.shoulder.dy.isFinite,
+          isTrue,
+        );
+        expect(frame.pelvis.dx.isFinite && frame.pelvis.dy.isFinite, isTrue);
+        expect(frame.torsoAxis.distance, greaterThan(0));
+        expect(transform.uniformScale, inInclusiveRange(.97, 1.03));
+        expect(
+          transform.rotationRadians.abs(),
+          lessThanOrEqualTo(2 * 3.141592653589793 / 180),
+        );
+        expect(
+          transform.translation.dx.isFinite &&
+              transform.translation.dy.isFinite,
+          isTrue,
+        );
+        final stancePaw = CatRunV2Registration.stancePaw(trace);
+        if (frame.stancePaw == null) {
+          expect(stancePaw, isNull);
+        } else {
+          expect(
+            stancePaw!.dy,
+            closeTo(CatRunV2Registration.virtualGround, 1e-9),
+          );
+        }
       }
 
       expect(CatRunV2Registration.frameDisplacements, hasLength(10));
@@ -3063,11 +3091,40 @@ void main() {
       expect(
         CatRunV2Registration.frameDurations.every(
           (duration) =>
-              duration.inMilliseconds >= 65 && duration.inMilliseconds <= 125,
+              duration.inMilliseconds >= 86 && duration.inMilliseconds <= 92,
         ),
         isTrue,
       );
+      final loopEnd = CatRunV2Registration.transformFor(
+        catRunV2HighTraces.last,
+      );
+      final loopStart = CatRunV2Registration.transformFor(
+        catRunV2HighTraces.first,
+      );
+      expect(
+        (loopEnd.translation - loopStart.translation).distance,
+        lessThan(.01),
+      );
       expect(CatRunV2Registration.cycleDuration, isNot(Duration.zero));
+      final verticalTranslations = catRunV2HighTraces
+          .map(
+            (trace) => CatRunV2Registration.transformFor(trace).translation.dy,
+          )
+          .toList(growable: false);
+      for (var index = 0; index < verticalTranslations.length; index++) {
+        final next =
+            verticalTranslations[(index + 1) % verticalTranslations.length];
+        expect((next - verticalTranslations[index]).abs(), lessThan(.02));
+      }
+      for (final trace in catRunV2HighTraces.where(
+        (trace) =>
+            CatRunV2Registration.registrationFor(trace.pose).stancePaw == null,
+      )) {
+        final lowest = CatRunV2Registration.registeredPoints(
+          trace,
+        ).map((point) => point.dy).reduce(math.max);
+        expect(lowest, lessThan(CatRunV2Registration.virtualGround));
+      }
       expect(CatRunV2Registration.frameAtCycleProgress(0), 0);
       expect(CatRunV2Registration.frameAtCycleProgress(.999999), 9);
     },
@@ -3086,7 +3143,8 @@ void main() {
     expect(find.byKey(const ValueKey('cat-run-v2-canvas')), findsOneWidget);
     expect(
       find.text(
-        'DIRECT VECTOR FRAME PLAYBACK · NO MORPH / RESAMPLING / ARTICULATION',
+        'V2.2: SHOULDER / PELVIS / VIRTUAL GROUND · '
+        'NO MORPH / RESAMPLING / ARTICULATION',
       ),
       findsOneWidget,
     );
