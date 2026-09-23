@@ -3113,29 +3113,30 @@ void main() {
   );
 
   test(
-    'CAT RUN V2.7 uses minimum contact holds and extension scale continuity',
+    'CAT RUN V2.8 uses 25ms contact holds and preserves extension scale continuity',
     () {
       expect(
-        CatRunV27Timing.frameDurations.map(
+        CatRunV28Timing.frameDurations.map(
           (duration) => duration.inMilliseconds,
         ),
-        [90, 35, 35, 90, 88, 35, 40, 90, 88, 90],
+        [90, 25, 25, 90, 88, 25, 30, 90, 88, 90],
       );
-      expect(CatRunV27Timing.cycleDuration, const Duration(milliseconds: 681));
+      // The specified 01–10 holds sum to 641ms.
+      expect(CatRunV28Timing.cycleDuration, const Duration(milliseconds: 641));
       for (final index in [1, 2, 5, 6]) {
         expect(
-          CatRunV27Timing.frameDurations[index].inMilliseconds,
-          inInclusiveRange(30, 45),
+          CatRunV28Timing.frameDurations[index].inMilliseconds,
+          inInclusiveRange(25, 30),
         );
       }
       for (final index in [0, 3, 4, 7, 8, 9]) {
         expect(
-          CatRunV27Timing.frameDurations[index].inMilliseconds,
+          CatRunV28Timing.frameDurations[index].inMilliseconds,
           inInclusiveRange(85, 95),
         );
       }
-      expect(CatRunV27Timing.frameAtCycleProgress(0), 0);
-      expect(CatRunV27Timing.frameAtCycleProgress(.999999), 9);
+      expect(CatRunV28Timing.frameAtCycleProgress(0), 0);
+      expect(CatRunV28Timing.frameAtCycleProgress(.999999), 9);
       expect(CatRunV24ScaleAudit.correctionFor(1), 1.04);
       expect(CatRunV24ScaleAudit.correctionFor(2), 1.02);
       expect(CatRunV24ScaleAudit.correctionFor(10), 1.02);

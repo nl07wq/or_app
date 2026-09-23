@@ -7,19 +7,19 @@ import 'cat_run_v2_trace_data.dart';
 
 enum CatRunV23Direction { leftToRight, rightToLeft }
 
-/// V2.7 presentation timing only. V2.2's source timing remains frozen in
+/// V2.8 presentation timing only. V2.2's source timing remains frozen in
 /// [CatRunV2Registration]; these holds apply solely to the 48px travel POC.
-class CatRunV27Timing {
-  CatRunV27Timing._();
+class CatRunV28Timing {
+  CatRunV28Timing._();
 
   static const frameDurations = <Duration>[
     Duration(milliseconds: 90),
-    Duration(milliseconds: 35),
-    Duration(milliseconds: 35),
+    Duration(milliseconds: 25),
+    Duration(milliseconds: 25),
     Duration(milliseconds: 90),
     Duration(milliseconds: 88),
-    Duration(milliseconds: 35),
-    Duration(milliseconds: 40),
+    Duration(milliseconds: 25),
+    Duration(milliseconds: 30),
     Duration(milliseconds: 90),
     Duration(milliseconds: 88),
     Duration(milliseconds: 90),
@@ -200,8 +200,8 @@ class CatRunV24Travel {
     final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
     final elapsedMicroseconds = (crossingDuration.inMicroseconds * safeProgress)
         .round();
-    final cycleMicroseconds = CatRunV27Timing.cycleDuration.inMicroseconds;
-    return CatRunV27Timing.frameAtCycleProgress(
+    final cycleMicroseconds = CatRunV28Timing.cycleDuration.inMicroseconds;
+    return CatRunV28Timing.frameAtCycleProgress(
       (elapsedMicroseconds % cycleMicroseconds) / cycleMicroseconds,
     );
   }
@@ -232,7 +232,7 @@ class CatRunV24Travel {
     if (!isStanceFrame(frameIndex)) return 0;
     final start = _frameStartMicroseconds(frameIndex);
     final end =
-        start + CatRunV27Timing.frameDurations[frameIndex].inMicroseconds;
+        start + CatRunV28Timing.frameDurations[frameIndex].inMicroseconds;
     final startProgress = start / crossingDuration.inMicroseconds;
     final endProgress = end / crossingDuration.inMicroseconds;
     final before = horizontalPosition(
@@ -255,7 +255,7 @@ class CatRunV24Travel {
   }) {
     if (!isStanceFrame(frameIndex)) return 0;
     return (stageWidth + (offstagePadding * 2)) *
-        CatRunV27Timing.frameDurations[frameIndex].inMicroseconds /
+        CatRunV28Timing.frameDurations[frameIndex].inMicroseconds /
         crossingDuration.inMicroseconds;
   }
 
@@ -296,11 +296,11 @@ class CatRunV24Travel {
   /// Smoothstep blending keeps root position and velocity continuous at
   /// flight/contact acquisition and release without altering any frame path.
   static double _speedWeightAt(int elapsedMicroseconds) {
-    final cycleMicroseconds = CatRunV27Timing.cycleDuration.inMicroseconds;
+    final cycleMicroseconds = CatRunV28Timing.cycleDuration.inMicroseconds;
     final inCycle = elapsedMicroseconds % cycleMicroseconds;
     var frameStart = 0;
     for (var index = 0; index < catRunV2HighTraces.length; index++) {
-      final duration = CatRunV27Timing.frameDurations[index].inMicroseconds;
+      final duration = CatRunV28Timing.frameDurations[index].inMicroseconds;
       final frameEnd = frameStart + duration;
       if (inCycle < frameEnd) {
         final local = inCycle - frameStart;
@@ -345,7 +345,7 @@ class CatRunV24Travel {
   static double _lerp(double from, double to, double t) =>
       from + ((to - from) * t);
 
-  static int _frameStartMicroseconds(int frameIndex) => CatRunV27Timing
+  static int _frameStartMicroseconds(int frameIndex) => CatRunV28Timing
       .frameDurations
       .take(frameIndex)
       .fold(0, (total, duration) => total + duration.inMicroseconds);

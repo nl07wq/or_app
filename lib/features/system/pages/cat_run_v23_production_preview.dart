@@ -106,7 +106,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
       children: [
         const SectionHeader(
           icon: Icons.directions_run,
-          title: 'CAT RUN V2.7 — PRODUCTION PREVIEW',
+          title: 'CAT RUN V2.8 — PRODUCTION PREVIEW',
         ),
         AppSpacing.gapSM,
         OperationCard(
@@ -170,7 +170,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                 },
               ),
               const Text(
-                'V2.7: MINIMUM CONTACT + EXTENSION SCALE + STANCE-FOOT ROOT LOCK · FROZEN V2.2 HIGH / REGISTRATION / '
+                'V2.8: 25MS CONTACT TEST + EXTENSION SCALE + STANCE-FOOT ROOT LOCK · FROZEN V2.2 HIGH / REGISTRATION / '
                 'CONTACT / TIMING · NO MORPH / RESAMPLING / ARTICULATION',
               ),
             ],
