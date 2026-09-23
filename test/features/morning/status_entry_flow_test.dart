@@ -7,6 +7,7 @@ import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
+import 'package:or_app/features/command_center/widgets/command_center_hud_sign.dart';
 import 'package:or_app/features/morning/morning_fact_page.dart';
 import 'package:or_app/features/morning/morning_page.dart';
 import 'package:or_app/features/morning/services/morning_submit_service.dart';
@@ -196,7 +197,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
-      expect(find.text('COMMAND CENTER'), findsOneWidget);
+      expect(find.text('COMMANDER CENTER'), findsOneWidget);
       final briefDebriefTab = tester.widget<Text>(
         find.descendant(
           of: find.byKey(const ValueKey('command-center-tab-1')),
@@ -217,7 +218,7 @@ void main() {
       );
       expect(find.textContaining('LATEST BRIEF'), findsOneWidget);
       expect(find.text('DASHBOARD TEST'), findsNothing);
-      expect(find.byType(BackButton), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
       final scrollable = tester.state<ScrollableState>(
         find.descendant(
           of: find.byKey(const ValueKey('morning-brief-content')),
@@ -226,7 +227,7 @@ void main() {
       );
       expect(scrollable.position.pixels, 0);
 
-      await tester.tap(find.byType(BackButton));
+      await tester.tap(find.byKey(CommandCenterHudSign.backKey));
       await tester.pumpAndSettle();
       expect(find.text('DASHBOARD TEST'), findsOneWidget);
     },
@@ -260,9 +261,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
-      expect(find.byType(BackButton), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
 
-      await tester.tap(find.byType(BackButton));
+      await tester.tap(find.byKey(CommandCenterHudSign.backKey));
       await tester.pumpAndSettle();
       expect(find.text('PARENT TEST'), findsOneWidget);
     },

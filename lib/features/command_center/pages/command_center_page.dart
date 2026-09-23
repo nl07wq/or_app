@@ -32,6 +32,7 @@ import '../services/daily_command_read_model_builder.dart';
 import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
+import '../widgets/command_center_hud_sign.dart';
 import '../widgets/semantic_help_popover.dart';
 import '../../report_sync/models/morning_brief_state.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
@@ -152,8 +153,18 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final route = ModalRoute.of(context);
+    final canPop = route?.canPop ?? Navigator.of(context).canPop();
     return Scaffold(
-      appBar: AppBar(title: const Text('COMMAND CENTER')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        toolbarHeight: CommandCenterHudSign.height + 8,
+        titleSpacing: 8,
+        title: CommandCenterHudSign(
+          canPop: canPop,
+          onBack: canPop ? () => Navigator.of(context).maybePop() : null,
+        ),
+      ),
       body: Column(
         children: [
           _WorkspaceHeader(

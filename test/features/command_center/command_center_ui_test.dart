@@ -14,6 +14,7 @@ import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
+import 'package:or_app/features/command_center/widgets/command_center_hud_sign.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
@@ -103,10 +104,10 @@ void main() {
   ) async {
     await _pump(tester, width: 390);
 
-    expect(find.text('COMMAND CENTER'), findsOneWidget);
-    expect(find.byType(BackButton), findsNothing);
+    expect(find.text('COMMANDER CENTER'), findsOneWidget);
+    expect(find.byKey(CommandCenterHudSign.backKey), findsNothing);
     expect(
-      Navigator.of(tester.element(find.text('COMMAND CENTER'))).canPop(),
+      Navigator.of(tester.element(find.text('COMMANDER CENTER'))).canPop(),
       isFalse,
     );
     expect(tester.takeException(), isNull);
@@ -147,9 +148,9 @@ void main() {
     await tester.tap(commandCenter);
     await tester.pumpAndSettle();
     expect(find.byType(CommandCenterPage), findsOneWidget);
-    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
 
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byKey(CommandCenterHudSign.backKey));
     await _settleDashboard(tester);
     expect(find.byType(DashboardPage), findsOneWidget);
     expect(find.byType(CommandCenterPage), findsNothing);
