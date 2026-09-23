@@ -95,16 +95,43 @@ class CatRunV24ScaleAudit {
 
   static double correctionFor(int pose) => uniformCorrections[pose]!;
 
+  /// V2.9 addresses only the measured vertical body-mass dip around the
+  /// extended pose. These modifiers are relative to the frozen V2.7 uniform
+  /// corrections and form a continuous 09 → 10 → 01 → 02 → 03 envelope.
+  static const verticalProportionCorrections = <int, double>{
+    1: 1.04,
+    2: 1.02,
+    3: 1,
+    4: 1,
+    5: 1,
+    6: 1,
+    7: 1,
+    8: 1,
+    9: 1,
+    10: 1.01,
+  };
+
+  static double scaleXFor(int pose) => correctionFor(pose);
+
+  static double scaleYFor(int pose) =>
+      correctionFor(pose) * verticalProportionCorrections[pose]!;
+
   static List<Offset> correctedPoints(CatRunV2Trace trace) {
     final points = CatRunV2Registration.registeredPoints(trace);
-    final correction = correctionFor(trace.pose);
-    if (correction == 1) return points;
+    final scaleX = scaleXFor(trace.pose);
+    final scaleY = scaleYFor(trace.pose);
+    if (scaleX == 1 && scaleY == 1) return points;
     // Contact frames scale around their planted stance paw so the perceptual
     // body-mass correction cannot move the already registered ground contact.
     // Flight frames retain the torso anchor used by the registration audit.
     final anchor = CatRunV2Registration.stancePaw(trace) ?? _torsoAnchor(trace);
     return List<Offset>.unmodifiable(
-      points.map((point) => anchor + ((point - anchor) * correction)),
+      points.map(
+        (point) => Offset(
+          anchor.dx + ((point.dx - anchor.dx) * scaleX),
+          anchor.dy + ((point.dy - anchor.dy) * scaleY),
+        ),
+      ),
     );
   }
 

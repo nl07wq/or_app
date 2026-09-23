@@ -3113,7 +3113,7 @@ void main() {
   );
 
   test(
-    'CAT RUN V2.8 uses 25ms contact holds and preserves extension scale continuity',
+    'CAT RUN V2.9 preserves V2.8 timing and bounds the body-proportion envelope',
     () {
       expect(
         CatRunV28Timing.frameDurations.map(
@@ -3151,6 +3151,28 @@ void main() {
         ),
         isTrue,
       );
+      expect(CatRunV24ScaleAudit.verticalProportionCorrections[9], 1);
+      expect(CatRunV24ScaleAudit.verticalProportionCorrections[10], 1.01);
+      expect(CatRunV24ScaleAudit.verticalProportionCorrections[1], 1.04);
+      expect(CatRunV24ScaleAudit.verticalProportionCorrections[2], 1.02);
+      expect(CatRunV24ScaleAudit.verticalProportionCorrections[3], 1);
+      expect(
+        CatRunV24ScaleAudit.verticalProportionCorrections.values.every(
+          (scale) => scale >= 1 && scale <= 1.04,
+        ),
+        isTrue,
+      );
+      expect(CatRunV24ScaleAudit.scaleXFor(1), 1.04);
+      expect(CatRunV24ScaleAudit.scaleYFor(1), closeTo(1.0816, 1e-9));
+      final verticalEnvelope = List<double>.generate(
+        10,
+        (index) =>
+            CatRunV24ScaleAudit.verticalProportionCorrections[index + 1]!,
+      );
+      for (var index = 0; index < verticalEnvelope.length; index++) {
+        final next = verticalEnvelope[(index + 1) % verticalEnvelope.length];
+        expect((verticalEnvelope[index] - next).abs(), lessThan(.031));
+      }
       final contactTrace = catRunV2HighTraces[1];
       final stancePaw = CatRunV2Registration.stancePaw(contactTrace)!;
       expect(
