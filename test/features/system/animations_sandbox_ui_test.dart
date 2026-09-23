@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
+import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -3318,6 +3320,52 @@ void main() {
     }
   });
 
+  test(
+    'CAT coat variants preserve frozen HIGH geometry and random contract',
+    () {
+      expect(CatRunCoatPatterns.visualVariants, hasLength(5));
+      expect(CatRunCoatPatterns.visualVariants, const [
+        CatRunCoatVariant.normal,
+        CatRunCoatVariant.hachiware,
+        CatRunCoatVariant.calico,
+        CatRunCoatVariant.kijitora,
+        CatRunCoatVariant.sabi,
+      ]);
+      expect(CatRunCoatPatterns.probabilities.values, everyElement(.2));
+      expect(
+        CatRunCoatPatterns.probabilities.values.reduce(
+          (sum, value) => sum + value,
+        ),
+        1,
+      );
+      final random = math.Random(7);
+      for (var index = 0; index < 100; index++) {
+        expect(
+          CatRunCoatPatterns.visualVariants,
+          contains(CatRunCoatPatterns.chooseRandom(random)),
+        );
+      }
+
+      for (final trace in catRunV2HighTraces) {
+        final original = List<Offset>.of(trace.points);
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+        final path = Path()
+          ..addPolygon(CatRunV24ScaleAudit.correctedPoints(trace), true);
+        for (final variant in CatRunCoatPatterns.visualVariants) {
+          CatRunCoatPatterns.paint(
+            canvas: canvas,
+            silhouette: path,
+            trace: trace,
+            variant: variant,
+          );
+        }
+        recorder.endRecording().dispose();
+        expect(trace.points, original);
+      }
+    },
+  );
+
   testWidgets('CAT RUN V2 switches complete HIGH frames without morphing', (
     tester,
   ) async {
@@ -3397,6 +3445,12 @@ void main() {
         'cat-run-v23-direction-rightToLeft',
         'cat-run-v23-speed-0.5',
         'cat-run-v23-speed-1.0',
+        'cat-run-v23-coat-normal',
+        'cat-run-v23-coat-hachiware',
+        'cat-run-v23-coat-calico',
+        'cat-run-v23-coat-kijitora',
+        'cat-run-v23-coat-sabi',
+        'cat-run-v23-coat-random',
       ]) {
         final control = find.byKey(ValueKey(key));
         await tester.ensureVisible(control);
@@ -3404,6 +3458,19 @@ void main() {
         await tester.pump(const Duration(milliseconds: 20));
         expect(tester.takeException(), isNull);
       }
+      await tester.tap(
+        find.byKey(const ValueKey('cat-run-v23-coat-hachiware')),
+      );
+      await tester.pump();
+      expect(find.textContaining('HACHIWARE'), findsWidgets);
+      await tester.tap(
+        find.byKey(const ValueKey('cat-run-v23-direction-rightToLeft')),
+      );
+      await tester.pump();
+      expect(find.textContaining('HACHIWARE'), findsWidgets);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v23-coat-random')));
+      await tester.pump();
+      expect(find.textContaining('RANDOM:'), findsOneWidget);
     },
   );
 
@@ -3423,6 +3490,10 @@ void main() {
       expect(find.byKey(const ValueKey('cat-run-v23-stage')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('cat-run-v23-direction-rightToLeft')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('cat-run-v23-coat-random')),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);

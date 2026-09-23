@@ -134,6 +134,23 @@ class CatRunV24ScaleAudit {
     );
   }
 
+  /// Applies the same presentation-only correction used by [correctedPoints]
+  /// to an anatomical reference point. Coat overlays use this so their local
+  /// coordinate system follows the registered body rather than the canvas.
+  static Offset correctedAnatomicalPoint(
+    CatRunV2Trace trace,
+    Offset registeredPoint,
+  ) {
+    final scaleX = scaleXFor(trace.pose);
+    final scaleY = scaleYFor(trace.pose);
+    if (scaleX == 1 && scaleY == 1) return registeredPoint;
+    final anchor = CatRunV2Registration.stancePaw(trace) ?? _torsoAnchor(trace);
+    return Offset(
+      anchor.dx + ((registeredPoint.dx - anchor.dx) * scaleX),
+      anchor.dy + ((registeredPoint.dy - anchor.dy) * scaleY),
+    );
+  }
+
   static CatRunV24ScaleMetrics _measure(CatRunV2Trace trace) {
     final points = CatRunV2Registration.registeredPoints(trace);
     final minX = points.map((point) => point.dx).reduce(math.min);
