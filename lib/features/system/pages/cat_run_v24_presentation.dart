@@ -7,6 +7,41 @@ import 'cat_run_v2_trace_data.dart';
 
 enum CatRunV23Direction { leftToRight, rightToLeft }
 
+/// V2.5 presentation timing only. V2.2's source timing remains frozen in
+/// [CatRunV2Registration]; these holds apply solely to the 48px travel POC.
+class CatRunV25Timing {
+  CatRunV25Timing._();
+
+  static const frameDurations = <Duration>[
+    Duration(milliseconds: 90),
+    Duration(milliseconds: 62),
+    Duration(milliseconds: 63),
+    Duration(milliseconds: 90),
+    Duration(milliseconds: 88),
+    Duration(milliseconds: 62),
+    Duration(milliseconds: 68),
+    Duration(milliseconds: 90),
+    Duration(milliseconds: 88),
+    Duration(milliseconds: 90),
+  ];
+
+  static final cycleDuration = frameDurations.fold<Duration>(
+    Duration.zero,
+    (total, duration) => total + duration,
+  );
+
+  static int frameAtCycleProgress(double progress) {
+    final target =
+        progress.clamp(0.0, 0.999999).toDouble() * cycleDuration.inMicroseconds;
+    var elapsed = 0;
+    for (var index = 0; index < frameDurations.length; index++) {
+      elapsed += frameDurations[index].inMicroseconds;
+      if (target < elapsed) return index;
+    }
+    return 0;
+  }
+}
+
 /// Measured from registered geometry only. The frozen HIGH point arrays are
 /// never edited by this audit or by the presentation layer.
 class CatRunV24ScaleMetrics {
@@ -138,8 +173,8 @@ class CatRunV24Travel {
     final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
     final elapsedMicroseconds = (crossingDuration.inMicroseconds * safeProgress)
         .round();
-    final cycleMicroseconds = CatRunV2Registration.cycleDuration.inMicroseconds;
-    return CatRunV2Registration.frameAtCycleProgress(
+    final cycleMicroseconds = CatRunV25Timing.cycleDuration.inMicroseconds;
+    return CatRunV25Timing.frameAtCycleProgress(
       (elapsedMicroseconds % cycleMicroseconds) / cycleMicroseconds,
     );
   }
@@ -170,7 +205,7 @@ class CatRunV24Travel {
     if (!isStanceFrame(frameIndex)) return 0;
     final start = _frameStartMicroseconds(frameIndex);
     final end =
-        start + CatRunV2Registration.frameDurations[frameIndex].inMicroseconds;
+        start + CatRunV25Timing.frameDurations[frameIndex].inMicroseconds;
     final startProgress = start / crossingDuration.inMicroseconds;
     final endProgress = end / crossingDuration.inMicroseconds;
     final before = horizontalPosition(
@@ -193,7 +228,7 @@ class CatRunV24Travel {
   }) {
     if (!isStanceFrame(frameIndex)) return 0;
     return (stageWidth + (offstagePadding * 2)) *
-        CatRunV2Registration.frameDurations[frameIndex].inMicroseconds /
+        CatRunV25Timing.frameDurations[frameIndex].inMicroseconds /
         crossingDuration.inMicroseconds;
   }
 
@@ -234,12 +269,11 @@ class CatRunV24Travel {
   /// Smoothstep blending keeps root position and velocity continuous at
   /// flight/contact acquisition and release without altering any frame path.
   static double _speedWeightAt(int elapsedMicroseconds) {
-    final cycleMicroseconds = CatRunV2Registration.cycleDuration.inMicroseconds;
+    final cycleMicroseconds = CatRunV25Timing.cycleDuration.inMicroseconds;
     final inCycle = elapsedMicroseconds % cycleMicroseconds;
     var frameStart = 0;
     for (var index = 0; index < catRunV2HighTraces.length; index++) {
-      final duration =
-          CatRunV2Registration.frameDurations[index].inMicroseconds;
+      final duration = CatRunV25Timing.frameDurations[index].inMicroseconds;
       final frameEnd = frameStart + duration;
       if (inCycle < frameEnd) {
         final local = inCycle - frameStart;
@@ -284,7 +318,7 @@ class CatRunV24Travel {
   static double _lerp(double from, double to, double t) =>
       from + ((to - from) * t);
 
-  static int _frameStartMicroseconds(int frameIndex) => CatRunV2Registration
+  static int _frameStartMicroseconds(int frameIndex) => CatRunV25Timing
       .frameDurations
       .take(frameIndex)
       .fold(0, (total, duration) => total + duration.inMicroseconds);

@@ -3111,6 +3111,28 @@ void main() {
     },
   );
 
+  test('CAT RUN V2.5 shortens only contact/support presentation holds', () {
+    expect(
+      CatRunV25Timing.frameDurations.map((duration) => duration.inMilliseconds),
+      [90, 62, 63, 90, 88, 62, 68, 90, 88, 90],
+    );
+    expect(CatRunV25Timing.cycleDuration, const Duration(milliseconds: 791));
+    for (final index in [1, 2, 5, 6]) {
+      expect(
+        CatRunV25Timing.frameDurations[index].inMilliseconds,
+        lessThan(70),
+      );
+    }
+    for (final index in [0, 3, 4, 7, 8, 9]) {
+      expect(
+        CatRunV25Timing.frameDurations[index].inMilliseconds,
+        inInclusiveRange(85, 95),
+      );
+    }
+    expect(CatRunV25Timing.frameAtCycleProgress(0), 0);
+    expect(CatRunV25Timing.frameAtCycleProgress(.999999), 9);
+  });
+
   test(
     'CAT RUN V2 registers frozen frames without changing their geometry',
     () {
