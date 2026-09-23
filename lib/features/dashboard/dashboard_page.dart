@@ -59,7 +59,7 @@ import '../report_sync/models/morning_brief_state.dart';
 import 'models/dynamic_daily_target.dart';
 import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
-import 'widgets/dashboard_ambient_wildlife_stage.dart';
+import 'widgets/dashboard_cat_run_stage.dart';
 
 /// A single, pre-planned electrical phase for the Dashboard brand sign.
 ///
@@ -541,6 +541,10 @@ class _DashboardPageState extends State<DashboardPage> {
   late final FinalizeDateTransition? _dashboardFinalizeTransition;
   int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _wildlifeNaturalSlotKey = GlobalKey();
+  final GlobalKey _dashboardViewportKey = GlobalKey();
+  Rect? _wildlifeStageRect;
+  bool _wildlifeMeasurementQueued = false;
 
   @override
   void initState() {
@@ -553,6 +557,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _informationNoticesFuture = _informationService.activeNotices();
     informationNoticeRevision.addListener(_refreshInformation);
     morningBriefRevisionNotifier.addListener(_refreshInformation);
+    _scrollController.addListener(_scheduleWildlifeMeasurement);
     if (finalizeTransition != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _playFinalizeDateTransition(finalizeTransition);
@@ -564,6 +569,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void dispose() {
     informationNoticeRevision.removeListener(_refreshInformation);
     morningBriefRevisionNotifier.removeListener(_refreshInformation);
+    _scrollController.removeListener(_scheduleWildlifeMeasurement);
     _scrollController.dispose();
     super.dispose();
   }
@@ -572,6 +578,26 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     setState(() {
       _informationNoticesFuture = _informationService.activeNotices();
+    });
+  }
+
+  void _scheduleWildlifeMeasurement() {
+    if (_wildlifeMeasurementQueued || !mounted) return;
+    _wildlifeMeasurementQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _wildlifeMeasurementQueued = false;
+      if (!mounted) return;
+      final slot = _wildlifeNaturalSlotKey.currentContext?.findRenderObject();
+      final viewport = _dashboardViewportKey.currentContext?.findRenderObject();
+      if (slot is! RenderBox || viewport is! RenderBox) return;
+      final naturalOrigin = slot.localToGlobal(Offset.zero, ancestor: viewport);
+      final naturalRect = naturalOrigin & slot.size;
+      final next = dashboardAdaptiveCatStageRect(
+        naturalSlotRect: naturalRect,
+        viewportSize: viewport.size,
+        safeBottom: MediaQuery.paddingOf(context).bottom,
+      );
+      if (_wildlifeStageRect != next) setState(() => _wildlifeStageRect = next);
     });
   }
 
@@ -614,102 +640,130 @@ class _DashboardPageState extends State<DashboardPage> {
                             builder: (context, dashboardConstraints) {
                               final useLargeLayout =
                                   dashboardConstraints.maxWidth >= 900;
-                              return ListView(
-                                key: const ValueKey('dashboard-scroll-view'),
-                                controller: _scrollController,
-                                padding: AppSpacing.cardPadding,
+                              _scheduleWildlifeMeasurement();
+                              final fallbackStageRect = Rect.fromLTWH(
+                                AppSpacing.lg,
+                                dashboardConstraints.maxHeight -
+                                    MediaQuery.paddingOf(context).bottom -
+                                    DashboardCatRunStage.height,
+                                dashboardConstraints.maxWidth -
+                                    (AppSpacing.lg * 2),
+                                DashboardCatRunStage.height,
+                              );
+                              return Stack(
+                                key: _dashboardViewportKey,
                                 children: [
-                                  Center(
-                                    child: ConstrainedBox(
-                                      key: const ValueKey(
-                                        'dashboard-main-content',
-                                      ),
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 1280,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          _OperationDateCard(
-                                            operationDateFuture:
-                                                _operationDateFuture,
-                                            transitionToken:
-                                                _operationDateTransitionToken,
-                                            finalizeTransition:
-                                                _dashboardFinalizeTransition,
-                                          ),
-                                          FutureBuilder<
-                                            List<InformationNotice>
-                                          >(
-                                            future: _informationNoticesFuture,
-                                            builder: (context, snapshot) {
-                                              final notices =
-                                                  snapshot.data ?? const [];
-                                              if (notices.isEmpty) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              return Column(
-                                                children: [
-                                                  AppSpacing.gapSM,
-                                                  DashboardInformationStrip(
-                                                    notices: notices,
-                                                    onTap: () =>
-                                                        _showInformation(
-                                                          notices,
-                                                        ),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                          AppSpacing.gapLG,
-                                          ValueListenableBuilder<int>(
-                                            valueListenable:
-                                                morningBriefRevisionNotifier,
-                                            builder: (context, revision, _) =>
-                                                _DashboardOperationOverview(
-                                                  morningFact: morningFact,
-                                                  estimatedTDEE: estimatedTDEE,
-                                                  foodSummary: foodSummary,
-                                                  trainingSummary:
-                                                      trainingSummary,
-                                                  activitySummary:
-                                                      activitySummary,
-                                                  refreshToken:
-                                                      _operationDateTransitionToken,
-                                                  morningBriefRevision:
-                                                      revision,
-                                                  useLargeLayout:
-                                                      useLargeLayout,
-                                                  onWaterTap: isReadOnly
-                                                      ? null
-                                                      : () =>
-                                                            _showQuickWaterInput(
-                                                              context,
-                                                            ),
-                                                ),
-                                          ),
-                                          AppSpacing.gapXL,
-                                          SectionHeader(
-                                            icon: Icons.bolt_outlined,
-                                            title: 'QUICK ACCESS',
-                                          ),
-                                          AppSpacing.gapSM,
-                                          _MorningButton(),
-                                          AppSpacing.gapMD,
-                                          _FoodButton(),
-                                          AppSpacing.gapMD,
-                                          _TrainingButton(),
-                                          AppSpacing.gapMD,
-                                          _ActivityButton(),
-                                          AppSpacing.gapMD,
-                                          _CommandCenterButton(),
-                                          AppSpacing.gapMD,
-                                          const DashboardAmbientWildlifeStage(),
-                                        ],
-                                      ),
+                                  ListView(
+                                    key: const ValueKey(
+                                      'dashboard-scroll-view',
                                     ),
+                                    controller: _scrollController,
+                                    padding: AppSpacing.cardPadding,
+                                    children: [
+                                      Center(
+                                        child: ConstrainedBox(
+                                          key: const ValueKey(
+                                            'dashboard-main-content',
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 1280,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              _OperationDateCard(
+                                                operationDateFuture:
+                                                    _operationDateFuture,
+                                                transitionToken:
+                                                    _operationDateTransitionToken,
+                                                finalizeTransition:
+                                                    _dashboardFinalizeTransition,
+                                              ),
+                                              FutureBuilder<
+                                                List<InformationNotice>
+                                              >(
+                                                future:
+                                                    _informationNoticesFuture,
+                                                builder: (context, snapshot) {
+                                                  final notices =
+                                                      snapshot.data ?? const [];
+                                                  if (notices.isEmpty) {
+                                                    return const SizedBox.shrink();
+                                                  }
+                                                  return Column(
+                                                    children: [
+                                                      AppSpacing.gapSM,
+                                                      DashboardInformationStrip(
+                                                        notices: notices,
+                                                        onTap: () =>
+                                                            _showInformation(
+                                                              notices,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                },
+                                              ),
+                                              AppSpacing.gapLG,
+                                              ValueListenableBuilder<int>(
+                                                valueListenable:
+                                                    morningBriefRevisionNotifier,
+                                                builder: (context, revision, _) =>
+                                                    _DashboardOperationOverview(
+                                                      morningFact: morningFact,
+                                                      estimatedTDEE:
+                                                          estimatedTDEE,
+                                                      foodSummary: foodSummary,
+                                                      trainingSummary:
+                                                          trainingSummary,
+                                                      activitySummary:
+                                                          activitySummary,
+                                                      refreshToken:
+                                                          _operationDateTransitionToken,
+                                                      morningBriefRevision:
+                                                          revision,
+                                                      useLargeLayout:
+                                                          useLargeLayout,
+                                                      onWaterTap: isReadOnly
+                                                          ? null
+                                                          : () =>
+                                                                _showQuickWaterInput(
+                                                                  context,
+                                                                ),
+                                                    ),
+                                              ),
+                                              AppSpacing.gapXL,
+                                              SectionHeader(
+                                                icon: Icons.bolt_outlined,
+                                                title: 'QUICK ACCESS',
+                                              ),
+                                              AppSpacing.gapSM,
+                                              _MorningButton(),
+                                              AppSpacing.gapMD,
+                                              _FoodButton(),
+                                              AppSpacing.gapMD,
+                                              _TrainingButton(),
+                                              AppSpacing.gapMD,
+                                              _ActivityButton(),
+                                              AppSpacing.gapMD,
+                                              _CommandCenterButton(),
+                                              AppSpacing.gapMD,
+                                              SizedBox(
+                                                key: _wildlifeNaturalSlotKey,
+                                                height:
+                                                    DashboardCatRunStage.height,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Positioned.fromRect(
+                                    rect:
+                                        _wildlifeStageRect ?? fallbackStageRect,
+                                    child: const DashboardCatRunStage(),
                                   ),
                                 ],
                               );

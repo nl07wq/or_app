@@ -153,7 +153,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                     height: CatRunV23Travel.stageHeight,
                     child: CustomPaint(
                       key: const ValueKey('cat-run-v23-stage'),
-                      painter: _CatRunV23StagePainter(
+                      painter: CatRunV23StagePainter(
                         progress: _controller.value,
                         direction: _direction,
                         coatVariant: _coatVariant,
@@ -227,8 +227,11 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
   }
 }
 
-class _CatRunV23StagePainter extends CustomPainter {
-  const _CatRunV23StagePainter({
+/// Shared vector painter for the frozen V2.10 production-scale CAT crossing.
+/// Dashboard scheduling supplies appearance state; this painter owns no timer
+/// and does not alter geometry, timing, registration, or coat data.
+class CatRunV23StagePainter extends CustomPainter {
+  const CatRunV23StagePainter({
     required this.progress,
     required this.direction,
     required this.coatVariant,
@@ -282,7 +285,7 @@ class _CatRunV23StagePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CatRunV23StagePainter oldDelegate) =>
+  bool shouldRepaint(covariant CatRunV23StagePainter oldDelegate) =>
       oldDelegate.progress != progress ||
       oldDelegate.direction != direction ||
       oldDelegate.coatVariant != coatVariant;
