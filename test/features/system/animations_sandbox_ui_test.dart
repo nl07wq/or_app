@@ -3149,6 +3149,14 @@ void main() {
         ),
         isTrue,
       );
+      final contactTrace = catRunV2HighTraces[1];
+      final stancePaw = CatRunV2Registration.stancePaw(contactTrace)!;
+      expect(
+        CatRunV24ScaleAudit.correctedPoints(
+          contactTrace,
+        ).any((point) => (point - stancePaw).distance < 1e-10),
+        isTrue,
+      );
     },
   );
 

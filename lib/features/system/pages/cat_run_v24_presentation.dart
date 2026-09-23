@@ -99,7 +99,10 @@ class CatRunV24ScaleAudit {
     final points = CatRunV2Registration.registeredPoints(trace);
     final correction = correctionFor(trace.pose);
     if (correction == 1) return points;
-    final anchor = _torsoAnchor(trace);
+    // Contact frames scale around their planted stance paw so the perceptual
+    // body-mass correction cannot move the already registered ground contact.
+    // Flight frames retain the torso anchor used by the registration audit.
+    final anchor = CatRunV2Registration.stancePaw(trace) ?? _torsoAnchor(trace);
     return List<Offset>.unmodifiable(
       points.map((point) => anchor + ((point - anchor) * correction)),
     );
