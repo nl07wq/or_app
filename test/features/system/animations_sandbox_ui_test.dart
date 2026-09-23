@@ -3111,37 +3111,46 @@ void main() {
     },
   );
 
-  test('CAT RUN V2.6 uses short contact holds and bounded uniform scale', () {
-    expect(
-      CatRunV26Timing.frameDurations.map((duration) => duration.inMilliseconds),
-      [90, 45, 45, 90, 88, 45, 50, 90, 88, 90],
-    );
-    expect(CatRunV26Timing.cycleDuration, const Duration(milliseconds: 721));
-    for (final index in [1, 2, 5, 6]) {
+  test(
+    'CAT RUN V2.7 uses minimum contact holds and extension scale continuity',
+    () {
       expect(
-        CatRunV26Timing.frameDurations[index].inMilliseconds,
-        inInclusiveRange(40, 50),
+        CatRunV27Timing.frameDurations.map(
+          (duration) => duration.inMilliseconds,
+        ),
+        [90, 35, 35, 90, 88, 35, 40, 90, 88, 90],
       );
-    }
-    for (final index in [0, 3, 4, 7, 8, 9]) {
+      expect(CatRunV27Timing.cycleDuration, const Duration(milliseconds: 681));
+      for (final index in [1, 2, 5, 6]) {
+        expect(
+          CatRunV27Timing.frameDurations[index].inMilliseconds,
+          inInclusiveRange(30, 45),
+        );
+      }
+      for (final index in [0, 3, 4, 7, 8, 9]) {
+        expect(
+          CatRunV27Timing.frameDurations[index].inMilliseconds,
+          inInclusiveRange(85, 95),
+        );
+      }
+      expect(CatRunV27Timing.frameAtCycleProgress(0), 0);
+      expect(CatRunV27Timing.frameAtCycleProgress(.999999), 9);
+      expect(CatRunV24ScaleAudit.correctionFor(1), 1.04);
+      expect(CatRunV24ScaleAudit.correctionFor(2), 1.02);
+      expect(CatRunV24ScaleAudit.correctionFor(10), 1.02);
+      for (final trace in catRunV2HighTraces.where(
+        (trace) => ![1, 2, 10].contains(trace.pose),
+      )) {
+        expect(CatRunV24ScaleAudit.correctionFor(trace.pose), 1);
+      }
       expect(
-        CatRunV26Timing.frameDurations[index].inMilliseconds,
-        inInclusiveRange(85, 95),
+        CatRunV24ScaleAudit.uniformCorrections.values.every(
+          (scale) => scale >= 1 && scale <= 1.06,
+        ),
+        isTrue,
       );
-    }
-    expect(CatRunV26Timing.frameAtCycleProgress(0), 0);
-    expect(CatRunV26Timing.frameAtCycleProgress(.999999), 9);
-    expect(CatRunV24ScaleAudit.correctionFor(1), 1.04);
-    for (final trace in catRunV2HighTraces.skip(1)) {
-      expect(CatRunV24ScaleAudit.correctionFor(trace.pose), 1);
-    }
-    expect(
-      CatRunV24ScaleAudit.uniformCorrections.values.every(
-        (scale) => scale >= 1 && scale <= 1.06,
-      ),
-      isTrue,
-    );
-  });
+    },
+  );
 
   test(
     'CAT RUN V2 registers frozen frames without changing their geometry',

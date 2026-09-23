@@ -7,19 +7,19 @@ import 'cat_run_v2_trace_data.dart';
 
 enum CatRunV23Direction { leftToRight, rightToLeft }
 
-/// V2.6 presentation timing only. V2.2's source timing remains frozen in
+/// V2.7 presentation timing only. V2.2's source timing remains frozen in
 /// [CatRunV2Registration]; these holds apply solely to the 48px travel POC.
-class CatRunV26Timing {
-  CatRunV26Timing._();
+class CatRunV27Timing {
+  CatRunV27Timing._();
 
   static const frameDurations = <Duration>[
     Duration(milliseconds: 90),
-    Duration(milliseconds: 45),
-    Duration(milliseconds: 45),
+    Duration(milliseconds: 35),
+    Duration(milliseconds: 35),
     Duration(milliseconds: 90),
     Duration(milliseconds: 88),
-    Duration(milliseconds: 45),
-    Duration(milliseconds: 50),
+    Duration(milliseconds: 35),
+    Duration(milliseconds: 40),
     Duration(milliseconds: 90),
     Duration(milliseconds: 88),
     Duration(milliseconds: 90),
@@ -77,12 +77,12 @@ class CatRunV24ScaleAudit {
     catRunV2HighTraces.map(_measure),
   );
 
-  /// Pose 01 is the only consistent body-mass outlier across head, chest,
-  /// torso-length and area measures. This is a uniform display correction
-  /// around its torso anchor, never a HIGH-path edit.
+  /// Body-mass metrics identify pose 01 as undersized. The neighbouring
+  /// extension/acquisition poses receive a smaller uniform ramp so that the
+  /// 10 → 01 → 02 cycle does not present an isolated display-scale spike.
   static const uniformCorrections = <int, double>{
     1: 1.04,
-    2: 1,
+    2: 1.02,
     3: 1,
     4: 1,
     5: 1,
@@ -90,7 +90,7 @@ class CatRunV24ScaleAudit {
     7: 1,
     8: 1,
     9: 1,
-    10: 1,
+    10: 1.02,
   };
 
   static double correctionFor(int pose) => uniformCorrections[pose]!;
@@ -197,8 +197,8 @@ class CatRunV24Travel {
     final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
     final elapsedMicroseconds = (crossingDuration.inMicroseconds * safeProgress)
         .round();
-    final cycleMicroseconds = CatRunV26Timing.cycleDuration.inMicroseconds;
-    return CatRunV26Timing.frameAtCycleProgress(
+    final cycleMicroseconds = CatRunV27Timing.cycleDuration.inMicroseconds;
+    return CatRunV27Timing.frameAtCycleProgress(
       (elapsedMicroseconds % cycleMicroseconds) / cycleMicroseconds,
     );
   }
@@ -229,7 +229,7 @@ class CatRunV24Travel {
     if (!isStanceFrame(frameIndex)) return 0;
     final start = _frameStartMicroseconds(frameIndex);
     final end =
-        start + CatRunV26Timing.frameDurations[frameIndex].inMicroseconds;
+        start + CatRunV27Timing.frameDurations[frameIndex].inMicroseconds;
     final startProgress = start / crossingDuration.inMicroseconds;
     final endProgress = end / crossingDuration.inMicroseconds;
     final before = horizontalPosition(
@@ -252,7 +252,7 @@ class CatRunV24Travel {
   }) {
     if (!isStanceFrame(frameIndex)) return 0;
     return (stageWidth + (offstagePadding * 2)) *
-        CatRunV26Timing.frameDurations[frameIndex].inMicroseconds /
+        CatRunV27Timing.frameDurations[frameIndex].inMicroseconds /
         crossingDuration.inMicroseconds;
   }
 
@@ -293,11 +293,11 @@ class CatRunV24Travel {
   /// Smoothstep blending keeps root position and velocity continuous at
   /// flight/contact acquisition and release without altering any frame path.
   static double _speedWeightAt(int elapsedMicroseconds) {
-    final cycleMicroseconds = CatRunV26Timing.cycleDuration.inMicroseconds;
+    final cycleMicroseconds = CatRunV27Timing.cycleDuration.inMicroseconds;
     final inCycle = elapsedMicroseconds % cycleMicroseconds;
     var frameStart = 0;
     for (var index = 0; index < catRunV2HighTraces.length; index++) {
-      final duration = CatRunV26Timing.frameDurations[index].inMicroseconds;
+      final duration = CatRunV27Timing.frameDurations[index].inMicroseconds;
       final frameEnd = frameStart + duration;
       if (inCycle < frameEnd) {
         final local = inCycle - frameStart;
@@ -342,7 +342,7 @@ class CatRunV24Travel {
   static double _lerp(double from, double to, double t) =>
       from + ((to - from) * t);
 
-  static int _frameStartMicroseconds(int frameIndex) => CatRunV26Timing
+  static int _frameStartMicroseconds(int frameIndex) => CatRunV27Timing
       .frameDurations
       .take(frameIndex)
       .fold(0, (total, duration) => total + duration.inMicroseconds);
