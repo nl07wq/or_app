@@ -13,6 +13,7 @@ import 'package:or_app/features/system/pages/cat_trace_motion_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
+import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -3130,6 +3131,35 @@ void main() {
     },
   );
 
+  test('CAT RUN V2.3 adds only constant-velocity travel presentation', () {
+    expect(CatRunV23Travel.stageHeight, 48);
+    expect(CatRunV23Travel.catUnit, 110);
+    expect(CatRunV23Travel.crossingDuration, const Duration(seconds: 3));
+    expect(
+      CatRunV2Registration.frameDurations.map((value) => value.inMilliseconds),
+      [86, 90, 90, 88, 88, 90, 92, 88, 86, 88],
+    );
+    for (final width in [320.0, 390.0, 900.0]) {
+      expect(
+        CatRunV23Travel.horizontalPosition(stageWidth: width, progress: 0),
+        lessThan(0),
+      );
+      expect(
+        CatRunV23Travel.horizontalPosition(stageWidth: width, progress: 1),
+        greaterThan(width),
+      );
+      expect(CatRunV23Travel.velocityFor(width), greaterThan(0));
+    }
+    for (final progress in [0.0, .1, .25, .5, .75, .999999]) {
+      final frame = CatRunV23Travel.frameAtTravelProgress(progress);
+      expect(frame, inInclusiveRange(0, 9));
+      expect(
+        CatRunV23Travel.registeredPointsAt(progress),
+        hasLength(catRunV2HighTraces[frame].pointCount),
+      );
+    }
+  });
+
   testWidgets('CAT RUN V2 switches complete HIGH frames without morphing', (
     tester,
   ) async {
@@ -3184,6 +3214,59 @@ void main() {
       );
       expect(find.byKey(const ValueKey('cat-run-v2-frame-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('cat-run-v2-scale-4')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'CAT RUN V2.3 previews direct HIGH frames in a 48px travel stage',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 8000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final section = find.byKey(
+        const ValueKey('cat-run-v23-production-preview'),
+      );
+      await tester.scrollUntilVisible(section, 350);
+      final stage = find.byKey(const ValueKey('cat-run-v23-stage'));
+      expect(stage, findsOneWidget);
+      expect(tester.getSize(stage).height, 48);
+      for (final key in [
+        'cat-run-v23-play-restart',
+        'cat-run-v23-direction-leftToRight',
+        'cat-run-v23-direction-rightToLeft',
+        'cat-run-v23-speed-0.5',
+        'cat-run-v23-speed-1.0',
+      ]) {
+        final control = find.byKey(ValueKey(key));
+        await tester.ensureVisible(control);
+        await tester.tap(control);
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('CAT RUN V2.3 controls remain accessible at 320, 390, and 900', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 8000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v23-production-preview')),
+        350,
+      );
+      expect(find.byKey(const ValueKey('cat-run-v23-stage')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('cat-run-v23-direction-rightToLeft')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     }
   });
