@@ -7,19 +7,19 @@ import 'cat_run_v2_trace_data.dart';
 
 enum CatRunV23Direction { leftToRight, rightToLeft }
 
-/// V2.5 presentation timing only. V2.2's source timing remains frozen in
+/// V2.6 presentation timing only. V2.2's source timing remains frozen in
 /// [CatRunV2Registration]; these holds apply solely to the 48px travel POC.
-class CatRunV25Timing {
-  CatRunV25Timing._();
+class CatRunV26Timing {
+  CatRunV26Timing._();
 
   static const frameDurations = <Duration>[
     Duration(milliseconds: 90),
-    Duration(milliseconds: 62),
-    Duration(milliseconds: 63),
+    Duration(milliseconds: 45),
+    Duration(milliseconds: 45),
     Duration(milliseconds: 90),
     Duration(milliseconds: 88),
-    Duration(milliseconds: 62),
-    Duration(milliseconds: 68),
+    Duration(milliseconds: 45),
+    Duration(milliseconds: 50),
     Duration(milliseconds: 90),
     Duration(milliseconds: 88),
     Duration(milliseconds: 90),
@@ -49,6 +49,8 @@ class CatRunV24ScaleMetrics {
     required this.pose,
     required this.torsoLength,
     required this.torsoHeight,
+    required this.headSpan,
+    required this.chestHeight,
     required this.visualWidth,
     required this.visualHeight,
     required this.silhouetteArea,
@@ -57,6 +59,8 @@ class CatRunV24ScaleMetrics {
   final int pose;
   final double torsoLength;
   final double torsoHeight;
+  final double headSpan;
+  final double chestHeight;
   final double visualWidth;
   final double visualHeight;
   final double silhouetteArea;
@@ -73,10 +77,11 @@ class CatRunV24ScaleAudit {
     catRunV2HighTraces.map(_measure),
   );
 
-  /// No correction is defensible: each detected extrema is also present in a
-  /// phase metric rather than being isolated crop/registration noise.
+  /// Pose 01 is the only consistent body-mass outlier across head, chest,
+  /// torso-length and area measures. This is a uniform display correction
+  /// around its torso anchor, never a HIGH-path edit.
   static const uniformCorrections = <int, double>{
-    1: 1,
+    1: 1.04,
     2: 1,
     3: 1,
     4: 1,
@@ -112,6 +117,7 @@ class CatRunV24ScaleAudit {
     final pelvis = transform.apply(frame.pelvis * (1 / 800));
     final torsoAxis = pelvis - shoulder;
     final torsoLength = torsoAxis.distance;
+    final headDirection = (shoulder - pelvis) / torsoLength;
     final torsoBand = points
         .where((point) {
           final relative = point - shoulder;
@@ -132,6 +138,24 @@ class CatRunV24ScaleAudit {
     perpendiculars.sort();
     final lowerTorsoBandIndex = (perpendiculars.length * .2).floor();
     final upperTorsoBandIndex = (perpendiculars.length * .8).floor();
+    final chestHeight =
+        perpendiculars[upperTorsoBandIndex] -
+        perpendiculars[lowerTorsoBandIndex];
+    final headSpan = points
+        .where((point) {
+          final relative = point - shoulder;
+          final forward =
+              (relative.dx * headDirection.dx) +
+              (relative.dy * headDirection.dy);
+          final lateral =
+              (relative.dx * -headDirection.dy) +
+              (relative.dy * headDirection.dx);
+          return forward >= 0 &&
+              forward <= torsoLength * .75 &&
+              lateral.abs() <= torsoLength * .75;
+        })
+        .map((point) => (point - shoulder).distance)
+        .reduce(math.max);
     var doubleArea = 0.0;
     for (var index = 0; index < points.length; index++) {
       final next = points[(index + 1) % points.length];
@@ -140,9 +164,9 @@ class CatRunV24ScaleAudit {
     return CatRunV24ScaleMetrics(
       pose: trace.pose,
       torsoLength: torsoLength,
-      torsoHeight:
-          perpendiculars[upperTorsoBandIndex] -
-          perpendiculars[lowerTorsoBandIndex],
+      torsoHeight: chestHeight,
+      headSpan: headSpan,
+      chestHeight: chestHeight,
       visualWidth: maxX - minX,
       visualHeight: maxY - minY,
       silhouetteArea: doubleArea.abs() / 2,
@@ -173,8 +197,8 @@ class CatRunV24Travel {
     final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
     final elapsedMicroseconds = (crossingDuration.inMicroseconds * safeProgress)
         .round();
-    final cycleMicroseconds = CatRunV25Timing.cycleDuration.inMicroseconds;
-    return CatRunV25Timing.frameAtCycleProgress(
+    final cycleMicroseconds = CatRunV26Timing.cycleDuration.inMicroseconds;
+    return CatRunV26Timing.frameAtCycleProgress(
       (elapsedMicroseconds % cycleMicroseconds) / cycleMicroseconds,
     );
   }
@@ -205,7 +229,7 @@ class CatRunV24Travel {
     if (!isStanceFrame(frameIndex)) return 0;
     final start = _frameStartMicroseconds(frameIndex);
     final end =
-        start + CatRunV25Timing.frameDurations[frameIndex].inMicroseconds;
+        start + CatRunV26Timing.frameDurations[frameIndex].inMicroseconds;
     final startProgress = start / crossingDuration.inMicroseconds;
     final endProgress = end / crossingDuration.inMicroseconds;
     final before = horizontalPosition(
@@ -228,7 +252,7 @@ class CatRunV24Travel {
   }) {
     if (!isStanceFrame(frameIndex)) return 0;
     return (stageWidth + (offstagePadding * 2)) *
-        CatRunV25Timing.frameDurations[frameIndex].inMicroseconds /
+        CatRunV26Timing.frameDurations[frameIndex].inMicroseconds /
         crossingDuration.inMicroseconds;
   }
 
@@ -269,11 +293,11 @@ class CatRunV24Travel {
   /// Smoothstep blending keeps root position and velocity continuous at
   /// flight/contact acquisition and release without altering any frame path.
   static double _speedWeightAt(int elapsedMicroseconds) {
-    final cycleMicroseconds = CatRunV25Timing.cycleDuration.inMicroseconds;
+    final cycleMicroseconds = CatRunV26Timing.cycleDuration.inMicroseconds;
     final inCycle = elapsedMicroseconds % cycleMicroseconds;
     var frameStart = 0;
     for (var index = 0; index < catRunV2HighTraces.length; index++) {
-      final duration = CatRunV25Timing.frameDurations[index].inMicroseconds;
+      final duration = CatRunV26Timing.frameDurations[index].inMicroseconds;
       final frameEnd = frameStart + duration;
       if (inCycle < frameEnd) {
         final local = inCycle - frameStart;
@@ -318,7 +342,7 @@ class CatRunV24Travel {
   static double _lerp(double from, double to, double t) =>
       from + ((to - from) * t);
 
-  static int _frameStartMicroseconds(int frameIndex) => CatRunV25Timing
+  static int _frameStartMicroseconds(int frameIndex) => CatRunV26Timing
       .frameDurations
       .take(frameIndex)
       .fold(0, (total, duration) => total + duration.inMicroseconds);

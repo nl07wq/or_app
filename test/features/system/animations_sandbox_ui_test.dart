@@ -3111,26 +3111,36 @@ void main() {
     },
   );
 
-  test('CAT RUN V2.5 shortens only contact/support presentation holds', () {
+  test('CAT RUN V2.6 uses short contact holds and bounded uniform scale', () {
     expect(
-      CatRunV25Timing.frameDurations.map((duration) => duration.inMilliseconds),
-      [90, 62, 63, 90, 88, 62, 68, 90, 88, 90],
+      CatRunV26Timing.frameDurations.map((duration) => duration.inMilliseconds),
+      [90, 45, 45, 90, 88, 45, 50, 90, 88, 90],
     );
-    expect(CatRunV25Timing.cycleDuration, const Duration(milliseconds: 791));
+    expect(CatRunV26Timing.cycleDuration, const Duration(milliseconds: 721));
     for (final index in [1, 2, 5, 6]) {
       expect(
-        CatRunV25Timing.frameDurations[index].inMilliseconds,
-        lessThan(70),
+        CatRunV26Timing.frameDurations[index].inMilliseconds,
+        inInclusiveRange(40, 50),
       );
     }
     for (final index in [0, 3, 4, 7, 8, 9]) {
       expect(
-        CatRunV25Timing.frameDurations[index].inMilliseconds,
+        CatRunV26Timing.frameDurations[index].inMilliseconds,
         inInclusiveRange(85, 95),
       );
     }
-    expect(CatRunV25Timing.frameAtCycleProgress(0), 0);
-    expect(CatRunV25Timing.frameAtCycleProgress(.999999), 9);
+    expect(CatRunV26Timing.frameAtCycleProgress(0), 0);
+    expect(CatRunV26Timing.frameAtCycleProgress(.999999), 9);
+    expect(CatRunV24ScaleAudit.correctionFor(1), 1.04);
+    for (final trace in catRunV2HighTraces.skip(1)) {
+      expect(CatRunV24ScaleAudit.correctionFor(trace.pose), 1);
+    }
+    expect(
+      CatRunV24ScaleAudit.uniformCorrections.values.every(
+        (scale) => scale >= 1 && scale <= 1.06,
+      ),
+      isTrue,
+    );
   });
 
   test(
