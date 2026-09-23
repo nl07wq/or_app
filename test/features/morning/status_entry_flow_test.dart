@@ -232,6 +232,42 @@ void main() {
     },
   );
 
+  testWidgets(
+    'STATUS brief success preserves its parent route for COMMAND CENTER back navigation',
+    (tester) async {
+      await _pumpEntryFromParent(
+        tester,
+        dailyBriefCreationPageBuilder: (onApplied) => Scaffold(
+          appBar: AppBar(title: const Text('DAILY BRIEF CREATE TEST')),
+          body: TextButton(
+            onPressed: () {
+              onApplied();
+              Navigator.pop(tester.element(find.text('COMPLETE BRIEF')));
+            },
+            child: const Text('COMPLETE BRIEF'),
+          ),
+        ),
+      );
+      await tester.ensureVisible(find.text('SAVE STATUS'));
+      await tester.tap(find.text('SAVE STATUS'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('YES'));
+      await tester.pumpAndSettle();
+      await AppRepositoryRegistry.container.morningBriefs.create(
+        _morningBrief('2026-08-15'),
+      );
+      await tester.tap(find.text('COMPLETE BRIEF'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CommandCenterPage), findsOneWidget);
+      expect(find.byType(BackButton), findsOneWidget);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('PARENT TEST'), findsOneWidget);
+    },
+  );
+
   testWidgets('RECORD edit saves without the DAILY BRIEF prompt', (
     tester,
   ) async {
@@ -304,6 +340,42 @@ Future<void> _pumpEntry(
   );
   await tester.pumpAndSettle();
   await tester.tap(find.text('OPEN STATUS TEST'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpEntryFromParent(
+  WidgetTester tester, {
+  required DailyBriefCreationPageBuilder dailyBriefCreationPageBuilder,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('PARENT TEST'),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => MorningFactPage(
+                        dailyBriefCreationPageBuilder:
+                            dailyBriefCreationPageBuilder,
+                      ),
+                    ),
+                  ),
+                  child: const Text('OPEN STATUS FROM PARENT'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OPEN STATUS FROM PARENT'));
   await tester.pumpAndSettle();
 }
 

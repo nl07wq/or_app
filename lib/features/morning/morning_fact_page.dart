@@ -205,7 +205,12 @@ class _MorningFactPageState extends State<MorningFactPage> {
     );
     if (!mounted) return;
     if (applied) {
-      Navigator.of(context).pushAndRemoveUntil<void>(
+      // Replacing the STATUS route keeps the route that opened it intact.
+      // Removing routes until the dashboard could make COMMAND CENTER the
+      // navigator root when STATUS was opened from another parent, which in
+      // turn made AppBar's automatic back button disappear after BRIEF
+      // creation.
+      Navigator.of(context).pushReplacement<void, void>(
         MaterialPageRoute(
           settings: const RouteSettings(name: AppRoutes.commandCenter),
           builder: (_) => const CommandCenterPage(
@@ -213,7 +218,6 @@ class _MorningFactPageState extends State<MorningFactPage> {
             initialBriefDebriefTab: BriefDebriefTab.dailyBrief,
           ),
         ),
-        ModalRoute.withName(AppRoutes.dashboard),
       );
       return;
     }
