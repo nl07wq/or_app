@@ -90,10 +90,10 @@ class CatRunV2Registration {
   static const frames = <CatRunV2FrameRegistration>[
     CatRunV2FrameRegistration(
       pose: 1,
-      sourceOrigin: Offset(186, 65),
-      sourceExtent: 428,
-      shoulder: Offset(492, 116),
-      pelvis: Offset(362, 120),
+      sourceOrigin: Offset(163, 58),
+      sourceExtent: 474,
+      shoulder: Offset(502, 114),
+      pelvis: Offset(358, 119),
       state: CatRunV2LocomotionState.flight,
     ),
     CatRunV2FrameRegistration(

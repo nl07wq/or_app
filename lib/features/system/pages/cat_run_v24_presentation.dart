@@ -77,12 +77,11 @@ class CatRunV24ScaleAudit {
     catRunV2HighTraces.map(_measure),
   );
 
-  /// Body-mass metrics identify pose 01 as undersized. The neighbouring
-  /// extension/acquisition poses receive a smaller uniform ramp so that the
-  /// 10 → 01 → 02 cycle does not present an isolated display-scale spike.
+  /// The replacement Pose 01 source is area- and torso-registered with the
+  /// cycle, so no presentation-scale correction is applied.
   static const uniformCorrections = <int, double>{
-    1: 1.04,
-    2: 1.02,
+    1: 1,
+    2: 1,
     3: 1,
     4: 1,
     5: 1,
@@ -90,17 +89,16 @@ class CatRunV24ScaleAudit {
     7: 1,
     8: 1,
     9: 1,
-    10: 1.02,
+    10: 1,
   };
 
   static double correctionFor(int pose) => uniformCorrections[pose]!;
 
-  /// V2.9 addresses only the measured vertical body-mass dip around the
-  /// extended pose. These modifiers are relative to the frozen V2.7 uniform
-  /// corrections and form a continuous 09 → 10 → 01 → 02 → 03 envelope.
+  /// The source replacement removes the former extended-pose vertical dip.
+  /// These stay explicit to keep the display transform deterministic.
   static const verticalProportionCorrections = <int, double>{
-    1: 1.04,
-    2: 1.02,
+    1: 1,
+    2: 1,
     3: 1,
     4: 1,
     5: 1,
@@ -108,7 +106,7 @@ class CatRunV24ScaleAudit {
     7: 1,
     8: 1,
     9: 1,
-    10: 1.01,
+    10: 1,
   };
 
   static double scaleXFor(int pose) => correctionFor(pose);

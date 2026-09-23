@@ -3009,33 +3009,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('CAT RUN V2 freezes exactly ten deterministic HIGH traces', () {
-    expect(catRunV2HighTraces, hasLength(10));
-    expect(
-      catRunV2HighTraces.map((trace) => trace.pose),
-      List<int>.generate(10, (index) => index + 1),
-    );
-    expect(catRunV2HighTraces.map((trace) => trace.pointCount), [
-      66,
-      76,
-      78,
-      69,
-      79,
-      80,
-      85,
-      72,
-      61,
-      71,
-    ]);
-    for (final trace in catRunV2HighTraces) {
-      expect(trace.points, hasLength(trace.pointCount));
-      expect(trace.iou, greaterThan(.96));
+  test(
+    'CAT RUN V2 freezes ten deterministic HIGH traces after Pose 01 replacement',
+    () {
+      expect(catRunV2HighTraces, hasLength(10));
       expect(
-        trace.points.every((point) => point.dx.isFinite && point.dy.isFinite),
-        isTrue,
+        catRunV2HighTraces.map((trace) => trace.pose),
+        List<int>.generate(10, (index) => index + 1),
       );
-    }
-  });
+      expect(catRunV2HighTraces.map((trace) => trace.pointCount), [
+        69,
+        76,
+        78,
+        69,
+        79,
+        80,
+        85,
+        72,
+        61,
+        71,
+      ]);
+      final poseOne = catRunV2HighTraces.first;
+      expect(poseOne.rawCount, 1916);
+      expect(poseOne.iou, 0.967861);
+      expect(poseOne.disagreement, 0.032139);
+      for (final trace in catRunV2HighTraces) {
+        expect(trace.points, hasLength(trace.pointCount));
+        expect(trace.iou, greaterThan(.96));
+        expect(
+          trace.points.every((point) => point.dx.isFinite && point.dy.isFinite),
+          isTrue,
+        );
+      }
+    },
+  );
 
   test(
     'CAT RUN V2 scale audit preserves frozen traces and reports body metrics',
@@ -3113,7 +3120,7 @@ void main() {
   );
 
   test(
-    'CAT RUN V2.9 preserves V2.8 timing and bounds the body-proportion envelope',
+    'CAT RUN Pose 01 replacement preserves V2.8 timing and neutral display scale',
     () {
       expect(
         CatRunV28Timing.frameDurations.map(
@@ -3137,12 +3144,7 @@ void main() {
       }
       expect(CatRunV28Timing.frameAtCycleProgress(0), 0);
       expect(CatRunV28Timing.frameAtCycleProgress(.999999), 9);
-      expect(CatRunV24ScaleAudit.correctionFor(1), 1.04);
-      expect(CatRunV24ScaleAudit.correctionFor(2), 1.02);
-      expect(CatRunV24ScaleAudit.correctionFor(10), 1.02);
-      for (final trace in catRunV2HighTraces.where(
-        (trace) => ![1, 2, 10].contains(trace.pose),
-      )) {
+      for (final trace in catRunV2HighTraces) {
         expect(CatRunV24ScaleAudit.correctionFor(trace.pose), 1);
       }
       expect(
@@ -3151,19 +3153,18 @@ void main() {
         ),
         isTrue,
       );
-      expect(CatRunV24ScaleAudit.verticalProportionCorrections[9], 1);
-      expect(CatRunV24ScaleAudit.verticalProportionCorrections[10], 1.01);
-      expect(CatRunV24ScaleAudit.verticalProportionCorrections[1], 1.04);
-      expect(CatRunV24ScaleAudit.verticalProportionCorrections[2], 1.02);
-      expect(CatRunV24ScaleAudit.verticalProportionCorrections[3], 1);
+      expect(
+        CatRunV24ScaleAudit.verticalProportionCorrections.values,
+        everyElement(1),
+      );
       expect(
         CatRunV24ScaleAudit.verticalProportionCorrections.values.every(
           (scale) => scale >= 1 && scale <= 1.04,
         ),
         isTrue,
       );
-      expect(CatRunV24ScaleAudit.scaleXFor(1), 1.04);
-      expect(CatRunV24ScaleAudit.scaleYFor(1), closeTo(1.0816, 1e-9));
+      expect(CatRunV24ScaleAudit.scaleXFor(1), 1);
+      expect(CatRunV24ScaleAudit.scaleYFor(1), 1);
       final verticalEnvelope = List<double>.generate(
         10,
         (index) =>
