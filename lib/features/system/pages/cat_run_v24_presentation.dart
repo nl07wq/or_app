@@ -1,0 +1,262 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import 'cat_run_v2_registration.dart';
+import 'cat_run_v2_trace_data.dart';
+
+enum CatRunV23Direction { leftToRight, rightToLeft }
+
+/// Measured from registered geometry only. The frozen HIGH point arrays are
+/// never edited by this audit or by the presentation layer.
+class CatRunV24ScaleMetrics {
+  const CatRunV24ScaleMetrics({
+    required this.pose,
+    required this.torsoLength,
+    required this.visualWidth,
+    required this.visualHeight,
+    required this.silhouetteArea,
+  });
+
+  final int pose;
+  final double torsoLength;
+  final double visualWidth;
+  final double visualHeight;
+  final double silhouetteArea;
+
+  double get productionVisualHeight => visualHeight * CatRunV24Travel.catUnit;
+}
+
+/// Deterministic, presentation-only scale audit. The measured variations map
+/// to the authored run phases (flight, gather, support), not a crop anomaly.
+class CatRunV24ScaleAudit {
+  CatRunV24ScaleAudit._();
+
+  static final metrics = List<CatRunV24ScaleMetrics>.unmodifiable(
+    catRunV2HighTraces.map(_measure),
+  );
+
+  /// No correction is defensible: each detected extrema is also present in a
+  /// phase metric rather than being isolated crop/registration noise.
+  static const uniformCorrections = <int, double>{
+    1: 1,
+    2: 1,
+    3: 1,
+    4: 1,
+    5: 1,
+    6: 1,
+    7: 1,
+    8: 1,
+    9: 1,
+    10: 1,
+  };
+
+  static double correctionFor(int pose) => uniformCorrections[pose]!;
+
+  static List<Offset> correctedPoints(CatRunV2Trace trace) {
+    final points = CatRunV2Registration.registeredPoints(trace);
+    final correction = correctionFor(trace.pose);
+    if (correction == 1) return points;
+    final anchor = _torsoAnchor(trace);
+    return List<Offset>.unmodifiable(
+      points.map((point) => anchor + ((point - anchor) * correction)),
+    );
+  }
+
+  static CatRunV24ScaleMetrics _measure(CatRunV2Trace trace) {
+    final points = CatRunV2Registration.registeredPoints(trace);
+    final minX = points.map((point) => point.dx).reduce(math.min);
+    final maxX = points.map((point) => point.dx).reduce(math.max);
+    final minY = points.map((point) => point.dy).reduce(math.min);
+    final maxY = points.map((point) => point.dy).reduce(math.max);
+    final frame = CatRunV2Registration.registrationFor(trace.pose);
+    final transform = CatRunV2Registration.transformFor(trace);
+    var doubleArea = 0.0;
+    for (var index = 0; index < points.length; index++) {
+      final next = points[(index + 1) % points.length];
+      doubleArea += (points[index].dx * next.dy) - (next.dx * points[index].dy);
+    }
+    return CatRunV24ScaleMetrics(
+      pose: trace.pose,
+      torsoLength: frame.torsoAxis.distance / 800 * transform.uniformScale,
+      visualWidth: maxX - minX,
+      visualHeight: maxY - minY,
+      silhouetteArea: doubleArea.abs() / 2,
+    );
+  }
+
+  static Offset _torsoAnchor(CatRunV2Trace trace) {
+    final frame = CatRunV2Registration.registrationFor(trace.pose);
+    final sourceCenter = frame.torsoCenter * (1 / 800);
+    return CatRunV2Registration.transformFor(trace).apply(sourceCenter);
+  }
+}
+
+/// Root-only travel correction. It reweights horizontal progress across
+/// existing direct frames; geometry and V2.2 frame timing remain untouched.
+class CatRunV24Travel {
+  CatRunV24Travel._();
+
+  static const stageHeight = 48.0;
+  static const catUnit = 110.0;
+  static const offstagePadding = 96.0;
+  static const crossingDuration = Duration(seconds: 3);
+  static const stanceSpeedMultiplier = .08;
+  static const _speedBlendMicroseconds = 6000;
+  static final _weightedMilliseconds = _buildWeightedMilliseconds();
+
+  static int frameAtTravelProgress(double progress) {
+    final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
+    final elapsedMicroseconds = (crossingDuration.inMicroseconds * safeProgress)
+        .round();
+    final cycleMicroseconds = CatRunV2Registration.cycleDuration.inMicroseconds;
+    return CatRunV2Registration.frameAtCycleProgress(
+      (elapsedMicroseconds % cycleMicroseconds) / cycleMicroseconds,
+    );
+  }
+
+  static bool isStanceFrame(int frameIndex) =>
+      CatRunV2Registration.stancePaw(catRunV2HighTraces[frameIndex]) != null;
+
+  static List<Offset> pointsAt(double progress) =>
+      CatRunV24ScaleAudit.correctedPoints(
+        catRunV2HighTraces[frameAtTravelProgress(progress)],
+      );
+
+  static double horizontalPosition({
+    required double stageWidth,
+    required double progress,
+  }) {
+    final safeProgress = progress.clamp(0.0, 1.0).toDouble();
+    final rootProgress = _weightedProgress(safeProgress);
+    return -offstagePadding +
+        (stageWidth + (offstagePadding * 2)) * rootProgress;
+  }
+
+  static double stancePawWorldDrift({
+    required int frameIndex,
+    required double stageWidth,
+    required CatRunV23Direction direction,
+  }) {
+    if (!isStanceFrame(frameIndex)) return 0;
+    final start = _frameStartMicroseconds(frameIndex);
+    final end =
+        start + CatRunV2Registration.frameDurations[frameIndex].inMicroseconds;
+    final startProgress = start / crossingDuration.inMicroseconds;
+    final endProgress = end / crossingDuration.inMicroseconds;
+    final before = horizontalPosition(
+      stageWidth: stageWidth,
+      progress: startProgress,
+    );
+    final after = horizontalPosition(
+      stageWidth: stageWidth,
+      progress: endProgress,
+    );
+    final signedDrift = after - before;
+    return direction == CatRunV23Direction.leftToRight
+        ? signedDrift.abs()
+        : signedDrift.abs();
+  }
+
+  static double uncorrectedStancePawWorldDrift({
+    required int frameIndex,
+    required double stageWidth,
+  }) {
+    if (!isStanceFrame(frameIndex)) return 0;
+    return (stageWidth + (offstagePadding * 2)) *
+        CatRunV2Registration.frameDurations[frameIndex].inMicroseconds /
+        crossingDuration.inMicroseconds;
+  }
+
+  static double _weightedProgress(double progress) {
+    if (progress <= 0) return 0;
+    if (progress >= 1) return 1;
+    final totalMicros = crossingDuration.inMicroseconds;
+    final elapsed = (totalMicros * progress).round();
+    return _weightedMicroseconds(elapsed) / _weightedMicroseconds(totalMicros);
+  }
+
+  static double _weightedMicroseconds(int elapsedMicroseconds) {
+    final wholeMilliseconds = elapsedMicroseconds ~/ 1000;
+    var weighted = _weightedMilliseconds[wholeMilliseconds];
+    final remainder = elapsedMicroseconds % 1000;
+    if (remainder > 0) {
+      weighted +=
+          _speedWeightAt((wholeMilliseconds * 1000) + (remainder ~/ 2)) *
+          remainder;
+    }
+    return weighted;
+  }
+
+  static List<double> _buildWeightedMilliseconds() {
+    final values = <double>[0];
+    var total = 0.0;
+    for (
+      var millisecond = 0;
+      millisecond < crossingDuration.inMilliseconds;
+      millisecond++
+    ) {
+      total += _speedWeightAt((millisecond * 1000) + 500) * 1000;
+      values.add(total);
+    }
+    return List<double>.unmodifiable(values);
+  }
+
+  /// Smoothstep blending keeps root position and velocity continuous at
+  /// flight/contact acquisition and release without altering any frame path.
+  static double _speedWeightAt(int elapsedMicroseconds) {
+    final cycleMicroseconds = CatRunV2Registration.cycleDuration.inMicroseconds;
+    final inCycle = elapsedMicroseconds % cycleMicroseconds;
+    var frameStart = 0;
+    for (var index = 0; index < catRunV2HighTraces.length; index++) {
+      final duration =
+          CatRunV2Registration.frameDurations[index].inMicroseconds;
+      final frameEnd = frameStart + duration;
+      if (inCycle < frameEnd) {
+        final local = inCycle - frameStart;
+        final current = _frameWeight(index);
+        if (local < _speedBlendMicroseconds) {
+          final previous = _frameWeight(
+            (index - 1 + catRunV2HighTraces.length) % catRunV2HighTraces.length,
+          );
+          return _lerp(
+            previous,
+            current,
+            _smoothStep(
+              (local + _speedBlendMicroseconds) / (_speedBlendMicroseconds * 2),
+            ),
+          );
+        }
+        if (local > duration - _speedBlendMicroseconds) {
+          return _lerp(
+            current,
+            _frameWeight((index + 1) % catRunV2HighTraces.length),
+            _smoothStep(
+              (local - (duration - _speedBlendMicroseconds)) /
+                  (_speedBlendMicroseconds * 2),
+            ),
+          );
+        }
+        return current;
+      }
+      frameStart = frameEnd;
+    }
+    return _frameWeight(0);
+  }
+
+  static double _frameWeight(int frameIndex) =>
+      isStanceFrame(frameIndex) ? stanceSpeedMultiplier : 1.0;
+
+  static double _smoothStep(double value) {
+    final t = value.clamp(0.0, 1.0).toDouble();
+    return t * t * (3 - (2 * t));
+  }
+
+  static double _lerp(double from, double to, double t) =>
+      from + ((to - from) * t);
+
+  static int _frameStartMicroseconds(int frameIndex) => CatRunV2Registration
+      .frameDurations
+      .take(frameIndex)
+      .fold(0, (total, duration) => total + duration.inMicroseconds);
+}

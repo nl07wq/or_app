@@ -4,19 +4,17 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import 'cat_run_v2_registration.dart';
-import 'cat_run_v2_trace_data.dart';
-
-enum CatRunV23Direction { leftToRight, rightToLeft }
+import 'cat_run_v24_presentation.dart';
 
 /// Presentation-only travel model for V2.2's frozen registered HIGH frames.
 /// It does not alter source geometry, registration, contact metadata, or timing.
 class CatRunV23Travel {
   CatRunV23Travel._();
 
-  static const stageHeight = 48.0;
-  static const catUnit = 110.0;
-  static const offstagePadding = 96.0;
-  static const crossingDuration = Duration(seconds: 3);
+  static const stageHeight = CatRunV24Travel.stageHeight;
+  static const catUnit = CatRunV24Travel.catUnit;
+  static const offstagePadding = CatRunV24Travel.offstagePadding;
+  static const crossingDuration = CatRunV24Travel.crossingDuration;
 
   static double horizontalPosition({
     required double stageWidth,
@@ -43,9 +41,7 @@ class CatRunV23Travel {
   }
 
   static List<Offset> registeredPointsAt(double progress) =>
-      CatRunV2Registration.registeredPoints(
-        catRunV2HighTraces[frameAtTravelProgress(progress)],
-      );
+      CatRunV24Travel.pointsAt(progress);
 }
 
 /// Sandbox-only 48px travel inspection for direct sequential HIGH vectors.
@@ -110,7 +106,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
       children: [
         const SectionHeader(
           icon: Icons.directions_run,
-          title: 'CAT RUN V2.3 — PRODUCTION PREVIEW',
+          title: 'CAT RUN V2.4 — PRODUCTION PREVIEW',
         ),
         AppSpacing.gapSM,
         OperationCard(
@@ -163,7 +159,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
               AppSpacing.gapSM,
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final frame = CatRunV23Travel.frameAtTravelProgress(
+                  final frame = CatRunV24Travel.frameAtTravelProgress(
                     _controller.value,
                   );
                   return Text(
@@ -174,8 +170,8 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                 },
               ),
               const Text(
-                'SANDBOX ONLY · FROZEN V2.2 HIGH / REGISTRATION / CONTACT / TIMING · '
-                'NO MORPH / RESAMPLING / ARTICULATION',
+                'V2.4: STANCE-FOOT ROOT LOCK · FROZEN V2.2 HIGH / REGISTRATION / '
+                'CONTACT / TIMING · NO MORPH / RESAMPLING / ARTICULATION',
               ),
             ],
           ),
@@ -200,9 +196,9 @@ class _CatRunV23StagePainter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = const Color(0xFF101010),
     );
-    final points = CatRunV23Travel.registeredPointsAt(progress);
+    final points = CatRunV24Travel.pointsAt(progress);
     final path = Path()..addPolygon(points, true);
-    final travelX = CatRunV23Travel.horizontalPosition(
+    final travelX = CatRunV24Travel.horizontalPosition(
       stageWidth: size.width,
       progress: progress,
     );

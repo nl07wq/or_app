@@ -14,6 +14,7 @@ import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
+import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -3035,6 +3036,79 @@ void main() {
       );
     }
   });
+
+  test(
+    'CAT RUN V2.4 scale audit is deterministic and makes no unjustified correction',
+    () {
+      expect(CatRunV24ScaleAudit.metrics, hasLength(10));
+      expect(CatRunV24ScaleAudit.uniformCorrections.values, everyElement(1));
+      expect(
+        CatRunV24ScaleAudit.metrics.map((metric) => metric.pose),
+        List<int>.generate(10, (index) => index + 1),
+      );
+      for (final metric in CatRunV24ScaleAudit.metrics) {
+        expect(metric.torsoLength, greaterThan(0));
+        expect(metric.visualWidth, greaterThan(0));
+        expect(metric.visualHeight, greaterThan(0));
+        expect(metric.silhouetteArea, greaterThan(0));
+        expect(metric.productionVisualHeight, greaterThan(0));
+      }
+    },
+  );
+
+  test(
+    'CAT RUN V2.4 foot lock lowers stance drift without changing frames',
+    () {
+      const stageWidth = 390.0;
+      for (final width in [320.0, 390.0, 900.0]) {
+        expect(
+          CatRunV24Travel.horizontalPosition(stageWidth: width, progress: 0),
+          lessThan(0),
+        );
+        expect(
+          CatRunV24Travel.horizontalPosition(stageWidth: width, progress: 1),
+          greaterThan(width),
+        );
+      }
+      for (var index = 0; index < catRunV2HighTraces.length; index++) {
+        final original = List<Offset>.of(catRunV2HighTraces[index].points);
+        expect(CatRunV24Travel.pointsAt(index / 10), isNotEmpty);
+        expect(catRunV2HighTraces[index].points, original);
+        if (CatRunV24Travel.isStanceFrame(index)) {
+          final before = CatRunV24Travel.uncorrectedStancePawWorldDrift(
+            frameIndex: index,
+            stageWidth: stageWidth,
+          );
+          final after = CatRunV24Travel.stancePawWorldDrift(
+            frameIndex: index,
+            stageWidth: stageWidth,
+            direction: CatRunV23Direction.leftToRight,
+          );
+          expect(after, lessThan(before * .3));
+          expect(
+            after,
+            CatRunV24Travel.stancePawWorldDrift(
+              frameIndex: index,
+              stageWidth: stageWidth,
+              direction: CatRunV23Direction.rightToLeft,
+            ),
+          );
+        }
+      }
+      var previous = CatRunV24Travel.horizontalPosition(
+        stageWidth: stageWidth,
+        progress: 0,
+      );
+      for (var sample = 1; sample <= 1000; sample++) {
+        final next = CatRunV24Travel.horizontalPosition(
+          stageWidth: stageWidth,
+          progress: sample / 1000,
+        );
+        expect(next, greaterThan(previous));
+        previous = next;
+      }
+    },
+  );
 
   test(
     'CAT RUN V2 registers frozen frames without changing their geometry',
