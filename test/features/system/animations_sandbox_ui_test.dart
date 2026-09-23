@@ -10,6 +10,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/cat_trace_decomposition_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_motion_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
+import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
@@ -3032,6 +3033,45 @@ void main() {
       );
     }
   });
+
+  test(
+    'CAT RUN V2 registers frozen frames without changing their geometry',
+    () {
+      expect(CatRunV2Registration.frames, hasLength(10));
+      expect(CatRunV2Registration.commonTorsoAnchor, const Offset(400, 130));
+      expect(CatRunV2Registration.virtualGroundSourceY, 216);
+
+      for (final trace in catRunV2HighTraces) {
+        final original = List<Offset>.of(trace.points);
+        final registered = CatRunV2Registration.registeredPoints(trace);
+        expect(trace.points, original);
+        expect(registered, hasLength(trace.pointCount));
+        expect(
+          registered.every((point) => point.dx.isFinite && point.dy.isFinite),
+          isTrue,
+        );
+      }
+
+      expect(CatRunV2Registration.frameDisplacements, hasLength(10));
+      expect(
+        CatRunV2Registration.frameDisplacements.every(
+          (displacement) => displacement.isFinite && displacement > 0,
+        ),
+        isTrue,
+      );
+      expect(CatRunV2Registration.frameDurations, hasLength(10));
+      expect(
+        CatRunV2Registration.frameDurations.every(
+          (duration) =>
+              duration.inMilliseconds >= 65 && duration.inMilliseconds <= 125,
+        ),
+        isTrue,
+      );
+      expect(CatRunV2Registration.cycleDuration, isNot(Duration.zero));
+      expect(CatRunV2Registration.frameAtCycleProgress(0), 0);
+      expect(CatRunV2Registration.frameAtCycleProgress(.999999), 9);
+    },
+  );
 
   testWidgets('CAT RUN V2 switches complete HIGH frames without morphing', (
     tester,

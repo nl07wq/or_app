@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import 'cat_run_v2_registration.dart';
 import 'cat_run_v2_trace_data.dart';
 
 /// Sandbox-only direct HIGH-vector frame playback; it intentionally morphs nothing.
@@ -16,7 +17,6 @@ class CatRunV2PocSection extends StatefulWidget {
 
 class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
     with SingleTickerProviderStateMixin {
-  static const _frameDuration = Duration(milliseconds: 80);
   late final AnimationController _controller;
   var _playing = false;
   var _speed = 1.0;
@@ -29,7 +29,7 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
     _controller =
         AnimationController(
           vsync: this,
-          duration: Duration(milliseconds: _frameDuration.inMilliseconds * 10),
+          duration: CatRunV2Registration.cycleDuration,
         )..addListener(() {
           if (mounted && _playing) {
             setState(() {});
@@ -37,7 +37,9 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
         });
   }
 
-  int get _frame => _manualFrame ?? ((_controller.value * 10).floor() % 10);
+  int get _frame =>
+      _manualFrame ??
+      CatRunV2Registration.frameAtCycleProgress(_controller.value);
   void _playPause() {
     setState(() {
       _manualFrame = null;
@@ -50,7 +52,8 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
     setState(() {
       _speed = value;
       _controller.duration = Duration(
-        milliseconds: (_frameDuration.inMilliseconds * 10 / value).round(),
+        microseconds:
+            (CatRunV2Registration.cycleDuration.inMicroseconds / value).round(),
       );
       if (_playing) {
         _controller.repeat();
@@ -67,6 +70,8 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
   @override
   Widget build(BuildContext context) {
     final trace = catRunV2HighTraces[_frame];
+    final registeredPoints = CatRunV2Registration.registeredPoints(trace);
+    final frameDuration = CatRunV2Registration.frameDurations[_frame];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -84,7 +89,7 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
                 height: 190,
                 child: CustomPaint(
                   key: const ValueKey('cat-run-v2-canvas'),
-                  painter: _CatRunV2Painter(trace, _scale),
+                  painter: _CatRunV2Painter(registeredPoints, _scale),
                 ),
               ),
               AppSpacing.gapSM,
@@ -135,7 +140,10 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
                 'HIGH FRAME ${trace.pose.toString().padLeft(2, '0')} · '
                 '${trace.pointCount} points · '
                 'IoU ${(trace.iou * 100).toStringAsFixed(2)}% · '
-          '${(_frameDuration.inMilliseconds / _speed).round()}ms/frame at $_speed×',
+                '${(frameDuration.inMilliseconds / _speed).round()}ms hold at $_speed×',
+              ),
+              const Text(
+                'REGISTERED: COMMON TORSO / UNIFORM SCALE / VIRTUAL GROUND',
               ),
               const Text(
                 'DIRECT VECTOR FRAME PLAYBACK · NO MORPH / RESAMPLING / ARTICULATION',
@@ -149,8 +157,8 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
 }
 
 class _CatRunV2Painter extends CustomPainter {
-  const _CatRunV2Painter(this.trace, this.scale);
-  final CatRunV2Trace trace;
+  const _CatRunV2Painter(this.points, this.scale);
+  final List<Offset> points;
   final int scale;
 
   @override
@@ -159,11 +167,18 @@ class _CatRunV2Painter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = const Color(0xFF101010),
     );
-    final path = Path()..addPolygon(trace.points, true);
+    final path = Path()..addPolygon(points, true);
     final unit = math.min(size.width * .88, size.height * .72) * scale;
     canvas.save();
     canvas.translate((size.width - unit) / 2, (size.height - unit * .48) / 2);
     canvas.scale(unit);
+    canvas.drawLine(
+      Offset(-.25, CatRunV2Registration.virtualGround),
+      Offset(1.25, CatRunV2Registration.virtualGround),
+      Paint()
+        ..color = const Color(0xFF3A3A3A)
+        ..strokeWidth = 1 / unit,
+    );
     canvas.drawPath(
       path,
       Paint()
@@ -175,5 +190,5 @@ class _CatRunV2Painter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CatRunV2Painter old) =>
-      old.trace != trace || old.scale != scale;
+      old.points != points || old.scale != scale;
 }
