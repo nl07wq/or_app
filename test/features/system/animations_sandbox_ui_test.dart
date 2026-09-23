@@ -3321,7 +3321,7 @@ void main() {
   });
 
   test(
-    'CAT coat variants preserve frozen HIGH geometry and random contract',
+    'CAT coat variants use low-contrast organic overlays without changing HIGH geometry',
     () {
       expect(CatRunCoatPatterns.visualVariants, hasLength(5));
       expect(CatRunCoatPatterns.visualVariants, const [
@@ -3332,6 +3332,12 @@ void main() {
         CatRunCoatVariant.sabi,
       ]);
       expect(CatRunCoatPatterns.probabilities.values, everyElement(.2));
+      expect(CatRunCoatPatterns.baseColor, const Color(0xFF7A7A7A));
+      expect(CatRunCoatPatterns.patternColor, const Color(0xFF565656));
+      expect(
+        CatRunCoatPatterns.baseColor.r - CatRunCoatPatterns.patternColor.r,
+        lessThan(.16),
+      );
       expect(
         CatRunCoatPatterns.probabilities.values.reduce(
           (sum, value) => sum + value,

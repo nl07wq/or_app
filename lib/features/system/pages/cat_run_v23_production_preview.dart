@@ -269,7 +269,7 @@ class _CatRunV23StagePainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFFB8B8B8)
+        ..color = CatRunCoatPatterns.baseColor
         ..isAntiAlias = true,
     );
     CatRunCoatPatterns.paint(

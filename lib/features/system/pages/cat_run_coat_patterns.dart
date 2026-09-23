@@ -42,8 +42,10 @@ class CatRunCoatPatterns {
     CatRunCoatVariant.sabi: .2,
   };
 
-  /// Keep NORMAL exactly equivalent to the existing V2.10 base rendering.
-  static const patternColor = Color(0xFF383838);
+  /// A dark ambient silhouette with a restrained, secondary coat contrast.
+  /// NORMAL draws only [baseColor].
+  static const baseColor = Color(0xFF7A7A7A);
+  static const patternColor = Color(0xFF565656);
 
   static CatRunCoatVariant chooseRandom(math.Random random) =>
       visualVariants[random.nextInt(visualVariants.length)];
@@ -78,88 +80,104 @@ class CatRunCoatPatterns {
   }
 
   static void _paintHachiware(Canvas canvas, Paint paint, _CoatAnatomy a) {
-    // Broad lower-face blaze and bib: deliberately legible at 48px.
+    // An irregular forehead division, face-side marking, and soft bib are
+    // broad enough for 48px without reading as two pasted-on face blocks.
     canvas.drawPath(
-      _polygon(a, const [
-        Offset(-.48, -.12), Offset(-.21, -.18), Offset(-.08, .04),
-        Offset(-.18, .28), Offset(-.42, .25),
+      _organicPatch(a, const [
+        Offset(-.53, -.18), Offset(-.37, -.33), Offset(-.16, -.27),
+        Offset(-.07, -.04), Offset(-.20, .14), Offset(-.43, .19),
+        Offset(-.55, .04),
       ]),
       paint,
     );
     canvas.drawPath(
-      _polygon(a, const [
-        Offset(-.05, -.18), Offset(.22, -.25), Offset(.40, .02),
-        Offset(.29, .25), Offset(.06, .30),
+      _organicPatch(a, const [
+        Offset(-.22, .03), Offset(-.02, -.04), Offset(.18, .05),
+        Offset(.29, .26), Offset(.16, .43), Offset(-.07, .35),
+        Offset(-.19, .20),
       ]),
       paint,
     );
     canvas.drawPath(
-      _polygon(a, const [
-        Offset(.22, -.15), Offset(.48, -.13), Offset(.53, .10),
-        Offset(.32, .14),
+      _organicPatch(a, const [
+        Offset(.27, -.19), Offset(.47, -.12), Offset(.55, .04),
+        Offset(.44, .17), Offset(.28, .13), Offset(.20, -.01),
       ]),
       paint,
     );
   }
 
   static void _paintCalico(Canvas canvas, Paint paint, _CoatAnatomy a) {
-    // Few large, separated islands distinguish CALICO from SABI.
-    canvas.drawPath(_blob(a, const [
-      Offset(-.35, -.38), Offset(-.05, -.48), Offset(.10, -.24),
-      Offset(-.04, .02), Offset(-.32, -.04),
+    // Few large, asymmetric islands distinguish CALICO from SABI.
+    canvas.drawPath(_organicPatch(a, const [
+      Offset(-.43, -.42), Offset(-.20, -.52), Offset(.03, -.37),
+      Offset(.10, -.15), Offset(-.09, .01), Offset(-.33, -.07),
+      Offset(-.47, -.23),
     ]), paint);
-    canvas.drawPath(_blob(a, const [
-      Offset(.28, .10), Offset(.56, -.03), Offset(.74, .18),
-      Offset(.63, .45), Offset(.34, .40),
+    canvas.drawPath(_organicPatch(a, const [
+      Offset(.23, .08), Offset(.43, -.09), Offset(.68, -.01),
+      Offset(.79, .19), Offset(.64, .43), Offset(.37, .46),
+      Offset(.21, .30),
     ]), paint);
-    canvas.drawPath(_blob(a, const [
-      Offset(.80, -.37), Offset(1.14, -.32), Offset(1.24, -.05),
-      Offset(1.06, .18), Offset(.82, .07),
+    canvas.drawPath(_organicPatch(a, const [
+      Offset(.79, -.40), Offset(1.06, -.46), Offset(1.25, -.29),
+      Offset(1.28, -.05), Offset(1.08, .16), Offset(.87, .09),
+      Offset(.75, -.13),
     ]), paint);
   }
 
   static void _paintKijitora(Canvas canvas, Paint paint, _CoatAnatomy a) {
-    // Wide diagonal bands avoid high-frequency flicker at production scale.
-    for (final start in [-.05, .20, .45, .70, .95]) {
-      canvas.drawPath(_polygon(a, [
-        Offset(start, -.47), Offset(start + .12, -.46),
-        Offset(start + .27, .43), Offset(start + .12, .44),
-      ]), paint);
+    // A handful of curved, varied ribbons avoid barcode-like tabby bands.
+    for (final stripe in const [
+      (start: -.02, width: .13, bend: -.03, length: .72),
+      (start: .25, width: .10, bend: .05, length: .84),
+      (start: .49, width: .14, bend: -.04, length: .76),
+      (start: .78, width: .09, bend: .03, length: .68),
+    ]) {
+      canvas.drawPath(
+        _curvedStripe(
+          a,
+          start: stripe.start,
+          width: stripe.width,
+          bend: stripe.bend,
+          length: stripe.length,
+        ),
+        paint,
+      );
     }
-    // The two broad tail bands are clipped to the traced tail silhouette.
-    for (final start in [1.08, 1.34]) {
-      canvas.drawPath(_polygon(a, [
-        Offset(start, -.26), Offset(start + .10, -.25),
-        Offset(start + .18, .26), Offset(start + .07, .27),
-      ]), paint);
+    // Restrained, unequal tail bands remain clipped to the traced tail.
+    for (final stripe in const [
+      (start: 1.07, width: .09, bend: -.02, length: .43),
+      (start: 1.34, width: .12, bend: .03, length: .36),
+    ]) {
+      canvas.drawPath(
+        _curvedStripe(
+          a,
+          start: stripe.start,
+          width: stripe.width,
+          bend: stripe.bend,
+          length: stripe.length,
+        ),
+        paint,
+      );
     }
   }
 
   static void _paintSabi(Canvas canvas, Paint paint, _CoatAnatomy a) {
-    // Smaller, more distributed islands than CALICO, but still intentionally
-    // broad enough not to turn into animated noise at a 48px stage.
+    // Smaller, more distributed irregular markings than CALICO, still broad
+    // enough not to turn into animated noise at a 48px stage.
     for (final patch in const [
-      [Offset(-.40, -.30), Offset(-.20, -.34), Offset(-.12, -.15), Offset(-.30, -.06)],
-      [Offset(.02, .22), Offset(.22, .10), Offset(.34, .28), Offset(.17, .43)],
-      [Offset(.36, -.39), Offset(.57, -.34), Offset(.63, -.16), Offset(.44, -.10)],
-      [Offset(.66, .15), Offset(.86, .06), Offset(.96, .25), Offset(.79, .39)],
-      [Offset(1.02, -.14), Offset(1.19, -.10), Offset(1.24, .07), Offset(1.08, .14)],
+      [Offset(-.46, -.31), Offset(-.28, -.40), Offset(-.10, -.25), Offset(-.16, -.07), Offset(-.36, -.04)],
+      [Offset(-.04, .20), Offset(.16, .08), Offset(.33, .19), Offset(.29, .39), Offset(.10, .45), Offset(-.08, .34)],
+      [Offset(.29, -.43), Offset(.51, -.39), Offset(.64, -.22), Offset(.54, -.07), Offset(.35, -.12)],
+      [Offset(.61, .13), Offset(.79, .02), Offset(.98, .15), Offset(.94, .34), Offset(.76, .42), Offset(.61, .30)],
+      [Offset(.99, -.18), Offset(1.16, -.18), Offset(1.28, -.02), Offset(1.18, .13), Offset(1.02, .10)],
     ]) {
-      canvas.drawPath(_blob(a, patch), paint);
+      canvas.drawPath(_organicPatch(a, patch), paint);
     }
   }
 
-  static Path _polygon(_CoatAnatomy anatomy, List<Offset> points) {
-    final first = anatomy.at(points.first);
-    final path = Path()..moveTo(first.dx, first.dy);
-    for (final point in points.skip(1)) {
-      final transformed = anatomy.at(point);
-      path.lineTo(transformed.dx, transformed.dy);
-    }
-    return path..close();
-  }
-
-  static Path _blob(_CoatAnatomy anatomy, List<Offset> points) {
+  static Path _organicPatch(_CoatAnatomy anatomy, List<Offset> points) {
     final first = anatomy.at(points.first);
     final path = Path()..moveTo(first.dx, first.dy);
     for (var index = 0; index < points.length; index++) {
@@ -168,6 +186,40 @@ class CatRunCoatPatterns {
       path.quadraticBezierTo(current.dx, current.dy, (current.dx + next.dx) / 2,
           (current.dy + next.dy) / 2);
     }
+    return path..close();
+  }
+
+  static Path _curvedStripe(
+    _CoatAnatomy anatomy, {
+    required double start,
+    required double width,
+    required double bend,
+    required double length,
+  }) {
+    final top = anatomy.at(Offset(start, -.45));
+    final upperCurve = anatomy.at(Offset(start + (length * .35), -.31 + bend));
+    final lower = anatomy.at(Offset(start + length, .34));
+    final lowerCurve = anatomy.at(
+      Offset(start + (length * .58), .39 + bend),
+    );
+    final returnTop = anatomy.at(Offset(start + width, -.43));
+    final path = Path()..moveTo(top.dx, top.dy);
+    path.cubicTo(
+      upperCurve.dx,
+      upperCurve.dy,
+      lowerCurve.dx,
+      lowerCurve.dy,
+      lower.dx,
+      lower.dy,
+    );
+    path.cubicTo(
+      lowerCurve.dx - (anatomy.axis.dx * width),
+      lowerCurve.dy - (anatomy.axis.dy * width),
+      upperCurve.dx - (anatomy.axis.dx * width),
+      upperCurve.dy - (anatomy.axis.dy * width),
+      returnTop.dx,
+      returnTop.dy,
+    );
     return path..close();
   }
 }
