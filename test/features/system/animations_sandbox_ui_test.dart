@@ -10,6 +10,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/cat_trace_decomposition_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_motion_poc.dart';
 import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
+import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -3002,6 +3003,91 @@ void main() {
     );
     expect(find.byKey(const ValueKey('boot-asset-card-2')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test('CAT RUN V2 freezes exactly ten deterministic HIGH traces', () {
+    expect(catRunV2HighTraces, hasLength(10));
+    expect(
+      catRunV2HighTraces.map((trace) => trace.pose),
+      List<int>.generate(10, (index) => index + 1),
+    );
+    expect(catRunV2HighTraces.map((trace) => trace.pointCount), [
+      66,
+      76,
+      78,
+      69,
+      79,
+      80,
+      85,
+      72,
+      61,
+      71,
+    ]);
+    for (final trace in catRunV2HighTraces) {
+      expect(trace.points, hasLength(trace.pointCount));
+      expect(trace.iou, greaterThan(.96));
+      expect(
+        trace.points.every((point) => point.dx.isFinite && point.dy.isFinite),
+        isTrue,
+      );
+    }
+  });
+
+  testWidgets('CAT RUN V2 switches complete HIGH frames without morphing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 7000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final section = find.byKey(const ValueKey('cat-run-v2-poc'));
+    await tester.scrollUntilVisible(section, 350);
+    expect(find.byKey(const ValueKey('cat-run-v2-canvas')), findsOneWidget);
+    expect(
+      find.text(
+        'DIRECT VECTOR FRAME PLAYBACK · NO MORPH / RESAMPLING / ARTICULATION',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-frame-10')));
+    await tester.pump();
+    expect(find.textContaining('HIGH FRAME 10'), findsOneWidget);
+
+    for (final key in [
+      'cat-run-v2-play',
+      'cat-run-v2-speed-0.5',
+      'cat-run-v2-speed-1.0',
+      'cat-run-v2-scale-1',
+      'cat-run-v2-scale-2',
+      'cat-run-v2-scale-4',
+    ]) {
+      final control = find.byKey(ValueKey(key));
+      await tester.ensureVisible(control);
+      await tester.tap(control);
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('CAT RUN V2 controls remain accessible at 320, 390, and 900', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 7000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v2-poc')),
+        350,
+      );
+      expect(find.byKey(const ValueKey('cat-run-v2-frame-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('cat-run-v2-scale-4')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
   });
 }
 

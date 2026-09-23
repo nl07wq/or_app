@@ -12,6 +12,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'cat_trace_decomposition_poc.dart';
 import 'cat_trace_motion_poc.dart';
+import 'cat_run_v2_poc_section.dart';
 import 'cat_multi_pose_run_poc.dart';
 import 'cat_multi_pose_trace_data.dart';
 import 'cat_trace_poc_data.dart';
@@ -169,6 +170,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         const _CatTraceMotionPocSection(),
         AppSpacing.gapXL,
         const _CatMultiPoseRunPocSection(),
+        AppSpacing.gapXL,
+        const CatRunV2PocSection(),
       ],
     ),
   );
