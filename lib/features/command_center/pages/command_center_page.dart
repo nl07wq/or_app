@@ -158,7 +158,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        toolbarHeight: CommandCenterHudSign.height + 8,
+        toolbarHeight: CommandCenterHudSign.height + 4,
         titleSpacing: 8,
         title: CommandCenterHudSign(
           canPop: canPop,

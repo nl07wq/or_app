@@ -8,7 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 class CommandCenterHudSign extends StatelessWidget {
   const CommandCenterHudSign({super.key, required this.canPop, this.onBack});
 
-  static const height = 60.0;
+  static const height = 52.0;
   static const backKey = ValueKey('command-center-hud-back');
   static const signKey = ValueKey('command-center-hud-sign');
 
@@ -51,45 +51,25 @@ class CommandCenterHudSign extends StatelessWidget {
                   const SizedBox(width: 12),
                 SizedBox(width: canPop ? 8 : 4),
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final showSecondary = constraints.maxWidth >= 235;
-                      return Semantics(
-                        header: true,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'COMMANDER CENTER',
-                                maxLines: 1,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.1,
-                                      color: colors.onSurface,
-                                    ),
+                  child: Semantics(
+                    header: true,
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'COMMANDER CENTER',
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: .7,
+                                color: colors.onSurface,
                               ),
-                            ),
-                            if (showSecondary)
-                              Text(
-                                'OPERATION CONTROL',
-                                maxLines: 1,
-                                overflow: TextOverflow.fade,
-                                softWrap: false,
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      letterSpacing: 1.4,
-                                      color: accent,
-                                    ),
-                              ),
-                          ],
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -133,14 +113,14 @@ class _HudFramePainter extends CustomPainter {
     final detail = Paint()
       ..color = lineColor
       ..strokeWidth = 1;
-    canvas.drawLine(const Offset(14, 8), const Offset(42, 8), detail);
+    canvas.drawLine(const Offset(14, 10), const Offset(42, 10), detail);
     canvas.drawLine(
-      Offset(size.width - 42, size.height - 8),
-      Offset(size.width - 14, size.height - 8),
+      Offset(size.width - 42, size.height - 10),
+      Offset(size.width - 14, size.height - 10),
       detail,
     );
     canvas.drawRect(
-      Rect.fromLTWH(size.width - 18, 10, 3, 3),
+      Rect.fromLTWH(size.width - 18, 12, 3, 3),
       Paint()..color = lineColor,
     );
   }

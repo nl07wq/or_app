@@ -21,7 +21,7 @@ void main() {
           child: Scaffold(
             appBar: AppBar(
               automaticallyImplyLeading: false,
-              toolbarHeight: CommandCenterHudSign.height + 8,
+              toolbarHeight: CommandCenterHudSign.height + 4,
               titleSpacing: 8,
               title: CommandCenterHudSign(canPop: canPop, onBack: onBack),
             ),
@@ -39,6 +39,7 @@ void main() {
 
       expect(find.byKey(CommandCenterHudSign.signKey), findsOneWidget);
       expect(find.text('COMMANDER CENTER'), findsOneWidget);
+      expect(find.text('OPERATION CONTROL'), findsNothing);
       expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
       expect(
         tester.getSize(find.byKey(CommandCenterHudSign.backKey)),
@@ -46,6 +47,19 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('keeps the single dominant title vertically centered', (
+    tester,
+  ) async {
+    await pumpHud(tester, width: 390, canPop: true);
+
+    final title = tester.widget<Text>(find.text('COMMANDER CENTER'));
+    expect(title.style?.fontSize, 24);
+    expect(
+      tester.getCenter(find.text('COMMANDER CENTER')).dy,
+      closeTo(tester.getCenter(find.byKey(CommandCenterHudSign.signKey)).dy, 2),
+    );
   });
 
   testWidgets('does not render a nonfunctional Back control at the root', (
