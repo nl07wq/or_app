@@ -12,7 +12,7 @@ class CommandCenterHudSign extends StatefulWidget {
   const CommandCenterHudSign({super.key, required this.canPop, this.onBack});
 
   static const height = 58.0;
-  static const bootDuration = Duration(milliseconds: 1200);
+  static const bootDuration = Duration(milliseconds: 1700);
   static const exitDuration = Duration(milliseconds: 420);
   static const backKey = ValueKey('command-center-hud-back');
   static const signKey = ValueKey('command-center-hud-sign');
@@ -93,7 +93,7 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
             final progress = _reducedMotionApplied
                 ? 1.0
                 : _bootController.value;
-            final titleReveal = _interval(progress, .68, .97);
+            final titleReveal = _interval(progress, .54, .94);
             final finalLock = _interval(progress, .90, 1);
             final exit = _exiting ? _exitController.value : 0.0;
             return CustomPaint(
@@ -127,27 +127,24 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                     child: Semantics(
                       header: true,
                       child: Center(
-                        child: ClipPath(
-                          clipper: _TitleSliceClipper(titleReveal),
-                          child: _GlyphLockTitle(
-                            entry: titleReveal,
-                            exit: exit,
-                            style:
-                                Theme.of(
-                                  context,
-                                ).textTheme.headlineSmall?.copyWith(
-                                  fontFamily: 'ShareTechMono',
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w400,
-                                  letterSpacing: 1.0,
-                                  color: Color.lerp(
-                                    titleGreen,
-                                    titleLockGreen,
-                                    .18 * (1 - finalLock),
-                                  ),
-                                ) ??
-                                const TextStyle(),
-                          ),
+                        child: _GlyphLockTitle(
+                          entry: titleReveal,
+                          exit: exit,
+                          style:
+                              Theme.of(
+                                context,
+                              ).textTheme.headlineSmall?.copyWith(
+                                fontFamily: 'ShareTechMono',
+                                fontSize: 26,
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: 1.0,
+                                color: Color.lerp(
+                                  titleGreen,
+                                  titleLockGreen,
+                                  .18 * (1 - finalLock),
+                                ),
+                              ) ??
+                              const TextStyle(),
                         ),
                       ),
                     ),
@@ -186,13 +183,39 @@ class _GlyphLockTitle extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(_text.length, (index) {
-            final entryLock = ((entry - index * .045) / .28).clamp(0.0, 1.0);
-            final exitUnlock = ((exit - (_text.length - 1 - index) * .04) / .25)
-                .clamp(0.0, 1.0);
-            final opacity = entryLock * (1 - exitUnlock);
+            final visibleIndex = _text
+                .substring(0, index)
+                .replaceAll(' ', '')
+                .length;
+            final reverseIndex = _text
+                .substring(index + 1)
+                .replaceAll(' ', '')
+                .length;
+            final entryLock = ((entry - visibleIndex * .058) / .17).clamp(
+              0.0,
+              1.0,
+            );
+            final exitUnlock = ((exit - reverseIndex * .04) / .25).clamp(
+              0.0,
+              1.0,
+            );
+            final opacity = _text[index] == ' '
+                ? 1.0
+                : (.03 + .97 * entryLock) * (1 - exitUnlock);
+            final flash =
+                math.sin(entryLock * math.pi) * .78 * (1 - exitUnlock);
             return Opacity(
               opacity: opacity,
-              child: Text(_text[index], style: style),
+              child: Text(
+                _text[index],
+                style: style.copyWith(
+                  color: Color.lerp(
+                    style.color,
+                    const Color(0xFFD0FFE0),
+                    flash,
+                  ),
+                ),
+              ),
             );
           }),
         ),

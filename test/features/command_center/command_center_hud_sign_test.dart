@@ -102,7 +102,7 @@ void main() {
 
     expect(
       CommandCenterHudSign.bootDuration,
-      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 1700),
     );
     await tester.pump(const Duration(milliseconds: 420));
     expect(tester.takeException(), isNull);
