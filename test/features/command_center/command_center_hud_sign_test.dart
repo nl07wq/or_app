@@ -59,6 +59,8 @@ void main() {
 
     final title = tester.widget<Text>(find.text('COMMANDER CENTER'));
     expect(title.style?.fontSize, 25);
+    expect(title.style?.fontFamily, 'monospace');
+    expect(title.style?.letterSpacing, 1.15);
     expect(
       tester.getCenter(find.text('COMMANDER CENTER')).dy,
       closeTo(tester.getCenter(find.byKey(CommandCenterHudSign.signKey)).dy, 2),
@@ -87,6 +89,7 @@ void main() {
 
       await tester.tap(find.byKey(CommandCenterHudSign.backKey));
       expect(backCount, 1);
+      expect(find.text('COMMANDER CENTER'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -96,7 +99,11 @@ void main() {
   ) async {
     await pumpHud(tester, width: 390, canPop: true);
 
-    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      CommandCenterHudSign.bootDuration,
+      const Duration(milliseconds: 1200),
+    );
+    await tester.pump(const Duration(milliseconds: 420));
     expect(tester.takeException(), isNull);
     await tester.pump(CommandCenterHudSign.bootDuration);
     expect(find.text('COMMANDER CENTER'), findsOneWidget);
