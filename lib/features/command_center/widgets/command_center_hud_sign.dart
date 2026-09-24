@@ -54,8 +54,9 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
 
   @override
   Widget build(BuildContext context) {
-    const opticalGreen = Color(0xFF71F5A0);
-    const titleGreenWhite = Color(0xFFE3FFE9);
+    const opticalGreen = Color(0xFF62DA85);
+    const titleGreen = Color(0xFF9BFFB8);
+    const titleLockGreen = Color(0xFFD0FFE0);
 
     return Semantics(
       container: true,
@@ -104,27 +105,23 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                       child: Center(
                         child: ClipPath(
                           clipper: _TitleSliceClipper(titleReveal),
-                          child: Transform.scale(
-                            alignment: Alignment.centerLeft,
-                            scaleX: 1.035,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                'COMMANDER CENTER',
-                                maxLines: 1,
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(
-                                      fontFamily: 'monospace',
-                                      fontSize: 25,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.15,
-                                      color: Color.lerp(
-                                        titleGreenWhite,
-                                        opticalGreen,
-                                        .22 * (1 - finalLock),
-                                      ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'COMMANDER CENTER',
+                              maxLines: 1,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    fontFamily: 'ShareTechMono',
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: 1.0,
+                                    color: Color.lerp(
+                                      titleGreen,
+                                      titleLockGreen,
+                                      .18 * (1 - finalLock),
                                     ),
-                              ),
+                                  ),
                             ),
                           ),
                         ),

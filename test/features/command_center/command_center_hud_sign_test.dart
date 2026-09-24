@@ -58,9 +58,10 @@ void main() {
     await tester.pump(CommandCenterHudSign.bootDuration);
 
     final title = tester.widget<Text>(find.text('COMMANDER CENTER'));
-    expect(title.style?.fontSize, 25);
-    expect(title.style?.fontFamily, 'monospace');
-    expect(title.style?.letterSpacing, 1.15);
+    expect(title.style?.fontSize, 26);
+    expect(title.style?.fontFamily, 'ShareTechMono');
+    expect(title.style?.letterSpacing, 1.0);
+    expect(title.style?.color, const Color(0xFF9BFFB8));
     expect(
       tester.getCenter(find.text('COMMANDER CENTER')).dy,
       closeTo(tester.getCenter(find.byKey(CommandCenterHudSign.signKey)).dy, 2),
