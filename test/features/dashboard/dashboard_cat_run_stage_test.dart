@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_cat_run_stage.dart';
 import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
+import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
 
 void main() {
@@ -39,6 +40,13 @@ void main() {
       expect(CatRunCoatPatterns.probabilities[variant], .2);
     }
     expect(CatRunV24Travel.crossingDuration, const Duration(seconds: 3));
+    expect(DashboardCatRunStage.productionScale, .65);
+    expect(
+      DashboardCatRunStage.productionCatUnit,
+      CatRunV23Travel.catUnit * .65,
+    );
+    expect(DashboardCatRunStage.groundInset, 5);
+    expect(DashboardCatRunStage.groundLineColor, const Color(0xFF383838));
   });
 
   test(

@@ -235,11 +235,19 @@ class CatRunV23StagePainter extends CustomPainter {
     required this.progress,
     required this.direction,
     required this.coatVariant,
+    this.catUnit = CatRunV23Travel.catUnit,
+    this.showGroundLine = false,
+    this.groundInset = 5,
+    this.groundLineColor = const Color(0xFF383838),
   });
 
   final double progress;
   final CatRunV23Direction direction;
   final CatRunCoatVariant coatVariant;
+  final double catUnit;
+  final bool showGroundLine;
+  final double groundInset;
+  final Color groundLineColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -247,6 +255,15 @@ class CatRunV23StagePainter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = const Color(0xFF101010),
     );
+    if (showGroundLine) {
+      canvas.drawLine(
+        Offset(0, size.height - groundInset),
+        Offset(size.width, size.height - groundInset),
+        Paint()
+          ..color = groundLineColor
+          ..strokeWidth = 1,
+      );
+    }
     final frame = CatRunV24Travel.frameAtTravelProgress(progress);
     final trace = catRunV2HighTraces[frame];
     final points = CatRunV24Travel.pointsAt(progress);
@@ -256,18 +273,16 @@ class CatRunV23StagePainter extends CustomPainter {
       progress: progress,
     );
     final groundY =
-        size.height -
-        5 -
-        CatRunV2Registration.virtualGround * CatRunV23Travel.catUnit;
+        size.height - 5 - CatRunV2Registration.virtualGround * catUnit;
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     if (direction == CatRunV23Direction.leftToRight) {
       canvas.translate(travelX, groundY);
-      canvas.scale(CatRunV23Travel.catUnit);
+      canvas.scale(catUnit);
     } else {
       canvas.translate(size.width - travelX, groundY);
-      canvas.scale(-CatRunV23Travel.catUnit, CatRunV23Travel.catUnit);
+      canvas.scale(-catUnit, catUnit);
     }
     canvas.drawPath(
       path,
@@ -288,5 +303,9 @@ class CatRunV23StagePainter extends CustomPainter {
   bool shouldRepaint(covariant CatRunV23StagePainter oldDelegate) =>
       oldDelegate.progress != progress ||
       oldDelegate.direction != direction ||
-      oldDelegate.coatVariant != coatVariant;
+      oldDelegate.coatVariant != coatVariant ||
+      oldDelegate.catUnit != catUnit ||
+      oldDelegate.showGroundLine != showGroundLine ||
+      oldDelegate.groundInset != groundInset ||
+      oldDelegate.groundLineColor != groundLineColor;
 }
