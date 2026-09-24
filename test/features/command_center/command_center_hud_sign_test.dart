@@ -36,8 +36,10 @@ void main() {
   ) async {
     for (final width in [320.0, 390.0, 900.0]) {
       await pumpHud(tester, width: width, canPop: true);
+      await tester.pump(CommandCenterHudSign.bootDuration);
 
       expect(find.byKey(CommandCenterHudSign.signKey), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.opticalLayerKey), findsOneWidget);
       expect(find.text('COMMANDER CENTER'), findsOneWidget);
       expect(find.text('OPERATION CONTROL'), findsNothing);
       expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
@@ -53,9 +55,10 @@ void main() {
     tester,
   ) async {
     await pumpHud(tester, width: 390, canPop: true);
+    await tester.pump(CommandCenterHudSign.bootDuration);
 
     final title = tester.widget<Text>(find.text('COMMANDER CENTER'));
-    expect(title.style?.fontSize, 24);
+    expect(title.style?.fontSize, 25);
     expect(
       tester.getCenter(find.text('COMMANDER CENTER')).dy,
       closeTo(tester.getCenter(find.byKey(CommandCenterHudSign.signKey)).dy, 2),
@@ -87,4 +90,16 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('completes one optical boot sequence without a perpetual loop', (
+    tester,
+  ) async {
+    await pumpHud(tester, width: 390, canPop: true);
+
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(tester.takeException(), isNull);
+    await tester.pump(CommandCenterHudSign.bootDuration);
+    expect(find.text('COMMANDER CENTER'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
