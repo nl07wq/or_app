@@ -151,6 +151,7 @@ void main() {
     expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
 
     await tester.tap(find.byKey(CommandCenterHudSign.backKey));
+    await tester.pump(CommandCenterHudSign.exitDuration);
     await _settleDashboard(tester);
     expect(find.byType(DashboardPage), findsOneWidget);
     expect(find.byType(CommandCenterPage), findsNothing);

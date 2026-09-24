@@ -432,28 +432,3 @@ class _OpticalHudPainter extends CustomPainter {
       oldDelegate.exitProgress != exitProgress ||
       oldDelegate.green != green;
 }
-
-class _TitleSliceClipper extends CustomClipper<Path> {
-  const _TitleSliceClipper(this.progress);
-
-  final double progress;
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    const slices = 12;
-    final width = size.width / slices;
-    for (var index = 0; index < slices; index++) {
-      final stagger = (index % 3) * .12;
-      final resolved = ((progress - stagger) / (1 - stagger)).clamp(0.0, 1.0);
-      path.addRect(
-        Rect.fromLTWH(index * width, 0, width * resolved, size.height),
-      );
-    }
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant _TitleSliceClipper oldClipper) =>
-      oldClipper.progress != progress;
-}
