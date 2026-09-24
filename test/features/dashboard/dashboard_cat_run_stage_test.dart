@@ -40,13 +40,16 @@ void main() {
       expect(CatRunCoatPatterns.probabilities[variant], .2);
     }
     expect(CatRunV24Travel.crossingDuration, const Duration(seconds: 3));
-    expect(DashboardCatRunStage.productionScale, .65);
+    expect(DashboardCatRunStage.productionScale, .75);
     expect(
       DashboardCatRunStage.productionCatUnit,
-      CatRunV23Travel.catUnit * .65,
+      CatRunV23Travel.catUnit * .75,
     );
     expect(DashboardCatRunStage.groundInset, 5);
     expect(DashboardCatRunStage.groundLineColor, const Color(0xFF383838));
+    const productionStage = DashboardCatRunStage();
+    expect(productionStage.minimumInterval, const Duration(seconds: 30));
+    expect(productionStage.maximumInterval, const Duration(seconds: 60));
   });
 
   test(

@@ -33,15 +33,15 @@ class DashboardCatRunStage extends StatefulWidget {
   const DashboardCatRunStage({
     super.key,
     this.random,
-    this.minimumInterval = const Duration(seconds: 45),
-    this.maximumInterval = const Duration(seconds: 90),
+    this.minimumInterval = const Duration(seconds: 30),
+    this.maximumInterval = const Duration(seconds: 60),
   });
 
   static const height = CatRunV24Travel.stageHeight;
 
   /// Single production-only size control. 0.50–0.75 is the approved tuning
   /// envelope; source vectors and the sandbox preview remain untouched.
-  static const productionScale = .65;
+  static const productionScale = .75;
   static const productionCatUnit = CatRunV23Travel.catUnit * productionScale;
   static const groundInset = 5.0;
   static const groundLineColor = Color(0xFF383838);
