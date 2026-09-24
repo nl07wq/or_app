@@ -61,7 +61,7 @@ void main() {
     expect(title.style?.fontSize, 26);
     expect(title.style?.fontFamily, 'ShareTechMono');
     expect(title.style?.letterSpacing, 1.0);
-    expect(title.style?.color, const Color(0xFF9BFFB8));
+    expect(title.style?.color, Colors.transparent);
     expect(
       tester.getCenter(find.text('COMMANDER CENTER')).dy,
       closeTo(tester.getCenter(find.byKey(CommandCenterHudSign.signKey)).dy, 2),
@@ -109,5 +109,20 @@ void main() {
     await tester.pump(CommandCenterHudSign.bootDuration);
     expect(find.text('COMMANDER CENTER'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('disengages once before invoking the supplied Navigator action', (
+    tester,
+  ) async {
+    var backCount = 0;
+    await pumpHud(tester, width: 390, canPop: true, onBack: () => backCount++);
+    await tester.tap(find.byKey(CommandCenterHudSign.backKey));
+    await tester.tap(find.byKey(CommandCenterHudSign.backKey));
+    expect(backCount, 0);
+    await tester.pump(
+      CommandCenterHudSign.exitDuration + const Duration(milliseconds: 1),
+    );
+    await tester.pump();
+    expect(backCount, 1);
   });
 }

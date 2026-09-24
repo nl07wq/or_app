@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -12,6 +13,7 @@ class CommandCenterHudSign extends StatefulWidget {
 
   static const height = 58.0;
   static const bootDuration = Duration(milliseconds: 1200);
+  static const exitDuration = Duration(milliseconds: 420);
   static const backKey = ValueKey('command-center-hud-back');
   static const signKey = ValueKey('command-center-hud-sign');
   static const opticalLayerKey = ValueKey('command-center-hud-optical-layer');
@@ -24,12 +26,17 @@ class CommandCenterHudSign extends StatefulWidget {
 }
 
 class _CommandCenterHudSignState extends State<CommandCenterHudSign>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _bootController = AnimationController(
     vsync: this,
     duration: CommandCenterHudSign.bootDuration,
   );
   bool _reducedMotionApplied = false;
+  bool _exiting = false;
+  late final AnimationController _exitController = AnimationController(
+    vsync: this,
+    duration: CommandCenterHudSign.exitDuration,
+  );
 
   @override
   void initState() {
@@ -49,7 +56,22 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
   @override
   void dispose() {
     _bootController.dispose();
+    _exitController.dispose();
     super.dispose();
+  }
+
+  void _requestBack() {
+    if (_exiting || widget.onBack == null) return;
+    if (_reducedMotionApplied) {
+      widget.onBack!.call();
+      return;
+    }
+    setState(() => _exiting = true);
+    _bootController.stop();
+    _exitController.forward(from: 0);
+    Future<void>.delayed(CommandCenterHudSign.exitDuration, () {
+      if (mounted && _exiting) widget.onBack?.call();
+    });
   }
 
   @override
@@ -66,17 +88,19 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
         height: CommandCenterHudSign.height,
         width: double.infinity,
         child: AnimatedBuilder(
-          animation: _bootController,
+          animation: Listenable.merge([_bootController, _exitController]),
           builder: (context, _) {
             final progress = _reducedMotionApplied
                 ? 1.0
                 : _bootController.value;
             final titleReveal = _interval(progress, .68, .97);
             final finalLock = _interval(progress, .90, 1);
+            final exit = _exiting ? _exitController.value : 0.0;
             return CustomPaint(
               key: CommandCenterHudSign.opticalLayerKey,
               painter: _OpticalHudPainter(
                 progress: progress,
+                exitProgress: exit,
                 green: opticalGreen,
               ),
               child: Stack(
@@ -91,7 +115,7 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                         child: IconButton(
                           key: CommandCenterHudSign.backKey,
                           tooltip: 'Back',
-                          onPressed: widget.onBack,
+                          onPressed: _exiting ? null : _requestBack,
                           color: opticalGreen,
                           icon: const Icon(Symbols.chevron_left),
                         ),
@@ -105,24 +129,24 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                       child: Center(
                         child: ClipPath(
                           clipper: _TitleSliceClipper(titleReveal),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'COMMANDER CENTER',
-                              maxLines: 1,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(
-                                    fontFamily: 'ShareTechMono',
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w400,
-                                    letterSpacing: 1.0,
-                                    color: Color.lerp(
-                                      titleGreen,
-                                      titleLockGreen,
-                                      .18 * (1 - finalLock),
-                                    ),
+                          child: _GlyphLockTitle(
+                            entry: titleReveal,
+                            exit: exit,
+                            style:
+                                Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall?.copyWith(
+                                  fontFamily: 'ShareTechMono',
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 1.0,
+                                  color: Color.lerp(
+                                    titleGreen,
+                                    titleLockGreen,
+                                    .18 * (1 - finalLock),
                                   ),
-                            ),
+                                ) ??
+                                const TextStyle(),
                           ),
                         ),
                       ),
@@ -141,15 +165,59 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
 double _interval(double value, double begin, double end) =>
     ((value - begin) / (end - begin)).clamp(0.0, 1.0);
 
+class _GlyphLockTitle extends StatelessWidget {
+  const _GlyphLockTitle({
+    required this.entry,
+    required this.exit,
+    required this.style,
+  });
+  final double entry;
+  final double exit;
+  final TextStyle style;
+  static const _text = 'COMMANDER CENTER';
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Stack(
+      children: [
+        ExcludeSemantics(
+          child: Text(_text, style: style.copyWith(color: Colors.transparent)),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(_text.length, (index) {
+            final entryLock = ((entry - index * .045) / .28).clamp(0.0, 1.0);
+            final exitUnlock = ((exit - (_text.length - 1 - index) * .04) / .25)
+                .clamp(0.0, 1.0);
+            final opacity = entryLock * (1 - exitUnlock);
+            return Opacity(
+              opacity: opacity,
+              child: Text(_text[index], style: style),
+            );
+          }),
+        ),
+      ],
+    ),
+  );
+}
+
 class _OpticalHudPainter extends CustomPainter {
-  const _OpticalHudPainter({required this.progress, required this.green});
+  const _OpticalHudPainter({
+    required this.progress,
+    required this.exitProgress,
+    required this.green,
+  });
 
   final double progress;
+  final double exitProgress;
   final Color green;
 
   @override
   void paint(Canvas canvas, Size size) {
     final origin = Offset(math.min(76, size.width * .24), size.height * .5);
+    canvas.save();
+    canvas.translate(origin.dx * exitProgress, origin.dy * exitProgress);
+    canvas.scale(1 - exitProgress * .62, 1 - exitProgress * .36);
     final acquire = _interval(progress, .0, .20);
     final lock = _interval(progress, .16, .52);
     final lockEvent = _interval(progress, .46, .60);
@@ -328,6 +396,7 @@ class _OpticalHudPainter extends CustomPainter {
     ]) {
       canvas.drawCircle(point, 1.35, tick);
     }
+    canvas.restore();
   }
 
   void _line(Canvas canvas, Offset start, Offset end, Paint paint) {
@@ -336,7 +405,9 @@ class _OpticalHudPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _OpticalHudPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.green != green;
+      oldDelegate.progress != progress ||
+      oldDelegate.exitProgress != exitProgress ||
+      oldDelegate.green != green;
 }
 
 class _TitleSliceClipper extends CustomClipper<Path> {
