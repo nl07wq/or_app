@@ -12,11 +12,16 @@ class CommandCenterHudSign extends StatefulWidget {
   const CommandCenterHudSign({super.key, required this.canPop, this.onBack});
 
   static const height = 58.0;
-  static const bootDuration = Duration(milliseconds: 1700);
-  static const exitDuration = Duration(milliseconds: 420);
+  static const bootDuration = Duration(milliseconds: 2050);
+  static const exitDuration = Duration(milliseconds: 780);
   static const backKey = ValueKey('command-center-hud-back');
   static const signKey = ValueKey('command-center-hud-sign');
   static const opticalLayerKey = ValueKey('command-center-hud-optical-layer');
+  static const titleKey = ValueKey('command-center-hud-title');
+  static const titleSemanticsLabel = 'COMMANDER CENTER';
+
+  static ValueKey<String> glyphKey(int visibleIndex) =>
+      ValueKey('command-center-hud-glyph-$visibleIndex');
 
   final bool canPop;
   final VoidCallback? onBack;
@@ -93,8 +98,8 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
             final progress = _reducedMotionApplied
                 ? 1.0
                 : _bootController.value;
-            final titleReveal = _interval(progress, .54, .94);
-            final finalLock = _interval(progress, .90, 1);
+            final titleReveal = _interval(progress, .63, .99);
+            final finalLock = _interval(progress, .96, 1);
             final exit = _exiting ? _exitController.value : 0.0;
             return CustomPaint(
               key: CommandCenterHudSign.opticalLayerKey,
@@ -126,25 +131,28 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                     right: 14,
                     child: Semantics(
                       header: true,
-                      child: Center(
-                        child: _GlyphLockTitle(
-                          entry: titleReveal,
-                          exit: exit,
-                          style:
-                              Theme.of(
-                                context,
-                              ).textTheme.headlineSmall?.copyWith(
-                                fontFamily: 'ShareTechMono',
-                                fontSize: 26,
-                                fontWeight: FontWeight.w400,
-                                letterSpacing: 1.0,
-                                color: Color.lerp(
-                                  titleGreen,
-                                  titleLockGreen,
-                                  .18 * (1 - finalLock),
-                                ),
-                              ) ??
-                              const TextStyle(),
+                      label: CommandCenterHudSign.titleSemanticsLabel,
+                      child: ExcludeSemantics(
+                        child: Center(
+                          child: _GlyphLockTitle(
+                            entry: titleReveal,
+                            exit: exit,
+                            style:
+                                Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall?.copyWith(
+                                  fontFamily: 'ShareTechMono',
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 1.0,
+                                  color: Color.lerp(
+                                    titleGreen,
+                                    titleLockGreen,
+                                    .18 * (1 - finalLock),
+                                  ),
+                                ) ??
+                                const TextStyle(),
+                          ),
                         ),
                       ),
                     ),
@@ -171,57 +179,115 @@ class _GlyphLockTitle extends StatelessWidget {
   final double entry;
   final double exit;
   final TextStyle style;
-  static const _text = 'COMMANDER CENTER';
+  static const _glyphs = [
+    'C',
+    'O',
+    'M',
+    'M',
+    'A',
+    'N',
+    'D',
+    'E',
+    'R',
+    'C',
+    'E',
+    'N',
+    'T',
+    'E',
+    'R',
+  ];
+
   @override
   Widget build(BuildContext context) => FittedBox(
+    key: CommandCenterHudSign.titleKey,
     fit: BoxFit.scaleDown,
-    child: Stack(
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        ExcludeSemantics(
-          child: Text(_text, style: style.copyWith(color: Colors.transparent)),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(_text.length, (index) {
-            final visibleIndex = _text
-                .substring(0, index)
-                .replaceAll(' ', '')
-                .length;
-            final reverseIndex = _text
-                .substring(index + 1)
-                .replaceAll(' ', '')
-                .length;
-            final entryLock = ((entry - visibleIndex * .058) / .17).clamp(
-              0.0,
-              1.0,
-            );
-            final exitUnlock = ((exit - reverseIndex * .04) / .25).clamp(
-              0.0,
-              1.0,
-            );
-            final opacity = _text[index] == ' '
-                ? 1.0
-                : (.03 + .97 * entryLock) * (1 - exitUnlock);
-            final flash =
-                math.sin(entryLock * math.pi) * .78 * (1 - exitUnlock);
-            return Opacity(
-              opacity: opacity,
-              child: Text(
-                _text[index],
-                style: style.copyWith(
-                  color: Color.lerp(
-                    style.color,
-                    const Color(0xFFD0FFE0),
-                    flash,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
+        for (var index = 0; index < _glyphs.length; index++) ...[
+          if (index == 9)
+            Text(' ', style: style.copyWith(color: Colors.transparent)),
+          Padding(
+            padding: EdgeInsets.only(
+              right: index == _glyphs.length - 1 ? 0 : style.letterSpacing ?? 0,
+            ),
+            child: _OpticalGlyph(
+              key: CommandCenterHudSign.glyphKey(index),
+              glyph: _glyphs[index],
+              entry: entry,
+              exit: exit,
+              visibleIndex: index,
+              style: style.copyWith(letterSpacing: 0),
+            ),
+          ),
+        ],
       ],
     ),
   );
+}
+
+class _OpticalGlyph extends StatelessWidget {
+  const _OpticalGlyph({
+    super.key,
+    required this.glyph,
+    required this.entry,
+    required this.exit,
+    required this.visibleIndex,
+    required this.style,
+  });
+
+  final String glyph;
+  final double entry;
+  final double exit;
+  final int visibleIndex;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    // A 0.0625 entry phase offset is 46.1ms at the 738ms title-acquisition
+    // window. Each independent unit therefore becomes readable in sequence.
+    final acquire = ((entry - visibleIndex * .0625) / .10).clamp(0.0, 1.0);
+    // Exit starts with an acknowledge pulse, then releases the rightmost
+    // glyph first. It remains deliberately faster than the entry lock.
+    final reverseIndex = 14 - visibleIndex;
+    final unlock = ((exit - (.12 + reverseIndex * .035)) / .13).clamp(0.0, 1.0);
+    final entryFlash = math.sin(acquire * math.pi) * .82 * (1 - unlock);
+    final unlockFlash = math.sin(unlock * math.pi) * .60;
+    final flash = math.max(entryFlash, unlockFlash);
+    final visible = acquire * (1 - unlock);
+    final fragmentOpacity = (1 - acquire) * (1 - unlock) * .34;
+
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        Opacity(
+          opacity: fragmentOpacity,
+          child: Container(
+            width: 1.5,
+            height: 8,
+            decoration: BoxDecoration(
+              color: const Color(0xFF62DA85),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+        Opacity(
+          key: ValueKey('command-center-hud-glyph-opacity-$visibleIndex'),
+          opacity: visible,
+          child: Transform.scale(
+            scale: 1 + .045 * flash,
+            child: Text(
+              glyph,
+              style: style.copyWith(
+                color: Color.lerp(style.color, const Color(0xFFD0FFE0), flash),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _OpticalHudPainter extends CustomPainter {
@@ -238,9 +304,11 @@ class _OpticalHudPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final origin = Offset(math.min(76, size.width * .24), size.height * .5);
+    if (exitProgress > 0) {
+      _paintDisengage(canvas, size, origin);
+      return;
+    }
     canvas.save();
-    canvas.translate(origin.dx * exitProgress, origin.dy * exitProgress);
-    canvas.scale(1 - exitProgress * .62, 1 - exitProgress * .36);
     final acquire = _interval(progress, .0, .20);
     final lock = _interval(progress, .16, .52);
     final lockEvent = _interval(progress, .46, .60);
@@ -420,6 +488,121 @@ class _OpticalHudPainter extends CustomPainter {
       canvas.drawCircle(point, 1.35, tick);
     }
     canvas.restore();
+  }
+
+  void _paintDisengage(Canvas canvas, Size size, Offset origin) {
+    final trigger = _interval(exitProgress, 0, .12);
+    final reverseScan = _interval(exitProgress, .30, .62);
+    final planeCollapse = _interval(exitProgress, .38, .72);
+    final ringUnlock = _interval(exitProgress, .62, .90);
+    final pointCollapse = _interval(exitProgress, .85, 1);
+
+    final plane = Paint()
+      ..color = green.withValues(alpha: .045 * trigger * (1 - planeCollapse))
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromLTWH(8, 7, math.max(0, size.width - 16), size.height - 14),
+      plane,
+    );
+
+    final acknowledge = Paint()
+      ..color = const Color(0xFFD0FFE0).withValues(alpha: .62 * trigger)
+      ..strokeWidth = 1.3;
+    canvas.drawLine(
+      Offset(56, size.height * .5),
+      Offset(size.width - 16, size.height * .5),
+      acknowledge,
+    );
+
+    if (reverseScan > 0) {
+      final scanX =
+          size.width - 14 - (size.width - 14 - origin.dx) * reverseScan;
+      final scan = Paint()
+        ..color = green.withValues(alpha: .68 * (1 - reverseScan * .35))
+        ..strokeWidth = 1;
+      canvas.drawLine(
+        Offset(scanX, size.height * .5),
+        Offset(size.width - 14, size.height * .5),
+        scan,
+      );
+      canvas.drawLine(Offset(scanX, 12), Offset(scanX, size.height - 12), scan);
+    }
+
+    final structure = Paint()
+      ..color = green.withValues(alpha: .64 * (1 - planeCollapse))
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+    final retract = 1 - planeCollapse;
+    _line(
+      canvas,
+      const Offset(60, 10),
+      Offset(60 + (size.width * .42 - 60) * retract, 10),
+      structure,
+    );
+    _line(
+      canvas,
+      Offset(size.width * .64, 10),
+      Offset(
+        size.width * .64 + (size.width - 12 - size.width * .64) * retract,
+        10,
+      ),
+      structure,
+    );
+    _line(
+      canvas,
+      const Offset(16, 48),
+      Offset(16 + (size.width * .32 - 16) * retract, 48),
+      structure,
+    );
+    _line(
+      canvas,
+      Offset(size.width * .72, 48),
+      Offset(
+        size.width * .72 + (size.width - 20 - size.width * .72) * retract,
+        48,
+      ),
+      structure,
+    );
+
+    final ringAlpha = ringUnlock * (1 - pointCollapse) * .72;
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1;
+    for (final values in [(19.0, .9), (29.0, -1.2), (39.0, 2.1)]) {
+      ring.color = green.withValues(alpha: ringAlpha);
+      canvas.drawArc(
+        Rect.fromCircle(center: origin, radius: values.$1),
+        values.$2 - ringUnlock * 1.15,
+        math.pi * 1.02,
+        false,
+        ring,
+      );
+    }
+
+    final reticle = Paint()
+      ..color = green.withValues(alpha: ringAlpha * .8)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      origin - const Offset(10, 0),
+      origin - const Offset(3, 0),
+      reticle,
+    );
+    canvas.drawLine(
+      origin + const Offset(3, 0),
+      origin + const Offset(10, 0),
+      reticle,
+    );
+    canvas.drawCircle(
+      origin,
+      5 + ringUnlock * 4,
+      reticle..style = PaintingStyle.stroke,
+    );
+
+    final point = Paint()
+      ..color = green.withValues(alpha: 1 - pointCollapse)
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(origin, 2.8 * (1 - pointCollapse), point);
   }
 
   void _line(Canvas canvas, Offset start, Offset end, Paint paint) {

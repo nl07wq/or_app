@@ -104,10 +104,12 @@ void main() {
   ) async {
     await _pump(tester, width: 390);
 
-    expect(find.text('COMMANDER CENTER'), findsOneWidget);
+    expect(find.byKey(CommandCenterHudSign.titleKey), findsOneWidget);
     expect(find.byKey(CommandCenterHudSign.backKey), findsNothing);
     expect(
-      Navigator.of(tester.element(find.text('COMMANDER CENTER'))).canPop(),
+      Navigator.of(
+        tester.element(find.byKey(CommandCenterHudSign.titleKey)),
+      ).canPop(),
       isFalse,
     );
     expect(tester.takeException(), isNull);
