@@ -36,6 +36,7 @@ class DashboardCatRunStage extends StatefulWidget {
     this.random,
     this.minimumInterval = const Duration(seconds: 30),
     this.maximumInterval = const Duration(seconds: 60),
+    this.onEventActiveChanged,
   });
 
   static const height = CatRunV24Travel.stageHeight;
@@ -48,17 +49,18 @@ class DashboardCatRunStage extends StatefulWidget {
   static const groundLineColor = Color(0xFF383838);
   static const chainContinueProbability = .2;
   static const chainStopProbability = .8;
-  static const chainFollowerTriggerProgress = .25;
+  static const chainFollowerTriggerProgress = .15;
   static const glitchProbability = .05;
   static const normalEventProbability = .95;
   static const glitchCatCount = 10;
-  static const glitchFollowerTriggerProgress = .12;
+  static const glitchFollowerTriggerProgress = .06;
   static const stageKey = ValueKey('dashboard-production-cat-stage');
   static const activeKey = ValueKey('dashboard-production-cat-active');
 
   final math.Random? random;
   final Duration minimumInterval;
   final Duration maximumInterval;
+  final ValueChanged<bool>? onEventActiveChanged;
 
   /// A single five-way roll deliberately has no chain-length input or cap.
   static bool chainContinuesForRoll(int roll) {
@@ -95,12 +97,20 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
   bool _tickerEnabled = true;
   bool _reducedMotion = false;
   bool _measured = false;
+  bool _lastPublishedEventActive = false;
 
   bool get _hasActiveCrossing => _chain.isNotEmpty;
   bool get _motionAllowed =>
       mounted && _appActive && _tickerEnabled && !_reducedMotion;
 
   int _next(int max) => _random.nextInt(max);
+
+  void _publishEventActivity() {
+    final active = _hasActiveCrossing;
+    if (_lastPublishedEventActive == active) return;
+    _lastPublishedEventActive = active;
+    widget.onEventActiveChanged?.call(active);
+  }
 
   @override
   void initState() {
@@ -163,6 +173,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
       _chainDirection = null;
       _eventKind = null;
     }
+    _publishEventActivity();
   }
 
   void _scheduleNextAppearance() {
@@ -212,6 +223,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
           }
       }
     });
+    _publishEventActivity();
     _controller.value = 0;
     _continueChain();
   }
@@ -278,6 +290,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
       _chainDirection = null;
       _eventKind = null;
     });
+    _publishEventActivity();
     // The delay deliberately begins only after the CAT is fully offstage.
     _scheduleNextAppearance();
   }

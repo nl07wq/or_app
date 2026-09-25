@@ -53,11 +53,11 @@ void main() {
     expect(productionStage.maximumInterval, const Duration(seconds: 60));
     expect(DashboardCatRunStage.chainContinueProbability, .2);
     expect(DashboardCatRunStage.chainStopProbability, .8);
-    expect(DashboardCatRunStage.chainFollowerTriggerProgress, .25);
+    expect(DashboardCatRunStage.chainFollowerTriggerProgress, .15);
     expect(DashboardCatRunStage.glitchProbability, .05);
     expect(DashboardCatRunStage.normalEventProbability, .95);
     expect(DashboardCatRunStage.glitchCatCount, 10);
-    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .12);
+    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .06);
     expect(
       DashboardCatRunStage.eventKindForRoll(0),
       DashboardCatEventKind.glitch,
@@ -162,7 +162,7 @@ void main() {
                   )
                   .painter!
               as CatRunV23StagePainter;
-      expect(painter.progress, greaterThanOrEqualTo(.25));
+      expect(painter.progress, greaterThanOrEqualTo(.15));
       expect(painter.crossings, hasLength(2));
       expect(
         painter.crossings!.map((crossing) => crossing.direction),
@@ -241,6 +241,7 @@ void main() {
     'manual trigger starts the normal event once, cancels the pending timer, and rejects rapid taps',
     (tester) async {
       final stageKey = GlobalKey<DashboardCatRunStageState>();
+      final activity = <bool>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -249,6 +250,7 @@ void main() {
               random: _SequenceRandom([1, 0, 1, 1]),
               minimumInterval: const Duration(milliseconds: 50),
               maximumInterval: const Duration(milliseconds: 50),
+              onEventActiveChanged: activity.add,
             ),
           ),
         ),
@@ -256,7 +258,9 @@ void main() {
       await tester.pump();
 
       expect(stageKey.currentState!.triggerManualAppearance(), isTrue);
+      expect(activity, [true]);
       expect(stageKey.currentState!.triggerManualAppearance(), isFalse);
+      expect(activity, [true]);
       await tester.pump();
       expect(find.byKey(DashboardCatRunStage.activeKey), findsOneWidget);
 
@@ -275,6 +279,7 @@ void main() {
       );
       await tester.pump();
       expect(find.byKey(DashboardCatRunStage.activeKey), findsNothing);
+      expect(activity, [true, false]);
       await tester.pump(const Duration(milliseconds: 49));
       expect(find.byKey(DashboardCatRunStage.activeKey), findsNothing);
     },
@@ -284,6 +289,7 @@ void main() {
     'CAT GLITCH creates exactly ten tightly spaced cats without continuation',
     (tester) async {
       final stageKey = GlobalKey<DashboardCatRunStageState>();
+      final activity = <bool>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -292,6 +298,7 @@ void main() {
               random: _SequenceRandom([0, 0, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4]),
               minimumInterval: const Duration(milliseconds: 50),
               maximumInterval: const Duration(milliseconds: 50),
+              onEventActiveChanged: activity.add,
             ),
           ),
         ),
@@ -299,6 +306,7 @@ void main() {
       await tester.pump();
 
       expect(stageKey.currentState!.triggerManualAppearance(), isTrue);
+      expect(activity, [true]);
       await tester.pump();
       final painter =
           tester
@@ -350,6 +358,7 @@ void main() {
         laterPainter.crossings,
         hasLength(DashboardCatRunStage.glitchCatCount),
       );
+      expect(activity, [true]);
     },
   );
 
@@ -371,6 +380,14 @@ void main() {
         expect(paw, findsOneWidget, reason: 'width $width');
         expect(tester.getSize(paw), const Size(44, 44));
         expect(tester.getSemantics(paw).label, contains('Run cat'));
+        expect(
+          tester
+              .widget<Icon>(
+                find.descendant(of: paw, matching: find.byType(Icon)),
+              )
+              .color,
+          DashboardCatPawColors.ready,
+        );
         expect(sign, findsOneWidget, reason: 'width $width');
         expect(
           tester.getRect(paw).right,
@@ -384,6 +401,21 @@ void main() {
       await tester.tap(paw);
       await tester.pump();
       expect(find.byKey(DashboardCatRunStage.activeKey), findsOneWidget);
+      expect(
+        tester
+            .widget<Icon>(find.descendant(of: paw, matching: find.byType(Icon)))
+            .color,
+        DashboardCatPawColors.active,
+      );
+      expect(
+        tester
+            .widget<IconButton>(
+              find.descendant(of: paw, matching: find.byType(IconButton)),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.getSemantics(paw).label, contains('Run cat'));
       expect(tester.takeException(), isNull);
       semantics.dispose();
     },

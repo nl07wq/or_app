@@ -546,6 +546,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final GlobalKey _dashboardViewportKey = GlobalKey();
   Rect? _wildlifeStageRect;
   bool _wildlifeMeasurementQueued = false;
+  bool _catEventActive = false;
 
   @override
   void initState() {
@@ -636,6 +637,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           appBar: AppBar(
                             leadingWidth: 56,
                             leading: _DashboardCatManualTrigger(
+                              active: _catEventActive,
                               onPressed: () => _catStageKey.currentState
                                   ?.triggerManualAppearance(),
                             ),
@@ -771,6 +773,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                         _wildlifeStageRect ?? fallbackStageRect,
                                     child: DashboardCatRunStage(
                                       key: _catStageKey,
+                                      onEventActiveChanged: (active) {
+                                        if (mounted &&
+                                            _catEventActive != active) {
+                                          setState(
+                                            () => _catEventActive = active,
+                                          );
+                                        }
+                                      },
                                     ),
                                   ),
                                 ],
@@ -2626,9 +2636,18 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
   }
 }
 
-class _DashboardCatManualTrigger extends StatelessWidget {
-  const _DashboardCatManualTrigger({required this.onPressed});
+abstract final class DashboardCatPawColors {
+  static const ready = Color(0xC738BDF8);
+  static const active = Color(0xFF8C959C);
+}
 
+class _DashboardCatManualTrigger extends StatelessWidget {
+  const _DashboardCatManualTrigger({
+    required this.active,
+    required this.onPressed,
+  });
+
+  final bool active;
   final VoidCallback onPressed;
 
   @override
@@ -2645,7 +2664,9 @@ class _DashboardCatManualTrigger extends StatelessWidget {
           onPressed: onPressed,
           icon: Icon(
             Symbols.pets,
-            color: AppColors.information.withValues(alpha: .78),
+            color: active
+                ? DashboardCatPawColors.active
+                : DashboardCatPawColors.ready,
             size: 20,
           ),
         ),
