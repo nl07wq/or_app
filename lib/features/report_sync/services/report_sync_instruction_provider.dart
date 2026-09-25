@@ -270,6 +270,17 @@ ${const JsonEncoder.withIndent('  ').convert(analysis)}
           'actions': [
             {'text': '<Japanese one-line action>', 'priority': 'high'},
           ],
+          'decisionTrace': {
+            'traceSchemaVersion': 'decision-trace-v1',
+            'modelVersion': 'plantar-risk-v2',
+            'ruleSetVersion': 'plantar-risk-v2',
+            'sourceSnapshot':
+                '<exact structured facts used from STATUS and supplied context>',
+            'rules': '<rule evaluations>',
+            'interactions': '<interaction evaluations>',
+            'finalDecision':
+                '<candidate statuses, modifiers, guardrails, final status, reason codes>',
+          },
         },
       },
       'packageDigest': null,
@@ -286,7 +297,7 @@ RESPONSE CONTRACT
 formatは「${ReportSyncEnvelope.formatId}」、envelopeVersionは1、schemaVersionは「2.0」、directionは「response」、exchangeTypeは「morningBrief」、operationDateは「$operationDate」に固定してください。
 packageDigestはnullにしてください。Digestを計算せず、Placeholderや文字列へ置換しないでください。アプリがStrict Validation後に正式Digestを生成します。
 Unknown Field、旧Schema 1.0 Field、argoComment、actionIdを追加しないでください。situationAnalysisを単一Stringにしないでください。
-situationAnalysisのbody/recovery/condition/work/carryover/overallと、bodyDisplay/recoveryDisplay/conditionDisplay/workDisplay、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actionsをすべて返してください。
+situationAnalysisのbody/recovery/condition/work/carryover/overallと、bodyDisplay/recoveryDisplay/conditionDisplay/workDisplay、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actions、decisionTraceをすべて返してください。decisionTraceは表示用日本語ではなく監査用の構造化データです。STATUS SOURCEと supplied context から実際に使った値だけをsourceSnapshotへ不変のJSON値として保存し、欠損値はnullのままにしてください。各rules/interactions要素はruleId、ruleVersion、domain、inputFacts、result、effect、reasonCodeを持ちます。effectはNEUTRAL、SUPPORT_GREEN、ESCALATE_YELLOW、ESCALATE_RED、DEESCALATE、GUARDRAIL、NOT_APPLICABLEのいずれかにしてください。finalDecisionはcandidateStatuses object、modifiers string array、guardrails string array、operationStatus、reasonCodes string arrayを持ちます。finalDecision.operationStatusはcontent.operationStatusと完全に一致させてください。
 body/recovery/condition/workは従来どおりSection全体の日本語分析文です。各DisplayはprimaryTextとsupportingTextだけを持ち、primaryTextにはSTATUS SOURCEの明示Fact、supportingTextには対応する分析文だけを入れてください。Factと分析を後から文字列分割できる形式へ連結しないでください。
 bodyDisplay.primaryTextは「体重: 値kg  体脂肪率: 値%」形式とし、STATUS SOURCEでweightKgまたはbodyFatPercentがnullの場合は、その値を推測・0・null文字列へ変換せず、それぞれ「体重: —」「体脂肪率: —」としてください。前日比とBody分析はbodyDisplay.supportingTextへ入れてください。
 recoveryDisplay.primaryTextは「睡眠時間: H:MM  睡眠スコア: 値」形式とし、sleepDurationMinutesをH:MMへ変換してください。sleepScoreがnullの場合は0へ変換せず「睡眠スコア: 仮眠」としてください。Recovery分析はrecoveryDisplay.supportingTextへ入れてください。

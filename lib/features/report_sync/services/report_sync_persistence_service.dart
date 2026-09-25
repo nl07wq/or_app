@@ -7,6 +7,7 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../food/models/persisted_food_record.dart';
 import '../models/morning_brief_record.dart';
+import '../models/morning_brief_decision_trace.dart';
 import '../models/daily_debrief_record.dart';
 import '../models/daily_debrief_state.dart';
 import '../models/report_sync_envelope.dart';
@@ -383,6 +384,7 @@ class ReportSyncPersistenceService {
       content['strategicResourceDecision'] as Map,
     );
     final actionValues = (content['actions'] as List).cast<Map>();
+    final traceValue = content['decisionTrace'];
     final now = clock().toUtc();
     final incoming = MorningBriefRecord.v2(
       localDate: response.operationDate,
@@ -391,6 +393,11 @@ class ReportSyncPersistenceService {
       sourceRecordId: currentSource.source.sourceRecordId,
       sourceDigest: currentSource.sourceDigest,
       evaluationVersion: DailyBriefPlantarRiskReviewService.evaluationVersion,
+      decisionTrace: traceValue == null
+          ? null
+          : MorningBriefDecisionTrace.fromJson(
+              Map<String, Object?>.from(traceValue as Map),
+            ),
       responseDigest: ReportSyncCanonicalService.digest(payload),
       exchangeId: response.exchangeId,
       generatedAt: response.createdAt,
