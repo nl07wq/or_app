@@ -21,7 +21,7 @@ void main() {
           data: MediaQueryData(disableAnimations: reducedMotion),
           child: Scaffold(
             body: DashboardCatRunStage(
-              random: math.Random(7),
+              random: _SequenceRandom([1, 0, 0, 1]),
               minimumInterval: minimumInterval,
               maximumInterval: maximumInterval,
             ),
@@ -53,7 +53,21 @@ void main() {
     expect(productionStage.maximumInterval, const Duration(seconds: 60));
     expect(DashboardCatRunStage.chainContinueProbability, .2);
     expect(DashboardCatRunStage.chainStopProbability, .8);
-    expect(DashboardCatRunStage.chainFollowerTriggerProgress, .50);
+    expect(DashboardCatRunStage.chainFollowerTriggerProgress, .25);
+    expect(DashboardCatRunStage.glitchProbability, .05);
+    expect(DashboardCatRunStage.normalEventProbability, .95);
+    expect(DashboardCatRunStage.glitchCatCount, 10);
+    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .12);
+    expect(
+      DashboardCatRunStage.eventKindForRoll(0),
+      DashboardCatEventKind.glitch,
+    );
+    for (final roll in List<int>.generate(19, (index) => index + 1)) {
+      expect(
+        DashboardCatRunStage.eventKindForRoll(roll),
+        DashboardCatEventKind.normal,
+      );
+    }
     expect(DashboardCatRunStage.chainContinuesForRoll(0), isTrue);
     for (final roll in [1, 2, 3, 4]) {
       expect(DashboardCatRunStage.chainContinuesForRoll(roll), isFalse);
@@ -129,7 +143,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: DashboardCatRunStage(
-              random: _SequenceRandom([0, 0, 0, 1, 1]),
+              random: _SequenceRandom([1, 0, 0, 0, 1, 1]),
               minimumInterval: Duration.zero,
               maximumInterval: Duration.zero,
             ),
@@ -148,7 +162,7 @@ void main() {
                   )
                   .painter!
               as CatRunV23StagePainter;
-      expect(painter.progress, greaterThanOrEqualTo(.50));
+      expect(painter.progress, greaterThanOrEqualTo(.25));
       expect(painter.crossings, hasLength(2));
       expect(
         painter.crossings!.map((crossing) => crossing.direction),
@@ -169,7 +183,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: DashboardCatRunStage(
-            random: _SequenceRandom([0, 0, 0, 1, 0, 2, 1]),
+            random: _SequenceRandom([1, 0, 0, 0, 1, 0, 2, 1]),
             minimumInterval: Duration.zero,
             maximumInterval: Duration.zero,
           ),
@@ -208,7 +222,7 @@ void main() {
           home: Scaffold(
             body: DashboardCatRunStage(
               key: ValueKey(width),
-              random: _SequenceRandom([0, 0, 0, 1, 1]),
+              random: _SequenceRandom([1, 0, 0, 0, 1, 1]),
               minimumInterval: Duration.zero,
               maximumInterval: Duration.zero,
             ),
@@ -232,7 +246,7 @@ void main() {
           home: Scaffold(
             body: DashboardCatRunStage(
               key: stageKey,
-              random: _SequenceRandom([0, 1, 1]),
+              random: _SequenceRandom([1, 0, 1, 1]),
               minimumInterval: const Duration(milliseconds: 50),
               maximumInterval: const Duration(milliseconds: 50),
             ),
@@ -267,6 +281,79 @@ void main() {
   );
 
   testWidgets(
+    'CAT GLITCH creates exactly ten tightly spaced cats without continuation',
+    (tester) async {
+      final stageKey = GlobalKey<DashboardCatRunStageState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCatRunStage(
+              key: stageKey,
+              random: _SequenceRandom([0, 0, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4]),
+              minimumInterval: const Duration(milliseconds: 50),
+              maximumInterval: const Duration(milliseconds: 50),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(stageKey.currentState!.triggerManualAppearance(), isTrue);
+      await tester.pump();
+      final painter =
+          tester
+                  .widget<CustomPaint>(
+                    find.byKey(DashboardCatRunStage.activeKey),
+                  )
+                  .painter!
+              as CatRunV23StagePainter;
+      expect(painter.crossings, hasLength(DashboardCatRunStage.glitchCatCount));
+      expect(
+        painter.crossings!.map((crossing) => crossing.direction),
+        everyElement(CatRunV23Direction.leftToRight),
+      );
+      expect(painter.crossings!.map((crossing) => crossing.coatVariant), [
+        CatRunCoatVariant.normal,
+        CatRunCoatVariant.hachiware,
+        CatRunCoatVariant.calico,
+        CatRunCoatVariant.kijitora,
+        CatRunCoatVariant.sabi,
+        CatRunCoatVariant.normal,
+        CatRunCoatVariant.hachiware,
+        CatRunCoatVariant.calico,
+        CatRunCoatVariant.kijitora,
+        CatRunCoatVariant.sabi,
+      ]);
+      final starts = painter.crossings!
+          .map((crossing) => painter.progress - crossing.progress)
+          .toList();
+      for (var index = 1; index < starts.length; index++) {
+        expect(
+          starts[index] - starts[index - 1],
+          closeTo(DashboardCatRunStage.glitchFollowerTriggerProgress, .000001),
+        );
+      }
+      expect(
+        DashboardCatRunStage.glitchFollowerTriggerProgress,
+        lessThan(DashboardCatRunStage.chainFollowerTriggerProgress),
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+      final laterPainter =
+          tester
+                  .widget<CustomPaint>(
+                    find.byKey(DashboardCatRunStage.activeKey),
+                  )
+                  .painter!
+              as CatRunV23StagePainter;
+      expect(
+        laterPainter.crossings,
+        hasLength(DashboardCatRunStage.glitchCatCount),
+      );
+    },
+  );
+
+  testWidgets(
     'Dashboard paw control is responsive and starts the shared production CAT stage',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
@@ -287,7 +374,7 @@ void main() {
         expect(sign, findsOneWidget, reason: 'width $width');
         expect(
           tester.getRect(paw).right,
-          lessThanOrEqualTo(tester.getRect(sign).left),
+          lessThan(tester.getRect(sign).left - 10),
         );
         expect(tester.takeException(), isNull, reason: 'width $width');
       }

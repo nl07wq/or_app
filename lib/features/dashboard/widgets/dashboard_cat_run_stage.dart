@@ -48,7 +48,11 @@ class DashboardCatRunStage extends StatefulWidget {
   static const groundLineColor = Color(0xFF383838);
   static const chainContinueProbability = .2;
   static const chainStopProbability = .8;
-  static const chainFollowerTriggerProgress = .50;
+  static const chainFollowerTriggerProgress = .25;
+  static const glitchProbability = .05;
+  static const normalEventProbability = .95;
+  static const glitchCatCount = 10;
+  static const glitchFollowerTriggerProgress = .12;
   static const stageKey = ValueKey('dashboard-production-cat-stage');
   static const activeKey = ValueKey('dashboard-production-cat-active');
 
@@ -62,9 +66,19 @@ class DashboardCatRunStage extends StatefulWidget {
     return roll == 0;
   }
 
+  /// The event roll is sampled once per auto or manual appearance event.
+  static DashboardCatEventKind eventKindForRoll(int roll) {
+    if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
+    return roll == 0
+        ? DashboardCatEventKind.glitch
+        : DashboardCatEventKind.normal;
+  }
+
   @override
   DashboardCatRunStageState createState() => DashboardCatRunStageState();
 }
+
+enum DashboardCatEventKind { normal, glitch }
 
 class DashboardCatRunStageState extends State<DashboardCatRunStage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
@@ -76,6 +90,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
   Timer? _nextAppearanceTimer;
   final List<_ScheduledCatCrossing> _chain = [];
   CatRunV23Direction? _chainDirection;
+  DashboardCatEventKind? _eventKind;
   bool _appActive = true;
   bool _tickerEnabled = true;
   bool _reducedMotion = false;
@@ -141,10 +156,12 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
       setState(() {
         _chain.clear();
         _chainDirection = null;
+        _eventKind = null;
       });
     } else {
       _chain.clear();
       _chainDirection = null;
+      _eventKind = null;
     }
   }
 
@@ -157,37 +174,58 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     }
     _nextAppearanceTimer = Timer(_nextInterval(), () {
       _nextAppearanceTimer = null;
-      _startCrossing();
+      _startEvent();
     });
   }
 
-  void _startCrossing() {
+  void _startEvent() {
     if (!_motionAllowed || !_measured || _hasActiveCrossing) return;
+    final eventKind = DashboardCatRunStage.eventKindForRoll(_next(20));
     final direction = _next(2) == 0
         ? CatRunV23Direction.leftToRight
         : CatRunV23Direction.rightToLeft;
     setState(() {
       _chainDirection = direction;
-      _chain.add(
-        _ScheduledCatCrossing(
-          startedAtProgress: 0,
-          coatVariant: CatRunCoatPatterns.chooseRandom(_random),
-        ),
-      );
+      _eventKind = eventKind;
+      switch (eventKind) {
+        case DashboardCatEventKind.normal:
+          _chain.add(
+            _ScheduledCatCrossing(
+              startedAtProgress: 0,
+              coatVariant: CatRunCoatPatterns.chooseRandom(_random),
+            ),
+          );
+        case DashboardCatEventKind.glitch:
+          for (
+            var index = 0;
+            index < DashboardCatRunStage.glitchCatCount;
+            index++
+          ) {
+            _chain.add(
+              _ScheduledCatCrossing(
+                startedAtProgress:
+                    index * DashboardCatRunStage.glitchFollowerTriggerProgress,
+                coatVariant: CatRunCoatPatterns.chooseRandom(_random),
+                continuationRolled: true,
+              ),
+            );
+          }
+      }
     });
     _controller.value = 0;
     _continueChain();
   }
 
-  /// Starts one normal production event immediately. This deliberately uses
-  /// the same direction, coat, chain, and renderer path as the scheduler.
+  /// Starts one production event immediately. This deliberately uses the same
+  /// NORMAL/GLITCH roll, direction, coat, chain, and renderer path as the
+  /// scheduler.
   /// A running chain remains the sole active event, so rapid manual taps are
   /// ignored rather than queued.
   bool triggerManualAppearance() {
     if (!_motionAllowed || !_measured || _hasActiveCrossing) return false;
     _nextAppearanceTimer?.cancel();
     _nextAppearanceTimer = null;
-    _startCrossing();
+    _startEvent();
     return true;
   }
 
@@ -211,7 +249,8 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     var changed = false;
     for (final crossing in _chain.toList(growable: false)) {
       final progress = _controller.value - crossing.startedAtProgress;
-      if (!crossing.continuationRolled &&
+      if (_eventKind == DashboardCatEventKind.normal &&
+          !crossing.continuationRolled &&
           progress >= DashboardCatRunStage.chainFollowerTriggerProgress) {
         crossing.continuationRolled = true;
         if (DashboardCatRunStage.chainContinuesForRoll(_next(5))) {
@@ -237,6 +276,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     setState(() {
       _chain.clear();
       _chainDirection = null;
+      _eventKind = null;
     });
     // The delay deliberately begins only after the CAT is fully offstage.
     _scheduleNextAppearance();
@@ -317,11 +357,12 @@ class _ScheduledCatCrossing {
   _ScheduledCatCrossing({
     required this.startedAtProgress,
     required this.coatVariant,
+    this.continuationRolled = false,
   });
 
   final double startedAtProgress;
   final CatRunCoatVariant coatVariant;
-  bool continuationRolled = false;
+  bool continuationRolled;
 }
 
 class _ProductionStageBackgroundPainter extends CustomPainter {

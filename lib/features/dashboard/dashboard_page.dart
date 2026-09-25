@@ -634,10 +634,12 @@ class _DashboardPageState extends State<DashboardPage> {
 
                         return Scaffold(
                           appBar: AppBar(
-                            title: _DashboardNeonBrandMark(
-                              onRunCat: () => _catStageKey.currentState
+                            leadingWidth: 56,
+                            leading: _DashboardCatManualTrigger(
+                              onPressed: () => _catStageKey.currentState
                                   ?.triggerManualAppearance(),
                             ),
+                            title: const _DashboardNeonBrandMark(),
                             actions: const [SystemMenuButton()],
                           ),
                           body: LayoutBuilder(
@@ -2395,9 +2397,7 @@ class _CommandCenterButton extends StatelessWidget {
 /// idle while lit normally; timers exist only to schedule and play rare fault
 /// events, so the Dashboard itself is never rebuilt for the effect.
 class _DashboardNeonBrandMark extends StatefulWidget {
-  const _DashboardNeonBrandMark({required this.onRunCat});
-
-  final VoidCallback? onRunCat;
+  const _DashboardNeonBrandMark();
 
   @override
   State<_DashboardNeonBrandMark> createState() =>
@@ -2508,146 +2508,150 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
 
     return RepaintBoundary(
       key: const ValueKey('dashboard-neon-brand-mark'),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Semantics(
-            button: true,
-            label: 'Run cat',
-            child: SizedBox(
-              key: const ValueKey('dashboard-cat-manual-trigger'),
-              width: 44,
-              height: 44,
-              child: IconButton(
-                tooltip: 'Run cat',
-                onPressed: widget.onRunCat,
-                icon: Icon(
-                  Symbols.pets,
-                  color: AppColors.information.withValues(alpha: .78),
-                  size: 20,
-                ),
-              ),
-            ),
+      child: Semantics(
+        label: 'O.R.L.O.',
+        child: Container(
+          key: const ValueKey('dashboard-neon-physical-sign'),
+          height: DashboardNeonTubeGeometry.signHeight,
+          width: DashboardNeonTubeGeometry.signWidth,
+          padding: const EdgeInsets.symmetric(
+            horizontal: DashboardNeonTubeGeometry.signHorizontalPadding,
           ),
-          const SizedBox(width: 4),
-          Semantics(
-            label: 'O.R.L.O.',
-            child: Container(
-              key: const ValueKey('dashboard-neon-physical-sign'),
-              height: DashboardNeonTubeGeometry.signHeight,
-              width: DashboardNeonTubeGeometry.signWidth,
-              padding: const EdgeInsets.symmetric(
-                horizontal: DashboardNeonTubeGeometry.signHorizontalPadding,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFF07141B),
-                borderRadius: BorderRadius.circular(
-                  DashboardNeonTubeGeometry.physicalFrameRadius,
+          decoration: BoxDecoration(
+            color: const Color(0xFF07141B),
+            borderRadius: BorderRadius.circular(
+              DashboardNeonTubeGeometry.physicalFrameRadius,
+            ),
+            border: Border.all(color: physicalFrameColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withValues(
+                  alpha: .035 * _phase.frameReflectionIntensity,
                 ),
-                border: Border.all(color: physicalFrameColor, width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: glowColor.withValues(
-                      alpha: .035 * _phase.frameReflectionIntensity,
-                    ),
-                    blurRadius: 5,
-                  ),
-                ],
+                blurRadius: 5,
               ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(5),
-                          gradient: RadialGradient(
-                            center: const Alignment(.35, 0),
-                            radius: 1.25,
-                            colors: [
-                              glowColor.withValues(
-                                alpha: .045 * _phase.frameReflectionIntensity,
-                              ),
-                              Colors.transparent,
-                            ],
+            ],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(5),
+                      gradient: RadialGradient(
+                        center: const Alignment(.35, 0),
+                        radius: 1.25,
+                        colors: [
+                          glowColor.withValues(
+                            alpha: .045 * _phase.frameReflectionIntensity,
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        key: const ValueKey('dashboard-neon-perimeter-tube'),
-                        painter: _DashboardNeonPerimeterPainter(
-                          intensity: _phase.frameTubeIntensity,
-                          outerGlowIntensity: _phase.outerGlowIntensity,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const _DashboardNeonSignFasteners(),
-                  Center(
-                    child: Transform.translate(
-                      offset: const Offset(
-                        DashboardNeonTubeGeometry.lockupOffsetX,
-                        0,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            key: const ValueKey('dashboard-brand-logo-slot'),
-                            height: DashboardNeonTubeGeometry.logoSize,
-                            width: DashboardNeonTubeGeometry.logoSize,
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              alignment: Alignment.center,
-                              children: [
-                                Opacity(
-                                  opacity: .22 * _phase.outerGlowIntensity,
-                                  child: Image.asset(
-                                    'assets/icons/orlo_logo_1024_transparent.png',
-                                    height: DashboardNeonTubeGeometry.logoSize,
-                                    fit: BoxFit.contain,
-                                    color: glowColor,
-                                    colorBlendMode: BlendMode.srcIn,
-                                  ),
-                                ),
-                                Opacity(
-                                  opacity: .78 * _phase.logoIntensity,
-                                  child: Image.asset(
-                                    'assets/icons/orlo_logo_1024_transparent.png',
-                                    key: const ValueKey('dashboard-brand-logo'),
-                                    height: DashboardNeonTubeGeometry.logoSize,
-                                    fit: BoxFit.contain,
-                                    color: coreColor,
-                                    colorBlendMode: BlendMode.srcIn,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(
-                            width: DashboardNeonTubeGeometry.logoWordmarkGap,
-                          ),
-                          _DashboardNeonTubeWordmark(
-                            key: const ValueKey('dashboard-brand-wordmark'),
-                            phase: _phase,
-                          ),
+                          Colors.transparent,
                         ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('dashboard-neon-perimeter-tube'),
+                    painter: _DashboardNeonPerimeterPainter(
+                      intensity: _phase.frameTubeIntensity,
+                      outerGlowIntensity: _phase.outerGlowIntensity,
+                    ),
+                  ),
+                ),
+              ),
+              const _DashboardNeonSignFasteners(),
+              Center(
+                child: Transform.translate(
+                  offset: const Offset(
+                    DashboardNeonTubeGeometry.lockupOffsetX,
+                    0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        key: const ValueKey('dashboard-brand-logo-slot'),
+                        height: DashboardNeonTubeGeometry.logoSize,
+                        width: DashboardNeonTubeGeometry.logoSize,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            Opacity(
+                              opacity: .22 * _phase.outerGlowIntensity,
+                              child: Image.asset(
+                                'assets/icons/orlo_logo_1024_transparent.png',
+                                height: DashboardNeonTubeGeometry.logoSize,
+                                fit: BoxFit.contain,
+                                color: glowColor,
+                                colorBlendMode: BlendMode.srcIn,
+                              ),
+                            ),
+                            Opacity(
+                              opacity: .78 * _phase.logoIntensity,
+                              child: Image.asset(
+                                'assets/icons/orlo_logo_1024_transparent.png',
+                                key: const ValueKey('dashboard-brand-logo'),
+                                height: DashboardNeonTubeGeometry.logoSize,
+                                fit: BoxFit.contain,
+                                color: coreColor,
+                                colorBlendMode: BlendMode.srcIn,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(
+                        width: DashboardNeonTubeGeometry.logoWordmarkGap,
+                      ),
+                      _DashboardNeonTubeWordmark(
+                        key: const ValueKey('dashboard-brand-wordmark'),
+                        phase: _phase,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _DashboardCatManualTrigger extends StatelessWidget {
+  const _DashboardCatManualTrigger({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Semantics(
+      button: true,
+      label: 'Run cat',
+      child: SizedBox(
+        key: const ValueKey('dashboard-cat-manual-trigger'),
+        width: 44,
+        height: 44,
+        child: IconButton(
+          tooltip: 'Run cat',
+          onPressed: onPressed,
+          icon: Icon(
+            Symbols.pets,
+            color: AppColors.information.withValues(alpha: .78),
+            size: 20,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Fixed vector tubing for the brand wordmark.  ShareTechMono was audited but
