@@ -27,8 +27,9 @@ Rect dashboardAdaptiveCatStageRect({
 
 /// The sparse production scheduler for the accepted frozen CAT run.
 ///
-/// It selects one coat and direction per completed crossing. Geometry and
-/// motion remain wholly in the existing V2.10 presentation implementation.
+/// Geometry and motion remain wholly in the existing V2.10 presentation
+/// implementation. A chain reuses its original direction while every CAT
+/// independently receives one of the five accepted coat variants.
 class DashboardCatRunStage extends StatefulWidget {
   const DashboardCatRunStage({
     super.key,
@@ -45,12 +46,21 @@ class DashboardCatRunStage extends StatefulWidget {
   static const productionCatUnit = CatRunV23Travel.catUnit * productionScale;
   static const groundInset = 5.0;
   static const groundLineColor = Color(0xFF383838);
+  static const chainContinueProbability = .2;
+  static const chainStopProbability = .8;
+  static const chainFollowerTriggerProgress = .70;
   static const stageKey = ValueKey('dashboard-production-cat-stage');
   static const activeKey = ValueKey('dashboard-production-cat-active');
 
   final math.Random? random;
   final Duration minimumInterval;
   final Duration maximumInterval;
+
+  /// A single five-way roll deliberately has no chain-length input or cap.
+  static bool chainContinuesForRoll(int roll) {
+    if (roll < 0 || roll >= 5) throw ArgumentError.value(roll, 'roll');
+    return roll == 0;
+  }
 
   @override
   State<DashboardCatRunStage> createState() => _DashboardCatRunStageState();
@@ -59,17 +69,19 @@ class DashboardCatRunStage extends StatefulWidget {
 class _DashboardCatRunStageState extends State<DashboardCatRunStage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final math.Random _random = widget.random ?? math.Random();
-  late final AnimationController _controller = AnimationController(vsync: this)
-    ..addStatusListener(_onAnimationStatus);
+  late final AnimationController _controller =
+      AnimationController.unbounded(vsync: this)
+        ..addListener(_advanceChain)
+        ..addStatusListener(_onAnimationStatus);
   Timer? _nextAppearanceTimer;
-  CatRunCoatVariant? _coat;
-  CatRunV23Direction? _direction;
+  final List<_ScheduledCatCrossing> _chain = [];
+  CatRunV23Direction? _chainDirection;
   bool _appActive = true;
   bool _tickerEnabled = true;
   bool _reducedMotion = false;
   bool _measured = false;
 
-  bool get _hasActiveCrossing => _coat != null && _direction != null;
+  bool get _hasActiveCrossing => _chain.isNotEmpty;
   bool get _motionAllowed =>
       mounted && _appActive && _tickerEnabled && !_reducedMotion;
 
@@ -115,7 +127,7 @@ class _DashboardCatRunStageState extends State<DashboardCatRunStage>
       return;
     }
     if (_hasActiveCrossing) {
-      if (!_controller.isAnimating) _controller.forward();
+      if (!_controller.isAnimating) _continueChain();
       return;
     }
     if (_measured && _nextAppearanceTimer == null) _scheduleNextAppearance();
@@ -127,12 +139,12 @@ class _DashboardCatRunStageState extends State<DashboardCatRunStage>
     _controller.stop();
     if (_hasActiveCrossing && mounted) {
       setState(() {
-        _coat = null;
-        _direction = null;
+        _chain.clear();
+        _chainDirection = null;
       });
     } else {
-      _coat = null;
-      _direction = null;
+      _chain.clear();
+      _chainDirection = null;
     }
   }
 
@@ -151,22 +163,68 @@ class _DashboardCatRunStageState extends State<DashboardCatRunStage>
 
   void _startCrossing() {
     if (!_motionAllowed || !_measured || _hasActiveCrossing) return;
+    final direction = _next(2) == 0
+        ? CatRunV23Direction.leftToRight
+        : CatRunV23Direction.rightToLeft;
     setState(() {
-      _coat = CatRunCoatPatterns.chooseRandom(_random);
-      _direction = _next(2) == 0
-          ? CatRunV23Direction.leftToRight
-          : CatRunV23Direction.rightToLeft;
+      _chainDirection = direction;
+      _chain.add(
+        _ScheduledCatCrossing(
+          startedAtProgress: 0,
+          coatVariant: CatRunCoatPatterns.chooseRandom(_random),
+        ),
+      );
     });
-    _controller
-      ..duration = CatRunV24Travel.crossingDuration
-      ..forward(from: 0);
+    _controller.value = 0;
+    _continueChain();
+  }
+
+  void _continueChain() {
+    if (!_motionAllowed || _chain.isEmpty) return;
+    final finalProgress = _chain.last.startedAtProgress + 1;
+    final remaining = (finalProgress - _controller.value).clamp(0.0, 1e9);
+    _controller.animateTo(
+      finalProgress,
+      duration: Duration(
+        microseconds:
+            (CatRunV24Travel.crossingDuration.inMicroseconds * remaining)
+                .round(),
+      ),
+      curve: Curves.linear,
+    );
+  }
+
+  void _advanceChain() {
+    if (!_motionAllowed || _chain.isEmpty) return;
+    var changed = false;
+    for (final crossing in _chain.toList(growable: false)) {
+      final progress = _controller.value - crossing.startedAtProgress;
+      if (!crossing.continuationRolled &&
+          progress >= DashboardCatRunStage.chainFollowerTriggerProgress) {
+        crossing.continuationRolled = true;
+        if (DashboardCatRunStage.chainContinuesForRoll(_next(5))) {
+          _chain.add(
+            _ScheduledCatCrossing(
+              startedAtProgress: _controller.value,
+              coatVariant: CatRunCoatPatterns.chooseRandom(_random),
+            ),
+          );
+        }
+        changed = true;
+      }
+    }
+    if (changed) {
+      setState(() {});
+      _continueChain();
+    }
   }
 
   void _onAnimationStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
+    if (_chain.any((crossing) => !crossing.continuationRolled)) return;
     setState(() {
-      _coat = null;
-      _direction = null;
+      _chain.clear();
+      _chainDirection = null;
     });
     // The delay deliberately begins only after the CAT is fully offstage.
     _scheduleNextAppearance();
@@ -198,29 +256,41 @@ class _DashboardCatRunStageState extends State<DashboardCatRunStage>
                 final active = _hasActiveCrossing && !_reducedMotion;
                 return AnimatedBuilder(
                   animation: _controller,
-                  builder: (context, _) => ClipRect(
-                    child: CustomPaint(
-                      key: active
-                          ? DashboardCatRunStage.activeKey
-                          : const ValueKey('dashboard-production-cat-idle'),
-                      painter: active
-                          ? CatRunV23StagePainter(
-                              progress: _controller.value,
-                              direction: _direction!,
-                              coatVariant: _coat!,
-                              catUnit: DashboardCatRunStage.productionCatUnit,
-                              showGroundLine: true,
-                              groundInset: DashboardCatRunStage.groundInset,
-                              groundLineColor:
-                                  DashboardCatRunStage.groundLineColor,
-                            )
-                          : null,
-                      foregroundPainter: active
-                          ? null
-                          : _ProductionStageBackgroundPainter(),
-                      willChange: active,
-                    ),
-                  ),
+                  builder: (context, _) {
+                    final crossings = [
+                      for (final crossing in _chain)
+                        CatRunV23Crossing(
+                          progress:
+                              _controller.value - crossing.startedAtProgress,
+                          direction: _chainDirection!,
+                          coatVariant: crossing.coatVariant,
+                        ),
+                    ];
+                    return ClipRect(
+                      child: CustomPaint(
+                        key: active
+                            ? DashboardCatRunStage.activeKey
+                            : const ValueKey('dashboard-production-cat-idle'),
+                        painter: active
+                            ? CatRunV23StagePainter(
+                                progress: _controller.value,
+                                direction: _chainDirection!,
+                                coatVariant: _chain.first.coatVariant,
+                                crossings: crossings,
+                                catUnit: DashboardCatRunStage.productionCatUnit,
+                                showGroundLine: true,
+                                groundInset: DashboardCatRunStage.groundInset,
+                                groundLineColor:
+                                    DashboardCatRunStage.groundLineColor,
+                              )
+                            : null,
+                        foregroundPainter: active
+                            ? null
+                            : _ProductionStageBackgroundPainter(),
+                        willChange: active,
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -229,6 +299,17 @@ class _DashboardCatRunStageState extends State<DashboardCatRunStage>
       ),
     );
   }
+}
+
+class _ScheduledCatCrossing {
+  _ScheduledCatCrossing({
+    required this.startedAtProgress,
+    required this.coatVariant,
+  });
+
+  final double startedAtProgress;
+  final CatRunCoatVariant coatVariant;
+  bool continuationRolled = false;
 }
 
 class _ProductionStageBackgroundPainter extends CustomPainter {

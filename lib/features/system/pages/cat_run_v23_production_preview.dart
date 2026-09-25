@@ -48,6 +48,21 @@ class CatRunV23Travel {
       CatRunV24Travel.pointsAt(progress);
 }
 
+/// One complete, frozen-vector CAT crossing. The dashboard may paint multiple
+/// instances when a same-direction production chain is active; each instance
+/// still owns one coat and one immutable traversal progress value.
+class CatRunV23Crossing {
+  const CatRunV23Crossing({
+    required this.progress,
+    required this.direction,
+    required this.coatVariant,
+  });
+
+  final double progress;
+  final CatRunV23Direction direction;
+  final CatRunCoatVariant coatVariant;
+}
+
 /// Sandbox-only 48px travel inspection for direct sequential HIGH vectors.
 class CatRunV23ProductionPreview extends StatefulWidget {
   const CatRunV23ProductionPreview({super.key, this.random});
@@ -235,6 +250,7 @@ class CatRunV23StagePainter extends CustomPainter {
     required this.progress,
     required this.direction,
     required this.coatVariant,
+    this.crossings,
     this.catUnit = CatRunV23Travel.catUnit,
     this.showGroundLine = false,
     this.groundInset = 5,
@@ -244,6 +260,7 @@ class CatRunV23StagePainter extends CustomPainter {
   final double progress;
   final CatRunV23Direction direction;
   final CatRunCoatVariant coatVariant;
+  final List<CatRunV23Crossing>? crossings;
   final double catUnit;
   final bool showGroundLine;
   final double groundInset;
@@ -264,20 +281,36 @@ class CatRunV23StagePainter extends CustomPainter {
           ..strokeWidth = 1,
       );
     }
-    final frame = CatRunV24Travel.frameAtTravelProgress(progress);
+    final activeCrossings =
+        crossings ??
+        [
+          CatRunV23Crossing(
+            progress: progress,
+            direction: direction,
+            coatVariant: coatVariant,
+          ),
+        ];
+
+    for (final crossing in activeCrossings) {
+      _paintCrossing(canvas, size, crossing);
+    }
+  }
+
+  void _paintCrossing(Canvas canvas, Size size, CatRunV23Crossing crossing) {
+    final frame = CatRunV24Travel.frameAtTravelProgress(crossing.progress);
     final trace = catRunV2HighTraces[frame];
-    final points = CatRunV24Travel.pointsAt(progress);
+    final points = CatRunV24Travel.pointsAt(crossing.progress);
     final path = Path()..addPolygon(points, true);
     final travelX = CatRunV24Travel.horizontalPosition(
       stageWidth: size.width,
-      progress: progress,
+      progress: crossing.progress,
     );
     final groundY =
         size.height - 5 - CatRunV2Registration.virtualGround * catUnit;
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    if (direction == CatRunV23Direction.leftToRight) {
+    if (crossing.direction == CatRunV23Direction.leftToRight) {
       canvas.translate(travelX, groundY);
       canvas.scale(catUnit);
     } else {
@@ -294,7 +327,7 @@ class CatRunV23StagePainter extends CustomPainter {
       canvas: canvas,
       silhouette: path,
       trace: trace,
-      variant: coatVariant,
+      variant: crossing.coatVariant,
     );
     canvas.restore();
   }
@@ -304,6 +337,7 @@ class CatRunV23StagePainter extends CustomPainter {
       oldDelegate.progress != progress ||
       oldDelegate.direction != direction ||
       oldDelegate.coatVariant != coatVariant ||
+      oldDelegate.crossings != crossings ||
       oldDelegate.catUnit != catUnit ||
       oldDelegate.showGroundLine != showGroundLine ||
       oldDelegate.groundInset != groundInset ||

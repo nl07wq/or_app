@@ -50,6 +50,13 @@ void main() {
     const productionStage = DashboardCatRunStage();
     expect(productionStage.minimumInterval, const Duration(seconds: 30));
     expect(productionStage.maximumInterval, const Duration(seconds: 60));
+    expect(DashboardCatRunStage.chainContinueProbability, .2);
+    expect(DashboardCatRunStage.chainStopProbability, .8);
+    expect(DashboardCatRunStage.chainFollowerTriggerProgress, .70);
+    expect(DashboardCatRunStage.chainContinuesForRoll(0), isTrue);
+    for (final roll in [1, 2, 3, 4]) {
+      expect(DashboardCatRunStage.chainContinuesForRoll(roll), isFalse);
+    }
   });
 
   test(
@@ -113,4 +120,124 @@ void main() {
 
     expect(find.byKey(DashboardCatRunStage.activeKey), findsNothing);
   });
+
+  testWidgets(
+    'a continued chain keeps direction and independently samples the follower coat',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCatRunStage(
+              random: _SequenceRandom([0, 0, 0, 1, 1]),
+              minimumInterval: Duration.zero,
+              maximumInterval: Duration.zero,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 2200));
+      await tester.pump();
+
+      final painter =
+          tester
+                  .widget<CustomPaint>(
+                    find.byKey(DashboardCatRunStage.activeKey),
+                  )
+                  .painter!
+              as CatRunV23StagePainter;
+      expect(painter.progress, greaterThanOrEqualTo(.70));
+      expect(painter.crossings, hasLength(2));
+      expect(
+        painter.crossings!.map((crossing) => crossing.direction),
+        everyElement(CatRunV23Direction.leftToRight),
+      );
+      expect(painter.crossings!.map((crossing) => crossing.coatVariant), [
+        CatRunCoatVariant.normal,
+        CatRunCoatVariant.hachiware,
+      ]);
+      expect(painter.crossings![1].progress, closeTo(0, .02));
+    },
+  );
+
+  testWidgets('a follower receives its own continuation roll without a cap', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DashboardCatRunStage(
+            random: _SequenceRandom([0, 0, 0, 1, 0, 2, 1]),
+            minimumInterval: Duration.zero,
+            maximumInterval: Duration.zero,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 2200));
+    await tester.pump(const Duration(milliseconds: 2100));
+    await tester.pump();
+
+    final painter =
+        tester
+                .widget<CustomPaint>(find.byKey(DashboardCatRunStage.activeKey))
+                .painter!
+            as CatRunV23StagePainter;
+    expect(painter.crossings, hasLength(3));
+    expect(painter.crossings!.map((crossing) => crossing.coatVariant), [
+      CatRunCoatVariant.normal,
+      CatRunCoatVariant.hachiware,
+      CatRunCoatVariant.calico,
+    ]);
+  });
+
+  testWidgets('chain stage remains paintable at production target widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 200);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCatRunStage(
+              key: ValueKey(width),
+              random: _SequenceRandom([0, 0, 0, 1, 1]),
+              minimumInterval: Duration.zero,
+              maximumInterval: Duration.zero,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 2200));
+      expect(find.byKey(DashboardCatRunStage.activeKey), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+  });
+}
+
+class _SequenceRandom implements math.Random {
+  _SequenceRandom(this._values);
+
+  final List<int> _values;
+  var _index = 0;
+
+  @override
+  bool nextBool() => nextInt(2) == 0;
+
+  @override
+  double nextDouble() => nextInt(1000000) / 1000000;
+
+  @override
+  int nextInt(int max) {
+    final value = _values[_index++ % _values.length];
+    return value % max;
+  }
 }
