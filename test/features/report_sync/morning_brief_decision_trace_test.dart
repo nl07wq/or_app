@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_decision_trace.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
+import 'package:or_app/features/report_sync/services/daily_brief_traced_observation_review_service.dart';
 
 void main() {
   test(
@@ -37,42 +38,71 @@ void main() {
     });
     expect(() => _record(invalid), throwsFormatException);
   });
+
+  test(
+    'traced observation gate excludes legacy records and is ready at ten',
+    () {
+      const service = DailyBriefTracedObservationReviewService();
+      expect(service.summarize([_record(null)]).observationCount, 0);
+      final records = [
+        for (var index = 0; index < 10; index++)
+          _record(
+            _trace(),
+            localDate: '2026-09-${(index + 1).toString().padLeft(2, '0')}',
+          ),
+      ];
+      expect(
+        service.summarize(records.take(9)).state,
+        DailyBriefTracedObservationReviewState.collecting,
+      );
+      expect(
+        service.summarize([...records, records.last]).observationCount,
+        10,
+      );
+      expect(
+        service.summarize(records).state,
+        DailyBriefTracedObservationReviewState.reviewReady,
+      );
+    },
+  );
 }
 
-MorningBriefRecord _record(MorningBriefDecisionTrace? trace) =>
-    MorningBriefRecord.v2(
-      localDate: '2026-09-25',
-      sourceType: 'status',
-      sourceOperationDate: '2026-09-25',
-      sourceRecordId: 'status:2026-09-25',
-      sourceDigest: 'a' * 64,
-      evaluationVersion: 'plantar-risk-v2',
-      decisionTrace: trace,
-      responseDigest: 'b' * 64,
-      exchangeId: 'exchange-1',
-      generatedAt: DateTime.utc(2026, 9, 25),
-      importedAt: DateTime.utc(2026, 9, 25),
-      situationAnalysisV2: const MorningBriefSituationAnalysis(
-        body: 'body',
-        recovery: 'recovery',
-        condition: 'condition',
-        work: 'work',
-        carryover: 'carryover',
-        overall: 'overall',
-      ),
-      operatingPolicy: 'policy',
-      strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
-        decision: 'decision',
-        targetResource: null,
-        rationale: 'rationale',
-        execution: null,
-      ),
-      operationStatus: MorningBriefOperationStatus.yellow,
-      commanderIntent: 'intent',
-      actions: const [],
-      createdAt: DateTime.utc(2026, 9, 25),
-      updatedAt: DateTime.utc(2026, 9, 25),
-    );
+MorningBriefRecord _record(
+  MorningBriefDecisionTrace? trace, {
+  String localDate = '2026-09-25',
+}) => MorningBriefRecord.v2(
+  localDate: localDate,
+  sourceType: 'status',
+  sourceOperationDate: localDate,
+  sourceRecordId: 'status:$localDate',
+  sourceDigest: 'a' * 64,
+  evaluationVersion: 'plantar-risk-v2',
+  decisionTrace: trace,
+  responseDigest: 'b' * 64,
+  exchangeId: 'exchange-1',
+  generatedAt: DateTime.utc(2026, 9, 25),
+  importedAt: DateTime.utc(2026, 9, 25),
+  situationAnalysisV2: const MorningBriefSituationAnalysis(
+    body: 'body',
+    recovery: 'recovery',
+    condition: 'condition',
+    work: 'work',
+    carryover: 'carryover',
+    overall: 'overall',
+  ),
+  operatingPolicy: 'policy',
+  strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
+    decision: 'decision',
+    targetResource: null,
+    rationale: 'rationale',
+    execution: null,
+  ),
+  operationStatus: MorningBriefOperationStatus.yellow,
+  commanderIntent: 'intent',
+  actions: const [],
+  createdAt: DateTime.utc(2026, 9, 25),
+  updatedAt: DateTime.utc(2026, 9, 25),
+);
 
 MorningBriefDecisionTrace _trace() => MorningBriefDecisionTrace(
   traceSchemaVersion: 'decision-trace-v1',

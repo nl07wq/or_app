@@ -8,6 +8,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../dashboard/widgets/operation_ambient_animation.dart';
 import '../../report_sync/services/daily_brief_plantar_risk_review_service.dart';
+import '../../report_sync/services/daily_brief_traced_observation_review_service.dart';
 import '../../training_analysis/services/recovery_evidence_shadow_v2_service.dart';
 import '../models/information_notice.dart';
 import '../services/app_metadata.dart';
@@ -25,6 +26,8 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
   late final Future<_ShadowSnapshot> _shadow = _loadShadow();
   late final Future<DailyBriefPlantarRiskReviewSummary> _dailyBriefReview =
       _loadDailyBriefReview();
+  late final Future<DailyBriefTracedObservationReviewSummary> _traceReview =
+      _loadTraceReview();
   late final InformationNoticeService _informationService =
       InformationNoticeService();
   late Future<List<InformationNotice>> _informationHistory = _informationService
@@ -111,6 +114,11 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
         await AppRepositoryRegistry.container.morningBriefs.list(),
       );
 
+  Future<DailyBriefTracedObservationReviewSummary> _loadTraceReview() async =>
+      const DailyBriefTracedObservationReviewService().summarize(
+        await AppRepositoryRegistry.container.morningBriefs.list(),
+      );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('SYSTEM MONITORING')),
@@ -150,6 +158,13 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
             }
             return _DailyBriefV2ReviewCard(summary: snapshot.data!);
           },
+        ),
+        AppSpacing.gapSM,
+        FutureBuilder<DailyBriefTracedObservationReviewSummary>(
+          future: _traceReview,
+          builder: (context, snapshot) => !snapshot.hasData
+              ? const SizedBox.shrink()
+              : _DecisionTraceReviewCard(summary: snapshot.data!),
         ),
         AppSpacing.gapSM,
         FutureBuilder<List<InformationNotice>>(
@@ -274,6 +289,30 @@ class _DailyBriefV2ReviewCard extends StatelessWidget {
     DailyBriefPlantarRiskReviewState.reviewBuilding => 'REVIEW BUILDING',
     DailyBriefPlantarRiskReviewState.reviewReady => 'REVIEW READY',
   };
+}
+
+class _DecisionTraceReviewCard extends StatelessWidget {
+  const _DecisionTraceReviewCard({required this.summary});
+
+  final DailyBriefTracedObservationReviewSummary summary;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'DECISION TRACE REVIEW',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text('OBSERVATIONS  ${summary.displayedObservationCount} / 10'),
+        Text(
+          'STATE  ${summary.state == DailyBriefTracedObservationReviewState.reviewReady ? 'REVIEW READY' : 'COLLECTING'}',
+        ),
+      ],
+    ),
+  );
 }
 
 class _InformationHistoryCard extends StatelessWidget {
