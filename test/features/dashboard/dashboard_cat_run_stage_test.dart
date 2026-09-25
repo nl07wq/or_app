@@ -57,7 +57,7 @@ void main() {
     expect(DashboardCatRunStage.glitchProbability, .05);
     expect(DashboardCatRunStage.normalEventProbability, .95);
     expect(DashboardCatRunStage.glitchCatCount, 10);
-    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .08);
+    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .10);
     expect(
       DashboardCatRunStage.eventKindForRoll(0),
       DashboardCatEventKind.glitch,

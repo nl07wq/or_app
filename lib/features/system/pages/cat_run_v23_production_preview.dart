@@ -75,7 +75,7 @@ class CatRunProductionEventPolicy {
   static const glitchProbability = .05;
   static const normalEventProbability = .95;
   static const glitchCatCount = 10;
-  static const glitchFollowerTriggerProgress = .08;
+  static const glitchFollowerTriggerProgress = .10;
 
   static bool isGlitchRoll(int roll) {
     if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
@@ -232,16 +232,17 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
     super.initState();
     _controller =
         AnimationController(
-          vsync: this,
-          duration: CatRunV23Travel.crossingDuration,
-        )..addListener(() {
-          if (!mounted || !_playing) return;
-          if (_randomSelection && _controller.value < _lastProgress) {
-            _coatVariant = CatRunCoatPatterns.chooseRandom(_random);
-          }
-          _lastProgress = _controller.value;
-          setState(() {});
-        })
+            vsync: this,
+            duration: CatRunV23Travel.crossingDuration,
+          )
+          ..addListener(() {
+            if (!mounted || !_playing) return;
+            if (_randomSelection && _controller.value < _lastProgress) {
+              _coatVariant = CatRunCoatPatterns.chooseRandom(_random);
+            }
+            _lastProgress = _controller.value;
+            setState(() {});
+          })
           ..addStatusListener((status) {
             if (status != AnimationStatus.completed || _forcedPlan == null) {
               return;
@@ -353,22 +354,22 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                     height: CatRunV23Travel.stageHeight,
                     child: CustomPaint(
                       key: const ValueKey('cat-run-v23-stage'),
-                    painter: CatRunV23StagePainter(
-                      progress: _controller.value,
-                      direction: _direction,
-                      coatVariant: _coatVariant,
-                      crossings: _forcedPlan == null
-                          ? null
-                          : [
-                              for (final crossing in _forcedPlan!.crossings)
-                                CatRunV23Crossing(
-                                  progress:
-                                      _controller.value -
-                                      crossing.startedAtProgress,
-                                  direction: _forcedPlan!.direction,
-                                  coatVariant: crossing.coatVariant,
-                                ),
-                            ],
+                      painter: CatRunV23StagePainter(
+                        progress: _controller.value,
+                        direction: _direction,
+                        coatVariant: _coatVariant,
+                        crossings: _forcedPlan == null
+                            ? null
+                            : [
+                                for (final crossing in _forcedPlan!.crossings)
+                                  CatRunV23Crossing(
+                                    progress:
+                                        _controller.value -
+                                        crossing.startedAtProgress,
+                                    direction: _forcedPlan!.direction,
+                                    coatVariant: crossing.coatVariant,
+                                  ),
+                              ],
                       ),
                     ),
                   );
