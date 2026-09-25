@@ -48,7 +48,7 @@ class DashboardCatRunStage extends StatefulWidget {
   static const groundLineColor = Color(0xFF383838);
   static const chainContinueProbability = .2;
   static const chainStopProbability = .8;
-  static const chainFollowerTriggerProgress = .70;
+  static const chainFollowerTriggerProgress = .50;
   static const stageKey = ValueKey('dashboard-production-cat-stage');
   static const activeKey = ValueKey('dashboard-production-cat-active');
 
@@ -63,10 +63,10 @@ class DashboardCatRunStage extends StatefulWidget {
   }
 
   @override
-  State<DashboardCatRunStage> createState() => _DashboardCatRunStageState();
+  DashboardCatRunStageState createState() => DashboardCatRunStageState();
 }
 
-class _DashboardCatRunStageState extends State<DashboardCatRunStage>
+class DashboardCatRunStageState extends State<DashboardCatRunStage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final math.Random _random = widget.random ?? math.Random();
   late final AnimationController _controller =
@@ -177,6 +177,18 @@ class _DashboardCatRunStageState extends State<DashboardCatRunStage>
     });
     _controller.value = 0;
     _continueChain();
+  }
+
+  /// Starts one normal production event immediately. This deliberately uses
+  /// the same direction, coat, chain, and renderer path as the scheduler.
+  /// A running chain remains the sole active event, so rapid manual taps are
+  /// ignored rather than queued.
+  bool triggerManualAppearance() {
+    if (!_motionAllowed || !_measured || _hasActiveCrossing) return false;
+    _nextAppearanceTimer?.cancel();
+    _nextAppearanceTimer = null;
+    _startCrossing();
+    return true;
   }
 
   void _continueChain() {
