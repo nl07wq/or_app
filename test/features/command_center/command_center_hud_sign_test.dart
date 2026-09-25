@@ -9,6 +9,13 @@ void main() {
       )
       .opacity;
 
+  double glyphScale(WidgetTester tester, int index) => tester
+      .widget<Transform>(
+        find.byKey(CommandCenterHudSign.glyphTransformKey(index)),
+      )
+      .transform
+      .getMaxScaleOnAxis();
+
   Future<void> pumpHud(
     WidgetTester tester, {
     required double width,
@@ -78,7 +85,10 @@ void main() {
     );
     expect(firstGlyph.style?.fontSize, 26);
     expect(firstGlyph.style?.fontFamily, 'ShareTechMono');
-    expect(firstGlyph.style?.color, const Color(0xFF9BFFB8));
+    expect(
+      firstGlyph.style?.color?.toARGB32(),
+      const Color(0xFF75D7FF).toARGB32(),
+    );
     expect(
       tester.getCenter(find.byKey(CommandCenterHudSign.titleKey)).dy,
       closeTo(tester.getCenter(find.byKey(CommandCenterHudSign.signKey)).dy, 2),
@@ -170,6 +180,41 @@ void main() {
     for (var index = 0; index < 15; index++) {
       expect(glyphOpacity(tester, index), closeTo(1, .001));
     }
+  });
+
+  testWidgets('gives only the active glyph a rendered blue lock peak', (
+    tester,
+  ) async {
+    await pumpHud(tester, width: 390, canPop: true);
+
+    await tester.pump(const Duration(milliseconds: 1330));
+    final activeGlyph = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(CommandCenterHudSign.glyphKey(0)),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(glyphOpacity(tester, 0), greaterThan(.4));
+    expect(glyphScale(tester, 0), greaterThan(1.04));
+    expect(glyphScale(tester, 1), closeTo(1, .001));
+    expect(activeGlyph.style?.color, isNot(const Color(0xFF75D7FF)));
+    expect(activeGlyph.style?.shadows, isNotEmpty);
+
+    await tester.pumpAndSettle();
+    expect(glyphScale(tester, 0), closeTo(1, .001));
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(CommandCenterHudSign.glyphKey(0)),
+              matching: find.byType(Text),
+            ),
+          )
+          .style
+          ?.color
+          ?.toARGB32(),
+      const Color(0xFF75D7FF).toARGB32(),
+    );
   });
 
   testWidgets('unlocks independent glyphs in deterministic reverse order', (

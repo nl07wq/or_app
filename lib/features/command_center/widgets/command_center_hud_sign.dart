@@ -23,6 +23,9 @@ class CommandCenterHudSign extends StatefulWidget {
   static ValueKey<String> glyphKey(int visibleIndex) =>
       ValueKey('command-center-hud-glyph-$visibleIndex');
 
+  static ValueKey<String> glyphTransformKey(int visibleIndex) =>
+      ValueKey('command-center-hud-glyph-transform-$visibleIndex');
+
   final bool canPop;
   final VoidCallback? onBack;
 
@@ -81,9 +84,10 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
 
   @override
   Widget build(BuildContext context) {
-    const opticalGreen = Color(0xFF62DA85);
-    const titleGreen = Color(0xFF9BFFB8);
-    const titleLockGreen = Color(0xFFD0FFE0);
+    const opticalBlue = Color(0xFF53C3FF);
+    const structureBlue = Color(0xFF2C78A8);
+    const titleBlue = Color(0xFF75D7FF);
+    const titleLockBlue = Color(0xFFE3F7FF);
 
     return Semantics(
       container: true,
@@ -106,7 +110,8 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
               painter: _OpticalHudPainter(
                 progress: progress,
                 exitProgress: exit,
-                green: opticalGreen,
+                primaryBlue: opticalBlue,
+                structureBlue: structureBlue,
               ),
               child: Stack(
                 children: [
@@ -121,7 +126,7 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                           key: CommandCenterHudSign.backKey,
                           tooltip: 'Back',
                           onPressed: _exiting ? null : _requestBack,
-                          color: opticalGreen,
+                          color: opticalBlue,
                           icon: const Icon(Symbols.chevron_left),
                         ),
                       ),
@@ -146,8 +151,8 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                                   fontWeight: FontWeight.w400,
                                   letterSpacing: 1.0,
                                   color: Color.lerp(
-                                    titleGreen,
-                                    titleLockGreen,
+                                    titleBlue,
+                                    titleLockBlue,
                                     .18 * (1 - finalLock),
                                   ),
                                 ) ??
@@ -267,7 +272,7 @@ class _OpticalGlyph extends StatelessWidget {
             width: 1.5,
             height: 8,
             decoration: BoxDecoration(
-              color: const Color(0xFF62DA85),
+              color: const Color(0xFF2C78A8),
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -276,11 +281,22 @@ class _OpticalGlyph extends StatelessWidget {
           key: ValueKey('command-center-hud-glyph-opacity-$visibleIndex'),
           opacity: visible,
           child: Transform.scale(
-            scale: 1 + .045 * flash,
+            key: CommandCenterHudSign.glyphTransformKey(visibleIndex),
+            scale: 1 + .055 * flash,
             child: Text(
               glyph,
               style: style.copyWith(
-                color: Color.lerp(style.color, const Color(0xFFD0FFE0), flash),
+                color: Color.lerp(style.color, const Color(0xFFE3F7FF), flash),
+                shadows: flash == 0
+                    ? null
+                    : [
+                        Shadow(
+                          color: const Color(
+                            0xFFE3F7FF,
+                          ).withValues(alpha: .46 * flash),
+                          blurRadius: 3.5 * flash,
+                        ),
+                      ],
               ),
             ),
           ),
@@ -294,12 +310,14 @@ class _OpticalHudPainter extends CustomPainter {
   const _OpticalHudPainter({
     required this.progress,
     required this.exitProgress,
-    required this.green,
+    required this.primaryBlue,
+    required this.structureBlue,
   });
 
   final double progress;
   final double exitProgress;
-  final Color green;
+  final Color primaryBlue;
+  final Color structureBlue;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -317,7 +335,7 @@ class _OpticalHudPainter extends CustomPainter {
     final material = _interval(progress, .68, .96);
     final ringFade = 1 - _interval(progress, .62, .90);
     final plane = Paint()
-      ..color = green.withValues(alpha: .032 * material)
+      ..color = structureBlue.withValues(alpha: .032 * material)
       ..style = PaintingStyle.fill;
     canvas.drawRect(
       Rect.fromLTWH(8, 7, math.max(0, size.width - 16), size.height - 14),
@@ -325,7 +343,7 @@ class _OpticalHudPainter extends CustomPainter {
     );
 
     final acquisitionPaint = Paint()
-      ..color = green.withValues(alpha: .95 * acquire)
+      ..color = primaryBlue.withValues(alpha: .95 * acquire)
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round;
     canvas.drawCircle(origin, 1.8 + acquire * 1.2, acquisitionPaint);
@@ -342,7 +360,7 @@ class _OpticalHudPainter extends CustomPainter {
     ]) {
       final radius = ring.$1;
       final rotation = ring.$2 + (lock - .5) * ring.$3;
-      ringPaint.color = green.withValues(
+      ringPaint.color = primaryBlue.withValues(
         alpha: ringAlpha * (radius == 38 ? .55 : .8),
       );
       canvas.drawArc(
@@ -353,7 +371,7 @@ class _OpticalHudPainter extends CustomPainter {
         ringPaint,
       );
       final tickPaint = Paint()
-        ..color = green.withValues(alpha: ringAlpha * .55)
+        ..color = structureBlue.withValues(alpha: ringAlpha * .55)
         ..strokeWidth = 1;
       for (var tick = 0; tick < 4; tick++) {
         final angle = rotation + tick * math.pi / 2;
@@ -367,7 +385,7 @@ class _OpticalHudPainter extends CustomPainter {
 
     final crosshairAlpha = lockEvent * (1 - _interval(progress, .59, .70));
     final reticle = Paint()
-      ..color = green.withValues(alpha: crosshairAlpha)
+      ..color = primaryBlue.withValues(alpha: crosshairAlpha)
       ..strokeWidth = 1;
     canvas.drawLine(
       origin - const Offset(11, 0),
@@ -397,7 +415,7 @@ class _OpticalHudPainter extends CustomPainter {
 
     final scanX = origin.dx + (size.width - origin.dx - 14) * scan;
     final scanPaint = Paint()
-      ..color = green.withValues(
+      ..color = primaryBlue.withValues(
         alpha: .18 + .55 * scan * (1 - _interval(progress, .78, 1)),
       )
       ..strokeWidth = 1;
@@ -411,7 +429,7 @@ class _OpticalHudPainter extends CustomPainter {
         Offset(scanX, 13),
         Offset(scanX, size.height - 13),
         scanPaint
-          ..color = green.withValues(
+          ..color = primaryBlue.withValues(
             alpha: .36 * (1 - _interval(progress, .78, 1)),
           ),
       );
@@ -420,7 +438,7 @@ class _OpticalHudPainter extends CustomPainter {
       final delayedX =
           origin.dx + (size.width - origin.dx - 22) * secondaryScan;
       final delayedPaint = Paint()
-        ..color = green.withValues(
+        ..color = structureBlue.withValues(
           alpha: .24 * (1 - _interval(progress, .90, 1)),
         )
         ..strokeWidth = 1;
@@ -437,7 +455,7 @@ class _OpticalHudPainter extends CustomPainter {
     }
 
     final structure = Paint()
-      ..color = green.withValues(alpha: .64 * material)
+      ..color = structureBlue.withValues(alpha: .64 * material)
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round;
     final fragment = size.width * material;
@@ -469,7 +487,7 @@ class _OpticalHudPainter extends CustomPainter {
       canvas,
       const Offset(10, 21),
       const Offset(10, 37),
-      structure..color = green.withValues(alpha: .42 * material),
+      structure..color = structureBlue.withValues(alpha: .42 * material),
     );
     _line(
       canvas,
@@ -478,7 +496,8 @@ class _OpticalHudPainter extends CustomPainter {
       structure,
     );
 
-    final tick = Paint()..color = green.withValues(alpha: .72 * material);
+    final tick = Paint()
+      ..color = structureBlue.withValues(alpha: .72 * material);
     for (final point in [
       const Offset(56, 15),
       Offset(size.width * .52, 15),
@@ -498,7 +517,9 @@ class _OpticalHudPainter extends CustomPainter {
     final pointCollapse = _interval(exitProgress, .85, 1);
 
     final plane = Paint()
-      ..color = green.withValues(alpha: .045 * trigger * (1 - planeCollapse))
+      ..color = structureBlue.withValues(
+        alpha: .045 * trigger * (1 - planeCollapse),
+      )
       ..style = PaintingStyle.fill;
     canvas.drawRect(
       Rect.fromLTWH(8, 7, math.max(0, size.width - 16), size.height - 14),
@@ -506,7 +527,7 @@ class _OpticalHudPainter extends CustomPainter {
     );
 
     final acknowledge = Paint()
-      ..color = const Color(0xFFD0FFE0).withValues(alpha: .62 * trigger)
+      ..color = const Color(0xFFE3F7FF).withValues(alpha: .62 * trigger)
       ..strokeWidth = 1.3;
     canvas.drawLine(
       Offset(56, size.height * .5),
@@ -518,7 +539,7 @@ class _OpticalHudPainter extends CustomPainter {
       final scanX =
           size.width - 14 - (size.width - 14 - origin.dx) * reverseScan;
       final scan = Paint()
-        ..color = green.withValues(alpha: .68 * (1 - reverseScan * .35))
+        ..color = primaryBlue.withValues(alpha: .68 * (1 - reverseScan * .35))
         ..strokeWidth = 1;
       canvas.drawLine(
         Offset(scanX, size.height * .5),
@@ -529,7 +550,7 @@ class _OpticalHudPainter extends CustomPainter {
     }
 
     final structure = Paint()
-      ..color = green.withValues(alpha: .64 * (1 - planeCollapse))
+      ..color = structureBlue.withValues(alpha: .64 * (1 - planeCollapse))
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round;
     final retract = 1 - planeCollapse;
@@ -570,7 +591,7 @@ class _OpticalHudPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 1;
     for (final values in [(19.0, .9), (29.0, -1.2), (39.0, 2.1)]) {
-      ring.color = green.withValues(alpha: ringAlpha);
+      ring.color = primaryBlue.withValues(alpha: ringAlpha);
       canvas.drawArc(
         Rect.fromCircle(center: origin, radius: values.$1),
         values.$2 - ringUnlock * 1.15,
@@ -581,7 +602,7 @@ class _OpticalHudPainter extends CustomPainter {
     }
 
     final reticle = Paint()
-      ..color = green.withValues(alpha: ringAlpha * .8)
+      ..color = primaryBlue.withValues(alpha: ringAlpha * .8)
       ..strokeWidth = 1;
     canvas.drawLine(
       origin - const Offset(10, 0),
@@ -600,7 +621,7 @@ class _OpticalHudPainter extends CustomPainter {
     );
 
     final point = Paint()
-      ..color = green.withValues(alpha: 1 - pointCollapse)
+      ..color = primaryBlue.withValues(alpha: 1 - pointCollapse)
       ..strokeCap = StrokeCap.round;
     canvas.drawCircle(origin, 2.8 * (1 - pointCollapse), point);
   }
@@ -613,5 +634,6 @@ class _OpticalHudPainter extends CustomPainter {
   bool shouldRepaint(covariant _OpticalHudPainter oldDelegate) =>
       oldDelegate.progress != progress ||
       oldDelegate.exitProgress != exitProgress ||
-      oldDelegate.green != green;
+      oldDelegate.primaryBlue != primaryBlue ||
+      oldDelegate.structureBlue != structureBlue;
 }
