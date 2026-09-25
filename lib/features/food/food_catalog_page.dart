@@ -28,6 +28,7 @@ import 'services/japanese_package_ocr_parser.dart';
 import 'widgets/food_ocr_scanner.dart';
 import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
+import 'widgets/food_form_theme.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -1065,178 +1066,180 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     appBar: AppBar(
       title: Text(widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD'),
     ),
-    body: SingleChildScrollView(
-      padding: AppSpacing.cardPadding,
-      child: OperationCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
-            AppSpacing.gapMD,
-            OperationButton(
-              key: const ValueKey('food-catalog-ocr'),
-              icon: Icons.document_scanner,
-              text: _capturing ? 'PROCESSING IMAGE' : 'SCAN NUTRITION LABEL',
-              onPressed: _capturing || _saving ? null : _scanOcr,
-            ),
-            AppSpacing.gapMD,
-            OperationTextField(controller: _name, label: 'NAME'),
-            AppSpacing.gapMD,
-            OperationTextField(controller: _brand, label: 'BRAND'),
-            AppSpacing.gapMD,
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final category = _dropdown(
-                  label: 'CATEGORY',
-                  value: _category,
-                  values: FoodCatalogCategory.values,
-                  text: foodCatalogCategoryLabel,
-                  onChanged: (value) => setState(() => _category = value),
-                );
-                final thumbnail = _FoodThumbnailField(
-                  visualKey: _visualKey,
-                  onChange: _selectThumbnail,
-                  dense: constraints.maxWidth >= _pairedAttributeMinimumWidth,
-                );
-                if (constraints.maxWidth < _pairedAttributeMinimumWidth) {
-                  return Column(
-                    key: const ValueKey('food-catalog-attributes-stacked'),
-                    children: [category, AppSpacing.gapMD, thumbnail],
+    body: FoodFormTheme(
+      child: SingleChildScrollView(
+        padding: AppSpacing.cardPadding,
+        child: OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
+              FoodFormMetrics.gap,
+              OperationButton(
+                key: const ValueKey('food-catalog-ocr'),
+                icon: Icons.document_scanner,
+                text: _capturing ? 'PROCESSING IMAGE' : 'SCAN NUTRITION LABEL',
+                onPressed: _capturing || _saving ? null : _scanOcr,
+              ),
+              FoodFormMetrics.gap,
+              OperationTextField(controller: _name, label: 'NAME'),
+              FoodFormMetrics.gap,
+              OperationTextField(controller: _brand, label: 'BRAND'),
+              FoodFormMetrics.gap,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final category = _dropdown(
+                    label: 'CATEGORY',
+                    value: _category,
+                    values: FoodCatalogCategory.values,
+                    text: foodCatalogCategoryLabel,
+                    onChanged: (value) => setState(() => _category = value),
                   );
-                }
-                return Row(
-                  key: const ValueKey('food-catalog-attributes-paired'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 11, child: category),
-                    AppSpacing.gapSM,
-                    Expanded(flex: 9, child: thumbnail),
-                  ],
-                );
-              },
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _barcode,
-                    label: 'BARCODE / JAN',
-                    onChanged: (_) => setState(() {}),
+                  final thumbnail = _FoodThumbnailField(
+                    visualKey: _visualKey,
+                    onChange: _selectThumbnail,
+                    dense: constraints.maxWidth >= _pairedAttributeMinimumWidth,
+                  );
+                  if (constraints.maxWidth < _pairedAttributeMinimumWidth) {
+                    return Column(
+                      key: const ValueKey('food-catalog-attributes-stacked'),
+                      children: [category, FoodFormMetrics.gap, thumbnail],
+                    );
+                  }
+                  return Row(
+                    key: const ValueKey('food-catalog-attributes-paired'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 11, child: category),
+                      FoodFormMetrics.horizontalGap,
+                      Expanded(flex: 9, child: thumbnail),
+                    ],
+                  );
+                },
+              ),
+              FoodFormMetrics.gap,
+              Row(
+                children: [
+                  Expanded(
+                    child: OperationTextField(
+                      controller: _barcode,
+                      label: 'BARCODE / JAN',
+                      onChanged: (_) => setState(() {}),
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                OutlinedButton.icon(
-                  key: const ValueKey('food-catalog-barcode-scan'),
-                  onPressed: _capturing || _saving ? null : _scanBarcode,
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: Text(_capturing ? '...' : 'SCAN'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(96, 48),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  FoodFormMetrics.horizontalGap,
+                  OutlinedButton.icon(
+                    key: const ValueKey('food-catalog-barcode-scan'),
+                    onPressed: _capturing || _saving ? null : _scanBarcode,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: Text(_capturing ? '...' : 'SCAN'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: FoodFormMetrics.barcodeButtonSize,
+                      padding: FoodFormMetrics.barcodeButtonPadding,
+                    ),
                   ),
+                ],
+              ),
+              if (_barcode.text.trim().isNotEmpty) ...[
+                AppSpacing.gapXS,
+                Text(
+                  'FORMAT  ${_detectBarcodeFormat(_barcode.text.trim()).name.toUpperCase()}',
+                  key: const ValueKey('food-catalog-barcode-format'),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
-            ),
-            if (_barcode.text.trim().isNotEmpty) ...[
-              AppSpacing.gapXS,
-              Text(
-                'FORMAT  ${_detectBarcodeFormat(_barcode.text.trim()).name.toUpperCase()}',
-                key: const ValueKey('food-catalog-barcode-format'),
-                style: Theme.of(context).textTheme.bodySmall,
+              FoodFormMetrics.gap,
+              _quantityRow(
+                controller: _packageQuantity,
+                label: 'PACKAGE QUANTITY',
+                value: _packageUnit,
+                allowNull: true,
+                onTextChanged: _packageQuantityChanged,
+                onChanged: _packageUnitChanged,
               ),
-            ],
-            AppSpacing.gapMD,
-            _quantityRow(
-              controller: _packageQuantity,
-              label: 'PACKAGE QUANTITY',
-              value: _packageUnit,
-              allowNull: true,
-              onTextChanged: _packageQuantityChanged,
-              onChanged: _packageUnitChanged,
-            ),
-            AppSpacing.gapMD,
-            _quantityRow(
-              controller: _baseQuantity,
-              label: 'NUTRITION BASIS',
-              value: _baseUnit,
-              onTextChanged: _baseQuantityChanged,
-              onChanged: _baseUnitChanged,
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _calories,
-                    label: 'CALORIES',
-                    onChanged: (_) => setState(() => _rawCalories = null),
+              FoodFormMetrics.gap,
+              _quantityRow(
+                controller: _baseQuantity,
+                label: 'NUTRITION BASIS',
+                value: _baseUnit,
+                onTextChanged: _baseQuantityChanged,
+                onChanged: _baseUnitChanged,
+              ),
+              FoodFormMetrics.gap,
+              Row(
+                children: [
+                  Expanded(
+                    child: OperationTextField(
+                      controller: _calories,
+                      label: 'CALORIES',
+                      onChanged: (_) => setState(() => _rawCalories = null),
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: OperationTextField(
-                    controller: _protein,
-                    label: 'PROTEIN',
-                    onChanged: (_) => setState(() => _rawProtein = null),
+                  FoodFormMetrics.horizontalGap,
+                  Expanded(
+                    child: OperationTextField(
+                      controller: _protein,
+                      label: 'PROTEIN',
+                      onChanged: (_) => setState(() => _rawProtein = null),
+                    ),
                   ),
+                ],
+              ),
+              FoodFormMetrics.gap,
+              Row(
+                children: [
+                  Expanded(
+                    child: OperationTextField(
+                      controller: _fat,
+                      label: 'FAT',
+                      onChanged: (_) => setState(() => _rawFat = null),
+                    ),
+                  ),
+                  FoodFormMetrics.horizontalGap,
+                  Expanded(
+                    child: OperationTextField(
+                      controller: _carbs,
+                      label: 'CARBOHYDRATE',
+                      onChanged: (_) => setState(() => _rawCarbohydrate = null),
+                    ),
+                  ),
+                ],
+              ),
+              FoodFormMetrics.gap,
+              OperationButton(
+                key: const ValueKey('food-catalog-recalculate-nutrition'),
+                icon: Icons.calculate_outlined,
+                text: 'RECALCULATE NUTRITION',
+                onPressed: _recalculationBlockReason == null
+                    ? _previewNutritionRecalculation
+                    : null,
+              ),
+              if (_recalculationBlockReason case final reason?) ...[
+                AppSpacing.gapXS,
+                Text(
+                  reason,
+                  key: const ValueKey('food-catalog-recalculation-reason'),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _fat,
-                    label: 'FAT',
-                    onChanged: (_) => setState(() => _rawFat = null),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: OperationTextField(
-                    controller: _carbs,
-                    label: 'CARBOHYDRATE',
-                    onChanged: (_) => setState(() => _rawCarbohydrate = null),
-                  ),
+              FoodFormMetrics.gap,
+              OperationTextField(controller: _memo, label: 'MEMO'),
+              if (_error != null) ...[
+                FoodFormMetrics.gap,
+                Text(
+                  _error!,
+                  key: const ValueKey('food-catalog-error'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
-            ),
-            AppSpacing.gapMD,
-            OperationButton(
-              key: const ValueKey('food-catalog-recalculate-nutrition'),
-              icon: Icons.calculate_outlined,
-              text: 'RECALCULATE NUTRITION',
-              onPressed: _recalculationBlockReason == null
-                  ? _previewNutritionRecalculation
-                  : null,
-            ),
-            if (_recalculationBlockReason case final reason?) ...[
-              AppSpacing.gapXS,
-              Text(
-                reason,
-                key: const ValueKey('food-catalog-recalculation-reason'),
-                style: Theme.of(context).textTheme.bodySmall,
+              AppSpacing.gapXL,
+              OperationButton(
+                icon: Icons.save,
+                text: 'SAVE',
+                onPressed: _saving ? null : _save,
               ),
             ],
-            AppSpacing.gapMD,
-            OperationTextField(controller: _memo, label: 'MEMO'),
-            if (_error != null) ...[
-              AppSpacing.gapMD,
-              Text(
-                _error!,
-                key: const ValueKey('food-catalog-error'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-            AppSpacing.gapXL,
-            OperationButton(
-              icon: Icons.save,
-              text: 'SAVE',
-              onPressed: _saving ? null : _save,
-            ),
-          ],
+          ),
         ),
       ),
     ),
@@ -1259,7 +1262,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           onChanged: onTextChanged,
         ),
       ),
-      const SizedBox(width: AppSpacing.md),
+      FoodFormMetrics.horizontalGap,
       Expanded(
         child: _dropdown<FoodQuantityUnit?>(
           label: 'UNIT',
@@ -1301,6 +1304,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     initialValue: value,
     isExpanded: true,
     decoration: InputDecoration(labelText: label),
+    style: Theme.of(context).textTheme.bodyLarge,
     items: [
       for (final item in values)
         DropdownMenuItem(value: item, child: Text(text(item))),
