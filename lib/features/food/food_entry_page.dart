@@ -35,6 +35,7 @@ class FoodEntryPage extends StatefulWidget {
 class _FoodEntryPageState extends State<FoodEntryPage> {
   String? _localDate;
   Object? _dateLoadError;
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -55,6 +56,12 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<bool> save(MealData data) async {
@@ -149,11 +156,13 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
           : Padding(
               padding: const EdgeInsets.all(16),
               child: SingleChildScrollView(
+                controller: _scrollController,
                 child: Column(
                   children: [
                     FoodInputForm(
                       onSave: save,
                       onSaveWithCatalog: saveWithCatalog,
+                      scrollController: _scrollController,
                     ),
                     const SizedBox(height: 20),
                     ValueListenableBuilder(

@@ -47,6 +47,7 @@ class FoodInputForm extends StatefulWidget {
   final MealData? initialMeal;
   final FoodEntrySources? initialSources;
   final FoodInputCaptureGateway? captureGateway;
+  final ScrollController? scrollController;
 
   const FoodInputForm({
     super.key,
@@ -56,6 +57,7 @@ class FoodInputForm extends StatefulWidget {
     this.initialMeal,
     this.initialSources,
     this.captureGateway,
+    this.scrollController,
   });
 
   @override
@@ -155,6 +157,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   Future<List<FoodCatalogEntry>>? _foodDiscoveryFuture;
   Future<List<FoodRecipeDefinition>>? _recipeDiscoveryFuture;
   Future<List<FoodMealMaster>>? _mealDiscoveryFuture;
+  final _quantityConfirmationKey = GlobalKey();
+  double? _databaseListScrollOffset;
 
   FoodInputCaptureGateway get _captureGateway =>
       widget.captureGateway ?? createFoodInputCaptureGateway();
@@ -890,6 +894,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _selectDatabaseFood(FoodCatalogEntry selection) {
+    _rememberDatabaseListScrollOffset();
     setState(() {
       _pendingDatabaseSelection = _DatabaseFoodSelection(
         selection,
@@ -897,6 +902,41 @@ class _FoodInputFormState extends State<FoodInputForm> {
       );
       _pendingQuantityController.text = _formatAmount(_defaultAmount);
       inputError = null;
+    });
+    _showQuantityConfirmation();
+  }
+
+  void _rememberDatabaseListScrollOffset() {
+    final controller = widget.scrollController;
+    if (controller?.hasClients ?? false) {
+      _databaseListScrollOffset = controller!.position.pixels;
+    }
+  }
+
+  void _showQuantityConfirmation() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final confirmationContext = _quantityConfirmationKey.currentContext;
+      if (confirmationContext == null) return;
+      Scrollable.ensureVisible(
+        confirmationContext,
+        alignment: 0.08,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  void _restoreDatabaseListScrollOffset() {
+    final offset = _databaseListScrollOffset;
+    final controller = widget.scrollController;
+    if (offset == null || !(controller?.hasClients ?? false)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !(controller?.hasClients ?? false)) return;
+        final position = controller!.position;
+        controller.jumpTo(offset.clamp(0.0, position.maxScrollExtent));
+      });
     });
   }
 
@@ -1124,11 +1164,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
-  void _cancelPendingDatabaseSelection() => setState(() {
-    _pendingDatabaseSelection = null;
-    _pendingQuantityController.clear();
-    inputError = null;
-  });
+  void _cancelPendingDatabaseSelection() {
+    setState(() {
+      _pendingDatabaseSelection = null;
+      _pendingQuantityController.clear();
+      inputError = null;
+    });
+    _restoreDatabaseListScrollOffset();
+  }
 
   Future<void> _saveCurrentToCatalog() async {
     if (!AppRepositoryRegistry.hasContainer) return;
@@ -1865,59 +1908,63 @@ class _FoodInputFormState extends State<FoodInputForm> {
     };
   }
 
-  Widget _foodQuantityConfirmation(_DatabaseFoodSelection pending) =>
-      OperationCard(
-        key: const ValueKey('food-db-quantity-confirmation'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionHeader(
-              icon: Icons.fact_check_outlined,
-              title: 'CONFIRM QUANTITY',
-            ),
-            AppSpacing.gapSM,
-            Text(
-              _pendingName(pending),
-              key: const ValueKey('food-db-pending-name'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            Text(_pendingUnit(pending)),
-            AppSpacing.gapMD,
-            FoodNumericStepperRow(
-              key: const ValueKey('food-db-quantity-stepper-row'),
-              inputKey: const ValueKey('food-db-pending-quantity'),
-              controller: _pendingQuantityController,
-              label: 'Quantity',
-              onChanged: (_) => setState(() => inputError = null),
-              incrementKey: const ValueKey('food-db-quantity-increment'),
-              incrementTooltip: 'Increase quantity',
-              onIncrement: () => _adjustPendingQuantity(1),
-              decrementKey: const ValueKey('food-db-quantity-decrement'),
-              decrementTooltip: 'Decrease quantity',
-              onDecrement: () => _adjustPendingQuantity(-1),
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationButton(
-                    key: const ValueKey('food-db-add'),
-                    icon: Icons.add,
-                    text: 'ADD',
-                    onPressed: _isSaving ? null : _addPendingDatabaseSelection,
-                  ),
+  Widget _foodQuantityConfirmation(
+    _DatabaseFoodSelection pending,
+  ) => KeyedSubtree(
+    key: _quantityConfirmationKey,
+    child: OperationCard(
+      key: const ValueKey('food-db-quantity-confirmation'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            icon: Icons.fact_check_outlined,
+            title: 'CONFIRM QUANTITY',
+          ),
+          AppSpacing.gapSM,
+          Text(
+            _pendingName(pending),
+            key: const ValueKey('food-db-pending-name'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(_pendingUnit(pending)),
+          AppSpacing.gapMD,
+          FoodNumericStepperRow(
+            key: const ValueKey('food-db-quantity-stepper-row'),
+            inputKey: const ValueKey('food-db-pending-quantity'),
+            controller: _pendingQuantityController,
+            label: 'Quantity',
+            onChanged: (_) => setState(() => inputError = null),
+            incrementKey: const ValueKey('food-db-quantity-increment'),
+            incrementTooltip: 'Increase quantity',
+            onIncrement: () => _adjustPendingQuantity(1),
+            decrementKey: const ValueKey('food-db-quantity-decrement'),
+            decrementTooltip: 'Decrease quantity',
+            onDecrement: () => _adjustPendingQuantity(-1),
+          ),
+          AppSpacing.gapMD,
+          Row(
+            children: [
+              Expanded(
+                child: OperationButton(
+                  key: const ValueKey('food-db-add'),
+                  icon: Icons.add,
+                  text: 'ADD',
+                  onPressed: _isSaving ? null : _addPendingDatabaseSelection,
                 ),
-                AppSpacing.gapSM,
-                OutlinedButton(
-                  key: const ValueKey('food-db-cancel'),
-                  onPressed: _isSaving ? null : _cancelPendingDatabaseSelection,
-                  child: const Text('CANCEL'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
+              ),
+              AppSpacing.gapSM,
+              OutlinedButton(
+                key: const ValueKey('food-db-cancel'),
+                onPressed: _isSaving ? null : _cancelPendingDatabaseSelection,
+                child: const Text('CANCEL'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _mealItemEditor() {
     final index = _mealItemEditingIndex!;
