@@ -37,6 +37,7 @@ class DashboardCatRunStage extends StatefulWidget {
     this.minimumInterval = const Duration(seconds: 30),
     this.maximumInterval = const Duration(seconds: 60),
     this.onEventActiveChanged,
+    this.onEventMetadataChanged,
   });
 
   static const height = CatRunV24Travel.stageHeight;
@@ -47,13 +48,13 @@ class DashboardCatRunStage extends StatefulWidget {
   static const productionCatUnit = CatRunV23Travel.catUnit * productionScale;
   static const groundInset = 5.0;
   static const groundLineColor = Color(0xFF383838);
-  static const chainContinueProbability = .2;
-  static const chainStopProbability = .8;
-  static const chainFollowerTriggerProgress = .15;
-  static const glitchProbability = .05;
-  static const normalEventProbability = .95;
-  static const glitchCatCount = 10;
-  static const glitchFollowerTriggerProgress = .06;
+  static const chainContinueProbability = CatRunProductionEventPolicy.chainContinueProbability;
+  static const chainStopProbability = CatRunProductionEventPolicy.chainStopProbability;
+  static const chainFollowerTriggerProgress = CatRunProductionEventPolicy.normalFollowerTriggerProgress;
+  static const glitchProbability = CatRunProductionEventPolicy.glitchProbability;
+  static const normalEventProbability = CatRunProductionEventPolicy.normalEventProbability;
+  static const glitchCatCount = CatRunProductionEventPolicy.glitchCatCount;
+  static const glitchFollowerTriggerProgress = CatRunProductionEventPolicy.glitchFollowerTriggerProgress;
   static const stageKey = ValueKey('dashboard-production-cat-stage');
   static const activeKey = ValueKey('dashboard-production-cat-active');
 
@@ -61,17 +62,16 @@ class DashboardCatRunStage extends StatefulWidget {
   final Duration minimumInterval;
   final Duration maximumInterval;
   final ValueChanged<bool>? onEventActiveChanged;
+  final ValueChanged<DashboardCatEventMetadata>? onEventMetadataChanged;
 
   /// A single five-way roll deliberately has no chain-length input or cap.
   static bool chainContinuesForRoll(int roll) {
-    if (roll < 0 || roll >= 5) throw ArgumentError.value(roll, 'roll');
-    return roll == 0;
+    return CatRunProductionEventPolicy.chainContinuesForRoll(roll);
   }
 
   /// The event roll is sampled once per auto or manual appearance event.
   static DashboardCatEventKind eventKindForRoll(int roll) {
-    if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
-    return roll == 0
+    return CatRunProductionEventPolicy.isGlitchRoll(roll)
         ? DashboardCatEventKind.glitch
         : DashboardCatEventKind.normal;
   }
@@ -81,6 +81,30 @@ class DashboardCatRunStage extends StatefulWidget {
 }
 
 enum DashboardCatEventKind { normal, glitch }
+
+class DashboardCatEventMetadata {
+  const DashboardCatEventMetadata({
+    required this.source,
+    required this.eventRoll,
+    required this.eventKind,
+    required this.direction,
+    required this.plannedCatCount,
+    required this.spawnedCatCount,
+    required this.completedCatCount,
+    required this.active,
+    required this.completed,
+  });
+
+  final CatRunProductionEventSource source;
+  final int? eventRoll;
+  final DashboardCatEventKind eventKind;
+  final CatRunV23Direction direction;
+  final int plannedCatCount;
+  final int spawnedCatCount;
+  final int completedCatCount;
+  final bool active;
+  final bool completed;
+}
 
 class DashboardCatRunStageState extends State<DashboardCatRunStage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
@@ -93,11 +117,13 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
   final List<_ScheduledCatCrossing> _chain = [];
   CatRunV23Direction? _chainDirection;
   DashboardCatEventKind? _eventKind;
+  CatRunProductionEventPlan? _eventPlan;
   bool _appActive = true;
   bool _tickerEnabled = true;
   bool _reducedMotion = false;
   bool _measured = false;
   bool _lastPublishedEventActive = false;
+  DashboardCatEventMetadata? _lastEventMetadata;
 
   bool get _hasActiveCrossing => _chain.isNotEmpty;
   bool get _motionAllowed =>
@@ -110,6 +136,47 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     if (_lastPublishedEventActive == active) return;
     _lastPublishedEventActive = active;
     widget.onEventActiveChanged?.call(active);
+  }
+
+  void _publishEventMetadata({required bool completed}) {
+    final plan = _eventPlan;
+    final direction = _chainDirection;
+    final kind = _eventKind;
+    if (plan == null || direction == null || kind == null) return;
+    final completedCount = completed
+        ? _chain.length
+        : _chain
+              .where(
+                (crossing) =>
+                    _controller.value - crossing.startedAtProgress >= 1,
+              )
+              .length;
+    final metadata = DashboardCatEventMetadata(
+      source: plan.source,
+      eventRoll: plan.eventRoll,
+      eventKind: kind,
+      direction: direction,
+      plannedCatCount: _chain.length,
+      spawnedCatCount: _chain.length,
+      completedCatCount: completedCount,
+      active: !completed,
+      completed: completed,
+    );
+    final previous = _lastEventMetadata;
+    if (previous != null &&
+        previous.source == metadata.source &&
+        previous.eventRoll == metadata.eventRoll &&
+        previous.eventKind == metadata.eventKind &&
+        previous.direction == metadata.direction &&
+        previous.plannedCatCount == metadata.plannedCatCount &&
+        previous.spawnedCatCount == metadata.spawnedCatCount &&
+        previous.completedCatCount == metadata.completedCatCount &&
+        previous.active == metadata.active &&
+        previous.completed == metadata.completed) {
+      return;
+    }
+    _lastEventMetadata = metadata;
+    widget.onEventMetadataChanged?.call(metadata);
   }
 
   @override
@@ -167,11 +234,13 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
         _chain.clear();
         _chainDirection = null;
         _eventKind = null;
+        _eventPlan = null;
       });
     } else {
       _chain.clear();
       _chainDirection = null;
       _eventKind = null;
+      _eventPlan = null;
     }
     _publishEventActivity();
   }
@@ -185,46 +254,35 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     }
     _nextAppearanceTimer = Timer(_nextInterval(), () {
       _nextAppearanceTimer = null;
-      _startEvent();
+      _startSampledEvent(CatRunProductionEventSource.automatic);
     });
   }
 
-  void _startEvent() {
+  void _startSampledEvent(CatRunProductionEventSource source) {
+    _startEvent(CatRunProductionEventPlan.sampled(source: source, random: _random));
+  }
+
+  void _startEvent(CatRunProductionEventPlan plan) {
     if (!_motionAllowed || !_measured || _hasActiveCrossing) return;
-    final eventKind = DashboardCatRunStage.eventKindForRoll(_next(20));
-    final direction = _next(2) == 0
-        ? CatRunV23Direction.leftToRight
-        : CatRunV23Direction.rightToLeft;
     setState(() {
-      _chainDirection = direction;
-      _eventKind = eventKind;
-      switch (eventKind) {
-        case DashboardCatEventKind.normal:
-          _chain.add(
-            _ScheduledCatCrossing(
-              startedAtProgress: 0,
-              coatVariant: CatRunCoatPatterns.chooseRandom(_random),
-            ),
-          );
-        case DashboardCatEventKind.glitch:
-          for (
-            var index = 0;
-            index < DashboardCatRunStage.glitchCatCount;
-            index++
-          ) {
-            _chain.add(
-              _ScheduledCatCrossing(
-                startedAtProgress:
-                    index * DashboardCatRunStage.glitchFollowerTriggerProgress,
-                coatVariant: CatRunCoatPatterns.chooseRandom(_random),
-                continuationRolled: true,
-              ),
-            );
-          }
-      }
+      _eventPlan = plan;
+      _chainDirection = plan.direction;
+      _eventKind = plan.isGlitch
+          ? DashboardCatEventKind.glitch
+          : DashboardCatEventKind.normal;
+      _chain.addAll(
+        plan.crossings.map(
+          (crossing) => _ScheduledCatCrossing(
+            startedAtProgress: crossing.startedAtProgress,
+            coatVariant: crossing.coatVariant,
+            continuationRolled: crossing.continuationRolled,
+          ),
+        ),
+      );
     });
     _publishEventActivity();
     _controller.value = 0;
+    _publishEventMetadata(completed: false);
     _continueChain();
   }
 
@@ -237,7 +295,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     if (!_motionAllowed || !_measured || _hasActiveCrossing) return false;
     _nextAppearanceTimer?.cancel();
     _nextAppearanceTimer = null;
-    _startEvent();
+    _startSampledEvent(CatRunProductionEventSource.manual);
     return true;
   }
 
@@ -261,7 +319,7 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     var changed = false;
     for (final crossing in _chain.toList(growable: false)) {
       final progress = _controller.value - crossing.startedAtProgress;
-      if (_eventKind == DashboardCatEventKind.normal &&
+      if (_eventPlan?.allowsRecursiveContinuation == true &&
           !crossing.continuationRolled &&
           progress >= DashboardCatRunStage.chainFollowerTriggerProgress) {
         crossing.continuationRolled = true;
@@ -278,17 +336,21 @@ class DashboardCatRunStageState extends State<DashboardCatRunStage>
     }
     if (changed) {
       setState(() {});
+      _publishEventMetadata(completed: false);
       _continueChain();
     }
+    _publishEventMetadata(completed: false);
   }
 
   void _onAnimationStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
     if (_chain.any((crossing) => !crossing.continuationRolled)) return;
+    _publishEventMetadata(completed: true);
     setState(() {
       _chain.clear();
       _chainDirection = null;
       _eventKind = null;
+      _eventPlan = null;
     });
     _publishEventActivity();
     // The delay deliberately begins only after the CAT is fully offstage.

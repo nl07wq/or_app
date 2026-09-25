@@ -63,6 +63,147 @@ class CatRunV23Crossing {
   final CatRunCoatVariant coatVariant;
 }
 
+/// Frozen production event policy shared by the Dashboard scheduler and the
+/// Sandbox inspection controls. Keeping these values here lets Sandbox force
+/// the exact production plan instead of maintaining a look-alike sequence.
+class CatRunProductionEventPolicy {
+  CatRunProductionEventPolicy._();
+
+  static const chainContinueProbability = .2;
+  static const chainStopProbability = .8;
+  static const normalFollowerTriggerProgress = .15;
+  static const glitchProbability = .05;
+  static const normalEventProbability = .95;
+  static const glitchCatCount = 10;
+  static const glitchFollowerTriggerProgress = .06;
+
+  static bool isGlitchRoll(int roll) {
+    if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
+    return roll == 0;
+  }
+
+  static bool chainContinuesForRoll(int roll) {
+    if (roll < 0 || roll >= 5) throw ArgumentError.value(roll, 'roll');
+    return roll == 0;
+  }
+}
+
+/// Origin of an observable production CAT event. Sandbox plans are explicit
+/// and never alter the AUTO/MANUAL probability policy.
+enum CatRunProductionEventSource { automatic, manual, sandbox }
+
+/// Immutable crossing scheduled by the shared production event executor.
+class CatRunProductionScheduledCrossing {
+  const CatRunProductionScheduledCrossing({
+    required this.startedAtProgress,
+    required this.coatVariant,
+    this.continuationRolled = false,
+  });
+
+  final double startedAtProgress;
+  final CatRunCoatVariant coatVariant;
+  final bool continuationRolled;
+}
+
+/// The initial, deterministic portion of one production event. Normal events
+/// append recursive followers at runtime; GLITCH and Sandbox force plans are
+/// complete at construction time and use the same scheduled crossings.
+class CatRunProductionEventPlan {
+  const CatRunProductionEventPlan._({
+    required this.source,
+    required this.eventRoll,
+    required this.isGlitch,
+    required this.direction,
+    required this.crossings,
+    required this.allowsRecursiveContinuation,
+  });
+
+  factory CatRunProductionEventPlan.sampled({
+    required CatRunProductionEventSource source,
+    required math.Random random,
+  }) {
+    final eventRoll = random.nextInt(20);
+    final isGlitch = CatRunProductionEventPolicy.isGlitchRoll(eventRoll);
+    final direction = random.nextInt(2) == 0
+        ? CatRunV23Direction.leftToRight
+        : CatRunV23Direction.rightToLeft;
+    return CatRunProductionEventPlan._withCrossings(
+      source: source,
+      eventRoll: eventRoll,
+      isGlitch: isGlitch,
+      direction: direction,
+      random: random,
+      count: isGlitch ? CatRunProductionEventPolicy.glitchCatCount : 1,
+      spacing: isGlitch
+          ? CatRunProductionEventPolicy.glitchFollowerTriggerProgress
+          : 0,
+      allowsRecursiveContinuation: !isGlitch,
+    );
+  }
+
+  factory CatRunProductionEventPlan.forceChain({
+    required math.Random random,
+    required CatRunV23Direction direction,
+  }) => CatRunProductionEventPlan._withCrossings(
+    source: CatRunProductionEventSource.sandbox,
+    eventRoll: null,
+    isGlitch: false,
+    direction: direction,
+    random: random,
+    count: 3,
+    spacing: CatRunProductionEventPolicy.normalFollowerTriggerProgress,
+    allowsRecursiveContinuation: false,
+  );
+
+  /// This is intentionally the same 10-crossing GLITCH executor used after
+  /// the production 5% event roll; only the source/roll are forced.
+  factory CatRunProductionEventPlan.forceGlitch({
+    required math.Random random,
+    required CatRunV23Direction direction,
+  }) => CatRunProductionEventPlan._withCrossings(
+    source: CatRunProductionEventSource.sandbox,
+    eventRoll: null,
+    isGlitch: true,
+    direction: direction,
+    random: random,
+    count: CatRunProductionEventPolicy.glitchCatCount,
+    spacing: CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+    allowsRecursiveContinuation: false,
+  );
+
+  factory CatRunProductionEventPlan._withCrossings({
+    required CatRunProductionEventSource source,
+    required int? eventRoll,
+    required bool isGlitch,
+    required CatRunV23Direction direction,
+    required math.Random random,
+    required int count,
+    required double spacing,
+    required bool allowsRecursiveContinuation,
+  }) => CatRunProductionEventPlan._(
+    source: source,
+    eventRoll: eventRoll,
+    isGlitch: isGlitch,
+    direction: direction,
+    crossings: [
+      for (var index = 0; index < count; index++)
+        CatRunProductionScheduledCrossing(
+          startedAtProgress: index * spacing,
+          coatVariant: CatRunCoatPatterns.chooseRandom(random),
+          continuationRolled: !allowsRecursiveContinuation,
+        ),
+    ],
+    allowsRecursiveContinuation: allowsRecursiveContinuation,
+  );
+
+  final CatRunProductionEventSource source;
+  final int? eventRoll;
+  final bool isGlitch;
+  final CatRunV23Direction direction;
+  final List<CatRunProductionScheduledCrossing> crossings;
+  final bool allowsRecursiveContinuation;
+}
+
 /// Sandbox-only 48px travel inspection for direct sequential HIGH vectors.
 class CatRunV23ProductionPreview extends StatefulWidget {
   const CatRunV23ProductionPreview({super.key, this.random});
@@ -83,6 +224,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
   var _randomSelection = false;
   var _coatVariant = CatRunCoatVariant.normal;
   var _lastProgress = 0.0;
+  CatRunProductionEventPlan? _forcedPlan;
   late final math.Random _random = widget.random ?? math.Random();
 
   @override
@@ -99,12 +241,22 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
           }
           _lastProgress = _controller.value;
           setState(() {});
-        });
+        })
+          ..addStatusListener((status) {
+            if (status != AnimationStatus.completed || _forcedPlan == null) {
+              return;
+            }
+            setState(() {
+              _forcedPlan = null;
+              _playing = false;
+            });
+          });
     _controller.repeat();
   }
 
   void _restart() {
     setState(() {
+      _forcedPlan = null;
       _playing = true;
       _lastProgress = 0;
       if (_randomSelection) {
@@ -141,6 +293,39 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
     });
   }
 
+  void _startForced(CatRunProductionEventPlan plan) {
+    if (_forcedPlan != null && _controller.isAnimating) return;
+    final finalProgress = plan.crossings.last.startedAtProgress + 1;
+    setState(() {
+      _forcedPlan = plan;
+      _playing = true;
+      _lastProgress = 0;
+      _controller
+        ..stop()
+        ..duration = Duration(
+          microseconds:
+              (CatRunV23Travel.crossingDuration.inMicroseconds * finalProgress)
+                  .round(),
+        )
+        ..value = 0
+        ..forward();
+    });
+  }
+
+  void _forceChain() => _startForced(
+    CatRunProductionEventPlan.forceChain(
+      random: _random,
+      direction: _direction,
+    ),
+  );
+
+  void _forceGlitch() => _startForced(
+    CatRunProductionEventPlan.forceGlitch(
+      random: _random,
+      direction: _direction,
+    ),
+  );
+
   @override
   void dispose() {
     _controller.dispose();
@@ -168,10 +353,22 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                     height: CatRunV23Travel.stageHeight,
                     child: CustomPaint(
                       key: const ValueKey('cat-run-v23-stage'),
-                      painter: CatRunV23StagePainter(
-                        progress: _controller.value,
-                        direction: _direction,
-                        coatVariant: _coatVariant,
+                    painter: CatRunV23StagePainter(
+                      progress: _controller.value,
+                      direction: _direction,
+                      coatVariant: _coatVariant,
+                      crossings: _forcedPlan == null
+                          ? null
+                          : [
+                              for (final crossing in _forcedPlan!.crossings)
+                                CatRunV23Crossing(
+                                  progress:
+                                      _controller.value -
+                                      crossing.startedAtProgress,
+                                  direction: _forcedPlan!.direction,
+                                  coatVariant: crossing.coatVariant,
+                                ),
+                            ],
                       ),
                     ),
                   );
@@ -186,6 +383,16 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                     key: const ValueKey('cat-run-v23-play-restart'),
                     onPressed: _restart,
                     child: const Text('PLAY / RESTART'),
+                  ),
+                  OutlinedButton(
+                    key: const ValueKey('cat-run-v23-force-chain'),
+                    onPressed: _forcedPlan == null ? _forceChain : null,
+                    child: const Text('FORCE CHAIN ×3'),
+                  ),
+                  OutlinedButton(
+                    key: const ValueKey('cat-run-v23-force-glitch'),
+                    onPressed: _forcedPlan == null ? _forceGlitch : null,
+                    child: const Text('FORCE GLITCH ×10'),
                   ),
                   for (final direction in CatRunV23Direction.values)
                     OutlinedButton(

@@ -3477,6 +3477,20 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('cat-run-v23-coat-random')));
       await tester.pump();
       expect(find.textContaining('RANDOM:'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v23-force-chain')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.byKey(const ValueKey('cat-run-v23-force-glitch')),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.pump(const Duration(seconds: 4));
+      await tester.tap(find.byKey(const ValueKey('cat-run-v23-force-glitch')));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
     },
   );
 

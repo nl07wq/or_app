@@ -72,6 +72,30 @@ void main() {
     for (final roll in [1, 2, 3, 4]) {
       expect(DashboardCatRunStage.chainContinuesForRoll(roll), isFalse);
     }
+
+    final forcedChain = CatRunProductionEventPlan.forceChain(
+      random: _SequenceRandom([0, 1, 2]),
+      direction: CatRunV23Direction.leftToRight,
+    );
+    expect(forcedChain.source, CatRunProductionEventSource.sandbox);
+    expect(forcedChain.isGlitch, isFalse);
+    expect(forcedChain.allowsRecursiveContinuation, isFalse);
+    expect(forcedChain.crossings, hasLength(3));
+    expect(
+      forcedChain.crossings[1].startedAtProgress,
+      DashboardCatRunStage.chainFollowerTriggerProgress,
+    );
+    final forcedGlitch = CatRunProductionEventPlan.forceGlitch(
+      random: _SequenceRandom([0, 1, 2, 3, 4]),
+      direction: CatRunV23Direction.rightToLeft,
+    );
+    expect(forcedGlitch.isGlitch, isTrue);
+    expect(forcedGlitch.crossings, hasLength(10));
+    expect(forcedGlitch.allowsRecursiveContinuation, isFalse);
+    expect(
+      forcedGlitch.crossings[1].startedAtProgress,
+      DashboardCatRunStage.glitchFollowerTriggerProgress,
+    );
   });
 
   test(
@@ -361,6 +385,92 @@ void main() {
       expect(activity, [true]);
     },
   );
+
+  testWidgets(
+    'AUTO and manual use the same one-roll selector and emit auditable metadata',
+    (tester) async {
+      final automatic = <DashboardCatEventMetadata>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCatRunStage(
+              random: _SequenceRandom([0, 1, 0, 1, 2, 3, 4]),
+              minimumInterval: Duration.zero,
+              maximumInterval: Duration.zero,
+              onEventMetadataChanged: automatic.add,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final autoStart = automatic.first;
+      expect(autoStart.source, CatRunProductionEventSource.automatic);
+      expect(autoStart.eventRoll, 0);
+      expect(autoStart.eventKind, DashboardCatEventKind.glitch);
+      expect(autoStart.plannedCatCount, 10);
+      expect(autoStart.spawnedCatCount, 10);
+      expect(autoStart.completedCatCount, 0);
+      expect(autoStart.active, isTrue);
+
+      final stageKey = GlobalKey<DashboardCatRunStageState>();
+      final manual = <DashboardCatEventMetadata>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCatRunStage(
+              key: stageKey,
+              random: _SequenceRandom([0, 1, 0, 1, 2, 3, 4]),
+              minimumInterval: const Duration(seconds: 10),
+              maximumInterval: const Duration(seconds: 10),
+              onEventMetadataChanged: manual.add,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(stageKey.currentState!.triggerManualAppearance(), isTrue);
+      final manualStart = manual.first;
+      expect(manualStart.source, CatRunProductionEventSource.manual);
+      expect(manualStart.eventRoll, 0);
+      expect(manualStart.eventKind, DashboardCatEventKind.glitch);
+      expect(manualStart.plannedCatCount, 10);
+      expect(manualStart.direction, CatRunV23Direction.rightToLeft);
+    },
+  );
+
+  testWidgets('GLITCH remains active until all ten crossings have exited', (
+    tester,
+  ) async {
+    final metadata = <DashboardCatEventMetadata>[];
+    final stageKey = GlobalKey<DashboardCatRunStageState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DashboardCatRunStage(
+            key: stageKey,
+            random: _SequenceRandom([0, 0, 0, 1, 2, 3, 4]),
+            minimumInterval: const Duration(seconds: 10),
+            maximumInterval: const Duration(seconds: 10),
+            onEventMetadataChanged: metadata.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(stageKey.currentState!.triggerManualAppearance(), isTrue);
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.byKey(DashboardCatRunStage.activeKey), findsOneWidget);
+    expect(metadata.last.active, isTrue);
+    expect(metadata.last.completedCatCount, lessThan(10));
+
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.byKey(DashboardCatRunStage.activeKey), findsNothing);
+    expect(metadata.last.active, isFalse);
+    expect(metadata.last.completed, isTrue);
+    expect(metadata.last.completedCatCount, 10);
+  });
 
   testWidgets(
     'Dashboard paw control is responsive and starts the shared production CAT stage',
