@@ -75,7 +75,7 @@ class CatRunProductionEventPolicy {
   static const glitchProbability = .05;
   static const normalEventProbability = .95;
   static const glitchCatCount = 10;
-  static const glitchFollowerTriggerProgress = .06;
+  static const glitchFollowerTriggerProgress = .08;
 
   static bool isGlitchRoll(int roll) {
     if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
