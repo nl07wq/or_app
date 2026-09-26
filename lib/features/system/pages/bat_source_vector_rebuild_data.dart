@@ -47,6 +47,23 @@ class BatSourceVectorFrame {
   }
 }
 
+/// Source-local body landmarks sampled from each accepted silhouette. They are
+/// diagnostic anchors only: the frozen contour coordinates remain unchanged.
+class BatBodySizeDiagnostic {
+  const BatBodySizeDiagnostic({
+    required this.muzzleRoot,
+    required this.shoulder,
+    required this.pelvis,
+  });
+
+  final Offset muzzleRoot;
+  final Offset shoulder;
+  final Offset pelvis;
+
+  double get headToPelvisDistance => (muzzleRoot - pelvis).distance;
+  double get torsoLength => (shoulder - pelvis).distance;
+}
+
 abstract final class BatSourceVectorRebuild {
   static const sourceCanvasSize = Size(1280, 853);
   static const sourceThreshold = 160;
@@ -54,6 +71,12 @@ abstract final class BatSourceVectorRebuild {
   static const minimumIou = .95;
   static const maximumDisagreement = .05;
   static const registrationAnchor = Offset(780, 540);
+
+  /// 01 → 02 → 03 → 04 → 05 → 04 → 03 → 02. Endpoints are not duplicated
+  /// and the five source-derived HIGH vectors stay the sole motion source.
+  static const flapSequence = <int>[0, 1, 2, 3, 4, 3, 2, 1];
+  static const flapTimingPresets = <int>[50, 70, 90];
+  static const defaultFlapStepMilliseconds = 70;
 
   static const frames = <BatSourceVectorFrame>[
     BatSourceVectorFrame(
@@ -35872,6 +35895,37 @@ abstract final class BatSourceVectorRebuild {
       registrationTranslation: Offset(0, -40),
     ),
   ];
+
+  static const bodySizeDiagnostics = <BatBodySizeDiagnostic>[
+    BatBodySizeDiagnostic(
+      muzzleRoot: Offset(920, 570),
+      shoulder: Offset(790, 560),
+      pelvis: Offset(480, 650),
+    ),
+    BatBodySizeDiagnostic(
+      muzzleRoot: Offset(900, 600),
+      shoulder: Offset(780, 575),
+      pelvis: Offset(470, 660),
+    ),
+    BatBodySizeDiagnostic(
+      muzzleRoot: Offset(860, 330),
+      shoulder: Offset(760, 345),
+      pelvis: Offset(610, 410),
+    ),
+    BatBodySizeDiagnostic(
+      muzzleRoot: Offset(1000, 610),
+      shoulder: Offset(875, 580),
+      pelvis: Offset(480, 690),
+    ),
+    BatBodySizeDiagnostic(
+      muzzleRoot: Offset(900, 650),
+      shoulder: Offset(780, 600),
+      pelvis: Offset(470, 690),
+    ),
+  ];
+
+  static BatBodySizeDiagnostic bodyDiagnosticFor(int frameIndex) =>
+      bodySizeDiagnostics[frameIndex];
 
   static bool get allFramesPass => frames.every(
     (frame) =>

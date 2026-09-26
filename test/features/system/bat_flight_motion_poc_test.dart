@@ -5,26 +5,14 @@ import 'package:or_app/features/system/pages/bat_flight_motion_poc.dart';
 import 'package:or_app/features/system/pages/bat_source_vector_rebuild_data.dart';
 
 void main() {
-  test('five frozen HIGH vectors retain the authoritative source order', () {
-    final frames = BatSourceVectorRebuild.frames;
-
-    expect(frames, hasLength(5));
-    expect(frames.map((frame) => frame.sourceIndex), [1, 2, 3, 4, 5]);
-    expect(frames.map((frame) => frame.sourceIdentifier), [
-      'A7A548DF-0053-4996-9409-382DF7E51BA5/1-写真1.jpg',
-      'A7A548DF-0053-4996-9409-382DF7E51BA5/2-写真2.jpg',
-      'A7A548DF-0053-4996-9409-382DF7E51BA5/3-写真3.jpg',
-      'A7A548DF-0053-4996-9409-382DF7E51BA5/4-写真4.jpg',
-      'A7A548DF-0053-4996-9409-382DF7E51BA5/5-写真5.jpg',
-    ]);
-    expect(frames.map((frame) => frame.highPoints).toSet(), hasLength(5));
-    expect(frames.map((frame) => frame.rawPoints).toSet(), hasLength(5));
-  });
-
   test(
-    'each source-derived HIGH vector passes its independent fidelity gate',
+    'five frozen HIGH vectors retain their source order and fidelity gates',
     () {
-      for (final frame in BatSourceVectorRebuild.frames) {
+      final frames = BatSourceVectorRebuild.frames;
+
+      expect(frames, hasLength(5));
+      expect(frames.map((frame) => frame.sourceIndex), [1, 2, 3, 4, 5]);
+      for (final frame in frames) {
         expect(frame.rawPointCount, greaterThan(frame.highPointCount));
         expect(frame.highPointCount, greaterThan(100));
         expect(
@@ -41,100 +29,168 @@ void main() {
   );
 
   test(
-    'registration is presentation-only and never deforms frozen geometry',
+    'flap cycle uses every frozen HIGH frame without endpoint hard jump',
     () {
-      for (final frame in BatSourceVectorRebuild.frames) {
+      expect(BatSourceVectorRebuild.flapSequence, const [
+        0,
+        1,
+        2,
+        3,
+        4,
+        3,
+        2,
+        1,
+      ]);
+      expect(BatSourceVectorRebuild.flapSequence.toSet(), {0, 1, 2, 3, 4});
+      expect(BatSourceVectorRebuild.flapSequence[4], 4);
+      expect(BatSourceVectorRebuild.flapSequence[5], 3);
+      expect(BatSourceVectorRebuild.flapSequence.last, 1);
+      expect(BatSourceVectorRebuild.defaultFlapStepMilliseconds, 70);
+      expect(BatSourceVectorRebuild.flapTimingPresets, const [50, 70, 90]);
+    },
+  );
+
+  test(
+    'registration and body-size diagnostics do not mutate HIGH geometry',
+    () {
+      expect(BatSourceVectorRebuild.bodySizeDiagnostics, hasLength(5));
+      for (
+        var index = 0;
+        index < BatSourceVectorRebuild.frames.length;
+        index++
+      ) {
+        final frame = BatSourceVectorRebuild.frames[index];
         final highBefore = List<int>.from(frame.highPoints);
         final rawBefore = List<int>.from(frame.rawPoints);
+        final diagnostic = BatSourceVectorRebuild.bodyDiagnosticFor(index);
         final painter = BatSourceVectorPainter(
           frame: frame,
           mode: BatSourceInspectionMode.registered,
           leftToRight: true,
           scale: 1,
+          presentationPadding: const Offset(0, 180),
         );
 
         expect(painter.frame.highPoints, highBefore);
         expect(painter.frame.rawPoints, rawBefore);
         expect(BatSourceVectorFrame.uniformScale, 1.0);
         expect(frame.registrationTranslation.isFinite, isTrue);
+        expect(diagnostic.headToPelvisDistance, greaterThan(0));
+        expect(diagnostic.torsoLength, greaterThan(0));
       }
     },
   );
 
+  testWidgets('playback follows the discrete 70ms ping-pong flap cycle', (
+    tester,
+  ) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(_host());
+    final restart = find.byKey(const ValueKey('bat-flap-restart'));
+    await tester.ensureVisible(restart);
+    await tester.tap(restart);
+    await tester.pump();
+    expect(_flapPainter(tester).frame.sourceIndex, 1);
+
+    await tester.pump(const Duration(milliseconds: 70));
+    expect(_flapPainter(tester).frame.sourceIndex, 2);
+    await tester.pump(const Duration(milliseconds: 210));
+    expect(_flapPainter(tester).frame.sourceIndex, 5);
+    await tester.pump(const Duration(milliseconds: 70));
+    expect(_flapPainter(tester).frame.sourceIndex, 4);
+
+    final pause = find.byKey(const ValueKey('bat-flap-pause'));
+    await tester.ensureVisible(pause);
+    await tester.tap(pause);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(_flapPainter(tester).frame.sourceIndex, 4);
+  });
+
+  testWidgets('timing presets preserve geometry, direction, and registration', (
+    tester,
+  ) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(_host());
+    final timing50 = find.byKey(const ValueKey('bat-flap-timing-50'));
+    final restart = find.byKey(const ValueKey('bat-flap-restart'));
+    final pause = find.byKey(const ValueKey('bat-flap-pause'));
+    final timing90 = find.byKey(const ValueKey('bat-flap-timing-90'));
+    final rtl = find.byKey(const ValueKey('bat-flap-direction-rtl'));
+    await tester.ensureVisible(timing50);
+    await tester.tap(timing50);
+    await tester.ensureVisible(restart);
+    await tester.tap(restart);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(_flapPainter(tester).frame.sourceIndex, 2);
+
+    await tester.ensureVisible(pause);
+    await tester.tap(pause);
+    await tester.ensureVisible(timing90);
+    await tester.tap(timing90);
+    await tester.ensureVisible(rtl);
+    await tester.tap(rtl);
+    await tester.ensureVisible(restart);
+    await tester.tap(restart);
+    await tester.pump(const Duration(milliseconds: 90));
+    final painter = _flapPainter(tester);
+    expect(painter.frame.sourceIndex, 2);
+    expect(painter.leftToRight, isFalse);
+    expect(painter.mode, BatSourceInspectionMode.registered);
+    expect(painter.presentationPadding, const Offset(0, 180));
+  });
+
   testWidgets(
-    'audit modes, all frames, whole-geometry mirror, and 48px preview work',
+    'manual frame controls, source audit modes, and 48px previews work',
     (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_host());
 
       for (var index = 0; index < 5; index++) {
-        await tester.tap(
-          find.byKey(ValueKey('bat-source-vector-frame-${index + 1}')),
-        );
+        final frame = find.byKey(ValueKey('bat-flap-frame-${index + 1}'));
+        await tester.ensureVisible(frame);
+        await tester.tap(frame);
         await tester.pump();
-        expect(
-          find.text(
-            'FRAME ${(index + 1).toString().padLeft(2, '0')} · '
-            'SOURCE CORRESPONDENCE PASS',
-          ),
-          findsOneWidget,
-        );
+        expect(_flapPainter(tester).frame.sourceIndex, index + 1);
       }
 
       for (final mode in BatSourceInspectionMode.values) {
-        final modeButton = find.byKey(
+        final control = find.byKey(
           ValueKey('bat-source-vector-mode-${mode.name}'),
         );
-        await tester.ensureVisible(modeButton);
-        await tester.tap(modeButton);
+        await tester.ensureVisible(control);
+        await tester.tap(control);
         await tester.pump();
         expect(tester.takeException(), isNull, reason: mode.name);
       }
 
-      final rtl = find.byKey(const ValueKey('bat-source-vector-direction-rtl'));
-      await tester.ensureVisible(rtl);
-      await tester.tap(rtl);
-      await tester.pump();
-      final preview = tester.widget<CustomPaint>(
-        find.descendant(
-          of: find.byKey(
-            const ValueKey('bat-source-vector-production-preview'),
-          ),
-          matching: find.byType(CustomPaint),
-        ),
-      );
-      final painter = preview.painter! as BatSourceVectorPainter;
-      expect(painter.leftToRight, isFalse);
       expect(
         tester
-            .getSize(
-              find.byKey(
-                const ValueKey('bat-source-vector-production-preview'),
-              ),
-            )
+            .getSize(find.byKey(const ValueKey('bat-flap-production-preview')))
             .height,
         48,
+      );
+      expect(
+        find.byKey(const ValueKey('bat-source-vector-production-preview')),
+        findsOneWidget,
       );
     },
   );
 
   testWidgets(
-    'the source-fidelity audit remains layout-safe at 320, 390, and 900',
+    'source audit and flap controls remain layout-safe at 320, 390, and 900',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       for (final width in [320.0, 390.0, 900.0]) {
-        tester.view.physicalSize = Size(width, 1200);
+        tester.view.physicalSize = Size(width, 5000);
         tester.view.devicePixelRatio = 1;
         await tester.pumpWidget(_host());
-        final frame = find.byKey(const ValueKey('bat-source-vector-frame-5'));
-        final zoom = find.byKey(const ValueKey('bat-source-vector-zoom-4'));
-        await tester.ensureVisible(frame);
-        await tester.tap(frame);
+        final zoom = find.byKey(const ValueKey('bat-flap-zoom-4'));
         await tester.ensureVisible(zoom);
         await tester.tap(zoom);
         await tester.pump();
         expect(
-          find.byKey(const ValueKey('bat-source-vector-production-preview')),
+          find.byKey(const ValueKey('bat-flap-production-preview')),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull, reason: 'width $width');
@@ -142,27 +198,43 @@ void main() {
     },
   );
 
-  testWidgets('ANIMATIONS SANDBOX keeps the active BAT source audit surface', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    tester.view.physicalSize = const Size(390, 12000);
-    tester.view.devicePixelRatio = 1;
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+  testWidgets(
+    'ANIMATIONS SANDBOX keeps source audit, flap POC, and CAT cleanup',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.physicalSize = const Size(390, 16000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
 
-    expect(
-      find.byKey(const ValueKey('bat-source-vector-rebuild-poc')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('bat-source-vector-production-preview')),
-      findsOneWidget,
-    );
-    expect(find.text('CAT TRACE PIPELINE POC'), findsNothing);
-  });
+      expect(
+        find.byKey(const ValueKey('bat-source-vector-rebuild-poc')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('bat-flap-cycle-poc')), findsOneWidget);
+      expect(find.text('CAT TRACE PIPELINE POC'), findsNothing);
+    },
+  );
 }
 
 Widget _host() => MaterialApp(
   home: Scaffold(body: ListView(children: const [BatFlightMotionPoc()])),
 );
+
+void _useTallViewport(WidgetTester tester) {
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  tester.view.physicalSize = const Size(800, 5000);
+  tester.view.devicePixelRatio = 1;
+}
+
+BatSourceVectorPainter _flapPainter(WidgetTester tester) =>
+    tester
+            .widget<CustomPaint>(
+              find.descendant(
+                of: find.byKey(const ValueKey('bat-flap-production-preview')),
+                matching: find.byType(CustomPaint),
+              ),
+            )
+            .painter!
+        as BatSourceVectorPainter;
