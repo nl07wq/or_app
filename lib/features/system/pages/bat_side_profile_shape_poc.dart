@@ -4,73 +4,90 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 
-/// Inspection rendering only. Production Wildlife does not consume this
-/// candidate while BAT remains pending.
+/// Diagnostic render modes. Production Wildlife does not consume this source
+/// while BAT remains pending.
 enum BatInspectionMode { silhouette, anatomy, bodyOnly }
 
-/// Single authoritative, vector-only V2 candidate. Its x axis runs from the
-/// compact hind body (left), through torso and shoulder, to the muzzle (right).
-/// R→L is a mirror of this same geometry, not a second source pose.
-class BatSideProfileShapeV2 {
-  BatSideProfileShapeV2._();
+/// One authoritative, vector-only BAT V3 candidate. The source faces right;
+/// R→L is a whole-canvas mirror. Body construction is independent of wings.
+class BatSideProfileShapeV3 {
+  BatSideProfileShapeV3._();
 
   static const canvasSize = Size(228, 128);
   static const productionScale = .26;
-  static const silhouetteColor = Color(0xFF707981);
-  static const bodyColor = Color(0xFF69727A);
-  static const nearWingColor = Color(0xFF7D878F);
-  static const farWingColor = Color(0xFF3D474F);
-  static const guideColor = Color(0x665D6870);
+  static const silhouetteColor = Color(0xFF737C84);
+  static const bodyColor = Color(0xFF68717A);
+  static const nearWingColor = Color(0xFF808B93);
+  static const farWingColor = Color(0xFF3B454D);
+  static const guideColor = Color(0x775C6770);
 
-  /// Recessed and partly occluded: intentionally not a mirrored second wing.
+  static const nearEarTip = Offset(151, 40);
+  static const farEarTip = Offset(136, 45);
+  static const muzzleTip = Offset(180, 65);
+  static const nearWingTip = Offset(202, 43);
+
+  /// Partial, integrated far wing behind the shoulder and torso: no paddle.
   static Path farWingPath() => Path()
-    ..moveTo(105, 58)
-    ..quadraticBezierTo(89, 43, 72, 32)
-    ..quadraticBezierTo(58, 23, 45, 29)
-    ..quadraticBezierTo(48, 39, 60, 48)
-    ..quadraticBezierTo(72, 57, 86, 70)
-    ..quadraticBezierTo(96, 72, 108, 67)
+    ..moveTo(115, 61)
+    ..lineTo(98, 46)
+    ..lineTo(78, 32)
+    ..quadraticBezierTo(66, 27, 57, 34)
+    ..lineTo(64, 43)
+    ..quadraticBezierTo(75, 48, 85, 57)
+    ..quadraticBezierTo(95, 66, 108, 71)
+    ..lineTo(119, 67)
     ..close();
 
-  /// Shoulder → elbow → forearm → digit fan → membrane contour.
+  /// The outer contour itself describes shoulder, elbow, wrist, digit tips,
+  /// and three membrane bays; anatomy guides merely clarify that geometry.
   static Path nearWingPath() => Path()
-    ..moveTo(108, 57)
-    ..quadraticBezierTo(117, 42, 132, 26)
-    ..quadraticBezierTo(145, 12, 158, 15)
-    ..quadraticBezierTo(169, 18, 178, 28)
-    ..quadraticBezierTo(188, 38, 194, 51)
-    ..quadraticBezierTo(182, 49, 170, 56)
-    ..quadraticBezierTo(159, 63, 150, 74)
-    ..quadraticBezierTo(140, 70, 130, 79)
-    ..quadraticBezierTo(120, 75, 111, 82)
-    ..quadraticBezierTo(104, 76, 101, 67)
+    ..moveTo(117, 61)
+    ..lineTo(131, 47)
+    ..lineTo(151, 25)
+    ..lineTo(169, 13)
+    ..lineTo(184, 18)
+    ..lineTo(195, 29)
+    ..lineTo(202, 43)
+    ..quadraticBezierTo(190, 46, 179, 55)
+    ..quadraticBezierTo(168, 52, 157, 64)
+    ..quadraticBezierTo(146, 61, 136, 74)
+    ..quadraticBezierTo(126, 71, 117, 82)
+    ..quadraticBezierTo(110, 77, 108, 69)
     ..close();
 
-  /// Compact rear membrane, deliberately not a bird-like tail.
+  /// Compact hind-leg and rear-membrane cue, without a fish or bird tail.
   static Path tailMembranePath() => Path()
-    ..moveTo(93, 68)
-    ..quadraticBezierTo(80, 76, 69, 86)
-    ..quadraticBezierTo(81, 89, 94, 84)
-    ..quadraticBezierTo(104, 81, 112, 73)
+    ..moveTo(94, 72)
+    ..lineTo(84, 81)
+    ..lineTo(74, 88)
+    ..quadraticBezierTo(83, 92, 94, 88)
+    ..lineTo(102, 82)
+    ..lineTo(109, 75)
     ..close();
 
-  /// Body-first side profile: short muzzle and near ear at the forward end,
-  /// elongated torso, then a compact hind body at the rear.
+  /// Mammalian side profile: organic torso, shoulder notch, two ear peaks,
+  /// and a short blunt muzzle that establishes rightward travel.
   static Path bodyPath() => Path()
-    ..moveTo(72, 57)
-    ..quadraticBezierTo(79, 48, 92, 49)
-    ..quadraticBezierTo(104, 48, 115, 53)
-    ..lineTo(121, 45)
-    ..lineTo(126, 53)
-    ..quadraticBezierTo(136, 53, 144, 57)
-    ..quadraticBezierTo(151, 56, 157, 60)
-    ..lineTo(165, 62)
-    ..quadraticBezierTo(169, 64, 164, 66)
-    ..lineTo(156, 67)
-    ..quadraticBezierTo(146, 74, 130, 75)
-    ..quadraticBezierTo(112, 77, 95, 74)
-    ..quadraticBezierTo(80, 72, 73, 66)
-    ..quadraticBezierTo(69, 62, 72, 57)
+    ..moveTo(72, 62)
+    ..quadraticBezierTo(79, 53, 92, 53)
+    ..quadraticBezierTo(104, 52, 115, 57)
+    ..lineTo(124, 61)
+    ..quadraticBezierTo(128, 55, 133, 53)
+    ..lineTo(136, 45)
+    ..lineTo(142, 53)
+    ..quadraticBezierTo(146, 52, 148, 54)
+    ..lineTo(151, 40)
+    ..lineTo(158, 56)
+    ..quadraticBezierTo(164, 57, 168, 61)
+    ..lineTo(177, 62)
+    ..quadraticBezierTo(182, 64, 180, 66)
+    ..lineTo(176, 69)
+    ..lineTo(168, 69)
+    ..quadraticBezierTo(159, 77, 145, 79)
+    ..quadraticBezierTo(128, 81, 111, 77)
+    ..quadraticBezierTo(96, 78, 83, 73)
+    ..quadraticBezierTo(73, 70, 70, 66)
+    ..quadraticBezierTo(69, 64, 72, 62)
     ..close();
 
   static List<Path> get authoritativePaths => [
@@ -80,11 +97,13 @@ class BatSideProfileShapeV2 {
     bodyPath(),
   ];
 
-  static List<(Offset, Offset)> get fingerGuides => const [
-    (Offset(108, 58), Offset(132, 27)),
-    (Offset(110, 59), Offset(158, 16)),
-    (Offset(111, 61), Offset(178, 29)),
-    (Offset(112, 63), Offset(194, 51)),
+  static List<(Offset, Offset)> get anatomyGuides => const [
+    (Offset(120, 61), Offset(132, 47)),
+    (Offset(132, 47), Offset(151, 25)),
+    (Offset(151, 25), Offset(169, 13)),
+    (Offset(152, 27), Offset(184, 18)),
+    (Offset(153, 29), Offset(195, 29)),
+    (Offset(154, 31), Offset(202, 43)),
   ];
 }
 
@@ -115,7 +134,7 @@ class _BatSideProfileShapePocState extends State<BatSideProfileShapePoc> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text('BAT SIDE PROFILE'),
-            const Text('STATIC POSE V2 · REFERENCE-DRIVEN CANDIDATE'),
+            const Text('STATIC POSE V3 · IDENTITY / SILHOUETTE CANDIDATE'),
             AppSpacing.gapSM,
             _BatCanvas(
               leftToRight: _leftToRight,
@@ -181,16 +200,16 @@ class _BatSideProfileShapePocState extends State<BatSideProfileShapePoc> {
               ],
             ),
             AppSpacing.gapMD,
-            const Text('48PX PRODUCTION-SCALE PREVIEW'),
+            const Text('48PX PRODUCTION-SCALE SILHOUETTE'),
             Semantics(
-              label: 'Bat side profile production scale preview',
+              label: 'Bat side profile production scale silhouette preview',
               child: SizedBox(
                 key: const ValueKey('bat-shape-production-preview'),
                 height: 48,
                 child: CustomPaint(
                   painter: BatSideProfilePainter(
                     leftToRight: _leftToRight,
-                    scale: BatSideProfileShapeV2.productionScale,
+                    scale: BatSideProfileShapeV3.productionScale,
                     mode: BatInspectionMode.silhouette,
                   ),
                 ),
@@ -198,7 +217,7 @@ class _BatSideProfileShapePocState extends State<BatSideProfileShapePoc> {
             ),
             AppSpacing.gapSM,
             const Text(
-              'V2 body-first source: side-facing head, elongated torso, dominant near membrane wing, and recessed far wing. Sandbox only; no BAT flight, scheduler, or Dashboard activation.',
+              'V3: two-ear head and blunt muzzle, body-first mammal axis, angular digit-led near wing, three membrane bays, and a recessed far wing. Sandbox only; no flight, scheduler, or Dashboard BAT.',
             ),
           ],
         ),
@@ -244,13 +263,13 @@ class _BatCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: BatSideProfileShapeV2.canvasSize.height * scale + 8,
+    height: BatSideProfileShapeV3.canvasSize.height * scale + 8,
     child: SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
         key: ValueKey('bat-shape-inspection-${scale.toInt()}'),
-        width: BatSideProfileShapeV2.canvasSize.width * scale + 8,
-        height: BatSideProfileShapeV2.canvasSize.height * scale + 8,
+        width: BatSideProfileShapeV3.canvasSize.width * scale + 8,
+        height: BatSideProfileShapeV3.canvasSize.height * scale + 8,
         child: CustomPaint(
           painter: BatSideProfilePainter(
             leftToRight: leftToRight,
@@ -280,8 +299,8 @@ class BatSideProfilePainter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = const Color(0xFF101010),
     );
-    final width = BatSideProfileShapeV2.canvasSize.width * scale;
-    final height = BatSideProfileShapeV2.canvasSize.height * scale;
+    final width = BatSideProfileShapeV3.canvasSize.width * scale;
+    final height = BatSideProfileShapeV3.canvasSize.height * scale;
     canvas.save();
     canvas.translate((size.width - width) / 2, (size.height - height) / 2);
     if (!leftToRight) {
@@ -293,42 +312,42 @@ class BatSideProfilePainter extends CustomPainter {
     final bodyOnly = mode == BatInspectionMode.bodyOnly;
     if (!bodyOnly) {
       canvas.drawPath(
-        BatSideProfileShapeV2.farWingPath(),
+        BatSideProfileShapeV3.farWingPath(),
         Paint()
           ..color = silhouette
-              ? BatSideProfileShapeV2.silhouetteColor
-              : BatSideProfileShapeV2.farWingColor,
+              ? BatSideProfileShapeV3.silhouetteColor
+              : BatSideProfileShapeV3.farWingColor,
       );
       canvas.drawPath(
-        BatSideProfileShapeV2.nearWingPath(),
+        BatSideProfileShapeV3.nearWingPath(),
         Paint()
           ..color = silhouette
-              ? BatSideProfileShapeV2.silhouetteColor
-              : BatSideProfileShapeV2.nearWingColor,
+              ? BatSideProfileShapeV3.silhouetteColor
+              : BatSideProfileShapeV3.nearWingColor,
       );
       if (mode == BatInspectionMode.anatomy) {
-        final fingers = Paint()
-          ..color = BatSideProfileShapeV2.guideColor
-          ..strokeWidth = 1.15
+        final guidePaint = Paint()
+          ..color = BatSideProfileShapeV3.guideColor
+          ..strokeWidth = 1.1
           ..style = PaintingStyle.stroke;
-        for (final guide in BatSideProfileShapeV2.fingerGuides) {
-          canvas.drawLine(guide.$1, guide.$2, fingers);
+        for (final guide in BatSideProfileShapeV3.anatomyGuides) {
+          canvas.drawLine(guide.$1, guide.$2, guidePaint);
         }
       }
     }
     canvas.drawPath(
-      BatSideProfileShapeV2.tailMembranePath(),
+      BatSideProfileShapeV3.tailMembranePath(),
       Paint()
         ..color = silhouette
-            ? BatSideProfileShapeV2.silhouetteColor
-            : BatSideProfileShapeV2.farWingColor,
+            ? BatSideProfileShapeV3.silhouetteColor
+            : BatSideProfileShapeV3.farWingColor,
     );
     canvas.drawPath(
-      BatSideProfileShapeV2.bodyPath(),
+      BatSideProfileShapeV3.bodyPath(),
       Paint()
         ..color = silhouette
-            ? BatSideProfileShapeV2.silhouetteColor
-            : BatSideProfileShapeV2.bodyColor,
+            ? BatSideProfileShapeV3.silhouetteColor
+            : BatSideProfileShapeV3.bodyColor,
     );
     canvas.restore();
   }

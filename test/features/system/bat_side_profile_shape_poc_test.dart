@@ -3,26 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/system/pages/bat_side_profile_shape_poc.dart';
 
 void main() {
-  test('BAT V2 has one vector-only body-first asymmetric source pose', () {
-    expect(BatSideProfileShapeV2.authoritativePaths, hasLength(4));
-    expect(BatSideProfileShapeV2.productionScale, .26);
-    expect(
-      BatSideProfileShapeV2.nearWingColor,
-      isNot(BatSideProfileShapeV2.farWingColor),
-    );
-    expect(BatSideProfileShapeV2.fingerGuides, hasLength(4));
+  test('BAT V3 declares body-first bat identity geometry', () {
+    expect(BatSideProfileShapeV3.authoritativePaths, hasLength(4));
+    expect(BatSideProfileShapeV3.anatomyGuides, hasLength(6));
+    expect(BatSideProfileShapeV3.nearEarTip.dy, lessThan(46));
+    expect(BatSideProfileShapeV3.farEarTip.dy, lessThan(55));
+    expect(BatSideProfileShapeV3.muzzleTip.dx, greaterThan(170));
+    expect(BatSideProfileShapeV3.nearWingTip.dx, greaterThan(195));
+    expect(BatSideProfileShapeV3.productionScale, .26);
   });
 
   testWidgets(
-    'BAT V2 exposes inspection modes, directions, zooms, and 48px preview',
+    'BAT V3 exposes silhouette, anatomy, body-only, directions, zooms, and 48px preview',
     (tester) async {
       await tester.pumpWidget(_host());
       expect(
-        find.text('STATIC POSE V2 · REFERENCE-DRIVEN CANDIDATE'),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('bat-shape-production-preview')),
+        find.text('STATIC POSE V3 · IDENTITY / SILHOUETTE CANDIDATE'),
         findsOneWidget,
       );
       expect(
@@ -55,10 +51,11 @@ void main() {
         );
       }
       expect(_productionPainter(tester).leftToRight, isFalse);
+      expect(_productionPainter(tester).mode, BatInspectionMode.silhouette);
     },
   );
 
-  testWidgets('BAT V2 remains layout-safe at 320, 390, and 900', (
+  testWidgets('BAT V3 remains layout-safe at 320, 390, and 900', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
