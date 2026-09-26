@@ -97,6 +97,34 @@ class _RecipeIngredientDraft {
   final double quantity;
 }
 
+/// Numeric text has an editing phase that is distinct from a committed FOOD
+/// value. In particular, Dart accepts `0.` as `0`, even though the user may
+/// still be typing `0.5`. Never send anything except a positive, complete
+/// value into the Meal calculation model.
+enum _FoodNumericTextState { valid, transient, invalid }
+
+class _FoodNumericTextValue {
+  const _FoodNumericTextValue._(this.state, this.value);
+
+  final _FoodNumericTextState state;
+  final double? value;
+
+  factory _FoodNumericTextValue.parse(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty || text == '.' || text.endsWith('.')) {
+      return const _FoodNumericTextValue._(
+        _FoodNumericTextState.transient,
+        null,
+      );
+    }
+    final value = double.tryParse(text);
+    if (value == null || !value.isFinite || value <= 0) {
+      return const _FoodNumericTextValue._(_FoodNumericTextState.invalid, null);
+    }
+    return _FoodNumericTextValue._(_FoodNumericTextState.valid, value);
+  }
+}
+
 class _FoodInputFormState extends State<FoodInputForm> {
   static const double _defaultBaseAmount = 100;
   static const double _defaultAmount = 1;
@@ -654,11 +682,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _changeMealItemUsedAmount(String text) {
     final index = _mealItemEditingIndex;
-    final usedAmount = double.tryParse(text.trim());
-    if (index == null ||
-        usedAmount == null ||
-        !usedAmount.isFinite ||
-        usedAmount <= 0) {
+    final value = _FoodNumericTextValue.parse(text);
+    if (index == null || value.state == _FoodNumericTextState.invalid) {
       setState(() => _mealItemEditError = 'ENTER A VALID USED AMOUNT.');
       return;
     }
@@ -667,11 +692,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _changeMealItemQuantity(String text) {
     final index = _mealItemEditingIndex;
-    final quantity = double.tryParse(text.trim());
-    if (index == null ||
-        quantity == null ||
-        !quantity.isFinite ||
-        quantity <= 0) {
+    final value = _FoodNumericTextValue.parse(text);
+    if (index == null || value.state == _FoodNumericTextState.invalid) {
       setState(() => _mealItemEditError = 'ENTER A VALID QUANTITY.');
       return;
     }
@@ -682,8 +704,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final controller = usedAmount
         ? _mealItemUsedAmountController
         : _mealItemQuantityController;
-    final current = double.tryParse(controller.text.trim());
-    if (current == null || !current.isFinite || current + delta <= 0) return;
+    final current = _FoodNumericTextValue.parse(controller.text).value;
+    if (current == null || current + delta <= 0) return;
     final next = _formatAmount(current + delta);
     controller.value = TextEditingValue(
       text: next,
@@ -700,20 +722,20 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final index = _mealItemEditingIndex;
     if (index == null) return null;
     final item = items[index];
-    final quantity = double.tryParse(_mealItemQuantityController.text.trim());
-    if (quantity == null || !quantity.isFinite || quantity <= 0) return null;
+    final quantity = _FoodNumericTextValue.parse(
+      _mealItemQuantityController.text,
+    ).value;
+    if (quantity == null) return null;
     if (_recipeSources[index] != null) {
       return item.copyWith(
         amount: quantity,
         amountMode: FoodAmountMode.baseMultiplier,
       );
     }
-    final usedAmount = double.tryParse(
-      _mealItemUsedAmountController.text.trim(),
-    );
-    if (usedAmount == null || !usedAmount.isFinite || usedAmount <= 0) {
-      return null;
-    }
+    final usedAmount = _FoodNumericTextValue.parse(
+      _mealItemUsedAmountController.text,
+    ).value;
+    if (usedAmount == null) return null;
     return FoodItem(
       name: item.name,
       calories: item.calories,
@@ -750,12 +772,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items[index] = edited;
       if (_quantitySemantics[index] ==
           FoodMealQuantitySemantics.multiplicativeV21) {
-        _usageSetAmounts[index] = double.parse(
-          _mealItemUsedAmountController.text.trim(),
-        );
-        _usageSetQuantities[index] = double.parse(
-          _mealItemQuantityController.text.trim(),
-        );
+        _usageSetAmounts[index] = _FoodNumericTextValue.parse(
+          _mealItemUsedAmountController.text,
+        ).value!;
+        _usageSetQuantities[index] = _FoodNumericTextValue.parse(
+          _mealItemQuantityController.text,
+        ).value!;
       }
       _mealItemEditingIndex = null;
       _mealItemEditError = null;
@@ -1271,16 +1293,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Future<void> _addPendingDatabaseSelection() async {
     final pending = _pendingDatabaseSelection;
-    final quantity = double.tryParse(_pendingQuantityController.text.trim());
-    final usedAmount = double.tryParse(
-      _pendingUsedAmountController.text.trim(),
-    );
+    final quantity = _FoodNumericTextValue.parse(
+      _pendingQuantityController.text,
+    ).value;
+    final usedAmount = _FoodNumericTextValue.parse(
+      _pendingUsedAmountController.text,
+    ).value;
     if (pending == null ||
         quantity == null ||
-        !quantity.isFinite ||
-        quantity <= 0 ||
-        (pending.value is FoodCatalogEntry &&
-            (usedAmount == null || !usedAmount.isFinite || usedAmount <= 0))) {
+        (pending.value is FoodCatalogEntry && usedAmount == null)) {
       setState(() => inputError = 'ENTER A VALID QUANTITY.');
       return;
     }
@@ -1802,7 +1823,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _adjustPendingQuantity(double delta) {
     final current =
-        double.tryParse(_pendingQuantityController.text.trim()) ??
+        _FoodNumericTextValue.parse(_pendingQuantityController.text).value ??
         _defaultAmount;
     final next = current + delta;
     if (next <= 0) return;
@@ -1814,7 +1835,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _adjustPendingUsedAmount(double delta) {
     final current =
-        double.tryParse(_pendingUsedAmountController.text.trim()) ??
+        _FoodNumericTextValue.parse(_pendingUsedAmountController.text).value ??
         _defaultAmount;
     final next = current + delta;
     if (next <= 0) return;
@@ -2279,12 +2300,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
             Builder(
               builder: (context) {
                 final entry = pending.value as FoodCatalogEntry;
-                final used = double.tryParse(
-                  _pendingUsedAmountController.text.trim(),
-                );
-                final quantity = double.tryParse(
-                  _pendingQuantityController.text.trim(),
-                );
+                final used = _FoodNumericTextValue.parse(
+                  _pendingUsedAmountController.text,
+                ).value;
+                final quantity = _FoodNumericTextValue.parse(
+                  _pendingQuantityController.text,
+                ).value;
                 final unit = FoodNutritionFormatter.quantityUnit(
                   _catalogSourceUnit(entry),
                 );
@@ -2312,15 +2333,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       key: const ValueKey('food-db-usage-summary'),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    if (preview != null)
-                      Text(
-                        '${FoodNutritionFormatter.calories(preview.totalCalories)}kcal'
-                        '  P ${FoodNutritionFormatter.macro(preview.totalProtein)}g'
-                        '  F ${FoodNutritionFormatter.macro(preview.totalFat)}g'
-                        '  C ${FoodNutritionFormatter.macro(preview.totalCarbohydrate)}g',
-                        key: const ValueKey('food-db-usage-nutrition-preview'),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                    Text(
+                      preview == null
+                          ? '— kcal  P —  F —  C —'
+                          : '${FoodNutritionFormatter.calories(preview.totalCalories)}kcal'
+                                '  P ${FoodNutritionFormatter.macro(preview.totalProtein)}g'
+                                '  F ${FoodNutritionFormatter.macro(preview.totalFat)}g'
+                                '  C ${FoodNutritionFormatter.macro(preview.totalCarbohydrate)}g',
+                      key: const ValueKey('food-db-usage-nutrition-preview'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 );
               },
@@ -2358,8 +2380,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final editable = recipe != null || item.hasMeasuredAmount;
     final isRecipe = recipe != null;
     final unit = isRecipe ? FoodQuantityUnit.serving : _sourceUnit(index);
-    final usedAmount = double.tryParse(_mealItemUsedAmountController.text);
-    final quantity = double.tryParse(_mealItemQuantityController.text);
+    final usedAmount = _FoodNumericTextValue.parse(
+      _mealItemUsedAmountController.text,
+    ).value;
+    final quantity = _FoodNumericTextValue.parse(
+      _mealItemQuantityController.text,
+    ).value;
     final candidate = editable ? _editedMealItem() : null;
     return OperationCard(
       key: const ValueKey('food-meal-item-editor'),
@@ -2457,13 +2483,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
-          if (candidate != null) ...[
+          if (editable) ...[
             AppSpacing.gapSM,
             Text(
-              '${FoodNutritionFormatter.calories(candidate.totalCalories)}kcal'
-              '  P ${FoodNutritionFormatter.macro(candidate.totalProtein)}g'
-              '  F ${FoodNutritionFormatter.macro(candidate.totalFat)}g'
-              '  C ${FoodNutritionFormatter.macro(candidate.totalCarbohydrate)}g',
+              candidate == null
+                  ? '— kcal  P —  F —  C —'
+                  : '${FoodNutritionFormatter.calories(candidate.totalCalories)}kcal'
+                        '  P ${FoodNutritionFormatter.macro(candidate.totalProtein)}g'
+                        '  F ${FoodNutritionFormatter.macro(candidate.totalFat)}g'
+                        '  C ${FoodNutritionFormatter.macro(candidate.totalCarbohydrate)}g',
               key: const ValueKey('meal-item-edit-nutrition-preview'),
               style: Theme.of(context).textTheme.bodySmall,
             ),

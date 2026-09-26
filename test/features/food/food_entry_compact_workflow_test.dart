@@ -510,6 +510,149 @@ void main() {
   );
 
   testWidgets(
+    'transient FOOD usage input keeps the pending preview and scroll extent bounded',
+    (tester) async {
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('food-db-pending-quantity'));
+      final usedAmount = find.byKey(
+        const ValueKey('food-db-pending-used-amount'),
+      );
+      final scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      final baselineExtent = scrollable.position.maxScrollExtent;
+
+      for (var cycle = 0; cycle < 3; cycle++) {
+        for (final text in ['0.', '0.5', '1', '', '1.', '1.5']) {
+          await tester.enterText(quantity, text);
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          expect(
+            tester
+                .widget<TextField>(
+                  find.descendant(
+                    of: quantity,
+                    matching: find.byType(TextField),
+                  ),
+                )
+                .controller!
+                .text,
+            text,
+          );
+          expect(
+            find.byKey(const ValueKey('food-db-usage-nutrition-preview')),
+            findsOneWidget,
+          );
+          expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+          expect(
+            scrollable.position.maxScrollExtent,
+            lessThanOrEqualTo(baselineExtent + 160),
+          );
+        }
+      }
+      expect(find.textContaining('150kcal'), findsOneWidget);
+
+      for (final text in ['0.', '0.5', '100', '', '1.', '100']) {
+        await tester.enterText(usedAmount, text);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(
+          tester
+              .widget<TextField>(
+                find.descendant(
+                  of: usedAmount,
+                  matching: find.byType(TextField),
+                ),
+              )
+              .controller!
+              .text,
+          text,
+        );
+        expect(
+          find.byKey(const ValueKey('food-db-usage-nutrition-preview')),
+          findsOneWidget,
+        );
+        expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+        expect(
+          scrollable.position.maxScrollExtent,
+          lessThanOrEqualTo(baselineExtent + 160),
+        );
+      }
+      expect(find.textContaining('150kcal'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'transient FOOD item edits do not calculate or save until valid',
+    (tester) async {
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('meal-item-name-0')));
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('meal-item-quantity-input'));
+      final usedAmount = find.byKey(
+        const ValueKey('meal-item-used-amount-input'),
+      );
+      final scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      final baselineExtent = scrollable.position.maxScrollExtent;
+
+      await tester.enterText(quantity, '0.');
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('— kcal  P —  F —  C —'), findsOneWidget);
+      expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+      expect(
+        scrollable.position.maxScrollExtent,
+        lessThanOrEqualTo(baselineExtent + 160),
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('meal-item-edit-save')),
+      );
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('food-meal-item-editor')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(quantity, '0.5');
+      await tester.pump();
+      expect(find.textContaining('50kcal'), findsOneWidget);
+      await tester.enterText(usedAmount, '0.');
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('— kcal  P —  F —  C —'), findsOneWidget);
+      await tester.enterText(usedAmount, '100');
+      await tester.pump();
+      expect(find.textContaining('50kcal'), findsOneWidget);
+      expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+      expect(
+        scrollable.position.maxScrollExtent,
+        lessThanOrEqualTo(baselineExtent + 160),
+      );
+    },
+  );
+
+  testWidgets(
     'registered Food item edits preserve multiplicative usage components',
     (tester) async {
       await _installFoods(1);
@@ -702,6 +845,8 @@ void main() {
         tester.getRect(decrement).left,
         greaterThan(tester.getRect(quantity).right),
       );
+      await tester.enterText(quantity, '0.');
+      await tester.pump();
       expect(tester.takeException(), isNull);
     });
   }
