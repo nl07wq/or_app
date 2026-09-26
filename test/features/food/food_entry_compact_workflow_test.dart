@@ -492,17 +492,17 @@ void main() {
         find.descendant(of: quantity, matching: find.byType(TextField)),
       );
 
-      expect(quantityInput().controller!.text, '100');
+      expect(quantityInput().controller!.text, '1');
       await tester.tap(
         find.byKey(const ValueKey('food-db-quantity-increment')),
       );
       await tester.pump();
-      expect(quantityInput().controller!.text, '101');
+      expect(quantityInput().controller!.text, '2');
       await tester.tap(
         find.byKey(const ValueKey('food-db-quantity-decrement')),
       );
       await tester.pump();
-      expect(quantityInput().controller!.text, '100');
+      expect(quantityInput().controller!.text, '1');
       await tester.enterText(quantity, '2.25');
       await tester.pump();
       expect(quantityInput().controller!.text, '2.25');
@@ -510,7 +510,7 @@ void main() {
   );
 
   testWidgets(
-    'registered Food item edits synchronize used amount and quantity',
+    'registered Food item edits preserve multiplicative usage components',
     (tester) async {
       await _installFoods(1);
       await tester.pumpWidget(subject());
@@ -541,14 +541,11 @@ void main() {
             )
             .controller!
             .text,
-        '100',
+        '1',
       );
-      expect(
-        find.textContaining('USED  130g / QUANTITY  100g'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('USED 130g × QUANTITY 1'), findsOneWidget);
 
-      await tester.enterText(quantity, '150');
+      await tester.enterText(quantity, '1.5');
       await tester.pump();
       expect(
         tester
@@ -559,7 +556,7 @@ void main() {
             .text,
         '130',
       );
-      expect(find.textContaining('87kcal'), findsOneWidget);
+      expect(find.textContaining('195kcal'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
       await tester.pumpAndSettle();
@@ -591,10 +588,7 @@ void main() {
       );
       await tester.enterText(usedAmount, '175');
       await tester.pump();
-      expect(
-        find.textContaining('USED  175g / QUANTITY  100g'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('USED 175g × QUANTITY 1'), findsOneWidget);
       expect(find.textContaining('175kcal'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));

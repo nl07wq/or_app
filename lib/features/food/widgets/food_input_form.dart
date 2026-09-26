@@ -139,6 +139,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final List<String?> _brandSnapshots = [];
   final List<FoodCatalogCategory?> _categories = [];
   final List<String?> _itemMemos = [];
+  final List<double?> _usageSetAmounts = [];
+  final List<double?> _usageSetQuantities = [];
+  final List<FoodMealQuantitySemantics?> _quantitySemantics = [];
   FoodCatalogEntry? _currentCatalogSource;
   FoodRecipeDefinition? _currentRecipeSource;
   FoodCatalogCategory category = FoodCatalogCategory.preparedFood;
@@ -238,6 +241,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
       sources?.categories ?? List.filled(meal.items.length, null),
     );
     _itemMemos.addAll(sources?.memos ?? List.filled(meal.items.length, null));
+    _usageSetAmounts.addAll(
+      sources?.usageSetAmounts ?? List.filled(meal.items.length, null),
+    );
+    _usageSetQuantities.addAll(
+      sources?.usageSetQuantities ?? List.filled(meal.items.length, null),
+    );
+    _quantitySemantics.addAll(
+      sources?.quantitySemantics ?? List.filled(meal.items.length, null),
+    );
   }
 
   @override
@@ -579,6 +591,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _brandSnapshots.removeAt(index);
       _categories.removeAt(index);
       _itemMemos.removeAt(index);
+      _usageSetAmounts.removeAt(index);
+      _usageSetQuantities.removeAt(index);
+      _quantitySemantics.removeAt(index);
 
       if (_mealItemEditingIndex == index) {
         _cancelMealItemEdit();
@@ -613,8 +628,20 @@ class _FoodInputFormState extends State<FoodInputForm> {
       });
       return;
     }
-    final usedAmount = isRecipe ? null : item.physicalAmount!;
-    final quantity = isRecipe ? item.multiplier : item.baseAmount!;
+    final isMultiplicative =
+        !isRecipe &&
+        _quantitySemantics[index] ==
+            FoodMealQuantitySemantics.multiplicativeV21;
+    final usedAmount = isRecipe
+        ? null
+        : isMultiplicative
+        ? _usageSetAmounts[index]!
+        : item.physicalAmount!;
+    final quantity = isRecipe
+        ? item.multiplier
+        : isMultiplicative
+        ? _usageSetQuantities[index]!
+        : item.baseAmount!;
     setState(() {
       _mealItemEditingIndex = index;
       _mealItemEditError = null;
@@ -694,8 +721,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
       fat: item.fat,
       carbohydrate: item.carbohydrate,
       quantity: item.quantity,
-      amount: usedAmount,
-      baseAmount: quantity,
+      amount:
+          _quantitySemantics[index] ==
+              FoodMealQuantitySemantics.multiplicativeV21
+          ? FoodMealUsage.totalUsedUnits(
+              usedAmount: usedAmount,
+              quantity: quantity,
+            )
+          : usedAmount,
+      baseAmount: item.baseAmount,
       baseUnit: _sourceUnit(index) == FoodQuantityUnit.milliliter
           ? FoodBaseUnit.ml
           : FoodBaseUnit.g,
@@ -714,6 +748,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
     setState(() {
       items[index] = edited;
+      if (_quantitySemantics[index] ==
+          FoodMealQuantitySemantics.multiplicativeV21) {
+        _usageSetAmounts[index] = double.parse(
+          _mealItemUsedAmountController.text.trim(),
+        );
+        _usageSetQuantities[index] = double.parse(
+          _mealItemQuantityController.text.trim(),
+        );
+      }
       _mealItemEditingIndex = null;
       _mealItemEditError = null;
       _mealItemUsedAmountController.clear();
@@ -896,8 +939,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         selection,
         _FoodEntryInputMode.databaseFood,
       );
-      final basis = selection.baseQuantity.value;
-      _pendingQuantityController.text = _formatAmount(basis);
+      _pendingQuantityController.text = '1';
       _pendingUsedAmountController.text = _formatAmount(
         _catalogSourceBaseAmount(selection),
       );
@@ -969,18 +1011,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
   }
 
-  bool _usesPackageSource(FoodCatalogEntry entry) =>
-      entry.packageQuantity != null &&
-      entry.packageUnit != null &&
-      entry.packageUnit == entry.baseQuantity.unit;
-
+  // Nutrition is formally registered against baseQuantity.  Package metadata
+  // describes the product package, not the immutable nutrition denominator.
   double _catalogSourceBaseAmount(FoodCatalogEntry entry) =>
-      _usesPackageSource(entry)
-      ? entry.packageQuantity!
-      : entry.baseQuantity.value;
+      entry.baseQuantity.value;
 
   FoodQuantityUnit _catalogSourceUnit(FoodCatalogEntry entry) =>
-      _usesPackageSource(entry) ? entry.packageUnit! : entry.baseQuantity.unit;
+      entry.baseQuantity.unit;
 
   FoodItem? _databaseRecipeItem(FoodRecipeDefinition recipe, double servings) {
     final nutrition = FoodRecipeNutrition.perServing(recipe);
@@ -1201,6 +1238,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     required List<FoodRecipeDefinition?> recipeSources,
     List<FoodRecipeDefinition?>? recipeInstanceSnapshots,
     required List<FoodQuantityUnit> units,
+    List<double?>? usageSetAmounts,
+    List<double?>? usageSetQuantities,
+    List<FoodMealQuantitySemantics?>? quantitySemantics,
   }) {
     items.addAll(newItems);
     _catalogSources.addAll(foodSources);
@@ -1217,6 +1257,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _brandSnapshots.addAll(foodSources.map((value) => value?.brand));
     _categories.addAll(foodSources.map((value) => value?.category));
     _itemMemos.addAll(List.filled(newItems.length, null));
+    _usageSetAmounts.addAll(
+      usageSetAmounts ?? List<double?>.filled(newItems.length, null),
+    );
+    _usageSetQuantities.addAll(
+      usageSetQuantities ?? List<double?>.filled(newItems.length, null),
+    );
+    _quantitySemantics.addAll(
+      quantitySemantics ??
+          List<FoodMealQuantitySemantics?>.filled(newItems.length, null),
+    );
   }
 
   Future<void> _addPendingDatabaseSelection() async {
@@ -1238,8 +1288,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
       if (pending.value case final FoodCatalogEntry entry) {
         final item = _databaseFoodItem(
           entry,
-          usedAmount: usedAmount!,
-          basisQuantity: quantity,
+          usedAmount: FoodMealUsage.totalUsedUnits(
+            usedAmount: usedAmount!,
+            quantity: quantity,
+          ),
+          basisQuantity: _catalogSourceBaseAmount(entry),
         );
         if (item == null) {
           throw const FormatException('FOOD NUTRITION IS INCOMPLETE');
@@ -1250,6 +1303,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
             foodSources: [entry],
             recipeSources: [null],
             units: [_catalogSourceUnit(entry)],
+            usageSetAmounts: [usedAmount],
+            usageSetQuantities: [quantity],
+            quantitySemantics: [FoodMealQuantitySemantics.multiplicativeV21],
           );
           _pendingDatabaseSelection = null;
           _pendingQuantityController.clear();
@@ -1468,6 +1524,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final brandSnapshots = List<String?>.from(_brandSnapshots);
     final categories = List<FoodCatalogCategory?>.from(_categories);
     final itemMemos = List<String?>.from(_itemMemos);
+    final usageSetAmounts = List<double?>.from(_usageSetAmounts);
+    final usageSetQuantities = List<double?>.from(_usageSetQuantities);
+    final quantitySemantics = List<FoodMealQuantitySemantics?>.from(
+      _quantitySemantics,
+    );
     if (_currentFoodItem() != null) {
       sources.add(_currentCatalogSource);
       recipeSources.add(_currentRecipeSource);
@@ -1481,6 +1542,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       brandSnapshots.add(_currentCatalogSource?.brand);
       categories.add(_currentCatalogSource?.category);
       itemMemos.add(null);
+      usageSetAmounts.add(null);
+      usageSetQuantities.add(null);
+      quantitySemantics.add(null);
     }
     final entrySources = FoodEntrySources(
       catalogSources: sources,
@@ -1495,6 +1559,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       brandSnapshots: brandSnapshots,
       categories: categories,
       memos: itemMemos,
+      usageSetAmounts: usageSetAmounts,
+      usageSetQuantities: usageSetQuantities,
+      quantitySemantics: quantitySemantics,
     );
     final saved = widget.onSaveWithSources != null
         ? await widget.onSaveWithSources!(meal, entrySources)
@@ -2207,6 +2274,58 @@ class _FoodInputFormState extends State<FoodInputForm> {
             decrementTooltip: 'Decrease quantity',
             onDecrement: () => _adjustPendingQuantity(-1),
           ),
+          if (pending.value is FoodCatalogEntry) ...[
+            AppSpacing.gapXS,
+            Builder(
+              builder: (context) {
+                final entry = pending.value as FoodCatalogEntry;
+                final used = double.tryParse(
+                  _pendingUsedAmountController.text.trim(),
+                );
+                final quantity = double.tryParse(
+                  _pendingQuantityController.text.trim(),
+                );
+                final unit = FoodNutritionFormatter.quantityUnit(
+                  _catalogSourceUnit(entry),
+                );
+                final total = used == null || quantity == null
+                    ? null
+                    : FoodMealUsage.totalUsedUnits(
+                        usedAmount: used,
+                        quantity: quantity,
+                      );
+                final preview = total == null
+                    ? null
+                    : _databaseFoodItem(
+                        entry,
+                        usedAmount: total,
+                        basisQuantity: _catalogSourceBaseAmount(entry),
+                      );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'BASIS ${_formatAmount(_catalogSourceBaseAmount(entry))}$unit\n'
+                      'USED ${used == null ? '—' : _formatAmount(used)}$unit × '
+                      'QUANTITY ${quantity == null ? '—' : _formatAmount(quantity)}\n'
+                      '= TOTAL ${total == null ? '—' : _formatAmount(total)}$unit',
+                      key: const ValueKey('food-db-usage-summary'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (preview != null)
+                      Text(
+                        '${FoodNutritionFormatter.calories(preview.totalCalories)}kcal'
+                        '  P ${FoodNutritionFormatter.macro(preview.totalProtein)}g'
+                        '  F ${FoodNutritionFormatter.macro(preview.totalFat)}g'
+                        '  C ${FoodNutritionFormatter.macro(preview.totalCarbohydrate)}g',
+                        key: const ValueKey('food-db-usage-nutrition-preview'),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
           AppSpacing.gapMD,
           Row(
             children: [
@@ -2319,10 +2438,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
             ),
             AppSpacing.gapXS,
             Text(
-              'USED  ${usedAmount == null ? '—' : _formatAmount(usedAmount)}'
-              '${FoodNutritionFormatter.quantityUnit(unit)} / '
-              'QUANTITY  ${quantity == null ? '—' : _formatAmount(quantity)}'
-              '${FoodNutritionFormatter.quantityUnit(unit)}',
+              _quantitySemantics[index] ==
+                      FoodMealQuantitySemantics.multiplicativeV21
+                  ? 'BASIS ${_formatAmount(item.baseAmount!)}${FoodNutritionFormatter.quantityUnit(unit)}\n'
+                        'USED ${usedAmount == null ? '—' : _formatAmount(usedAmount)}${FoodNutritionFormatter.quantityUnit(unit)} × '
+                        'QUANTITY ${quantity == null ? '—' : _formatAmount(quantity)}\n'
+                        '= TOTAL ${usedAmount == null || quantity == null ? '—' : _formatAmount(FoodMealUsage.totalUsedUnits(usedAmount: usedAmount, quantity: quantity))}${FoodNutritionFormatter.quantityUnit(unit)}'
+                  : 'LEGACY USED ${usedAmount == null ? '—' : _formatAmount(usedAmount)}${FoodNutritionFormatter.quantityUnit(unit)} / '
+                        'QUANTITY ${quantity == null ? '—' : _formatAmount(quantity)}${FoodNutritionFormatter.quantityUnit(unit)}',
               key: const ValueKey('meal-item-edit-basis'),
               style: Theme.of(context).textTheme.bodySmall,
             ),

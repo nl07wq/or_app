@@ -21,6 +21,9 @@ class FoodEntrySources {
     List<String?>? brandSnapshots,
     List<FoodCatalogCategory?>? categories,
     List<String?>? memos,
+    List<double?>? usageSetAmounts,
+    List<double?>? usageSetQuantities,
+    List<FoodMealQuantitySemantics?>? quantitySemantics,
   }) : catalogSources = List.unmodifiable(catalogSources),
        recipeSources = List.unmodifiable(recipeSources),
        recipeInstanceSnapshots = List.unmodifiable(
@@ -54,6 +57,19 @@ class FoodEntrySources {
        ),
        memos = List.unmodifiable(
          memos ?? List<String?>.filled(quantityUnits.length, null),
+       ),
+       usageSetAmounts = List.unmodifiable(
+         usageSetAmounts ?? List<double?>.filled(quantityUnits.length, null),
+       ),
+       usageSetQuantities = List.unmodifiable(
+         usageSetQuantities ?? List<double?>.filled(quantityUnits.length, null),
+       ),
+       quantitySemantics = List.unmodifiable(
+         quantitySemantics ??
+             List<FoodMealQuantitySemantics?>.filled(
+               quantityUnits.length,
+               null,
+             ),
        ) {
     final length = quantityUnits.length;
     if ([
@@ -68,6 +84,9 @@ class FoodEntrySources {
       this.brandSnapshots.length,
       this.categories.length,
       this.memos.length,
+      this.usageSetAmounts.length,
+      this.usageSetQuantities.length,
+      this.quantitySemantics.length,
     ].any((value) => value != length)) {
       throw ArgumentError('FOOD entry source lists must have the same length.');
     }
@@ -85,4 +104,7 @@ class FoodEntrySources {
   final List<String?> brandSnapshots;
   final List<FoodCatalogCategory?> categories;
   final List<String?> memos;
+  final List<double?> usageSetAmounts;
+  final List<double?> usageSetQuantities;
+  final List<FoodMealQuantitySemantics?> quantitySemantics;
 }

@@ -20,6 +20,52 @@ enum FoodQuantityUnit {
   }
 }
 
+/// Versioned Meal-entry interpretation for the two usage controls.  Older
+/// formal records have no marker and retain their stored consumed nutrition.
+enum FoodMealQuantitySemantics {
+  legacyDivision,
+  multiplicativeV21;
+
+  String get stableId => name;
+
+  static FoodMealQuantitySemantics fromStableId(String value) {
+    try {
+      return values.byName(value);
+    } on ArgumentError {
+      throw FormatException('Unknown FOOD quantity semantics: $value.');
+    }
+  }
+}
+
+/// Shared V2.1 Meal usage calculation.  Registered basis remains immutable;
+/// both editor controls contribute positively to the consumed total.
+abstract final class FoodMealUsage {
+  static double totalUsedUnits({
+    required double usedAmount,
+    required double quantity,
+  }) {
+    _validatePositive(usedAmount, 'usedAmount');
+    _validatePositive(quantity, 'quantity');
+    return usedAmount * quantity;
+  }
+
+  static double nutritionMultiplier({
+    required double usedAmount,
+    required double quantity,
+    required double registeredBasisAmount,
+  }) {
+    _validatePositive(registeredBasisAmount, 'registeredBasisAmount');
+    return totalUsedUnits(usedAmount: usedAmount, quantity: quantity) /
+        registeredBasisAmount;
+  }
+
+  static void _validatePositive(double value, String name) {
+    if (!value.isFinite || value <= 0) {
+      throw ArgumentError.value(value, name, 'Must be positive and finite.');
+    }
+  }
+}
+
 class FoodQuantityDefinition {
   static const _fields = {'value', 'unit', 'basisValue', 'basisUnit'};
 

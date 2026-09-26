@@ -55,6 +55,13 @@ class DailyMealV2Editor {
     brandSnapshots: meal.items.map((item) => item.brandSnapshot).toList(),
     categories: meal.items.map((item) => item.category).toList(),
     memos: meal.items.map((item) => item.memo).toList(),
+    usageSetAmounts: meal.items.map((item) => item.usageSetAmount).toList(),
+    usageSetQuantities: meal.items
+        .map((item) => item.usageSetQuantity)
+        .toList(),
+    quantitySemantics: meal.items
+        .map((item) => item.quantitySemantics)
+        .toList(),
   );
 
   static DailyMealV2 update({
@@ -103,6 +110,9 @@ class DailyMealV2Editor {
             value: entry.baseAmount ?? entry.physicalAmount ?? 1,
             unit: sources.quantityUnits[index],
           ),
+          usageSetAmount: sources.usageSetAmounts[index],
+          usageSetQuantity: sources.usageSetQuantities[index],
+          quantitySemantics: sources.quantitySemantics[index],
           nutritionPerBase: NutritionSnapshot(
             calories: entry.calories.toDouble(),
             protein: entry.protein,
