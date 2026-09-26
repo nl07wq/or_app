@@ -37,6 +37,9 @@ class DailyMealV2Editor {
   static FoodEntrySources sources(DailyMealV2 meal) => FoodEntrySources(
     catalogSources: List.filled(meal.items.length, null),
     recipeSources: List.filled(meal.items.length, null),
+    recipeInstanceSnapshots: meal.items
+        .map((item) => item.recipeInstanceSnapshot)
+        .toList(),
     quantityUnits: meal.items.map((item) => item.quantity.unit).toList(),
     foodReferenceIds: meal.items.map((item) => item.foodReferenceId).toList(),
     recipeReferenceIds: meal.items
@@ -88,11 +91,16 @@ class DailyMealV2Editor {
           mealItemId: existingId ?? _id(generator),
           foodReferenceId: foodId,
           recipeReferenceId: recipeId,
+          recipeInstanceSnapshot: sources.recipeInstanceSnapshots[index],
           nameSnapshot: entry.name,
           brandSnapshot: sources.brandSnapshots[index],
           category: sources.categories[index],
           quantity: FoodQuantityDefinition(
             value: entry.physicalAmount ?? entry.quantity.toDouble(),
+            unit: sources.quantityUnits[index],
+          ),
+          nutritionBasisQuantity: FoodQuantityDefinition(
+            value: entry.baseAmount ?? entry.physicalAmount ?? 1,
             unit: sources.quantityUnits[index],
           ),
           nutritionPerBase: NutritionSnapshot(
@@ -136,6 +144,7 @@ class DailyMealV2Editor {
       throw StateError('Incomplete FOOD nutrition snapshot is not editable.');
     }
     final quantity = item.quantity;
+    final basis = item.nutritionBasisQuantity ?? quantity;
     final baseUnit = quantity.unit == FoodQuantityUnit.milliliter
         ? FoodBaseUnit.ml
         : FoodBaseUnit.g;
@@ -145,10 +154,10 @@ class DailyMealV2Editor {
       protein: item.nutritionPerBase.protein!,
       fat: item.nutritionPerBase.fat!,
       carbohydrate: item.nutritionPerBase.carbohydrate!,
-      amount: 1,
-      baseAmount: quantity.value,
+      amount: quantity.value,
+      baseAmount: basis.value,
       baseUnit: baseUnit,
-      amountMode: FoodAmountMode.baseMultiplier,
+      amountMode: FoodAmountMode.physicalAmount,
     );
   }
 

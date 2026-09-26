@@ -11,6 +11,7 @@ class FoodEntrySources {
   FoodEntrySources({
     required List<FoodCatalogEntry?> catalogSources,
     required List<FoodRecipeDefinition?> recipeSources,
+    List<FoodRecipeDefinition?>? recipeInstanceSnapshots,
     required List<FoodQuantityUnit> quantityUnits,
     List<String?>? foodReferenceIds,
     List<String?>? recipeReferenceIds,
@@ -22,6 +23,10 @@ class FoodEntrySources {
     List<String?>? memos,
   }) : catalogSources = List.unmodifiable(catalogSources),
        recipeSources = List.unmodifiable(recipeSources),
+       recipeInstanceSnapshots = List.unmodifiable(
+         recipeInstanceSnapshots ??
+             List<FoodRecipeDefinition?>.filled(quantityUnits.length, null),
+       ),
        quantityUnits = List.unmodifiable(quantityUnits),
        foodReferenceIds = List.unmodifiable(
          foodReferenceIds ?? catalogSources.map((value) => value?.foodId),
@@ -54,6 +59,7 @@ class FoodEntrySources {
     if ([
       this.catalogSources.length,
       this.recipeSources.length,
+      this.recipeInstanceSnapshots.length,
       this.foodReferenceIds.length,
       this.recipeReferenceIds.length,
       this.mealItemIds.length,
@@ -69,6 +75,7 @@ class FoodEntrySources {
 
   final List<FoodCatalogEntry?> catalogSources;
   final List<FoodRecipeDefinition?> recipeSources;
+  final List<FoodRecipeDefinition?> recipeInstanceSnapshots;
   final List<FoodQuantityUnit> quantityUnits;
   final List<String?> foodReferenceIds;
   final List<String?> recipeReferenceIds;

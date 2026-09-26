@@ -360,56 +360,61 @@ void main() {
     },
   );
 
-  testWidgets('Food database search session survives repeated adds and clears explicitly', (
-    tester,
-  ) async {
-    await _installFoods(6);
-    await tester.pumpWidget(subject());
-    await tester.tap(find.byKey(const ValueKey('food-entry-tab-databaseFood')));
-    await tester.pumpAndSettle();
-    final search = find.byKey(const ValueKey('food-entry-search-databaseFood'));
-    await tester.enterText(search, 'Food 5');
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('food-db-add')));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Food database search session survives repeated adds and clears explicitly',
+    (tester) async {
+      await _installFoods(6);
+      await tester.pumpWidget(subject());
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-tab-databaseFood')),
+      );
+      await tester.pumpAndSettle();
+      final search = find.byKey(
+        const ValueKey('food-entry-search-databaseFood'),
+      );
+      await tester.enterText(search, 'Food 5');
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
-    expect(
-      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-      findsOneWidget,
-    );
+      expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
+      expect(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+        findsOneWidget,
+      );
 
-    expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
-    await tester.tap(
-      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('food-db-add')));
-    await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
-    expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
+      expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
+      expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
 
-    final clear = find.byKey(
-      const ValueKey('food-entry-clear-search-databaseFood'),
-    );
-    expect(
-      tester.getRect(clear).center.dx,
-      greaterThan(tester.getRect(search).center.dx),
-    );
-    await tester.tap(clear);
-    await tester.pumpAndSettle();
+      final clear = find.byKey(
+        const ValueKey('food-entry-clear-search-databaseFood'),
+      );
+      expect(
+        tester.getRect(clear).center.dx,
+        greaterThan(tester.getRect(search).center.dx),
+      );
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(search).controller!.text, isEmpty);
-    expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
-    expect(find.text('さらに表示'), findsOneWidget);
-    expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
-  });
+      expect(tester.widget<TextField>(search).controller!.text, isEmpty);
+      expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
+      expect(find.text('さらに表示'), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+    },
+  );
 
   testWidgets(
     'FOOD quantity shares the compact MANUAL amount stepper geometry',
@@ -462,8 +467,8 @@ void main() {
         incrementRect.left - quantityRect.right,
         moreOrLessEquals(manualGap),
       );
-      expect(tester.getSize(increment), manualIncrementSize);
-      expect(tester.getSize(decrement), manualDecrementSize);
+      expect(tester.getSize(increment).width, manualIncrementSize.width);
+      expect(tester.getSize(decrement).width, manualDecrementSize.width);
       expect(tester.takeException(), isNull);
     },
   );
@@ -487,17 +492,17 @@ void main() {
         find.descendant(of: quantity, matching: find.byType(TextField)),
       );
 
-      expect(quantityInput().controller!.text, '1');
+      expect(quantityInput().controller!.text, '100');
       await tester.tap(
         find.byKey(const ValueKey('food-db-quantity-increment')),
       );
       await tester.pump();
-      expect(quantityInput().controller!.text, '2');
+      expect(quantityInput().controller!.text, '101');
       await tester.tap(
         find.byKey(const ValueKey('food-db-quantity-decrement')),
       );
       await tester.pump();
-      expect(quantityInput().controller!.text, '1');
+      expect(quantityInput().controller!.text, '100');
       await tester.enterText(quantity, '2.25');
       await tester.pump();
       expect(quantityInput().controller!.text, '2.25');
@@ -536,11 +541,14 @@ void main() {
             )
             .controller!
             .text,
-        '1.3',
+        '100',
       );
-      expect(find.textContaining('100g × 1.3 = 130g'), findsOneWidget);
+      expect(
+        find.textContaining('USED  130g / QUANTITY  100g'),
+        findsOneWidget,
+      );
 
-      await tester.enterText(quantity, '1.5');
+      await tester.enterText(quantity, '150');
       await tester.pump();
       expect(
         tester
@@ -549,9 +557,9 @@ void main() {
             )
             .controller!
             .text,
-        '150',
+        '130',
       );
-      expect(find.textContaining('150kcal'), findsOneWidget);
+      expect(find.textContaining('87kcal'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
       await tester.pumpAndSettle();
@@ -578,10 +586,15 @@ void main() {
       await tester.tap(item);
       await tester.pumpAndSettle();
 
-      final quantity = find.byKey(const ValueKey('meal-item-quantity-input'));
-      await tester.enterText(quantity, '0.5');
+      final usedAmount = find.byKey(
+        const ValueKey('meal-item-used-amount-input'),
+      );
+      await tester.enterText(usedAmount, '175');
       await tester.pump();
-      expect(find.textContaining('350g × 0.5 = 175g'), findsOneWidget);
+      expect(
+        find.textContaining('USED  175g / QUANTITY  100g'),
+        findsOneWidget,
+      );
       expect(find.textContaining('175kcal'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));

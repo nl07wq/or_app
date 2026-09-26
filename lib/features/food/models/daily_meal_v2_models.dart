@@ -3,6 +3,7 @@ import 'food_provenance_models.dart';
 import 'food_quantity_models.dart';
 import 'food_v2_json.dart';
 import 'nutrition_models.dart';
+import 'recipe_models_v2.dart';
 
 enum DailyMealTypeV2 {
   breakfast,
@@ -32,6 +33,8 @@ class DailyMealItemSnapshot {
     'brandSnapshot',
     'category',
     'quantity',
+    'nutritionBasisQuantity',
+    'recipeInstanceSnapshot',
     'nutritionPerBase',
     'nutritionConsumed',
     'provenanceSnapshot',
@@ -47,6 +50,14 @@ class DailyMealItemSnapshot {
   final String? brandSnapshot;
   final FoodCatalogCategory? category;
   final FoodQuantityDefinition quantity;
+
+  /// The immutable amount against which [nutritionPerBase] was declared.
+  /// Older records did not retain this separately and remain readable.
+  final FoodQuantityDefinition? nutritionBasisQuantity;
+
+  /// A recipe is a reusable master.  This optional copy records the concrete
+  /// ingredient instance used by this Meal, including any meal-only changes.
+  final FoodRecipeDefinition? recipeInstanceSnapshot;
   final NutritionSnapshot nutritionPerBase;
   final NutritionSnapshot nutritionConsumed;
   final FoodDataProvenance provenanceSnapshot;
@@ -62,6 +73,8 @@ class DailyMealItemSnapshot {
     this.brandSnapshot,
     this.category,
     required this.quantity,
+    this.nutritionBasisQuantity,
+    this.recipeInstanceSnapshot,
     required this.nutritionPerBase,
     required this.nutritionConsumed,
     required this.provenanceSnapshot,
@@ -79,6 +92,11 @@ class DailyMealItemSnapshot {
     if (foodReferenceId != null && recipeReferenceId != null) {
       throw ArgumentError('FOOD item references are mutually exclusive.');
     }
+    if (recipeInstanceSnapshot != null && recipeReferenceId == null) {
+      throw ArgumentError(
+        'Recipe instance snapshots require a recipe reference.',
+      );
+    }
     validateRequiredText(nameSnapshot, 'nameSnapshot');
     validateNutritionStatus(nutritionPerBase, nutritionStatusSnapshot);
     validateNutritionStatus(nutritionConsumed, nutritionStatusSnapshot);
@@ -93,6 +111,8 @@ class DailyMealItemSnapshot {
     'brandSnapshot': brandSnapshot,
     'category': category?.stableId,
     'quantity': quantity.toJson(),
+    'nutritionBasisQuantity': nutritionBasisQuantity?.toJson(),
+    'recipeInstanceSnapshot': recipeInstanceSnapshot?.toJson(),
     'nutritionPerBase': nutritionPerBase.toJson(),
     'nutritionConsumed': nutritionConsumed.toJson(),
     'provenanceSnapshot': provenanceSnapshot.toJson(),
@@ -133,6 +153,16 @@ class DailyMealItemSnapshot {
       quantity: FoodQuantityDefinition.fromJson(
         requireMap(json, 'quantity', 'FOOD meal item'),
       ),
+      nutritionBasisQuantity: json['nutritionBasisQuantity'] == null
+          ? null
+          : FoodQuantityDefinition.fromJson(
+              requireMap(json, 'nutritionBasisQuantity', 'FOOD meal item'),
+            ),
+      recipeInstanceSnapshot: json['recipeInstanceSnapshot'] == null
+          ? null
+          : FoodRecipeDefinition.fromJson(
+              requireMap(json, 'recipeInstanceSnapshot', 'FOOD meal item'),
+            ),
       nutritionPerBase: NutritionSnapshot.fromJson(
         requireMap(json, 'nutritionPerBase', 'FOOD meal item'),
       ),

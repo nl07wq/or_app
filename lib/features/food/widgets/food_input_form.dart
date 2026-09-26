@@ -90,6 +90,13 @@ class _DatabaseFoodSelection {
   final _FoodEntryInputMode mode;
 }
 
+class _RecipeIngredientDraft {
+  const _RecipeIngredientDraft(this.source, this.quantity);
+
+  final RecipeIngredientV2 source;
+  final double quantity;
+}
+
 class _FoodInputFormState extends State<FoodInputForm> {
   static const double _defaultBaseAmount = 100;
   static const double _defaultAmount = 1;
@@ -108,18 +115,21 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final memoController = TextEditingController();
   final foodMemoController = TextEditingController();
   final _pendingQuantityController = TextEditingController();
+  final _pendingUsedAmountController = TextEditingController();
   final _foodSearchController = TextEditingController();
   final _foodSearchFocusNode = FocusNode();
   final _recipeSearchController = TextEditingController();
   final _mealSearchController = TextEditingController();
   final _mealItemUsedAmountController = TextEditingController();
   final _mealItemQuantityController = TextEditingController();
+  final List<TextEditingController> _recipeIngredientControllers = [];
 
   MealType mealType = MealType.breakfast;
 
   final List<FoodItem> items = [];
   final List<FoodCatalogEntry?> _catalogSources = [];
   final List<FoodRecipeDefinition?> _recipeSources = [];
+  final List<FoodRecipeDefinition?> _recipeInstanceSnapshots = [];
   final List<FoodQuantityUnit> _quantityUnits = [];
   final List<String?> _foodReferenceIds = [];
   final List<String?> _recipeReferenceIds = [];
@@ -150,6 +160,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   bool _basisLinkedToPackage = true;
   _FoodEntryInputMode _inputMode = _FoodEntryInputMode.manual;
   _DatabaseFoodSelection? _pendingDatabaseSelection;
+  FoodRecipeDefinition? _pendingRecipeSource;
+  List<_RecipeIngredientDraft> _pendingRecipeIngredients = const [];
   bool _addingDatabaseItem = false;
   bool _foodListExpanded = false;
   bool _recipeListExpanded = false;
@@ -193,6 +205,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
     _recipeSources.addAll(
       sources?.recipeSources ?? List.filled(meal.items.length, null),
+    );
+    _recipeInstanceSnapshots.addAll(
+      sources?.recipeInstanceSnapshots ?? List.filled(meal.items.length, null),
     );
     _quantityUnits.addAll(
       sources?.quantityUnits ??
@@ -242,12 +257,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
     memoController.dispose();
     foodMemoController.dispose();
     _pendingQuantityController.dispose();
+    _pendingUsedAmountController.dispose();
     _foodSearchController.dispose();
     _foodSearchFocusNode.dispose();
     _recipeSearchController.dispose();
     _mealSearchController.dispose();
     _mealItemUsedAmountController.dispose();
     _mealItemQuantityController.dispose();
+    for (final controller in _recipeIngredientControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -266,7 +285,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
       }
       return _databaseFoodItem(
         currentCatalog,
-        usedAmount / _catalogSourceBaseAmount(currentCatalog),
+        usedAmount: usedAmount,
+        basisQuantity:
+            double.tryParse(baseAmountController.text.trim()) ??
+            _catalogSourceBaseAmount(currentCatalog),
       );
     }
 
@@ -482,6 +504,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.clear();
       _catalogSources.clear();
       _recipeSources.clear();
+      _recipeInstanceSnapshots.clear();
       _quantityUnits.clear();
       _foodReferenceIds.clear();
       _recipeReferenceIds.clear();
@@ -527,6 +550,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.add(item);
       _catalogSources.add(_currentCatalogSource);
       _recipeSources.add(_currentRecipeSource);
+      _recipeInstanceSnapshots.add(null);
       _quantityUnits.add(baseUnit);
       _foodReferenceIds.add(_currentCatalogSource?.foodId);
       _recipeReferenceIds.add(_currentRecipeSource?.recipeId);
@@ -546,6 +570,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       items.removeAt(index);
       _catalogSources.removeAt(index);
       _recipeSources.removeAt(index);
+      _recipeInstanceSnapshots.removeAt(index);
       _quantityUnits.removeAt(index);
       _foodReferenceIds.removeAt(index);
       _recipeReferenceIds.removeAt(index);
@@ -565,19 +590,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
-  double _sourceBaseAmount(int index) {
-    final source = _catalogSources[index];
-    return source == null
-        ? items[index].baseAmount!
-        : _catalogSourceBaseAmount(source);
-  }
+  double _sourceBaseAmount(int index) => items[index].baseAmount!;
 
   FoodQuantityUnit _sourceUnit(int index) => _catalogSources[index] == null
       ? _quantityUnits[index]
       : _catalogSourceUnit(_catalogSources[index]!);
 
-  double _nutritionBasisAmount(int index) =>
-      _catalogSources[index]?.baseQuantity.value ?? items[index].baseAmount!;
+  double _nutritionBasisAmount(int index) => items[index].baseAmount!;
 
   void _setMealItemEditText(TextEditingController controller, double value) {
     final text = _formatAmount(value);
@@ -600,9 +619,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       return;
     }
     final usedAmount = isRecipe ? null : item.physicalAmount!;
-    final quantity = isRecipe
-        ? item.multiplier
-        : usedAmount! / _sourceBaseAmount(index);
+    final quantity = isRecipe ? item.multiplier : item.baseAmount!;
     setState(() {
       _mealItemEditingIndex = index;
       _mealItemEditError = null;
@@ -624,12 +641,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
       setState(() => _mealItemEditError = 'ENTER A VALID USED AMOUNT.');
       return;
     }
-    _syncingMealItemEdit = true;
-    _setMealItemEditText(
-      _mealItemQuantityController,
-      usedAmount / _sourceBaseAmount(index),
-    );
-    _syncingMealItemEdit = false;
     setState(() => _mealItemEditError = null);
   }
 
@@ -644,14 +655,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
       setState(() => _mealItemEditError = 'ENTER A VALID QUANTITY.');
       return;
     }
-    _syncingMealItemEdit = true;
-    if (_recipeSources[index] == null) {
-      _setMealItemEditText(
-        _mealItemUsedAmountController,
-        _sourceBaseAmount(index) * quantity,
-      );
-    }
-    _syncingMealItemEdit = false;
     setState(() => _mealItemEditError = null);
   }
 
@@ -699,7 +702,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       carbohydrate: item.carbohydrate,
       quantity: item.quantity,
       amount: usedAmount,
-      baseAmount: _nutritionBasisAmount(index),
+      baseAmount: quantity,
       baseUnit: _sourceUnit(index) == FoodQuantityUnit.milliliter
           ? FoodBaseUnit.ml
           : FoodBaseUnit.g,
@@ -900,7 +903,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
         selection,
         _FoodEntryInputMode.databaseFood,
       );
-      _pendingQuantityController.text = _formatAmount(_defaultAmount);
+      final basis = selection.baseQuantity.value;
+      _pendingQuantityController.text = _formatAmount(basis);
+      _pendingUsedAmountController.text = _formatAmount(
+        _catalogSourceBaseAmount(selection),
+      );
       inputError = null;
     });
     _showQuantityConfirmation();
@@ -940,7 +947,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
-  FoodItem? _databaseFoodItem(FoodCatalogEntry entry, double multiplier) {
+  FoodItem? _databaseFoodItem(
+    FoodCatalogEntry entry, {
+    required double usedAmount,
+    required double basisQuantity,
+  }) {
     final nutrition = entry.nutrition;
     if ([
       nutrition.calories,
@@ -956,10 +967,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
       protein: nutrition.protein!,
       fat: nutrition.fat!,
       carbohydrate: nutrition.carbohydrate!,
-      // A catalog package is the consumed source base; nutrition remains
-      // expressed against the independently stored nutrition basis.
-      amount: _catalogSourceBaseAmount(entry) * multiplier,
-      baseAmount: entry.baseQuantity.value,
+      amount: usedAmount,
+      baseAmount: basisQuantity,
       baseUnit: entry.baseQuantity.unit == FoodQuantityUnit.milliliter
           ? FoodBaseUnit.ml
           : FoodBaseUnit.g,
@@ -1023,27 +1032,148 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
   }
 
-  void _addRecipeDirect(FoodRecipeDefinition recipe) {
-    if (_addingDatabaseItem) return;
-    final item = _databaseRecipeItem(recipe, 1);
-    if (item == null) {
-      setState(() => inputError = 'RECIPE NUTRITION IS INCOMPLETE');
-      return;
+  void _selectDatabaseRecipe(FoodRecipeDefinition recipe) {
+    _rememberDatabaseListScrollOffset();
+    for (final controller in _recipeIngredientControllers) {
+      controller.dispose();
     }
+    final drafts = recipe.ingredients
+        .map(
+          (ingredient) =>
+              _RecipeIngredientDraft(ingredient, ingredient.quantity.value),
+        )
+        .toList(growable: false);
     setState(() {
-      _addingDatabaseItem = true;
-      _appendItems(
-        newItems: [item],
-        foodSources: [null],
-        recipeSources: [recipe],
-        units: [FoodQuantityUnit.serving],
-      );
-      _resetDatabaseDiscovery(_FoodEntryInputMode.databaseRecipe);
+      _pendingRecipeSource = recipe;
+      _pendingRecipeIngredients = drafts;
+      _recipeIngredientControllers
+        ..clear()
+        ..addAll(
+          drafts.map(
+            (draft) =>
+                TextEditingController(text: _formatAmount(draft.quantity)),
+          ),
+        );
       inputError = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _addingDatabaseItem = false);
+      if (!mounted) return;
+      final context = _quantityConfirmationKey.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.08,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      }
     });
+  }
+
+  RecipeIngredientV2 _recipeIngredientInstance(_RecipeIngredientDraft draft) {
+    final source = draft.source;
+    final ratio = draft.quantity / source.quantity.value;
+    return RecipeIngredientV2(
+      ingredientId: source.ingredientId,
+      foodReferenceId: source.foodReferenceId,
+      nameSnapshot: source.nameSnapshot,
+      quantity: FoodQuantityDefinition(
+        value: draft.quantity,
+        unit: source.quantity.unit,
+      ),
+      nutritionSnapshot: FoodRecipeNutrition.scale(
+        source.nutritionSnapshot,
+        ratio,
+      ),
+      nutritionStatus: source.nutritionStatus,
+      provenanceSnapshot: source.provenanceSnapshot,
+      sortOrder: source.sortOrder,
+    );
+  }
+
+  FoodRecipeDefinition _recipeInstance(FoodRecipeDefinition source) {
+    final ingredients = _pendingRecipeIngredients
+        .map(_recipeIngredientInstance)
+        .toList(growable: false);
+    return FoodRecipeDefinition(
+      recipeId: source.recipeId,
+      name: source.name,
+      ingredients: ingredients,
+      yieldQuantity: source.yieldQuantity,
+      servingCount: source.servingCount,
+      nutrition: FoodRecipeNutrition.total(ingredients),
+      nutritionStatus: source.nutritionStatus,
+      provenance: source.provenance,
+      memo: source.memo,
+      isArchived: source.isArchived,
+      createdAt: source.createdAt,
+      updatedAt: source.updatedAt,
+    );
+  }
+
+  void _changeRecipeIngredient(int index, String raw) {
+    final value = double.tryParse(raw.trim());
+    if (value == null || !value.isFinite || value <= 0) {
+      setState(() => inputError = 'ENTER A VALID INGREDIENT AMOUNT.');
+      return;
+    }
+    setState(() {
+      final next = List<_RecipeIngredientDraft>.from(_pendingRecipeIngredients);
+      next[index] = _RecipeIngredientDraft(next[index].source, value);
+      _pendingRecipeIngredients = next;
+      inputError = null;
+    });
+  }
+
+  void _adjustRecipeIngredient(int index, double delta) {
+    final controller = _recipeIngredientControllers[index];
+    final current = double.tryParse(controller.text.trim()) ?? 0;
+    final next = current + delta;
+    if (next <= 0) return;
+    controller.text = _formatAmount(next);
+    _changeRecipeIngredient(index, controller.text);
+  }
+
+  void _confirmRecipeInstance() {
+    final source = _pendingRecipeSource;
+    if (source == null || _addingDatabaseItem) return;
+    try {
+      final instance = _recipeInstance(source);
+      final item = _databaseRecipeItem(instance, 1);
+      if (item == null) {
+        throw const FormatException('RECIPE NUTRITION IS INCOMPLETE');
+      }
+      setState(() {
+        _appendItems(
+          newItems: [item],
+          foodSources: [null],
+          recipeSources: [source],
+          recipeInstanceSnapshots: [instance],
+          units: [FoodQuantityUnit.serving],
+        );
+        _clearRecipeInstanceDraft();
+        inputError = null;
+      });
+    } on FormatException catch (error) {
+      setState(() => inputError = error.message);
+    }
+  }
+
+  void _clearRecipeInstanceDraft() {
+    for (final controller in _recipeIngredientControllers) {
+      controller.dispose();
+    }
+    _recipeIngredientControllers.clear();
+    _pendingRecipeSource = null;
+    _pendingRecipeIngredients = const [];
+  }
+
+  void _cancelRecipeInstance() {
+    setState(() {
+      _clearRecipeInstanceDraft();
+      inputError = null;
+    });
+    _restoreDatabaseListScrollOffset();
   }
 
   Future<void> _addMealDirect(FoodMealMaster meal) async {
@@ -1076,11 +1206,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
     required List<FoodItem> newItems,
     required List<FoodCatalogEntry?> foodSources,
     required List<FoodRecipeDefinition?> recipeSources,
+    List<FoodRecipeDefinition?>? recipeInstanceSnapshots,
     required List<FoodQuantityUnit> units,
   }) {
     items.addAll(newItems);
     _catalogSources.addAll(foodSources);
     _recipeSources.addAll(recipeSources);
+    _recipeInstanceSnapshots.addAll(
+      recipeInstanceSnapshots ?? List.filled(newItems.length, null),
+    );
     _quantityUnits.addAll(units);
     _foodReferenceIds.addAll(foodSources.map((value) => value?.foodId));
     _recipeReferenceIds.addAll(recipeSources.map((value) => value?.recipeId));
@@ -1095,16 +1229,25 @@ class _FoodInputFormState extends State<FoodInputForm> {
   Future<void> _addPendingDatabaseSelection() async {
     final pending = _pendingDatabaseSelection;
     final quantity = double.tryParse(_pendingQuantityController.text.trim());
+    final usedAmount = double.tryParse(
+      _pendingUsedAmountController.text.trim(),
+    );
     if (pending == null ||
         quantity == null ||
         !quantity.isFinite ||
-        quantity <= 0) {
+        quantity <= 0 ||
+        (pending.value is FoodCatalogEntry &&
+            (usedAmount == null || !usedAmount.isFinite || usedAmount <= 0))) {
       setState(() => inputError = 'ENTER A VALID QUANTITY.');
       return;
     }
     try {
       if (pending.value case final FoodCatalogEntry entry) {
-        final item = _databaseFoodItem(entry, quantity);
+        final item = _databaseFoodItem(
+          entry,
+          usedAmount: usedAmount!,
+          basisQuantity: quantity,
+        );
         if (item == null) {
           throw const FormatException('FOOD NUTRITION IS INCOMPLETE');
         }
@@ -1117,6 +1260,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           );
           _pendingDatabaseSelection = null;
           _pendingQuantityController.clear();
+          _pendingUsedAmountController.clear();
           _resetDatabaseDiscovery(_FoodEntryInputMode.databaseFood);
           inputError = null;
         });
@@ -1134,6 +1278,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           );
           _pendingDatabaseSelection = null;
           _pendingQuantityController.clear();
+          _pendingUsedAmountController.clear();
           inputError = null;
         });
       } else if (pending.value case final FoodMealMaster meal) {
@@ -1154,6 +1299,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           );
           _pendingDatabaseSelection = null;
           _pendingQuantityController.clear();
+          _pendingUsedAmountController.clear();
           inputError = null;
         });
       }
@@ -1168,6 +1314,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       _pendingDatabaseSelection = null;
       _pendingQuantityController.clear();
+      _pendingUsedAmountController.clear();
       inputError = null;
     });
     _restoreDatabaseListScrollOffset();
@@ -1314,6 +1461,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() => _isSaving = true);
     final sources = List<FoodCatalogEntry?>.from(_catalogSources);
     final recipeSources = List<FoodRecipeDefinition?>.from(_recipeSources);
+    final recipeInstances = List<FoodRecipeDefinition?>.from(
+      _recipeInstanceSnapshots,
+    );
     final quantityUnits = List<FoodQuantityUnit>.from(_quantityUnits);
     final foodReferenceIds = List<String?>.from(_foodReferenceIds);
     final recipeReferenceIds = List<String?>.from(_recipeReferenceIds);
@@ -1328,6 +1478,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     if (_currentFoodItem() != null) {
       sources.add(_currentCatalogSource);
       recipeSources.add(_currentRecipeSource);
+      recipeInstances.add(null);
       quantityUnits.add(baseUnit);
       foodReferenceIds.add(_currentCatalogSource?.foodId);
       recipeReferenceIds.add(_currentRecipeSource?.recipeId);
@@ -1341,6 +1492,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final entrySources = FoodEntrySources(
       catalogSources: sources,
       recipeSources: recipeSources,
+      recipeInstanceSnapshots: recipeInstances,
       quantityUnits: quantityUnits,
       foodReferenceIds: foodReferenceIds,
       recipeReferenceIds: recipeReferenceIds,
@@ -1600,6 +1752,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
+  void _adjustPendingUsedAmount(double delta) {
+    final current =
+        double.tryParse(_pendingUsedAmountController.text.trim()) ??
+        _defaultAmount;
+    final next = current + delta;
+    if (next <= 0) return;
+    setState(() {
+      _pendingUsedAmountController.text = _formatAmount(next);
+      inputError = null;
+    });
+  }
+
   void _swipeInputMode(double velocity) {
     if (!_canSwitchInputMode) return;
     final index = _inputMode.index + (velocity < 0 ? 1 : -1);
@@ -1769,8 +1933,20 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 key: ValueKey('food-entry-inline-food-${entry.foodId}'),
                 leading: FoodThumbnail(visualKey: entry.visualKey, size: 40),
                 title: Text(entry.name),
-                subtitle: Text(
-                  FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (entry.brand?.trim().isNotEmpty ?? false)
+                      Text(
+                        entry.brand!.trim(),
+                        key: ValueKey('food-entry-brand-${entry.foodId}'),
+                      ),
+                    Text(
+                      FoodNutritionFormatter.compactQuantity(
+                        entry.baseQuantity,
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _addingDatabaseItem
@@ -1830,7 +2006,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 trailing: const Icon(Icons.add_circle_outline),
                 onTap: _addingDatabaseItem
                     ? null
-                    : () => _addRecipeDirect(recipe),
+                    : () => _selectDatabaseRecipe(recipe),
               ),
           _masterListDisclosure(
             mode: _FoodEntryInputMode.databaseRecipe,
@@ -1897,6 +2073,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   );
 
   Widget _databaseInput() {
+    final recipe = _pendingRecipeSource;
+    if (recipe != null) return _recipeInstanceConfirmation(recipe);
     final pending = _pendingDatabaseSelection;
     if (pending != null) return _foodQuantityConfirmation(pending);
     if (!AppRepositoryRegistry.hasContainer) return const SizedBox.shrink();
@@ -1906,6 +2084,83 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _FoodEntryInputMode.databaseMeal => _inlineMealList(),
       _FoodEntryInputMode.manual => const SizedBox.shrink(),
     };
+  }
+
+  Widget _recipeInstanceConfirmation(FoodRecipeDefinition recipe) {
+    final instance = _recipeInstance(recipe);
+    final nutrition = FoodRecipeNutrition.perServing(instance);
+    return KeyedSubtree(
+      key: _quantityConfirmationKey,
+      child: OperationCard(
+        key: const ValueKey('food-recipe-instance-confirmation'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(
+              icon: Icons.tune_outlined,
+              title: 'RECIPE CONFIRM / ADJUST',
+            ),
+            AppSpacing.gapSM,
+            Text(recipe.name, style: Theme.of(context).textTheme.titleMedium),
+            AppSpacing.gapSM,
+            for (
+              var index = 0;
+              index < _pendingRecipeIngredients.length;
+              index++
+            ) ...[
+              Text(_pendingRecipeIngredients[index].source.nameSnapshot),
+              FoodNumericStepperRow(
+                key: ValueKey('food-recipe-ingredient-$index'),
+                inputKey: ValueKey('food-recipe-ingredient-input-$index'),
+                controller: _recipeIngredientControllers[index],
+                label: FoodNutritionFormatter.quantityUnit(
+                  _pendingRecipeIngredients[index].source.quantity.unit,
+                ),
+                onChanged: (value) => _changeRecipeIngredient(index, value),
+                incrementKey: ValueKey(
+                  'food-recipe-ingredient-increment-$index',
+                ),
+                incrementTooltip: 'Increase ingredient amount',
+                onIncrement: () => _adjustRecipeIngredient(index, 1),
+                decrementKey: ValueKey(
+                  'food-recipe-ingredient-decrement-$index',
+                ),
+                decrementTooltip: 'Decrease ingredient amount',
+                onDecrement: () => _adjustRecipeIngredient(index, -1),
+              ),
+              AppSpacing.gapSM,
+            ],
+            Text(
+              '${FoodNutritionFormatter.calories(nutrition.calories ?? 0)}kcal'
+              '  P ${FoodNutritionFormatter.macro(nutrition.protein ?? 0)}g'
+              '  F ${FoodNutritionFormatter.macro(nutrition.fat ?? 0)}g'
+              '  C ${FoodNutritionFormatter.macro(nutrition.carbohydrate ?? 0)}g',
+              key: const ValueKey('food-recipe-instance-nutrition'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            AppSpacing.gapMD,
+            Row(
+              children: [
+                Expanded(
+                  child: OperationButton(
+                    key: const ValueKey('food-recipe-instance-add'),
+                    icon: Icons.add,
+                    text: 'ADD',
+                    onPressed: _isSaving ? null : _confirmRecipeInstance,
+                  ),
+                ),
+                AppSpacing.gapSM,
+                OutlinedButton(
+                  key: const ValueKey('food-recipe-instance-cancel'),
+                  onPressed: _isSaving ? null : _cancelRecipeInstance,
+                  child: const Text('CANCEL'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _foodQuantityConfirmation(
@@ -1929,11 +2184,28 @@ class _FoodInputFormState extends State<FoodInputForm> {
           ),
           Text(_pendingUnit(pending)),
           AppSpacing.gapMD,
+          if (pending.value is FoodCatalogEntry) ...[
+            FoodNumericStepperRow(
+              key: const ValueKey('food-db-used-amount-stepper-row'),
+              inputKey: const ValueKey('food-db-pending-used-amount'),
+              controller: _pendingUsedAmountController,
+              label:
+                  'USED AMOUNT (${FoodNutritionFormatter.quantityUnit(_catalogSourceUnit(pending.value as FoodCatalogEntry))})',
+              onChanged: (_) => setState(() => inputError = null),
+              incrementKey: const ValueKey('food-db-used-amount-increment'),
+              incrementTooltip: 'Increase used amount',
+              onIncrement: () => _adjustPendingUsedAmount(1),
+              decrementKey: const ValueKey('food-db-used-amount-decrement'),
+              decrementTooltip: 'Decrease used amount',
+              onDecrement: () => _adjustPendingUsedAmount(-1),
+            ),
+            AppSpacing.gapSM,
+          ],
           FoodNumericStepperRow(
             key: const ValueKey('food-db-quantity-stepper-row'),
             inputKey: const ValueKey('food-db-pending-quantity'),
             controller: _pendingQuantityController,
-            label: 'Quantity',
+            label: pending.value is FoodCatalogEntry ? 'QUANTITY' : 'Quantity',
             onChanged: (_) => setState(() => inputError = null),
             incrementKey: const ValueKey('food-db-quantity-increment'),
             incrementTooltip: 'Increase quantity',
@@ -1974,11 +2246,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final editable = recipe != null || item.hasMeasuredAmount;
     final isRecipe = recipe != null;
     final unit = isRecipe ? FoodQuantityUnit.serving : _sourceUnit(index);
-    final sourceBase = !editable
-        ? null
-        : isRecipe
-        ? 1.0
-        : _sourceBaseAmount(index);
     final usedAmount = double.tryParse(_mealItemUsedAmountController.text);
     final quantity = double.tryParse(_mealItemQuantityController.text);
     final candidate = editable ? _editedMealItem() : null;
@@ -2059,10 +2326,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
             ),
             AppSpacing.gapXS,
             Text(
-              'BASIS  ${_formatAmount(sourceBase!)}'
-              '${FoodNutritionFormatter.quantityUnit(unit)} × '
-              '${quantity == null ? '—' : _formatAmount(quantity)} = '
-              '${usedAmount == null ? '—' : _formatAmount(usedAmount)}'
+              'USED  ${usedAmount == null ? '—' : _formatAmount(usedAmount)}'
+              '${FoodNutritionFormatter.quantityUnit(unit)} / '
+              'QUANTITY  ${quantity == null ? '—' : _formatAmount(quantity)}'
               '${FoodNutritionFormatter.quantityUnit(unit)}',
               key: const ValueKey('meal-item-edit-basis'),
               style: Theme.of(context).textTheme.bodySmall,
