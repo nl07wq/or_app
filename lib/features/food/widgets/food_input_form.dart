@@ -145,7 +145,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
   FoodQuantityUnit? packageUnit;
 
   int? _mealItemEditingIndex;
-  bool _syncingMealItemEdit = false;
   String? _mealItemEditError;
   bool isWaterEntry = false;
   String? inputError;
@@ -590,13 +589,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     });
   }
 
-  double _sourceBaseAmount(int index) => items[index].baseAmount!;
-
   FoodQuantityUnit _sourceUnit(int index) => _catalogSources[index] == null
       ? _quantityUnits[index]
       : _catalogSourceUnit(_catalogSources[index]!);
-
-  double _nutritionBasisAmount(int index) => items[index].baseAmount!;
 
   void _setMealItemEditText(TextEditingController controller, double value) {
     final text = _formatAmount(value);
@@ -631,7 +626,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _changeMealItemUsedAmount(String text) {
-    if (_syncingMealItemEdit) return;
     final index = _mealItemEditingIndex;
     final usedAmount = double.tryParse(text.trim());
     if (index == null ||
@@ -645,7 +639,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _changeMealItemQuantity(String text) {
-    if (_syncingMealItemEdit) return;
     final index = _mealItemEditingIndex;
     final quantity = double.tryParse(text.trim());
     if (index == null ||
