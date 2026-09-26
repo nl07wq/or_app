@@ -9,9 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
-import 'package:or_app/features/system/pages/cat_trace_decomposition_poc.dart';
-import 'package:or_app/features/system/pages/cat_trace_motion_poc.dart';
-import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
@@ -108,528 +105,6 @@ void main() {
     expect(find.byKey(const ValueKey('pixel-lab-empty-state')), findsOneWidget);
     expect(find.text('NO ASSET SELECTED'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets(
-    'CAT TRACE PIPELINE POC is a static sandbox-only Bezier preview',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('cat-trace-poc-section')),
-        300,
-      );
-      expect(find.text('CAT TRACE PIPELINE POC'), findsOneWidget);
-      final canvas = find.byKey(const ValueKey('cat-trace-poc-canvas'));
-      expect(canvas, findsOneWidget);
-      expect(tester.getSize(canvas).height, 190);
-      expect(tester.getSize(canvas).width, greaterThan(200));
-      expect(
-        tester.widget<CustomPaint>(canvas).painter,
-        isA<CatTracePocPainter>(),
-      );
-      for (final key in [
-        'cat-trace-poc-reconstructed',
-        'cat-trace-poc-high',
-        'cat-trace-poc-medium',
-        'cat-trace-poc-low',
-        'cat-trace-poc-scale-1',
-        'cat-trace-poc-scale-2',
-        'cat-trace-poc-scale-4',
-      ]) {
-        expect(find.byKey(ValueKey(key)), findsOneWidget);
-      }
-      final high = find.byKey(const ValueKey('cat-trace-poc-high'));
-      await tester.scrollUntilVisible(high, 300);
-      await tester.tap(high);
-      await tester.pump();
-      final tracePainter = tester.widget<CustomPaint>(canvas).painter!;
-      expect(tracePainter, isA<CatTraceVectorPainter>());
-      expect(find.textContaining('HIGH · RDP 1.5px'), findsOneWidget);
-      final scale = find.byKey(const ValueKey('cat-trace-poc-scale-4'));
-      await tester.scrollUntilVisible(scale, 300);
-      await tester.tap(scale);
-      await tester.pump();
-      expect(
-        (tester.widget<CustomPaint>(canvas).painter! as CatTraceVectorPainter)
-            .presentationScale,
-        4,
-      );
-      expect(
-        find.textContaining('Production Wildlife is not connected'),
-        findsWidgets,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  test('CAT TRACE POC preserves broad supplied-silhouette contour cues', () {
-    final fidelity = catTracePocFidelity;
-    expect(fidelity.headToBodyLength, inInclusiveRange(.16, .22));
-    expect(fidelity.bodyDepthToLength, inInclusiveRange(.28, .38));
-    expect(fidelity.tailReachPastPelvis, inInclusiveRange(.25, .36));
-    expect(fidelity.curveSegmentCount, greaterThanOrEqualTo(20));
-    expect(
-      fidelity.referenceFeatures,
-      containsAll({
-        'shortMuzzle',
-        'pairedEars',
-        'lowDorsalLine',
-        'raisedTaperedTail',
-        'articulatedForeleg',
-        'articulatedHindLeg',
-      }),
-    );
-  });
-
-  test(
-    'CAT TRACE POC vector levels derive monotonically from one raw contour',
-    () {
-      const report = catTraceSourceReport;
-      final levels = generatedCatTraceVectorLevels;
-      expect(report.sourceWidth, 1280);
-      expect(report.sourceHeight, 640);
-      expect(report.luminanceThreshold, 128);
-      expect(report.openingKernel, 3);
-      expect(report.rawContourPointCount, 5480);
-      expect(
-        levels.map((level) => level.tolerance),
-        orderedEquals([1.5, 4, 9]),
-      );
-      expect(
-        levels.map((level) => level.sourcePointCount),
-        orderedEquals([151, 85, 58]),
-      );
-      expect(levels[0].iou, greaterThan(levels[1].iou));
-      expect(levels[1].iou, greaterThan(levels[2].iou));
-      expect(levels.every((level) => level.disagreement < .06), isTrue);
-      for (final level in levels) {
-        expect(level.points, isNotEmpty);
-        expect(
-          level.points.every((point) => point.dx.isFinite && point.dy.isFinite),
-          isTrue,
-        );
-        expect(
-          level.points.every((point) => point.dx >= 0 && point.dy >= 0),
-          isTrue,
-        );
-        expect(
-          level.points.every((point) => point.dx <= 1 && point.dy <= 1),
-          isTrue,
-        );
-      }
-    },
-  );
-
-  test('CAT TRACE decomposition preserves TRACE MEDIUM in neutral', () {
-    final decomposition = CatTraceDecomposition.medium();
-    final canonicalMedium = generatedCatTraceVectorLevels[1];
-    expect(decomposition.sourceLevel, same(canonicalMedium));
-    expect(decomposition.sourceLevel.sourcePointCount, 85);
-    expect(decomposition.components, hasLength(7));
-    expect(
-      decomposition.components.map((component) => component.id),
-      orderedEquals([
-        CatTraceComponentId.headNeck,
-        CatTraceComponentId.torso,
-        CatTraceComponentId.forelegNear,
-        CatTraceComponentId.forelegFar,
-        CatTraceComponentId.hindLegFar,
-        CatTraceComponentId.hindLegNear,
-        CatTraceComponentId.tail,
-      ]),
-    );
-
-    final torso = decomposition.components.singleWhere(
-      (component) => component.id == CatTraceComponentId.torso,
-    );
-    for (final component in decomposition.components) {
-      expect(
-        component.pivot.dx.isFinite && component.pivot.dy.isFinite,
-        isTrue,
-      );
-      expect(component.hiddenRootZone.width, greaterThan(0));
-      expect(component.hiddenRootZone.height, greaterThan(0));
-      expect(component.neutralTransform.translation, Offset.zero);
-      expect(component.neutralTransform.rotationRadians, 0);
-      expect(component.neutralTransform.scale, 1);
-      expect(
-        component.visibleContourRanges.every(
-          (range) =>
-              range.startInclusive >= 0 &&
-              range.endInclusive < decomposition.sourceLevel.sourcePointCount &&
-              range.startInclusive <= range.endInclusive,
-        ),
-        isTrue,
-      );
-      expect(
-        component.pathFrom(decomposition.originalPath()).getBounds().isEmpty,
-        isFalse,
-      );
-    }
-    for (final id in [
-      CatTraceComponentId.forelegNear,
-      CatTraceComponentId.forelegFar,
-      CatTraceComponentId.hindLegNear,
-      CatTraceComponentId.hindLegFar,
-      CatTraceComponentId.tail,
-    ]) {
-      final component = decomposition.components.singleWhere(
-        (candidate) => candidate.id == id,
-      );
-      expect(component.hiddenRootZone.overlaps(torso.hiddenRootZone), isTrue);
-      expect(component.parent, CatTraceComponentId.torso);
-      expect(component.visibleContourRanges, isNotEmpty);
-    }
-
-    final metrics = decomposition.measure(width: 256, height: 128);
-    expect(metrics.iou, greaterThanOrEqualTo(.99));
-    expect(metrics.iou, greaterThanOrEqualTo(.995));
-    expect(metrics.disagreement, lessThan(.005));
-    expect(metrics.iou, closeTo(.9998342175, .000000001));
-    expect(metrics.disagreement, closeTo(.0000305176, .000000001));
-    expect(metrics.originalPixels, greaterThan(0));
-    expect(metrics.reconstructedPixels, greaterThan(0));
-  });
-
-  test('CAT TRACE articulation is deterministic and retains root overlap', () {
-    final decomposition = CatTraceDecomposition.medium();
-    final original = decomposition.originalPath();
-    const baselineIou = .9998342175;
-    const baselineDisagreement = .0000305176;
-
-    for (final target in CatTraceArticulationTarget.values) {
-      expect(target.pivot.dx.isFinite && target.pivot.dy.isFinite, isTrue);
-      expect(target.maximumAngleDegrees, greaterThan(0));
-      for (final position in CatTraceArticulationPosition.values) {
-        final pose = CatTraceArticulationPose(
-          target: target,
-          position: position,
-        );
-        expect(
-          pose.angleDegrees,
-          target.maximumAngleDegrees * position.multiplier,
-        );
-        final component = decomposition.components.singleWhere(
-          (candidate) => candidate.id == target.componentId,
-        );
-        final transformed = pose.componentPath(
-          component: component,
-          original: original,
-        );
-        final bounds = transformed.getBounds();
-        expect(
-          [
-            bounds.left,
-            bounds.top,
-            bounds.right,
-            bounds.bottom,
-          ].every((value) => value.isFinite),
-          isTrue,
-        );
-        expect(
-          CatTraceArticulationIntegrity.fromPose(
-            decomposition: decomposition,
-            pose: pose,
-          ).isStructurallyValid,
-          isTrue,
-        );
-      }
-    }
-
-    const neutral = CatTraceArticulationPose(
-      target: CatTraceArticulationTarget.foreNear,
-      position: CatTraceArticulationPosition.neutral,
-    );
-    final component = decomposition.components.singleWhere(
-      (candidate) => candidate.id == neutral.target.componentId,
-    );
-    expect(
-      neutral
-          .componentPath(component: component, original: original)
-          .getBounds(),
-      component.pathFrom(original).getBounds(),
-    );
-    final roundTrip = decomposition.measure(width: 256, height: 128);
-    expect(roundTrip.iou, closeTo(baselineIou, .000000001));
-    expect(roundTrip.disagreement, closeTo(baselineDisagreement, .000000001));
-  });
-
-  test('CAT TRACE motion preserves canonical C and is cyclic', () {
-    final motion = CatTraceMotionPoc();
-    expect(motion.decomposition.sourceLevel.sourcePointCount, 85);
-    final neutral = motion.canonicalNeutralPath();
-    final metrics = CatTraceReconstructionMetrics.fromPaths(
-      original: motion.originalPath(),
-      reconstructed: neutral,
-      width: 256,
-      height: 128,
-    );
-    expect(metrics.iou, greaterThanOrEqualTo(.99));
-    expect(metrics.iou, greaterThanOrEqualTo(.995));
-    expect(metrics.disagreement, lessThan(.005));
-
-    final first = CatTraceMotionSample.at(0);
-    final last = CatTraceMotionSample.at(1);
-    expect(first.foreNearUpper, closeTo(last.foreNearUpper, .000000001));
-    expect(first.hindNearLower, closeTo(last.hindNearLower, .000000001));
-    expect(first.tailTip, closeTo(last.tailTip, .000000001));
-    expect(first.torsoOffsetY, closeTo(last.torsoOffsetY, .000000001));
-
-    final originalBounds = motion.originalPath().getBounds();
-    for (final phase in [0.0, .1, .25, .5, .75, .9]) {
-      final sample = CatTraceMotionSample.at(phase);
-      expect(
-        CatTraceMotionIntegrity.fromSample(
-          motion: motion,
-          sample: sample,
-        ).isStructurallyValid,
-        isTrue,
-      );
-      final paths = motion.pathsFor(sample);
-      expect(paths.length, CatTraceMotionSegment.values.length);
-      for (final path in paths.values) {
-        final bounds = path.getBounds();
-        expect(
-          [
-            bounds.left,
-            bounds.top,
-            bounds.right,
-            bounds.bottom,
-          ].every((value) => value.isFinite),
-          isTrue,
-        );
-      }
-    }
-    expect(motion.originalPath().getBounds(), originalBounds);
-    final reach = CatTraceMotionSample.at(.25);
-    final push = CatTraceMotionSample.at(.75);
-    expect(reach.foreNearUpper.sign, isNot(push.foreNearUpper.sign));
-    expect(reach.foreNearUpper, isNot(reach.foreFarUpper));
-  });
-
-  testWidgets('CAT TRACE decomposition exposes C/C′ static comparison modes', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 1600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('cat-trace-poc-section')),
-      300,
-    );
-    for (final key in [
-      'cat-trace-poc-decomposed',
-      'cat-trace-poc-overlay',
-      'cat-trace-poc-diff',
-    ]) {
-      expect(find.byKey(ValueKey(key)), findsOneWidget);
-    }
-    final decomposed = find.byKey(const ValueKey('cat-trace-poc-decomposed'));
-    await tester.scrollUntilVisible(decomposed, 300);
-    await tester.tap(decomposed);
-    await tester.pump();
-    final canvas = find.byKey(const ValueKey('cat-trace-poc-canvas'));
-    expect(
-      tester.widget<CustomPaint>(canvas).painter,
-      isA<CatTraceDecompositionPainter>(),
-    );
-    expect(find.textContaining("C vs C' · IoU"), findsOneWidget);
-    for (final key in [
-      'cat-trace-poc-scale-1',
-      'cat-trace-poc-scale-2',
-      'cat-trace-poc-scale-4',
-    ]) {
-      final scaleControl = find.byKey(ValueKey(key));
-      await tester.scrollUntilVisible(scaleControl, 300);
-      await tester.tap(scaleControl);
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-    }
-  });
-
-  testWidgets('CAT TRACE articulation controls are static and resettable', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 1600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('cat-trace-articulation-poc-section')),
-      350,
-    );
-    final canvas = find.byKey(const ValueKey('cat-trace-articulation-canvas'));
-    expect(canvas, findsOneWidget);
-    for (final key in [
-      'cat-trace-articulation-foreNear',
-      'cat-trace-articulation-hindNear',
-      'cat-trace-articulation-tail',
-      'cat-trace-articulation-headNeck',
-      'cat-trace-articulation-min',
-      'cat-trace-articulation-neutral',
-      'cat-trace-articulation-max',
-      'cat-trace-articulation-reset',
-      'cat-trace-articulation-normal',
-      'cat-trace-articulation-rootPivot',
-      'cat-trace-articulation-seamOverlap',
-      'cat-trace-articulation-scale-1',
-      'cat-trace-articulation-scale-2',
-      'cat-trace-articulation-scale-4',
-    ]) {
-      expect(find.byKey(ValueKey(key)), findsOneWidget);
-    }
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
-    await tester.pump();
-    for (final key in [
-      'cat-trace-articulation-tail',
-      'cat-trace-articulation-max',
-      'cat-trace-articulation-rootPivot',
-      'cat-trace-articulation-scale-4',
-      'cat-trace-articulation-reset',
-    ]) {
-      final control = find.byKey(ValueKey(key));
-      await tester.ensureVisible(control);
-      await tester.tap(control);
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-    }
-    expect(
-      tester.widget<CustomPaint>(canvas).painter,
-      isA<CatTraceArticulationPainter>(),
-    );
-    expect(find.textContaining('FORE NEAR · 0°'), findsOneWidget);
-  });
-
-  testWidgets('CAT TRACE motion controls animate and reset deterministically', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 2600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('cat-trace-motion-poc-section')),
-      350,
-    );
-    final canvas = find.byKey(const ValueKey('cat-trace-motion-canvas'));
-    expect(canvas, findsOneWidget);
-    for (final key in [
-      'cat-trace-motion-play-pause',
-      'cat-trace-motion-neutral',
-      'cat-trace-motion-speed-0.5',
-      'cat-trace-motion-speed-1.0',
-      'cat-trace-motion-scale-1',
-      'cat-trace-motion-scale-2',
-      'cat-trace-motion-scale-4',
-      'cat-trace-motion-normal',
-      'cat-trace-motion-joints',
-      'cat-trace-motion-seamOverlap',
-    ]) {
-      expect(find.byKey(ValueKey(key)), findsOneWidget);
-    }
-    for (final key in [
-      'cat-trace-motion-play-pause',
-      'cat-trace-motion-speed-0.5',
-      'cat-trace-motion-scale-4',
-      'cat-trace-motion-joints',
-      'cat-trace-motion-neutral',
-    ]) {
-      final control = find.byKey(ValueKey(key));
-      await tester.ensureVisible(control);
-      await tester.pump();
-      await tester.tap(control);
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.takeException(), isNull);
-    }
-    expect(
-      tester.widget<CustomPaint>(canvas).painter,
-      isA<CatTraceMotionPainter>(),
-    );
-    expect(find.textContaining('NEUTRAL · ROOT OVERLAP OK'), findsOneWidget);
-  });
-
-  testWidgets(
-    'CAT TRACE POC comparison controls remain usable at narrow widths',
-    (tester) async {
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      for (final width in [320.0, 390.0, 900.0]) {
-        tester.view.physicalSize = Size(width, 1800);
-        tester.view.devicePixelRatio = 1;
-        await tester.pumpWidget(
-          const MaterialApp(home: AnimationsSandboxPage()),
-        );
-        await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('cat-trace-poc-section')),
-          300,
-        );
-        expect(
-          find.byKey(const ValueKey('cat-trace-poc-canvas')),
-          findsOneWidget,
-        );
-        expect(find.byKey(const ValueKey('cat-trace-poc-low')), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      }
-    },
-  );
-
-  testWidgets('CAT TRACE articulation controls remain usable responsively', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    for (final width in [320.0, 390.0, 900.0]) {
-      tester.view.physicalSize = Size(width, 2600);
-      tester.view.devicePixelRatio = 1;
-      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('cat-trace-articulation-poc-section')),
-        350,
-      );
-      expect(
-        find.byKey(const ValueKey('cat-trace-articulation-canvas')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('cat-trace-articulation-reset')),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-    }
-  });
-
-  testWidgets('CAT TRACE motion controls remain usable responsively', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    for (final width in [320.0, 390.0, 900.0]) {
-      tester.view.physicalSize = Size(width, 3000);
-      tester.view.devicePixelRatio = 1;
-      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('cat-trace-motion-poc-section')),
-        350,
-      );
-      expect(
-        find.byKey(const ValueKey('cat-trace-motion-canvas')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('cat-trace-motion-play-pause')),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-    }
   });
 
   testWidgets(
@@ -3380,8 +2855,20 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final disclosure = find.byKey(
+      const ValueKey('cat-run-v2-audit-disclosure'),
+    );
+    expect(disclosure, findsOneWidget);
+    await tester.scrollUntilVisible(
+      disclosure,
+      350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+    await tester.pump();
     final section = find.byKey(const ValueKey('cat-run-v2-poc'));
-    await tester.scrollUntilVisible(section, 350);
+    expect(section, findsOneWidget);
     expect(find.byKey(const ValueKey('cat-run-v2-canvas')), findsOneWidget);
     expect(
       find.text(
@@ -3392,6 +2879,13 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('cat-run-v2-frame-10')));
+    await tester.pump();
+    expect(find.textContaining('HIGH FRAME 10'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
     await tester.pump();
     expect(find.textContaining('HIGH FRAME 10'), findsOneWidget);
 
@@ -3411,6 +2905,34 @@ void main() {
     }
   });
 
+  testWidgets(
+    'SANDBOX removes retired CAT POCs and keeps current audit and BAT surfaces',
+    (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+
+      for (final title in [
+        'CAT TRACE PIPELINE POC',
+        'CAT ARTICULATION POC',
+        'CAT TRACE MOTION POC',
+        'CAT MULTI-POSE TRACE RUN POC',
+      ]) {
+        expect(find.text(title), findsNothing);
+      }
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v2-audit-disclosure')),
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('CAT RUN V2 — SEQUENTIAL HIGH VECTOR'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v23-production-preview')),
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('CAT RUN V2.10 — PRODUCTION PREVIEW'), findsOneWidget);
+    },
+  );
+
   testWidgets('CAT RUN V2 controls remain accessible at 320, 390, and 900', (
     tester,
   ) async {
@@ -3421,11 +2943,18 @@ void main() {
       tester.view.devicePixelRatio = 1;
       await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
       await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('cat-run-v2-poc')),
+        find.byKey(const ValueKey('cat-run-v2-audit-disclosure')),
         350,
+        scrollable: find.byType(Scrollable).first,
       );
+      expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+      await tester.pump();
       expect(find.byKey(const ValueKey('cat-run-v2-frame-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('cat-run-v2-scale-4')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
       expect(tester.takeException(), isNull);
     }
   });
@@ -3441,7 +2970,11 @@ void main() {
       final section = find.byKey(
         const ValueKey('cat-run-v23-production-preview'),
       );
-      await tester.scrollUntilVisible(section, 350);
+      await tester.scrollUntilVisible(
+        section,
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
       final stage = find.byKey(const ValueKey('cat-run-v23-stage'));
       expect(stage, findsOneWidget);
       expect(tester.getSize(stage).height, 48);
@@ -3506,6 +3039,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('cat-run-v23-production-preview')),
         350,
+        scrollable: find.byType(Scrollable).first,
       );
       expect(find.byKey(const ValueKey('cat-run-v23-stage')), findsOneWidget);
       expect(

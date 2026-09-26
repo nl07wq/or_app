@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/section_header.dart';
 import 'cat_run_v2_registration.dart';
 import 'cat_run_v2_trace_data.dart';
 
@@ -21,6 +20,7 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
   var _playing = false;
   var _speed = 1.0;
   var _scale = 1;
+  var _expanded = false;
   int? _manualFrame;
 
   @override
@@ -77,85 +77,114 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader(
-          icon: Icons.directions_run,
-          title: 'CAT RUN V2 — SEQUENTIAL HIGH VECTOR',
-        ),
-        AppSpacing.gapSM,
         OperationCard(
-          key: const ValueKey('cat-run-v2-poc'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: 190,
-                child: CustomPaint(
-                  key: const ValueKey('cat-run-v2-canvas'),
-                  painter: _CatRunV2Painter(registeredPoints, _scale),
-                ),
-              ),
-              AppSpacing.gapSM,
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+          key: const ValueKey('cat-run-v2-audit-disclosure'),
+          child: InkWell(
+            key: const ValueKey('cat-run-v2-toggle'),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
                 children: [
-                  for (var i = 0; i < 10; i++)
-                    OutlinedButton(
-                      key: ValueKey('cat-run-v2-frame-${i + 1}'),
-                      onPressed: () => setState(() {
-                        _playing = false;
-                        _controller.stop();
-                        _manualFrame = i;
-                      }),
-                      child: Text(
-                        'FRAME ${(i + 1).toString().padLeft(2, '0')}',
-                      ),
+                  const Icon(Icons.directions_run),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('CAT RUN V2 — SEQUENTIAL HIGH VECTOR'),
+                        Text('SOURCE / FRAME AUDIT'),
+                      ],
                     ),
-                ],
-              ),
-              AppSpacing.gapSM,
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton(
-                    key: const ValueKey('cat-run-v2-play'),
-                    onPressed: _playPause,
-                    child: Text(_playing ? 'PAUSE' : 'PLAY'),
                   ),
-                  for (final speed in [0.5, 1.0])
-                    OutlinedButton(
-                      key: ValueKey('cat-run-v2-speed-$speed'),
-                      onPressed: () => _setSpeed(speed),
-                      child: Text('$speed×'),
-                    ),
-                  for (final scale in [1, 2, 4])
-                    OutlinedButton(
-                      key: ValueKey('cat-run-v2-scale-$scale'),
-                      onPressed: () => setState(() => _scale = scale),
-                      child: Text('$scale×'),
-                    ),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    semanticLabel: _expanded
+                        ? 'Collapse source and frame audit'
+                        : 'Expand source and frame audit',
+                  ),
                 ],
               ),
-              AppSpacing.gapSM,
-              Text(
-                'HIGH FRAME ${trace.pose.toString().padLeft(2, '0')} · '
-                '${trace.pointCount} points · '
-                'IoU ${(trace.iou * 100).toStringAsFixed(2)}% · '
-                '${(frameDuration.inMilliseconds / _speed).round()}ms hold at $_speed×',
-              ),
-              Text(
-                '${registration.state.label} · uniform '
-                '${transform.uniformScale.toStringAsFixed(3)} · '
-                '${(transform.rotationRadians * 180 / math.pi).toStringAsFixed(1)}°',
-              ),
-              const Text(
-                'V2.2: SHOULDER / PELVIS / VIRTUAL GROUND · '
-                'NO MORPH / RESAMPLING / ARTICULATION',
-              ),
-            ],
+            ),
           ),
         ),
+        if (_expanded) ...[
+          AppSpacing.gapSM,
+          OperationCard(
+            key: const ValueKey('cat-run-v2-poc'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 190,
+                  child: CustomPaint(
+                    key: const ValueKey('cat-run-v2-canvas'),
+                    painter: _CatRunV2Painter(registeredPoints, _scale),
+                  ),
+                ),
+                AppSpacing.gapSM,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (var i = 0; i < 10; i++)
+                      OutlinedButton(
+                        key: ValueKey('cat-run-v2-frame-${i + 1}'),
+                        onPressed: () => setState(() {
+                          _playing = false;
+                          _controller.stop();
+                          _manualFrame = i;
+                        }),
+                        child: Text(
+                          'FRAME ${(i + 1).toString().padLeft(2, '0')}',
+                        ),
+                      ),
+                  ],
+                ),
+                AppSpacing.gapSM,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      key: const ValueKey('cat-run-v2-play'),
+                      onPressed: _playPause,
+                      child: Text(_playing ? 'PAUSE' : 'PLAY'),
+                    ),
+                    for (final speed in [0.5, 1.0])
+                      OutlinedButton(
+                        key: ValueKey('cat-run-v2-speed-$speed'),
+                        onPressed: () => _setSpeed(speed),
+                        child: Text('$speed×'),
+                      ),
+                    for (final scale in [1, 2, 4])
+                      OutlinedButton(
+                        key: ValueKey('cat-run-v2-scale-$scale'),
+                        onPressed: () => setState(() => _scale = scale),
+                        child: Text('$scale×'),
+                      ),
+                  ],
+                ),
+                AppSpacing.gapSM,
+                Text(
+                  'HIGH FRAME ${trace.pose.toString().padLeft(2, '0')} · '
+                  '${trace.pointCount} points · '
+                  'IoU ${(trace.iou * 100).toStringAsFixed(2)}% · '
+                  '${(frameDuration.inMilliseconds / _speed).round()}ms hold at $_speed×',
+                ),
+                Text(
+                  '${registration.state.label} · uniform '
+                  '${transform.uniformScale.toStringAsFixed(3)} · '
+                  '${(transform.rotationRadians * 180 / math.pi).toStringAsFixed(1)}°',
+                ),
+                const Text(
+                  'V2.2: SHOULDER / PELVIS / VIRTUAL GROUND · '
+                  'NO MORPH / RESAMPLING / ARTICULATION',
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
