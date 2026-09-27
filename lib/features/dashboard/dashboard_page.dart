@@ -1719,6 +1719,9 @@ class _ProgressCardState extends State<_ProgressCard> {
           required double progress,
           VoidCallback? onTap,
           bool fullWidth = false,
+          bool pairCell = false,
+          bool naturalVerticalLayout = false,
+          _ProgressReferenceLayout? referenceLayout,
           bool summaryStatus = false,
           bool compactTitle = false,
           DynamicTargetState? targetState,
@@ -1726,7 +1729,11 @@ class _ProgressCardState extends State<_ProgressCard> {
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
-            width: fullWidth ? constraints.maxWidth : tileWidth,
+            width: pairCell
+                ? double.infinity
+                : fullWidth
+                ? constraints.maxWidth
+                : tileWidth,
             child: _ProgressRow(
               label: label,
               status: status,
@@ -1734,134 +1741,180 @@ class _ProgressCardState extends State<_ProgressCard> {
               onTap: onTap,
               summaryStatus: summaryStatus,
               compactTitle: compactTitle,
+              naturalVerticalLayout: naturalVerticalLayout,
+              referenceLayout: referenceLayout,
               targetState: targetState,
               completion: completion,
             ),
           );
         }
 
-        return Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
-          children: [
-            tile(
-              label: 'STATUS',
-              status:
-                  completionModel?.statusCompletion.displayState ??
-                  (widget.morningFact == null ? '未完了' : '完了'),
-              progress:
-                  completionModel?.statusCompletion.isComplete == true ||
-                      (completionModel == null && widget.morningFact != null)
-                  ? 1.0
-                  : 0.0,
-              completion: completionModel?.statusCompletion,
-              summaryStatus: true,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
-            ),
-            tile(
-              label: 'FOOD',
-              status:
-                  completionModel?.foodCompletion.displayState ??
-                  '$mealCount / 3',
-              progress: completionModel?.foodCompletion.isComplete == true
-                  ? 1.0
-                  : completionModel == null
-                  ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
-                  : 0.0,
-              completion: completionModel?.foodCompletion,
-              summaryStatus: true,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.food),
-            ),
-            tile(
-              label: 'CALORIES',
-              status: _rangeStatus(
+        final upperTiles = [
+          tile(
+            label: 'STATUS',
+            status:
+                completionModel?.statusCompletion.displayState ??
+                (widget.morningFact == null ? '未完了' : '完了'),
+            progress:
+                completionModel?.statusCompletion.isComplete == true ||
+                    (completionModel == null && widget.morningFact != null)
+                ? 1.0
+                : 0.0,
+            completion: completionModel?.statusCompletion,
+            summaryStatus: true,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
+          ),
+          tile(
+            label: 'FOOD',
+            status:
+                completionModel?.foodCompletion.displayState ??
+                '$mealCount / 3',
+            progress: completionModel?.foodCompletion.isComplete == true
+                ? 1.0
+                : completionModel == null
+                ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
+                : 0.0,
+            completion: completionModel?.foodCompletion,
+            summaryStatus: true,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.food),
+          ),
+          tile(
+            label: 'CALORIES',
+            status: _rangeStatus(
+              targets?.calories,
+              unit: 'kcal',
+              displayTarget: DynamicDailyTargetPresentation.caloriesTargetKcal(
                 targets?.calories,
-                unit: 'kcal',
-                displayTarget:
-                    DynamicDailyTargetPresentation.caloriesTargetKcal(
-                      targets?.calories,
-                    ),
-                formatCurrent: _formatIntegerValue,
-                fallbackCurrent: foodSummaryAvailable ? calories : null,
               ),
-              progress: _rangeProgress(targets?.calories),
-              targetState: targets?.calories.state,
+              formatCurrent: _formatIntegerValue,
+              fallbackCurrent: foodSummaryAvailable ? calories : null,
             ),
-            tile(
-              label: 'PROTEIN',
-              status: _rangeStatus(
+            progress: _rangeProgress(targets?.calories),
+            targetState: targets?.calories.state,
+          ),
+          tile(
+            label: 'PROTEIN',
+            status: _rangeStatus(
+              targets?.protein,
+              unit: 'g',
+              displayTarget: DynamicDailyTargetPresentation.proteinTargetG(
                 targets?.protein,
-                unit: 'g',
-                displayTarget: DynamicDailyTargetPresentation.proteinTargetG(
-                  targets?.protein,
-                ),
-                formatCurrent: _formatProtein,
-                fallbackCurrent: foodSummaryAvailable ? protein : null,
               ),
-              progress: _rangeProgress(targets?.protein),
-              targetState: targets?.protein.state,
+              formatCurrent: _formatProtein,
+              fallbackCurrent: foodSummaryAvailable ? protein : null,
             ),
-            tile(
-              label: 'WATER',
-              status: _waterStatus(
-                targets?.water,
-                fallbackCurrent: widget.foodSummary?.waterRecorded == true
-                    ? hydrationMl
-                    : null,
+            progress: _rangeProgress(targets?.protein),
+            targetState: targets?.protein.state,
+          ),
+        ];
+
+        final waterStatus = _waterStatus(
+          targets?.water,
+          fallbackCurrent: widget.foodSummary?.waterRecorded == true
+              ? hydrationMl
+              : null,
+        );
+        final activityStatus =
+            completionModel?.activityCompletion.displayState ??
+            (widget.activitySummary.isRecorded ? 'COMPLETE' : 'NOT RECORDED');
+
+        final waterTile = tile(
+          label: 'WATER',
+          status: waterStatus,
+          progress: _waterProgress(targets?.water),
+          targetState: targets?.water.state,
+          pairCell: true,
+          naturalVerticalLayout: true,
+          onTap: widget.onWaterTap,
+        );
+        final trainingTile = tile(
+          label: 'TRAINING',
+          status: widget.trainingSummary?.completed == true
+              ? 'COMPLETE'
+              : 'NOT RECORDED',
+          progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
+          summaryStatus: true,
+          pairCell: true,
+          naturalVerticalLayout: true,
+          referenceLayout: _ProgressReferenceLayout(
+            title: 'WATER',
+            status: waterStatus,
+            includesQuickAdd: true,
+          ),
+          completion:
+              completionModel?.trainingCompletion ??
+              DailyCommandCompletionItem(
+                label: 'TRAINING',
+                state: widget.trainingSummary?.completed == true
+                    ? DailyCommandModuleState.recorded
+                    : DailyCommandModuleState.optionalMissing,
+                missingRequirements: const [],
               ),
-              progress: _waterProgress(targets?.water),
-              targetState: targets?.water.state,
-              onTap: widget.onWaterTap,
-            ),
-            tile(
-              label: 'TRAINING',
-              status: widget.trainingSummary?.completed == true
-                  ? 'COMPLETE'
-                  : 'NOT RECORDED',
-              progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
-              summaryStatus: true,
-              completion:
-                  completionModel?.trainingCompletion ??
-                  DailyCommandCompletionItem(
-                    label: 'TRAINING',
-                    state: widget.trainingSummary?.completed == true
-                        ? DailyCommandModuleState.recorded
-                        : DailyCommandModuleState.optionalMissing,
-                    missingRequirements: const [],
-                  ),
-              onTap: () => Navigator.pushNamed(context, AppRoutes.training),
-            ),
-            tile(
-              label: 'ACTIVITY',
-              status:
-                  completionModel?.activityCompletion.displayState ??
-                  (widget.activitySummary.isRecorded
-                      ? 'COMPLETE'
-                      : 'NOT RECORDED'),
-              progress: completionModel?.activityCompletion.isComplete == true
-                  ? 1.0
-                  : completionModel == null && widget.activitySummary.isRecorded
-                  ? 1.0
-                  : 0.0,
-              completion: completionModel?.activityCompletion,
-              summaryStatus: true,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
-            ),
-            tile(
-              label: 'BRIEF / DEBRIEF',
-              status: briefDebrief.displayState,
-              progress: briefDebrief.isComplete ? 1 : 0,
-              summaryStatus: true,
-              compactTitle: true,
-              completion: briefDebrief.completion,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => CommandCenterPage(
-                    initialSection: CommandCenterSection.briefDebrief,
-                    initialBriefDebriefTab: briefDebrief.destinationTab,
-                  ),
-                ),
+          onTap: () => Navigator.pushNamed(context, AppRoutes.training),
+        );
+        final activityTile = tile(
+          label: 'ACTIVITY',
+          status: activityStatus,
+          progress: completionModel?.activityCompletion.isComplete == true
+              ? 1.0
+              : completionModel == null && widget.activitySummary.isRecorded
+              ? 1.0
+              : 0.0,
+          completion: completionModel?.activityCompletion,
+          summaryStatus: true,
+          pairCell: true,
+          naturalVerticalLayout: true,
+          onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
+        );
+        final briefDebriefTile = tile(
+          label: 'BRIEF / DEBRIEF',
+          status: briefDebrief.displayState,
+          progress: briefDebrief.isComplete ? 1 : 0,
+          summaryStatus: true,
+          compactTitle: true,
+          pairCell: true,
+          naturalVerticalLayout: true,
+          referenceLayout: _ProgressReferenceLayout(
+            title: 'ACTIVITY',
+            status: activityStatus,
+            summaryStatus: true,
+            titleWidthReduction:
+                _ProgressStatusAnchorGeometry.statusZoneWidth -
+                (AppSpacing.md - AppSpacing.sm) * 2,
+            statusWidthReduction:
+                _ProgressStatusAnchorGeometry.statusZoneWidth -
+                (AppSpacing.md - AppSpacing.sm) * 2,
+          ),
+          completion: briefDebrief.completion,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => CommandCenterPage(
+                initialSection: CommandCenterSection.briefDebrief,
+                initialBriefDebriefTab: briefDebrief.destinationTab,
               ),
+            ),
+          ),
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
+              children: upperTiles,
+            ),
+            AppSpacing.gapMD,
+            _OperationProgressPairRow(
+              reference: waterTile,
+              target: trainingTile,
+              twoColumns: useTwoColumns,
+            ),
+            AppSpacing.gapMD,
+            _OperationProgressPairRow(
+              reference: activityTile,
+              target: briefDebriefTile,
+              twoColumns: useTwoColumns,
             ),
           ],
         );
@@ -2041,6 +2094,55 @@ abstract final class _OperationProgressSlotGeometry {
   static const statusHeight = 14.4;
 }
 
+class _ProgressReferenceLayout {
+  const _ProgressReferenceLayout({
+    required this.title,
+    required this.status,
+    this.summaryStatus = false,
+    this.includesQuickAdd = false,
+    this.titleWidthReduction = 0,
+    this.statusWidthReduction = 0,
+  });
+
+  final String title;
+  final String status;
+  final bool summaryStatus;
+  final bool includesQuickAdd;
+  final double titleWidthReduction;
+  final double statusWidthReduction;
+}
+
+class _OperationProgressPairRow extends StatelessWidget {
+  const _OperationProgressPairRow({
+    required this.reference,
+    required this.target,
+    required this.twoColumns,
+  });
+
+  final Widget reference;
+  final Widget target;
+  final bool twoColumns;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!twoColumns) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [reference, AppSpacing.gapMD, target],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: reference),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(child: target),
+      ],
+    );
+  }
+}
+
 class _ProgressRow extends StatelessWidget {
   final String label;
   final String status;
@@ -2048,6 +2150,8 @@ class _ProgressRow extends StatelessWidget {
   final VoidCallback? onTap;
   final bool summaryStatus;
   final bool compactTitle;
+  final bool naturalVerticalLayout;
+  final _ProgressReferenceLayout? referenceLayout;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
 
@@ -2058,6 +2162,8 @@ class _ProgressRow extends StatelessWidget {
     this.onTap,
     this.summaryStatus = false,
     this.compactTitle = false,
+    this.naturalVerticalLayout = false,
+    this.referenceLayout,
     this.targetState,
     this.completion,
   });
@@ -2084,79 +2190,147 @@ class _ProgressRow extends StatelessWidget {
     final progressColor = targetState == DynamicTargetState.neutral
         ? colorScheme.outline
         : semanticColor;
+    final title = compactTitle && MediaQuery.sizeOf(context).width < 390
+        ? FittedBox(
+            key: ValueKey('operation-progress-title-fit-$label'),
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              key: ValueKey('operation-progress-title-$label'),
+              maxLines: 1,
+              softWrap: false,
+              style: _OperationProgressTypography.title(context, compact: true),
+            ),
+          )
+        : Text(
+            label,
+            key: ValueKey('operation-progress-title-$label'),
+            maxLines: compactTitle ? 1 : null,
+            softWrap: !compactTitle,
+            style: _OperationProgressTypography.title(
+              context,
+              compact: compactTitle,
+            ),
+          );
+    final status = Row(
+      children: [
+        Expanded(
+          child: summaryStatus
+              ? FittedBox(
+                  key: ValueKey('operation-progress-status-fit-$label'),
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    this.status,
+                    key: ValueKey('operation-progress-status-$label'),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: _OperationProgressTypography.status(context),
+                  ),
+                )
+              : Text(
+                  this.status,
+                  key: ValueKey('operation-progress-status-$label'),
+                ),
+        ),
+        if (completion == null && onTap != null) ...[
+          SizedBox(width: AppSpacing.sm),
+          Icon(Icons.add_circle_outline, size: 18, color: colorScheme.primary),
+        ],
+      ],
+    );
+    final referenceTitle = referenceLayout == null
+        ? null
+        : Text(
+            referenceLayout!.title,
+            softWrap: true,
+            style: _OperationProgressTypography.title(context, compact: false),
+          );
+    final referenceStatus = referenceLayout == null
+        ? null
+        : Row(
+            children: [
+              Expanded(
+                child: referenceLayout!.summaryStatus
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          referenceLayout!.status,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: _OperationProgressTypography.status(context),
+                        ),
+                      )
+                    : Text(referenceLayout!.status),
+              ),
+              if (referenceLayout!.includesQuickAdd) ...[
+                SizedBox(width: AppSpacing.sm),
+                Icon(
+                  Icons.add_circle_outline,
+                  size: 18,
+                  color: colorScheme.primary,
+                ),
+              ],
+            ],
+          );
+    Widget referenceSizedSlot({
+      required Widget reference,
+      required Widget child,
+      required double widthReduction,
+    }) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final referenceWidth = (constraints.maxWidth - widthReduction).clamp(
+            0.0,
+            constraints.maxWidth,
+          );
+          return Stack(
+            children: [
+              ExcludeSemantics(
+                child: Opacity(
+                  opacity: 0,
+                  child: SizedBox(width: referenceWidth, child: reference),
+                ),
+              ),
+              Positioned(left: 0, right: 0, top: 0, child: child),
+            ],
+          );
+        },
+      );
+    }
+
+    final titleSlot = naturalVerticalLayout
+        ? referenceTitle == null
+              ? title
+              : referenceSizedSlot(
+                  reference: referenceTitle,
+                  child: title,
+                  widthReduction: referenceLayout!.titleWidthReduction,
+                )
+        : SizedBox(
+            height: _OperationProgressSlotGeometry.titleHeight,
+            child: Align(alignment: Alignment.topLeft, child: title),
+          );
+    final statusSlot = naturalVerticalLayout
+        ? referenceStatus == null
+              ? status
+              : referenceSizedSlot(
+                  reference: referenceStatus,
+                  child: status,
+                  widthReduction: referenceLayout!.statusWidthReduction,
+                )
+        : SizedBox(
+            height: _OperationProgressSlotGeometry.statusHeight,
+            child: Align(alignment: Alignment.topLeft, child: status),
+          );
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: _OperationProgressSlotGeometry.titleHeight,
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: compactTitle && MediaQuery.sizeOf(context).width < 390
-                ? FittedBox(
-                    key: ValueKey('operation-progress-title-fit-$label'),
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      label,
-                      key: ValueKey('operation-progress-title-$label'),
-                      maxLines: 1,
-                      softWrap: false,
-                      style: _OperationProgressTypography.title(
-                        context,
-                        compact: true,
-                      ),
-                    ),
-                  )
-                : Text(
-                    label,
-                    key: ValueKey('operation-progress-title-$label'),
-                    maxLines: compactTitle ? 1 : null,
-                    softWrap: !compactTitle,
-                    style: _OperationProgressTypography.title(
-                      context,
-                      compact: compactTitle,
-                    ),
-                  ),
-          ),
-        ),
+        titleSlot,
         AppSpacing.gapXS,
-        SizedBox(
-          height: _OperationProgressSlotGeometry.statusHeight,
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: Row(
-              children: [
-                Expanded(
-                  child: summaryStatus
-                      ? FittedBox(
-                          key: ValueKey('operation-progress-status-fit-$label'),
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            status,
-                            key: ValueKey('operation-progress-status-$label'),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: _OperationProgressTypography.status(context),
-                          ),
-                        )
-                      : Text(
-                          status,
-                          key: ValueKey('operation-progress-status-$label'),
-                        ),
-                ),
-                if (completion == null && onTap != null) ...[
-                  SizedBox(width: AppSpacing.sm),
-                  Icon(
-                    Icons.add_circle_outline,
-                    size: 18,
-                    color: colorScheme.primary,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
+        statusSlot,
         AppSpacing.gapXS,
         LinearProgressIndicator(
           value: progress,
@@ -2177,6 +2351,39 @@ class _ProgressRow extends StatelessWidget {
     final color = completed
         ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
         : Colors.transparent;
+    if (completion != null && referenceLayout != null) {
+      return Material(
+        color: color,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Semantics(
+              button: true,
+              label: 'Open $label',
+              child: InkWell(
+                key: ValueKey('operation-progress-body-$label'),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: content,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              bottom: 0,
+              child: SizedBox(
+                key: ValueKey('operation-progress-status-zone-$label'),
+                width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+                child: _CompletionHelpButton(completion: completion!),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (completion != null) {
       return Material(
         color: color,

@@ -15,6 +15,7 @@ import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/theme/app_text_styles.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
@@ -360,6 +361,28 @@ void main() {
     expect(header.style?.fontSize, 18);
     expect(header.style?.fontWeight, FontWeight.bold);
 
+    final progressWrap = find.descendant(
+      of: _progressTiles(),
+      matching: find.byType(Wrap),
+    );
+    expect(progressWrap, findsOneWidget);
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('WATER')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('TRAINING')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('ACTIVITY')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('BRIEF / DEBRIEF')),
+      findsNothing,
+    );
+
     final status = _tile('STATUS');
     final food = _tile('FOOD');
     final calories = _tile('CALORIES');
@@ -587,11 +610,22 @@ void main() {
           ('WATER', 'TRAINING'),
           ('ACTIVITY', 'BRIEF / DEBRIEF'),
         ]) {
+          final leftTitle = find.byKey(
+            ValueKey('operation-progress-title-${pair.$1}'),
+          );
+          final rightTitle = find.byKey(
+            ValueKey('operation-progress-title-${pair.$2}'),
+          );
           final leftStatus = find.byKey(
             ValueKey('operation-progress-status-${pair.$1}'),
           );
           final rightStatus = find.byKey(
             ValueKey('operation-progress-status-${pair.$2}'),
+          );
+          expect(
+            tester.getTopLeft(leftTitle).dy,
+            closeTo(tester.getTopLeft(rightTitle).dy, 0.1),
+            reason: '${pair.$1}/${pair.$2} title at $width',
           );
           expect(
             tester.getTopLeft(leftStatus).dy,
@@ -611,6 +645,12 @@ void main() {
             closeTo(tester.getTopLeft(rightBar).dy, 0.1),
             reason: '${pair.$1}/${pair.$2} bar at $width',
           );
+          final leftClearance =
+              tester.getRect(leftBar).top - tester.getRect(leftStatus).bottom;
+          final rightClearance =
+              tester.getRect(rightBar).top - tester.getRect(rightStatus).bottom;
+          expect(leftClearance, greaterThan(0));
+          expect(rightClearance, greaterThan(0));
         }
 
         final activityTitle = tester.widget<Text>(
@@ -2672,9 +2712,15 @@ void main() {
       tester.getTopLeft(_tile('STATUS')).dy,
       tester.getTopLeft(_tile('FOOD')).dy,
     );
+    final expectedPairCellWidth =
+        (tester.getSize(_progressTiles()).width - AppSpacing.md) / 2;
     expect(
       tester.getSize(_tile('ACTIVITY')).width,
-      closeTo(tester.getSize(_progressTiles()).width, 0.1),
+      closeTo(expectedPairCellWidth, 0.1),
+    );
+    expect(
+      tester.getTopLeft(_tile('ACTIVITY')).dy,
+      tester.getTopLeft(_tile('BRIEF / DEBRIEF')).dy,
     );
     _expectProgressTilesFit(tester);
     expect(tester.takeException(), isNull);
