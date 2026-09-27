@@ -32,20 +32,15 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _frameDuration = const Duration(milliseconds: 80);
   var _leftToRight = true;
   var _crossingDuration = const Duration(milliseconds: 3000);
-  late final AnimationController _inPlace = AnimationController(vsync: this);
-  late final AnimationController _crossing =
-      AnimationController(vsync: this, duration: _crossingDuration)
-        ..addStatusListener((status) {
-          if (status == AnimationStatus.completed && mounted) {
-            _crossing.forward(from: 0);
-          }
-        });
+  late final AnimationController _crossing = AnimationController(
+    vsync: this,
+    duration: _crossingDuration,
+  );
   Timer? _frameTimer;
 
   @override
   void dispose() {
     _frameTimer?.cancel();
-    _inPlace.dispose();
     _crossing.dispose();
     super.dispose();
   }
@@ -57,11 +52,9 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   void _setPlayback(bool playing) {
     _frameTimer?.cancel();
     if (!playing) {
-      _inPlace.stop();
       _crossing.stop();
       return;
     }
-    _inPlace.repeat();
     _crossing.repeat();
     _frameTimer = Timer.periodic(_frameDuration, (_) {
       if (mounted) setState(() => _frame = (_frame + 1) % _frameCount);
@@ -70,6 +63,9 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
 
   void _restart() {
     setState(() => _frame = 0);
+    _crossing
+      ..stop()
+      ..value = 0;
     _setPlayback(true);
   }
 
@@ -318,10 +314,8 @@ abstract final class FoxRunV1ProductionGeometry {
     685.215,
   );
 
-  static Size get scaledCanvas => Size(
-    canvasSize.width * displayScale,
-    canvasSize.height * displayScale,
-  );
+  static Size get scaledCanvas =>
+      Size(canvasSize.width * displayScale, canvasSize.height * displayScale);
 
   static double stageGroundY(double stageHeight) => stageHeight - groundInset;
 
@@ -336,15 +330,22 @@ abstract final class FoxRunV1ProductionGeometry {
   static Rect visibleBounds({
     required double bodyCenterX,
     required double stageGroundY,
+    required bool leftToRight,
   }) {
     final image = imageTopLeft(
       bodyCenterX: bodyCenterX,
       stageGroundY: stageGroundY,
     );
+    final relativeLeft =
+        (visibleBoundsCanonical.left - bodyOrigin.dx) * displayScale;
+    final relativeRight =
+        (visibleBoundsCanonical.right - bodyOrigin.dx) * displayScale;
+    final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
+    final renderedRight = leftToRight ? relativeRight : -relativeLeft;
     return Rect.fromLTRB(
-      image.dx + visibleBoundsCanonical.left * displayScale,
+      bodyCenterX + renderedLeft,
       image.dy + visibleBoundsCanonical.top * displayScale,
-      image.dx + visibleBoundsCanonical.right * displayScale,
+      bodyCenterX + renderedRight,
       image.dy + visibleBoundsCanonical.bottom * displayScale,
     );
   }
@@ -358,11 +359,13 @@ abstract final class FoxRunV1ProductionGeometry {
         (visibleBoundsCanonical.left - bodyOrigin.dx) * displayScale;
     final relativeRight =
         (visibleBoundsCanonical.right - bodyOrigin.dx) * displayScale;
-    final start = -crossingSafetyGap - relativeRight;
-    final end = stageWidth + crossingSafetyGap - relativeLeft;
+    final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
+    final renderedRight = leftToRight ? relativeRight : -relativeLeft;
+    final leftExit = -crossingSafetyGap - renderedRight;
+    final rightExit = stageWidth + crossingSafetyGap - renderedLeft;
     return leftToRight
-        ? start + (end - start) * progress
-        : end - (end - start) * progress;
+        ? leftExit + (rightExit - leftExit) * progress
+        : rightExit - (rightExit - leftExit) * progress;
   }
 }
 
@@ -378,6 +381,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
   final bool leftToRight;
   @override
   Widget build(BuildContext context) => SizedBox(
+    key: const ValueKey('fox-run-v1-production-stage'),
     height: FoxRunV1ProductionGeometry.stageHeight,
     child: LayoutBuilder(
       builder: (context, constraints) => ClipRect(
@@ -399,6 +403,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
               ),
             ),
             AnimatedBuilder(
+              key: const ValueKey('fox-run-v1-crossing'),
               animation: crossing,
               builder: (_, child) {
                 final t = crossing.value;
@@ -428,7 +433,9 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                               2 -
                           1,
                       (FoxRunV1ProductionGeometry.bodyOrigin.dy /
-                                  FoxRunV1ProductionGeometry.canvasSize.height) *
+                                  FoxRunV1ProductionGeometry
+                                      .canvasSize
+                                      .height) *
                               2 -
                           1,
                     ),
