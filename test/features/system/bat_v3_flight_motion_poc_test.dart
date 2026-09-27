@@ -136,6 +136,53 @@ void main() {
       expect(tester.takeException(), isNull, reason: key);
     }
   });
+
+  test('Production preview crosses full width and applies flutter in screen px', () {
+    const width = 390.0;
+    expect(
+      BatV3ProductionFlight.leftFor(
+        stageWidth: width,
+        progress: 0,
+        leftToRight: true,
+      ),
+      -BatV3ProductionFlight.batWidth,
+    );
+    expect(
+      BatV3ProductionFlight.leftFor(
+        stageWidth: width,
+        progress: 1,
+        leftToRight: true,
+      ),
+      width,
+    );
+    expect(
+      BatV3ProductionFlight.leftFor(
+        stageWidth: width,
+        progress: 0,
+        leftToRight: false,
+      ),
+      width,
+    );
+    expect(
+      BatV3ProductionFlight.leftFor(
+        stageWidth: width,
+        progress: 1,
+        leftToRight: false,
+      ),
+      -BatV3ProductionFlight.batWidth,
+    );
+    const base = (BatV3ProductionFlight.stageHeight - BatV3ProductionFlight.batHeight) / 2;
+    expect(BatV3ProductionFlight.topFor(0), base);
+    expect(BatV3ProductionFlight.topFor(-2), base - 2);
+    expect(BatV3ProductionFlight.topFor(-4), base - 4);
+    expect(BatV3ProductionFlight.topFor(2), base + 2);
+    expect(BatV3ProductionFlight.topFor(4), base + 4);
+    expect(BatV3ProductionFlight.crossingDurations, const {
+      'SLOW': 5000,
+      'CURRENT': 3600,
+      'FAST': 2800,
+    });
+  });
 }
 
 Widget _host() => MaterialApp(
