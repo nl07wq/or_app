@@ -563,7 +563,7 @@ void main() {
         expect(briefTitle.data, 'BRIEF / DEBRIEF');
         expect(briefTitle.maxLines, 1);
         expect(briefTitle.softWrap, isFalse);
-        expect(briefTitle.style?.fontSize, 12);
+        expect(briefTitle.style?.fontSize, 13);
         expect(
           find.byKey(
             const ValueKey('operation-progress-title-fit-BRIEF / DEBRIEF'),

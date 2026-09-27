@@ -2022,7 +2022,7 @@ abstract final class _OperationProgressTypography {
     letterSpacing: 0,
   );
   static const compactTitle = TextStyle(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w500,
     height: 1.2,
     letterSpacing: 0,

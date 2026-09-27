@@ -492,7 +492,14 @@ class _CurrentOperationCard extends StatelessWidget {
   Widget build(BuildContext context) => OperationCard(
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 600;
+        final narrow = constraints.maxWidth < 280;
+        final groupGap = narrow ? AppSpacing.sm : AppSpacing.xl;
+        final dateGroupWidth = narrow
+            ? 138.0
+            : constraints.maxWidth < 600
+            ? 180.0
+            : 220.0;
+        final cycleGroupWidth = narrow ? 110.0 : 120.0;
         final dateGroup = Column(
           key: const ValueKey('current-operation-card-content'),
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,23 +508,27 @@ class _CurrentOperationCard extends StatelessWidget {
               key: const ValueKey('current-operation-date-group'),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Symbols.calendar_today,
-                      key: const ValueKey(
-                        'current-operation-date-heading-icon',
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Symbols.calendar_today,
+                        key: const ValueKey(
+                          'current-operation-date-heading-icon',
+                        ),
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                      size: 18,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      'OPERATION DATE',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ],
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'OPERATION DATE',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ],
+                  ),
                 ),
                 AppSpacing.gapSM,
                 OperationDatePresentationSwitcher(
@@ -592,19 +603,23 @@ class _CurrentOperationCard extends StatelessWidget {
             ),
           ],
         );
-        return compact
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [dateGroup, AppSpacing.gapMD, cycleGroup],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 6, child: dateGroup),
-                  const SizedBox(width: AppSpacing.xl),
-                  Expanded(flex: 5, child: cycleGroup),
-                ],
-              );
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            key: const ValueKey('current-operation-date-cycle-row'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Keep the date's three 42px tiles as the stable left column in
+              // both FLIP and date-only NIXIE modes. The cycle group owns the
+              // remaining width and can compact its internal labels if needed.
+              SizedBox(width: dateGroupWidth, child: dateGroup),
+              SizedBox(width: groupGap),
+              SizedBox(width: cycleGroupWidth, child: cycleGroup),
+            ],
+          ),
+        );
       },
     ),
   );

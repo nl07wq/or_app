@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
@@ -289,9 +288,10 @@ void main() {
         const Size(42, 36),
       );
     }
+    expect(tester.getTopLeft(cycleGroup).dy, tester.getTopLeft(dateGroup).dy);
     expect(
-      tester.getTopLeft(cycleGroup).dy,
-      greaterThan(tester.getTopLeft(dateGroup).dy),
+      tester.getTopLeft(cycleGroup).dx,
+      greaterThan(tester.getTopRight(dateGroup).dx),
     );
     final cycleHeadingIcon = find.byKey(
       const ValueKey('current-operation-cycle-heading-icon'),
@@ -310,8 +310,8 @@ void main() {
     );
     expect(tester.getSize(cycleValue).height, lessThan(36));
     expect(
-      tester.getTopLeft(cycleGroup).dy - tester.getBottomLeft(dateGroup).dy,
-      greaterThanOrEqualTo(AppSpacing.md),
+      tester.getTopLeft(cycleGroup).dx - tester.getTopRight(dateGroup).dx,
+      greaterThan(0),
     );
     expect(
       find.byKey(const ValueKey('dashboard-live-flip-clock')),
@@ -333,21 +333,50 @@ void main() {
         );
         final dateTopLeft = tester.getTopLeft(dateGroup);
         final cycleTopLeft = tester.getTopLeft(cycleGroup);
-        if (dateTopLeft.dy == cycleTopLeft.dy) {
-          expect(
-            cycleTopLeft.dx - tester.getTopRight(dateGroup).dx,
-            greaterThanOrEqualTo(AppSpacing.xl),
-          );
-        } else {
-          expect(
-            cycleTopLeft.dy - tester.getBottomLeft(dateGroup).dy,
-            greaterThanOrEqualTo(AppSpacing.md),
-          );
-        }
+        expect(cycleTopLeft.dy, dateTopLeft.dy);
+        expect(
+          cycleTopLeft.dx - tester.getTopRight(dateGroup).dx,
+          greaterThan(0),
+        );
         expect(tester.takeException(), isNull);
       }
     },
   );
+
+  testWidgets('date-only NIXIE keeps cycle state beside operation date', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pump(tester, width: width);
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      if (find.byType(OperationDateNixieDisplay).evaluate().isEmpty) {
+        await tester.drag(switcher, const Offset(-72, 0));
+        await tester.pump();
+        await tester.pump();
+      }
+
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      final dateGroup = find.byKey(
+        const ValueKey('current-operation-date-group'),
+      );
+      final cycleGroup = find.byKey(
+        const ValueKey('current-operation-cycle-group'),
+      );
+      expect(
+        tester.getTopLeft(cycleGroup).dy,
+        tester.getTopLeft(dateGroup).dy,
+        reason: 'side by side at $width',
+      );
+      expect(
+        tester.getTopLeft(cycleGroup).dx,
+        greaterThan(tester.getTopRight(dateGroup).dx),
+        reason: 'cycle is right of date at $width',
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   test('cycle state short labels preserve every internal state mapping', () {
     expect(cycleStateShortLabelFor(DailyCommandCycleState.standby), 'IDLE');
