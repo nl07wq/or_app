@@ -50,11 +50,12 @@ void main() {
     },
   );
 
-  test('CAT-baselined BAT preset cycle durations are explicit', () {
+  test('CAT-cycle BAT preset durations are explicit', () {
     const steps = 8;
-    expect(50 * steps, 400);
-    expect(60 * steps, 480);
-    expect(70 * steps, 560);
+    expect(80 * steps, 640);
+    expect(100 * steps, 800);
+    expect(125 * steps, 1000);
+    expect(150 * steps, 1200);
   });
 
   test(
@@ -88,7 +89,7 @@ void main() {
     },
   );
 
-  testWidgets('playback follows the direct 60ms ping-pong flap cycle', (
+  testWidgets('playback follows the direct 100ms ping-pong flap cycle', (
     tester,
   ) async {
     _useTallViewport(tester);
@@ -99,11 +100,11 @@ void main() {
     await tester.pump();
     expect(_flapPainter(tester).frame.sourceIndex, 1);
 
-    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump(const Duration(milliseconds: 100));
     expect(_flapPainter(tester).frame.sourceIndex, 2);
-    await tester.pump(const Duration(milliseconds: 180));
+    await tester.pump(const Duration(milliseconds: 300));
     expect(_flapPainter(tester).frame.sourceIndex, 5);
-    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump(const Duration(milliseconds: 100));
     expect(_flapPainter(tester).frame.sourceIndex, 4);
 
     final pause = find.byKey(const ValueKey('bat-flap-pause'));
@@ -118,16 +119,16 @@ void main() {
   ) async {
     _useTallViewport(tester);
     await tester.pumpWidget(_host());
-    final timing50 = find.byKey(const ValueKey('bat-flap-timing-50'));
+    final timing50 = find.byKey(const ValueKey('bat-flap-timing-80'));
     final restart = find.byKey(const ValueKey('bat-flap-restart'));
     final pause = find.byKey(const ValueKey('bat-flap-pause'));
-    final timing90 = find.byKey(const ValueKey('bat-flap-timing-70'));
+    final timing90 = find.byKey(const ValueKey('bat-flap-timing-150'));
     final rtl = find.byKey(const ValueKey('bat-flap-direction-rtl'));
     await tester.ensureVisible(timing50);
     await tester.tap(timing50);
     await tester.ensureVisible(restart);
     await tester.tap(restart);
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 80));
     expect(_flapPainter(tester).frame.sourceIndex, 2);
 
     await tester.ensureVisible(pause);
@@ -138,7 +139,7 @@ void main() {
     await tester.tap(rtl);
     await tester.ensureVisible(restart);
     await tester.tap(restart);
-    await tester.pump(const Duration(milliseconds: 70));
+    await tester.pump(const Duration(milliseconds: 150));
     final painter = _flapPainter(tester);
     expect(painter.frame.sourceIndex, 2);
     expect(painter.leftToRight, isFalse);

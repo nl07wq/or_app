@@ -24,7 +24,7 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
   var _sequencePosition = 0;
   var _leftToRight = true;
   var _zoom = 1;
-  var _stepMilliseconds = 60;
+  var _stepMilliseconds = 100;
   var _isPlaying = false;
   var _mode = BatSourceInspectionMode.source;
   var _crossing = false;
@@ -272,15 +272,17 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final timing in [50, 60, 70])
+            for (final timing in [80, 100, 125, 150])
               _AuditButton(
                 key: ValueKey('bat-flap-timing-$timing'),
                 label:
-                    '${timing == 50
-                        ? 'FAST'
-                        : timing == 60
+                    '${timing == 80
+                        ? 'CAT BASE'
+                        : timing == 100
                         ? 'NORMAL'
-                        : 'SLOW'} $timing ms',
+                        : timing == 125
+                        ? 'SLOW'
+                        : 'INSPECT'} $timing ms · ${timing * 8}ms cycle',
                 selected: _stepMilliseconds == timing,
                 onPressed: () => _setTiming(timing),
               ),
