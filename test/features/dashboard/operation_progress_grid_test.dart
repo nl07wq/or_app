@@ -768,7 +768,11 @@ void main() {
         const ValueKey('operation-progress-status-zone-TRAINING'),
       );
       expect(statusZone, findsOneWidget);
-      expect(tester.getSize(statusZone), const Size(48, 48));
+      expect(tester.getSize(statusZone).width, 48);
+      expect(
+        tester.getSize(statusZone).height,
+        tester.getSize(training).height,
+      );
       await tester.tapAt(tester.getCenter(statusZone));
       await _settleDashboard(tester);
       final popover = find.byKey(
