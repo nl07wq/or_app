@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
 import 'package:or_app/features/system/pages/bat_flight_motion_poc.dart';
+import 'package:or_app/features/system/pages/bat_semantic_motion.dart';
 import 'package:or_app/features/system/pages/bat_source_vector_rebuild_data.dart';
 
 void main() {
@@ -29,7 +30,7 @@ void main() {
   );
 
   test(
-    'flap cycle uses every frozen HIGH frame without endpoint hard jump',
+    'semantic motion uses all frozen keys and topology-safe intermediates',
     () {
       expect(BatSourceVectorRebuild.flapSequence, const [
         0,
@@ -45,8 +46,35 @@ void main() {
       expect(BatSourceVectorRebuild.flapSequence[4], 4);
       expect(BatSourceVectorRebuild.flapSequence[5], 3);
       expect(BatSourceVectorRebuild.flapSequence.last, 1);
-      expect(BatSourceVectorRebuild.defaultFlapStepMilliseconds, 70);
-      expect(BatSourceVectorRebuild.flapTimingPresets, const [50, 70, 90]);
+      expect(BatSemanticMotion.intermediates, hasLength(8));
+      expect(BatSemanticMotion.cycle, hasLength(24));
+      expect(
+        BatSemanticMotion.cycle
+            .where((frame) => frame.isKeyPose)
+            .map((frame) => frame.keyIndex)
+            .toSet(),
+        {0, 1, 2, 3, 4},
+      );
+      expect(
+        BatSemanticMotion.intermediates.every(
+          (frame) => frame.manualIntermediate && frame.topologySafe,
+        ),
+        isTrue,
+      );
+      expect(
+        BatSemanticMotion.keyCompositeIou.every((iou) => iou >= .97),
+        isTrue,
+      );
+      expect(
+        BatSemanticMotion.keyCompositeDisagreement.every(
+          (value) => value <= .03,
+        ),
+        isTrue,
+      );
+      expect(
+        BatMotionTiming.normal.milliseconds * BatSemanticMotion.cycle.length,
+        576,
+      );
     },
   );
 
@@ -81,7 +109,7 @@ void main() {
     },
   );
 
-  testWidgets('playback follows the discrete 70ms ping-pong flap cycle', (
+  testWidgets('playback follows the topology-safe semantic cycle', (
     tester,
   ) async {
     _useTallViewport(tester);
@@ -90,20 +118,18 @@ void main() {
     await tester.ensureVisible(restart);
     await tester.tap(restart);
     await tester.pump();
-    expect(_flapPainter(tester).frame.sourceIndex, 1);
+    expect(_motionPainter(tester).motionFrame.keyIndex, 0);
 
-    await tester.pump(const Duration(milliseconds: 70));
-    expect(_flapPainter(tester).frame.sourceIndex, 2);
-    await tester.pump(const Duration(milliseconds: 210));
-    expect(_flapPainter(tester).frame.sourceIndex, 5);
-    await tester.pump(const Duration(milliseconds: 70));
-    expect(_flapPainter(tester).frame.sourceIndex, 4);
+    await tester.pump(const Duration(milliseconds: 24));
+    expect(_motionPainter(tester).motionFrame.manualIntermediate, isTrue);
+    await tester.pump(const Duration(milliseconds: 48));
+    expect(_motionPainter(tester).motionFrame.keyIndex, 1);
 
     final pause = find.byKey(const ValueKey('bat-flap-pause'));
     await tester.ensureVisible(pause);
     await tester.tap(pause);
     await tester.pump(const Duration(milliseconds: 200));
-    expect(_flapPainter(tester).frame.sourceIndex, 4);
+    expect(_motionPainter(tester).motionFrame.keyIndex, 1);
   });
 
   testWidgets('timing presets preserve geometry, direction, and registration', (
@@ -111,17 +137,17 @@ void main() {
   ) async {
     _useTallViewport(tester);
     await tester.pumpWidget(_host());
-    final timing50 = find.byKey(const ValueKey('bat-flap-timing-50'));
+    final timing50 = find.byKey(const ValueKey('bat-flap-timing-fast'));
     final restart = find.byKey(const ValueKey('bat-flap-restart'));
     final pause = find.byKey(const ValueKey('bat-flap-pause'));
-    final timing90 = find.byKey(const ValueKey('bat-flap-timing-90'));
+    final timing90 = find.byKey(const ValueKey('bat-flap-timing-slow'));
     final rtl = find.byKey(const ValueKey('bat-flap-direction-rtl'));
     await tester.ensureVisible(timing50);
     await tester.tap(timing50);
     await tester.ensureVisible(restart);
     await tester.tap(restart);
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(_flapPainter(tester).frame.sourceIndex, 2);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(_motionPainter(tester).motionFrame.manualIntermediate, isTrue);
 
     await tester.ensureVisible(pause);
     await tester.tap(pause);
@@ -131,12 +157,11 @@ void main() {
     await tester.tap(rtl);
     await tester.ensureVisible(restart);
     await tester.tap(restart);
-    await tester.pump(const Duration(milliseconds: 90));
-    final painter = _flapPainter(tester);
-    expect(painter.frame.sourceIndex, 2);
+    await tester.pump(const Duration(milliseconds: 28));
+    final painter = _motionPainter(tester);
+    expect(painter.motionFrame.manualIntermediate, isTrue);
     expect(painter.leftToRight, isFalse);
-    expect(painter.mode, BatSourceInspectionMode.registered);
-    expect(painter.presentationPadding, const Offset(0, 180));
+    expect(painter.motionFrame.registrationTranslation.isFinite, isTrue);
   });
 
   testWidgets(
@@ -150,7 +175,7 @@ void main() {
         await tester.ensureVisible(frame);
         await tester.tap(frame);
         await tester.pump();
-        expect(_flapPainter(tester).frame.sourceIndex, index + 1);
+        expect(_motionPainter(tester).motionFrame.keyIndex, index);
       }
 
       for (final mode in BatSourceInspectionMode.values) {
@@ -162,6 +187,14 @@ void main() {
         await tester.pump();
         expect(tester.takeException(), isNull, reason: mode.name);
       }
+
+      final semanticLayer = find.byKey(
+        const ValueKey('bat-semantic-layer-nearWing'),
+      );
+      await tester.ensureVisible(semanticLayer);
+      await tester.tap(semanticLayer);
+      await tester.pump();
+      expect(_motionPainter(tester).layer, BatSemanticLayer.nearWing);
 
       expect(
         tester
@@ -228,7 +261,7 @@ void _useTallViewport(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
 }
 
-BatSourceVectorPainter _flapPainter(WidgetTester tester) =>
+BatSemanticMotionPainter _motionPainter(WidgetTester tester) =>
     tester
             .widget<CustomPaint>(
               find.descendant(
@@ -237,4 +270,4 @@ BatSourceVectorPainter _flapPainter(WidgetTester tester) =>
               ),
             )
             .painter!
-        as BatSourceVectorPainter;
+        as BatSemanticMotionPainter;

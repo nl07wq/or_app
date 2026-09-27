@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import 'bat_source_vector_rebuild_data.dart';
+import 'bat_semantic_motion.dart';
 
 /// Sandbox-only source audit and discrete flap-cycle POC. Both surfaces share
 /// the accepted HIGH vectors; playback changes only the selected frame index.
@@ -24,12 +25,15 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
   var _sequencePosition = 0;
   var _leftToRight = true;
   var _zoom = 1;
-  var _stepMilliseconds = BatSourceVectorRebuild.defaultFlapStepMilliseconds;
+  var _timing = BatMotionTiming.normal;
   var _isPlaying = false;
   var _mode = BatSourceInspectionMode.source;
+  var _semanticLayer = BatSemanticLayer.all;
 
   BatSourceVectorFrame get _frame => BatSourceVectorRebuild.frames[_frameIndex];
-  Duration get _stepDuration => Duration(milliseconds: _stepMilliseconds);
+  Duration get _stepDuration => Duration(milliseconds: _timing.milliseconds);
+  BatSemanticMotionFrame get _motionFrame =>
+      BatSemanticMotion.cycle[_sequencePosition];
 
   @override
   void dispose() {
@@ -41,7 +45,9 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
     _pause();
     setState(() {
       _frameIndex = index;
-      _sequencePosition = BatSourceVectorRebuild.flapSequence.indexOf(index);
+      _sequencePosition = BatSemanticMotion.cycle.indexWhere(
+        (motion) => motion.keyIndex == index,
+      );
     });
   }
 
@@ -64,7 +70,7 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
   void _restart() {
     _playbackTimer?.cancel();
     setState(() {
-      _frameIndex = BatSourceVectorRebuild.flapSequence.first;
+      _frameIndex = 0;
       _sequencePosition = 0;
       _isPlaying = true;
     });
@@ -79,20 +85,20 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
       }
       setState(() {
         _sequencePosition =
-            (_sequencePosition + 1) %
-            BatSourceVectorRebuild.flapSequence.length;
-        _frameIndex = BatSourceVectorRebuild.flapSequence[_sequencePosition];
+            (_sequencePosition + 1) % BatSemanticMotion.cycle.length;
+        final key = _motionFrame.keyIndex;
+        if (key != null) _frameIndex = key;
       });
     });
   }
 
-  void _setTiming(int milliseconds) {
-    if (_stepMilliseconds == milliseconds) {
+  void _setTiming(BatMotionTiming timing) {
+    if (_timing == timing) {
       return;
     }
     final resume = _isPlaying;
     _playbackTimer?.cancel();
-    setState(() => _stepMilliseconds = milliseconds);
+    setState(() => _timing = timing);
     if (resume) {
       _startTimer();
     }
@@ -190,23 +196,22 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('SEQUENTIAL HIGH VECTOR · DISCRETE REGISTERED PLAYBACK'),
+        const Text('SEMANTIC LAYER MOTION · TOPOLOGY-SAFE PLAYBACK'),
         Text(
           _isPlaying
-              ? 'PLAYING · ${_stepMilliseconds}MS / STEP'
-              : 'PAUSED · ${_stepMilliseconds}MS / STEP',
+              ? 'PLAYING · ${_timing.milliseconds}MS / STEP'
+              : 'PAUSED · ${_timing.milliseconds}MS / STEP',
           key: const ValueKey('bat-flap-playback-state'),
           style: Theme.of(context).textTheme.titleSmall,
         ),
         _selectedFrameLabel(context),
         AppSpacing.gapSM,
-        _BatVectorCanvas(
+        _BatMotionCanvas(
           keyPrefix: 'bat-flap-inspection',
-          frame: _frame,
-          mode: BatSourceInspectionMode.registered,
+          motionFrame: _motionFrame,
           leftToRight: _leftToRight,
           zoom: _zoom,
-          presentationPadding: const Offset(0, 180),
+          layer: _semanticLayer,
         ),
         AppSpacing.gapSM,
         Wrap(
@@ -235,19 +240,39 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
         ),
         AppSpacing.gapSM,
         _frameControls('bat-flap-frame'),
+        AppSpacing.gapSM,
+        const Text('SEMANTIC LAYERS · FAR WING → BODY → NEAR WING'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final layer in BatSemanticLayer.values)
+              _AuditButton(
+                key: ValueKey('bat-semantic-layer-${layer.name}'),
+                label: switch (layer) {
+                  BatSemanticLayer.all => 'ALL',
+                  BatSemanticLayer.body => 'BODY',
+                  BatSemanticLayer.nearWing => 'NEAR WING',
+                  BatSemanticLayer.farWing => 'FAR WING',
+                },
+                selected: _semanticLayer == layer,
+                onPressed: () => setState(() => _semanticLayer = layer),
+              ),
+          ],
+        ),
         AppSpacing.gapMD,
-        const Text('STEP TIMING'),
+        const Text('CYCLE TIMING'),
         AppSpacing.gapSM,
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final milliseconds in BatSourceVectorRebuild.flapTimingPresets)
+            for (final timing in BatMotionTiming.values)
               _AuditButton(
-                key: ValueKey('bat-flap-timing-$milliseconds'),
-                label: '$milliseconds ms',
-                selected: _stepMilliseconds == milliseconds,
-                onPressed: () => _setTiming(milliseconds),
+                key: ValueKey('bat-flap-timing-${timing.name}'),
+                label: '${timing.label} ${timing.milliseconds}ms',
+                selected: _timing == timing,
+                onPressed: () => _setTiming(timing),
               ),
           ],
         ),
@@ -257,16 +282,12 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
         _BodyDiagnosticPanel(frameIndex: _frameIndex),
         AppSpacing.gapMD,
         const Text('48PX ANIMATED PREVIEW'),
-        _preview48(
-          key: const ValueKey('bat-flap-production-preview'),
-          mode: BatSourceInspectionMode.registered,
-          semanticsLabel: 'Bat flap cycle using registered frozen HIGH vectors',
-          presentationPadding: const Offset(0, 180),
-        ),
+        _motionPreview48(),
         AppSpacing.gapSM,
         const Text(
-          '01 → 02 → 03 → 04 → 05 → 04 → 03 → 02. No morph, interpolation, '
-          'travel, bobbing, scheduler, or Production BAT behavior.',
+          'SOURCE HIGH keys remain frozen. Two manual semantic-layer '
+          'intermediates per transition are composited FAR WING → BODY → '
+          'NEAR WING; no single-outline interpolation or Production BAT.',
           style: TextStyle(fontSize: 12),
         ),
       ],
@@ -352,6 +373,22 @@ class _BatFlightMotionPocState extends State<BatFlightMotionPoc> {
       ),
     );
   }
+
+  Widget _motionPreview48() => Semantics(
+    label: 'Bat topology-safe semantic-layer motion at wildlife scale',
+    child: SizedBox(
+      key: const ValueKey('bat-flap-production-preview'),
+      height: 48,
+      child: CustomPaint(
+        painter: BatSemanticMotionPainter(
+          motionFrame: _motionFrame,
+          leftToRight: _leftToRight,
+          scale: 48 / BatSourceVectorRebuild.sourceCanvasSize.height,
+          layer: _semanticLayer,
+        ),
+      ),
+    ),
+  );
 }
 
 Size _presentationSize(Offset padding) {
@@ -432,7 +469,6 @@ class _BatVectorCanvas extends StatelessWidget {
     required this.mode,
     required this.leftToRight,
     required this.zoom,
-    this.presentationPadding = Offset.zero,
   });
 
   final String keyPrefix;
@@ -440,12 +476,11 @@ class _BatVectorCanvas extends StatelessWidget {
   final BatSourceInspectionMode mode;
   final bool leftToRight;
   final int zoom;
-  final Offset presentationPadding;
 
   @override
   Widget build(BuildContext context) {
     final scale = .22 * zoom;
-    final size = _presentationSize(presentationPadding);
+    final size = _presentationSize(Offset.zero);
     return SizedBox(
       height: size.height * scale + 8,
       child: SingleChildScrollView(
@@ -460,13 +495,115 @@ class _BatVectorCanvas extends StatelessWidget {
               mode: mode,
               leftToRight: leftToRight,
               scale: scale,
-              presentationPadding: presentationPadding,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+class _BatMotionCanvas extends StatelessWidget {
+  const _BatMotionCanvas({
+    required this.keyPrefix,
+    required this.motionFrame,
+    required this.leftToRight,
+    required this.zoom,
+    required this.layer,
+  });
+
+  final String keyPrefix;
+  final BatSemanticMotionFrame motionFrame;
+  final bool leftToRight;
+  final int zoom;
+  final BatSemanticLayer layer;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = .22 * zoom;
+    final size = BatSourceVectorRebuild.sourceCanvasSize;
+    return SizedBox(
+      height: size.height * scale + 8,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          key: ValueKey('$keyPrefix-$zoom'),
+          width: size.width * scale + 8,
+          height: size.height * scale + 8,
+          child: CustomPaint(
+            painter: BatSemanticMotionPainter(
+              motionFrame: motionFrame,
+              leftToRight: leftToRight,
+              scale: scale,
+              layer: layer,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BatSemanticMotionPainter extends CustomPainter {
+  const BatSemanticMotionPainter({
+    required this.motionFrame,
+    required this.leftToRight,
+    required this.scale,
+    this.layer = BatSemanticLayer.all,
+  });
+
+  final BatSemanticMotionFrame motionFrame;
+  final bool leftToRight;
+  final double scale;
+  final BatSemanticLayer layer;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF101010),
+    );
+    final renderedSize = BatSourceVectorRebuild.sourceCanvasSize * scale;
+    canvas.save();
+    canvas.translate(
+      (size.width - renderedSize.width) / 2,
+      (size.height - renderedSize.height) / 2,
+    );
+    if (!leftToRight) {
+      canvas.translate(renderedSize.width, 0);
+      canvas.scale(-1, 1);
+    }
+    canvas.scale(scale);
+    canvas.translate(
+      motionFrame.registrationTranslation.dx,
+      motionFrame.registrationTranslation.dy,
+    );
+    if (motionFrame.isKeyPose) {
+      canvas.drawPath(
+        BatSourceVectorRebuild.frames[motionFrame.keyIndex!].highVector(),
+        Paint()..color = const Color(0xFFCFD8DC),
+      );
+    } else {
+      const color = Color(0xFFCFD8DC);
+      if (layer == BatSemanticLayer.all || layer == BatSemanticLayer.farWing) {
+        canvas.drawPath(motionFrame.farWing!.path(), Paint()..color = color);
+      }
+      if (layer == BatSemanticLayer.all || layer == BatSemanticLayer.body) {
+        canvas.drawPath(motionFrame.body!.path(), Paint()..color = color);
+      }
+      if (layer == BatSemanticLayer.all || layer == BatSemanticLayer.nearWing) {
+        canvas.drawPath(motionFrame.nearWing!.path(), Paint()..color = color);
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant BatSemanticMotionPainter old) =>
+      old.motionFrame != motionFrame ||
+      old.leftToRight != leftToRight ||
+      old.scale != scale ||
+      old.layer != layer;
 }
 
 class BatSourceVectorPainter extends CustomPainter {
