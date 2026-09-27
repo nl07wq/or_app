@@ -518,19 +518,30 @@ abstract final class BatV3ProductionFlight {
   static const stageHeight = 112.0;
   static const batHeight = 48.0;
   static const batWidth = 51.0;
+  static const poseDurationMs = 60;
+  static const fullSpeedDurationMs = 2200;
+  static const halfSpeedDurationMs = 4400;
+  static const flutterAmplitude = 8;
   // Derived from the union of all five canonical silhouette bounds after the
   // 1800×1700 canvas is fitted to the 48px-class production rect. These are
   // visible pixels, not the transparent PNG/widget bounds.
   static const visibleBatMinX = 14.23;
   static const visibleBatMaxX = 45.23;
   static const entryExitGap = 3.0;
-  static const crossingDurations = <String, int>{
-    '5000MS': 5000,
-    '3600MS': 3600,
-    '2800MS': 2800,
-    '2200MS': 2200,
-    '1800MS': 1800,
-  };
+  static const instances = <BatV3ProductionInstance>[
+    BatV3ProductionInstance(phaseOffset: 0, startDelayMs: 0, formationY: 0),
+    BatV3ProductionInstance(phaseOffset: 2, startDelayMs: 180, formationY: -12),
+    BatV3ProductionInstance(phaseOffset: 5, startDelayMs: 360, formationY: 10),
+  ];
+
+  static int crossingDurationForSpeed(String speed) =>
+      speed == '0.5×' ? halfSpeedDurationMs : fullSpeedDurationMs;
+
+  static double progressFor({
+    required int elapsedMs,
+    required int durationMs,
+    required BatV3ProductionInstance instance,
+  }) => ((elapsedMs - instance.startDelayMs) / durationMs).clamp(0, 1);
 
   static double leftFor({
     required double stageWidth,
@@ -553,28 +564,40 @@ abstract final class BatV3ProductionFlight {
   }) => enabled ? BatV3SourceSet.flutterOffsets[cycleIndex] * amplitude / 4 : 0;
 }
 
+/// A deterministic, compact group formation. Delays keep every bat at the
+/// shared offscreen entry until its own flight begins; phase and Y offsets keep
+/// the visible cels from reading as a duplicated stack.
+class BatV3ProductionInstance {
+  const BatV3ProductionInstance({
+    required this.phaseOffset,
+    required this.startDelayMs,
+    required this.formationY,
+  });
+
+  final int phaseOffset;
+  final int startDelayMs;
+  final double formationY;
+}
+
 class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   Timer? _poseTicker;
   Timer? _crossingTicker;
   var _crossingElapsed = 0;
   var _cycleIndex = 0;
   var _playing = false;
-  var _timing = 100;
   var _flutterOn = true;
-  var _flutterAmplitude = 4;
   var _leftToRight = true;
-  var _speed = '3600MS';
+  var _speed = '1×';
+  var _batCount = 1;
 
   BatV3SourcePose get _pose =>
       BatV3SourceSet.poses[BatV3SourceSet.cycle[_cycleIndex]];
-  int get _crossingDuration => BatV3ProductionFlight.crossingDurations[_speed]!;
-  double get _progress =>
-      (_crossingElapsed % _crossingDuration) / _crossingDuration;
-  double get _flutterY => BatV3ProductionFlight.flutterOffset(
-    cycleIndex: _cycleIndex,
-    amplitude: _flutterAmplitude,
-    enabled: _flutterOn,
-  );
+  int get _crossingDuration =>
+      BatV3ProductionFlight.crossingDurationForSpeed(_speed);
+  List<BatV3ProductionInstance> get _instances =>
+      BatV3ProductionFlight.instances.take(_batCount).toList();
+  bool get _eventComplete =>
+      _crossingElapsed >= _crossingDuration + _instances.last.startDelayMs;
 
   @override
   void dispose() {
@@ -585,35 +608,45 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
 
   void _play() {
     if (_playing) return;
+    if (_eventComplete) {
+      _crossingElapsed = 0;
+      _cycleIndex = 0;
+    }
     setState(() => _playing = true);
     _startPoseClock();
     _crossingTicker = Timer.periodic(const Duration(milliseconds: 16), (_) {
       if (!mounted) return;
-      setState(() => _crossingElapsed += 16);
+      if (_eventComplete) {
+        _stopClocks();
+        setState(() => _playing = false);
+      } else {
+        setState(() => _crossingElapsed += 16);
+      }
     });
   }
 
   void _startPoseClock() {
     _poseTicker?.cancel();
-    _poseTicker = Timer.periodic(Duration(milliseconds: _timing), (_) {
-      if (!mounted) return;
-      setState(() {
-        _cycleIndex = (_cycleIndex + 1) % BatV3SourceSet.cycle.length;
-      });
-    });
+    _poseTicker = Timer.periodic(
+      const Duration(milliseconds: BatV3ProductionFlight.poseDurationMs),
+      (_) {
+        if (!mounted) return;
+        setState(() {
+          _cycleIndex = (_cycleIndex + 1) % BatV3SourceSet.cycle.length;
+        });
+      },
+    );
   }
 
-  void _pause() {
+  void _stopClocks() {
     _poseTicker?.cancel();
     _crossingTicker?.cancel();
     _poseTicker = null;
     _crossingTicker = null;
-    setState(() => _playing = false);
   }
 
   void _restart() {
-    _poseTicker?.cancel();
-    _crossingTicker?.cancel();
+    _stopClocks();
     setState(() {
       _crossingElapsed = 0;
       _cycleIndex = 0;
@@ -622,11 +655,22 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
     _play();
   }
 
-  void _changeTiming(int timing) {
-    setState(() => _timing = timing);
-    // Apply the new cadence immediately without resetting crossing position or
-    // the current pose. The independent pose timer is the sole scheduler.
-    if (_playing) _startPoseClock();
+  void _playOrRestart() {
+    if (_playing || _eventComplete) {
+      _restart();
+    } else {
+      _play();
+    }
+  }
+
+  void _setCount(int count) {
+    _stopClocks();
+    setState(() {
+      _batCount = count;
+      _crossingElapsed = 0;
+      _cycleIndex = 0;
+      _playing = false;
+    });
   }
 
   @override
@@ -635,7 +679,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
     children: [
       const SectionHeader(
         icon: Icons.flight_outlined,
-        title: 'BAT FLIGHT — PRODUCTION PREVIEW',
+        title: 'BAT FLIGHT — PRODUCTION PREVIEW V2',
       ),
       AppSpacing.gapSM,
       OperationCard(
@@ -644,28 +688,28 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${_pose.name} · $_timing ms · FLUTTER ${_flutterOn ? '${_flutterAmplitude}px' : 'OFF'} · $_speed · ${_leftToRight ? 'L→R' : 'R→L'}',
+              'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${BatV3ProductionFlight.poseDurationMs}ms · FLUTTER ${_flutterOn ? '${BatV3ProductionFlight.flutterAmplitude}px' : 'OFF'} · $_speed · ×$_batCount · ${_leftToRight ? 'L→R' : 'R→L'}',
               key: const ValueKey('bat-v3-production-telemetry'),
             ),
             AppSpacing.gapSM,
             _ProductionBatStage(
-              pose: _pose,
               leftToRight: _leftToRight,
-              progress: _progress,
-              flutterY: _flutterY,
+              cycleIndex: _cycleIndex,
+              crossingElapsed: _crossingElapsed,
+              crossingDuration: _crossingDuration,
+              instances: _instances,
+              flutterOn: _flutterOn,
             ),
             AppSpacing.gapSM,
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                _option('bat-v3-production-play', 'PLAY', _playing, _play),
-                _option('bat-v3-production-pause', 'PAUSE', !_playing, _pause),
                 _option(
-                  'bat-v3-production-restart',
-                  'RESTART',
-                  false,
-                  _restart,
+                  'bat-v3-production-play-restart',
+                  'PLAY / RESTART',
+                  _playing,
+                  _playOrRestart,
                 ),
               ],
             ),
@@ -674,13 +718,6 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final timing in [60, 100, 150])
-                  _option(
-                    'bat-v3-production-timing-$timing',
-                    '${timing}ms',
-                    _timing == timing,
-                    () => _changeTiming(timing),
-                  ),
                 _option(
                   'bat-v3-production-flutter-off',
                   'FLUTTER OFF',
@@ -700,28 +737,6 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final amplitude in [4, 6, 8])
-                  _option(
-                    'bat-v3-production-flutter-$amplitude',
-                    '${amplitude}px',
-                    _flutterAmplitude == amplitude,
-                    () => setState(() => _flutterAmplitude = amplitude),
-                  ),
-                for (final speed
-                    in BatV3ProductionFlight.crossingDurations.keys)
-                  _option(
-                    'bat-v3-production-speed-${speed.toLowerCase()}',
-                    speed,
-                    _speed == speed,
-                    () => setState(() => _speed = speed),
-                  ),
-              ],
-            ),
-            AppSpacing.gapSM,
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
                 _option(
                   'bat-v3-production-ltr',
                   'L→R',
@@ -734,10 +749,29 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                   !_leftToRight,
                   () => setState(() => _leftToRight = false),
                 ),
+                _option(
+                  'bat-v3-production-speed-1x',
+                  '1×',
+                  _speed == '1×',
+                  () => setState(() => _speed = '1×'),
+                ),
+                _option(
+                  'bat-v3-production-speed-half',
+                  '0.5×',
+                  _speed == '0.5×',
+                  () => setState(() => _speed = '0.5×'),
+                ),
+                for (final count in [1, 2, 3])
+                  _option(
+                    'bat-v3-production-count-$count',
+                    '×$count',
+                    _batCount == count,
+                    () => _setCount(count),
+                  ),
               ],
             ),
-            const Text(
-              '48px-class canonical cels only · no runtime registration · Production BAT remains inactive.',
+            Text(
+              '48px-class canonical cels · $_speed = ${_crossingDuration}ms · Production BAT remains inactive.',
             ),
           ],
         ),
@@ -764,16 +798,20 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
 
 class _ProductionBatStage extends StatelessWidget {
   const _ProductionBatStage({
-    required this.pose,
     required this.leftToRight,
-    required this.progress,
-    required this.flutterY,
+    required this.cycleIndex,
+    required this.crossingElapsed,
+    required this.crossingDuration,
+    required this.instances,
+    required this.flutterOn,
   });
 
-  final BatV3SourcePose pose;
   final bool leftToRight;
-  final double progress;
-  final double flutterY;
+  final int cycleIndex;
+  final int crossingElapsed;
+  final int crossingDuration;
+  final List<BatV3ProductionInstance> instances;
+  final bool flutterOn;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -785,30 +823,46 @@ class _ProductionBatStage extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.hardEdge,
             children: [
-              Positioned(
-                left: BatV3ProductionFlight.leftFor(
-                  stageWidth: constraints.maxWidth,
-                  progress: progress,
-                  leftToRight: leftToRight,
-                ),
-                // The amplitude is deliberately applied after 48px fitting,
-                // so 4px means four visible screen pixels, not source pixels.
-                top: BatV3ProductionFlight.topFor(flutterY),
-                width: BatV3ProductionFlight.batWidth,
-                height: BatV3ProductionFlight.batHeight,
-                child: _BatV3CanonicalFrame(
-                  pose: pose,
-                  leftToRight: leftToRight,
-                  inspectionScale: 1,
-                  flutterY: 0,
-                  bodyOverlay: false,
-                  viewportHeight: BatV3ProductionFlight.batHeight,
-                ),
-              ),
+              for (final instance in instances)
+                _productionBat(constraints.maxWidth, instance),
             ],
           ),
         );
       },
     ),
   );
+
+  Widget _productionBat(double stageWidth, BatV3ProductionInstance instance) {
+    final index =
+        (cycleIndex + instance.phaseOffset) % BatV3SourceSet.cycle.length;
+    final pose = BatV3SourceSet.poses[BatV3SourceSet.cycle[index]];
+    final flutterY = BatV3ProductionFlight.flutterOffset(
+      cycleIndex: index,
+      amplitude: BatV3ProductionFlight.flutterAmplitude,
+      enabled: flutterOn,
+    );
+    return Positioned(
+      key: ValueKey('bat-v3-production-instance-${instance.phaseOffset}'),
+      left: BatV3ProductionFlight.leftFor(
+        stageWidth: stageWidth,
+        progress: BatV3ProductionFlight.progressFor(
+          elapsedMs: crossingElapsed,
+          durationMs: crossingDuration,
+          instance: instance,
+        ),
+        leftToRight: leftToRight,
+      ),
+      top: BatV3ProductionFlight.topFor(instance.formationY + flutterY),
+      width: BatV3ProductionFlight.batWidth,
+      height: BatV3ProductionFlight.batHeight,
+      child: _BatV3CanonicalFrame(
+        pose: pose,
+        leftToRight: leftToRight,
+        inspectionScale: 1,
+        flutterY: 0,
+        bodyOverlay: false,
+        viewportHeight: BatV3ProductionFlight.batHeight,
+      ),
+    );
+  }
 }
