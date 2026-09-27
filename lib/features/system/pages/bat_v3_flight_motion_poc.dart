@@ -518,6 +518,12 @@ abstract final class BatV3ProductionFlight {
   static const stageHeight = 112.0;
   static const batHeight = 48.0;
   static const batWidth = 51.0;
+  // Derived from the union of all five canonical silhouette bounds after the
+  // 1800×1700 canvas is fitted to the 48px-class production rect. These are
+  // visible pixels, not the transparent PNG/widget bounds.
+  static const visibleBatMinX = 14.23;
+  static const visibleBatMaxX = 45.23;
+  static const entryExitGap = 3.0;
   static const crossingDurations = <String, int>{
     'SLOW': 5000,
     'CURRENT': 3600,
@@ -529,8 +535,10 @@ abstract final class BatV3ProductionFlight {
     required double progress,
     required bool leftToRight,
   }) {
-    final fullRange = -batWidth + (stageWidth + batWidth) * progress;
-    return leftToRight ? fullRange : stageWidth - fullRange - batWidth;
+    final entry = -visibleBatMaxX - entryExitGap;
+    final exit = stageWidth - visibleBatMinX + entryExitGap;
+    final fullRange = entry + (exit - entry) * progress;
+    return leftToRight ? fullRange : entry + exit - fullRange;
   }
 
   static double topFor(double flutterY) =>

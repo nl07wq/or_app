@@ -173,7 +173,11 @@ void main() {
             progress: 0,
             leftToRight: true,
           ),
-          -BatV3ProductionFlight.batWidth,
+          closeTo(
+            -BatV3ProductionFlight.visibleBatMaxX -
+                BatV3ProductionFlight.entryExitGap,
+            .001,
+          ),
         );
         expect(
           BatV3ProductionFlight.leftFor(
@@ -181,7 +185,12 @@ void main() {
             progress: 1,
             leftToRight: true,
           ),
-          width,
+          closeTo(
+            width -
+                BatV3ProductionFlight.visibleBatMinX +
+                BatV3ProductionFlight.entryExitGap,
+            .001,
+          ),
         );
         expect(
           BatV3ProductionFlight.leftFor(
@@ -189,7 +198,12 @@ void main() {
             progress: 0,
             leftToRight: false,
           ),
-          width,
+          closeTo(
+            width -
+                BatV3ProductionFlight.visibleBatMinX +
+                BatV3ProductionFlight.entryExitGap,
+            .001,
+          ),
         );
         expect(
           BatV3ProductionFlight.leftFor(
@@ -197,7 +211,11 @@ void main() {
             progress: 1,
             leftToRight: false,
           ),
-          -BatV3ProductionFlight.batWidth,
+          closeTo(
+            -BatV3ProductionFlight.visibleBatMaxX -
+                BatV3ProductionFlight.entryExitGap,
+            .001,
+          ),
         );
       }
       const base =
