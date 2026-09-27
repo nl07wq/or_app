@@ -1719,6 +1719,8 @@ class _ProgressCardState extends State<_ProgressCard> {
           required double progress,
           VoidCallback? onTap,
           bool fullWidth = false,
+          bool summaryStatus = false,
+          bool compactTitle = false,
           DynamicTargetState? targetState,
           DailyCommandCompletionItem? completion,
         }) {
@@ -1730,6 +1732,8 @@ class _ProgressCardState extends State<_ProgressCard> {
               status: status,
               progress: progress,
               onTap: onTap,
+              summaryStatus: summaryStatus,
+              compactTitle: compactTitle,
               targetState: targetState,
               completion: completion,
             ),
@@ -1751,6 +1755,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                   ? 1.0
                   : 0.0,
               completion: completionModel?.statusCompletion,
+              summaryStatus: true,
               onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
             ),
             tile(
@@ -1764,6 +1769,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                   ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
                   : 0.0,
               completion: completionModel?.foodCompletion,
+              summaryStatus: true,
               onTap: () => Navigator.pushNamed(context, AppRoutes.food),
             ),
             tile(
@@ -1810,9 +1816,10 @@ class _ProgressCardState extends State<_ProgressCard> {
             tile(
               label: 'TRAINING',
               status: widget.trainingSummary?.completed == true
-                  ? 'Recorded'
-                  : 'Not recorded',
+                  ? 'COMPLETE'
+                  : 'NOT RECORDED',
               progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
+              summaryStatus: true,
               completion:
                   completionModel?.trainingCompletion ??
                   DailyCommandCompletionItem(
@@ -1830,19 +1837,22 @@ class _ProgressCardState extends State<_ProgressCard> {
                   completionModel?.activityCompletion.displayState ??
                   (widget.activitySummary.isRecorded
                       ? 'COMPLETE'
-                      : 'Not recorded'),
+                      : 'NOT RECORDED'),
               progress: completionModel?.activityCompletion.isComplete == true
                   ? 1.0
                   : completionModel == null && widget.activitySummary.isRecorded
                   ? 1.0
                   : 0.0,
               completion: completionModel?.activityCompletion,
+              summaryStatus: true,
               onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
             ),
             tile(
               label: 'BRIEF / DEBRIEF',
               status: briefDebrief.displayState,
               progress: briefDebrief.isComplete ? 1 : 0,
+              summaryStatus: true,
+              compactTitle: true,
               completion: briefDebrief.completion,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -2003,11 +2013,29 @@ abstract final class _ProgressStatusAnchorGeometry {
   static const statusZoneRightPadding = AppSpacing.sm;
 }
 
+/// Shared typography for the five summary-state cards in OPERATION PROGRESS.
+abstract final class _OperationProgressTypography {
+  static const status = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.2,
+    letterSpacing: 0,
+  );
+  static const compactTitle = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+    letterSpacing: 0,
+  );
+}
+
 class _ProgressRow extends StatelessWidget {
   final String label;
   final String status;
   final double progress;
   final VoidCallback? onTap;
+  final bool summaryStatus;
+  final bool compactTitle;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
 
@@ -2016,6 +2044,8 @@ class _ProgressRow extends StatelessWidget {
     required this.status,
     required this.progress,
     this.onTap,
+    this.summaryStatus = false,
+    this.compactTitle = false,
     this.targetState,
     this.completion,
   });
@@ -2045,15 +2075,47 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          key: ValueKey('operation-progress-title-$label'),
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+        if (compactTitle)
+          FittedBox(
+            key: ValueKey('operation-progress-title-fit-$label'),
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              key: ValueKey('operation-progress-title-$label'),
+              maxLines: 1,
+              softWrap: false,
+              style: _OperationProgressTypography.compactTitle,
+            ),
+          )
+        else
+          Text(
+            label,
+            key: ValueKey('operation-progress-title-$label'),
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
         AppSpacing.gapXS,
         Row(
           children: [
-            Expanded(child: Text(status)),
+            Expanded(
+              child: summaryStatus
+                  ? FittedBox(
+                      key: ValueKey('operation-progress-status-fit-$label'),
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        status,
+                        key: ValueKey('operation-progress-status-$label'),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _OperationProgressTypography.status,
+                      ),
+                    )
+                  : Text(
+                      status,
+                      key: ValueKey('operation-progress-status-$label'),
+                    ),
+            ),
             if (completion == null && onTap != null) ...[
               SizedBox(width: AppSpacing.sm),
               Icon(

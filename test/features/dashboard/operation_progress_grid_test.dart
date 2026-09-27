@@ -523,6 +523,58 @@ void main() {
   });
 
   testWidgets(
+    'summary statuses and BRIEF / DEBRIEF title use compact one-line typography',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await _installDdtStatus();
+        await _pumpDashboard(tester, width: width);
+        await _settleDashboard(tester);
+
+        TextStyle? sharedStyle;
+        for (final label in const [
+          'STATUS',
+          'FOOD',
+          'TRAINING',
+          'ACTIVITY',
+          'BRIEF / DEBRIEF',
+        ]) {
+          final status = find.byKey(
+            ValueKey('operation-progress-status-$label'),
+          );
+          final text = tester.widget<Text>(status);
+          expect(text.data, 'NOT RECORDED', reason: '$label at $width');
+          expect(text.maxLines, 1, reason: '$label at $width');
+          expect(text.softWrap, isFalse, reason: '$label at $width');
+          expect(text.style, isNotNull, reason: '$label at $width');
+          sharedStyle ??= text.style;
+          expect(text.style, sharedStyle, reason: '$label at $width');
+          expect(
+            find.byKey(ValueKey('operation-progress-status-fit-$label')),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull, reason: '$label at $width');
+        }
+
+        final briefTitle = tester.widget<Text>(
+          find.byKey(
+            const ValueKey('operation-progress-title-BRIEF / DEBRIEF'),
+          ),
+        );
+        expect(briefTitle.data, 'BRIEF / DEBRIEF');
+        expect(briefTitle.maxLines, 1);
+        expect(briefTitle.softWrap, isFalse);
+        expect(
+          find.byKey(
+            const ValueKey('operation-progress-title-fit-BRIEF / DEBRIEF'),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull, reason: 'title at $width');
+      }
+    },
+  );
+
+  testWidgets(
     'TRAINING absent has an optional status popover and body navigation',
     (tester) async {
       final openedRoutes = <String?>[];
@@ -540,7 +592,7 @@ void main() {
       await _settleDashboard(tester);
 
       final training = _tile('TRAINING');
-      _expectTileText('TRAINING', 'Not recorded');
+      _expectTileText('TRAINING', 'NOT RECORDED');
       expect(
         find.byKey(const ValueKey('operation-progress-training-optional')),
         findsOneWidget,
@@ -603,7 +655,7 @@ void main() {
     );
     await _settleDashboard(tester);
 
-    _expectTileText('TRAINING', 'Recorded');
+    _expectTileText('TRAINING', 'COMPLETE');
     final indicator = find.byKey(
       const ValueKey('operation-progress-training-recorded'),
     );
@@ -1446,7 +1498,7 @@ void main() {
     expect(find.textContaining('121.5–148.5'), findsNothing);
     expect(find.text('NOT RECORDED'), findsNothing);
     expect(find.text('ACTIVITY PENDING'), findsNothing);
-    _expectTileText('TRAINING', 'Recorded');
+    _expectTileText('TRAINING', 'COMPLETE');
     _expectTileText('ACTIVITY', 'INCOMPLETE');
     expect(
       find.descendant(
@@ -2312,8 +2364,8 @@ void main() {
 
     _expectTileText('STATUS', '未完了');
     _expectTileText('FOOD', '0 / 3');
-    _expectTileText('TRAINING', 'Not recorded');
-    _expectTileText('ACTIVITY', 'Not recorded');
+    _expectTileText('TRAINING', 'NOT RECORDED');
+    _expectTileText('ACTIVITY', 'NOT RECORDED');
     expect(
       find.descendant(
         of: _tile('ACTIVITY'),
@@ -2404,7 +2456,7 @@ void main() {
 
     await _pumpDashboard(tester, width: 800);
 
-    _expectTileText('ACTIVITY', 'Not recorded');
+    _expectTileText('ACTIVITY', 'NOT RECORDED');
     expect(
       find.descendant(
         of: _tile('ACTIVITY'),
@@ -3072,8 +3124,10 @@ void _expectProgressTilesFit(WidgetTester tester) {
     for (final element in descendants.evaluate()) {
       final renderObject = element.renderObject;
       if (renderObject is! RenderBox || !renderObject.hasSize) continue;
-      final topLeft = renderObject.localToGlobal(Offset.zero);
-      final rect = topLeft & renderObject.size;
+      final rect = MatrixUtils.transformRect(
+        renderObject.getTransformTo(null),
+        Offset.zero & renderObject.size,
+      );
       expect(rect.left, greaterThanOrEqualTo(tileRect.left));
       expect(rect.right, lessThanOrEqualTo(tileRect.right));
     }
