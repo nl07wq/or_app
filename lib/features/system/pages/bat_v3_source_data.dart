@@ -8,6 +8,7 @@ class BatV3SourcePose {
     required this.scale,
     required this.translation,
     required this.body,
+    required this.silhouette,
   });
   final int index;
   final String name;
@@ -15,6 +16,7 @@ class BatV3SourcePose {
   final double scale;
   final Offset translation;
   final BatV3BodyMeasurement body;
+  final BatV3SilhouetteBounds silhouette;
 }
 
 /// Measurements are sampled from the luminance mask inside a stable
@@ -31,10 +33,33 @@ class BatV3BodyMeasurement {
   final Offset anchor;
 }
 
+class BatV3SilhouetteBounds {
+  const BatV3SilhouetteBounds({
+    required this.minX,
+    required this.minY,
+    required this.maxX,
+    required this.maxY,
+  });
+
+  final double minX;
+  final double minY;
+  final double maxX;
+  final double maxY;
+
+  Rect get rect => Rect.fromLTRB(minX, minY, maxX, maxY);
+}
+
 abstract final class BatV3SourceSet {
   static const canvas = Size(1280, 720);
   static const registrationReference = Offset(440, 410);
   static const _canvasCenter = Offset(640, 360);
+  static const canonicalSafetyPadding = 64.0;
+  static const _registeredUnion = Rect.fromLTRB(155, -178, 1149, 958);
+  static const canonicalOrigin = Offset(91, -242);
+  static const canonicalCanvas = Size(1122, 1264);
+  static const canonicalBodyAnchor = Offset(349, 652);
+
+  static Rect get registeredSilhouetteUnion => _registeredUnion;
   static const cycle = <int>[0, 1, 2, 1, 0, 3, 4, 3];
   static const flutterOffsets = <double>[0, -2, -4, -2, 0, 2, 4, 2];
   static const poses = <BatV3SourcePose>[
@@ -49,6 +74,12 @@ abstract final class BatV3SourceSet {
         height: 270,
         anchor: Offset(401.00, 447.93),
       ),
+      silhouette: BatV3SilhouetteBounds(
+        minX: 63,
+        minY: 203,
+        maxX: 1255,
+        maxY: 579,
+      ),
     ),
     BatV3SourcePose(
       index: 2,
@@ -61,6 +92,12 @@ abstract final class BatV3SourceSet {
         height: 198,
         anchor: Offset(570.22, 559.44),
       ),
+      silhouette: BatV3SilhouetteBounds(
+        minX: 327,
+        minY: 54,
+        maxX: 1052,
+        maxY: 657,
+      ),
     ),
     BatV3SourcePose(
       index: 3,
@@ -72,6 +109,12 @@ abstract final class BatV3SourceSet {
         width: 463,
         height: 201,
         anchor: Offset(529.94, 572.36),
+      ),
+      silhouette: BatV3SilhouetteBounds(
+        minX: 267,
+        minY: 28,
+        maxX: 1142,
+        maxY: 675,
       ),
     ),
     BatV3SourcePose(
@@ -86,6 +129,12 @@ abstract final class BatV3SourceSet {
         height: 242,
         anchor: Offset(378.80, 218.18),
       ),
+      silhouette: BatV3SilhouetteBounds(
+        minX: 137,
+        minY: 78,
+        maxX: 1085,
+        maxY: 669,
+      ),
     ),
     BatV3SourcePose(
       index: 5,
@@ -97,6 +146,12 @@ abstract final class BatV3SourceSet {
         width: 450,
         height: 242,
         anchor: Offset(436.40, 148.53),
+      ),
+      silhouette: BatV3SilhouetteBounds(
+        minX: 200,
+        minY: 28,
+        maxX: 1019,
+        maxY: 696,
       ),
     ),
   ];
@@ -116,5 +171,34 @@ abstract final class BatV3SourceSet {
   ) {
     final body = registeredBodySizeFor(pose);
     return Size(body.width * inspectionScale, body.height * inspectionScale);
+  }
+
+  static Rect registeredSilhouetteBoundsFor(BatV3SourcePose pose) {
+    final source = pose.silhouette.rect;
+    return Rect.fromLTRB(
+      _canvasCenter.dx +
+          (source.left - _canvasCenter.dx) * pose.scale +
+          pose.translation.dx,
+      _canvasCenter.dy +
+          (source.top - _canvasCenter.dy) * pose.scale +
+          pose.translation.dy,
+      _canvasCenter.dx +
+          (source.right - _canvasCenter.dx) * pose.scale +
+          pose.translation.dx,
+      _canvasCenter.dy +
+          (source.bottom - _canvasCenter.dy) * pose.scale +
+          pose.translation.dy,
+    );
+  }
+
+  static Rect canonicalSilhouetteBoundsFor(BatV3SourcePose pose) =>
+      registeredSilhouetteBoundsFor(pose).shift(-canonicalOrigin);
+
+  static bool isFullyContained(BatV3SourcePose pose) {
+    final bounds = canonicalSilhouetteBoundsFor(pose);
+    return bounds.left >= canonicalSafetyPadding &&
+        bounds.top >= canonicalSafetyPadding &&
+        bounds.right <= canonicalCanvas.width - canonicalSafetyPadding &&
+        bounds.bottom <= canonicalCanvas.height - canonicalSafetyPadding;
   }
 }

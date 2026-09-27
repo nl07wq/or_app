@@ -143,8 +143,12 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
               key: const ValueKey('bat-v3-registration'),
             ),
             Text(
-              'BODY ${_pose.body.width.toStringAsFixed(0)}×${_pose.body.height.toStringAsFixed(0)} · ANCHOR ${BatV3SourceSet.registeredAnchorFor(_pose).dx.toStringAsFixed(0)}, ${BatV3SourceSet.registeredAnchorFor(_pose).dy.toStringAsFixed(0)}',
+              'BODY ${_pose.body.width.toStringAsFixed(0)}×${_pose.body.height.toStringAsFixed(0)} · SOURCE ANCHOR ${BatV3SourceSet.registeredAnchorFor(_pose).dx.toStringAsFixed(0)}, ${BatV3SourceSet.registeredAnchorFor(_pose).dy.toStringAsFixed(0)}',
               key: const ValueKey('bat-v3-body-metrics'),
+            ),
+            const Text(
+              'CANONICAL CANVAS 1122×1264 · BODY LOCK 349, 652 · SAFETY 64',
+              key: ValueKey('bat-v3-canonical-metrics'),
             ),
           ],
         ),
@@ -175,8 +179,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
                 flutterY: _flutterY,
                 inspectionScale: _inspectionScale,
               ),
-            ]
-            else
+            ] else
               _BatV3Image(
                 pose: _pose,
                 view: BatV3View.registered,
@@ -326,34 +329,20 @@ class _BatV3Image extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRaw = view == BatV3View.raw;
-    final showMask = !isRaw;
-    return SizedBox(
+    if (isRaw) {
+      return SizedBox(
+        height: 180,
+        child: Image.asset(pose.asset, fit: BoxFit.contain),
+      );
+    }
+    return _BatV3CanonicalFrame(
       key: ValueKey('bat-v3-image-${inspectionScale.toStringAsFixed(2)}'),
-      height: 180,
-      child: ClipRect(
-        child: Transform.translate(
-          offset: Offset(
-            isRaw ? 0 : pose.translation.dx * .25 * inspectionScale,
-            (isRaw ? 0 : pose.translation.dy * .25 * inspectionScale) +
-                flutterY,
-          ),
-          child: Transform.scale(
-            scale: isRaw ? inspectionScale : pose.scale * inspectionScale,
-            alignment: Alignment.center,
-            child: Transform.flip(
-              flipX: !leftToRight,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _BatV3SourceImage(asset: pose.asset, mask: showMask),
-                  if (view == BatV3View.bodyOverlay)
-                    const CustomPaint(painter: _BatV3BodyOverlayPainter()),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      pose: pose,
+      leftToRight: leftToRight,
+      inspectionScale: inspectionScale,
+      flutterY: flutterY,
+      bodyOverlay: view == BatV3View.bodyOverlay,
+      viewportHeight: 260,
     );
   }
 }
@@ -397,15 +386,18 @@ class _BatV3SourceImage extends StatelessWidget {
 }
 
 class _BatV3BodyOverlayPainter extends CustomPainter {
-  const _BatV3BodyOverlayPainter();
+  const _BatV3BodyOverlayPainter({required this.pose});
+
+  final BatV3SourcePose pose;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final anchor = Offset(size.width * (440 / 1280), size.height * (410 / 720));
+    final anchor = BatV3SourceSet.canonicalBodyAnchor;
+    final bodySize = BatV3SourceSet.registeredBodySizeFor(pose);
     final body = Rect.fromCenter(
       center: anchor,
-      width: size.width * (480 / 1280),
-      height: size.height * (230 / 720),
+      width: bodySize.width,
+      height: bodySize.height,
     );
     final paint = Paint()
       ..color = Colors.cyan
@@ -425,7 +417,98 @@ class _BatV3BodyOverlayPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BatV3BodyOverlayPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _BatV3BodyOverlayPainter oldDelegate) =>
+      oldDelegate.pose != pose;
+}
+
+class _BatV3CanonicalFrame extends StatelessWidget {
+  const _BatV3CanonicalFrame({
+    super.key,
+    required this.pose,
+    required this.leftToRight,
+    required this.inspectionScale,
+    required this.flutterY,
+    required this.bodyOverlay,
+    required this.viewportHeight,
+  });
+
+  final BatV3SourcePose pose;
+  final bool leftToRight;
+  final double inspectionScale;
+  final double flutterY;
+  final bool bodyOverlay;
+  final double viewportHeight;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: viewportHeight,
+    child: FittedBox(
+      fit: BoxFit.contain,
+      child: SizedBox(
+        width: BatV3SourceSet.canonicalCanvas.width,
+        height: BatV3SourceSet.canonicalCanvas.height,
+        child: ClipRect(
+          child: Transform.flip(
+            flipX: !leftToRight,
+            child: Transform.translate(
+              offset: Offset(
+                0,
+                flutterY /
+                    viewportHeight *
+                    BatV3SourceSet.canonicalCanvas.height,
+              ),
+              child: Transform.scale(
+                scale: inspectionScale,
+                alignment: Alignment.center,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _BatV3RegisteredSource(pose: pose),
+                    if (bodyOverlay)
+                      CustomPaint(
+                        painter: _BatV3BodyOverlayPainter(pose: pose),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _BatV3RegisteredSource extends StatelessWidget {
+  const _BatV3RegisteredSource({required this.pose});
+
+  final BatV3SourcePose pose;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceOffset = Offset(
+      640 -
+          640 * pose.scale +
+          pose.translation.dx -
+          BatV3SourceSet.canonicalOrigin.dx,
+      360 -
+          360 * pose.scale +
+          pose.translation.dy -
+          BatV3SourceSet.canonicalOrigin.dy,
+    );
+    return Transform.translate(
+      offset: sourceOffset,
+      child: Transform.scale(
+        scale: pose.scale,
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: BatV3SourceSet.canvas.width,
+          height: BatV3SourceSet.canvas.height,
+          child: _BatV3SourceImage(asset: pose.asset, mask: true),
+        ),
+      ),
+    );
+  }
 }
 
 class _BatV3Crossing extends StatelessWidget {
@@ -449,21 +532,26 @@ class _BatV3Crossing extends StatelessWidget {
     height: 48,
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final x = -30 + (constraints.maxWidth + 60) * progress;
+        final frameWidth =
+            48 *
+            BatV3SourceSet.canonicalCanvas.width /
+            BatV3SourceSet.canonicalCanvas.height;
+        final x = -frameWidth + (constraints.maxWidth + frameWidth) * progress;
         return ClipRect(
           child: Transform.translate(
             offset: Offset(
-              leftToRight ? x : constraints.maxWidth - x,
+              leftToRight ? x : constraints.maxWidth - x - frameWidth,
               flutterY,
             ),
-            child: Transform.scale(
-              scale: .09 * pose.scale * inspectionScale,
-              alignment: leftToRight
-                  ? Alignment.centerLeft
-                  : Alignment.centerRight,
-              child: Transform.flip(
-                flipX: !leftToRight,
-                child: _BatV3SourceImage(asset: pose.asset, mask: true),
+            child: SizedBox(
+              width: frameWidth,
+              child: _BatV3CanonicalFrame(
+                pose: pose,
+                leftToRight: leftToRight,
+                inspectionScale: inspectionScale,
+                flutterY: 0,
+                bodyOverlay: false,
+                viewportHeight: 48,
               ),
             ),
           ),

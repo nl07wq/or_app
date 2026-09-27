@@ -54,6 +54,31 @@ void main() {
     expect(quarter.height, closeTo(full.height * .25, .001));
   });
 
+  test('all registered silhouettes share one padded canonical canvas', () {
+    expect(BatV3SourceSet.canonicalCanvas, const Size(1122, 1264));
+    expect(BatV3SourceSet.canonicalBodyAnchor, const Offset(349, 652));
+    expect(BatV3SourceSet.canonicalSafetyPadding, 64);
+
+    for (final pose in BatV3SourceSet.poses) {
+      final bounds = BatV3SourceSet.canonicalSilhouetteBoundsFor(pose);
+      expect(BatV3SourceSet.isFullyContained(pose), isTrue, reason: pose.name);
+      expect(bounds.left, greaterThanOrEqualTo(64));
+      expect(bounds.top, greaterThanOrEqualTo(64));
+      expect(bounds.right, lessThanOrEqualTo(1058));
+      expect(bounds.bottom, lessThanOrEqualTo(1200));
+    }
+    expect(
+      BatV3SourceSet.canonicalSilhouetteBoundsFor(BatV3SourceSet.poses[2]).top,
+      greaterThanOrEqualTo(64),
+    );
+    expect(
+      BatV3SourceSet.canonicalSilhouetteBoundsFor(
+        BatV3SourceSet.poses[4],
+      ).bottom,
+      lessThanOrEqualTo(1200),
+    );
+  });
+
   test('V3 uses the deliberate top and bottom stroke cycle', () {
     expect(BatV3SourceSet.cycle, const [0, 1, 2, 1, 0, 3, 4, 3]);
     expect(BatV3SourceSet.cycle.toSet(), {0, 1, 2, 3, 4});
