@@ -2034,9 +2034,14 @@ class _ProgressRow extends StatelessWidget {
       DynamicTargetState.yellowHigh => AppColors.warning,
       DynamicTargetState.redLow ||
       DynamicTargetState.redHigh => AppColors.danger,
-      DynamicTargetState.neutral => colorScheme.outline,
+      // Neutral means no value has been evaluated yet. Let the shared base
+      // card border apply instead of treating it as a semantic state color.
+      DynamicTargetState.neutral => null,
       _ => null,
     };
+    final progressColor = targetState == DynamicTargetState.neutral
+        ? colorScheme.outline
+        : semanticColor;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2062,7 +2067,7 @@ class _ProgressRow extends StatelessWidget {
         AppSpacing.gapXS,
         LinearProgressIndicator(
           value: progress,
-          color: semanticColor ?? (completed ? AppColors.success : null),
+          color: progressColor ?? (completed ? AppColors.success : null),
         ),
       ],
     );

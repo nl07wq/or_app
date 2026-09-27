@@ -1485,6 +1485,43 @@ void main() {
     }
   });
 
+  testWidgets('uses the shared neutral border before nutrition is evaluated', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    morningFactNotifier.value = _morning();
+
+    await _pumpDashboard(tester, width: 800);
+    await _settleDashboard(tester);
+
+    final neutralBorder = Theme.of(
+      tester.element(_tile('STATUS')),
+    ).colorScheme.outlineVariant.withValues(alpha: 0.6);
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(_progressBorderColor(tester, label), neutralBorder);
+    }
+  });
+
+  testWidgets('keeps evaluated nutrition borders semantic', (tester) async {
+    await _installDdtStatus();
+    morningFactNotifier.value = _morning();
+    foodSummaryNotifier.value = const FoodSummary(
+      calories: 2200,
+      protein: 135,
+      fat: 60,
+      carbohydrates: 250,
+      hydrationMl: 3000,
+      mealCount: 3,
+    );
+
+    await _pumpDashboard(tester, width: 800);
+    await _settleDashboard(tester);
+
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(_progressBorderColor(tester, label), AppColors.success);
+    }
+  });
+
   testWidgets('uses prior formal STATUS targets before today is entered', (
     tester,
   ) async {
@@ -2977,6 +3014,13 @@ double? _progress(WidgetTester tester, String label) {
         ),
       )
       .value;
+}
+
+Color _progressBorderColor(WidgetTester tester, String label) {
+  final material = tester.widget<Material>(
+    find.descendant(of: _tile(label), matching: find.byType(Material)).first,
+  );
+  return (material.shape! as RoundedRectangleBorder).side.color;
 }
 
 void _expectStatusLabelClearance(WidgetTester tester, String label) {
