@@ -29,7 +29,29 @@ void main() {
       expect(pose.scale.isFinite, isTrue);
       expect(pose.translation.isFinite, isTrue);
     }
-    expect(BatV3SourceSet.poses.first.scale, .90);
+    expect(BatV3SourceSet.poses.map((pose) => pose.scale), const [
+      .83,
+      1.13,
+      1.08,
+      .98,
+      1.0,
+    ]);
+    for (final pose in BatV3SourceSet.poses) {
+      final anchor = BatV3SourceSet.registeredAnchorFor(pose);
+      expect(anchor.dx, closeTo(BatV3SourceSet.registrationReference.dx, .01));
+      expect(anchor.dy, closeTo(BatV3SourceSet.registrationReference.dy, .01));
+    }
+  });
+
+  test('inspection scale changes BAT content dimensions, not its viewport', () {
+    final pose = BatV3SourceSet.poses.first;
+    final full = BatV3SourceSet.inspectionBodySizeFor(pose, 1);
+    final half = BatV3SourceSet.inspectionBodySizeFor(pose, .5);
+    final quarter = BatV3SourceSet.inspectionBodySizeFor(pose, .25);
+    expect(half.width, closeTo(full.width * .5, .001));
+    expect(half.height, closeTo(full.height * .5, .001));
+    expect(quarter.width, closeTo(full.width * .25, .001));
+    expect(quarter.height, closeTo(full.height * .25, .001));
   });
 
   test('V3 uses the deliberate top and bottom stroke cycle', () {
@@ -84,6 +106,16 @@ void main() {
     await tester.tap(rtl);
     await tester.pump();
     expect(tester.takeException(), isNull);
+    final inPlace = find.byKey(const ValueKey('bat-v3-in-place'));
+    await tester.ensureVisible(inPlace);
+    await tester.tap(inPlace);
+    for (final scale in ['1.00', '0.50', '0.25']) {
+      final control = find.byKey(ValueKey('bat-v3-scale-$scale'));
+      await tester.ensureVisible(control);
+      await tester.tap(control);
+      await tester.pump();
+      expect(find.byKey(ValueKey('bat-v3-image-$scale')), findsWidgets);
+    }
   });
 
   testWidgets('V3 controls remain layout safe at 320, 390, and 900', (

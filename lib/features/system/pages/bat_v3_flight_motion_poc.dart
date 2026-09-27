@@ -25,7 +25,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
   var _flutter = true;
   var _crossing = false;
   var _leftToRight = true;
-  var _zoom = 1;
+  var _inspectionScale = 1.0;
   var _view = BatV3View.raw;
   var _travel = 0.0;
 
@@ -113,7 +113,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
               pose: _pose,
               view: _view,
               leftToRight: _leftToRight,
-              zoom: _zoom,
+              inspectionScale: _inspectionScale,
               flutterY: 0,
             ),
             AppSpacing.gapSM,
@@ -142,6 +142,10 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
               'REGISTRATION · SCALE ${_pose.scale.toStringAsFixed(2)} · dx ${_pose.translation.dx.toStringAsFixed(0)} · dy ${_pose.translation.dy.toStringAsFixed(0)}',
               key: const ValueKey('bat-v3-registration'),
             ),
+            Text(
+              'BODY ${_pose.body.width.toStringAsFixed(0)}×${_pose.body.height.toStringAsFixed(0)} · ANCHOR ${BatV3SourceSet.registeredAnchorFor(_pose).dx.toStringAsFixed(0)}, ${BatV3SourceSet.registeredAnchorFor(_pose).dy.toStringAsFixed(0)}',
+              key: const ValueKey('bat-v3-body-metrics'),
+            ),
           ],
         ),
       ),
@@ -162,19 +166,22 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
                   : 'PAUSED · $_milliseconds ms / POSE',
               key: const ValueKey('bat-v3-state'),
             ),
-            if (_crossing)
+            if (_crossing) ...[
+              const Text('48PX FLIGHT PREVIEW'),
               _BatV3Crossing(
                 pose: _pose,
                 leftToRight: _leftToRight,
                 progress: _travel,
                 flutterY: _flutterY,
-              )
+                inspectionScale: _inspectionScale,
+              ),
+            ]
             else
               _BatV3Image(
                 pose: _pose,
                 view: BatV3View.registered,
                 leftToRight: _leftToRight,
-                zoom: _zoom,
+                inspectionScale: _inspectionScale,
                 flutterY: _flutterY,
               ),
             Wrap(
@@ -254,12 +261,12 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
                   !_leftToRight,
                   () => setState(() => _leftToRight = false),
                 ),
-                for (final value in [1, 2, 4])
+                for (final value in [1.0, .5, .25])
                   _choice(
-                    'bat-v3-zoom-$value',
-                    '$value×',
-                    _zoom == value,
-                    () => setState(() => _zoom = value),
+                    'bat-v3-scale-${value.toStringAsFixed(2)}',
+                    '${value.toStringAsFixed(2)}×',
+                    _inspectionScale == value,
+                    () => setState(() => _inspectionScale = value),
                   ),
               ],
             ),
@@ -308,28 +315,30 @@ class _BatV3Image extends StatelessWidget {
     required this.pose,
     required this.view,
     required this.leftToRight,
-    required this.zoom,
+    required this.inspectionScale,
     required this.flutterY,
   });
   final BatV3SourcePose pose;
   final BatV3View view;
   final bool leftToRight;
-  final int zoom;
+  final double inspectionScale;
   final double flutterY;
   @override
   Widget build(BuildContext context) {
     final isRaw = view == BatV3View.raw;
     final showMask = !isRaw;
     return SizedBox(
-      height: (180 * zoom).toDouble(),
+      key: ValueKey('bat-v3-image-${inspectionScale.toStringAsFixed(2)}'),
+      height: 180,
       child: ClipRect(
         child: Transform.translate(
           offset: Offset(
-            isRaw ? 0 : pose.translation.dx * .14,
-            (isRaw ? 0 : pose.translation.dy * .14) + flutterY,
+            isRaw ? 0 : pose.translation.dx * .25 * inspectionScale,
+            (isRaw ? 0 : pose.translation.dy * .25 * inspectionScale) +
+                flutterY,
           ),
           child: Transform.scale(
-            scale: isRaw ? 1 : pose.scale,
+            scale: isRaw ? inspectionScale : pose.scale * inspectionScale,
             alignment: Alignment.center,
             child: Transform.flip(
               flipX: !leftToRight,
@@ -338,19 +347,7 @@ class _BatV3Image extends StatelessWidget {
                 children: [
                   _BatV3SourceImage(asset: pose.asset, mask: showMask),
                   if (view == BatV3View.bodyOverlay)
-                    const Center(
-                      child: SizedBox(
-                        width: 70,
-                        height: 28,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border.fromBorderSide(
-                              BorderSide(color: Colors.cyan, width: 2),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    const CustomPaint(painter: _BatV3BodyOverlayPainter()),
                 ],
               ),
             ),
@@ -399,18 +396,52 @@ class _BatV3SourceImage extends StatelessWidget {
   }
 }
 
+class _BatV3BodyOverlayPainter extends CustomPainter {
+  const _BatV3BodyOverlayPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final anchor = Offset(size.width * (440 / 1280), size.height * (410 / 720));
+    final body = Rect.fromCenter(
+      center: anchor,
+      width: size.width * (480 / 1280),
+      height: size.height * (230 / 720),
+    );
+    final paint = Paint()
+      ..color = Colors.cyan
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawRect(body, paint);
+    canvas.drawLine(
+      Offset(anchor.dx - 8, anchor.dy),
+      Offset(anchor.dx + 8, anchor.dy),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(anchor.dx, anchor.dy - 8),
+      Offset(anchor.dx, anchor.dy + 8),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BatV3BodyOverlayPainter oldDelegate) => false;
+}
+
 class _BatV3Crossing extends StatelessWidget {
   const _BatV3Crossing({
     required this.pose,
     required this.leftToRight,
     required this.progress,
     required this.flutterY,
+    required this.inspectionScale,
   });
 
   final BatV3SourcePose pose;
   final bool leftToRight;
   final double progress;
   final double flutterY;
+  final double inspectionScale;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -426,7 +457,7 @@ class _BatV3Crossing extends StatelessWidget {
               flutterY,
             ),
             child: Transform.scale(
-              scale: .09 * pose.scale,
+              scale: .09 * pose.scale * inspectionScale,
               alignment: leftToRight
                   ? Alignment.centerLeft
                   : Alignment.centerRight,
