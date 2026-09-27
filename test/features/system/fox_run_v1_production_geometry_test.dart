@@ -33,6 +33,39 @@ void main() {
     leftToRight: leftToRight,
   );
 
+  Future<void> pumpPreview(WidgetTester tester, double width) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(Size(width, 1000));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: SingleChildScrollView(child: FoxRunV1Section())),
+      ),
+    );
+  }
+
+  Animation<double> crossingAnimation(WidgetTester tester) =>
+      tester
+              .widget<AnimatedBuilder>(
+                find.byKey(const ValueKey('fox-run-v1-crossing')),
+              )
+              .animation
+          as Animation<double>;
+
+  String displayedAsset(WidgetTester tester) =>
+      (tester
+                  .widget<Image>(
+                    find.descendant(
+                      of: find.byKey(
+                        const ValueKey('fox-run-v1-production-stage'),
+                      ),
+                      matching: find.byType(Image),
+                    ),
+                  )
+                  .image
+              as AssetImage)
+          .assetName;
+
   test('canonical FOX assets 01 through 10 decode', () async {
     for (var frame = 1; frame <= 10; frame++) {
       final asset =
@@ -87,6 +120,51 @@ void main() {
     }
     expect(FoxRunV1Motion.frameAtCrossingProgress(.999999), 9);
     expect(FoxRunV1Motion.frameAtCrossingProgress(0), 0);
+  });
+
+  test('diagnostic speeds preserve the deployed CURRENT authority', () {
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.slow),
+      const Duration(milliseconds: 4800),
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.current),
+      FoxRunV1Motion.crossingDuration,
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.current),
+      const Duration(milliseconds: 3200),
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fast),
+      const Duration(milliseconds: 2400),
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
+      const Duration(milliseconds: 1600),
+    );
+  });
+
+  test('selected frames repeat in canonical order at the 80ms cadence', () {
+    const selected = [2, 5, 7];
+    for (final speed in FoxRunV1Speed.values) {
+      final duration = FoxRunV1Motion.durationForSpeed(speed);
+      for (final sample in <(int, int)>[(0, 2), (80, 5), (160, 7), (240, 2)]) {
+        expect(
+          FoxRunV1Motion.frameAtCrossingProgress(
+            sample.$1 / duration.inMilliseconds,
+            runDuration: duration,
+            selectedFrames: selected,
+          ),
+          sample.$2,
+          reason: '${speed.name} at ${sample.$1}ms',
+        );
+      }
+    }
+    expect(
+      FoxRunV1Motion.frameAtCrossingProgress(.5, selectedFrames: const [4]),
+      4,
+    );
   });
 
   test('Frame 01 static body center and virtual ground are visible', () {
@@ -217,6 +295,152 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('diagnostic controls default to CURRENT and all 10 frames', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await pumpPreview(tester, width);
+      final current = tester.widget<ChoiceChip>(
+        find.byKey(const ValueKey('fox-preview-speed-current')),
+      );
+      expect(current.selected, isTrue, reason: '${width.toInt()}px');
+      for (var frame = 1; frame <= 10; frame++) {
+        expect(
+          tester
+              .widget<FilterChip>(
+                find.byKey(ValueKey('fox-preview-frame-$frame')),
+              )
+              .selected,
+          isTrue,
+          reason: 'frame $frame at ${width.toInt()}px',
+        );
+      }
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('fox-run-v1-production-stage')))
+            .height,
+        FoxRunV1ProductionGeometry.stageHeight,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('speed controls alter travel only and retain 80ms cadence', (
+    tester,
+  ) async {
+    const expectedProgress = <FoxRunV1Speed, double>{
+      FoxRunV1Speed.slow: 1 / 6,
+      FoxRunV1Speed.current: 1 / 4,
+      FoxRunV1Speed.fast: 1 / 3,
+      FoxRunV1Speed.faster: 1 / 2,
+    };
+    for (final entry in expectedProgress.entries) {
+      await pumpPreview(tester, 390);
+      if (entry.key != FoxRunV1Speed.current) {
+        await tester.tap(
+          find.byKey(ValueKey('fox-preview-speed-${entry.key.name}')),
+        );
+        await tester.pump();
+      }
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      expect(displayedAsset(tester), endsWith('frame_01.png'));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(displayedAsset(tester), endsWith('frame_02.png'));
+      await tester.pump(const Duration(milliseconds: 720));
+      expect(
+        crossingAnimation(tester).value,
+        closeTo(entry.value, .01),
+        reason: entry.key.name,
+      );
+    }
+  });
+
+  testWidgets('subset, one-frame guard, and repeated RUN stay deterministic', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    const selected = {3, 6, 8};
+    for (var frame = 1; frame <= 10; frame++) {
+      if (!selected.contains(frame)) {
+        await tester.tap(find.byKey(ValueKey('fox-preview-frame-$frame')));
+        await tester.pump();
+      }
+    }
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    expect(displayedAsset(tester), endsWith('frame_03.png'));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(displayedAsset(tester), endsWith('frame_06.png'));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(displayedAsset(tester), endsWith('frame_08.png'));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(displayedAsset(tester), endsWith('frame_03.png'));
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    expect(displayedAsset(tester), endsWith('frame_03.png'));
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-6')));
+    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-8')));
+    await tester.pump();
+    final imageBefore = tester.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+        matching: find.byType(Image),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-3')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilterChip>(find.byKey(const ValueKey('fox-preview-frame-3')))
+          .selected,
+      isTrue,
+    );
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(displayedAsset(tester), endsWith('frame_03.png'));
+    expect(
+      tester.getSize(
+        find.descendant(
+          of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+          matching: find.byType(Image),
+        ),
+      ),
+      imageBefore.size,
+    );
+    expect(
+      tester
+          .getRect(
+            find.descendant(
+              of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+              matching: find.byType(Image),
+            ),
+          )
+          .bottom,
+      closeTo(imageBefore.bottom, .001),
+    );
+  });
+
+  testWidgets('all four speeds fully exit and reset', (tester) async {
+    for (final speed in FoxRunV1Speed.values) {
+      await pumpPreview(tester, 390);
+      if (speed != FoxRunV1Speed.current) {
+        await tester.tap(
+          find.byKey(ValueKey('fox-preview-speed-${speed.name}')),
+        );
+        await tester.pump();
+      }
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(FoxRunV1Motion.durationForSpeed(speed));
+      expect(crossingAnimation(tester).value, closeTo(0, .01));
+      expect(displayedAsset(tester), endsWith('frame_01.png'));
+    }
+  });
 
   testWidgets('FOX first RUN resets cleanly and a second RUN restarts', (
     tester,

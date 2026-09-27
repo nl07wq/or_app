@@ -15,6 +15,8 @@ class FoxRunV1Section extends StatefulWidget {
 
 enum _FoxAuditMode { source, canonical, overlay }
 
+enum FoxRunV1Speed { slow, current, fast, faster }
+
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
   static const _canvasSize = Size(1646, 783);
@@ -27,13 +29,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _frame = 0;
   var _auditMode = _FoxAuditMode.canonical;
   var _inspectionScale = 0.5;
-  var _frameDuration = FoxRunV1Motion.frameDuration;
   var _leftToRight = true;
-  var _crossingCycles = FoxRunV1Motion.crossingCycles;
-  Duration get _crossingDuration => FoxRunV1Motion.durationForCycles(
-    _crossingCycles,
-    celDuration: _frameDuration,
-  );
+  var _speed = FoxRunV1Speed.current;
+  final _selectedFrames = <int>{for (var frame = 0; frame < 10; frame++) frame};
+  Duration get _crossingDuration => FoxRunV1Motion.durationForSpeed(_speed);
+  List<int> get _orderedSelectedFrames => _selectedFrames.toList()..sort();
   late final AnimationController _crossing = AnimationController(
     vsync: this,
     duration: _crossingDuration,
@@ -62,29 +62,35 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
     if (!mounted || !_crossing.isAnimating) return;
     final nextFrame = FoxRunV1Motion.frameAtCrossingProgress(
       _crossing.value,
-      celDuration: _frameDuration,
       runDuration: _crossingDuration,
+      selectedFrames: _orderedSelectedFrames,
     );
     if (nextFrame != _frame) setState(() => _frame = nextFrame);
   }
 
   void _restart() {
-    setState(() => _frame = 0);
+    setState(() => _frame = _orderedSelectedFrames.first);
     _crossing
       ..stop()
       ..value = 0;
     _setPlayback(true);
   }
 
-  void _setFrameDuration(int milliseconds) {
-    setState(() => _frameDuration = Duration(milliseconds: milliseconds));
+  void _setSpeed(FoxRunV1Speed speed) {
+    setState(() => _speed = speed);
     _crossing.duration = _crossingDuration;
     _syncFrameToCrossing();
   }
 
-  void _setCrossingCycles(int cycles) {
-    setState(() => _crossingCycles = cycles);
-    _crossing.duration = _crossingDuration;
+  void _toggleFrame(int frame) {
+    if (_selectedFrames.contains(frame) && _selectedFrames.length == 1) return;
+    setState(() {
+      if (!_selectedFrames.remove(frame)) _selectedFrames.add(frame);
+      if (!_selectedFrames.contains(_frame)) {
+        _frame = _orderedSelectedFrames.first;
+      }
+    });
+    _syncFrameToCrossing();
   }
 
   @override
@@ -216,36 +222,51 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         ],
       ),
       AppSpacing.gapSM,
-      const Text('FRAME TIMING'),
+      const Text('SPEED'),
       Wrap(
         spacing: AppSpacing.xs,
-        children: [60, 80, 100]
+        runSpacing: AppSpacing.xs,
+        children: FoxRunV1Speed.values
             .map(
-              (value) => ChoiceChip(
-                label: Text('${value}ms'),
-                selected: _frameDuration.inMilliseconds == value,
-                onSelected: (_) => _setFrameDuration(value),
+              (speed) => ChoiceChip(
+                key: ValueKey('fox-preview-speed-${speed.name}'),
+                label: Text(speed.name.toUpperCase()),
+                selected: _speed == speed,
+                onSelected: (_) => _setSpeed(speed),
               ),
             )
             .toList(),
       ),
       AppSpacing.gapSM,
-      const Text('CROSSING SPEED'),
-      Wrap(
-        spacing: AppSpacing.xs,
-        children: [3, 4, 5]
-            .map(
-              (cycles) => ChoiceChip(
-                label: Text('$cycles CYCLES'),
-                selected: _crossingCycles == cycles,
-                onSelected: (_) => _setCrossingCycles(cycles),
+      const Text('FRAMES'),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 288),
+          child: Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: List.generate(
+              _frameCount,
+              (frame) => SizedBox(
+                width: 51.2,
+                child: FilterChip(
+                  key: ValueKey('fox-preview-frame-${frame + 1}'),
+                  label: Text((frame + 1).toString().padLeft(2, '0')),
+                  selected: _selectedFrames.contains(frame),
+                  onSelected: (_) => _toggleFrame(frame),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-            )
-            .toList(),
+            ),
+          ),
+        ),
       ),
       AppSpacing.gapSM,
       Text(
-        'CURRENT: canonical FOX • ${_frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLength.toStringAsFixed(0)}px',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLength.toStringAsFixed(0)}px',
       ),
     ],
   );
@@ -262,12 +283,23 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
 /// and cel playback share one timeline and restart on the same phase.
 abstract final class FoxRunV1Motion {
   static const frameCount = 10;
+  static const orderedFrames = <int>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   static const frameDuration = Duration(milliseconds: 80);
   static const cycleDuration = Duration(milliseconds: frameCount * 80);
   static const crossingCycles = 4;
   static const crossingDuration = Duration(
     milliseconds: frameCount * 80 * crossingCycles,
   );
+  static const slowCrossingDuration = Duration(milliseconds: 4800);
+  static const fastCrossingDuration = Duration(milliseconds: 2400);
+  static const fasterCrossingDuration = Duration(milliseconds: 1600);
+
+  static Duration durationForSpeed(FoxRunV1Speed speed) => switch (speed) {
+    FoxRunV1Speed.slow => slowCrossingDuration,
+    FoxRunV1Speed.current => crossingDuration,
+    FoxRunV1Speed.fast => fastCrossingDuration,
+    FoxRunV1Speed.faster => fasterCrossingDuration,
+  };
 
   static Duration durationForCycles(int cycles, {Duration? celDuration}) =>
       Duration(
@@ -279,14 +311,18 @@ abstract final class FoxRunV1Motion {
     double progress, {
     Duration? celDuration,
     Duration? runDuration,
+    List<int> selectedFrames = orderedFrames,
   }) {
+    assert(selectedFrames.isNotEmpty);
     final resolvedCelDuration = celDuration ?? frameDuration;
     final resolvedRunDuration = runDuration ?? crossingDuration;
     final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
     final elapsedMicroseconds =
         (resolvedRunDuration.inMicroseconds * safeProgress).round();
-    return (elapsedMicroseconds ~/ resolvedCelDuration.inMicroseconds) %
-        frameCount;
+    final selectedIndex =
+        (elapsedMicroseconds ~/ resolvedCelDuration.inMicroseconds) %
+        selectedFrames.length;
+    return selectedFrames[selectedIndex];
   }
 }
 
