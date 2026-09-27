@@ -2015,18 +2015,30 @@ abstract final class _ProgressStatusAnchorGeometry {
 
 /// Shared typography for the five summary-state cards in OPERATION PROGRESS.
 abstract final class _OperationProgressTypography {
-  static const status = TextStyle(
+  static TextStyle title(BuildContext context, {required bool compact}) {
+    final base = Theme.of(context).textTheme.labelLarge ?? const TextStyle();
+    return base.copyWith(
+      color: Theme.of(context).colorScheme.onSurface,
+      fontSize: compact ? 13 : base.fontSize,
+      fontWeight: compact ? FontWeight.w500 : base.fontWeight,
+      height: compact ? 1.2 : base.height,
+      letterSpacing: compact ? 0 : base.letterSpacing,
+    );
+  }
+
+  static TextStyle status(BuildContext context) => TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.2,
     letterSpacing: 0,
+    color: Theme.of(context).colorScheme.onSurface,
   );
-  static const compactTitle = TextStyle(
-    fontSize: 13,
-    fontWeight: FontWeight.w500,
-    height: 1.2,
-    letterSpacing: 0,
-  );
+}
+
+/// Shared vertical anatomy for two-column OPERATION PROGRESS modules.
+abstract final class _OperationProgressSlotGeometry {
+  static const titleHeight = 15.6;
+  static const statusHeight = 14.4;
 }
 
 class _ProgressRow extends StatelessWidget {
@@ -2075,60 +2087,75 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (compactTitle && MediaQuery.sizeOf(context).width < 390)
-          FittedBox(
-            key: ValueKey('operation-progress-title-fit-$label'),
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              label,
-              key: ValueKey('operation-progress-title-$label'),
-              maxLines: 1,
-              softWrap: false,
-              style: _OperationProgressTypography.compactTitle,
-            ),
-          )
-        else
-          Text(
-            label,
-            key: ValueKey('operation-progress-title-$label'),
-            maxLines: compactTitle ? 1 : null,
-            softWrap: !compactTitle,
-            style: compactTitle
-                ? _OperationProgressTypography.compactTitle
-                : Theme.of(context).textTheme.labelLarge,
-          ),
-        AppSpacing.gapXS,
-        Row(
-          children: [
-            Expanded(
-              child: summaryStatus
-                  ? FittedBox(
-                      key: ValueKey('operation-progress-status-fit-$label'),
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        status,
-                        key: ValueKey('operation-progress-status-$label'),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: _OperationProgressTypography.status,
+        SizedBox(
+          height: _OperationProgressSlotGeometry.titleHeight,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: compactTitle && MediaQuery.sizeOf(context).width < 390
+                ? FittedBox(
+                    key: ValueKey('operation-progress-title-fit-$label'),
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      label,
+                      key: ValueKey('operation-progress-title-$label'),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: _OperationProgressTypography.title(
+                        context,
+                        compact: true,
                       ),
-                    )
-                  : Text(
-                      status,
-                      key: ValueKey('operation-progress-status-$label'),
                     ),
+                  )
+                : Text(
+                    label,
+                    key: ValueKey('operation-progress-title-$label'),
+                    maxLines: compactTitle ? 1 : null,
+                    softWrap: !compactTitle,
+                    style: _OperationProgressTypography.title(
+                      context,
+                      compact: compactTitle,
+                    ),
+                  ),
+          ),
+        ),
+        AppSpacing.gapXS,
+        SizedBox(
+          height: _OperationProgressSlotGeometry.statusHeight,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Row(
+              children: [
+                Expanded(
+                  child: summaryStatus
+                      ? FittedBox(
+                          key: ValueKey('operation-progress-status-fit-$label'),
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            status,
+                            key: ValueKey('operation-progress-status-$label'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: _OperationProgressTypography.status(context),
+                          ),
+                        )
+                      : Text(
+                          status,
+                          key: ValueKey('operation-progress-status-$label'),
+                        ),
+                ),
+                if (completion == null && onTap != null) ...[
+                  SizedBox(width: AppSpacing.sm),
+                  Icon(
+                    Icons.add_circle_outline,
+                    size: 18,
+                    color: colorScheme.primary,
+                  ),
+                ],
+              ],
             ),
-            if (completion == null && onTap != null) ...[
-              SizedBox(width: AppSpacing.sm),
-              Icon(
-                Icons.add_circle_outline,
-                size: 18,
-                color: colorScheme.primary,
-              ),
-            ],
-          ],
+          ),
         ),
         AppSpacing.gapXS,
         LinearProgressIndicator(

@@ -576,6 +576,67 @@ void main() {
   );
 
   testWidgets(
+    'paired progress cards share title, status, bar, and equivalent-state colors',
+    (tester) async {
+      for (final width in [390.0, 900.0]) {
+        await _installDdtStatus();
+        await _pumpDashboard(tester, width: width);
+        await _settleDashboard(tester);
+
+        for (final pair in const [
+          ('WATER', 'TRAINING'),
+          ('ACTIVITY', 'BRIEF / DEBRIEF'),
+        ]) {
+          final leftStatus = find.byKey(
+            ValueKey('operation-progress-status-${pair.$1}'),
+          );
+          final rightStatus = find.byKey(
+            ValueKey('operation-progress-status-${pair.$2}'),
+          );
+          expect(
+            tester.getTopLeft(leftStatus).dy,
+            closeTo(tester.getTopLeft(rightStatus).dy, 0.1),
+            reason: '${pair.$1}/${pair.$2} status at $width',
+          );
+          final leftBar = find.descendant(
+            of: _tile(pair.$1),
+            matching: find.byType(LinearProgressIndicator),
+          );
+          final rightBar = find.descendant(
+            of: _tile(pair.$2),
+            matching: find.byType(LinearProgressIndicator),
+          );
+          expect(
+            tester.getTopLeft(leftBar).dy,
+            closeTo(tester.getTopLeft(rightBar).dy, 0.1),
+            reason: '${pair.$1}/${pair.$2} bar at $width',
+          );
+        }
+
+        final activityTitle = tester.widget<Text>(
+          find.byKey(const ValueKey('operation-progress-title-ACTIVITY')),
+        );
+        final briefTitle = tester.widget<Text>(
+          find.byKey(
+            const ValueKey('operation-progress-title-BRIEF / DEBRIEF'),
+          ),
+        );
+        final activityStatus = tester.widget<Text>(
+          find.byKey(const ValueKey('operation-progress-status-ACTIVITY')),
+        );
+        final briefStatus = tester.widget<Text>(
+          find.byKey(
+            const ValueKey('operation-progress-status-BRIEF / DEBRIEF'),
+          ),
+        );
+        expect(activityTitle.style?.color, briefTitle.style?.color);
+        expect(activityStatus.style?.color, briefStatus.style?.color);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets(
     'TRAINING absent has an optional status popover and body navigation',
     (tester) async {
       final openedRoutes = <String?>[];

@@ -343,6 +343,42 @@ void main() {
     },
   );
 
+  testWidgets(
+    'CURRENT OPERATION reserves a shared enlarged date footprint for FLIP and NIXIE',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await _pump(tester, width: width);
+        final dateGroup = find.byKey(
+          const ValueKey('current-operation-date-group'),
+        );
+        final cycleGroup = find.byKey(
+          const ValueKey('current-operation-cycle-group'),
+        );
+        final dateScale = find.byKey(
+          const ValueKey('current-operation-date-scale'),
+        );
+        expect(dateScale, findsOneWidget);
+        expect(tester.widget<Transform>(dateScale).transform.storage[0], 1.2);
+        expect(
+          tester.getTopLeft(cycleGroup).dx,
+          greaterThan(tester.getTopRight(dateGroup).dx),
+        );
+
+        if (find.byType(OperationDateNixieDisplay).evaluate().isEmpty) {
+          await tester.drag(
+            find.byKey(const ValueKey('operation-date-display-switcher')),
+            const Offset(-72, 0),
+          );
+          await tester.pump();
+          await tester.pump();
+        }
+        expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+        expect(dateScale, findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
   testWidgets('date-only NIXIE keeps cycle state beside operation date', (
     tester,
   ) async {

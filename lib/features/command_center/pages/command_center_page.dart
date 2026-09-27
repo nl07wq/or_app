@@ -493,13 +493,16 @@ class _CurrentOperationCard extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 280;
-        final groupGap = narrow ? AppSpacing.sm : AppSpacing.xl;
+        // Reserve the larger date presentation before placing CYCLE STATE.
+        // This keeps FLIP and date-only NIXIE equally prominent without
+        // scaling the complete CURRENT OPERATION card.
+        final groupGap = narrow ? AppSpacing.sm : AppSpacing.md;
         final dateGroupWidth = narrow
-            ? 138.0
+            ? 168.0
             : constraints.maxWidth < 600
-            ? 180.0
+            ? 190.0
             : 220.0;
-        final cycleGroupWidth = narrow ? 110.0 : 120.0;
+        final cycleGroupWidth = narrow ? 104.0 : 110.0;
         final dateGroup = Column(
           key: const ValueKey('current-operation-card-content'),
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,11 +534,20 @@ class _CurrentOperationCard extends StatelessWidget {
                   ),
                 ),
                 AppSpacing.gapSM,
-                OperationDatePresentationSwitcher(
-                  operationDateFuture: operationDateFuture,
-                  transitionToken: 0,
-                  finalizeTransition: null,
-                  contentMode: OperationDatePresentationContentMode.dateOnly,
+                SizedBox(
+                  height: 53,
+                  child: Transform.scale(
+                    key: const ValueKey('current-operation-date-scale'),
+                    alignment: Alignment.topLeft,
+                    scale: 1.2,
+                    child: OperationDatePresentationSwitcher(
+                      operationDateFuture: operationDateFuture,
+                      transitionToken: 0,
+                      finalizeTransition: null,
+                      contentMode:
+                          OperationDatePresentationContentMode.dateOnly,
+                    ),
+                  ),
                 ),
               ],
             ),
