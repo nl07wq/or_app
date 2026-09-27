@@ -651,6 +651,38 @@ abstract final class BatV3ProductionFlight {
   }) => enabled ? BatV3SourceSet.flutterOffsets[cycleIndex] * amplitude / 4 : 0;
 }
 
+/// Production event-selection authority. FORCE actions may bypass this policy,
+/// but all normal random count selection uses these exact weights.
+abstract final class BatV3ProductionEventPolicy {
+  static const glitchProbability = .05;
+  static const normalEventProbability = .95;
+  static const normalOneProbability = .50;
+  static const normalTwoProbability = .30;
+  static const normalThreeProbability = .20;
+  static const glitchBatCount = 10;
+
+  static bool isGlitchRoll(int roll) {
+    if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
+    return roll == 0;
+  }
+
+  static int normalCountForRoll(int roll) {
+    if (roll < 0 || roll >= 100) throw ArgumentError.value(roll, 'roll');
+    if (roll < 50) return 1;
+    if (roll < 80) return 2;
+    return 3;
+  }
+
+  static List<BatV3ProductionInstance> instancesFor({
+    required int eventRoll,
+    required int countRoll,
+  }) => isGlitchRoll(eventRoll)
+      ? BatV3ProductionFlight.glitchInstances
+      : BatV3ProductionFlight.instances
+            .take(normalCountForRoll(countRoll))
+            .toList(growable: false);
+}
+
 /// A deterministic, compact group formation. Delays keep every bat at the
 /// shared offscreen entry until its own flight begins; phase and Y offsets keep
 /// the visible cels from reading as a duplicated stack.
@@ -703,7 +735,10 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
       .toList(growable: false);
   int get _eventEndMs => _crossingDuration + _eventInstances.last.startDelayMs;
   int get _nextEventBatCount =>
-      _selectedBatCount ?? 1 + (widget.nextInt?.call(3) ?? _random.nextInt(3));
+      _selectedBatCount ??
+      BatV3ProductionEventPolicy.normalCountForRoll(
+        widget.nextInt?.call(100) ?? _random.nextInt(100),
+      );
   String get _countTelemetry => _selectedBatCount == null
       ? _eventActive
             ? 'RANDOM → ×$_eventBatCount'

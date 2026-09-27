@@ -69,8 +69,8 @@ class CatRunV23Crossing {
 class CatRunProductionEventPolicy {
   CatRunProductionEventPolicy._();
 
-  static const chainContinueProbability = .2;
-  static const chainStopProbability = .8;
+  static const chainContinueProbability = .3;
+  static const chainStopProbability = .7;
   static const normalFollowerTriggerProgress = .15;
   static const glitchProbability = .05;
   static const normalEventProbability = .95;
@@ -83,8 +83,8 @@ class CatRunProductionEventPolicy {
   }
 
   static bool chainContinuesForRoll(int roll) {
-    if (roll < 0 || roll >= 5) throw ArgumentError.value(roll, 'roll');
-    return roll == 0;
+    if (roll < 0 || roll >= 10) throw ArgumentError.value(roll, 'roll');
+    return roll < 3;
   }
 }
 
@@ -94,7 +94,7 @@ enum CatRunProductionEventSource { automatic, manual, sandbox }
 
 /// Immutable crossing scheduled by the shared production event executor.
 class CatRunProductionScheduledCrossing {
-  const CatRunProductionScheduledCrossing({
+  CatRunProductionScheduledCrossing({
     required this.startedAtProgress,
     required this.coatVariant,
     this.continuationRolled = false,
@@ -102,7 +102,59 @@ class CatRunProductionScheduledCrossing {
 
   final double startedAtProgress;
   final CatRunCoatVariant coatVariant;
-  final bool continuationRolled;
+  bool continuationRolled;
+}
+
+/// Runtime authority for the recursive Production CAT chain. Dashboard and
+/// Ambient consumers share this executor; renderers only consume crossings.
+class CatRunProductionEventExecutor {
+  CatRunProductionEventExecutor({
+    required this.plan,
+    required math.Random random,
+  }) : _random = random,
+       crossings = plan.crossings
+           .map(
+             (crossing) => CatRunProductionScheduledCrossing(
+               startedAtProgress: crossing.startedAtProgress,
+               coatVariant: crossing.coatVariant,
+               continuationRolled: crossing.continuationRolled,
+             ),
+           )
+           .toList();
+
+  final CatRunProductionEventPlan plan;
+  final math.Random _random;
+  final List<CatRunProductionScheduledCrossing> crossings;
+
+  bool advance(double eventProgress) {
+    if (!plan.allowsRecursiveContinuation) return false;
+    var changed = false;
+    for (final crossing in List.of(crossings)) {
+      if (crossing.continuationRolled ||
+          eventProgress - crossing.startedAtProgress <
+              CatRunProductionEventPolicy.normalFollowerTriggerProgress) {
+        continue;
+      }
+      crossing.continuationRolled = true;
+      if (CatRunProductionEventPolicy.chainContinuesForRoll(
+        _random.nextInt(10),
+      )) {
+        crossings.add(
+          CatRunProductionScheduledCrossing(
+            startedAtProgress: eventProgress,
+            coatVariant: CatRunCoatPatterns.chooseRandom(_random),
+          ),
+        );
+      }
+      changed = true;
+    }
+    return changed;
+  }
+
+  bool get isComplete =>
+      crossings.every((crossing) => crossing.continuationRolled);
+
+  double get finalProgress => crossings.last.startedAtProgress + 1;
 }
 
 /// The initial, deterministic portion of one production event. Normal events

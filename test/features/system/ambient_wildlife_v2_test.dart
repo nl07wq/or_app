@@ -41,7 +41,7 @@ void main() {
     final normal = AmbientWildlifeV2EventPlan.resolve(
       species: AmbientWildlifeV2Species.bat,
       leftToRight: true,
-      nextInt: (max) => max == 20 ? 1 : 2,
+      nextInt: (max) => max == 20 ? 1 : 85,
     );
     final glitch = AmbientWildlifeV2EventPlan.resolve(
       species: AmbientWildlifeV2Species.bat,
@@ -58,5 +58,14 @@ void main() {
     expect(glitch.isGlitch, isTrue);
     expect(glitch.batInstances, BatV3ProductionFlight.glitchInstances);
     expect(glitch.batInstances, hasLength(10));
+  });
+
+  test('BAT normal count policy uses exact 50/30/20 branches', () {
+    expect(BatV3ProductionEventPolicy.normalCountForRoll(0), 1);
+    expect(BatV3ProductionEventPolicy.normalCountForRoll(49), 1);
+    expect(BatV3ProductionEventPolicy.normalCountForRoll(50), 2);
+    expect(BatV3ProductionEventPolicy.normalCountForRoll(79), 2);
+    expect(BatV3ProductionEventPolicy.normalCountForRoll(80), 3);
+    expect(BatV3ProductionEventPolicy.normalCountForRoll(99), 3);
   });
 }

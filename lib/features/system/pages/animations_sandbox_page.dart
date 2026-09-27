@@ -188,18 +188,12 @@ class _AmbientWildlifeSandboxSection extends StatefulWidget {
 
 class _AmbientWildlifeSandboxSectionState
     extends State<_AmbientWildlifeSandboxSection> {
-  static const _autoKinds = [
-    AmbientWildlifeV2Species.cat,
-    AmbientWildlifeV2Species.bat,
-  ];
-
   final math.Random _random = math.Random();
   AmbientWildlifeV2EventPlan? _plan;
   var _leftToRight = true;
   var _neutral = false;
   var _neutralZoomed = false;
   var _requestId = 0;
-  var _nextAutoKind = 0;
 
   int _next(int max) => _random.nextInt(max);
 
@@ -215,9 +209,8 @@ class _AmbientWildlifeSandboxSectionState
   }
 
   void _startAuto() {
-    final kind = _autoKinds[_nextAutoKind];
-    _nextAutoKind = (_nextAutoKind + 1) % _autoKinds.length;
-    _start(kind);
+    final available = AmbientWildlifeV2Registry.availableSpecies;
+    _start(available[_next(available.length)]);
   }
 
   String get _directionLabel => _leftToRight ? 'L → R' : 'R → L';

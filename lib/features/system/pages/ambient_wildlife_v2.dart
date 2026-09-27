@@ -58,6 +58,7 @@ class AmbientWildlifeV2EventPlan {
     required this.leftToRight,
     required this.isGlitch,
     required this.catPlan,
+    required this.catExecutor,
     required this.batInstances,
   });
 
@@ -65,6 +66,7 @@ class AmbientWildlifeV2EventPlan {
   final bool leftToRight;
   final bool isGlitch;
   final CatRunProductionEventPlan? catPlan;
+  final CatRunProductionEventExecutor? catExecutor;
   final List<BatV3ProductionInstance> batInstances;
 
   bool get isCat => species == AmbientWildlifeV2Species.cat;
@@ -114,6 +116,7 @@ class AmbientWildlifeV2EventPlan {
       leftToRight: leftToRight,
       isGlitch: catPlan.isGlitch,
       catPlan: catPlan,
+      catExecutor: CatRunProductionEventExecutor(plan: catPlan, random: random),
       batInstances: const [],
     );
   }
@@ -122,16 +125,19 @@ class AmbientWildlifeV2EventPlan {
     required bool leftToRight,
     required int Function(int max) nextInt,
   }) {
-    final glitch = nextInt(20) == 0;
-    final count = 1 + nextInt(3);
+    final eventRoll = nextInt(20);
+    final countRoll = nextInt(100);
+    final glitch = BatV3ProductionEventPolicy.isGlitchRoll(eventRoll);
     return AmbientWildlifeV2EventPlan._(
       species: AmbientWildlifeV2Species.bat,
       leftToRight: leftToRight,
       isGlitch: glitch,
       catPlan: null,
-      batInstances: glitch
-          ? BatV3ProductionFlight.glitchInstances
-          : BatV3ProductionFlight.instances.take(count).toList(growable: false),
+      catExecutor: null,
+      batInstances: BatV3ProductionEventPolicy.instancesFor(
+        eventRoll: eventRoll,
+        countRoll: countRoll,
+      ),
     );
   }
 }
@@ -158,13 +164,15 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
 
 class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this)
-    ..addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        setState(() {});
-        widget.onCompleted?.call();
-      }
-    });
+  late final AnimationController _controller =
+      AnimationController.unbounded(vsync: this)
+        ..addListener(_advanceCat)
+        ..addStatusListener((status) {
+          if (status == AnimationStatus.completed && mounted) {
+            setState(() {});
+            widget.onCompleted?.call();
+          }
+        });
 
   @override
   void didUpdateWidget(covariant AmbientWildlifeV2Stage oldWidget) {
@@ -178,21 +186,46 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       _controller.stop();
       return;
     }
-    final duration = plan.isCat
-        ? Duration(
-            microseconds:
-                (CatRunV23Travel.crossingDuration.inMicroseconds *
-                        (plan.catPlan!.crossings.last.startedAtProgress + 1))
-                    .round(),
-          )
-        : Duration(
-            milliseconds:
-                BatV3ProductionFlight.fullSpeedDurationMs +
-                plan.batInstances.last.startDelayMs,
-          );
+    if (plan.isCat) {
+      _controller.value = 0;
+      _continueCat();
+      return;
+    }
+    final duration = Duration(
+      milliseconds:
+          BatV3ProductionFlight.fullSpeedDurationMs +
+          plan.batInstances.last.startDelayMs,
+    );
     _controller
       ..duration = duration
       ..forward(from: 0);
+  }
+
+  void _continueCat() {
+    final executor = widget.plan?.catExecutor;
+    if (executor == null) return;
+    final remaining = (executor.finalProgress - _controller.value).clamp(
+      0.0,
+      1e9,
+    );
+    _controller.animateTo(
+      executor.finalProgress,
+      duration: Duration(
+        microseconds:
+            (CatRunV23Travel.crossingDuration.inMicroseconds * remaining)
+                .round(),
+      ),
+      curve: Curves.linear,
+    );
+  }
+
+  void _advanceCat() {
+    final plan = widget.plan;
+    if (plan == null || !plan.isCat || widget.neutral) return;
+    if (plan.catExecutor!.advance(_controller.value)) {
+      setState(() {});
+      _continueCat();
+    }
   }
 
   @override
@@ -211,7 +244,9 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
         animation: _controller,
         builder: (context, _) {
           if (plan == null || widget.neutral || _controller.isCompleted) {
-            return const SizedBox.expand();
+            return const SizedBox.expand(
+              key: ValueKey('ambient-wildlife-preview-idle'),
+            );
           }
           if (plan.isCat) {
             final catPlan = plan.catPlan!;
@@ -222,7 +257,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                 direction: catPlan.direction,
                 coatVariant: catPlan.crossings.first.coatVariant,
                 crossings: [
-                  for (final crossing in catPlan.crossings)
+                  for (final crossing in plan.catExecutor!.crossings)
                     CatRunV23Crossing(
                       progress: _controller.value - crossing.startedAtProgress,
                       direction: catPlan.direction,

@@ -237,7 +237,7 @@ void main() {
   });
 
   testWidgets(
-    'wildlife AUTO rotates deterministically and manual previews restart',
+    'wildlife AUTO selects an available species and manual previews restart',
     (tester) async {
       tester.view.physicalSize = const Size(390, 1800);
       tester.view.devicePixelRatio = 1;
@@ -248,12 +248,18 @@ void main() {
         find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
       );
 
-      for (final kind in ['cat', 'bat', 'cat', 'bat']) {
+      for (var index = 0; index < 4; index++) {
         await tester.tap(find.byKey(const ValueKey('wildlife-preview-auto')));
         await tester.pump();
+        final current = tester.widget<Text>(
+          find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+        );
         expect(
-          find.text('CURRENT: ${kind.toUpperCase()} / MOTION / L → R'),
-          findsOneWidget,
+          current.data,
+          anyOf(
+            'CURRENT: CAT / MOTION / L → R',
+            'CURRENT: BAT / MOTION / L → R',
+          ),
         );
       }
 

@@ -21,7 +21,7 @@ void main() {
           data: MediaQueryData(disableAnimations: reducedMotion),
           child: Scaffold(
             body: DashboardCatRunStage(
-              random: _SequenceRandom([1, 0, 0, 1]),
+              random: _SequenceRandom([1, 0, 0, 9]),
               minimumInterval: minimumInterval,
               maximumInterval: maximumInterval,
             ),
@@ -51,8 +51,8 @@ void main() {
     const productionStage = DashboardCatRunStage();
     expect(productionStage.minimumInterval, const Duration(seconds: 30));
     expect(productionStage.maximumInterval, const Duration(seconds: 60));
-    expect(DashboardCatRunStage.chainContinueProbability, .2);
-    expect(DashboardCatRunStage.chainStopProbability, .8);
+    expect(DashboardCatRunStage.chainContinueProbability, .3);
+    expect(DashboardCatRunStage.chainStopProbability, .7);
     expect(DashboardCatRunStage.chainFollowerTriggerProgress, .15);
     expect(DashboardCatRunStage.glitchProbability, .05);
     expect(DashboardCatRunStage.normalEventProbability, .95);
@@ -68,8 +68,10 @@ void main() {
         DashboardCatEventKind.normal,
       );
     }
-    expect(DashboardCatRunStage.chainContinuesForRoll(0), isTrue);
-    for (final roll in [1, 2, 3, 4]) {
+    for (final roll in [0, 1, 2]) {
+      expect(DashboardCatRunStage.chainContinuesForRoll(roll), isTrue);
+    }
+    for (final roll in [3, 4, 5, 6, 7, 8, 9]) {
       expect(DashboardCatRunStage.chainContinuesForRoll(roll), isFalse);
     }
 
@@ -271,7 +273,7 @@ void main() {
           home: Scaffold(
             body: DashboardCatRunStage(
               key: stageKey,
-              random: _SequenceRandom([1, 0, 1, 1]),
+              random: _SequenceRandom([1, 0, 1, 9]),
               minimumInterval: const Duration(milliseconds: 50),
               maximumInterval: const Duration(milliseconds: 50),
               onEventActiveChanged: activity.add,

@@ -570,7 +570,7 @@ void main() {
   testWidgets('V2.1 samples RANDOM count once per endless event', (
     tester,
   ) async {
-    final samples = [1, 0, 2, 1];
+    final samples = [50, 0, 80, 50];
     var sampleIndex = 0;
     _viewport(tester);
     await tester.pumpWidget(
@@ -628,7 +628,7 @@ void main() {
   testWidgets('V2.1 restart samples a fresh RANDOM event count', (
     tester,
   ) async {
-    final samples = [2, 0];
+    final samples = [80, 0];
     var sampleIndex = 0;
     _viewport(tester);
     await tester.pumpWidget(
