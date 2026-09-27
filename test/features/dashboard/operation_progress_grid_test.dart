@@ -429,6 +429,40 @@ void main() {
     }
   });
 
+  testWidgets('preserves the approved WATER vertical geometry at 390px', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+
+    final card = tester.getRect(_tile('WATER'));
+    final title = _localRect(
+      tester,
+      find.byKey(const ValueKey('operation-progress-title-WATER')),
+      _tile('WATER'),
+    );
+    final value = _localRect(
+      tester,
+      find.byKey(const ValueKey('operation-progress-status-WATER')),
+      _tile('WATER'),
+    );
+    final bar = _localRect(
+      tester,
+      find.descendant(
+        of: _tile('WATER'),
+        matching: find.byType(LinearProgressIndicator),
+      ),
+      _tile('WATER'),
+    );
+
+    expect(card.height, moreOrLessEquals(96, epsilon: 0.5));
+    expect(title, const Rect.fromLTRB(12, 12, 82.5, 32));
+    expect(value, const Rect.fromLTRB(12, 36, 119, 76));
+    expect(bar, const Rect.fromLTRB(12, 80, 145, 84));
+    expect(value.top - title.bottom, moreOrLessEquals(4, epsilon: 0.5));
+    expect(bar.top - value.bottom, moreOrLessEquals(4, epsilon: 0.5));
+  });
+
   testWidgets(
     'OPERATION PROGRESS keeps completion navigation and help as separate tap zones',
     (tester) async {
@@ -598,83 +632,107 @@ void main() {
     },
   );
 
-  testWidgets(
-    'paired progress cards share title, status, bar, and equivalent-state colors',
-    (tester) async {
-      for (final width in [390.0, 900.0]) {
-        await _installDdtStatus();
-        await _pumpDashboard(tester, width: width);
-        await _settleDashboard(tester);
+  testWidgets('all progress cards use the WATER title, value, and bar slots', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _installDdtStatus();
+      await _pumpDashboard(tester, width: width);
+      await _settleDashboard(tester);
 
-        for (final pair in const [
-          ('WATER', 'TRAINING'),
-          ('ACTIVITY', 'BRIEF / DEBRIEF'),
-        ]) {
-          final leftTitle = find.byKey(
-            ValueKey('operation-progress-title-${pair.$1}'),
-          );
-          final rightTitle = find.byKey(
-            ValueKey('operation-progress-title-${pair.$2}'),
-          );
-          final leftStatus = find.byKey(
-            ValueKey('operation-progress-status-${pair.$1}'),
-          );
-          final rightStatus = find.byKey(
-            ValueKey('operation-progress-status-${pair.$2}'),
-          );
-          expect(
-            tester.getTopLeft(leftTitle).dy,
-            closeTo(tester.getTopLeft(rightTitle).dy, 0.1),
-            reason: '${pair.$1}/${pair.$2} title at $width',
-          );
-          expect(
-            tester.getTopLeft(leftStatus).dy,
-            closeTo(tester.getTopLeft(rightStatus).dy, 0.1),
-            reason: '${pair.$1}/${pair.$2} status at $width',
-          );
-          final leftBar = find.descendant(
-            of: _tile(pair.$1),
-            matching: find.byType(LinearProgressIndicator),
-          );
-          final rightBar = find.descendant(
-            of: _tile(pair.$2),
-            matching: find.byType(LinearProgressIndicator),
-          );
-          expect(
-            tester.getTopLeft(leftBar).dy,
-            closeTo(tester.getTopLeft(rightBar).dy, 0.1),
-            reason: '${pair.$1}/${pair.$2} bar at $width',
-          );
-          final leftClearance =
-              tester.getRect(leftBar).top - tester.getRect(leftStatus).bottom;
-          final rightClearance =
-              tester.getRect(rightBar).top - tester.getRect(rightStatus).bottom;
-          expect(leftClearance, greaterThan(0));
-          expect(rightClearance, greaterThan(0));
-        }
+      final waterTitle = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-title-WATER')),
+        _tile('WATER'),
+      );
+      final waterValue = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-status-WATER')),
+        _tile('WATER'),
+      );
+      final waterBar = _localRect(
+        tester,
+        find.descendant(
+          of: _tile('WATER'),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        _tile('WATER'),
+      );
 
-        final activityTitle = tester.widget<Text>(
-          find.byKey(const ValueKey('operation-progress-title-ACTIVITY')),
+      for (final label in _labels) {
+        final title = _localRect(
+          tester,
+          find.byKey(ValueKey('operation-progress-title-$label')),
+          _tile(label),
         );
-        final briefTitle = tester.widget<Text>(
-          find.byKey(
-            const ValueKey('operation-progress-title-BRIEF / DEBRIEF'),
+        final status = _localRect(
+          tester,
+          find.byKey(ValueKey('operation-progress-status-$label')),
+          _tile(label),
+        );
+        final bar = _localRect(
+          tester,
+          find.descendant(
+            of: _tile(label),
+            matching: find.byType(LinearProgressIndicator),
           ),
+          _tile(label),
         );
-        final activityStatus = tester.widget<Text>(
-          find.byKey(const ValueKey('operation-progress-status-ACTIVITY')),
+        expect(
+          title.top,
+          moreOrLessEquals(waterTitle.top, epsilon: 0.5),
+          reason: '$label title at $width',
         );
-        final briefStatus = tester.widget<Text>(
-          find.byKey(
-            const ValueKey('operation-progress-status-BRIEF / DEBRIEF'),
-          ),
+        expect(
+          status.top,
+          moreOrLessEquals(waterValue.top, epsilon: 0.5),
+          reason: '$label status/value at $width',
         );
-        expect(activityTitle.style?.color, briefTitle.style?.color);
-        expect(activityStatus.style?.color, briefStatus.style?.color);
-        expect(tester.takeException(), isNull);
+        expect(
+          bar.top,
+          moreOrLessEquals(waterBar.top, epsilon: 0.5),
+          reason: '$label bar at $width',
+        );
+        expect(status.top - title.bottom, greaterThanOrEqualTo(4));
+        expect(bar.top - status.bottom, greaterThanOrEqualTo(4));
+        expect(
+          tester.getSize(_tile(label)).height,
+          moreOrLessEquals(96, epsilon: 0.5),
+        );
       }
-    },
-  );
+
+      final trainingTitle = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-title-TRAINING')),
+        _tile('TRAINING'),
+      );
+      final trainingStatus = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-status-TRAINING')),
+        _tile('TRAINING'),
+      );
+      expect(
+        trainingStatus.top - trainingTitle.bottom,
+        greaterThanOrEqualTo(waterValue.top - waterTitle.bottom),
+      );
+
+      final activityTitle = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-title-ACTIVITY')),
+      );
+      final briefTitle = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-title-BRIEF / DEBRIEF')),
+      );
+      final activityStatus = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-status-ACTIVITY')),
+      );
+      final briefStatus = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-status-BRIEF / DEBRIEF')),
+      );
+      expect(activityTitle.style?.color, briefTitle.style?.color);
+      expect(activityStatus.style?.color, briefStatus.style?.color);
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets(
     'TRAINING absent has an optional status popover and body navigation',
@@ -732,6 +790,59 @@ void main() {
       expect(openedRoutes.last, AppRoutes.training);
     },
   );
+
+  testWidgets('status and target changes do not move progress slots', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+
+    final before = {
+      for (final label in _labels) label: _progressSlotTops(tester, label),
+    };
+
+    morningFactNotifier.value = _morning();
+    foodSummaryNotifier.value = const FoodSummary(
+      calories: 3000,
+      protein: 50,
+      fat: 30,
+      carbohydrates: 120,
+      hydrationMl: 2700,
+      mealCount: 3,
+    );
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 2,
+      setCount: 6,
+      duration: null,
+      sessionName: null,
+    );
+    activitySummaryNotifier.value = const ActivitySummary(
+      steps: 6000,
+      measuredSteps: 6000,
+      isRecorded: true,
+      calculationBasis: ActivityCalculationBasis(
+        rawSteps: 6000,
+        currentCarryOver: 0,
+        previousCarryOverDeduction: 0,
+        officialSteps: 6000,
+      ),
+    );
+    await tester.pump();
+    await _settleDashboard(tester);
+
+    _expectTileText('STATUS', 'COMPLETE');
+    _expectTileText('FOOD', 'COMPLETE');
+    _expectTileText('TRAINING', 'COMPLETE');
+    for (final label in _labels) {
+      expect(
+        _progressSlotTops(tester, label),
+        before[label],
+        reason: '$label moved after its state/value changed',
+      );
+    }
+  });
 
   testWidgets('TRAINING record uses the optional blue recorded status zone', (
     tester,
@@ -3116,6 +3227,31 @@ Finder _tile(String label) => find.byKey(ValueKey('operation-progress-$label'));
 
 double _localCenterX(WidgetTester tester, Finder child, Finder card) =>
     tester.getRect(child).center.dx - tester.getRect(card).left;
+
+Rect _localRect(WidgetTester tester, Finder child, Finder card) =>
+    tester.getRect(child).shift(-tester.getRect(card).topLeft);
+
+(double, double, double) _progressSlotTops(WidgetTester tester, String label) =>
+    (
+      _localRect(
+        tester,
+        find.byKey(ValueKey('operation-progress-title-$label')),
+        _tile(label),
+      ).top,
+      _localRect(
+        tester,
+        find.byKey(ValueKey('operation-progress-status-$label')),
+        _tile(label),
+      ).top,
+      _localRect(
+        tester,
+        find.descendant(
+          of: _tile(label),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        _tile(label),
+      ).top,
+    );
 
 Finder _mainContent() => find.byKey(const ValueKey('dashboard-main-content'));
 

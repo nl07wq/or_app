@@ -1720,8 +1720,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           VoidCallback? onTap,
           bool fullWidth = false,
           bool pairCell = false,
-          bool naturalVerticalLayout = false,
-          _ProgressReferenceLayout? referenceLayout,
+          bool overlayCompletionZone = false,
           bool summaryStatus = false,
           bool compactTitle = false,
           DynamicTargetState? targetState,
@@ -1729,6 +1728,7 @@ class _ProgressCardState extends State<_ProgressCard> {
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
+            height: _OperationProgressVerticalGeometry.cardExtent,
             width: pairCell
                 ? double.infinity
                 : fullWidth
@@ -1741,8 +1741,7 @@ class _ProgressCardState extends State<_ProgressCard> {
               onTap: onTap,
               summaryStatus: summaryStatus,
               compactTitle: compactTitle,
-              naturalVerticalLayout: naturalVerticalLayout,
-              referenceLayout: referenceLayout,
+              overlayCompletionZone: overlayCompletionZone,
               targetState: targetState,
               completion: completion,
             ),
@@ -1824,7 +1823,6 @@ class _ProgressCardState extends State<_ProgressCard> {
           progress: _waterProgress(targets?.water),
           targetState: targets?.water.state,
           pairCell: true,
-          naturalVerticalLayout: true,
           onTap: widget.onWaterTap,
         );
         final trainingTile = tile(
@@ -1835,12 +1833,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
           summaryStatus: true,
           pairCell: true,
-          naturalVerticalLayout: true,
-          referenceLayout: _ProgressReferenceLayout(
-            title: 'WATER',
-            status: waterStatus,
-            includesQuickAdd: true,
-          ),
+          overlayCompletionZone: true,
           completion:
               completionModel?.trainingCompletion ??
               DailyCommandCompletionItem(
@@ -1863,7 +1856,6 @@ class _ProgressCardState extends State<_ProgressCard> {
           completion: completionModel?.activityCompletion,
           summaryStatus: true,
           pairCell: true,
-          naturalVerticalLayout: true,
           onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
         );
         final briefDebriefTile = tile(
@@ -1873,18 +1865,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           summaryStatus: true,
           compactTitle: true,
           pairCell: true,
-          naturalVerticalLayout: true,
-          referenceLayout: _ProgressReferenceLayout(
-            title: 'ACTIVITY',
-            status: activityStatus,
-            summaryStatus: true,
-            titleWidthReduction:
-                _ProgressStatusAnchorGeometry.statusZoneWidth -
-                (AppSpacing.md - AppSpacing.sm) * 2,
-            statusWidthReduction:
-                _ProgressStatusAnchorGeometry.statusZoneWidth -
-                (AppSpacing.md - AppSpacing.sm) * 2,
-          ),
+          overlayCompletionZone: true,
           completion: briefDebrief.completion,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -2088,28 +2069,14 @@ abstract final class _OperationProgressTypography {
   );
 }
 
-/// Shared vertical anatomy for two-column OPERATION PROGRESS modules.
-abstract final class _OperationProgressSlotGeometry {
-  static const titleHeight = 15.6;
-  static const statusHeight = 14.4;
-}
-
-class _ProgressReferenceLayout {
-  const _ProgressReferenceLayout({
-    required this.title,
-    required this.status,
-    this.summaryStatus = false,
-    this.includesQuickAdd = false,
-    this.titleWidthReduction = 0,
-    this.statusWidthReduction = 0,
-  });
-
-  final String title;
-  final String status;
-  final bool summaryStatus;
-  final bool includesQuickAdd;
-  final double titleWidthReduction;
-  final double statusWidthReduction;
+/// WATER-derived vertical anatomy for every OPERATION PROGRESS card.
+abstract final class _OperationProgressVerticalGeometry {
+  static const cardExtent = 96.0;
+  static const titleSlotExtent = 20.0;
+  static const valueSlotExtent = 40.0;
+  static const titleToValueClearance = AppSpacing.xs;
+  static const valueToBarClearance = AppSpacing.xs;
+  static const progressBarExtent = 4.0;
 }
 
 class _OperationProgressPairRow extends StatelessWidget {
@@ -2150,8 +2117,7 @@ class _ProgressRow extends StatelessWidget {
   final VoidCallback? onTap;
   final bool summaryStatus;
   final bool compactTitle;
-  final bool naturalVerticalLayout;
-  final _ProgressReferenceLayout? referenceLayout;
+  final bool overlayCompletionZone;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
 
@@ -2162,8 +2128,7 @@ class _ProgressRow extends StatelessWidget {
     this.onTap,
     this.summaryStatus = false,
     this.compactTitle = false,
-    this.naturalVerticalLayout = false,
-    this.referenceLayout,
+    this.overlayCompletionZone = false,
     this.targetState,
     this.completion,
   });
@@ -2240,100 +2205,28 @@ class _ProgressRow extends StatelessWidget {
         ],
       ],
     );
-    final referenceTitle = referenceLayout == null
-        ? null
-        : Text(
-            referenceLayout!.title,
-            softWrap: true,
-            style: _OperationProgressTypography.title(context, compact: false),
-          );
-    final referenceStatus = referenceLayout == null
-        ? null
-        : Row(
-            children: [
-              Expanded(
-                child: referenceLayout!.summaryStatus
-                    ? FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          referenceLayout!.status,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: _OperationProgressTypography.status(context),
-                        ),
-                      )
-                    : Text(referenceLayout!.status),
-              ),
-              if (referenceLayout!.includesQuickAdd) ...[
-                SizedBox(width: AppSpacing.sm),
-                Icon(
-                  Icons.add_circle_outline,
-                  size: 18,
-                  color: colorScheme.primary,
-                ),
-              ],
-            ],
-          );
-    Widget referenceSizedSlot({
-      required Widget reference,
-      required Widget child,
-      required double widthReduction,
-    }) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final referenceWidth = (constraints.maxWidth - widthReduction).clamp(
-            0.0,
-            constraints.maxWidth,
-          );
-          return Stack(
-            children: [
-              ExcludeSemantics(
-                child: Opacity(
-                  opacity: 0,
-                  child: SizedBox(width: referenceWidth, child: reference),
-                ),
-              ),
-              Positioned(left: 0, right: 0, top: 0, child: child),
-            ],
-          );
-        },
-      );
-    }
-
-    final titleSlot = naturalVerticalLayout
-        ? referenceTitle == null
-              ? title
-              : referenceSizedSlot(
-                  reference: referenceTitle,
-                  child: title,
-                  widthReduction: referenceLayout!.titleWidthReduction,
-                )
-        : SizedBox(
-            height: _OperationProgressSlotGeometry.titleHeight,
-            child: Align(alignment: Alignment.topLeft, child: title),
-          );
-    final statusSlot = naturalVerticalLayout
-        ? referenceStatus == null
-              ? status
-              : referenceSizedSlot(
-                  reference: referenceStatus,
-                  child: status,
-                  widthReduction: referenceLayout!.statusWidthReduction,
-                )
-        : SizedBox(
-            height: _OperationProgressSlotGeometry.statusHeight,
-            child: Align(alignment: Alignment.topLeft, child: status),
-          );
+    final titleSlot = SizedBox(
+      height: _OperationProgressVerticalGeometry.titleSlotExtent,
+      child: Align(alignment: Alignment.topLeft, child: title),
+    );
+    final statusSlot = SizedBox(
+      height: _OperationProgressVerticalGeometry.valueSlotExtent,
+      child: Align(alignment: Alignment.topLeft, child: status),
+    );
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         titleSlot,
-        AppSpacing.gapXS,
+        const SizedBox(
+          height: _OperationProgressVerticalGeometry.titleToValueClearance,
+        ),
         statusSlot,
-        AppSpacing.gapXS,
+        const SizedBox(
+          height: _OperationProgressVerticalGeometry.valueToBarClearance,
+        ),
         LinearProgressIndicator(
           value: progress,
+          minHeight: _OperationProgressVerticalGeometry.progressBarExtent,
           color: progressColor ?? (completed ? AppColors.success : null),
         ),
       ],
@@ -2351,7 +2244,7 @@ class _ProgressRow extends StatelessWidget {
     final color = completed
         ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
         : Colors.transparent;
-    if (completion != null && referenceLayout != null) {
+    if (completion != null && overlayCompletionZone) {
       return Material(
         color: color,
         shape: shape,
