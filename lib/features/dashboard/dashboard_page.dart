@@ -2022,7 +2022,7 @@ abstract final class _OperationProgressTypography {
     letterSpacing: 0,
   );
   static const compactTitle = TextStyle(
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.w500,
     height: 1.2,
     letterSpacing: 0,
@@ -2075,7 +2075,7 @@ class _ProgressRow extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (compactTitle)
+        if (compactTitle && MediaQuery.sizeOf(context).width < 390)
           FittedBox(
             key: ValueKey('operation-progress-title-fit-$label'),
             fit: BoxFit.scaleDown,
@@ -2092,7 +2092,11 @@ class _ProgressRow extends StatelessWidget {
           Text(
             label,
             key: ValueKey('operation-progress-title-$label'),
-            style: Theme.of(context).textTheme.labelLarge,
+            maxLines: compactTitle ? 1 : null,
+            softWrap: !compactTitle,
+            style: compactTitle
+                ? _OperationProgressTypography.compactTitle
+                : Theme.of(context).textTheme.labelLarge,
           ),
         AppSpacing.gapXS,
         Row(

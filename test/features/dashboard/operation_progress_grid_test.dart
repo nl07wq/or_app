@@ -523,7 +523,7 @@ void main() {
   });
 
   testWidgets(
-    'summary statuses and BRIEF / DEBRIEF title use compact one-line typography',
+    'summary statuses and BRIEF / DEBRIEF title use responsive one-line typography',
     (tester) async {
       for (final width in [320.0, 390.0, 900.0]) {
         await _installDdtStatus();
@@ -563,11 +563,12 @@ void main() {
         expect(briefTitle.data, 'BRIEF / DEBRIEF');
         expect(briefTitle.maxLines, 1);
         expect(briefTitle.softWrap, isFalse);
+        expect(briefTitle.style?.fontSize, 12);
         expect(
           find.byKey(
             const ValueKey('operation-progress-title-fit-BRIEF / DEBRIEF'),
           ),
-          findsOneWidget,
+          width < 390 ? findsOneWidget : findsNothing,
         );
         expect(tester.takeException(), isNull, reason: 'title at $width');
       }
