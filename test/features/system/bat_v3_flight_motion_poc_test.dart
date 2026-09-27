@@ -137,6 +137,32 @@ void main() {
     }
   });
 
+  testWidgets('Production pose clock uses the selected cadence independently', (
+    tester,
+  ) async {
+    _viewport(tester);
+    await tester.pumpWidget(_productionHost());
+    await tester.tap(find.byKey(const ValueKey('bat-v3-production-restart')));
+    await tester.pump();
+    expect(find.textContaining('FRAME 01 · NEUTRAL'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-timing-100')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('FRAME 02 · TOP INTERMEDIATE'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('FRAME 03 · TOP'), findsOneWidget);
+
+    // Changing timing while playing reschedules only the pose clock.
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-timing-150')),
+    );
+    await tester.pump(const Duration(milliseconds: 149));
+    expect(find.textContaining('FRAME 03 · TOP'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.textContaining('FRAME 02 · TOP INTERMEDIATE'), findsOneWidget);
+  });
+
   test(
     'Production preview crosses full width and applies flutter in screen px',
     () {

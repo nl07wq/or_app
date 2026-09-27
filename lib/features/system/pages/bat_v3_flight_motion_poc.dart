@@ -538,8 +538,10 @@ abstract final class BatV3ProductionFlight {
 }
 
 class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
-  Timer? _ticker;
-  var _elapsed = 0;
+  Timer? _poseTicker;
+  Timer? _crossingTicker;
+  var _crossingElapsed = 0;
+  var _cycleIndex = 0;
   var _playing = false;
   var _timing = 125;
   var _flutterOn = true;
@@ -547,44 +549,66 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   var _leftToRight = true;
   var _speed = 'CURRENT';
 
-  int get _cycleIndex => (_elapsed ~/ _timing) % BatV3SourceSet.cycle.length;
   BatV3SourcePose get _pose =>
       BatV3SourceSet.poses[BatV3SourceSet.cycle[_cycleIndex]];
-  int get _crossingDuration =>
-      BatV3ProductionFlight.crossingDurations[_speed]!;
-  double get _progress => (_elapsed % _crossingDuration) / _crossingDuration;
+  int get _crossingDuration => BatV3ProductionFlight.crossingDurations[_speed]!;
+  double get _progress =>
+      (_crossingElapsed % _crossingDuration) / _crossingDuration;
   double get _flutterY => _flutterOn
       ? BatV3SourceSet.flutterOffsets[_cycleIndex] * _flutterAmplitude / 4
       : 0;
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    _poseTicker?.cancel();
+    _crossingTicker?.cancel();
     super.dispose();
   }
 
   void _play() {
     if (_playing) return;
     setState(() => _playing = true);
-    _ticker = Timer.periodic(const Duration(milliseconds: 16), (_) {
+    _startPoseClock();
+    _crossingTicker = Timer.periodic(const Duration(milliseconds: 16), (_) {
       if (!mounted) return;
-      setState(() => _elapsed += 16);
+      setState(() => _crossingElapsed += 16);
+    });
+  }
+
+  void _startPoseClock() {
+    _poseTicker?.cancel();
+    _poseTicker = Timer.periodic(Duration(milliseconds: _timing), (_) {
+      if (!mounted) return;
+      setState(() {
+        _cycleIndex = (_cycleIndex + 1) % BatV3SourceSet.cycle.length;
+      });
     });
   }
 
   void _pause() {
-    _ticker?.cancel();
-    _ticker = null;
+    _poseTicker?.cancel();
+    _crossingTicker?.cancel();
+    _poseTicker = null;
+    _crossingTicker = null;
     setState(() => _playing = false);
   }
 
   void _restart() {
-    _ticker?.cancel();
+    _poseTicker?.cancel();
+    _crossingTicker?.cancel();
     setState(() {
-      _elapsed = 0;
+      _crossingElapsed = 0;
+      _cycleIndex = 0;
       _playing = false;
     });
     _play();
+  }
+
+  void _changeTiming(int timing) {
+    setState(() => _timing = timing);
+    // Apply the new cadence immediately without resetting crossing position or
+    // the current pose. The independent pose timer is the sole scheduler.
+    if (_playing) _startPoseClock();
   }
 
   @override
@@ -637,7 +661,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                     'bat-v3-production-timing-$timing',
                     '${timing}ms',
                     _timing == timing,
-                    () => setState(() => _timing = timing),
+                    () => _changeTiming(timing),
                   ),
                 _option(
                   'bat-v3-production-flutter-off',
@@ -668,7 +692,8 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                       _flutterOn = amplitude != 0;
                     }),
                   ),
-                for (final speed in BatV3ProductionFlight.crossingDurations.keys)
+                for (final speed
+                    in BatV3ProductionFlight.crossingDurations.keys)
                   _option(
                     'bat-v3-production-speed-${speed.toLowerCase()}',
                     '$speed ${BatV3ProductionFlight.crossingDurations[speed]}ms',
