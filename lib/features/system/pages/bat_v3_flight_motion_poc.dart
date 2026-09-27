@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -506,7 +507,10 @@ class _BatV3Crossing extends StatelessWidget {
 /// Production-scale tuning surface. It intentionally reuses the V4 canonical
 /// cels and applies only shared time, Y flutter, X travel, and mirror state.
 class BatV3ProductionPreview extends StatefulWidget {
-  const BatV3ProductionPreview({super.key});
+  const BatV3ProductionPreview({super.key, this.nextInt});
+
+  /// Test injection only. Production uses an unbiased local random source.
+  final int Function(int max)? nextInt;
 
   @override
   State<BatV3ProductionPreview> createState() => _BatV3ProductionPreviewState();
@@ -557,6 +561,12 @@ abstract final class BatV3ProductionFlight {
   static double topFor(double flutterY) =>
       (stageHeight - batHeight) / 2 + flutterY;
 
+  static bool isInstanceComplete({
+    required int elapsedMs,
+    required int durationMs,
+    required BatV3ProductionInstance instance,
+  }) => elapsedMs >= durationMs + instance.startDelayMs;
+
   static double flutterOffset({
     required int cycleIndex,
     required int amplitude,
@@ -582,46 +592,86 @@ class BatV3ProductionInstance {
 class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   Timer? _poseTicker;
   Timer? _crossingTicker;
+  Timer? _eventBoundaryTimer;
+  final math.Random _random = math.Random();
   var _crossingElapsed = 0;
   var _cycleIndex = 0;
   var _playing = false;
+  var _eventActive = false;
   var _flutterOn = true;
   var _leftToRight = true;
   var _speed = '1×';
-  var _batCount = 1;
+  int? _selectedBatCount = 1;
+  var _eventBatCount = 1;
 
   BatV3SourcePose get _pose =>
       BatV3SourceSet.poses[BatV3SourceSet.cycle[_cycleIndex]];
   int get _crossingDuration =>
       BatV3ProductionFlight.crossingDurationForSpeed(_speed);
-  List<BatV3ProductionInstance> get _instances =>
-      BatV3ProductionFlight.instances.take(_batCount).toList();
-  bool get _eventComplete =>
-      _crossingElapsed >= _crossingDuration + _instances.last.startDelayMs;
+  List<BatV3ProductionInstance> get _eventInstances =>
+      BatV3ProductionFlight.instances.take(_eventBatCount).toList();
+  List<BatV3ProductionInstance> get _visibleInstances => _eventInstances
+      .where(
+        (instance) => !BatV3ProductionFlight.isInstanceComplete(
+          elapsedMs: _crossingElapsed,
+          durationMs: _crossingDuration,
+          instance: instance,
+        ),
+      )
+      .toList(growable: false);
+  int get _eventEndMs => _crossingDuration + _eventInstances.last.startDelayMs;
+  int get _nextEventBatCount =>
+      _selectedBatCount ?? 1 + (widget.nextInt?.call(3) ?? _random.nextInt(3));
+  String get _countTelemetry => _selectedBatCount == null
+      ? _eventActive
+            ? 'RANDOM → ×$_eventBatCount'
+            : 'RANDOM'
+      : '×$_selectedBatCount';
 
   @override
   void dispose() {
     _poseTicker?.cancel();
     _crossingTicker?.cancel();
+    _eventBoundaryTimer?.cancel();
     super.dispose();
   }
 
   void _play() {
     if (_playing) return;
-    if (_eventComplete) {
-      _crossingElapsed = 0;
-      _cycleIndex = 0;
-    }
     setState(() => _playing = true);
     _startPoseClock();
+    _beginNextEvent();
+  }
+
+  void _beginNextEvent() {
+    if (!mounted || !_playing) return;
+    _eventBoundaryTimer?.cancel();
+    setState(() {
+      _crossingElapsed = 0;
+      _cycleIndex = 0;
+      _eventBatCount = _nextEventBatCount;
+      _eventActive = true;
+    });
+    _crossingTicker?.cancel();
     _crossingTicker = Timer.periodic(const Duration(milliseconds: 16), (_) {
       if (!mounted) return;
-      if (_eventComplete) {
-        _stopClocks();
-        setState(() => _playing = false);
+      final nextElapsed = _crossingElapsed + 16;
+      if (nextElapsed >= _eventEndMs) {
+        _finishCurrentEvent();
       } else {
-        setState(() => _crossingElapsed += 16);
+        setState(() => _crossingElapsed = nextElapsed);
       }
+    });
+  }
+
+  void _finishCurrentEvent() {
+    _crossingTicker?.cancel();
+    _crossingTicker = null;
+    setState(() => _eventActive = false);
+    // The single frame boundary guarantees completed cels are removed before
+    // the next endless event becomes paintable, without a visible pause.
+    _eventBoundaryTimer = Timer(const Duration(milliseconds: 16), () {
+      if (mounted && _playing) _beginNextEvent();
     });
   }
 
@@ -641,8 +691,10 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   void _stopClocks() {
     _poseTicker?.cancel();
     _crossingTicker?.cancel();
+    _eventBoundaryTimer?.cancel();
     _poseTicker = null;
     _crossingTicker = null;
+    _eventBoundaryTimer = null;
   }
 
   void _restart() {
@@ -650,28 +702,22 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
     setState(() {
       _crossingElapsed = 0;
       _cycleIndex = 0;
-      _playing = false;
+      _eventActive = false;
+      _playing = true;
     });
-    _play();
+    _startPoseClock();
+    _beginNextEvent();
   }
 
   void _playOrRestart() {
-    if (_playing || _eventComplete) {
+    if (_playing || _eventActive) {
       _restart();
     } else {
       _play();
     }
   }
 
-  void _setCount(int count) {
-    _stopClocks();
-    setState(() {
-      _batCount = count;
-      _crossingElapsed = 0;
-      _cycleIndex = 0;
-      _playing = false;
-    });
-  }
+  void _setCount(int? count) => setState(() => _selectedBatCount = count);
 
   @override
   Widget build(BuildContext context) => Column(
@@ -679,7 +725,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
     children: [
       const SectionHeader(
         icon: Icons.flight_outlined,
-        title: 'BAT FLIGHT — PRODUCTION PREVIEW V2',
+        title: 'BAT FLIGHT — PRODUCTION PREVIEW V2.1',
       ),
       AppSpacing.gapSM,
       OperationCard(
@@ -688,7 +734,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${BatV3ProductionFlight.poseDurationMs}ms · FLUTTER ${_flutterOn ? '${BatV3ProductionFlight.flutterAmplitude}px' : 'OFF'} · $_speed · ×$_batCount · ${_leftToRight ? 'L→R' : 'R→L'}',
+              'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${BatV3ProductionFlight.poseDurationMs}ms · FLUTTER ${_flutterOn ? '${BatV3ProductionFlight.flutterAmplitude}px' : 'OFF'} · $_speed · $_countTelemetry · ${_leftToRight ? 'L→R' : 'R→L'}',
               key: const ValueKey('bat-v3-production-telemetry'),
             ),
             AppSpacing.gapSM,
@@ -697,7 +743,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
               cycleIndex: _cycleIndex,
               crossingElapsed: _crossingElapsed,
               crossingDuration: _crossingDuration,
-              instances: _instances,
+              instances: _eventActive ? _visibleInstances : const [],
               flutterOn: _flutterOn,
             ),
             AppSpacing.gapSM,
@@ -765,9 +811,15 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                   _option(
                     'bat-v3-production-count-$count',
                     '×$count',
-                    _batCount == count,
+                    _selectedBatCount == count,
                     () => _setCount(count),
                   ),
+                _option(
+                  'bat-v3-production-count-random',
+                  'RANDOM',
+                  _selectedBatCount == null,
+                  () => _setCount(null),
+                ),
               ],
             ),
             Text(

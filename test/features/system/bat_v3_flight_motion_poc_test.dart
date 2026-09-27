@@ -106,7 +106,7 @@ void main() {
     expect(find.text('CAT TRACE PIPELINE POC'), findsNothing);
   });
 
-  testWidgets('Production Preview V2 exposes only the candidate controls', (
+  testWidgets('Production Preview V2.1 exposes only the candidate controls', (
     tester,
   ) async {
     _viewport(tester);
@@ -129,6 +129,7 @@ void main() {
       'bat-v3-production-count-1',
       'bat-v3-production-count-2',
       'bat-v3-production-count-3',
+      'bat-v3-production-count-random',
       'bat-v3-production-ltr',
       'bat-v3-production-rtl',
     ]) {
@@ -317,6 +318,187 @@ void main() {
     },
   );
 
+  test('V2.1 removes completed instances before the next event', () {
+    for (final instance in BatV3ProductionFlight.instances) {
+      final end =
+          BatV3ProductionFlight.fullSpeedDurationMs + instance.startDelayMs;
+      expect(
+        BatV3ProductionFlight.isInstanceComplete(
+          elapsedMs: end - 1,
+          durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
+          instance: instance,
+        ),
+        isFalse,
+      );
+      expect(
+        BatV3ProductionFlight.isInstanceComplete(
+          elapsedMs: end,
+          durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
+          instance: instance,
+        ),
+        isTrue,
+      );
+    }
+  });
+
+  testWidgets('V2.1 endlessly repeats ×1 with a zero-residue boundary', (
+    tester,
+  ) async {
+    _viewport(tester);
+    await tester.pumpWidget(_productionHost());
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-play-restart')),
+    );
+    await tester.pump(const Duration(milliseconds: 2208));
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-instance-0')),
+      findsNothing,
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-instance-0')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('V2.1 clears completed cels at both directional boundaries', (
+    tester,
+  ) async {
+    for (final directionKey in [
+      'bat-v3-production-ltr',
+      'bat-v3-production-rtl',
+    ]) {
+      _viewport(tester);
+      await tester.pumpWidget(_productionHost());
+      await tester.tap(find.byKey(ValueKey(directionKey)));
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('bat-v3-production-play-restart')),
+      );
+      await tester.pump(const Duration(milliseconds: 2208));
+      expect(
+        find.byKey(const ValueKey('bat-v3-production-instance-0')),
+        findsNothing,
+        reason: directionKey,
+      );
+    }
+  });
+
+  testWidgets('V2.1 waits for the delayed final ×3 bat before repeating', (
+    tester,
+  ) async {
+    _viewport(tester);
+    await tester.pumpWidget(_productionHost());
+    await tester.tap(find.byKey(const ValueKey('bat-v3-production-count-3')));
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-play-restart')),
+    );
+    await tester.pump(const Duration(milliseconds: 2208));
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-instance-0')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-instance-5')),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 352));
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-instance-5')),
+      findsNothing,
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    for (final phase in [0, 2, 5]) {
+      expect(
+        find.byKey(ValueKey('bat-v3-production-instance-$phase')),
+        findsOneWidget,
+      );
+    }
+  });
+
+  testWidgets('V2.1 samples RANDOM count once per endless event', (
+    tester,
+  ) async {
+    final samples = [1, 0, 2, 1];
+    var sampleIndex = 0;
+    _viewport(tester);
+    await tester.pumpWidget(
+      _productionHost(nextInt: (_) => samples[sampleIndex++]),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-count-random')),
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-play-restart')),
+    );
+    await tester.pump();
+    expect(_productionTelemetry(tester), contains('RANDOM → ×2'));
+    await tester.pump(const Duration(milliseconds: 2384));
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-instance-0')),
+      findsNothing,
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_productionTelemetry(tester), contains('RANDOM → ×1'));
+    await tester.pump(const Duration(milliseconds: 2208));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_productionTelemetry(tester), contains('RANDOM → ×3'));
+  });
+
+  testWidgets(
+    'V2.1 defers count changes until the next event and restarts cleanly',
+    (tester) async {
+      _viewport(tester);
+      await tester.pumpWidget(_productionHost());
+      await tester.tap(
+        find.byKey(const ValueKey('bat-v3-production-play-restart')),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.byKey(const ValueKey('bat-v3-production-count-3')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('bat-v3-production-instance-2')),
+        findsNothing,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('bat-v3-production-play-restart')),
+      );
+      await tester.pump();
+      for (final phase in [0, 2, 5]) {
+        expect(
+          find.byKey(ValueKey('bat-v3-production-instance-$phase')),
+          findsOneWidget,
+        );
+      }
+    },
+  );
+
+  testWidgets('V2.1 restart samples a fresh RANDOM event count', (
+    tester,
+  ) async {
+    final samples = [2, 0];
+    var sampleIndex = 0;
+    _viewport(tester);
+    await tester.pumpWidget(
+      _productionHost(nextInt: (_) => samples[sampleIndex++]),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-count-random')),
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-play-restart')),
+    );
+    await tester.pump();
+    expect(_productionTelemetry(tester), contains('RANDOM → ×3'));
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-play-restart')),
+    );
+    await tester.pump();
+    expect(_productionTelemetry(tester), contains('RANDOM → ×1'));
+  });
+
   testWidgets(
     'V2 renders the selected deterministic group at 320, 390, and 900',
     (tester) async {
@@ -353,8 +535,10 @@ void main() {
 Widget _host() => MaterialApp(
   home: Scaffold(body: ListView(children: const [BatV3FlightMotionPoc()])),
 );
-Widget _productionHost() => MaterialApp(
-  home: Scaffold(body: ListView(children: const [BatV3ProductionPreview()])),
+Widget _productionHost({int Function(int max)? nextInt}) => MaterialApp(
+  home: Scaffold(
+    body: ListView(children: [BatV3ProductionPreview(nextInt: nextInt)]),
+  ),
 );
 void _viewport(WidgetTester tester) {
   addTearDown(tester.view.resetPhysicalSize);
@@ -362,3 +546,7 @@ void _viewport(WidgetTester tester) {
   tester.view.physicalSize = const Size(800, 6000);
   tester.view.devicePixelRatio = 1;
 }
+
+String _productionTelemetry(WidgetTester tester) => tester
+    .widget<Text>(find.byKey(const ValueKey('bat-v3-production-telemetry')))
+    .data!;
