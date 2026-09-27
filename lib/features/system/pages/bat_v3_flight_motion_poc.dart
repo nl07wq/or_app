@@ -270,7 +270,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
             ),
             AppSpacing.gapSM,
             const Text('48PX PRODUCTION PREVIEW'),
-            _BatV3CanonicalFrame(
+            BatV3CanonicalFrame(
               pose: _pose,
               leftToRight: _leftToRight,
               inspectionScale: 1,
@@ -333,7 +333,7 @@ class _BatV3Image extends StatelessWidget {
   final double flutterY;
   @override
   Widget build(BuildContext context) {
-    return _BatV3CanonicalFrame(
+    return BatV3CanonicalFrame(
       key: ValueKey('bat-v3-image-${inspectionScale.toStringAsFixed(2)}'),
       pose: pose,
       leftToRight: leftToRight,
@@ -379,8 +379,8 @@ class _BatV3BodyOverlayPainter extends CustomPainter {
       oldDelegate.pose != pose;
 }
 
-class _BatV3CanonicalFrame extends StatelessWidget {
-  const _BatV3CanonicalFrame({
+class BatV3CanonicalFrame extends StatelessWidget {
+  const BatV3CanonicalFrame({
     super.key,
     required this.pose,
     required this.leftToRight,
@@ -488,7 +488,7 @@ class _BatV3Crossing extends StatelessWidget {
             ),
             child: SizedBox(
               width: frameWidth,
-              child: _BatV3CanonicalFrame(
+              child: BatV3CanonicalFrame(
                 pose: pose,
                 leftToRight: leftToRight,
                 inspectionScale: 1,
@@ -861,7 +861,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
               key: const ValueKey('bat-v3-production-telemetry'),
             ),
             AppSpacing.gapSM,
-            _ProductionBatStage(
+            BatV3ProductionStage(
               leftToRight: _leftToRight,
               cycleIndex: _cycleIndex,
               crossingElapsed: _crossingElapsed,
@@ -976,8 +976,9 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   );
 }
 
-class _ProductionBatStage extends StatelessWidget {
-  const _ProductionBatStage({
+class BatV3ProductionStage extends StatelessWidget {
+  const BatV3ProductionStage({
+    super.key,
     required this.leftToRight,
     required this.cycleIndex,
     required this.crossingElapsed,
@@ -1035,7 +1036,7 @@ class _ProductionBatStage extends StatelessWidget {
       top: BatV3ProductionFlight.topFor(instance.formationY + flutterY),
       width: BatV3ProductionFlight.batWidth,
       height: BatV3ProductionFlight.batHeight,
-      child: _BatV3CanonicalFrame(
+      child: BatV3CanonicalFrame(
         pose: pose,
         leftToRight: leftToRight,
         inspectionScale: 1,

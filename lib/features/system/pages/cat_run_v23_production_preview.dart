@@ -141,6 +141,29 @@ class CatRunProductionEventPlan {
     );
   }
 
+  /// Reuses the production roll, coat, and continuation authority while a
+  /// caller supplies the surrounding stage's selected direction.
+  factory CatRunProductionEventPlan.sampledForDirection({
+    required CatRunProductionEventSource source,
+    required math.Random random,
+    required CatRunV23Direction direction,
+    required int eventRoll,
+  }) {
+    final isGlitch = CatRunProductionEventPolicy.isGlitchRoll(eventRoll);
+    return CatRunProductionEventPlan._withCrossings(
+      source: source,
+      eventRoll: eventRoll,
+      isGlitch: isGlitch,
+      direction: direction,
+      random: random,
+      count: isGlitch ? CatRunProductionEventPolicy.glitchCatCount : 1,
+      spacing: isGlitch
+          ? CatRunProductionEventPolicy.glitchFollowerTriggerProgress
+          : 0,
+      allowsRecursiveContinuation: !isGlitch,
+    );
+  }
+
   factory CatRunProductionEventPlan.forceChain({
     required math.Random random,
     required CatRunV23Direction direction,

@@ -11,6 +11,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'bat_v3_flight_motion_poc.dart';
+import 'ambient_wildlife_v2.dart';
 import 'bat_side_profile_shape_poc.dart';
 import 'cat_run_v2_poc_section.dart';
 import 'cat_run_v23_production_preview.dart';
@@ -188,22 +189,27 @@ class _AmbientWildlifeSandboxSection extends StatefulWidget {
 class _AmbientWildlifeSandboxSectionState
     extends State<_AmbientWildlifeSandboxSection> {
   static const _autoKinds = [
-    WildlifeKind.cat,
-    WildlifeKind.birds,
-    WildlifeKind.fox,
-    WildlifeKind.bat,
+    AmbientWildlifeV2Species.cat,
+    AmbientWildlifeV2Species.bat,
   ];
 
-  WildlifeEventPlan? _plan;
+  final math.Random _random = math.Random();
+  AmbientWildlifeV2EventPlan? _plan;
   var _leftToRight = true;
   var _neutral = false;
   var _neutralZoomed = false;
   var _requestId = 0;
   var _nextAutoKind = 0;
 
-  void _start(WildlifeKind kind) {
+  int _next(int max) => _random.nextInt(max);
+
+  void _start(AmbientWildlifeV2Species kind) {
     setState(() {
-      _plan = wildlifePreviewPlan(kind: kind, leftToRight: _leftToRight);
+      _plan = AmbientWildlifeV2EventPlan.resolve(
+        species: kind,
+        leftToRight: _leftToRight,
+        nextInt: _next,
+      );
       _requestId++;
     });
   }
@@ -225,7 +231,7 @@ class _AmbientWildlifeSandboxSectionState
       children: [
         const SectionHeader(
           icon: Icons.pets_outlined,
-          title: 'AMBIENT WILDLIFE',
+          title: 'AMBIENT WILDLIFE V2',
         ),
         AppSpacing.gapSM,
         OperationCard(
@@ -233,20 +239,19 @@ class _AmbientWildlifeSandboxSectionState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DashboardAmbientWildlifePreviewStage(
-                plan: _plan,
-                requestId: _requestId,
-                neutralKind: _neutral
-                    ? (_plan?.kind ?? WildlifeKind.cat)
-                    : null,
-                neutralLeftToRight: _leftToRight,
-                neutralScale:
-                    _neutral &&
-                        (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat &&
-                        _neutralZoomed
-                    ? 2
-                    : 1,
-              ),
+              _neutral
+                  ? DashboardAmbientWildlifePreviewStage(
+                      plan: null,
+                      requestId: _requestId,
+                      neutralKind: WildlifeKind.cat,
+                      neutralLeftToRight: _leftToRight,
+                      neutralScale: _neutralZoomed ? 2 : 1,
+                    )
+                  : AmbientWildlifeV2Stage(
+                      plan: _plan,
+                      requestId: _requestId,
+                      neutral: false,
+                    ),
               AppSpacing.gapMD,
               const Text('MODE'),
               AppSpacing.gapSM,
@@ -271,8 +276,7 @@ class _AmbientWildlifeSandboxSectionState
                   ),
                 ],
               ),
-              if (_neutral &&
-                  (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat) ...[
+              if (_neutral) ...[
                 AppSpacing.gapMD,
                 const Text('CAT NEUTRAL INSPECTION'),
                 AppSpacing.gapSM,
@@ -331,9 +335,10 @@ class _AmbientWildlifeSandboxSectionState
                     child: _WildlifePreviewOption(
                       key: const ValueKey('wildlife-preview-cat'),
                       label: 'CAT',
+                      selected: _plan?.species == AmbientWildlifeV2Species.cat,
                       onPressed: reducedMotion
                           ? null
-                          : () => _start(WildlifeKind.cat),
+                          : () => _start(AmbientWildlifeV2Species.cat),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -341,9 +346,13 @@ class _AmbientWildlifeSandboxSectionState
                     child: _WildlifePreviewOption(
                       key: const ValueKey('wildlife-preview-fox'),
                       label: 'FOX',
-                      onPressed: reducedMotion
+                      onPressed:
+                          reducedMotion ||
+                              !AmbientWildlifeV2Registry.available(
+                                AmbientWildlifeV2Species.fox,
+                              )
                           ? null
-                          : () => _start(WildlifeKind.fox),
+                          : () => _start(AmbientWildlifeV2Species.fox),
                     ),
                   ),
                 ],
@@ -355,9 +364,13 @@ class _AmbientWildlifeSandboxSectionState
                     child: _WildlifePreviewOption(
                       key: const ValueKey('wildlife-preview-birds'),
                       label: 'BIRDS',
-                      onPressed: reducedMotion
+                      onPressed:
+                          reducedMotion ||
+                              !AmbientWildlifeV2Registry.available(
+                                AmbientWildlifeV2Species.birds,
+                              )
                           ? null
-                          : () => _start(WildlifeKind.birds),
+                          : () => _start(AmbientWildlifeV2Species.birds),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -365,9 +378,10 @@ class _AmbientWildlifeSandboxSectionState
                     child: _WildlifePreviewOption(
                       key: const ValueKey('wildlife-preview-bat'),
                       label: 'BAT',
+                      selected: _plan?.species == AmbientWildlifeV2Species.bat,
                       onPressed: reducedMotion
                           ? null
-                          : () => _start(WildlifeKind.bat),
+                          : () => _start(AmbientWildlifeV2Species.bat),
                     ),
                   ),
                 ],
@@ -383,7 +397,7 @@ class _AmbientWildlifeSandboxSectionState
               Text(
                 reducedMotion
                     ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
-                    : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'CAT'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
+                    : 'CURRENT: ${_plan?.species.name.toUpperCase() ?? 'AUTO'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
                 key: const ValueKey('ambient-wildlife-preview-state'),
                 textAlign: TextAlign.center,
               ),
