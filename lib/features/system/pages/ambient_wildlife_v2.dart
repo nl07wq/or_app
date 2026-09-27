@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'bat_v3_flight_motion_poc.dart';
+import 'bat_v3_source_data.dart';
+import 'cat_run_coat_patterns.dart';
 import 'cat_run_v23_production_preview.dart';
 import 'cat_run_v24_presentation.dart';
 
@@ -149,6 +151,9 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     required this.plan,
     required this.requestId,
     required this.neutral,
+    required this.neutralSpecies,
+    required this.paused,
+    required this.leftToRight,
     super.key,
     this.onCompleted,
   });
@@ -156,6 +161,9 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final AmbientWildlifeV2EventPlan? plan;
   final int requestId;
   final bool neutral;
+  final AmbientWildlifeV2Species neutralSpecies;
+  final bool paused;
+  final bool leftToRight;
   final VoidCallback? onCompleted;
 
   @override
@@ -164,25 +172,38 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
 
 class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController.unbounded(vsync: this)
-        ..addListener(_advanceCat)
-        ..addStatusListener((status) {
-          if (status == AnimationStatus.completed && mounted) {
-            setState(() {});
-            widget.onCompleted?.call();
-          }
-        });
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController.unbounded(vsync: this)
+      ..addListener(_advanceCat)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() {});
+          widget.onCompleted?.call();
+        }
+      });
+  }
 
   @override
   void didUpdateWidget(covariant AmbientWildlifeV2Stage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.requestId != widget.requestId) _start();
+    if (oldWidget.requestId != widget.requestId) {
+      _start();
+    } else if (oldWidget.paused != widget.paused) {
+      if (widget.paused) {
+        _controller.stop();
+      } else {
+        _resume();
+      }
+    }
   }
 
   void _start() {
     final plan = widget.plan;
-    if (plan == null || widget.neutral) {
+    if (plan == null || widget.neutral || widget.paused) {
       _controller.stop();
       return;
     }
@@ -199,6 +220,16 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     _controller
       ..duration = duration
       ..forward(from: 0);
+  }
+
+  void _resume() {
+    final plan = widget.plan;
+    if (plan == null || widget.neutral || _controller.isCompleted) return;
+    if (plan.isCat) {
+      _continueCat();
+    } else {
+      _controller.forward();
+    }
   }
 
   void _continueCat() {
@@ -240,56 +271,138 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     return SizedBox(
       key: const ValueKey('ambient-wildlife-v2-stage'),
       height: BatV3ProductionFlight.stageHeight,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          if (plan == null || widget.neutral || _controller.isCompleted) {
-            return const SizedBox.expand(
-              key: ValueKey('ambient-wildlife-preview-idle'),
-            );
-          }
-          if (plan.isCat) {
-            final catPlan = plan.catPlan!;
-            return CustomPaint(
-              key: const ValueKey('ambient-wildlife-v2-cat-stage'),
-              painter: CatRunV23StagePainter(
-                progress: _controller.value,
-                direction: catPlan.direction,
-                coatVariant: catPlan.crossings.first.coatVariant,
-                crossings: [
-                  for (final crossing in plan.catExecutor!.crossings)
-                    CatRunV23Crossing(
-                      progress: _controller.value - crossing.startedAtProgress,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const CustomPaint(
+            key: ValueKey('ambient-wildlife-v2-environment'),
+            painter: _AmbientWildlifeV2EnvironmentPainter(),
+          ),
+          if (widget.neutral)
+            _AmbientWildlifeV2NeutralArt(
+              species: widget.neutralSpecies,
+              leftToRight: plan?.leftToRight ?? widget.leftToRight,
+            )
+          else
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                if (plan == null || _controller.isCompleted) {
+                  return const SizedBox.expand(
+                    key: ValueKey('ambient-wildlife-preview-idle'),
+                  );
+                }
+                if (plan.isCat) {
+                  final catPlan = plan.catPlan!;
+                  return CustomPaint(
+                    key: const ValueKey('ambient-wildlife-v2-cat-stage'),
+                    painter: CatRunV23StagePainter(
+                      progress: _controller.value,
                       direction: catPlan.direction,
-                      coatVariant: crossing.coatVariant,
+                      coatVariant: catPlan.crossings.first.coatVariant,
+                      crossings: [
+                        for (final crossing in plan.catExecutor!.crossings)
+                          CatRunV23Crossing(
+                            progress:
+                                _controller.value - crossing.startedAtProgress,
+                            direction: catPlan.direction,
+                            coatVariant: crossing.coatVariant,
+                          ),
+                      ],
+                      catUnit: CatRunV23Travel.catUnit * .75,
+                      showGroundLine: true,
                     ),
-                ],
-                catUnit: CatRunV23Travel.catUnit * .75,
-                showGroundLine: true,
-              ),
-            );
-          }
-          final elapsed =
-              (_controller.value * _controller.duration!.inMilliseconds)
-                  .round();
-          return BatV3ProductionStage(
-            leftToRight: plan.leftToRight,
-            cycleIndex: (elapsed ~/ BatV3ProductionFlight.poseDurationMs) % 8,
-            crossingElapsed: elapsed,
-            crossingDuration: BatV3ProductionFlight.fullSpeedDurationMs,
-            instances: plan.batInstances
-                .where(
-                  (instance) => !BatV3ProductionFlight.isInstanceComplete(
-                    elapsedMs: elapsed,
-                    durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
-                    instance: instance,
-                  ),
-                )
-                .toList(growable: false),
-            flutterOn: true,
-          );
-        },
+                  );
+                }
+                final elapsed =
+                    (_controller.value * _controller.duration!.inMilliseconds)
+                        .round();
+                return BatV3ProductionStage(
+                  leftToRight: plan.leftToRight,
+                  cycleIndex:
+                      (elapsed ~/ BatV3ProductionFlight.poseDurationMs) % 8,
+                  crossingElapsed: elapsed,
+                  crossingDuration: BatV3ProductionFlight.fullSpeedDurationMs,
+                  instances: plan.batInstances
+                      .where(
+                        (instance) => !BatV3ProductionFlight.isInstanceComplete(
+                          elapsedMs: elapsed,
+                          durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
+                          instance: instance,
+                        ),
+                      )
+                      .toList(growable: false),
+                  flutterOn: true,
+                );
+              },
+            ),
+        ],
       ),
     );
   }
+}
+
+class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
+  const _AmbientWildlifeV2EnvironmentPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF101010),
+    );
+    canvas.drawLine(
+      Offset(0, size.height - 5),
+      Offset(size.width, size.height - 5),
+      Paint()
+        ..color = const Color(0xFF383838)
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_AmbientWildlifeV2EnvironmentPainter oldDelegate) => false;
+}
+
+class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
+  const _AmbientWildlifeV2NeutralArt({
+    required this.species,
+    required this.leftToRight,
+  });
+
+  final AmbientWildlifeV2Species species;
+  final bool leftToRight;
+
+  @override
+  Widget build(BuildContext context) => switch (species) {
+    AmbientWildlifeV2Species.cat => CustomPaint(
+      key: const ValueKey('ambient-wildlife-v2-neutral-cat'),
+      painter: CatRunV23StagePainter(
+        progress: .5,
+        direction: leftToRight
+            ? CatRunV23Direction.leftToRight
+            : CatRunV23Direction.rightToLeft,
+        coatVariant: CatRunCoatVariant.normal,
+        catUnit: CatRunV23Travel.catUnit * .75,
+        showGroundLine: true,
+      ),
+    ),
+    AmbientWildlifeV2Species.bat => Center(
+      child: SizedBox(
+        key: const ValueKey('ambient-wildlife-v2-neutral-bat'),
+        width: BatV3ProductionFlight.batWidth,
+        height: BatV3ProductionFlight.batHeight,
+        child: BatV3CanonicalFrame(
+          pose: BatV3SourceSet.poses.first,
+          leftToRight: leftToRight,
+          inspectionScale: 1,
+          flutterY: 0,
+          bodyOverlay: false,
+          viewportHeight: BatV3ProductionFlight.batHeight,
+        ),
+      ),
+    ),
+    AmbientWildlifeV2Species.fox ||
+    AmbientWildlifeV2Species.birds => const SizedBox.shrink(),
+  };
 }

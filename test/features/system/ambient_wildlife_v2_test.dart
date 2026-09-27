@@ -1,10 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 
 void main() {
-  test('V2 registry exposes only CAT and BAT to AUTO', () {
+  test('V2 registry exposes only CAT and BAT to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,
       AmbientWildlifeV2Species.bat,
@@ -67,5 +68,44 @@ void main() {
     expect(BatV3ProductionEventPolicy.normalCountForRoll(79), 2);
     expect(BatV3ProductionEventPolicy.normalCountForRoll(80), 3);
     expect(BatV3ProductionEventPolicy.normalCountForRoll(99), 3);
+  });
+
+  testWidgets('neutral species art keeps the shared environment visible', (
+    tester,
+  ) async {
+    Future<void> pumpNeutral(AmbientWildlifeV2Species species) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: AmbientWildlifeV2Stage(
+              plan: null,
+              requestId: 0,
+              neutral: true,
+              neutralSpecies: species,
+              paused: false,
+              leftToRight: true,
+            ),
+          ),
+        );
+
+    await pumpNeutral(AmbientWildlifeV2Species.cat);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-cat')),
+      findsOneWidget,
+    );
+
+    await pumpNeutral(AmbientWildlifeV2Species.bat);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-bat')),
+      findsOneWidget,
+    );
+    expect(find.byType(BatV3ProductionStage), findsNothing);
   });
 }

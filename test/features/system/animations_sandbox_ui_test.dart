@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
-import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
@@ -59,6 +58,7 @@ void main() {
     );
     await tester.pump();
     await tester.scrollUntilVisible(find.text('OPEN ANIMATIONS SANDBOX'), 300);
+    await tester.ensureVisible(find.text('OPEN ANIMATIONS SANDBOX'));
 
     expect(find.text('INITIALIZE APP DATA'), findsWidgets);
     expect(find.text('ANIMATIONS SANDBOX'), findsOneWidget);
@@ -108,7 +108,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('AMBIENT WILDLIFE V2 connects enabled production species only', (
+  testWidgets('AMBIENT WILDLIFE V1 and V2 remain separate surfaces', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 1800);
@@ -120,6 +120,11 @@ void main() {
     await tester.ensureVisible(
       find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
     );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-section')),
+      findsOneWidget,
+    );
+    expect(find.text('AMBIENT WILDLIFE'), findsOneWidget);
     expect(find.text('AMBIENT WILDLIFE V2'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
@@ -132,7 +137,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('wildlife-preview-bat')), findsOneWidget);
-    expect(find.byKey(const ValueKey('wildlife-preview-auto')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wildlife-v2-random')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('wildlife-v2-play-restart')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('wildlife-v2-pause')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('wildlife-preview-mode-motion')),
       findsOneWidget,
@@ -149,9 +159,20 @@ void main() {
       find.byKey(const ValueKey('wildlife-preview-direction-rtl')),
       findsOneWidget,
     );
-    expect(find.text('CURRENT: AUTO / MOTION / L → R'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+          )
+          .data,
+      'CURRENT: CAT / MOTION / L → R',
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-play-restart')));
     await tester.pump();
     expect(
       find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
@@ -163,41 +184,14 @@ void main() {
       find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
     );
     await tester.pump();
-    final neutral =
-        tester
-                .widget<CustomPaint>(
-                  find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
-                )
-                .painter!
-            as DashboardAmbientWildlifePainter;
-    expect(neutral.neutralKind, WildlifeKind.cat);
-    expect(neutral.plan, isNull);
     expect(
-      find.byKey(const ValueKey('wildlife-preview-neutral-normal')),
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-cat')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('wildlife-preview-neutral-2x')),
+      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
       findsOneWidget,
     );
-    await tester.tap(find.byKey(const ValueKey('wildlife-preview-neutral-2x')));
-    await tester.pump();
-    final zoomedNeutral =
-        tester
-                .widget<CustomPaint>(
-                  find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
-                )
-                .painter!
-            as DashboardAmbientWildlifePainter;
-    expect(zoomedNeutral.neutralScale, 2);
-
-    await tester.tap(
-      find.byKey(const ValueKey('wildlife-preview-mode-motion')),
-    );
-    await tester.pump();
-
-    final beforeDisabledSpecies = find.text('CURRENT: CAT / MOTION / L → R');
-    expect(beforeDisabledSpecies, findsOneWidget);
     expect(
       tester
           .widget<OutlinedButton>(
@@ -220,60 +214,50 @@ void main() {
           .onPressed,
       isNull,
     );
-    await tester.tap(find.byKey(const ValueKey('wildlife-preview-fox')));
-    await tester.pump();
-    expect(find.text('CURRENT: CAT / MOTION / L → R'), findsOneWidget);
-
-    await tester.tap(
-      find.byKey(const ValueKey('wildlife-preview-direction-rtl')),
-    );
-    await tester.tap(find.byKey(const ValueKey('wildlife-preview-birds')));
-    await tester.pump();
-    expect(find.text('CURRENT: CAT / MOTION / R → L'), findsOneWidget);
-
     await tester.tap(find.byKey(const ValueKey('wildlife-preview-bat')));
     await tester.pump();
-    expect(find.text('CURRENT: BAT / MOTION / R → L'), findsOneWidget);
+    expect(find.text('CURRENT: BAT / NEUTRAL / L → R'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-bat')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets(
-    'wildlife AUTO selects an available species and manual previews restart',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 1800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
-      );
+  testWidgets('wildlife RANDOM only selects available species during motion', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+    );
 
-      for (var index = 0; index < 4; index++) {
-        await tester.tap(find.byKey(const ValueKey('wildlife-preview-auto')));
-        await tester.pump();
-        final current = tester.widget<Text>(
-          find.byKey(const ValueKey('ambient-wildlife-preview-state')),
-        );
-        expect(
-          current.data,
-          anyOf(
-            'CURRENT: CAT / MOTION / L → R',
-            'CURRENT: BAT / MOTION / L → R',
-          ),
-        );
-      }
-
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
-        findsOneWidget,
-      );
-      await tester.pumpWidget(const SizedBox.shrink());
-      expect(tester.takeException(), isNull);
-    },
-  );
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-random')));
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-play-restart')));
+    await tester.pump();
+    final current = tester.widget<Text>(
+      find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+    );
+    expect(current.data, 'CURRENT: RANDOM / MOTION / L → R');
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-pause')));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('wildlife-v2-pause')),
+        matching: find.text('PLAY'),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('wildlife preview respects Reduced Motion and remains empty', (
     tester,
@@ -293,7 +277,14 @@ void main() {
     await tester.ensureVisible(
       find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
     );
-    expect(find.text('REDUCED MOTION: PREVIEW SUPPRESSED'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+          )
+          .data,
+      'REDUCED MOTION: PREVIEW SUPPRESSED',
+    );
     expect(
       tester
           .widget<OutlinedButton>(
@@ -306,7 +297,10 @@ void main() {
       isNull,
     );
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+      ),
       findsOneWidget,
     );
   });

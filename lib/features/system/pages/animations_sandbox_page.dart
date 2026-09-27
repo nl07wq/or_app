@@ -162,6 +162,8 @@ class AnimationsSandboxPage extends StatelessWidget {
           ),
         ),
         AppSpacing.gapXL,
+        const _AmbientWildlifeV1Section(),
+        AppSpacing.gapXL,
         const _AmbientWildlifeSandboxSection(),
         AppSpacing.gapXL,
         const BatSideProfileShapePoc(),
@@ -178,6 +180,227 @@ class AnimationsSandboxPage extends StatelessWidget {
   );
 }
 
+/// Restored V1 CAT-oriented inspection surface. Its state is intentionally
+/// independent from the multi-species V2 preview below.
+class _AmbientWildlifeV1Section extends StatefulWidget {
+  const _AmbientWildlifeV1Section();
+
+  @override
+  State<_AmbientWildlifeV1Section> createState() =>
+      _AmbientWildlifeV1SectionState();
+}
+
+class _AmbientWildlifeV1SectionState extends State<_AmbientWildlifeV1Section> {
+  static const _autoKinds = [
+    WildlifeKind.cat,
+    WildlifeKind.birds,
+    WildlifeKind.fox,
+    WildlifeKind.bat,
+  ];
+
+  WildlifeEventPlan? _plan;
+  var _leftToRight = true;
+  var _neutral = false;
+  var _neutralZoomed = false;
+  var _requestId = 0;
+  var _nextAutoKind = 0;
+
+  void _start(WildlifeKind kind) => setState(() {
+    _plan = wildlifePreviewPlan(kind: kind, leftToRight: _leftToRight);
+    _requestId++;
+  });
+
+  void _startAuto() {
+    final kind = _autoKinds[_nextAutoKind];
+    _nextAutoKind = (_nextAutoKind + 1) % _autoKinds.length;
+    _start(kind);
+  }
+
+  String get _directionLabel => _leftToRight ? 'L → R' : 'R → L';
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.pets_outlined,
+          title: 'AMBIENT WILDLIFE',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('ambient-wildlife-v1-section'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DashboardAmbientWildlifePreviewStage(
+                plan: _plan,
+                requestId: _requestId,
+                neutralKind: _neutral
+                    ? (_plan?.kind ?? WildlifeKind.cat)
+                    : null,
+                neutralLeftToRight: _leftToRight,
+                neutralScale:
+                    _neutral &&
+                        (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat &&
+                        _neutralZoomed
+                    ? 2
+                    : 1,
+              ),
+              AppSpacing.gapMD,
+              const Text('MODE'),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-mode-motion'),
+                      label: 'MOTION',
+                      selected: !_neutral,
+                      onPressed: () => setState(() => _neutral = false),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-mode-neutral'),
+                      label: 'NEUTRAL',
+                      selected: _neutral,
+                      onPressed: () => setState(() => _neutral = true),
+                    ),
+                  ),
+                ],
+              ),
+              if (_neutral &&
+                  (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat) ...[
+                AppSpacing.gapMD,
+                const Text('CAT NEUTRAL INSPECTION'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-neutral-normal'),
+                        label: 'NORMAL',
+                        selected: !_neutralZoomed,
+                        onPressed: () => setState(() => _neutralZoomed = false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-neutral-2x'),
+                        label: '2× PREVIEW',
+                        selected: _neutralZoomed,
+                        onPressed: () => setState(() => _neutralZoomed = true),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              AppSpacing.gapMD,
+              const Text('DIRECTION'),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-direction-ltr'),
+                      label: 'L → R',
+                      selected: _leftToRight,
+                      onPressed: () => setState(() => _leftToRight = true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-direction-rtl'),
+                      label: 'R → L',
+                      selected: !_leftToRight,
+                      onPressed: () => setState(() => _leftToRight = false),
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              const Text('SPECIES'),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-cat'),
+                      label: 'CAT',
+                      selected: _plan?.kind == WildlifeKind.cat,
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.cat),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-fox'),
+                      label: 'FOX',
+                      selected: _plan?.kind == WildlifeKind.fox,
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.fox),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-birds'),
+                      label: 'BIRDS',
+                      selected: _plan?.kind == WildlifeKind.birds,
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.birds),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _WildlifePreviewOption(
+                      key: const ValueKey('wildlife-v1-bat'),
+                      label: 'BAT',
+                      selected: _plan?.kind == WildlifeKind.bat,
+                      onPressed: reducedMotion
+                          ? null
+                          : () => _start(WildlifeKind.bat),
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              _SandboxActionButton(
+                key: const ValueKey('wildlife-v1-auto'),
+                text: 'AUTO',
+                icon: Icons.autorenew,
+                onPressed: reducedMotion ? null : _startAuto,
+              ),
+              AppSpacing.gapSM,
+              Text(
+                reducedMotion
+                    ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
+                    : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'CAT'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
+                key: const ValueKey('ambient-wildlife-v1-state'),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _AmbientWildlifeSandboxSection extends StatefulWidget {
   const _AmbientWildlifeSandboxSection();
 
@@ -190,15 +413,20 @@ class _AmbientWildlifeSandboxSectionState
     extends State<_AmbientWildlifeSandboxSection> {
   final math.Random _random = math.Random();
   AmbientWildlifeV2EventPlan? _plan;
+  var _selectedSpecies = AmbientWildlifeV2Species.cat;
   var _leftToRight = true;
   var _neutral = false;
-  var _neutralZoomed = false;
+  var _randomSpecies = false;
+  var _playing = false;
+  var _paused = false;
   var _requestId = 0;
 
   int _next(int max) => _random.nextInt(max);
 
   void _start(AmbientWildlifeV2Species kind) {
     setState(() {
+      _selectedSpecies = kind;
+      _randomSpecies = false;
       _plan = AmbientWildlifeV2EventPlan.resolve(
         species: kind,
         leftToRight: _leftToRight,
@@ -208,9 +436,72 @@ class _AmbientWildlifeSandboxSectionState
     });
   }
 
-  void _startAuto() {
+  void _startRandomEvent() {
     final available = AmbientWildlifeV2Registry.availableSpecies;
-    _start(available[_next(available.length)]);
+    final species = available[_next(available.length)];
+    setState(() {
+      _selectedSpecies = species;
+      _plan = AmbientWildlifeV2EventPlan.resolve(
+        species: species,
+        leftToRight: _leftToRight,
+        nextInt: _next,
+      );
+      _requestId++;
+    });
+  }
+
+  void _playOrRestart() {
+    if (_neutral) return;
+    _playing = true;
+    _paused = false;
+    if (_randomSpecies) {
+      _startRandomEvent();
+    } else {
+      _start(_selectedSpecies);
+    }
+  }
+
+  void _pause() => setState(() => _paused = true);
+
+  void _resume() => setState(() => _paused = false);
+
+  void _onCompleted() {
+    if (!_playing || _paused || _neutral || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_playing || _paused || _neutral) return;
+      if (_randomSpecies) {
+        _startRandomEvent();
+      } else {
+        _start(_selectedSpecies);
+      }
+    });
+  }
+
+  void _selectSpecies(AmbientWildlifeV2Species species) {
+    setState(() {
+      _selectedSpecies = species;
+      _randomSpecies = false;
+      if (_neutral) _plan = null;
+    });
+    if (_playing && !_neutral) _playOrRestart();
+  }
+
+  void _selectRandom() {
+    if (_neutral) return;
+    setState(() => _randomSpecies = true);
+    if (_playing) _playOrRestart();
+  }
+
+  void _setNeutral(bool value) {
+    setState(() {
+      _neutral = value;
+      _paused = false;
+      if (value) {
+        _playing = false;
+        _plan = null;
+        _randomSpecies = false;
+      }
+    });
   }
 
   String get _directionLabel => _leftToRight ? 'L → R' : 'R → L';
@@ -232,19 +523,15 @@ class _AmbientWildlifeSandboxSectionState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _neutral
-                  ? DashboardAmbientWildlifePreviewStage(
-                      plan: null,
-                      requestId: _requestId,
-                      neutralKind: WildlifeKind.cat,
-                      neutralLeftToRight: _leftToRight,
-                      neutralScale: _neutralZoomed ? 2 : 1,
-                    )
-                  : AmbientWildlifeV2Stage(
-                      plan: _plan,
-                      requestId: _requestId,
-                      neutral: false,
-                    ),
+              AmbientWildlifeV2Stage(
+                plan: _plan,
+                requestId: _requestId,
+                neutral: _neutral,
+                neutralSpecies: _selectedSpecies,
+                paused: _paused,
+                leftToRight: _leftToRight,
+                onCompleted: _onCompleted,
+              ),
               AppSpacing.gapMD,
               const Text('MODE'),
               AppSpacing.gapSM,
@@ -255,7 +542,7 @@ class _AmbientWildlifeSandboxSectionState
                       key: const ValueKey('wildlife-preview-mode-motion'),
                       label: 'MOTION',
                       selected: !_neutral,
-                      onPressed: () => setState(() => _neutral = false),
+                      onPressed: () => _setNeutral(false),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -264,37 +551,11 @@ class _AmbientWildlifeSandboxSectionState
                       key: const ValueKey('wildlife-preview-mode-neutral'),
                       label: 'NEUTRAL',
                       selected: _neutral,
-                      onPressed: () => setState(() => _neutral = true),
+                      onPressed: () => _setNeutral(true),
                     ),
                   ),
                 ],
               ),
-              if (_neutral) ...[
-                AppSpacing.gapMD,
-                const Text('CAT NEUTRAL INSPECTION'),
-                AppSpacing.gapSM,
-                Row(
-                  children: [
-                    Expanded(
-                      child: _WildlifePreviewOption(
-                        key: const ValueKey('wildlife-preview-neutral-normal'),
-                        label: 'NORMAL',
-                        selected: !_neutralZoomed,
-                        onPressed: () => setState(() => _neutralZoomed = false),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _WildlifePreviewOption(
-                        key: const ValueKey('wildlife-preview-neutral-2x'),
-                        label: '2× PREVIEW',
-                        selected: _neutralZoomed,
-                        onPressed: () => setState(() => _neutralZoomed = true),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
               AppSpacing.gapMD,
               const Text('DIRECTION'),
               AppSpacing.gapSM,
@@ -328,10 +589,12 @@ class _AmbientWildlifeSandboxSectionState
                     child: _WildlifePreviewOption(
                       key: const ValueKey('wildlife-preview-cat'),
                       label: 'CAT',
-                      selected: _plan?.species == AmbientWildlifeV2Species.cat,
+                      selected:
+                          !_randomSpecies &&
+                          _selectedSpecies == AmbientWildlifeV2Species.cat,
                       onPressed: reducedMotion
                           ? null
-                          : () => _start(AmbientWildlifeV2Species.cat),
+                          : () => _selectSpecies(AmbientWildlifeV2Species.cat),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -345,7 +608,7 @@ class _AmbientWildlifeSandboxSectionState
                                 AmbientWildlifeV2Species.fox,
                               )
                           ? null
-                          : () => _start(AmbientWildlifeV2Species.fox),
+                          : () => _selectSpecies(AmbientWildlifeV2Species.fox),
                     ),
                   ),
                 ],
@@ -363,7 +626,8 @@ class _AmbientWildlifeSandboxSectionState
                                 AmbientWildlifeV2Species.birds,
                               )
                           ? null
-                          : () => _start(AmbientWildlifeV2Species.birds),
+                          : () =>
+                                _selectSpecies(AmbientWildlifeV2Species.birds),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -371,26 +635,54 @@ class _AmbientWildlifeSandboxSectionState
                     child: _WildlifePreviewOption(
                       key: const ValueKey('wildlife-preview-bat'),
                       label: 'BAT',
-                      selected: _plan?.species == AmbientWildlifeV2Species.bat,
+                      selected:
+                          !_randomSpecies &&
+                          _selectedSpecies == AmbientWildlifeV2Species.bat,
                       onPressed: reducedMotion
                           ? null
-                          : () => _start(AmbientWildlifeV2Species.bat),
+                          : () => _selectSpecies(AmbientWildlifeV2Species.bat),
                     ),
                   ),
                 ],
               ),
               AppSpacing.gapSM,
               _SandboxActionButton(
-                key: const ValueKey('wildlife-preview-auto'),
-                text: 'AUTO',
+                key: const ValueKey('wildlife-v2-random'),
+                text: 'RANDOM',
                 icon: Icons.autorenew,
-                onPressed: reducedMotion ? null : _startAuto,
+                onPressed: reducedMotion || _neutral ? null : _selectRandom,
+              ),
+              AppSpacing.gapSM,
+              Row(
+                children: [
+                  Expanded(
+                    child: _SandboxActionButton(
+                      key: const ValueKey('wildlife-v2-play-restart'),
+                      text: _playing ? 'RESTART' : 'PLAY / RESTART',
+                      icon: Icons.play_arrow,
+                      onPressed: reducedMotion || _neutral
+                          ? null
+                          : _playOrRestart,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SandboxActionButton(
+                      key: const ValueKey('wildlife-v2-pause'),
+                      text: _paused ? 'PLAY' : 'PAUSE',
+                      icon: _paused ? Icons.play_arrow : Icons.pause,
+                      onPressed: reducedMotion || _neutral || !_playing
+                          ? null
+                          : (_paused ? _resume : _pause),
+                    ),
+                  ),
+                ],
               ),
               AppSpacing.gapSM,
               Text(
                 reducedMotion
                     ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
-                    : 'CURRENT: ${_plan?.species.name.toUpperCase() ?? 'AUTO'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
+                    : 'CURRENT: ${_neutral ? _selectedSpecies.name.toUpperCase() : (_randomSpecies ? 'RANDOM' : _selectedSpecies.name.toUpperCase())} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
                 key: const ValueKey('ambient-wildlife-preview-state'),
                 textAlign: TextAlign.center,
               ),
