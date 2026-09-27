@@ -122,6 +122,10 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('ambient-wildlife-v1-section')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
       findsOneWidget,
     );
     expect(find.text('AMBIENT WILDLIFE'), findsOneWidget);
@@ -172,13 +176,29 @@ void main() {
       findsOneWidget,
     );
 
+    final v1Toggle = find.byKey(const ValueKey('ambient-wildlife-v1-toggle'));
+    await tester.ensureVisible(v1Toggle);
+    await tester.tap(v1Toggle);
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-section')),
+      findsOneWidget,
+    );
+
     await tester.tap(find.byKey(const ValueKey('wildlife-v2-play-restart')));
     await tester.pump();
     expect(
       find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
       findsOneWidget,
     );
-    expect(find.text('CURRENT: CAT / MOTION / L → R'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+          )
+          .data,
+      'CURRENT: CAT / MOTION / L → R',
+    );
 
     await tester.tap(
       find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
@@ -2887,6 +2907,7 @@ void main() {
         'CAT ARTICULATION POC',
         'CAT TRACE MOTION POC',
         'CAT MULTI-POSE TRACE RUN POC',
+        'BAT SHAPE POC',
       ]) {
         expect(find.text(title), findsNothing);
       }

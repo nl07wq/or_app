@@ -11,7 +11,15 @@ import 'bat_v3_source_data.dart';
 enum BatV3View { canonical, bodyOverlay }
 
 class BatV3FlightMotionPoc extends StatefulWidget {
-  const BatV3FlightMotionPoc({super.key});
+  const BatV3FlightMotionPoc({
+    super.key,
+    this.initiallySourceExpanded = false,
+    this.initiallyFlapExpanded = false,
+  });
+
+  /// Test-only opt-in; the Sandbox page itself always begins collapsed.
+  final bool initiallySourceExpanded;
+  final bool initiallyFlapExpanded;
 
   @override
   State<BatV3FlightMotionPoc> createState() => _BatV3FlightMotionPocState();
@@ -29,6 +37,8 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
   var _inspectionScale = 1.0;
   var _view = BatV3View.canonical;
   var _travel = 0.0;
+  late var _sourceExpanded = widget.initiallySourceExpanded;
+  late var _flapExpanded = widget.initiallyFlapExpanded;
 
   BatV3SourcePose get _pose => BatV3SourceSet.poses[_poseIndex];
   double get _flutterY =>
@@ -90,201 +100,220 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
     if (resume) _run();
   }
 
+  void _toggleFlap() {
+    setState(() {
+      _flapExpanded = !_flapExpanded;
+      if (!_flapExpanded) _pause();
+    });
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const SectionHeader(
+      _BatV3Disclosure(
+        key: const ValueKey('bat-v3-source-disclosure'),
         icon: Icons.document_scanner_outlined,
         title: 'BAT V3 — NEW 5-POSE SOURCE SET',
+        expanded: _sourceExpanded,
+        onTap: () => setState(() => _sourceExpanded = !_sourceExpanded),
       ),
-      AppSpacing.gapSM,
-      OperationCard(
-        key: const ValueKey('bat-v3-source-audit'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${_pose.name}',
-              key: const ValueKey('bat-v3-pose-label'),
-            ),
-            const Text('CANONICAL ASSET · shared 1800×1700 transparent canvas'),
-            AppSpacing.gapSM,
-            _BatV3Image(
-              pose: _pose,
-              view: _view,
-              leftToRight: _leftToRight,
-              inspectionScale: _inspectionScale,
-              flutterY: 0,
-            ),
-            AppSpacing.gapSM,
-            _frames('bat-v3-source-frame'),
-            AppSpacing.gapSM,
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final view in BatV3View.values)
-                  _choice(
-                    'bat-v3-view-${view.name}',
-                    switch (view) {
-                      BatV3View.canonical => 'CANONICAL',
-                      BatV3View.bodyOverlay => 'BODY OVERLAY',
-                    },
-                    _view == view,
-                    () => setState(() => _view = view),
-                  ),
-              ],
-            ),
-            AppSpacing.gapSM,
-            Text(
-              'BODY AXIS ${_pose.canonicalBodyAxis.toStringAsFixed(1)} px · ORIGIN 800, 850',
-              key: const ValueKey('bat-v3-body-metrics'),
-            ),
-            const Text(
-              'CANONICAL CANVAS 1800×1700 · CAT V2.10 NORMAL GRAY · SAFETY 96',
-              key: ValueKey('bat-v3-canonical-metrics'),
-            ),
-          ],
-        ),
-      ),
-      AppSpacing.gapLG,
-      const SectionHeader(
-        icon: Icons.motion_photos_on_outlined,
-        title: 'BAT V3 BODY-REGISTERED FLAP CYCLE',
-      ),
-      AppSpacing.gapSM,
-      OperationCard(
-        key: const ValueKey('bat-v3-flap-poc'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _playing
-                  ? 'PLAYING · $_milliseconds ms / POSE'
-                  : 'PAUSED · $_milliseconds ms / POSE',
-              key: const ValueKey('bat-v3-state'),
-            ),
-            if (_crossing) ...[
-              const Text('FLIGHT / CROSSING · SELECTED SIZE'),
-              _BatV3Crossing(
-                pose: _pose,
-                leftToRight: _leftToRight,
-                progress: _travel,
-                flutterY: _flutterY,
-                inspectionScale: _inspectionScale,
+      if (_sourceExpanded) ...[
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('bat-v3-source-audit'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${_pose.name}',
+                key: const ValueKey('bat-v3-pose-label'),
               ),
-            ] else
+              const Text(
+                'CANONICAL ASSET · shared 1800×1700 transparent canvas',
+              ),
+              AppSpacing.gapSM,
               _BatV3Image(
                 pose: _pose,
-                view: BatV3View.canonical,
+                view: _view,
                 leftToRight: _leftToRight,
                 inspectionScale: _inspectionScale,
-                flutterY: _flutterY,
+                flutterY: 0,
               ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _choice('bat-v3-play', 'PLAY', _playing, _start),
-                _choice('bat-v3-pause', 'PAUSE', !_playing, _pause),
-                _choice('bat-v3-restart', 'RESTART', false, _restart),
-              ],
-            ),
-            AppSpacing.gapSM,
-            _frames('bat-v3-frame'),
-            AppSpacing.gapSM,
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _choice(
-                  'bat-v3-in-place',
-                  'IN-PLACE',
-                  !_crossing,
-                  () => setState(() => _crossing = false),
-                ),
-                _choice(
-                  'bat-v3-crossing',
-                  'FLIGHT / CROSSING',
-                  _crossing,
-                  () => setState(() => _crossing = true),
-                ),
-                _choice(
-                  'bat-v3-flutter-on',
-                  'FLUTTER ON',
-                  _flutter,
-                  () => setState(() => _flutter = true),
-                ),
-                _choice(
-                  'bat-v3-flutter-off',
-                  'FLUTTER OFF',
-                  !_flutter,
-                  () => setState(() => _flutter = false),
-                ),
-              ],
-            ),
-            AppSpacing.gapSM,
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final value in [100, 125, 150])
-                  _choice(
-                    'bat-v3-timing-$value',
-                    value == 100
-                        ? 'FAST 100 · 800ms'
-                        : value == 125
-                        ? 'NORMAL 125 · 1000ms'
-                        : 'SLOW 150 · 1200ms',
-                    _milliseconds == value,
-                    () => _timing(value),
-                  ),
-              ],
-            ),
-            AppSpacing.gapSM,
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _choice(
-                  'bat-v3-ltr',
-                  'L→R',
-                  _leftToRight,
-                  () => setState(() => _leftToRight = true),
-                ),
-                _choice(
-                  'bat-v3-rtl',
-                  'R→L',
-                  !_leftToRight,
-                  () => setState(() => _leftToRight = false),
-                ),
-                for (final value in [1.0, .5, .25])
-                  _choice(
-                    'bat-v3-scale-${value.toStringAsFixed(2)}',
-                    '${value.toStringAsFixed(2)}×',
-                    _inspectionScale == value,
-                    () => setState(() => _inspectionScale = value),
-                  ),
-              ],
-            ),
-            AppSpacing.gapSM,
-            const Text('48PX PRODUCTION PREVIEW'),
-            BatV3CanonicalFrame(
-              pose: _pose,
-              leftToRight: _leftToRight,
-              inspectionScale: 1,
-              flutterY: _flutterY,
-              bodyOverlay: false,
-              viewportHeight: 48,
-            ),
-            AppSpacing.gapSM,
-            const Text(
-              '01 NEUTRAL → 02 TOP INTERMEDIATE → 03 TOP → 02 → 01 → 04 BOTTOM INTERMEDIATE → 05 BOTTOM → 04. Same-rect canonical PNG switching; flutter is shared whole-object Y motion only.',
-            ),
-          ],
+              AppSpacing.gapSM,
+              _frames('bat-v3-source-frame'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final view in BatV3View.values)
+                    _choice(
+                      'bat-v3-view-${view.name}',
+                      switch (view) {
+                        BatV3View.canonical => 'CANONICAL',
+                        BatV3View.bodyOverlay => 'BODY OVERLAY',
+                      },
+                      _view == view,
+                      () => setState(() => _view = view),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Text(
+                'BODY AXIS ${_pose.canonicalBodyAxis.toStringAsFixed(1)} px · ORIGIN 800, 850',
+                key: const ValueKey('bat-v3-body-metrics'),
+              ),
+              const Text(
+                'CANONICAL CANVAS 1800×1700 · CAT V2.10 NORMAL GRAY · SAFETY 96',
+                key: ValueKey('bat-v3-canonical-metrics'),
+              ),
+            ],
+          ),
         ),
+      ],
+      AppSpacing.gapLG,
+      _BatV3Disclosure(
+        key: const ValueKey('bat-v3-flap-disclosure'),
+        icon: Icons.motion_photos_on_outlined,
+        title: 'BAT V3 BODY-REGISTERED FLAP CYCLE',
+        expanded: _flapExpanded,
+        onTap: _toggleFlap,
       ),
+      if (_flapExpanded) ...[
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('bat-v3-flap-poc'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _playing
+                    ? 'PLAYING · $_milliseconds ms / POSE'
+                    : 'PAUSED · $_milliseconds ms / POSE',
+                key: const ValueKey('bat-v3-state'),
+              ),
+              if (_crossing) ...[
+                const Text('FLIGHT / CROSSING · SELECTED SIZE'),
+                _BatV3Crossing(
+                  pose: _pose,
+                  leftToRight: _leftToRight,
+                  progress: _travel,
+                  flutterY: _flutterY,
+                  inspectionScale: _inspectionScale,
+                ),
+              ] else
+                _BatV3Image(
+                  pose: _pose,
+                  view: BatV3View.canonical,
+                  leftToRight: _leftToRight,
+                  inspectionScale: _inspectionScale,
+                  flutterY: _flutterY,
+                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _choice('bat-v3-play', 'PLAY', _playing, _start),
+                  _choice('bat-v3-pause', 'PAUSE', !_playing, _pause),
+                  _choice('bat-v3-restart', 'RESTART', false, _restart),
+                ],
+              ),
+              AppSpacing.gapSM,
+              _frames('bat-v3-frame'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _choice(
+                    'bat-v3-in-place',
+                    'IN-PLACE',
+                    !_crossing,
+                    () => setState(() => _crossing = false),
+                  ),
+                  _choice(
+                    'bat-v3-crossing',
+                    'FLIGHT / CROSSING',
+                    _crossing,
+                    () => setState(() => _crossing = true),
+                  ),
+                  _choice(
+                    'bat-v3-flutter-on',
+                    'FLUTTER ON',
+                    _flutter,
+                    () => setState(() => _flutter = true),
+                  ),
+                  _choice(
+                    'bat-v3-flutter-off',
+                    'FLUTTER OFF',
+                    !_flutter,
+                    () => setState(() => _flutter = false),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final value in [100, 125, 150])
+                    _choice(
+                      'bat-v3-timing-$value',
+                      value == 100
+                          ? 'FAST 100 · 800ms'
+                          : value == 125
+                          ? 'NORMAL 125 · 1000ms'
+                          : 'SLOW 150 · 1200ms',
+                      _milliseconds == value,
+                      () => _timing(value),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _choice(
+                    'bat-v3-ltr',
+                    'L→R',
+                    _leftToRight,
+                    () => setState(() => _leftToRight = true),
+                  ),
+                  _choice(
+                    'bat-v3-rtl',
+                    'R→L',
+                    !_leftToRight,
+                    () => setState(() => _leftToRight = false),
+                  ),
+                  for (final value in [1.0, .5, .25])
+                    _choice(
+                      'bat-v3-scale-${value.toStringAsFixed(2)}',
+                      '${value.toStringAsFixed(2)}×',
+                      _inspectionScale == value,
+                      () => setState(() => _inspectionScale = value),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('48PX PRODUCTION PREVIEW'),
+              BatV3CanonicalFrame(
+                pose: _pose,
+                leftToRight: _leftToRight,
+                inspectionScale: 1,
+                flutterY: _flutterY,
+                bodyOverlay: false,
+                viewportHeight: 48,
+              ),
+              AppSpacing.gapSM,
+              const Text(
+                '01 NEUTRAL → 02 TOP INTERMEDIATE → 03 TOP → 02 → 01 → 04 BOTTOM INTERMEDIATE → 05 BOTTOM → 04. Same-rect canonical PNG switching; flutter is shared whole-object Y motion only.',
+              ),
+            ],
+          ),
+        ),
+      ],
     ],
   );
 
@@ -315,6 +344,39 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
         : null,
     onPressed: action,
     child: Text(label),
+  );
+}
+
+class _BatV3Disclosure extends StatelessWidget {
+  const _BatV3Disclosure({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(icon),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title)),
+            Icon(expanded ? Icons.expand_less : Icons.expand_more),
+          ],
+        ),
+      ),
+    ),
   );
 }
 

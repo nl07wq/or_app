@@ -102,8 +102,43 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'width $width');
     }
     await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-    expect(find.byKey(const ValueKey('bat-v3-source-audit')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('bat-v3-source-disclosure')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('bat-v3-flap-disclosure')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('bat-v3-source-audit')), findsNothing);
+    expect(find.byKey(const ValueKey('bat-v3-flap-poc')), findsNothing);
     expect(find.text('CAT TRACE PIPELINE POC'), findsNothing);
+    expect(find.text('BAT SHAPE POC'), findsNothing);
+  });
+
+  testWidgets('V4 source and flap audits are collapsed until opened', (
+    tester,
+  ) async {
+    _viewport(tester);
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: BatV3FlightMotionPoc())),
+    );
+    expect(find.byKey(const ValueKey('bat-v3-source-audit')), findsNothing);
+    expect(find.byKey(const ValueKey('bat-v3-flap-poc')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('bat-v3-source-disclosure')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('bat-v3-source-audit')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('bat-v3-source-disclosure')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('bat-v3-source-audit')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('bat-v3-flap-disclosure')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('bat-v3-flap-poc')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('bat-v3-flap-disclosure')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('bat-v3-flap-poc')), findsNothing);
   });
 
   testWidgets('Production Preview V2.1 exposes only the candidate controls', (
@@ -684,7 +719,16 @@ void main() {
 }
 
 Widget _host() => MaterialApp(
-  home: Scaffold(body: ListView(children: const [BatV3FlightMotionPoc()])),
+  home: Scaffold(
+    body: ListView(
+      children: const [
+        BatV3FlightMotionPoc(
+          initiallySourceExpanded: true,
+          initiallyFlapExpanded: true,
+        ),
+      ],
+    ),
+  ),
 );
 Widget _productionHost({int Function(int max)? nextInt}) => MaterialApp(
   home: Scaffold(

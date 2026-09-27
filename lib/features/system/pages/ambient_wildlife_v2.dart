@@ -166,6 +166,11 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final bool leftToRight;
   final VoidCallback? onCompleted;
 
+  /// Shared stage authority: wildlife renderers never own the environment.
+  static const environmentBackground = Color(0xFF101010);
+  static const groundLineColor = Color(0xFF383838);
+  static const groundInset = 5.0;
+
   @override
   State<AmbientWildlifeV2Stage> createState() => _AmbientWildlifeV2StageState();
 }
@@ -217,9 +222,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
           BatV3ProductionFlight.fullSpeedDurationMs +
           plan.batInstances.last.startDelayMs,
     );
-    _controller
-      ..duration = duration
-      ..forward(from: 0);
+    _controller.value = 0;
+    _continueBat(duration);
   }
 
   void _resume() {
@@ -228,8 +232,25 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     if (plan.isCat) {
       _continueCat();
     } else {
-      _controller.forward();
+      _continueBat(
+        Duration(
+          milliseconds:
+              BatV3ProductionFlight.fullSpeedDurationMs +
+              plan.batInstances.last.startDelayMs,
+        ),
+      );
     }
+  }
+
+  void _continueBat(Duration eventDuration) {
+    final remaining = (1 - _controller.value).clamp(0.0, 1.0);
+    _controller.animateTo(
+      1,
+      duration: Duration(
+        microseconds: (eventDuration.inMicroseconds * remaining).round(),
+      ),
+      curve: Curves.linear,
+    );
   }
 
   void _continueCat() {
@@ -274,68 +295,79 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const CustomPaint(
-            key: ValueKey('ambient-wildlife-v2-environment'),
-            painter: _AmbientWildlifeV2EnvironmentPainter(),
-          ),
-          if (widget.neutral)
-            _AmbientWildlifeV2NeutralArt(
-              species: widget.neutralSpecies,
-              leftToRight: plan?.leftToRight ?? widget.leftToRight,
-            )
-          else
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                if (plan == null || _controller.isCompleted) {
-                  return const SizedBox.expand(
-                    key: ValueKey('ambient-wildlife-preview-idle'),
-                  );
-                }
-                if (plan.isCat) {
-                  final catPlan = plan.catPlan!;
-                  return CustomPaint(
-                    key: const ValueKey('ambient-wildlife-v2-cat-stage'),
-                    painter: CatRunV23StagePainter(
-                      progress: _controller.value,
-                      direction: catPlan.direction,
-                      coatVariant: catPlan.crossings.first.coatVariant,
-                      crossings: [
-                        for (final crossing in plan.catExecutor!.crossings)
-                          CatRunV23Crossing(
-                            progress:
-                                _controller.value - crossing.startedAtProgress,
-                            direction: catPlan.direction,
-                            coatVariant: crossing.coatVariant,
-                          ),
-                      ],
-                      catUnit: CatRunV23Travel.catUnit * .75,
-                      showGroundLine: true,
-                    ),
-                  );
-                }
-                final elapsed =
-                    (_controller.value * _controller.duration!.inMilliseconds)
-                        .round();
-                return BatV3ProductionStage(
-                  leftToRight: plan.leftToRight,
-                  cycleIndex:
-                      (elapsed ~/ BatV3ProductionFlight.poseDurationMs) % 8,
-                  crossingElapsed: elapsed,
-                  crossingDuration: BatV3ProductionFlight.fullSpeedDurationMs,
-                  instances: plan.batInstances
-                      .where(
-                        (instance) => !BatV3ProductionFlight.isInstanceComplete(
-                          elapsedMs: elapsed,
-                          durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
-                          instance: instance,
-                        ),
-                      )
-                      .toList(growable: false),
-                  flutterOn: true,
-                );
-              },
+          const Positioned.fill(
+            child: CustomPaint(
+              key: ValueKey('ambient-wildlife-v2-environment'),
+              painter: _AmbientWildlifeV2EnvironmentPainter(),
             ),
+          ),
+          Positioned.fill(
+            child: widget.neutral
+                ? _AmbientWildlifeV2NeutralArt(
+                    species: widget.neutralSpecies,
+                    leftToRight: plan?.leftToRight ?? widget.leftToRight,
+                  )
+                : AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, _) {
+                      if (plan == null || _controller.isCompleted) {
+                        return const SizedBox.expand(
+                          key: ValueKey('ambient-wildlife-preview-idle'),
+                        );
+                      }
+                      if (plan.isCat) {
+                        final catPlan = plan.catPlan!;
+                        return CustomPaint(
+                          key: const ValueKey('ambient-wildlife-v2-cat-stage'),
+                          painter: CatRunV23StagePainter(
+                            progress: _controller.value,
+                            direction: catPlan.direction,
+                            coatVariant: catPlan.crossings.first.coatVariant,
+                            crossings: [
+                              for (final crossing
+                                  in plan.catExecutor!.crossings)
+                                CatRunV23Crossing(
+                                  progress:
+                                      _controller.value -
+                                      crossing.startedAtProgress,
+                                  direction: catPlan.direction,
+                                  coatVariant: crossing.coatVariant,
+                                ),
+                            ],
+                            catUnit: CatRunV23Travel.catUnit * .75,
+                            showGroundLine: true,
+                          ),
+                        );
+                      }
+                      final eventDurationMs =
+                          BatV3ProductionFlight.fullSpeedDurationMs +
+                          plan.batInstances.last.startDelayMs;
+                      final elapsed = (_controller.value * eventDurationMs)
+                          .round();
+                      return BatV3ProductionStage(
+                        leftToRight: plan.leftToRight,
+                        cycleIndex:
+                            (elapsed ~/ BatV3ProductionFlight.poseDurationMs) %
+                            8,
+                        crossingElapsed: elapsed,
+                        crossingDuration:
+                            BatV3ProductionFlight.fullSpeedDurationMs,
+                        instances: plan.batInstances
+                            .where(
+                              (instance) =>
+                                  !BatV3ProductionFlight.isInstanceComplete(
+                                    elapsedMs: elapsed,
+                                    durationMs: BatV3ProductionFlight
+                                        .fullSpeedDurationMs,
+                                    instance: instance,
+                                  ),
+                            )
+                            .toList(growable: false),
+                        flutterOn: true,
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
     );
@@ -349,13 +381,13 @@ class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFF101010),
+      Paint()..color = AmbientWildlifeV2Stage.environmentBackground,
     );
     canvas.drawLine(
-      Offset(0, size.height - 5),
-      Offset(size.width, size.height - 5),
+      Offset(0, size.height - AmbientWildlifeV2Stage.groundInset),
+      Offset(size.width, size.height - AmbientWildlifeV2Stage.groundInset),
       Paint()
-        ..color = const Color(0xFF383838)
+        ..color = AmbientWildlifeV2Stage.groundLineColor
         ..strokeWidth = 1,
     );
   }
