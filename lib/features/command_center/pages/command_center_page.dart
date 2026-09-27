@@ -20,6 +20,7 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../../operation_date/state/finalize_date_transition.dart';
+import '../../operation_date/widgets/operation_date_nixie_display.dart';
 import '../../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
@@ -488,6 +489,12 @@ class _CurrentOperationCard extends StatelessWidget {
   final DailyCommandCycleState cycleState;
   final GlobalKey _visibleAnchorKey;
 
+  static const _datePresentationNaturalWidth =
+      OperationDateNixieDisplay.dateTileWidth * 3 +
+      OperationDateNixieDisplay.tileGap * 2;
+  static const _datePresentationWidth = _datePresentationNaturalWidth * 1.2;
+  static const _datePresentationHeight = 53.0;
+
   @override
   Widget build(BuildContext context) => OperationCard(
     child: LayoutBuilder(
@@ -535,17 +542,22 @@ class _CurrentOperationCard extends StatelessWidget {
                 ),
                 AppSpacing.gapSM,
                 SizedBox(
-                  height: 53,
-                  child: Transform.scale(
-                    key: const ValueKey('current-operation-date-scale'),
+                  key: const ValueKey('current-operation-date-bounds'),
+                  width: _datePresentationWidth,
+                  height: _datePresentationHeight,
+                  child: FittedBox(
+                    fit: BoxFit.fitWidth,
                     alignment: Alignment.topLeft,
-                    scale: 1.2,
-                    child: OperationDatePresentationSwitcher(
-                      operationDateFuture: operationDateFuture,
-                      transitionToken: 0,
-                      finalizeTransition: null,
-                      contentMode:
-                          OperationDatePresentationContentMode.dateOnly,
+                    child: SizedBox(
+                      width: _datePresentationNaturalWidth,
+                      height: _datePresentationHeight,
+                      child: OperationDatePresentationSwitcher(
+                        operationDateFuture: operationDateFuture,
+                        transitionToken: 0,
+                        finalizeTransition: null,
+                        contentMode:
+                            OperationDatePresentationContentMode.dateOnly,
+                      ),
                     ),
                   ),
                 ),

@@ -5,6 +5,7 @@ import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/core/widgets/status_lamp.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
@@ -354,11 +355,11 @@ void main() {
         final cycleGroup = find.byKey(
           const ValueKey('current-operation-cycle-group'),
         );
-        final dateScale = find.byKey(
-          const ValueKey('current-operation-date-scale'),
+        final dateBounds = find.byKey(
+          const ValueKey('current-operation-date-bounds'),
         );
-        expect(dateScale, findsOneWidget);
-        expect(tester.widget<Transform>(dateScale).transform.storage[0], 1.2);
+        expect(dateBounds, findsOneWidget);
+        expect(tester.getSize(dateBounds), const Size(165.6, 53));
         expect(
           tester.getTopLeft(cycleGroup).dx,
           greaterThan(tester.getTopRight(dateGroup).dx),
@@ -373,11 +374,86 @@ void main() {
           await tester.pump();
         }
         expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
-        expect(dateScale, findsOneWidget);
+        expect(dateBounds, findsOneWidget);
         expect(tester.takeException(), isNull);
       }
     },
   );
+
+  testWidgets('Operation Date uses width-only bounds at target viewports', (
+    tester,
+  ) async {
+    const baselines = {
+      320: (
+        card: Rect.fromLTRB(16, 194, 304, 301.8),
+        group: Rect.fromLTRB(32, 213, 185.6, 282.8),
+        heading: Rect.fromLTRB(47.4, 213, 185.6, 227),
+        date: Rect.fromLTRB(32, 238.7, 183.4, 278.2),
+      ),
+      390: (
+        card: Rect.fromLTRB(16, 168, 374, 284.3),
+        group: Rect.fromLTRB(32, 187, 222, 265.3),
+        heading: Rect.fromLTRB(51.1, 187, 222, 204.3),
+        date: Rect.fromLTRB(32, 217.1, 197.6, 260.3),
+      ),
+      900: (
+        card: Rect.fromLTRB(16, 168, 884, 287),
+        group: Rect.fromLTRB(32, 187, 251.4, 268),
+        heading: Rect.fromLTRB(54, 187, 251.4, 207),
+        date: Rect.fromLTRB(32, 219.8, 197.6, 263),
+      ),
+    };
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pump(tester, width: width);
+      final baseline = baselines[width.toInt()]!;
+      final card = find.ancestor(
+        of: find.byKey(const ValueKey('current-operation-date-group')),
+        matching: find.byType(OperationCard),
+      );
+      final group = find.byKey(const ValueKey('current-operation-date-group'));
+      final bounds = find.byKey(
+        const ValueKey('current-operation-date-bounds'),
+      );
+      final heading = find.text('OPERATION DATE');
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      final flip = find.byKey(const ValueKey('operation-date-flip-row'));
+      final cardRect = tester.getRect(card);
+      final groupRect = tester.getRect(group);
+      final headingRect = tester.getRect(heading);
+      final boundsRect = tester.getRect(bounds);
+      final switcherRect = tester.getRect(switcher);
+      final flipRect = tester.getRect(flip);
+
+      _expectRectNear(cardRect, baseline.card);
+      _expectRectNear(groupRect, baseline.group);
+      _expectRectNear(headingRect, baseline.heading);
+      _expectRectNear(flipRect, baseline.date);
+      expect(boundsRect.left, greaterThanOrEqualTo(groupRect.left));
+      expect(boundsRect.right, lessThanOrEqualTo(groupRect.right));
+      expect(boundsRect.center.dx, closeTo(flipRect.center.dx, 0.5));
+      expect(boundsRect.left, closeTo(switcherRect.left, 0.5));
+      expect(boundsRect.right, closeTo(switcherRect.right, 0.5));
+      expect(tester.getSize(bounds), const Size(165.6, 53));
+      expect(flipRect.left, greaterThanOrEqualTo(boundsRect.left));
+      expect(flipRect.right, lessThanOrEqualTo(boundsRect.right));
+
+      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      await tester.pump();
+      final nixie = find.byKey(const ValueKey('operation-date-nixie-calendar'));
+      _expectRectNear(tester.getRect(group), groupRect);
+      _expectRectNear(tester.getRect(bounds), boundsRect);
+      _expectRectNear(tester.getRect(switcher), switcherRect);
+      _expectRectNear(tester.getRect(nixie), flipRect);
+
+      await tester.drag(switcher, const Offset(72, 0));
+      await tester.pump();
+      await tester.pump();
+    }
+  });
 
   testWidgets('date-only NIXIE keeps cycle state beside operation date', (
     tester,
@@ -2412,6 +2488,13 @@ String _commandCenterTabGeometry(WidgetTester tester) {
     ])
       '$label=${tester.getRect(find.widgetWithText(TextButton, label).first)}',
   ].join('; ');
+}
+
+void _expectRectNear(Rect actual, Rect expected) {
+  expect(actual.left, closeTo(expected.left, 0.5));
+  expect(actual.top, closeTo(expected.top, 0.5));
+  expect(actual.right, closeTo(expected.right, 0.5));
+  expect(actual.bottom, closeTo(expected.bottom, 0.5));
 }
 
 Future<void> _settleDashboard(WidgetTester tester) async {
