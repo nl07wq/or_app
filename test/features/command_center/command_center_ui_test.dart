@@ -282,11 +282,11 @@ void main() {
       find.byKey(const ValueKey('current-operation-cycle-icon')),
       findsOneWidget,
     );
-    expect(tester.getSize(row).width, 138);
+    expect(tester.getSize(row).width, closeTo(165.6, 0.001));
     for (var index = 0; index < 3; index++) {
       expect(
         tester.getSize(find.byKey(ValueKey('operation-date-tile-$index'))),
-        const Size(42, 36),
+        const Size(50.4, 36),
       );
     }
     expect(tester.getTopLeft(cycleGroup).dy, tester.getTopLeft(dateGroup).dy);
@@ -345,7 +345,7 @@ void main() {
   );
 
   testWidgets(
-    'CURRENT OPERATION reserves a shared enlarged date footprint for FLIP and NIXIE',
+    'CURRENT OPERATION widens FLIP and NIXIE fields without a render transform',
     (tester) async {
       for (final width in [320.0, 390.0, 900.0]) {
         await _pump(tester, width: width);
@@ -355,13 +355,16 @@ void main() {
         final cycleGroup = find.byKey(
           const ValueKey('current-operation-cycle-group'),
         );
-        final dateScale = find.byKey(
-          const ValueKey('current-operation-date-scale'),
+        final switcher = find.byType(OperationDatePresentationSwitcher);
+        final switcherWidget = tester.widget<OperationDatePresentationSwitcher>(
+          switcher,
         );
-        expect(dateScale, findsOneWidget);
-        final transform = tester.widget<Transform>(dateScale).transform.storage;
-        expect(transform[0], 1.2);
-        expect(transform[5], 1.0);
+        expect(
+          find.byKey(const ValueKey('current-operation-date-scale')),
+          findsNothing,
+        );
+        expect(switcherWidget.dateTileWidth, closeTo(50.4, 0.001));
+        expect(switcherWidget.dateTileGap, closeTo(7.2, 0.001));
         expect(
           tester.getTopLeft(cycleGroup).dx,
           greaterThan(tester.getTopRight(dateGroup).dx),
@@ -376,13 +379,17 @@ void main() {
           await tester.pump();
         }
         expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
-        expect(dateScale, findsOneWidget);
+        final nixie = tester.widget<OperationDateNixieDisplay>(
+          find.byType(OperationDateNixieDisplay),
+        );
+        expect(nixie.dateFieldWidth, closeTo(50.4, 0.001));
+        expect(nixie.dateFieldGap, closeTo(7.2, 0.001));
         expect(tester.takeException(), isNull);
       }
     },
   );
 
-  testWidgets('Operation Date renders at X 120% and Y 100%', (tester) async {
+  testWidgets('Operation Date widens without glyph distortion', (tester) async {
     const baselines = {
       320: (
         card: Rect.fromLTRB(16, 194, 304, 301.8),
@@ -449,6 +456,18 @@ void main() {
       final responsiveScale = boundsRect.width / 165.6;
       expect(flipRect.width / (138 * responsiveScale), closeTo(1.2, 0.01));
       expect(flipRect.height / (36 * responsiveScale), closeTo(1.0, 0.01));
+      for (var index = 0; index < 3; index++) {
+        final tile = find.byKey(ValueKey('operation-date-tile-$index'));
+        final glyph = find
+            .descendant(of: tile, matching: find.byType(Text))
+            .first;
+        expect(tester.getSize(tile), const Size(50.4, 36));
+        _expectUndistortedRender(tester, glyph, expectedScale: responsiveScale);
+        expect(
+          tester.getRect(glyph).center.dx,
+          closeTo(tester.getRect(tile).center.dx, 0.5),
+        );
+      }
 
       await tester.drag(switcher, const Offset(-72, 0));
       await tester.pump();
@@ -458,6 +477,21 @@ void main() {
       _expectRectNear(tester.getRect(bounds), boundsRect);
       _expectRectNear(tester.getRect(switcher), switcherRect);
       _expectRectNear(tester.getRect(nixie), flipRect);
+      final nixieGlyphKeys = [
+        'nixie-label-AUG',
+        'nixie-active-01',
+        'nixie-label-SAT',
+      ];
+      for (var index = 0; index < 3; index++) {
+        final field = find.byKey(ValueKey('operation-date-nixie-field-$index'));
+        final glyph = find.byKey(ValueKey(nixieGlyphKeys[index]));
+        expect(tester.getSize(field), const Size(50.4, 36));
+        _expectUndistortedRender(tester, glyph, expectedScale: responsiveScale);
+        expect(
+          tester.getRect(glyph).center.dx,
+          closeTo(tester.getRect(field).center.dx, 0.5),
+        );
+      }
 
       await tester.drag(switcher, const Offset(72, 0));
       await tester.pump();
@@ -2505,6 +2539,20 @@ void _expectRectNear(Rect actual, Rect expected) {
   expect(actual.top, closeTo(expected.top, 0.5));
   expect(actual.right, closeTo(expected.right, 0.5));
   expect(actual.bottom, closeTo(expected.bottom, 0.5));
+}
+
+void _expectUndistortedRender(
+  WidgetTester tester,
+  Finder finder, {
+  required double expectedScale,
+}) {
+  final localSize = tester.getSize(finder);
+  final paintedRect = tester.getRect(finder);
+  final horizontalScale = paintedRect.width / localSize.width;
+  final verticalScale = paintedRect.height / localSize.height;
+  expect(horizontalScale, closeTo(expectedScale, 0.01));
+  expect(verticalScale, closeTo(expectedScale, 0.01));
+  expect(horizontalScale / verticalScale, closeTo(1, 0.01));
 }
 
 Future<void> _settleDashboard(WidgetTester tester) async {

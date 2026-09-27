@@ -493,6 +493,8 @@ class _CurrentOperationCard extends StatelessWidget {
       OperationDateNixieDisplay.dateTileWidth * 3 +
       OperationDateNixieDisplay.tileGap * 2;
   static const _datePresentationWidth = _datePresentationNaturalWidth * 1.2;
+  static const _dateTileWidth = OperationDateNixieDisplay.dateTileWidth * 1.2;
+  static const _dateTileGap = OperationDateNixieDisplay.tileGap * 1.2;
   static const _datePresentationHeight = 53.0;
 
   @override
@@ -544,24 +546,13 @@ class _CurrentOperationCard extends StatelessWidget {
                   key: const ValueKey('current-operation-date-bounds'),
                   width: _datePresentationWidth,
                   height: _datePresentationHeight,
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Transform(
-                      key: const ValueKey('current-operation-date-scale'),
-                      alignment: Alignment.topLeft,
-                      transform: Matrix4.diagonal3Values(1.2, 1, 1),
-                      child: SizedBox(
-                        width: _datePresentationNaturalWidth,
-                        height: _datePresentationHeight,
-                        child: OperationDatePresentationSwitcher(
-                          operationDateFuture: operationDateFuture,
-                          transitionToken: 0,
-                          finalizeTransition: null,
-                          contentMode:
-                              OperationDatePresentationContentMode.dateOnly,
-                        ),
-                      ),
-                    ),
+                  child: OperationDatePresentationSwitcher(
+                    operationDateFuture: operationDateFuture,
+                    transitionToken: 0,
+                    finalizeTransition: null,
+                    contentMode: OperationDatePresentationContentMode.dateOnly,
+                    dateTileWidth: _dateTileWidth,
+                    dateTileGap: _dateTileGap,
                   ),
                 ),
               ],

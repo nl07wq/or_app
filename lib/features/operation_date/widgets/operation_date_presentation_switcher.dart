@@ -24,6 +24,8 @@ class OperationDatePresentationSwitcher extends StatefulWidget {
     super.key,
     this.preference,
     this.contentMode = OperationDatePresentationContentMode.dateAndTime,
+    this.dateTileWidth = OperationDateNixieDisplay.dateTileWidth,
+    this.dateTileGap = OperationDateNixieDisplay.tileGap,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
@@ -31,6 +33,8 @@ class OperationDatePresentationSwitcher extends StatefulWidget {
   final FinalizeDateTransition? finalizeTransition;
   final OperationDateDisplayModePreference? preference;
   final OperationDatePresentationContentMode contentMode;
+  final double dateTileWidth;
+  final double dateTileGap;
 
   @override
   State<OperationDatePresentationSwitcher> createState() =>
@@ -172,11 +176,15 @@ class _OperationDatePresentationSwitcherState
                   transitionToken: widget.transitionToken,
                   previewTransitionToken: _previewTransitionToken,
                   contentMode: widget.contentMode,
+                  tileWidth: widget.dateTileWidth,
+                  tileGap: widget.dateTileGap,
                 )
               : OperationDateNixieDisplay(
                   operationDateFuture: widget.operationDateFuture,
                   transitionToken: widget.transitionToken,
                   previewTransitionToken: _previewTransitionToken,
+                  dateFieldWidth: widget.dateTileWidth,
+                  dateFieldGap: widget.dateTileGap,
                   showTime:
                       widget.contentMode ==
                       OperationDatePresentationContentMode.dateAndTime,
@@ -197,12 +205,16 @@ class _FlipDatePresentation extends StatelessWidget {
     required this.transitionToken,
     required this.previewTransitionToken,
     required this.contentMode,
+    required this.tileWidth,
+    required this.tileGap,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final int previewTransitionToken;
   final OperationDatePresentationContentMode contentMode;
+  final double tileWidth;
+  final double tileGap;
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +236,8 @@ class _FlipDatePresentation extends StatelessWidget {
             operationDateFuture: operationDateFuture,
             transitionToken: transitionToken,
             previewTransitionToken: previewTransitionToken,
-            tileWidth: 42,
+            tileWidth: tileWidth,
+            tileGap: tileGap,
           ),
         ),
         if (!dateOnly)

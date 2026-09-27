@@ -15,6 +15,8 @@ class OperationDateNixieDisplay extends StatelessWidget {
     required this.transitionToken,
     this.previewTransitionToken = 0,
     this.showTime = true,
+    this.dateFieldWidth = OperationDateNixieDisplay.dateTileWidth,
+    this.dateFieldGap = OperationDateNixieDisplay.tileGap,
     super.key,
     this.initialTransitionFrom,
   });
@@ -27,6 +29,8 @@ class OperationDateNixieDisplay extends StatelessWidget {
   final int transitionToken;
   final int previewTransitionToken;
   final bool showTime;
+  final double dateFieldWidth;
+  final double dateFieldGap;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -44,6 +48,8 @@ class OperationDateNixieDisplay extends StatelessWidget {
             transitionToken: transitionToken,
             previewTransitionToken: previewTransitionToken,
             initialTransitionFrom: initialTransitionFrom,
+            tileWidth: dateFieldWidth,
+            tileGap: dateFieldGap,
           ),
         ),
         if (showTime)
@@ -159,12 +165,16 @@ class _OperationDateNixieCalendar extends StatefulWidget {
     required this.operationDateFuture,
     required this.transitionToken,
     required this.previewTransitionToken,
+    required this.tileWidth,
+    required this.tileGap,
     this.initialTransitionFrom,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final int previewTransitionToken;
+  final double tileWidth;
+  final double tileGap;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -277,13 +287,12 @@ class _OperationDateNixieCalendarState
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (var index = 0; index < values.length; index++) ...[
-                  if (index > 0)
-                    const SizedBox(width: OperationDateNixieDisplay.tileGap),
+                  if (index > 0) SizedBox(width: widget.tileGap),
                   index == 1
                       ? NixieTubeCell(
                           key: ValueKey('operation-date-nixie-field-$index'),
                           value: values[index],
-                          width: OperationDateNixieDisplay.dateTileWidth,
+                          width: widget.tileWidth,
                           height: OperationDateNixieDisplay.tileHeight,
                           animate: _dateTransitionActive,
                           foregroundOpacity: _foregroundOpacity(index),
@@ -294,7 +303,7 @@ class _OperationDateNixieCalendarState
                       : _NixieTechnicalLabel(
                           key: ValueKey('operation-date-nixie-field-$index'),
                           value: values[index],
-                          width: OperationDateNixieDisplay.dateTileWidth,
+                          width: widget.tileWidth,
                           height: OperationDateNixieDisplay.tileHeight,
                           animate: _dateTransitionActive,
                           foregroundOpacity: _foregroundOpacity(index),
