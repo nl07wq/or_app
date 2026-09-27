@@ -14,6 +14,7 @@ import 'bat_v3_flight_motion_poc.dart';
 import 'ambient_wildlife_v2.dart';
 import 'cat_run_v2_poc_section.dart';
 import 'cat_run_v23_production_preview.dart';
+import 'fox_run_v1_section.dart';
 import 'pixel_lab_page.dart';
 
 const _bootSequenceAssets = [
@@ -172,6 +173,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         const CatRunV2PocSection(),
         AppSpacing.gapXL,
         const CatRunV23ProductionPreview(),
+        AppSpacing.gapXL,
+        const FoxRunV1Section(),
       ],
     ),
   );

@@ -72,6 +72,9 @@ flutter:
     - assets/animations/sandbox/bat_v3/
     - assets/animations/sandbox/bat_v3/canonical/
     - assets/animations/sandbox/bat_v3_canonical/
+    - assets/animations/sandbox/fox_v1/source/
+    - assets/animations/sandbox/fox_v1/canonical/
+    - assets/animations/sandbox/fox_v1/source_manifest.json
     - assets/images/food_category/
     - assets/data/
     - assets/body_map/
