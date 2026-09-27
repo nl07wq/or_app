@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -23,24 +21,26 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   static const _origin = Offset(897.4332949552927, 366.7165635675376);
   static const _ground = 687.0;
   static const _torso = 516.0;
-  static const _frameCount = 10;
+  static const _frameCount = FoxRunV1Motion.frameCount;
 
   var _expanded = false;
   var _frame = 0;
   var _auditMode = _FoxAuditMode.canonical;
   var _inspectionScale = 0.5;
-  var _frameDuration = const Duration(milliseconds: 80);
+  var _frameDuration = FoxRunV1Motion.frameDuration;
   var _leftToRight = true;
-  var _crossingDuration = const Duration(milliseconds: 3000);
+  var _crossingCycles = FoxRunV1Motion.crossingCycles;
+  Duration get _crossingDuration => FoxRunV1Motion.durationForCycles(
+    _crossingCycles,
+    celDuration: _frameDuration,
+  );
   late final AnimationController _crossing = AnimationController(
     vsync: this,
     duration: _crossingDuration,
-  );
-  Timer? _frameTimer;
+  )..addListener(_syncFrameToCrossing);
 
   @override
   void dispose() {
-    _frameTimer?.cancel();
     _crossing.dispose();
     super.dispose();
   }
@@ -50,15 +50,22 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       'frame_${(_frame + 1).toString().padLeft(2, '0')}.png';
 
   void _setPlayback(bool playing) {
-    _frameTimer?.cancel();
     if (!playing) {
       _crossing.stop();
       return;
     }
     _crossing.repeat();
-    _frameTimer = Timer.periodic(_frameDuration, (_) {
-      if (mounted) setState(() => _frame = (_frame + 1) % _frameCount);
-    });
+    _syncFrameToCrossing();
+  }
+
+  void _syncFrameToCrossing() {
+    if (!mounted || !_crossing.isAnimating) return;
+    final nextFrame = FoxRunV1Motion.frameAtCrossingProgress(
+      _crossing.value,
+      celDuration: _frameDuration,
+      runDuration: _crossingDuration,
+    );
+    if (nextFrame != _frame) setState(() => _frame = nextFrame);
   }
 
   void _restart() {
@@ -71,7 +78,13 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
 
   void _setFrameDuration(int milliseconds) {
     setState(() => _frameDuration = Duration(milliseconds: milliseconds));
-    if (_frameTimer != null) _setPlayback(true);
+    _crossing.duration = _crossingDuration;
+    _syncFrameToCrossing();
+  }
+
+  void _setCrossingCycles(int cycles) {
+    setState(() => _crossingCycles = cycles);
+    _crossing.duration = _crossingDuration;
   }
 
   @override
@@ -220,28 +233,19 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       const Text('CROSSING SPEED'),
       Wrap(
         spacing: AppSpacing.xs,
-        children: [2250, 3000, 3750]
+        children: [3, 4, 5]
             .map(
-              (value) => ChoiceChip(
-                label: Text(
-                  value == 3000
-                      ? '1× CAT REF'
-                      : value < 3000
-                      ? '1.25×'
-                      : '0.75×',
-                ),
-                selected: _crossingDuration.inMilliseconds == value,
-                onSelected: (_) => setState(() {
-                  _crossingDuration = Duration(milliseconds: value);
-                  _crossing.duration = _crossingDuration;
-                }),
+              (cycles) => ChoiceChip(
+                label: Text('$cycles CYCLES'),
+                selected: _crossingCycles == cycles,
+                onSelected: (_) => _setCrossingCycles(cycles),
               ),
             )
             .toList(),
       ),
       AppSpacing.gapSM,
       Text(
-        'CURRENT: canonical FOX • ${_frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body 110px',
+        'CURRENT: canonical FOX • ${_frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLength.toStringAsFixed(0)}px',
       ),
     ],
   );
@@ -252,6 +256,38 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         onPressed: onPressed,
         child: Text(label),
       );
+}
+
+/// Couples the canonical 01→10 gait cycle to crossing progress so translation
+/// and cel playback share one timeline and restart on the same phase.
+abstract final class FoxRunV1Motion {
+  static const frameCount = 10;
+  static const frameDuration = Duration(milliseconds: 80);
+  static const cycleDuration = Duration(milliseconds: frameCount * 80);
+  static const crossingCycles = 4;
+  static const crossingDuration = Duration(
+    milliseconds: frameCount * 80 * crossingCycles,
+  );
+
+  static Duration durationForCycles(int cycles, {Duration? celDuration}) =>
+      Duration(
+        microseconds:
+            (celDuration ?? frameDuration).inMicroseconds * frameCount * cycles,
+      );
+
+  static int frameAtCrossingProgress(
+    double progress, {
+    Duration? celDuration,
+    Duration? runDuration,
+  }) {
+    final resolvedCelDuration = celDuration ?? frameDuration;
+    final resolvedRunDuration = runDuration ?? crossingDuration;
+    final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
+    final elapsedMicroseconds =
+        (resolvedRunDuration.inMicroseconds * safeProgress).round();
+    return (elapsedMicroseconds ~/ resolvedCelDuration.inMicroseconds) %
+        frameCount;
+  }
 }
 
 class _FoxCel extends StatelessWidget {
@@ -299,8 +335,13 @@ abstract final class FoxRunV1ProductionGeometry {
   static const bodyOrigin = Offset(897.4332949552927, 366.7165635675376);
   static const virtualGround = 687.0;
   static const torsoLength = 516.0;
-  static const displayedTorsoLength = 110.0;
-  static const displayScale = displayedTorsoLength / torsoLength;
+  static const previousDisplayedTorsoLength = 110.0;
+
+  /// Restores the original intentional preview scale: the 1646px canonical
+  /// canvas rendered at 220px wide before BODY registration was introduced.
+  static const displayedCanvasWidth = 220.0;
+  static const displayScale = displayedCanvasWidth / 1646.0;
+  static const displayedTorsoLength = torsoLength * displayScale;
   static const stageHeight = 150.0;
   static const groundInset = 28.0;
   static const crossingSafetyGap = 8.0;
