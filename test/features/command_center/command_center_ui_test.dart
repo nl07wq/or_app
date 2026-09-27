@@ -208,6 +208,11 @@ void main() {
       expect(switcher, findsOneWidget);
       expect(find.byType(OperationDatePresentationSwitcher), findsOneWidget);
       expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(find.byType(OperationDateLiveFlipClock), findsNothing);
+      expect(
+        find.byKey(const ValueKey('dashboard-live-flip-clock')),
+        findsNothing,
+      );
 
       await tester.tap(switcher);
       await tester.pump();
@@ -219,7 +224,28 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       await tester.drag(switcher, const Offset(-72, 0));
       await tester.pump();
+      await tester.pump();
       expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('dashboard-live-nixie-clock')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('dashboard-nixie-date-time-divider')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-field-0')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-field-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-field-2')),
+        findsOneWidget,
+      );
 
       await tester.drag(switcher, const Offset(72, 0));
       await tester.pump();
@@ -256,14 +282,17 @@ void main() {
       find.byKey(const ValueKey('current-operation-cycle-icon')),
       findsOneWidget,
     );
-    expect(tester.getSize(row).width, 168);
+    expect(tester.getSize(row).width, 138);
     for (var index = 0; index < 3; index++) {
       expect(
         tester.getSize(find.byKey(ValueKey('operation-date-tile-$index'))),
-        const Size(52, 36),
+        const Size(42, 36),
       );
     }
-    expect(tester.getTopLeft(dateGroup).dy, tester.getTopLeft(cycleGroup).dy);
+    expect(
+      tester.getTopLeft(cycleGroup).dy,
+      greaterThan(tester.getTopLeft(dateGroup).dy),
+    );
     final cycleHeadingIcon = find.byKey(
       const ValueKey('current-operation-cycle-heading-icon'),
     );
@@ -281,8 +310,8 @@ void main() {
     );
     expect(tester.getSize(cycleValue).height, lessThan(36));
     expect(
-      tester.getTopLeft(cycleGroup).dx - tester.getTopRight(dateGroup).dx,
-      greaterThanOrEqualTo(AppSpacing.xl),
+      tester.getTopLeft(cycleGroup).dy - tester.getBottomLeft(dateGroup).dy,
+      greaterThanOrEqualTo(AppSpacing.md),
     );
     expect(
       find.byKey(const ValueKey('dashboard-live-flip-clock')),
@@ -302,10 +331,19 @@ void main() {
         final cycleGroup = find.byKey(
           const ValueKey('current-operation-cycle-group'),
         );
-        expect(
-          tester.getTopLeft(cycleGroup).dx - tester.getTopRight(dateGroup).dx,
-          greaterThanOrEqualTo(AppSpacing.xl),
-        );
+        final dateTopLeft = tester.getTopLeft(dateGroup);
+        final cycleTopLeft = tester.getTopLeft(cycleGroup);
+        if (dateTopLeft.dy == cycleTopLeft.dy) {
+          expect(
+            cycleTopLeft.dx - tester.getTopRight(dateGroup).dx,
+            greaterThanOrEqualTo(AppSpacing.xl),
+          );
+        } else {
+          expect(
+            cycleTopLeft.dy - tester.getBottomLeft(dateGroup).dy,
+            greaterThanOrEqualTo(AppSpacing.md),
+          );
+        }
         expect(tester.takeException(), isNull);
       }
     },

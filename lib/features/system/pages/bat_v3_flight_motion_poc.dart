@@ -533,9 +533,86 @@ abstract final class BatV3ProductionFlight {
   static const visibleBatMaxX = 45.23;
   static const entryExitGap = 3.0;
   static const instances = <BatV3ProductionInstance>[
-    BatV3ProductionInstance(phaseOffset: 0, startDelayMs: 0, formationY: 0),
-    BatV3ProductionInstance(phaseOffset: 2, startDelayMs: 180, formationY: -12),
-    BatV3ProductionInstance(phaseOffset: 5, startDelayMs: 360, formationY: 10),
+    BatV3ProductionInstance(
+      identifier: 0,
+      phaseOffset: 0,
+      startDelayMs: 0,
+      formationY: 0,
+    ),
+    BatV3ProductionInstance(
+      identifier: 2,
+      phaseOffset: 2,
+      startDelayMs: 180,
+      formationY: -12,
+    ),
+    BatV3ProductionInstance(
+      identifier: 5,
+      phaseOffset: 5,
+      startDelayMs: 360,
+      formationY: 10,
+    ),
+  ];
+  static const glitchInstances = <BatV3ProductionInstance>[
+    BatV3ProductionInstance(
+      identifier: 0,
+      phaseOffset: 0,
+      startDelayMs: 0,
+      formationY: 0,
+    ),
+    BatV3ProductionInstance(
+      identifier: 1,
+      phaseOffset: 2,
+      startDelayMs: 80,
+      formationY: -12,
+    ),
+    BatV3ProductionInstance(
+      identifier: 2,
+      phaseOffset: 5,
+      startDelayMs: 160,
+      formationY: -6,
+    ),
+    BatV3ProductionInstance(
+      identifier: 3,
+      phaseOffset: 1,
+      startDelayMs: 240,
+      formationY: 6,
+    ),
+    BatV3ProductionInstance(
+      identifier: 4,
+      phaseOffset: 4,
+      startDelayMs: 320,
+      formationY: 12,
+    ),
+    BatV3ProductionInstance(
+      identifier: 5,
+      phaseOffset: 7,
+      startDelayMs: 400,
+      formationY: 18,
+    ),
+    BatV3ProductionInstance(
+      identifier: 6,
+      phaseOffset: 3,
+      startDelayMs: 480,
+      formationY: -18,
+    ),
+    BatV3ProductionInstance(
+      identifier: 7,
+      phaseOffset: 6,
+      startDelayMs: 560,
+      formationY: -15,
+    ),
+    BatV3ProductionInstance(
+      identifier: 8,
+      phaseOffset: 2,
+      startDelayMs: 640,
+      formationY: -9,
+    ),
+    BatV3ProductionInstance(
+      identifier: 9,
+      phaseOffset: 5,
+      startDelayMs: 720,
+      formationY: 9,
+    ),
   ];
 
   static int crossingDurationForSpeed(String speed) =>
@@ -579,11 +656,13 @@ abstract final class BatV3ProductionFlight {
 /// the visible cels from reading as a duplicated stack.
 class BatV3ProductionInstance {
   const BatV3ProductionInstance({
+    required this.identifier,
     required this.phaseOffset,
     required this.startDelayMs,
     required this.formationY,
   });
 
+  final int identifier;
   final int phaseOffset;
   final int startDelayMs;
   final double formationY;
@@ -598,6 +677,8 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   var _cycleIndex = 0;
   var _playing = false;
   var _eventActive = false;
+  var _forcedGlitch = false;
+  var _resumeNormalAfterForced = false;
   var _flutterOn = true;
   var _leftToRight = true;
   var _speed = '1×';
@@ -608,8 +689,9 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
       BatV3SourceSet.poses[BatV3SourceSet.cycle[_cycleIndex]];
   int get _crossingDuration =>
       BatV3ProductionFlight.crossingDurationForSpeed(_speed);
-  List<BatV3ProductionInstance> get _eventInstances =>
-      BatV3ProductionFlight.instances.take(_eventBatCount).toList();
+  List<BatV3ProductionInstance> get _eventInstances => _forcedGlitch
+      ? BatV3ProductionFlight.glitchInstances
+      : BatV3ProductionFlight.instances.take(_eventBatCount).toList();
   List<BatV3ProductionInstance> get _visibleInstances => _eventInstances
       .where(
         (instance) => !BatV3ProductionFlight.isInstanceComplete(
@@ -650,6 +732,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
       _crossingElapsed = 0;
       _cycleIndex = 0;
       _eventBatCount = _nextEventBatCount;
+      _forcedGlitch = false;
       _eventActive = true;
     });
     _crossingTicker?.cancel();
@@ -667,11 +750,49 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   void _finishCurrentEvent() {
     _crossingTicker?.cancel();
     _crossingTicker = null;
-    setState(() => _eventActive = false);
+    final continueEndlessly = _forcedGlitch
+        ? _resumeNormalAfterForced
+        : _playing;
+    setState(() {
+      _eventActive = false;
+      _forcedGlitch = false;
+      _resumeNormalAfterForced = false;
+      if (!continueEndlessly) _playing = false;
+    });
     // The single frame boundary guarantees completed cels are removed before
     // the next endless event becomes paintable, without a visible pause.
     _eventBoundaryTimer = Timer(const Duration(milliseconds: 16), () {
-      if (mounted && _playing) _beginNextEvent();
+      if (!mounted) return;
+      if (continueEndlessly) {
+        _playing = true;
+        _beginNextEvent();
+      } else {
+        _poseTicker?.cancel();
+        _poseTicker = null;
+      }
+    });
+  }
+
+  void _forceGlitch() {
+    final resumeNormal = _playing;
+    _stopClocks();
+    setState(() {
+      _crossingElapsed = 0;
+      _cycleIndex = 0;
+      _eventActive = true;
+      _forcedGlitch = true;
+      _resumeNormalAfterForced = resumeNormal;
+      _playing = true;
+    });
+    _startPoseClock();
+    _crossingTicker = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!mounted) return;
+      final nextElapsed = _crossingElapsed + 16;
+      if (nextElapsed >= _eventEndMs) {
+        _finishCurrentEvent();
+      } else {
+        setState(() => _crossingElapsed = nextElapsed);
+      }
     });
   }
 
@@ -703,6 +824,8 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
       _crossingElapsed = 0;
       _cycleIndex = 0;
       _eventActive = false;
+      _forcedGlitch = false;
+      _resumeNormalAfterForced = false;
       _playing = true;
     });
     _startPoseClock();
@@ -756,6 +879,11 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                   'PLAY / RESTART',
                   _playing,
                   _playOrRestart,
+                ),
+                OutlinedButton(
+                  key: const ValueKey('bat-v3-production-force-glitch'),
+                  onPressed: _forcedGlitch ? null : _forceGlitch,
+                  child: const Text('FORCE GLITCH ×10'),
                 ),
               ],
             ),
@@ -894,7 +1022,7 @@ class _ProductionBatStage extends StatelessWidget {
       enabled: flutterOn,
     );
     return Positioned(
-      key: ValueKey('bat-v3-production-instance-${instance.phaseOffset}'),
+      key: ValueKey('bat-v3-production-instance-${instance.identifier}'),
       left: BatV3ProductionFlight.leftFor(
         stageWidth: stageWidth,
         progress: BatV3ProductionFlight.progressFor(

@@ -524,6 +524,7 @@ class _CurrentOperationCard extends StatelessWidget {
                   operationDateFuture: operationDateFuture,
                   transitionToken: 0,
                   finalizeTransition: null,
+                  contentMode: OperationDatePresentationContentMode.dateOnly,
                 ),
               ],
             ),

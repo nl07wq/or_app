@@ -14,6 +14,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
     required this.operationDateFuture,
     required this.transitionToken,
     this.previewTransitionToken = 0,
+    this.showTime = true,
     super.key,
     this.initialTransitionFrom,
   });
@@ -25,6 +26,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final int previewTransitionToken;
+  final bool showTime;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -44,30 +46,31 @@ class OperationDateNixieDisplay extends StatelessWidget {
             initialTransitionFrom: initialTransitionFrom,
           ),
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: SizedBox(
-                height: tileHeight + 8,
-                child: VerticalDivider(
-                  key: const ValueKey('dashboard-nixie-date-time-divider'),
-                  width: 1,
-                  thickness: 1,
-                  color: NixiePresentationColors.frame,
+        if (showTime)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: SizedBox(
+                  height: tileHeight + 8,
+                  child: VerticalDivider(
+                    key: const ValueKey('dashboard-nixie-date-time-divider'),
+                    width: 1,
+                    thickness: 1,
+                    color: NixiePresentationColors.frame,
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _OperationDateNixieClock(
-                transitionToken: transitionToken,
-                previewTransitionToken: previewTransitionToken,
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: _OperationDateNixieClock(
+                  transitionToken: transitionToken,
+                  previewTransitionToken: previewTransitionToken,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     ),
   );

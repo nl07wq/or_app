@@ -130,6 +130,7 @@ void main() {
       'bat-v3-production-count-2',
       'bat-v3-production-count-3',
       'bat-v3-production-count-random',
+      'bat-v3-production-force-glitch',
       'bat-v3-production-ltr',
       'bat-v3-production-rtl',
     ]) {
@@ -340,6 +341,156 @@ void main() {
       );
     }
   });
+
+  test('FORCE GLITCH ×10 uses a deterministic contained swarm formation', () {
+    final instances = BatV3ProductionFlight.glitchInstances;
+    expect(instances, hasLength(10));
+    expect(instances.map((instance) => instance.identifier), [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+    ]);
+    expect(instances.map((instance) => instance.phaseOffset), [
+      0,
+      2,
+      5,
+      1,
+      4,
+      7,
+      3,
+      6,
+      2,
+      5,
+    ]);
+    expect(instances.map((instance) => instance.startDelayMs), [
+      0,
+      80,
+      160,
+      240,
+      320,
+      400,
+      480,
+      560,
+      640,
+      720,
+    ]);
+    expect(instances.map((instance) => instance.formationY), [
+      0,
+      -12,
+      -6,
+      6,
+      12,
+      18,
+      -18,
+      -15,
+      -9,
+      9,
+    ]);
+    for (final instance in instances) {
+      for (var index = 0; index < BatV3SourceSet.cycle.length; index++) {
+        final top = BatV3ProductionFlight.topFor(
+          instance.formationY +
+              BatV3ProductionFlight.flutterOffset(
+                cycleIndex:
+                    (index + instance.phaseOffset) %
+                    BatV3SourceSet.cycle.length,
+                amplitude: BatV3ProductionFlight.flutterAmplitude,
+                enabled: true,
+              ),
+        );
+        expect(top, greaterThanOrEqualTo(0));
+        expect(
+          top + BatV3ProductionFlight.batHeight,
+          lessThanOrEqualTo(BatV3ProductionFlight.stageHeight),
+        );
+      }
+    }
+  });
+
+  testWidgets('FORCE GLITCH ×10 replaces the normal event and clears on exit', (
+    tester,
+  ) async {
+    _viewport(tester);
+    await tester.pumpWidget(_productionHost());
+    await tester.tap(
+      find.byKey(const ValueKey('bat-v3-production-force-glitch')),
+    );
+    await tester.pump();
+    for (var identifier = 0; identifier < 10; identifier++) {
+      expect(
+        find.byKey(ValueKey('bat-v3-production-instance-$identifier')),
+        findsOneWidget,
+      );
+    }
+    await tester.pump(const Duration(milliseconds: 2928));
+    for (var identifier = 0; identifier < 10; identifier++) {
+      expect(
+        find.byKey(ValueKey('bat-v3-production-instance-$identifier')),
+        findsNothing,
+      );
+    }
+  });
+
+  testWidgets(
+    'FORCE GLITCH ×10 respects selected direction, speed, and flutter',
+    (tester) async {
+      for (final scenario in [
+        (
+          'bat-v3-production-ltr',
+          'bat-v3-production-speed-1x',
+          'bat-v3-production-flutter-on',
+        ),
+        (
+          'bat-v3-production-rtl',
+          'bat-v3-production-speed-1x',
+          'bat-v3-production-flutter-on',
+        ),
+        (
+          'bat-v3-production-ltr',
+          'bat-v3-production-speed-half',
+          'bat-v3-production-flutter-off',
+        ),
+        (
+          'bat-v3-production-rtl',
+          'bat-v3-production-speed-half',
+          'bat-v3-production-flutter-off',
+        ),
+      ]) {
+        _viewport(tester);
+        await tester.pumpWidget(_productionHost());
+        await tester.tap(find.byKey(ValueKey(scenario.$1)));
+        await tester.tap(find.byKey(ValueKey(scenario.$2)));
+        await tester.tap(find.byKey(ValueKey(scenario.$3)));
+        await tester.tap(
+          find.byKey(const ValueKey('bat-v3-production-force-glitch')),
+        );
+        await tester.pump();
+        expect(
+          _productionTelemetry(tester),
+          contains(scenario.$1.endsWith('rtl') ? 'R→L' : 'L→R'),
+        );
+        expect(
+          _productionTelemetry(tester),
+          contains(scenario.$2.endsWith('half') ? '0.5×' : '1×'),
+        );
+        expect(
+          _productionTelemetry(tester),
+          contains(scenario.$3.endsWith('off') ? 'FLUTTER OFF' : 'FLUTTER 8px'),
+        );
+        expect(
+          find.byKey(const ValueKey('bat-v3-production-instance-9')),
+          findsOneWidget,
+        );
+      }
+    },
+  );
 
   testWidgets('V2.1 endlessly repeats ×1 with a zero-residue boundary', (
     tester,
