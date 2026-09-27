@@ -10,7 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
-import 'bat_flight_motion_poc.dart';
+import 'bat_v3_flight_motion_poc.dart';
 import 'bat_side_profile_shape_poc.dart';
 import 'cat_run_v2_poc_section.dart';
 import 'cat_run_v23_production_preview.dart';
@@ -165,7 +165,7 @@ class AnimationsSandboxPage extends StatelessWidget {
         AppSpacing.gapXL,
         const BatSideProfileShapePoc(),
         AppSpacing.gapXL,
-        const BatFlightMotionPoc(),
+        const BatV3FlightMotionPoc(),
         AppSpacing.gapXL,
         const CatRunV2PocSection(),
         AppSpacing.gapXL,
