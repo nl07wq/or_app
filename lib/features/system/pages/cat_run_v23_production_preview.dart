@@ -34,6 +34,15 @@ class CatRunV23Travel {
       crossingDuration.inMilliseconds *
       1000;
 
+  /// Global event progress advances at one individual CAT crossing per
+  /// [crossingDuration]. A staggered group extends its range, not its speed.
+  static Duration durationForGlobalProgress(double progress) => Duration(
+    microseconds: (crossingDuration.inMicroseconds * progress).round(),
+  );
+
+  static double globalProgressAt(Duration elapsed) =>
+      elapsed.inMicroseconds / crossingDuration.inMicroseconds;
+
   static int frameAtTravelProgress(double progress) {
     final safeProgress = progress.clamp(0.0, 0.999999).toDouble();
     final elapsedMicroseconds = (crossingDuration.inMicroseconds * safeProgress)
@@ -277,6 +286,8 @@ class CatRunProductionEventPlan {
   final CatRunV23Direction direction;
   final List<CatRunProductionScheduledCrossing> crossings;
   final bool allowsRecursiveContinuation;
+
+  double get finalProgress => crossings.last.startedAtProgress + 1;
 }
 
 /// Sandbox-only 48px travel inspection for direct sequential HIGH vectors.
@@ -306,7 +317,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
   void initState() {
     super.initState();
     _controller =
-        AnimationController(
+        AnimationController.unbounded(
             vsync: this,
             duration: CatRunV23Travel.crossingDuration,
           )
@@ -327,7 +338,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
               _playing = false;
             });
           });
-    _controller.repeat();
+    _controller.repeat(min: 0, max: 1);
   }
 
   void _restart() {
@@ -340,7 +351,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
       }
       _controller
         ..value = 0
-        ..repeat();
+        ..repeat(min: 0, max: 1);
     });
   }
 
@@ -351,7 +362,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
         microseconds: (CatRunV23Travel.crossingDuration.inMicroseconds / speed)
             .round(),
       );
-      if (_playing) _controller.repeat();
+      if (_playing) _controller.repeat(min: 0, max: 1);
     });
   }
 
@@ -371,20 +382,19 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
 
   void _startForced(CatRunProductionEventPlan plan) {
     if (_forcedPlan != null && _controller.isAnimating) return;
-    final finalProgress = plan.crossings.last.startedAtProgress + 1;
+    final finalProgress = plan.finalProgress;
     setState(() {
       _forcedPlan = plan;
       _playing = true;
       _lastProgress = 0;
       _controller
         ..stop()
-        ..duration = Duration(
-          microseconds:
-              (CatRunV23Travel.crossingDuration.inMicroseconds * finalProgress)
-                  .round(),
-        )
         ..value = 0
-        ..forward();
+        ..animateTo(
+          finalProgress,
+          duration: CatRunV23Travel.durationForGlobalProgress(finalProgress),
+          curve: Curves.linear,
+        );
     });
   }
 
@@ -483,7 +493,9 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                   for (final speed in [0.5, 1.0])
                     OutlinedButton(
                       key: ValueKey('cat-run-v23-speed-$speed'),
-                      onPressed: () => _setSpeed(speed),
+                      onPressed: _forcedPlan == null
+                          ? () => _setSpeed(speed)
+                          : null,
                       child: Text('$speed×'),
                     ),
                   for (final variant in CatRunCoatPatterns.visualVariants)
