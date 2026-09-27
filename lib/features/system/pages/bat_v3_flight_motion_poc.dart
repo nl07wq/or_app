@@ -7,7 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import 'bat_v3_source_data.dart';
 
-enum BatV3View { raw, mask, registered, bodyOverlay }
+enum BatV3View { canonical, bodyOverlay }
 
 class BatV3FlightMotionPoc extends StatefulWidget {
   const BatV3FlightMotionPoc({super.key});
@@ -26,7 +26,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
   var _crossing = false;
   var _leftToRight = true;
   var _inspectionScale = 1.0;
-  var _view = BatV3View.raw;
+  var _view = BatV3View.canonical;
   var _travel = 0.0;
 
   BatV3SourcePose get _pose => BatV3SourceSet.poses[_poseIndex];
@@ -107,7 +107,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
               'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${_pose.name}',
               key: const ValueKey('bat-v3-pose-label'),
             ),
-            Text(_pose.asset, style: Theme.of(context).textTheme.bodySmall),
+            const Text('CANONICAL ASSET · shared 1800×1700 transparent canvas'),
             AppSpacing.gapSM,
             _BatV3Image(
               pose: _pose,
@@ -127,9 +127,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
                   _choice(
                     'bat-v3-view-${view.name}',
                     switch (view) {
-                      BatV3View.raw => 'RAW',
-                      BatV3View.mask => 'MASK',
-                      BatV3View.registered => 'REGISTERED',
+                      BatV3View.canonical => 'CANONICAL',
                       BatV3View.bodyOverlay => 'BODY OVERLAY',
                     },
                     _view == view,
@@ -139,15 +137,11 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
             ),
             AppSpacing.gapSM,
             Text(
-              'REGISTRATION · SCALE ${_pose.scale.toStringAsFixed(2)} · dx ${_pose.translation.dx.toStringAsFixed(0)} · dy ${_pose.translation.dy.toStringAsFixed(0)}',
-              key: const ValueKey('bat-v3-registration'),
-            ),
-            Text(
-              'BODY ${_pose.body.width.toStringAsFixed(0)}×${_pose.body.height.toStringAsFixed(0)} · SOURCE ANCHOR ${BatV3SourceSet.registeredAnchorFor(_pose).dx.toStringAsFixed(0)}, ${BatV3SourceSet.registeredAnchorFor(_pose).dy.toStringAsFixed(0)}',
+              'BODY AXIS ${_pose.canonicalBodyAxis.toStringAsFixed(1)} px · ORIGIN 800, 850',
               key: const ValueKey('bat-v3-body-metrics'),
             ),
             const Text(
-              'CANONICAL CANVAS 1122×1264 · BODY LOCK 349, 652 · SAFETY 64',
+              'CANONICAL CANVAS 1800×1700 · CAT V2.10 NORMAL GRAY · SAFETY 96',
               key: ValueKey('bat-v3-canonical-metrics'),
             ),
           ],
@@ -171,7 +165,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
               key: const ValueKey('bat-v3-state'),
             ),
             if (_crossing) ...[
-              const Text('48PX FLIGHT PREVIEW'),
+              const Text('FLIGHT / CROSSING · SELECTED SIZE'),
               _BatV3Crossing(
                 pose: _pose,
                 leftToRight: _leftToRight,
@@ -182,7 +176,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
             ] else
               _BatV3Image(
                 pose: _pose,
-                view: BatV3View.registered,
+                view: BatV3View.canonical,
                 leftToRight: _leftToRight,
                 inspectionScale: _inspectionScale,
                 flutterY: _flutterY,
@@ -274,8 +268,18 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
               ],
             ),
             AppSpacing.gapSM,
+            const Text('48PX PRODUCTION PREVIEW'),
+            _BatV3CanonicalFrame(
+              pose: _pose,
+              leftToRight: _leftToRight,
+              inspectionScale: 1,
+              flutterY: _flutterY,
+              bodyOverlay: false,
+              viewportHeight: 48,
+            ),
+            AppSpacing.gapSM,
             const Text(
-              '01 NEUTRAL → 02 TOP INTERMEDIATE → 03 TOP → 02 → 01 → 04 BOTTOM INTERMEDIATE → 05 BOTTOM → 04. SOURCE poses are immutable; registration and flutter are whole-pose presentation transforms only.',
+              '01 NEUTRAL → 02 TOP INTERMEDIATE → 03 TOP → 02 → 01 → 04 BOTTOM INTERMEDIATE → 05 BOTTOM → 04. Same-rect canonical PNG switching; flutter is shared whole-object Y motion only.',
             ),
           ],
         ),
@@ -328,13 +332,6 @@ class _BatV3Image extends StatelessWidget {
   final double flutterY;
   @override
   Widget build(BuildContext context) {
-    final isRaw = view == BatV3View.raw;
-    if (isRaw) {
-      return SizedBox(
-        height: 180,
-        child: Image.asset(pose.asset, fit: BoxFit.contain),
-      );
-    }
     return _BatV3CanonicalFrame(
       key: ValueKey('bat-v3-image-${inspectionScale.toStringAsFixed(2)}'),
       pose: pose,
@@ -347,44 +344,6 @@ class _BatV3Image extends StatelessWidget {
   }
 }
 
-class _BatV3SourceImage extends StatelessWidget {
-  const _BatV3SourceImage({required this.asset, required this.mask});
-
-  final String asset;
-  final bool mask;
-
-  @override
-  Widget build(BuildContext context) {
-    final image = Image.asset(asset, fit: BoxFit.contain);
-    if (!mask) return image;
-    return ColorFiltered(
-      colorFilter: const ColorFilter.matrix(<double>[
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        -.333,
-        -.333,
-        -.333,
-        0,
-        255,
-      ]),
-      child: image,
-    );
-  }
-}
-
 class _BatV3BodyOverlayPainter extends CustomPainter {
   const _BatV3BodyOverlayPainter({required this.pose});
 
@@ -393,17 +352,15 @@ class _BatV3BodyOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final anchor = BatV3SourceSet.canonicalBodyAnchor;
-    final bodySize = BatV3SourceSet.registeredBodySizeFor(pose);
-    final body = Rect.fromCenter(
-      center: anchor,
-      width: bodySize.width,
-      height: bodySize.height,
-    );
     final paint = Paint()
       ..color = Colors.cyan
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    canvas.drawRect(body, paint);
+    final head = BatV3SourceSet.canonicalLandmark(pose, pose.head);
+    final posterior = BatV3SourceSet.canonicalLandmark(pose, pose.posterior);
+    canvas.drawLine(head, posterior, paint);
+    canvas.drawCircle(head, 9, paint);
+    canvas.drawCircle(posterior, 9, paint);
     canvas.drawLine(
       Offset(anchor.dx - 8, anchor.dy),
       Offset(anchor.dx + 8, anchor.dy),
@@ -449,7 +406,9 @@ class _BatV3CanonicalFrame extends StatelessWidget {
         height: BatV3SourceSet.canonicalCanvas.height,
         child: ClipRect(
           child: Transform.flip(
-            flipX: !leftToRight,
+            // Sources face left. Mirroring is coupled to travel direction so
+            // L→R is right-facing and R→L is left-facing.
+            flipX: leftToRight,
             child: Transform.translate(
               offset: Offset(
                 0,
@@ -511,11 +470,12 @@ class _BatV3Crossing extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('bat-v3-crossing-stage'),
-    height: 48,
+    height: 260,
     child: LayoutBuilder(
       builder: (context, constraints) {
         final frameWidth =
-            48 *
+            260 *
+            inspectionScale *
             BatV3SourceSet.canonicalCanvas.width /
             BatV3SourceSet.canonicalCanvas.height;
         final x = -frameWidth + (constraints.maxWidth + frameWidth) * progress;
@@ -530,10 +490,10 @@ class _BatV3Crossing extends StatelessWidget {
               child: _BatV3CanonicalFrame(
                 pose: pose,
                 leftToRight: leftToRight,
-                inspectionScale: inspectionScale,
+                inspectionScale: 1,
                 flutterY: 0,
                 bodyOverlay: false,
-                viewportHeight: 48,
+                viewportHeight: 260,
               ),
             ),
           ),

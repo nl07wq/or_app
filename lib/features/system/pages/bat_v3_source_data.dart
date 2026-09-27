@@ -1,38 +1,36 @@
 import 'dart:ui';
 
+/// Immutable source metadata and the derived, pre-baked V4 animation cels.
+/// Source coordinates are build/audit evidence only. Runtime selects the
+/// canonical PNG and never reapplies [normalizationScale] or a translation.
 class BatV3SourcePose {
   const BatV3SourcePose({
     required this.index,
     required this.name,
     required this.asset,
-    required this.scale,
-    required this.translation,
-    required this.body,
-    required this.silhouette,
     required this.canonicalAsset,
+    required this.head,
+    required this.shoulder,
+    required this.posterior,
+    required this.bodyOrigin,
+    required this.sourceBodyAxis,
+    required this.normalizationScale,
+    required this.canonicalSilhouette,
   });
   final int index;
   final String name;
   final String asset;
-  final double scale;
-  final Offset translation;
-  final BatV3BodyMeasurement body;
-  final BatV3SilhouetteBounds silhouette;
   final String canonicalAsset;
-}
+  final Offset head;
+  final Offset shoulder;
+  final Offset posterior;
 
-/// Measurements are sampled from the luminance mask inside a stable
-/// head/shoulder/torso region. Wing extrema are deliberately excluded.
-class BatV3BodyMeasurement {
-  const BatV3BodyMeasurement({
-    required this.width,
-    required this.height,
-    required this.anchor,
-  });
-
-  final double width;
-  final double height;
-  final Offset anchor;
+  /// Measured torso reference: head/shoulder/posterior landmark centroid.
+  final Offset bodyOrigin;
+  final double sourceBodyAxis;
+  final double normalizationScale;
+  final BatV3SilhouetteBounds canonicalSilhouette;
+  double get canonicalBodyAxis => sourceBodyAxis * normalizationScale;
 }
 
 class BatV3SilhouetteBounds {
@@ -42,84 +40,80 @@ class BatV3SilhouetteBounds {
     required this.maxX,
     required this.maxY,
   });
-
   final double minX;
   final double minY;
   final double maxX;
   final double maxY;
-
   Rect get rect => Rect.fromLTRB(minX, minY, maxX, maxY);
 }
 
 abstract final class BatV3SourceSet {
-  static const canvas = Size(1280, 720);
-  static const registrationReference = Offset(440, 410);
-  static const _canvasCenter = Offset(640, 360);
-  static const canonicalSafetyPadding = 64.0;
-  static const _registeredUnion = Rect.fromLTRB(155, -178, 1149, 958);
-  static const canonicalOrigin = Offset(114, 108);
-  static const canonicalCanvas = Size(1135, 1296);
-  static const canonicalBodyAnchor = Offset(436, 642);
+  static const canonicalCanvas = Size(1800, 1700);
+  static const canonicalBodyAnchor = Offset(800, 850);
+  static const canonicalBodyAxis = 480.0;
+  static const canonicalSafetyPadding = 96.0;
 
-  static Rect get registeredSilhouetteUnion => _registeredUnion;
+  /// [CatRunCoatPatterns.baseColor], the CAT V2.10 NORMAL silhouette authority.
+  static const catProductionGrayArgb = 0xFF7A7A7A;
   static const cycle = <int>[0, 1, 2, 1, 0, 3, 4, 3];
   static const flutterOffsets = <double>[0, -2, -4, -2, 0, 2, 4, 2];
+
   static const poses = <BatV3SourcePose>[
     BatV3SourcePose(
       index: 1,
       name: 'NEUTRAL',
       asset: 'assets/animations/sandbox/bat_v3/frame_01_neutral.jpg',
-      scale: .8,
-      translation: Offset.zero,
-      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_01.png',
-      body: BatV3BodyMeasurement(
-        width: 587,
-        height: 270,
-        anchor: Offset(401.00, 447.93),
-      ),
-      silhouette: BatV3SilhouetteBounds(
-        minX: 63,
-        minY: 203,
-        maxX: 1255,
-        maxY: 579,
+      canonicalAsset:
+          'assets/animations/sandbox/bat_v3/canonical/frame_01_neutral.png',
+      head: Offset(70, 470),
+      shoulder: Offset(450, 430),
+      posterior: Offset(600, 480),
+      bodyOrigin: Offset(1120 / 3, 460),
+      sourceBodyAxis: 530.094,
+      normalizationScale: .905499213,
+      canonicalSilhouette: BatV3SilhouetteBounds(
+        minX: 518,
+        minY: 615,
+        maxX: 1602,
+        maxY: 959,
       ),
     ),
     BatV3SourcePose(
       index: 2,
       name: 'TOP INTERMEDIATE',
       asset: 'assets/animations/sandbox/bat_v3/frame_02_top_intermediate.jpg',
-      scale: 8 / 7,
-      translation: Offset.zero,
-      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_02.png',
-      body: BatV3BodyMeasurement(
-        width: 433,
-        height: 198,
-        anchor: Offset(570.22, 559.44),
-      ),
-      silhouette: BatV3SilhouetteBounds(
-        minX: 327,
-        minY: 54,
-        maxX: 1052,
-        maxY: 657,
+      canonicalAsset:
+          'assets/animations/sandbox/bat_v3/canonical/frame_02_top_intermediate.png',
+      head: Offset(330, 585),
+      shoulder: Offset(640, 540),
+      posterior: Offset(710, 580),
+      bodyOrigin: Offset(560, 1705 / 3),
+      sourceBodyAxis: 380.033,
+      normalizationScale: 1.263048564,
+      canonicalSilhouette: BatV3SilhouetteBounds(
+        minX: 504,
+        minY: 197,
+        maxX: 1432,
+        maxY: 965,
       ),
     ),
     BatV3SourcePose(
       index: 3,
       name: 'TOP',
       asset: 'assets/animations/sandbox/bat_v3/frame_03_top.jpg',
-      scale: 20 / 19,
-      translation: Offset.zero,
-      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_03.png',
-      body: BatV3BodyMeasurement(
-        width: 463,
-        height: 201,
-        anchor: Offset(529.94, 572.36),
-      ),
-      silhouette: BatV3SilhouetteBounds(
-        minX: 267,
-        minY: 28,
-        maxX: 1142,
-        maxY: 675,
+      canonicalAsset:
+          'assets/animations/sandbox/bat_v3/canonical/frame_03_top.png',
+      head: Offset(270, 590),
+      shoulder: Offset(600, 550),
+      posterior: Offset(700, 600),
+      bodyOrigin: Offset(1570 / 3, 1740 / 3),
+      sourceBodyAxis: 430.116,
+      normalizationScale: 1.115977332,
+      canonicalSilhouette: BatV3SilhouetteBounds(
+        minX: 512,
+        minY: 231,
+        maxX: 1495,
+        maxY: 959,
       ),
     ),
     BatV3SourcePose(
@@ -127,69 +121,51 @@ abstract final class BatV3SourceSet {
       name: 'BOTTOM INTERMEDIATE',
       asset:
           'assets/animations/sandbox/bat_v3/frame_04_bottom_intermediate.jpg',
-      scale: .98,
-      translation: Offset.zero,
-      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_04.png',
-      body: BatV3BodyMeasurement(
-        width: 473,
-        height: 242,
-        anchor: Offset(378.80, 218.18),
-      ),
-      silhouette: BatV3SilhouetteBounds(
-        minX: 137,
-        minY: 78,
-        maxX: 1085,
-        maxY: 669,
+      canonicalAsset:
+          'assets/animations/sandbox/bat_v3/canonical/frame_04_bottom_intermediate.png',
+      head: Offset(140, 230),
+      shoulder: Offset(450, 190),
+      posterior: Offset(600, 230),
+      bodyOrigin: Offset(1190 / 3, 650 / 3),
+      sourceBodyAxis: 460,
+      normalizationScale: 1.043478261,
+      canonicalSilhouette: BatV3SilhouetteBounds(
+        minX: 527,
+        minY: 704,
+        maxX: 1522,
+        maxY: 1324,
       ),
     ),
     BatV3SourcePose(
       index: 5,
       name: 'BOTTOM',
       asset: 'assets/animations/sandbox/bat_v3/frame_05_bottom.jpg',
-      scale: 40 / 37,
-      translation: Offset.zero,
-      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_05.png',
-      body: BatV3BodyMeasurement(
-        width: 450,
-        height: 242,
-        anchor: Offset(436.40, 148.53),
-      ),
-      silhouette: BatV3SilhouetteBounds(
-        minX: 200,
-        minY: 28,
-        maxX: 1019,
-        maxY: 696,
+      canonicalAsset:
+          'assets/animations/sandbox/bat_v3/canonical/frame_05_bottom.png',
+      head: Offset(200, 160),
+      shoulder: Offset(500, 130),
+      posterior: Offset(620, 170),
+      bodyOrigin: Offset(1320 / 3, 460 / 3),
+      sourceBodyAxis: 420.119,
+      normalizationScale: 1.142533341,
+      canonicalSilhouette: BatV3SilhouetteBounds(
+        minX: 523,
+        minY: 705,
+        maxX: 1466,
+        maxY: 1473,
       ),
     ),
   ];
 
-  /// The uniform source-space transform used by the presentation renderer.
-  /// Runtime uses pre-baked canonical images; this is source-audit metadata.
-  static Offset registeredAnchorFor(BatV3SourcePose pose) =>
-      registrationReference;
-
-  static Size registeredBodySizeFor(BatV3SourcePose pose) =>
-      Size(pose.body.width * pose.scale, pose.body.height * pose.scale);
-
-  static Size inspectionBodySizeFor(
-    BatV3SourcePose pose,
-    double inspectionScale,
-  ) {
-    final body = registeredBodySizeFor(pose);
-    return Size(body.width * inspectionScale, body.height * inspectionScale);
-  }
-
-  static Rect registeredSilhouetteBoundsFor(BatV3SourcePose pose) =>
-      const Rect.fromLTRB(64, 64, 1071, 1232);
-
-  static Rect canonicalSilhouetteBoundsFor(BatV3SourcePose pose) =>
-      registeredSilhouetteBoundsFor(pose);
-
   static bool isFullyContained(BatV3SourcePose pose) {
-    final bounds = canonicalSilhouetteBoundsFor(pose);
-    return bounds.left >= canonicalSafetyPadding &&
-        bounds.top >= canonicalSafetyPadding &&
-        bounds.right <= canonicalCanvas.width - canonicalSafetyPadding &&
-        bounds.bottom <= canonicalCanvas.height - canonicalSafetyPadding;
+    final bounds = pose.canonicalSilhouette;
+    return bounds.minX >= canonicalSafetyPadding &&
+        bounds.minY >= canonicalSafetyPadding &&
+        bounds.maxX <= canonicalCanvas.width - canonicalSafetyPadding &&
+        bounds.maxY <= canonicalCanvas.height - canonicalSafetyPadding;
   }
+
+  static Offset canonicalLandmark(BatV3SourcePose pose, Offset landmark) =>
+      canonicalBodyAnchor +
+      (landmark - pose.bodyOrigin) * pose.normalizationScale;
 }
