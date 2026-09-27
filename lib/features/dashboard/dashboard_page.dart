@@ -1721,6 +1721,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           bool fullWidth = false,
           bool pairCell = false,
           bool overlayCompletionZone = false,
+          _ProgressReferenceLayout? referenceLayout,
           bool summaryStatus = false,
           bool compactTitle = false,
           DynamicTargetState? targetState,
@@ -1728,7 +1729,6 @@ class _ProgressCardState extends State<_ProgressCard> {
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
-            height: _OperationProgressVerticalGeometry.cardExtent,
             width: pairCell
                 ? double.infinity
                 : fullWidth
@@ -1742,11 +1742,24 @@ class _ProgressCardState extends State<_ProgressCard> {
               summaryStatus: summaryStatus,
               compactTitle: compactTitle,
               overlayCompletionZone: overlayCompletionZone,
+              referenceLayout: referenceLayout,
               targetState: targetState,
               completion: completion,
             ),
           );
         }
+
+        final waterStatus = _waterStatus(
+          targets?.water,
+          fallbackCurrent: widget.foodSummary?.waterRecorded == true
+              ? hydrationMl
+              : null,
+        );
+        final waterReferenceLayout = _ProgressReferenceLayout(
+          title: 'WATER',
+          status: waterStatus,
+          includesQuickAdd: true,
+        );
 
         final upperTiles = [
           tile(
@@ -1761,6 +1774,8 @@ class _ProgressCardState extends State<_ProgressCard> {
                 : 0.0,
             completion: completionModel?.statusCompletion,
             summaryStatus: true,
+            overlayCompletionZone: true,
+            referenceLayout: waterReferenceLayout,
             onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
           ),
           tile(
@@ -1775,6 +1790,8 @@ class _ProgressCardState extends State<_ProgressCard> {
                 : 0.0,
             completion: completionModel?.foodCompletion,
             summaryStatus: true,
+            overlayCompletionZone: true,
+            referenceLayout: waterReferenceLayout,
             onTap: () => Navigator.pushNamed(context, AppRoutes.food),
           ),
           tile(
@@ -1790,6 +1807,7 @@ class _ProgressCardState extends State<_ProgressCard> {
             ),
             progress: _rangeProgress(targets?.calories),
             targetState: targets?.calories.state,
+            referenceLayout: waterReferenceLayout,
           ),
           tile(
             label: 'PROTEIN',
@@ -1804,15 +1822,9 @@ class _ProgressCardState extends State<_ProgressCard> {
             ),
             progress: _rangeProgress(targets?.protein),
             targetState: targets?.protein.state,
+            referenceLayout: waterReferenceLayout,
           ),
         ];
-
-        final waterStatus = _waterStatus(
-          targets?.water,
-          fallbackCurrent: widget.foodSummary?.waterRecorded == true
-              ? hydrationMl
-              : null,
-        );
         final activityStatus =
             completionModel?.activityCompletion.displayState ??
             (widget.activitySummary.isRecorded ? 'COMPLETE' : 'NOT RECORDED');
@@ -1834,6 +1846,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           summaryStatus: true,
           pairCell: true,
           overlayCompletionZone: true,
+          referenceLayout: waterReferenceLayout,
           completion:
               completionModel?.trainingCompletion ??
               DailyCommandCompletionItem(
@@ -1856,6 +1869,8 @@ class _ProgressCardState extends State<_ProgressCard> {
           completion: completionModel?.activityCompletion,
           summaryStatus: true,
           pairCell: true,
+          overlayCompletionZone: true,
+          referenceLayout: waterReferenceLayout,
           onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
         );
         final briefDebriefTile = tile(
@@ -1866,6 +1881,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           compactTitle: true,
           pairCell: true,
           overlayCompletionZone: true,
+          referenceLayout: waterReferenceLayout,
           completion: briefDebrief.completion,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -2069,14 +2085,18 @@ abstract final class _OperationProgressTypography {
   );
 }
 
-/// WATER-derived vertical anatomy for every OPERATION PROGRESS card.
-abstract final class _OperationProgressVerticalGeometry {
-  static const cardExtent = 96.0;
-  static const titleSlotExtent = 20.0;
-  static const valueSlotExtent = 40.0;
-  static const titleToValueClearance = AppSpacing.xs;
-  static const valueToBarClearance = AppSpacing.xs;
-  static const progressBarExtent = 4.0;
+/// Target-only sizing reference that mirrors WATER's natural content.
+/// WATER itself never consumes this layout.
+class _ProgressReferenceLayout {
+  const _ProgressReferenceLayout({
+    required this.title,
+    required this.status,
+    this.includesQuickAdd = false,
+  });
+
+  final String title;
+  final String status;
+  final bool includesQuickAdd;
 }
 
 class _OperationProgressPairRow extends StatelessWidget {
@@ -2118,6 +2138,7 @@ class _ProgressRow extends StatelessWidget {
   final bool summaryStatus;
   final bool compactTitle;
   final bool overlayCompletionZone;
+  final _ProgressReferenceLayout? referenceLayout;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
 
@@ -2129,6 +2150,7 @@ class _ProgressRow extends StatelessWidget {
     this.summaryStatus = false,
     this.compactTitle = false,
     this.overlayCompletionZone = false,
+    this.referenceLayout,
     this.targetState,
     this.completion,
   });
@@ -2205,28 +2227,57 @@ class _ProgressRow extends StatelessWidget {
         ],
       ],
     );
-    final titleSlot = SizedBox(
-      height: _OperationProgressVerticalGeometry.titleSlotExtent,
-      child: Align(alignment: Alignment.topLeft, child: title),
-    );
-    final statusSlot = SizedBox(
-      height: _OperationProgressVerticalGeometry.valueSlotExtent,
-      child: Align(alignment: Alignment.topLeft, child: status),
-    );
+    final referenceTitle = referenceLayout == null
+        ? null
+        : Text(
+            referenceLayout!.title,
+            softWrap: true,
+            style: _OperationProgressTypography.title(context, compact: false),
+          );
+    final referenceStatus = referenceLayout == null
+        ? null
+        : Row(
+            children: [
+              Expanded(child: Text(referenceLayout!.status)),
+              if (referenceLayout!.includesQuickAdd) ...[
+                SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: 18, height: 18),
+              ],
+            ],
+          );
+    Widget waterSizedSlot({required Widget reference, required Widget child}) =>
+        LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            children: [
+              ExcludeSemantics(
+                child: Opacity(
+                  opacity: 0,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    child: reference,
+                  ),
+                ),
+              ),
+              Positioned(left: 0, right: 0, top: 0, child: child),
+            ],
+          ),
+        );
+
+    final titleSlot = referenceTitle == null
+        ? title
+        : waterSizedSlot(reference: referenceTitle, child: title);
+    final statusSlot = referenceStatus == null
+        ? status
+        : waterSizedSlot(reference: referenceStatus, child: status);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         titleSlot,
-        const SizedBox(
-          height: _OperationProgressVerticalGeometry.titleToValueClearance,
-        ),
+        AppSpacing.gapXS,
         statusSlot,
-        const SizedBox(
-          height: _OperationProgressVerticalGeometry.valueToBarClearance,
-        ),
+        AppSpacing.gapXS,
         LinearProgressIndicator(
           value: progress,
-          minHeight: _OperationProgressVerticalGeometry.progressBarExtent,
           color: progressColor ?? (completed ? AppColors.success : null),
         ),
       ],

@@ -429,38 +429,65 @@ void main() {
     }
   });
 
-  testWidgets('preserves the approved WATER vertical geometry at 390px', (
+  testWidgets('restores the pre-unification WATER intrinsic geometry', (
     tester,
   ) async {
-    await _pumpDashboard(tester, width: 390);
-    await _settleDashboard(tester);
-
-    final card = tester.getRect(_tile('WATER'));
-    final title = _localRect(
-      tester,
-      find.byKey(const ValueKey('operation-progress-title-WATER')),
-      _tile('WATER'),
-    );
-    final value = _localRect(
-      tester,
-      find.byKey(const ValueKey('operation-progress-status-WATER')),
-      _tile('WATER'),
-    );
-    final bar = _localRect(
-      tester,
-      find.descendant(
-        of: _tile('WATER'),
-        matching: find.byType(LinearProgressIndicator),
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    const baselines = {
+      320: (
+        height: 76.0,
+        title: Rect.fromLTRB(12, 12, 82.5, 32),
+        value: Rect.fromLTRB(12, 36, 218, 56),
+        bar: Rect.fromLTRB(12, 60, 244, 64),
       ),
-      _tile('WATER'),
-    );
+      390: (
+        height: 96.0,
+        title: Rect.fromLTRB(12, 12, 82.5, 32),
+        value: Rect.fromLTRB(12, 36, 119, 76),
+        bar: Rect.fromLTRB(12, 80, 145, 84),
+      ),
+      900: (
+        height: 76.0,
+        title: Rect.fromLTRB(12, 12, 82.5, 32),
+        value: Rect.fromLTRB(12, 36, 199.6, 56),
+        bar: Rect.fromLTRB(12, 60, 225.6, 64),
+      ),
+    };
 
-    expect(card.height, moreOrLessEquals(96, epsilon: 0.5));
-    expect(title, const Rect.fromLTRB(12, 12, 82.5, 32));
-    expect(value, const Rect.fromLTRB(12, 36, 119, 76));
-    expect(bar, const Rect.fromLTRB(12, 80, 145, 84));
-    expect(value.top - title.bottom, moreOrLessEquals(4, epsilon: 0.5));
-    expect(bar.top - value.bottom, moreOrLessEquals(4, epsilon: 0.5));
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pumpDashboard(tester, width: width);
+      await _settleDashboard(tester);
+      final baseline = baselines[width.toInt()]!;
+      final card = tester.getRect(_tile('WATER'));
+      final title = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-title-WATER')),
+        _tile('WATER'),
+      );
+      final value = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-status-WATER')),
+        _tile('WATER'),
+      );
+      final bar = _localRect(
+        tester,
+        find.descendant(
+          of: _tile('WATER'),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        _tile('WATER'),
+      );
+
+      expect(card.height, moreOrLessEquals(baseline.height, epsilon: 0.5));
+      _expectRectNear(title, baseline.title);
+      _expectRectNear(value, baseline.value);
+      _expectRectNear(bar, baseline.bar);
+      expect(value.top - title.bottom, moreOrLessEquals(4, epsilon: 0.5));
+      expect(bar.top - value.bottom, moreOrLessEquals(4, epsilon: 0.5));
+    }
   });
 
   testWidgets(
@@ -568,8 +595,13 @@ void main() {
         findsOneWidget,
       );
     }
-    expect(tester.getSize(_tile('STATUS')).height, lessThanOrEqualTo(100));
-    expect(tester.getSize(_tile('FOOD')).height, lessThanOrEqualTo(100));
+    final waterHeight = tester.getSize(_tile('WATER')).height;
+    for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
+      expect(
+        tester.getSize(_tile(label)).height,
+        moreOrLessEquals(waterHeight, epsilon: 0.5),
+      );
+    }
     expect(
       find.descendant(
         of: _tile('WATER'),
@@ -697,7 +729,8 @@ void main() {
         expect(bar.top - status.bottom, greaterThanOrEqualTo(4));
         expect(
           tester.getSize(_tile(label)).height,
-          moreOrLessEquals(96, epsilon: 0.5),
+          moreOrLessEquals(tester.getSize(_tile('WATER')).height, epsilon: 0.5),
+          reason: '$label height at $width',
         );
       }
 
@@ -3234,6 +3267,13 @@ double _localCenterX(WidgetTester tester, Finder child, Finder card) =>
 
 Rect _localRect(WidgetTester tester, Finder child, Finder card) =>
     tester.getRect(child).shift(-tester.getRect(card).topLeft);
+
+void _expectRectNear(Rect actual, Rect expected) {
+  expect(actual.left, closeTo(expected.left, 0.5));
+  expect(actual.top, closeTo(expected.top, 0.5));
+  expect(actual.right, closeTo(expected.right, 0.5));
+  expect(actual.bottom, closeTo(expected.bottom, 0.5));
+}
 
 (double, double, double) _progressSlotTops(WidgetTester tester, String label) =>
     (
