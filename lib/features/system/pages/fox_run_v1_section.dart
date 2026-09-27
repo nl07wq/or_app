@@ -187,7 +187,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   Widget _buildPreview(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _FoxStage(
+      FoxRunV1ProductionStage(
         crossing: _crossing,
         asset: _asset(source: false),
         leftToRight: _leftToRight,
@@ -295,8 +295,80 @@ class _FoxCel extends StatelessWidget {
   );
 }
 
-class _FoxStage extends StatelessWidget {
-  const _FoxStage({
+/// Shared, frame-independent mapping from the canonical FOX coordinate system
+/// to the Production Preview stage.  The canvas is deliberately transparent
+/// around the animal, so its edges are never a registration authority.
+abstract final class FoxRunV1ProductionGeometry {
+  static const canvasSize = Size(1646, 783);
+  static const bodyOrigin = Offset(897.4332949552927, 366.7165635675376);
+  static const virtualGround = 687.0;
+  static const torsoLength = 516.0;
+  static const displayedTorsoLength = 110.0;
+  static const displayScale = displayedTorsoLength / torsoLength;
+  static const stageHeight = 150.0;
+  static const groundInset = 28.0;
+  static const crossingSafetyGap = 8.0;
+
+  /// Union of all registered canonical silhouette bounds.  This is the
+  /// endpoint authority; it intentionally excludes transparent canvas area.
+  static const visibleBoundsCanonical = Rect.fromLTRB(
+    96.0,
+    96.0,
+    1548.675,
+    685.215,
+  );
+
+  static Size get scaledCanvas => Size(
+    canvasSize.width * displayScale,
+    canvasSize.height * displayScale,
+  );
+
+  static double stageGroundY(double stageHeight) => stageHeight - groundInset;
+
+  static Offset imageTopLeft({
+    required double bodyCenterX,
+    required double stageGroundY,
+  }) => Offset(
+    bodyCenterX - bodyOrigin.dx * displayScale,
+    stageGroundY - virtualGround * displayScale,
+  );
+
+  static Rect visibleBounds({
+    required double bodyCenterX,
+    required double stageGroundY,
+  }) {
+    final image = imageTopLeft(
+      bodyCenterX: bodyCenterX,
+      stageGroundY: stageGroundY,
+    );
+    return Rect.fromLTRB(
+      image.dx + visibleBoundsCanonical.left * displayScale,
+      image.dy + visibleBoundsCanonical.top * displayScale,
+      image.dx + visibleBoundsCanonical.right * displayScale,
+      image.dy + visibleBoundsCanonical.bottom * displayScale,
+    );
+  }
+
+  static double bodyCenterForProgress({
+    required double stageWidth,
+    required double progress,
+    required bool leftToRight,
+  }) {
+    final relativeLeft =
+        (visibleBoundsCanonical.left - bodyOrigin.dx) * displayScale;
+    final relativeRight =
+        (visibleBoundsCanonical.right - bodyOrigin.dx) * displayScale;
+    final start = -crossingSafetyGap - relativeRight;
+    final end = stageWidth + crossingSafetyGap - relativeLeft;
+    return leftToRight
+        ? start + (end - start) * progress
+        : end - (end - start) * progress;
+  }
+}
+
+class FoxRunV1ProductionStage extends StatelessWidget {
+  const FoxRunV1ProductionStage({
+    super.key,
     required this.crossing,
     required this.asset,
     required this.leftToRight,
@@ -306,7 +378,7 @@ class _FoxStage extends StatelessWidget {
   final bool leftToRight;
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 150,
+    height: FoxRunV1ProductionGeometry.stageHeight,
     child: LayoutBuilder(
       builder: (context, constraints) => ClipRect(
         child: Stack(
@@ -328,21 +400,51 @@ class _FoxStage extends StatelessWidget {
             ),
             AnimatedBuilder(
               animation: crossing,
-          builder: (_, child) {
-                const visibleWidth = 220.0;
+              builder: (_, child) {
                 final t = crossing.value;
-                final x = leftToRight
-                    ? -visibleWidth +
-                          (constraints.maxWidth + visibleWidth * 2) * t
-                    : constraints.maxWidth +
-                          visibleWidth -
-                          (constraints.maxWidth + visibleWidth * 2) * t;
+                final stageGround = FoxRunV1ProductionGeometry.stageGroundY(
+                  constraints.maxHeight,
+                );
+                final bodyCenter =
+                    FoxRunV1ProductionGeometry.bodyCenterForProgress(
+                      stageWidth: constraints.maxWidth,
+                      progress: t,
+                      leftToRight: leftToRight,
+                    );
+                final image = FoxRunV1ProductionGeometry.imageTopLeft(
+                  bodyCenterX: bodyCenter,
+                  stageGroundY: stageGround,
+                );
+                final canvas = FoxRunV1ProductionGeometry.scaledCanvas;
                 return Positioned(
-                  left: x,
-                  bottom: 29,
-                  width: visibleWidth,
-                  height: 105,
-                  child: _FoxCel(asset: asset, mirror: !leftToRight),
+                  left: image.dx,
+                  top: image.dy,
+                  width: canvas.width,
+                  height: canvas.height,
+                  child: Transform(
+                    alignment: Alignment(
+                      (FoxRunV1ProductionGeometry.bodyOrigin.dx /
+                                  FoxRunV1ProductionGeometry.canvasSize.width) *
+                              2 -
+                          1,
+                      (FoxRunV1ProductionGeometry.bodyOrigin.dy /
+                                  FoxRunV1ProductionGeometry.canvasSize.height) *
+                              2 -
+                          1,
+                    ),
+                    transform: Matrix4.diagonal3Values(
+                      leftToRight ? 1 : -1,
+                      1,
+                      1,
+                    ),
+                    child: ColorFiltered(
+                      colorFilter: ColorFilter.mode(
+                        Colors.grey.shade300,
+                        BlendMode.srcIn,
+                      ),
+                      child: Image.asset(asset, fit: BoxFit.fill),
+                    ),
+                  ),
                 );
               },
             ),
