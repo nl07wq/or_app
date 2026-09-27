@@ -535,6 +535,12 @@ abstract final class BatV3ProductionFlight {
 
   static double topFor(double flutterY) =>
       (stageHeight - batHeight) / 2 + flutterY;
+
+  static double flutterOffset({
+    required int cycleIndex,
+    required int amplitude,
+    required bool enabled,
+  }) => enabled ? BatV3SourceSet.flutterOffsets[cycleIndex] * amplitude / 4 : 0;
 }
 
 class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
@@ -554,9 +560,11 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   int get _crossingDuration => BatV3ProductionFlight.crossingDurations[_speed]!;
   double get _progress =>
       (_crossingElapsed % _crossingDuration) / _crossingDuration;
-  double get _flutterY => _flutterOn
-      ? BatV3SourceSet.flutterOffsets[_cycleIndex] * _flutterAmplitude / 4
-      : 0;
+  double get _flutterY => BatV3ProductionFlight.flutterOffset(
+    cycleIndex: _cycleIndex,
+    amplitude: _flutterAmplitude,
+    enabled: _flutterOn,
+  );
 
   @override
   void dispose() {
@@ -682,15 +690,12 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final amplitude in [0, 2, 4])
+                for (final amplitude in [4, 6, 8])
                   _option(
                     'bat-v3-production-flutter-$amplitude',
                     '${amplitude}px',
                     _flutterAmplitude == amplitude,
-                    () => setState(() {
-                      _flutterAmplitude = amplitude;
-                      _flutterOn = amplitude != 0;
-                    }),
+                    () => setState(() => _flutterAmplitude = amplitude),
                   ),
                 for (final speed
                     in BatV3ProductionFlight.crossingDurations.keys)

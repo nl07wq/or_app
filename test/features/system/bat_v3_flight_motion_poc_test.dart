@@ -124,7 +124,7 @@ void main() {
       'bat-v3-production-timing-100',
       'bat-v3-production-timing-150',
       'bat-v3-production-flutter-off',
-      'bat-v3-production-flutter-2',
+      'bat-v3-production-flutter-6',
       'bat-v3-production-speed-slow',
       'bat-v3-production-speed-fast',
       'bat-v3-production-ltr',
@@ -214,6 +214,37 @@ void main() {
         'CURRENT': 3600,
         'FAST': 2800,
       });
+    },
+  );
+
+  test(
+    'Production preview keeps 4, 6, and 8px screen-space flutter phases',
+    () {
+      const expected = <int, List<double>>{
+        4: [0, -2, -4, -2, 0, 2, 4, 2],
+        6: [0, -3, -6, -3, 0, 3, 6, 3],
+        8: [0, -4, -8, -4, 0, 4, 8, 4],
+      };
+      for (final entry in expected.entries) {
+        final actual = List<double>.generate(
+          8,
+          (index) => BatV3ProductionFlight.flutterOffset(
+            cycleIndex: index,
+            amplitude: entry.key,
+            enabled: true,
+          ),
+        );
+        expect(actual, entry.value, reason: '${entry.key}px');
+        final off = List<double>.generate(
+          8,
+          (index) => BatV3ProductionFlight.flutterOffset(
+            cycleIndex: index,
+            amplitude: entry.key,
+            enabled: false,
+          ),
+        );
+        expect(off, List<double>.filled(8, 0), reason: '${entry.key}px off');
+      }
     },
   );
 }
