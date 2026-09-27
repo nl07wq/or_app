@@ -525,9 +525,11 @@ abstract final class BatV3ProductionFlight {
   static const visibleBatMaxX = 45.23;
   static const entryExitGap = 3.0;
   static const crossingDurations = <String, int>{
-    'SLOW': 5000,
-    'CURRENT': 3600,
-    'FAST': 2800,
+    '5000MS': 5000,
+    '3600MS': 3600,
+    '2800MS': 2800,
+    '2200MS': 2200,
+    '1800MS': 1800,
   };
 
   static double leftFor({
@@ -557,11 +559,11 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   var _crossingElapsed = 0;
   var _cycleIndex = 0;
   var _playing = false;
-  var _timing = 125;
+  var _timing = 100;
   var _flutterOn = true;
   var _flutterAmplitude = 4;
   var _leftToRight = true;
-  var _speed = 'CURRENT';
+  var _speed = '3600MS';
 
   BatV3SourcePose get _pose =>
       BatV3SourceSet.poses[BatV3SourceSet.cycle[_cycleIndex]];
@@ -672,7 +674,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final timing in [100, 125, 150])
+                for (final timing in [60, 100, 150])
                   _option(
                     'bat-v3-production-timing-$timing',
                     '${timing}ms',
@@ -709,7 +711,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                     in BatV3ProductionFlight.crossingDurations.keys)
                   _option(
                     'bat-v3-production-speed-${speed.toLowerCase()}',
-                    '$speed ${BatV3ProductionFlight.crossingDurations[speed]}ms',
+                    speed,
                     _speed == speed,
                     () => setState(() => _speed = speed),
                   ),

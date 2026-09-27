@@ -115,7 +115,7 @@ void main() {
       find.byKey(const ValueKey('bat-v3-production-preview')),
       findsOneWidget,
     );
-    expect(find.textContaining('125 ms'), findsOneWidget);
+    expect(find.textContaining('100 ms'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('bat-v3-production-stage')),
       findsOneWidget,
@@ -125,8 +125,8 @@ void main() {
       'bat-v3-production-timing-150',
       'bat-v3-production-flutter-off',
       'bat-v3-production-flutter-6',
-      'bat-v3-production-speed-slow',
-      'bat-v3-production-speed-fast',
+      'bat-v3-production-speed-5000ms',
+      'bat-v3-production-speed-1800ms',
       'bat-v3-production-ltr',
       'bat-v3-production-rtl',
       'bat-v3-production-restart',
@@ -228,9 +228,11 @@ void main() {
       expect(BatV3ProductionFlight.topFor(2), base + 2);
       expect(BatV3ProductionFlight.topFor(4), base + 4);
       expect(BatV3ProductionFlight.crossingDurations, const {
-        'SLOW': 5000,
-        'CURRENT': 3600,
-        'FAST': 2800,
+        '5000MS': 5000,
+        '3600MS': 3600,
+        '2800MS': 2800,
+        '2200MS': 2200,
+        '1800MS': 1800,
       });
     },
   );
