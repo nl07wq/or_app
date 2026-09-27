@@ -40,7 +40,9 @@ void main() {
     expect(BatV3SourceSet.catProductionGrayArgb, 0xFF7A7A7A);
   });
 
-  testWidgets('V4 canonical PNG cels are registered app assets', (tester) async {
+  testWidgets('V4 canonical PNG cels are registered app assets', (
+    tester,
+  ) async {
     for (final pose in BatV3SourceSet.poses) {
       final bytes = await rootBundle.load(pose.canonicalAsset);
       expect(bytes.lengthInBytes, greaterThan(1000), reason: pose.name);
@@ -103,10 +105,44 @@ void main() {
     expect(find.byKey(const ValueKey('bat-v3-source-audit')), findsOneWidget);
     expect(find.text('CAT TRACE PIPELINE POC'), findsNothing);
   });
+
+  testWidgets('Production preview is isolated, canonical, and tunable', (
+    tester,
+  ) async {
+    _viewport(tester);
+    await tester.pumpWidget(_productionHost());
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-preview')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('125 ms'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('bat-v3-production-stage')),
+      findsOneWidget,
+    );
+    for (final key in [
+      'bat-v3-production-timing-100',
+      'bat-v3-production-timing-150',
+      'bat-v3-production-flutter-off',
+      'bat-v3-production-flutter-2',
+      'bat-v3-production-speed-slow',
+      'bat-v3-production-speed-fast',
+      'bat-v3-production-ltr',
+      'bat-v3-production-rtl',
+      'bat-v3-production-restart',
+    ]) {
+      await tester.tap(find.byKey(ValueKey(key)));
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: key);
+    }
+  });
 }
 
 Widget _host() => MaterialApp(
   home: Scaffold(body: ListView(children: const [BatV3FlightMotionPoc()])),
+);
+Widget _productionHost() => MaterialApp(
+  home: Scaffold(body: ListView(children: const [BatV3ProductionPreview()])),
 );
 void _viewport(WidgetTester tester) {
   addTearDown(tester.view.resetPhysicalSize);

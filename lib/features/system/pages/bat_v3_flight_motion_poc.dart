@@ -502,3 +502,246 @@ class _BatV3Crossing extends StatelessWidget {
     ),
   );
 }
+
+/// Production-scale tuning surface. It intentionally reuses the V4 canonical
+/// cels and applies only shared time, Y flutter, X travel, and mirror state.
+class BatV3ProductionPreview extends StatefulWidget {
+  const BatV3ProductionPreview({super.key});
+
+  @override
+  State<BatV3ProductionPreview> createState() => _BatV3ProductionPreviewState();
+}
+
+class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
+  static const _crossingDurations = <String, int>{
+    'SLOW': 5000,
+    'CURRENT': 3600,
+    'FAST': 2800,
+  };
+
+  Timer? _ticker;
+  var _elapsed = 0;
+  var _playing = false;
+  var _timing = 125;
+  var _flutterOn = true;
+  var _flutterAmplitude = 4;
+  var _leftToRight = true;
+  var _speed = 'CURRENT';
+
+  int get _cycleIndex => (_elapsed ~/ _timing) % BatV3SourceSet.cycle.length;
+  BatV3SourcePose get _pose =>
+      BatV3SourceSet.poses[BatV3SourceSet.cycle[_cycleIndex]];
+  int get _crossingDuration => _crossingDurations[_speed]!;
+  double get _progress => (_elapsed % _crossingDuration) / _crossingDuration;
+  double get _flutterY => _flutterOn
+      ? BatV3SourceSet.flutterOffsets[_cycleIndex] * _flutterAmplitude / 4
+      : 0;
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _play() {
+    if (_playing) return;
+    setState(() => _playing = true);
+    _ticker = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!mounted) return;
+      setState(() => _elapsed += 16);
+    });
+  }
+
+  void _pause() {
+    _ticker?.cancel();
+    _ticker = null;
+    setState(() => _playing = false);
+  }
+
+  void _restart() {
+    _ticker?.cancel();
+    setState(() {
+      _elapsed = 0;
+      _playing = false;
+    });
+    _play();
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(
+        icon: Icons.flight_outlined,
+        title: 'BAT FLIGHT — PRODUCTION PREVIEW',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        key: const ValueKey('bat-v3-production-preview'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'FRAME ${_pose.index.toString().padLeft(2, '0')} · ${_pose.name} · $_timing ms · FLUTTER ${_flutterOn ? '${_flutterAmplitude}px' : 'OFF'} · $_speed · ${_leftToRight ? 'L→R' : 'R→L'}',
+              key: const ValueKey('bat-v3-production-telemetry'),
+            ),
+            AppSpacing.gapSM,
+            _ProductionBatStage(
+              pose: _pose,
+              leftToRight: _leftToRight,
+              progress: _progress,
+              flutterY: _flutterY,
+            ),
+            AppSpacing.gapSM,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _option('bat-v3-production-play', 'PLAY', _playing, _play),
+                _option('bat-v3-production-pause', 'PAUSE', !_playing, _pause),
+                _option(
+                  'bat-v3-production-restart',
+                  'RESTART',
+                  false,
+                  _restart,
+                ),
+              ],
+            ),
+            AppSpacing.gapSM,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final timing in [100, 125, 150])
+                  _option(
+                    'bat-v3-production-timing-$timing',
+                    '${timing}ms',
+                    _timing == timing,
+                    () => setState(() => _timing = timing),
+                  ),
+                _option(
+                  'bat-v3-production-flutter-off',
+                  'FLUTTER OFF',
+                  !_flutterOn,
+                  () => setState(() => _flutterOn = false),
+                ),
+                _option(
+                  'bat-v3-production-flutter-on',
+                  'FLUTTER ON',
+                  _flutterOn,
+                  () => setState(() => _flutterOn = true),
+                ),
+              ],
+            ),
+            AppSpacing.gapSM,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final amplitude in [0, 2, 4])
+                  _option(
+                    'bat-v3-production-flutter-$amplitude',
+                    '${amplitude}px',
+                    _flutterAmplitude == amplitude,
+                    () => setState(() {
+                      _flutterAmplitude = amplitude;
+                      _flutterOn = amplitude != 0;
+                    }),
+                  ),
+                for (final speed in _crossingDurations.keys)
+                  _option(
+                    'bat-v3-production-speed-${speed.toLowerCase()}',
+                    '$speed ${_crossingDurations[speed]}ms',
+                    _speed == speed,
+                    () => setState(() => _speed = speed),
+                  ),
+              ],
+            ),
+            AppSpacing.gapSM,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _option(
+                  'bat-v3-production-ltr',
+                  'L→R',
+                  _leftToRight,
+                  () => setState(() => _leftToRight = true),
+                ),
+                _option(
+                  'bat-v3-production-rtl',
+                  'R→L',
+                  !_leftToRight,
+                  () => setState(() => _leftToRight = false),
+                ),
+              ],
+            ),
+            const Text(
+              '48px-class canonical cels only · no runtime registration · Production BAT remains inactive.',
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget _option(
+    String key,
+    String label,
+    bool selected,
+    VoidCallback action,
+  ) => OutlinedButton(
+    key: ValueKey(key),
+    style: selected
+        ? OutlinedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          )
+        : null,
+    onPressed: action,
+    child: Text(label),
+  );
+}
+
+class _ProductionBatStage extends StatelessWidget {
+  const _ProductionBatStage({
+    required this.pose,
+    required this.leftToRight,
+    required this.progress,
+    required this.flutterY,
+  });
+
+  final BatV3SourcePose pose;
+  final bool leftToRight;
+  final double progress;
+  final double flutterY;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    key: const ValueKey('bat-v3-production-stage'),
+    height: 112,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        const frameWidth = 51.0;
+        final left =
+            -frameWidth + (constraints.maxWidth + frameWidth) * progress;
+        final x = leftToRight ? left : constraints.maxWidth - left - frameWidth;
+        return ClipRect(
+          child: Transform.translate(
+            offset: Offset(x, flutterY),
+            child: SizedBox(
+              width: frameWidth,
+              child: _BatV3CanonicalFrame(
+                pose: pose,
+                leftToRight: leftToRight,
+                inspectionScale: 1,
+                flutterY: 0,
+                bodyOverlay: false,
+                viewportHeight: 48,
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}

@@ -167,6 +167,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         AppSpacing.gapXL,
         const BatV3FlightMotionPoc(),
         AppSpacing.gapXL,
+        const BatV3ProductionPreview(),
+        AppSpacing.gapXL,
         const CatRunV2PocSection(),
         AppSpacing.gapXL,
         const CatRunV23ProductionPreview(),
