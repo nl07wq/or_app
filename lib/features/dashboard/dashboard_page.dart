@@ -44,7 +44,13 @@ import '../command_center/services/daily_command_read_model_builder.dart';
 import '../command_center/widgets/daily_command_item.dart';
 import '../command_center/widgets/semantic_help_popover.dart';
 import '../command_center/pages/command_center_page.dart'
-    show cycleStateHelp, cycleStateIconFor, cycleStateShortLabelFor;
+    show
+        CommandCenterPage,
+        CommandCenterSection,
+        cycleStateHelp,
+        cycleStateIconFor,
+        cycleStateShortLabelFor;
+import '../command_center/widgets/brief_debrief_page.dart' show BriefDebriefTab;
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/models/operation_state.dart';
@@ -1453,6 +1459,7 @@ class _ProgressCard extends StatefulWidget {
 
 class _ProgressCardState extends State<_ProgressCard> {
   late Future<DynamicDailyTargetResult> _targets = _loadDynamicTargets();
+  late Future<_BriefDebriefProgress> _briefDebrief = _loadBriefDebrief();
 
   @override
   void didUpdateWidget(covariant _ProgressCard oldWidget) {
@@ -1461,8 +1468,10 @@ class _ProgressCardState extends State<_ProgressCard> {
         oldWidget.foodSummary != widget.foodSummary ||
         oldWidget.trainingSummary != widget.trainingSummary ||
         oldWidget.activitySummary != widget.activitySummary ||
-        oldWidget.refreshToken != widget.refreshToken) {
+        oldWidget.refreshToken != widget.refreshToken ||
+        oldWidget.completionModel != widget.completionModel) {
       _targets = _loadDynamicTargets();
+      _briefDebrief = _loadBriefDebrief();
     }
   }
 
@@ -1472,18 +1481,6 @@ class _ProgressCardState extends State<_ProgressCard> {
     final calories = widget.foodSummary?.calories ?? 0;
     final protein = widget.foodSummary?.protein ?? 0;
     final hydrationMl = widget.foodSummary?.hydrationMl ?? 0;
-    final digestiveSummary = widget.activitySummary.digestiveSummary;
-    final activityDetails = !widget.activitySummary.isRecorded
-        ? const <String>[]
-        : digestiveSummary?.hasExplicitNoMovement == true
-        ? const ['Digestive None']
-        : (digestiveSummary?.eventCount ?? 0) > 0
-        ? [
-            'Digestive Count ${digestiveSummary!.eventCount}',
-            'Total Amount ${digestiveSummary.totalAmount}',
-          ]
-        : const <String>[];
-
     final energyStatus =
         widget.trainingSummary?.totalEnergyCalculationStatus ??
         TrainingEnergyCalculationStatus.complete;
@@ -1496,15 +1493,49 @@ class _ProgressCardState extends State<_ProgressCard> {
         final estimatedTotalBurn =
             targets?.estimatedTotalBurnKcal ??
             _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
-        return OperationCard(
-          child: widget.useLargeLayout
-              ? Row(
-                  key: const ValueKey('operation-progress-large-layout'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: _buildSummary(
+        return FutureBuilder<_BriefDebriefProgress>(
+          future: _briefDebrief,
+          builder: (context, briefSnapshot) => OperationCard(
+            child: widget.useLargeLayout
+                ? Row(
+                    key: const ValueKey('operation-progress-large-layout'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: _buildSummary(
+                          context,
+                          estimatedBaseBurn:
+                              targets?.estimatedBaseBurnKcal ??
+                              widget.estimatedTDEE,
+                          exerciseCalories: exerciseCalories,
+                          energyStatus: energyStatus,
+                          estimatedTotalBurn: estimatedTotalBurn,
+                          large: true,
+                        ),
+                      ),
+                      SizedBox(width: AppSpacing.xl),
+                      Expanded(
+                        flex: 3,
+                        child: _buildProgressTiles(
+                          mealCount: mealCount,
+                          calories: calories,
+                          protein: protein,
+                          hydrationMl: hydrationMl,
+                          targets: targets,
+                          completionModel: widget.completionModel,
+                          briefDebrief:
+                              briefSnapshot.data ??
+                              const _BriefDebriefProgress(),
+                          forceTwoColumns: true,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    key: const ValueKey('operation-progress-compact-layout'),
+                    children: [
+                      _buildSummary(
                         context,
                         estimatedBaseBurn:
                             targets?.estimatedBaseBurnKcal ??
@@ -1512,55 +1543,28 @@ class _ProgressCardState extends State<_ProgressCard> {
                         exerciseCalories: exerciseCalories,
                         energyStatus: energyStatus,
                         estimatedTotalBurn: estimatedTotalBurn,
-                        large: true,
+                        large: false,
                       ),
-                    ),
-                    SizedBox(width: AppSpacing.xl),
-                    Expanded(
-                      flex: 3,
-                      child: _buildProgressTiles(
-                        mealCount: mealCount,
-                        calories: calories,
-                        protein: protein,
-                        hydrationMl: hydrationMl,
-                        activityDetails: activityDetails,
-                        targets: targets,
-                        completionModel: widget.completionModel,
-                        forceTwoColumns: true,
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  key: const ValueKey('operation-progress-compact-layout'),
-                  children: [
-                    _buildSummary(
-                      context,
-                      estimatedBaseBurn:
-                          targets?.estimatedBaseBurnKcal ??
-                          widget.estimatedTDEE,
-                      exerciseCalories: exerciseCalories,
-                      energyStatus: energyStatus,
-                      estimatedTotalBurn: estimatedTotalBurn,
-                      large: false,
-                    ),
-                    AppSpacing.gapLG,
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 800),
-                        child: _buildProgressTiles(
-                          mealCount: mealCount,
-                          calories: calories,
-                          protein: protein,
-                          hydrationMl: hydrationMl,
-                          activityDetails: activityDetails,
-                          targets: targets,
-                          completionModel: widget.completionModel,
+                      AppSpacing.gapLG,
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 800),
+                          child: _buildProgressTiles(
+                            mealCount: mealCount,
+                            calories: calories,
+                            protein: protein,
+                            hydrationMl: hydrationMl,
+                            targets: targets,
+                            completionModel: widget.completionModel,
+                            briefDebrief:
+                                briefSnapshot.data ??
+                                const _BriefDebriefProgress(),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+          ),
         );
       },
     );
@@ -1577,6 +1581,22 @@ class _ProgressCardState extends State<_ProgressCard> {
       food: widget.foodSummary,
       activity: widget.activitySummary,
       training: widget.trainingSummary,
+    );
+  }
+
+  Future<_BriefDebriefProgress> _loadBriefDebrief() async {
+    final container = AppRepositoryRegistry.container;
+    final state = await container.operationState.requireCurrent();
+    final date = state.operationDate.value;
+    final brief = await container.morningBriefs.readByLocalDate(date);
+    final debrief = await container.dailyDebriefs.readByLocalDate(date);
+    final activeDebrief =
+        debrief != null &&
+        await container.dailyDebriefSources.projectLifecycle(debrief) ==
+            DailyDebriefLifecycleStatus.active;
+    return _BriefDebriefProgress(
+      briefRecorded: brief != null,
+      debriefRecorded: activeDebrief,
     );
   }
 
@@ -1679,9 +1699,9 @@ class _ProgressCardState extends State<_ProgressCard> {
     required double calories,
     required double protein,
     required double hydrationMl,
-    required List<String> activityDetails,
     required DynamicDailyTargetResult? targets,
     required DailyCommandReadModel? completionModel,
+    required _BriefDebriefProgress briefDebrief,
     bool forceTwoColumns = false,
   }) {
     final foodSummaryAvailable = widget.foodSummary != null && mealCount > 0;
@@ -1699,7 +1719,6 @@ class _ProgressCardState extends State<_ProgressCard> {
           required double progress,
           VoidCallback? onTap,
           bool fullWidth = false,
-          List<String> details = const [],
           DynamicTargetState? targetState,
           DailyCommandCompletionItem? completion,
         }) {
@@ -1711,7 +1730,6 @@ class _ProgressCardState extends State<_ProgressCard> {
               status: status,
               progress: progress,
               onTap: onTap,
-              details: details,
               targetState: targetState,
               completion: completion,
             ),
@@ -1811,17 +1829,29 @@ class _ProgressCardState extends State<_ProgressCard> {
               status:
                   completionModel?.activityCompletion.displayState ??
                   (widget.activitySummary.isRecorded
-                      ? '${_formatInteger(widget.activitySummary.steps)} steps'
+                      ? 'COMPLETE'
                       : 'Not recorded'),
               progress: completionModel?.activityCompletion.isComplete == true
                   ? 1.0
                   : completionModel == null && widget.activitySummary.isRecorded
                   ? 1.0
                   : 0.0,
-              fullWidth: true,
-              details: activityDetails,
               completion: completionModel?.activityCompletion,
               onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
+            ),
+            tile(
+              label: 'BRIEF / DEBRIEF',
+              status: briefDebrief.displayState,
+              progress: briefDebrief.isComplete ? 1 : 0,
+              completion: briefDebrief.completion,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CommandCenterPage(
+                    initialSection: CommandCenterSection.briefDebrief,
+                    initialBriefDebriefTab: briefDebrief.destinationTab,
+                  ),
+                ),
+              ),
             ),
           ],
         );
@@ -1886,6 +1916,37 @@ class _ProgressCardState extends State<_ProgressCard> {
   }
 }
 
+class _BriefDebriefProgress {
+  const _BriefDebriefProgress({
+    this.briefRecorded = false,
+    this.debriefRecorded = false,
+  });
+
+  final bool briefRecorded;
+  final bool debriefRecorded;
+
+  bool get isComplete => briefRecorded && debriefRecorded;
+
+  String get displayState => isComplete ? 'COMPLETE' : 'NOT RECORDED';
+
+  BriefDebriefTab get destinationTab => !briefRecorded
+      ? BriefDebriefTab.dailyBrief
+      : !debriefRecorded
+      ? BriefDebriefTab.dailyDebrief
+      : BriefDebriefTab.dailyBrief;
+
+  DailyCommandCompletionItem get completion => DailyCommandCompletionItem(
+    label: 'BRIEF / DEBRIEF',
+    state: isComplete
+        ? DailyCommandModuleState.recorded
+        : DailyCommandModuleState.missing,
+    missingRequirements: [
+      if (!briefRecorded) 'BRIEF',
+      if (!debriefRecorded) 'DEBRIEF',
+    ],
+  );
+}
+
 double? _estimatedTotalBurn(
   double? baseBurn,
   TrainingSummary? trainingSummary,
@@ -1947,7 +2008,6 @@ class _ProgressRow extends StatelessWidget {
   final String status;
   final double progress;
   final VoidCallback? onTap;
-  final List<String> details;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
 
@@ -1956,7 +2016,6 @@ class _ProgressRow extends StatelessWidget {
     required this.status,
     required this.progress,
     this.onTap,
-    this.details = const [],
     this.targetState,
     this.completion,
   });
@@ -2000,14 +2059,6 @@ class _ProgressRow extends StatelessWidget {
             ],
           ],
         ),
-        if (details.isNotEmpty) ...[
-          AppSpacing.gapSM,
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.xs,
-            children: [for (final detail in details) Text(detail)],
-          ),
-        ],
         AppSpacing.gapXS,
         LinearProgressIndicator(
           value: progress,

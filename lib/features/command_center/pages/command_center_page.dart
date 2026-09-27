@@ -20,7 +20,7 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../../operation_date/state/finalize_date_transition.dart';
-import '../../operation_date/widgets/operation_date_flip_calendar.dart';
+import '../../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../../training/services/training_status_weight_resolver.dart';
@@ -455,13 +455,6 @@ class _DailyCommandContent extends StatelessWidget {
           cycleState: model.cycleState,
         ),
         AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.assessment_outlined,
-          title: 'DAILY ASSESSMENT',
-        ),
-        AppSpacing.gapSM,
-        DailyAssessmentView(assessment: assessment),
-        AppSpacing.gapXL,
         DailyLogSection(
           morningFact: morningFact,
           foodSummary: foodSummary,
@@ -472,6 +465,13 @@ class _DailyCommandContent extends StatelessWidget {
           onFinalizePresentationReleased: onFinalizePresentationReleased,
           onReviewCompleted: onReviewCompleted,
         ),
+        AppSpacing.gapXL,
+        const SectionHeader(
+          icon: Icons.assessment_outlined,
+          title: 'DAILY ASSESSMENT',
+        ),
+        AppSpacing.gapSM,
+        DailyAssessmentView(assessment: assessment),
         AppSpacing.gapLG,
       ],
     );
@@ -490,105 +490,121 @@ class _CurrentOperationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Row(
-      key: const ValueKey('current-operation-card-content'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          key: const ValueKey('current-operation-date-group'),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final dateGroup = Column(
+          key: const ValueKey('current-operation-card-content'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
+            Column(
+              key: const ValueKey('current-operation-date-group'),
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Symbols.calendar_today,
-                  key: const ValueKey('current-operation-date-heading-icon'),
-                  size: 18,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'OPERATION DATE',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ],
-            ),
-            AppSpacing.gapSM,
-            OperationDateFlipCalendar(
-              operationDateFuture: operationDateFuture,
-              transitionToken: 0,
-            ),
-          ],
-        ),
-        const SizedBox(width: AppSpacing.xl),
-        Expanded(
-          child: Column(
-            key: const ValueKey('current-operation-cycle-group'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Row(
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Symbols.page_info,
+                      Symbols.calendar_today,
                       key: const ValueKey(
-                        'current-operation-cycle-heading-icon',
+                        'current-operation-date-heading-icon',
                       ),
                       size: 18,
                       color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     Text(
-                      'CYCLE STATE',
-                      maxLines: 1,
+                      'OPERATION DATE',
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                   ],
                 ),
+                AppSpacing.gapSM,
+                OperationDatePresentationSwitcher(
+                  operationDateFuture: operationDateFuture,
+                  transitionToken: 0,
+                  finalizeTransition: null,
+                ),
+              ],
+            ),
+          ],
+        );
+        final cycleGroup = Column(
+          key: const ValueKey('current-operation-cycle-group'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Symbols.page_info,
+                    key: const ValueKey('current-operation-cycle-heading-icon'),
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'CYCLE STATE',
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ],
               ),
-              AppSpacing.gapXS,
-              SemanticHelpPopover(
-                id: 'cycle-${cycleState.name}',
-                title: cycleStateShortLabelFor(cycleState),
-                description: cycleStateHelp(cycleState),
-                visibleAnchorKey: _visibleAnchorKey,
-                child: Semantics(
-                  button: true,
-                  label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
-                  child: FittedBox(
-                    key: const ValueKey('current-operation-cycle-value'),
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        KeyedSubtree(
-                          key: _visibleAnchorKey,
-                          child: Icon(
-                            cycleStateIconFor(cycleState),
-                            key: const ValueKey('current-operation-cycle-icon'),
-                          ),
+            ),
+            AppSpacing.gapXS,
+            SemanticHelpPopover(
+              id: 'cycle-${cycleState.name}',
+              title: cycleStateShortLabelFor(cycleState),
+              description: cycleStateHelp(cycleState),
+              visibleAnchorKey: _visibleAnchorKey,
+              child: Semantics(
+                button: true,
+                label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
+                child: FittedBox(
+                  key: const ValueKey('current-operation-cycle-value'),
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      KeyedSubtree(
+                        key: _visibleAnchorKey,
+                        child: Icon(
+                          cycleStateIconFor(cycleState),
+                          key: const ValueKey('current-operation-cycle-icon'),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Text(
-                          cycleStateShortLabelFor(cycleState),
-                          key: const ValueKey('current-operation-cycle-label'),
-                          maxLines: 1,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        cycleStateShortLabelFor(cycleState),
+                        key: const ValueKey('current-operation-cycle-label'),
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+        return compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [dateGroup, AppSpacing.gapMD, cycleGroup],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 6, child: dateGroup),
+                  const SizedBox(width: AppSpacing.xl),
+                  Expanded(flex: 5, child: cycleGroup),
+                ],
+              );
+      },
     ),
   );
 }

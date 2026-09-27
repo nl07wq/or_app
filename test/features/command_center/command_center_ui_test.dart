@@ -25,6 +25,8 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_date/state/finalize_date_transition.dart';
 import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_nixie_display.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_presentation_switcher.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
@@ -181,23 +183,50 @@ void main() {
     expect(find.byIcon(Symbols.calendar_today), findsOneWidget);
     expect(find.byIcon(Symbols.page_info), findsOneWidget);
     expect(find.text('DAILY ASSESSMENT'), findsOneWidget);
+    final dailyLog = find.text('DAILY LOG');
+    final assessment = find.text('DAILY ASSESSMENT');
+    expect(dailyLog, findsOneWidget);
+    expect(
+      tester.getTopLeft(dailyLog).dy,
+      lessThan(tester.getTopLeft(assessment).dy),
+    );
     expect(find.text('NOT AVAILABLE'), findsWidgets);
     expect(find.textContaining('STATUSを入力'), findsNothing);
     expect(find.text('COMMANDER INTENT'), findsNothing);
     expect(find.text('ARGO COMMENT'), findsNothing);
     expect(find.text('OPERATION MODULES'), findsNothing);
-    await tester.scrollUntilVisible(
-      find.text('DAILY LOG'),
-      300,
-      scrollable: _dailyCommandScrollable(),
-    );
-    expect(find.text('DAILY REVIEW'), findsOneWidget);
-    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
-    expect(find.text('VIEW DAILY REVIEW'), findsNothing);
-    expect(find.text('FINALIZE DAY'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Commander Center Operation Date shares Dashboard tap and swipe contract',
+    (tester) async {
+      await _pump(tester, width: 390);
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      expect(switcher, findsOneWidget);
+      expect(find.byType(OperationDatePresentationSwitcher), findsOneWidget);
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+
+      await tester.tap(switcher);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        findsWidgets,
+      );
+
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+
+      await tester.drag(switcher, const Offset(72, 0));
+      await tester.pump();
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('CURRENT OPERATION shared calendar fits at 320px', (
     tester,

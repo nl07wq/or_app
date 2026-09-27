@@ -100,19 +100,24 @@ class NixiePresentationColors {
   ];
 }
 
-/// Deterministic whole-display cathode sequence: all foregrounds shut down,
-/// rear structures remain, then fields ignite from visual left to right.
+/// Deterministic whole-display cathode sequence. The old display visibly
+/// blinks twice before the new display ignites, so an Operation Date change is
+/// readable without changing the date authority.
 abstract final class NixieTransitionMotion {
-  static const duration = Duration(milliseconds: 360);
+  static const duration = Duration(milliseconds: 720);
+
+  static bool showsNewValue(double progress) => progress >= .56;
 
   static double foregroundOpacity({
     required double progress,
     required int ignitionOrder,
   }) {
-    if (progress < .24) return 1 - progress / .24;
-    if (progress < .42) return 0;
-    final start = .42 + ignitionOrder * .055;
-    const ignitionLength = .13;
+    if (progress < .16) return 1;
+    if (progress < .30) return 0;
+    if (progress < .42) return 1;
+    if (progress < .56) return 0;
+    final start = .56 + ignitionOrder * .035;
+    const ignitionLength = .12;
     if (progress <= start) return 0;
     if (progress >= start + ignitionLength) return 1;
     return .35 + ((progress - start) / ignitionLength) * .65;
@@ -173,6 +178,7 @@ class _OperationDateNixieCalendarState
   late final AnimationController _transitionController;
   bool _dateTransitionActive = false;
   bool _showingInitialTransitionFrom = false;
+  OperationLocalDate? _transitionFromDate;
 
   @override
   void dispose() {
@@ -225,6 +231,7 @@ class _OperationDateNixieCalendarState
             widget.transitionToken != _consumedTransitionToken &&
             _displayedDate != null &&
             _displayedDate != nextDate;
+        if (animate) _transitionFromDate = _displayedDate;
         _displayedDate = nextDate;
         _consumedTransitionToken = widget.transitionToken;
         if (animate) _beginTransition();
@@ -238,7 +245,12 @@ class _OperationDateNixieCalendarState
           style: Theme.of(context).textTheme.titleSmall,
         );
       }
-      final parsed = date.asUtcDate;
+      final transitionDate =
+          _dateTransitionActive &&
+              !NixieTransitionMotion.showsNewValue(_transitionController.value)
+          ? _transitionFromDate ?? date
+          : date;
+      final parsed = transitionDate.asUtcDate;
       final values = [
         _months[parsed.month - 1],
         parsed.day.toString().padLeft(2, '0'),

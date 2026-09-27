@@ -23,6 +23,8 @@ import 'package:or_app/core/widgets/status_lamp.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
+import 'package:or_app/features/command_center/pages/command_center_page.dart';
+import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
@@ -45,6 +47,28 @@ import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('NIXIE Operation Date motion has two deliberate blinks', () {
+    expect(NixieTransitionMotion.duration, const Duration(milliseconds: 720));
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .10, ignitionOrder: 0),
+      1,
+    );
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .20, ignitionOrder: 0),
+      0,
+    );
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .35, ignitionOrder: 0),
+      1,
+    );
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .50, ignitionOrder: 0),
+      0,
+    );
+    expect(NixieTransitionMotion.showsNewValue(.55), isFalse);
+    expect(NixieTransitionMotion.showsNewValue(.56), isTrue);
+  });
 
   test('Ambient monitor HUD geometry stays compact and symmetric', () {
     expect(DailyCommandAmbientHudGeometry.cornerArmLength, 4);
@@ -321,7 +345,7 @@ void main() {
     },
   );
 
-  testWidgets('uses the approved two-column order and full-width ACTIVITY', (
+  testWidgets('uses the approved two-column OPERATION PROGRESS grid', (
     tester,
   ) async {
     await _pumpDashboard(tester, width: 800);
@@ -343,6 +367,7 @@ void main() {
     final water = _tile('WATER');
     final training = _tile('TRAINING');
     final activity = _tile('ACTIVITY');
+    final briefDebrief = _tile('BRIEF / DEBRIEF');
 
     expect(tester.getTopLeft(status).dy, tester.getTopLeft(food).dy);
     expect(tester.getTopLeft(calories).dy, tester.getTopLeft(protein).dy);
@@ -359,9 +384,14 @@ void main() {
       tester.getTopLeft(activity).dy,
       greaterThan(tester.getTopLeft(water).dy),
     );
+    expect(tester.getTopLeft(activity).dy, tester.getTopLeft(briefDebrief).dy);
     expect(
       tester.getSize(activity).width,
-      closeTo(tester.getSize(status).width * 2 + 12, 0.1),
+      closeTo(tester.getSize(status).width, 0.1),
+    );
+    expect(
+      tester.getSize(briefDebrief).width,
+      closeTo(tester.getSize(status).width, 0.1),
     );
 
     for (final label in _labels) {
@@ -436,6 +466,26 @@ void main() {
       expect(openedRoutes.last, AppRoutes.morning);
     },
   );
+
+  testWidgets('BRIEF / DEBRIEF is an actionable half-width progress module', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+    final activity = _tile('ACTIVITY');
+    final briefDebrief = _tile('BRIEF / DEBRIEF');
+    expect(tester.getTopLeft(activity).dy, tester.getTopLeft(briefDebrief).dy);
+    expect(tester.getSize(activity).width, tester.getSize(briefDebrief).width);
+    expect(find.text('STEP'), findsNothing);
+    expect(find.textContaining('Digestive'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('operation-progress-body-BRIEF / DEBRIEF')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CommandCenterPage), findsOneWidget);
+    expect(find.byType(BriefDebriefPage), findsOneWidget);
+  });
 
   testWidgets('completion cards remove stray quick add controls', (
     tester,
@@ -912,7 +962,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.pump(const Duration(milliseconds: 420));
+      await tester.pump(const Duration(milliseconds: 800));
       await tester.pump();
       expect(find.byType(OperationDateFlipCalendar), findsNothing);
       expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
@@ -2862,6 +2912,7 @@ const _labels = [
   'WATER',
   'TRAINING',
   'ACTIVITY',
+  'BRIEF / DEBRIEF',
 ];
 
 Finder _tile(String label) => find.byKey(ValueKey('operation-progress-$label'));

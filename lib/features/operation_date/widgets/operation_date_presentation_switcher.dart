@@ -43,7 +43,7 @@ class _OperationDatePresentationSwitcherState
   late final AnimationController _transitionLockController;
 
   static const _flipTransitionDuration = Duration(milliseconds: 500);
-  static const _nixieTransitionDuration = Duration(milliseconds: 260);
+  static const _nixieTransitionDuration = NixieTransitionMotion.duration;
 
   OperationDateDisplayModePreference get _preference =>
       widget.preference ?? OperationDateDisplayModePreference();
