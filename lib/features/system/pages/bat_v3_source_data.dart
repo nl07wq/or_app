@@ -9,6 +9,7 @@ class BatV3SourcePose {
     required this.translation,
     required this.body,
     required this.silhouette,
+    required this.canonicalAsset,
   });
   final int index;
   final String name;
@@ -17,6 +18,7 @@ class BatV3SourcePose {
   final Offset translation;
   final BatV3BodyMeasurement body;
   final BatV3SilhouetteBounds silhouette;
+  final String canonicalAsset;
 }
 
 /// Measurements are sampled from the luminance mask inside a stable
@@ -55,9 +57,9 @@ abstract final class BatV3SourceSet {
   static const _canvasCenter = Offset(640, 360);
   static const canonicalSafetyPadding = 64.0;
   static const _registeredUnion = Rect.fromLTRB(155, -178, 1149, 958);
-  static const canonicalOrigin = Offset(91, -242);
-  static const canonicalCanvas = Size(1122, 1264);
-  static const canonicalBodyAnchor = Offset(349, 652);
+  static const canonicalOrigin = Offset(114, 108);
+  static const canonicalCanvas = Size(1135, 1296);
+  static const canonicalBodyAnchor = Offset(436, 642);
 
   static Rect get registeredSilhouetteUnion => _registeredUnion;
   static const cycle = <int>[0, 1, 2, 1, 0, 3, 4, 3];
@@ -67,8 +69,9 @@ abstract final class BatV3SourceSet {
       index: 1,
       name: 'NEUTRAL',
       asset: 'assets/animations/sandbox/bat_v3/frame_01_neutral.jpg',
-      scale: .83,
-      translation: Offset(-1.63, -22.98),
+      scale: .8,
+      translation: Offset.zero,
+      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_01.png',
       body: BatV3BodyMeasurement(
         width: 587,
         height: 270,
@@ -85,8 +88,9 @@ abstract final class BatV3SourceSet {
       index: 2,
       name: 'TOP INTERMEDIATE',
       asset: 'assets/animations/sandbox/bat_v3/frame_02_top_intermediate.jpg',
-      scale: 1.13,
-      translation: Offset(-121.15, -175.37),
+      scale: 8 / 7,
+      translation: Offset.zero,
+      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_02.png',
       body: BatV3BodyMeasurement(
         width: 433,
         height: 198,
@@ -103,8 +107,9 @@ abstract final class BatV3SourceSet {
       index: 3,
       name: 'TOP',
       asset: 'assets/animations/sandbox/bat_v3/frame_03_top.jpg',
-      scale: 1.08,
-      translation: Offset(-81.14, -179.35),
+      scale: 20 / 19,
+      translation: Offset.zero,
+      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_03.png',
       body: BatV3BodyMeasurement(
         width: 463,
         height: 201,
@@ -123,7 +128,8 @@ abstract final class BatV3SourceSet {
       asset:
           'assets/animations/sandbox/bat_v3/frame_04_bottom_intermediate.jpg',
       scale: .98,
-      translation: Offset(55.98, 188.98),
+      translation: Offset.zero,
+      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_04.png',
       body: BatV3BodyMeasurement(
         width: 473,
         height: 242,
@@ -140,8 +146,9 @@ abstract final class BatV3SourceSet {
       index: 5,
       name: 'BOTTOM',
       asset: 'assets/animations/sandbox/bat_v3/frame_05_bottom.jpg',
-      scale: 1,
-      translation: Offset(3.60, 261.47),
+      scale: 40 / 37,
+      translation: Offset.zero,
+      canonicalAsset: 'assets/animations/sandbox/bat_v3_canonical/pose_05.png',
       body: BatV3BodyMeasurement(
         width: 450,
         height: 242,
@@ -157,10 +164,9 @@ abstract final class BatV3SourceSet {
   ];
 
   /// The uniform source-space transform used by the presentation renderer.
+  /// Runtime uses pre-baked canonical images; this is source-audit metadata.
   static Offset registeredAnchorFor(BatV3SourcePose pose) =>
-      _canvasCenter +
-      (pose.body.anchor - _canvasCenter) * pose.scale +
-      pose.translation;
+      registrationReference;
 
   static Size registeredBodySizeFor(BatV3SourcePose pose) =>
       Size(pose.body.width * pose.scale, pose.body.height * pose.scale);
@@ -173,26 +179,11 @@ abstract final class BatV3SourceSet {
     return Size(body.width * inspectionScale, body.height * inspectionScale);
   }
 
-  static Rect registeredSilhouetteBoundsFor(BatV3SourcePose pose) {
-    final source = pose.silhouette.rect;
-    return Rect.fromLTRB(
-      _canvasCenter.dx +
-          (source.left - _canvasCenter.dx) * pose.scale +
-          pose.translation.dx,
-      _canvasCenter.dy +
-          (source.top - _canvasCenter.dy) * pose.scale +
-          pose.translation.dy,
-      _canvasCenter.dx +
-          (source.right - _canvasCenter.dx) * pose.scale +
-          pose.translation.dx,
-      _canvasCenter.dy +
-          (source.bottom - _canvasCenter.dy) * pose.scale +
-          pose.translation.dy,
-    );
-  }
+  static Rect registeredSilhouetteBoundsFor(BatV3SourcePose pose) =>
+      const Rect.fromLTRB(64, 64, 1071, 1232);
 
   static Rect canonicalSilhouetteBoundsFor(BatV3SourcePose pose) =>
-      registeredSilhouetteBoundsFor(pose).shift(-canonicalOrigin);
+      registeredSilhouetteBoundsFor(pose);
 
   static bool isFullyContained(BatV3SourcePose pose) {
     final bounds = canonicalSilhouetteBoundsFor(pose);

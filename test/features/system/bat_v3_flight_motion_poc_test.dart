@@ -30,11 +30,11 @@ void main() {
       expect(pose.translation.isFinite, isTrue);
     }
     expect(BatV3SourceSet.poses.map((pose) => pose.scale), const [
-      .83,
-      1.13,
-      1.08,
+      .8,
+      8 / 7,
+      20 / 19,
       .98,
-      1.0,
+      40 / 37,
     ]);
     for (final pose in BatV3SourceSet.poses) {
       final anchor = BatV3SourceSet.registeredAnchorFor(pose);
@@ -55,8 +55,8 @@ void main() {
   });
 
   test('all registered silhouettes share one padded canonical canvas', () {
-    expect(BatV3SourceSet.canonicalCanvas, const Size(1122, 1264));
-    expect(BatV3SourceSet.canonicalBodyAnchor, const Offset(349, 652));
+    expect(BatV3SourceSet.canonicalCanvas, const Size(1135, 1296));
+    expect(BatV3SourceSet.canonicalBodyAnchor, const Offset(436, 642));
     expect(BatV3SourceSet.canonicalSafetyPadding, 64);
 
     for (final pose in BatV3SourceSet.poses) {
@@ -64,8 +64,8 @@ void main() {
       expect(BatV3SourceSet.isFullyContained(pose), isTrue, reason: pose.name);
       expect(bounds.left, greaterThanOrEqualTo(64));
       expect(bounds.top, greaterThanOrEqualTo(64));
-      expect(bounds.right, lessThanOrEqualTo(1058));
-      expect(bounds.bottom, lessThanOrEqualTo(1200));
+      expect(bounds.right, lessThanOrEqualTo(1071));
+      expect(bounds.bottom, lessThanOrEqualTo(1232));
     }
     expect(
       BatV3SourceSet.canonicalSilhouetteBoundsFor(BatV3SourceSet.poses[2]).top,
@@ -75,7 +75,7 @@ void main() {
       BatV3SourceSet.canonicalSilhouetteBoundsFor(
         BatV3SourceSet.poses[4],
       ).bottom,
-      lessThanOrEqualTo(1200),
+      lessThanOrEqualTo(1232),
     );
   });
 

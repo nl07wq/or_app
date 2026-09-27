@@ -485,30 +485,12 @@ class _BatV3RegisteredSource extends StatelessWidget {
   final BatV3SourcePose pose;
 
   @override
-  Widget build(BuildContext context) {
-    final sourceOffset = Offset(
-      640 -
-          640 * pose.scale +
-          pose.translation.dx -
-          BatV3SourceSet.canonicalOrigin.dx,
-      360 -
-          360 * pose.scale +
-          pose.translation.dy -
-          BatV3SourceSet.canonicalOrigin.dy,
-    );
-    return Transform.translate(
-      offset: sourceOffset,
-      child: Transform.scale(
-        scale: pose.scale,
-        alignment: Alignment.topLeft,
-        child: SizedBox(
-          width: BatV3SourceSet.canvas.width,
-          height: BatV3SourceSet.canvas.height,
-          child: _BatV3SourceImage(asset: pose.asset, mask: true),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Image.asset(
+    pose.canonicalAsset,
+    width: BatV3SourceSet.canonicalCanvas.width,
+    height: BatV3SourceSet.canonicalCanvas.height,
+    fit: BoxFit.fill,
+  );
 }
 
 class _BatV3Crossing extends StatelessWidget {
