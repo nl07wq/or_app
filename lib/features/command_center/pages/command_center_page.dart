@@ -500,14 +500,13 @@ class _CurrentOperationCard extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 280;
-        // Reserve the larger date presentation before placing CYCLE STATE.
-        // This keeps FLIP and date-only NIXIE equally prominent without
-        // scaling the complete CURRENT OPERATION card.
-        final groupGap = narrow ? AppSpacing.sm : AppSpacing.md;
+        // Keep the original column relationship while reserving the wider
+        // date presentation before placing CYCLE STATE.
+        final groupGap = narrow ? AppSpacing.sm : AppSpacing.xl;
         final dateGroupWidth = narrow
             ? 168.0
             : constraints.maxWidth < 600
-            ? 190.0
+            ? 180.0
             : 220.0;
         final cycleGroupWidth = narrow ? 104.0 : 110.0;
         final dateGroup = Column(
@@ -545,18 +544,22 @@ class _CurrentOperationCard extends StatelessWidget {
                   key: const ValueKey('current-operation-date-bounds'),
                   width: _datePresentationWidth,
                   height: _datePresentationHeight,
-                  child: FittedBox(
-                    fit: BoxFit.fitWidth,
+                  child: Align(
                     alignment: Alignment.topLeft,
-                    child: SizedBox(
-                      width: _datePresentationNaturalWidth,
-                      height: _datePresentationHeight,
-                      child: OperationDatePresentationSwitcher(
-                        operationDateFuture: operationDateFuture,
-                        transitionToken: 0,
-                        finalizeTransition: null,
-                        contentMode:
-                            OperationDatePresentationContentMode.dateOnly,
+                    child: Transform(
+                      key: const ValueKey('current-operation-date-scale'),
+                      alignment: Alignment.topLeft,
+                      transform: Matrix4.diagonal3Values(1.2, 1, 1),
+                      child: SizedBox(
+                        width: _datePresentationNaturalWidth,
+                        height: _datePresentationHeight,
+                        child: OperationDatePresentationSwitcher(
+                          operationDateFuture: operationDateFuture,
+                          transitionToken: 0,
+                          finalizeTransition: null,
+                          contentMode:
+                              OperationDatePresentationContentMode.dateOnly,
+                        ),
                       ),
                     ),
                   ),

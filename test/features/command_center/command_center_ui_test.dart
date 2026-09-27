@@ -355,11 +355,13 @@ void main() {
         final cycleGroup = find.byKey(
           const ValueKey('current-operation-cycle-group'),
         );
-        final dateBounds = find.byKey(
-          const ValueKey('current-operation-date-bounds'),
+        final dateScale = find.byKey(
+          const ValueKey('current-operation-date-scale'),
         );
-        expect(dateBounds, findsOneWidget);
-        expect(tester.getSize(dateBounds), const Size(165.6, 53));
+        expect(dateScale, findsOneWidget);
+        final transform = tester.widget<Transform>(dateScale).transform.storage;
+        expect(transform[0], 1.2);
+        expect(transform[5], 1.0);
         expect(
           tester.getTopLeft(cycleGroup).dx,
           greaterThan(tester.getTopRight(dateGroup).dx),
@@ -374,33 +376,34 @@ void main() {
           await tester.pump();
         }
         expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
-        expect(dateBounds, findsOneWidget);
+        expect(dateScale, findsOneWidget);
         expect(tester.takeException(), isNull);
       }
     },
   );
 
-  testWidgets('Operation Date uses width-only bounds at target viewports', (
-    tester,
-  ) async {
+  testWidgets('Operation Date renders at X 120% and Y 100%', (tester) async {
     const baselines = {
       320: (
         card: Rect.fromLTRB(16, 194, 304, 301.8),
         group: Rect.fromLTRB(32, 213, 185.6, 282.8),
         heading: Rect.fromLTRB(47.4, 213, 185.6, 227),
-        date: Rect.fromLTRB(32, 238.7, 183.4, 278.2),
+        date: Rect.fromLTRB(32, 238, 183.4, 270.9),
+        cycle: Rect.fromLTRB(192.9, 213, 288, 249.3),
       ),
       390: (
-        card: Rect.fromLTRB(16, 168, 374, 284.3),
-        group: Rect.fromLTRB(32, 187, 222, 265.3),
-        heading: Rect.fromLTRB(51.1, 187, 222, 204.3),
-        date: Rect.fromLTRB(32, 217.1, 197.6, 260.3),
+        card: Rect.fromLTRB(16, 168, 374, 283.4),
+        group: Rect.fromLTRB(32, 187, 212, 264.4),
+        heading: Rect.fromLTRB(50, 187, 212, 203.4),
+        date: Rect.fromLTRB(32, 215.4, 197.6, 251.4),
+        cycle: Rect.fromLTRB(236, 187, 346, 227.4),
       ),
       900: (
         card: Rect.fromLTRB(16, 168, 884, 287),
         group: Rect.fromLTRB(32, 187, 251.4, 268),
         heading: Rect.fromLTRB(54, 187, 251.4, 207),
-        date: Rect.fromLTRB(32, 219.8, 197.6, 263),
+        date: Rect.fromLTRB(32, 219, 197.6, 255),
+        cycle: Rect.fromLTRB(276, 187, 386, 227.4),
       ),
     };
 
@@ -426,11 +429,15 @@ void main() {
       final boundsRect = tester.getRect(bounds);
       final switcherRect = tester.getRect(switcher);
       final flipRect = tester.getRect(flip);
+      final cycleRect = tester.getRect(
+        find.byKey(const ValueKey('current-operation-cycle-group')),
+      );
 
       _expectRectNear(cardRect, baseline.card);
       _expectRectNear(groupRect, baseline.group);
       _expectRectNear(headingRect, baseline.heading);
       _expectRectNear(flipRect, baseline.date);
+      _expectRectNear(cycleRect, baseline.cycle);
       expect(boundsRect.left, greaterThanOrEqualTo(groupRect.left));
       expect(boundsRect.right, lessThanOrEqualTo(groupRect.right));
       expect(boundsRect.center.dx, closeTo(flipRect.center.dx, 0.5));
@@ -439,6 +446,9 @@ void main() {
       expect(tester.getSize(bounds), const Size(165.6, 53));
       expect(flipRect.left, greaterThanOrEqualTo(boundsRect.left));
       expect(flipRect.right, lessThanOrEqualTo(boundsRect.right));
+      final responsiveScale = boundsRect.width / 165.6;
+      expect(flipRect.width / (138 * responsiveScale), closeTo(1.2, 0.01));
+      expect(flipRect.height / (36 * responsiveScale), closeTo(1.0, 0.01));
 
       await tester.drag(switcher, const Offset(-72, 0));
       await tester.pump();
