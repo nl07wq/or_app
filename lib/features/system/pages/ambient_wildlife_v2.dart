@@ -410,13 +410,14 @@ class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
     AmbientWildlifeV2Species.cat => CustomPaint(
       key: const ValueKey('ambient-wildlife-v2-neutral-cat'),
       painter: CatRunV23StagePainter(
-        progress: .5,
+        progress: 0,
         direction: leftToRight
             ? CatRunV23Direction.leftToRight
             : CatRunV23Direction.rightToLeft,
         coatVariant: CatRunCoatVariant.normal,
         catUnit: CatRunV23Travel.catUnit * .75,
-        showGroundLine: true,
+        showGroundLine: false,
+        neutralFrame01: true,
       ),
     ),
     AmbientWildlifeV2Species.bat => Center(
