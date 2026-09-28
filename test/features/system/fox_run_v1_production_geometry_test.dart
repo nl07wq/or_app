@@ -1605,7 +1605,7 @@ void main() {
   });
 
   test(
-    'PACK juvenile geometry preserves a 20px torso and safety-gapped lag',
+    'PACK juvenile geometry preserves a 30px torso and safety-gapped lag',
     () {
       final juvenileScale = FoxRunV1ProductionGeometry.juvenileBodyScale;
       expect(
@@ -1620,6 +1620,44 @@ void main() {
           .001,
         ),
       );
+    },
+  );
+
+  test(
+    'PACK duration preserves individual speed while extending tail exit',
+    () {
+      for (final speed in FoxRunV1Speed.values) {
+        final baseDuration = FoxRunV1Motion.durationForSpeed(speed);
+        final baseDistance = FoxRunV1ProductionGeometry.crossingDistance(
+          stageWidth: stageWidth,
+          leftToRight: true,
+        );
+        final basePixelsPerSecond =
+            baseDistance /
+            baseDuration.inMicroseconds *
+            Duration.microsecondsPerSecond;
+        for (final juvenileCount in [0, 1, 2, 9]) {
+          final duration = FoxRunV1ProductionGeometry.durationForPack(
+            baseDuration: baseDuration,
+            stageWidth: stageWidth,
+            leftToRight: true,
+            bodyScale: 1,
+            juvenileCount: juvenileCount,
+          );
+          final distance = FoxRunV1ProductionGeometry.crossingDistance(
+            stageWidth: stageWidth,
+            leftToRight: true,
+            trailingDistance:
+                juvenileCount *
+                FoxRunV1ProductionGeometry.juvenileFollowerSpacing,
+          );
+          expect(
+            distance / duration.inMicroseconds * Duration.microsecondsPerSecond,
+            closeTo(basePixelsPerSecond, .001),
+            reason: '${speed.name}/$juvenileCount juveniles',
+          );
+        }
+      }
     },
   );
 
@@ -1680,16 +1718,16 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
     await tester.pump(const Duration(milliseconds: 160));
-    final progress = crossingAnimation(tester).value;
-    final runningChip = tester.widget<ChoiceChip>(
-      find.byKey(const ValueKey('fox-preview-pack-mode-two')),
-    );
-    expect(runningChip.onSelected, isNull);
-    await tester.tap(find.byKey(const ValueKey('fox-preview-pause')));
-    await tester.pump();
+    final adult = find.byKey(const ValueKey('fox-run-v1-body-flex'));
+    double bodyCenterX(Finder fox, double bodyScale) =>
+        tester.getTopLeft(fox).dx +
+        FoxRunV1ProductionGeometry.bodyOrigin.dx *
+            FoxRunV1ProductionGeometry.displayScale *
+            bodyScale;
+    final adultBeforeIncrease = bodyCenterX(adult, 1);
     await tester.tap(find.byKey(const ValueKey('fox-preview-pack-mode-two')));
     await tester.pump();
-    expect(crossingAnimation(tester).value, closeTo(progress, .001));
+    expect(bodyCenterX(adult, 1), closeTo(adultBeforeIncrease, .001));
     expect(find.byKey(const ValueKey('fox-run-v1-juvenile-1')), findsOneWidget);
 
     await tester.tap(
@@ -1702,13 +1740,7 @@ void main() {
         findsOneWidget,
       );
     }
-    final adult = find.byKey(const ValueKey('fox-run-v1-body-flex'));
     final firstJuvenile = find.byKey(const ValueKey('fox-run-v1-juvenile-1'));
-    double bodyCenterX(Finder fox, double bodyScale) =>
-        tester.getTopLeft(fox).dx +
-        FoxRunV1ProductionGeometry.bodyOrigin.dx *
-            FoxRunV1ProductionGeometry.displayScale *
-            bodyScale;
     expect(
       bodyCenterX(firstJuvenile, FoxRunV1ProductionGeometry.juvenileBodyScale),
       lessThan(bodyCenterX(adult, 1)),
@@ -1755,6 +1787,11 @@ void main() {
       ),
       findsNWidgets(40),
     );
+    final adultBeforeDecrease = bodyCenterX(adult, 1);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-pack-mode-one')));
+    await tester.pump();
+    expect(bodyCenterX(adult, 1), closeTo(adultBeforeDecrease, .001));
+    expect(find.byKey(const ValueKey('fox-run-v1-juvenile-1')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

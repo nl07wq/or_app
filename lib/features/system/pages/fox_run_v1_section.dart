@@ -55,8 +55,15 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _packMode = FoxRunV1PackMode.one;
   var _flutterPhase = 0;
   var _frameElapsedOffset = Duration.zero;
+  double? _stageWidth;
   final _selectedFrames = <int>{0, 2, 4, 5, 6};
-  Duration get _crossingDuration => FoxRunV1Motion.durationForSpeed(_speed);
+  Duration get _crossingDuration => FoxRunV1ProductionGeometry.durationForPack(
+    baseDuration: FoxRunV1Motion.durationForSpeed(_speed),
+    stageWidth: _stageWidth,
+    leftToRight: _leftToRight,
+    bodyScale: _bodyScale,
+    juvenileCount: _juvenileCount,
+  );
   double get _bodyScale => FoxRunV1ProductionGeometry.scaleFor(_bodySize);
   int get _juvenileCount => switch (_packMode) {
     FoxRunV1PackMode.one => 0,
@@ -195,7 +202,65 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
 
   void _setPackMode(FoxRunV1PackMode packMode) {
     if (_packMode == packMode) return;
+    final wasAnimating = _crossing.isAnimating;
+    final progress = _crossing.value;
+    final leaderCenter = _stageWidth == null
+        ? null
+        : _leaderCenterFor(_crossing.value, _juvenileCount);
+    if (wasAnimating) {
+      _frameElapsedOffset += _crossing.lastElapsedDuration ?? Duration.zero;
+      _crossing.stop();
+    }
     setState(() => _packMode = packMode);
+    _restoreCrossingAtLeader(leaderCenter, fallbackProgress: progress);
+    if (wasAnimating) {
+      _crossing.repeat(period: _crossingDuration);
+      _syncFrameToCrossing();
+    }
+  }
+
+  double _leaderCenterFor(double progress, int juvenileCount) =>
+      FoxRunV1ProductionGeometry.bodyCenterForProgress(
+        stageWidth: _stageWidth!,
+        progress: progress,
+        leftToRight: _leftToRight,
+        bodyScale: _bodyScale,
+        trailingDistance:
+            juvenileCount * FoxRunV1ProductionGeometry.juvenileFollowerSpacing,
+      );
+
+  void _restoreCrossingAtLeader(
+    double? leaderCenter, {
+    double? fallbackProgress,
+  }) {
+    _crossing.duration = _crossingDuration;
+    if (leaderCenter == null || _stageWidth == null) {
+      if (fallbackProgress != null) _crossing.value = fallbackProgress;
+      return;
+    }
+    _crossing.value = FoxRunV1ProductionGeometry.progressForBodyCenter(
+      stageWidth: _stageWidth!,
+      bodyCenterX: leaderCenter,
+      leftToRight: _leftToRight,
+      bodyScale: _bodyScale,
+      trailingDistance:
+          _juvenileCount * FoxRunV1ProductionGeometry.juvenileFollowerSpacing,
+    );
+  }
+
+  void _setStageWidth(double stageWidth) {
+    if (_stageWidth == stageWidth) return;
+    final wasAnimating = _crossing.isAnimating;
+    final leaderCenter = _stageWidth == null
+        ? null
+        : _leaderCenterFor(_crossing.value, _juvenileCount);
+    if (wasAnimating) {
+      _frameElapsedOffset += _crossing.lastElapsedDuration ?? Duration.zero;
+      _crossing.stop();
+    }
+    setState(() => _stageWidth = stageWidth);
+    _restoreCrossingAtLeader(leaderCenter);
+    if (wasAnimating) _crossing.repeat(period: _crossingDuration);
   }
 
   @override
@@ -316,6 +381,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         bodyFlexOffsetProvider: () => _bodyFlexOffset,
         pattern: _pattern,
         juvenileCount: _juvenileCount,
+        onStageWidth: _setStageWidth,
       ),
       AppSpacing.gapSM,
       Wrap(
@@ -347,9 +413,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
                   FoxRunV1PackMode.gricthTen => 'GRICTH ×10',
                 }),
                 selected: _packMode == packMode,
-                onSelected: _crossing.isAnimating
-                    ? null
-                    : (_) => _setPackMode(packMode),
+                onSelected: (_) => _setPackMode(packMode),
               ),
             )
             .toList(),
@@ -501,7 +565,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • adult 1 + juvenile $_juvenileCount (20px) • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • flex motion ${_bodyFlexMotion.name.toUpperCase()} • shrink ${_bodyShrink.name.toUpperCase()} • pattern ${_pattern.name.toUpperCase()}',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • adult 1 + juvenile $_juvenileCount (30px) • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • flex motion ${_bodyFlexMotion.name.toUpperCase()} • shrink ${_bodyShrink.name.toUpperCase()} • pattern ${_pattern.name.toUpperCase()}',
       ),
     ],
   );
@@ -742,7 +806,9 @@ abstract final class FoxRunV1ProductionGeometry {
   static const groundInset = 28.0;
   static const crossingSafetyGap = 8.0;
   static const groundVerticalOffset = 2.0;
-  static const juvenileTorsoLength = 20.0;
+
+  /// Human-visible juvenile torso authority: 20px × 1.5 = 30px.
+  static const juvenileTorsoLength = 30.0;
 
   /// Union of all registered canonical silhouette bounds.  This is the
   /// endpoint authority; it intentionally excludes transparent canvas area.
@@ -781,6 +847,80 @@ abstract final class FoxRunV1ProductionGeometry {
   /// transparent FOX canvases from making the visible silhouettes overlap.
   static double get juvenileFollowerSpacing =>
       juvenileVisibleWidth + crossingSafetyGap;
+
+  static double crossingDistance({
+    required double stageWidth,
+    required bool leftToRight,
+    double bodyScale = 1,
+    double trailingDistance = 0,
+  }) {
+    final start = bodyCenterForProgress(
+      stageWidth: stageWidth,
+      progress: 0,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+      trailingDistance: trailingDistance,
+    );
+    final end = bodyCenterForProgress(
+      stageWidth: stageWidth,
+      progress: 1,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+      trailingDistance: trailingDistance,
+    );
+    return (end - start).abs();
+  }
+
+  /// Extends pack duration rather than individual velocity.  With this
+  /// relation, the adult and every follower retain the selected px/sec rate.
+  static Duration durationForPack({
+    required Duration baseDuration,
+    required double? stageWidth,
+    required bool leftToRight,
+    required double bodyScale,
+    required int juvenileCount,
+  }) {
+    if (stageWidth == null || juvenileCount == 0) return baseDuration;
+    final baseDistance = crossingDistance(
+      stageWidth: stageWidth,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+    );
+    final packDistance = crossingDistance(
+      stageWidth: stageWidth,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+      trailingDistance: juvenileCount * juvenileFollowerSpacing,
+    );
+    return Duration(
+      microseconds: (baseDuration.inMicroseconds * packDistance / baseDistance)
+          .round(),
+    );
+  }
+
+  static double progressForBodyCenter({
+    required double stageWidth,
+    required double bodyCenterX,
+    required bool leftToRight,
+    double bodyScale = 1,
+    double trailingDistance = 0,
+  }) {
+    final start = bodyCenterForProgress(
+      stageWidth: stageWidth,
+      progress: 0,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+      trailingDistance: trailingDistance,
+    );
+    final end = bodyCenterForProgress(
+      stageWidth: stageWidth,
+      progress: 1,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+      trailingDistance: trailingDistance,
+    );
+    return ((bodyCenterX - start) / (end - start)).clamp(0, 1).toDouble();
+  }
 
   /// Converts a requested torso displacement into a Y scale around the
   /// canonical ground anchor, keeping the contact point stationary.
@@ -878,6 +1018,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     this.bodyFlexOffsetProvider,
     this.pattern = FoxRunV1Pattern.off,
     this.juvenileCount = 0,
+    this.onStageWidth,
   });
   final Animation<double> crossing;
   final String asset;
@@ -888,6 +1029,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
   final double Function()? bodyFlexOffsetProvider;
   final FoxRunV1Pattern pattern;
   final int juvenileCount;
+  final ValueChanged<double>? onStageWidth;
   static const previewBackgroundColor = Color(0xFF101010);
   static const silhouetteColor = Color(0xFF7A7A7A);
   static const patternLightColor = Color(0xFF9F9F9F);
@@ -898,72 +1040,79 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     key: const ValueKey('fox-run-v1-production-stage'),
     height: FoxRunV1ProductionGeometry.stageHeight,
     child: LayoutBuilder(
-      builder: (context, constraints) => ClipRect(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: const ColoredBox(color: previewBackgroundColor),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 28,
-              child: Divider(
-                color: Theme.of(context).colorScheme.outlineVariant,
+      builder: (context, constraints) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) onStageWidth?.call(constraints.maxWidth);
+        });
+        return ClipRect(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: const ColoredBox(color: previewBackgroundColor),
               ),
-            ),
-            Positioned.fill(
-              child: AnimatedBuilder(
-                key: const ValueKey('fox-run-v1-crossing'),
-                animation: crossing,
-                builder: (_, child) {
-                  final t = crossing.value;
-                  final stageGround = FoxRunV1ProductionGeometry.stageGroundY(
-                    constraints.maxHeight,
-                  );
-                  final followerSpacing =
-                      FoxRunV1ProductionGeometry.juvenileFollowerSpacing;
-                  final bodyCenter =
-                      FoxRunV1ProductionGeometry.bodyCenterForProgress(
-                        stageWidth: constraints.maxWidth,
-                        progress: t,
-                        leftToRight: leftToRight,
-                        bodyScale: bodyScale,
-                        trailingDistance: juvenileCount * followerSpacing,
-                      );
-                  final resolvedBodyFlexOffset =
-                      bodyFlexOffsetProvider?.call() ?? bodyFlexOffset;
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _buildFox(
-                        bodyCenterX: bodyCenter,
-                        stageGroundY: stageGround,
-                        bodyScale: bodyScale,
-                        bodyFlexOffset: resolvedBodyFlexOffset,
-                        flexKey: const ValueKey('fox-run-v1-body-flex'),
-                      ),
-                      for (var index = 0; index < juvenileCount; index++)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 28,
+                child: Divider(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  key: const ValueKey('fox-run-v1-crossing'),
+                  animation: crossing,
+                  builder: (_, child) {
+                    final t = crossing.value;
+                    final stageGround = FoxRunV1ProductionGeometry.stageGroundY(
+                      constraints.maxHeight,
+                    );
+                    final followerSpacing =
+                        FoxRunV1ProductionGeometry.juvenileFollowerSpacing;
+                    final bodyCenter =
+                        FoxRunV1ProductionGeometry.bodyCenterForProgress(
+                          stageWidth: constraints.maxWidth,
+                          progress: t,
+                          leftToRight: leftToRight,
+                          bodyScale: bodyScale,
+                          trailingDistance: juvenileCount * followerSpacing,
+                        );
+                    final resolvedBodyFlexOffset =
+                        bodyFlexOffsetProvider?.call() ?? bodyFlexOffset;
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
                         _buildFox(
-                          bodyCenterX:
-                              bodyCenter +
-                              (leftToRight ? -1 : 1) *
-                                  followerSpacing *
-                                  (index + 1),
+                          bodyCenterX: bodyCenter,
                           stageGroundY: stageGround,
-                          bodyScale:
-                              FoxRunV1ProductionGeometry.juvenileBodyScale,
+                          bodyScale: bodyScale,
                           bodyFlexOffset: resolvedBodyFlexOffset,
-                          celKey: ValueKey('fox-run-v1-juvenile-${index + 1}'),
+                          flexKey: const ValueKey('fox-run-v1-body-flex'),
                         ),
-                    ],
-                  );
-                },
+                        for (var index = 0; index < juvenileCount; index++)
+                          _buildFox(
+                            bodyCenterX:
+                                bodyCenter +
+                                (leftToRight ? -1 : 1) *
+                                    followerSpacing *
+                                    (index + 1),
+                            stageGroundY: stageGround,
+                            bodyScale:
+                                FoxRunV1ProductionGeometry.juvenileBodyScale,
+                            bodyFlexOffset: resolvedBodyFlexOffset,
+                            celKey: ValueKey(
+                              'fox-run-v1-juvenile-${index + 1}',
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     ),
   );
 
