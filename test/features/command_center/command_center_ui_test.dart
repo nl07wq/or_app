@@ -392,22 +392,22 @@ void main() {
   testWidgets('Operation Date widens without glyph distortion', (tester) async {
     const baselines = {
       320: (
-        card: Rect.fromLTRB(16, 194, 304, 301.8),
-        group: Rect.fromLTRB(32, 213, 185.6, 282.8),
+        card: Rect.fromLTRB(16, 194, 304, 293.6),
+        group: Rect.fromLTRB(32, 213, 185.6, 274.6),
         heading: Rect.fromLTRB(47.4, 213, 185.6, 227),
         date: Rect.fromLTRB(32, 238, 183.4, 270.9),
         cycle: Rect.fromLTRB(192.9, 213, 288, 249.3),
       ),
       390: (
-        card: Rect.fromLTRB(16, 168, 374, 283.4),
-        group: Rect.fromLTRB(32, 187, 212, 264.4),
+        card: Rect.fromLTRB(16, 168, 374, 274.4),
+        group: Rect.fromLTRB(32, 187, 212, 255.4),
         heading: Rect.fromLTRB(50, 187, 212, 203.4),
         date: Rect.fromLTRB(32, 215.4, 197.6, 251.4),
         cycle: Rect.fromLTRB(236, 187, 346, 227.4),
       ),
       900: (
-        card: Rect.fromLTRB(16, 168, 884, 287),
-        group: Rect.fromLTRB(32, 187, 251.4, 268),
+        card: Rect.fromLTRB(16, 168, 884, 278),
+        group: Rect.fromLTRB(32, 187, 251.4, 259),
         heading: Rect.fromLTRB(54, 187, 251.4, 207),
         date: Rect.fromLTRB(32, 219, 197.6, 255),
         cycle: Rect.fromLTRB(276, 187, 386, 227.4),
@@ -450,7 +450,18 @@ void main() {
       expect(boundsRect.center.dx, closeTo(flipRect.center.dx, 0.5));
       expect(boundsRect.left, closeTo(switcherRect.left, 0.5));
       expect(boundsRect.right, closeTo(switcherRect.right, 0.5));
-      expect(tester.getSize(bounds), const Size(165.6, 53));
+      expect(tester.getSize(bounds), const Size(165.6, 44));
+      if (width == 390) {
+        expect(cardRect.height, closeTo(106.4, 0.5));
+        expect(groupRect.height, closeTo(68.4, 0.5));
+        expect(boundsRect.height, closeTo(44, 0.5));
+        expect(flipRect.height, closeTo(36, 0.5));
+        expect(boundsRect.top - headingRect.bottom, closeTo(8, 0.5));
+        expect(flipRect.top - headingRect.bottom, closeTo(12, 0.5));
+        expect(boundsRect.bottom - flipRect.bottom, closeTo(4, 0.5));
+        expect(boundsRect.width, closeTo(165.6, 0.5));
+        expect(cycleRect.width, closeTo(110, 0.5));
+      }
       expect(flipRect.left, greaterThanOrEqualTo(boundsRect.left));
       expect(flipRect.right, lessThanOrEqualTo(boundsRect.right));
       final responsiveScale = boundsRect.width / 165.6;
