@@ -10,18 +10,58 @@ import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 
 void main() {
-  test('V2 registry exposes only CAT and BAT to RANDOM', () {
+  test('V2 registry exposes CAT, BAT, and FOX to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,
       AmbientWildlifeV2Species.bat,
+      AmbientWildlifeV2Species.fox,
     ]);
     expect(
       AmbientWildlifeV2Registry.available(AmbientWildlifeV2Species.fox),
-      isFalse,
+      isTrue,
     );
     expect(
       AmbientWildlifeV2Registry.available(AmbientWildlifeV2Species.birds),
       isFalse,
+    );
+  });
+
+  test('FOX production policy keeps the Ambient size authority', () {
+    final plan = AmbientWildlifeV2EventPlan.resolve(
+      species: AmbientWildlifeV2Species.fox,
+      leftToRight: true,
+      nextInt: (_) => 0,
+    );
+
+    expect(plan.isFox, isTrue);
+    expect(plan.isGlitch, isFalse);
+    expect(
+      AmbientWildlifeV2Fox.crossingDuration,
+      const Duration(milliseconds: 1600),
+    );
+    expect(
+      AmbientWildlifeV2Fox.frameDuration,
+      const Duration(milliseconds: 80),
+    );
+    expect(AmbientWildlifeV2Fox.selectedFrames, const [0, 2, 4, 5, 6]);
+    expect(
+      [
+        for (var phase = 0; phase < 6; phase++)
+          AmbientWildlifeV2Fox.frameAtElapsed(
+            Duration(milliseconds: phase * 80),
+          ),
+      ],
+      const [0, 2, 4, 5, 6, 0],
+    );
+    expect(AmbientWildlifeV2Fox.verticalFlutterAmplitude, 1);
+    expect(AmbientWildlifeV2Fox.bodyFlexAmplitude, 2);
+    expect(AmbientWildlifeV2Fox.ambientTorsoLength, 17);
+    expect(AmbientWildlifeV2Fox.canvasSize.width, closeTo(54.229, .001));
+    expect(AmbientWildlifeV2Fox.canvasSize.height, closeTo(25.7965, .001));
+    expect(AmbientWildlifeV2Fox.neutralFrame, 4);
+    expect(
+      AmbientWildlifeV2Fox.assetForFrame(AmbientWildlifeV2Fox.neutralFrame),
+      endsWith('frame_05.png'),
     );
   });
 
@@ -128,6 +168,82 @@ void main() {
     );
     expect(bat.pose, BatV3SourceSet.poses[1]);
     expect(find.byType(BatV3ProductionStage), findsNothing);
+
+    await pumpNeutral(AmbientWildlifeV2Species.fox);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-fox')),
+      findsOneWidget,
+    );
+    final neutralFox = tester.widget<Image>(find.byType(Image));
+    expect(
+      (neutralFox.image as AssetImage).assetName,
+      AmbientWildlifeV2Fox.assetForFrame(AmbientWildlifeV2Fox.neutralFrame),
+    );
+    expect(find.byType(ColorFiltered), findsOneWidget);
+  });
+
+  testWidgets('FOX motion uses the requested production settings and exits', (
+    tester,
+  ) async {
+    for (final leftToRight in [true, false]) {
+      final plan = AmbientWildlifeV2EventPlan.resolve(
+        species: AmbientWildlifeV2Species.fox,
+        leftToRight: leftToRight,
+        nextInt: (_) => 0,
+      );
+      await tester.pumpWidget(_stageHost(plan: null, requestId: 0));
+      await tester.pumpWidget(_stageHost(plan: plan, requestId: 1));
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
+        findsOneWidget,
+        reason: '$leftToRight',
+      );
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-body-flex')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-run-v1-pattern-base')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(_stageHost(plan: plan, requestId: 2));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
+        findsOneWidget,
+        reason: 'repeated run $leftToRight',
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  test('FOX ground contact geometry remains based on the Ambient stage', () {
+    const stageHeight = BatV3ProductionFlight.stageHeight;
+    const stageWidth = 390.0;
+    final groundY = stageHeight - AmbientWildlifeV2Stage.groundInset;
+    final center = AmbientWildlifeV2Fox.bodyCenterForProgress(
+      stageWidth: stageWidth,
+      progress: .5,
+      leftToRight: true,
+    );
+    final bounds = AmbientWildlifeV2Fox.visibleBoundsFor(
+      bodyCenterX: center,
+      stageGroundY: groundY,
+      leftToRight: true,
+    );
+
+    expect(bounds.width, closeTo(47.85, .01));
+    expect(bounds.bottom, lessThanOrEqualTo(groundY));
+    expect(groundY, stageHeight - AmbientWildlifeV2Stage.groundInset);
   });
 
   test('CAT neutral Frame 02 uses production motion geometry and ground', () {
@@ -311,7 +427,7 @@ void main() {
     }
   });
 
-  testWidgets('neutral CAT and BAT fit the stage at target widths', (
+  testWidgets('neutral CAT, BAT, and FOX fit the stage at target widths', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -322,6 +438,7 @@ void main() {
       for (final species in [
         AmbientWildlifeV2Species.cat,
         AmbientWildlifeV2Species.bat,
+        AmbientWildlifeV2Species.fox,
       ]) {
         await tester.pumpWidget(
           MaterialApp(

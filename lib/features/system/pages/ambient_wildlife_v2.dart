@@ -7,6 +7,7 @@ import 'bat_v3_source_data.dart';
 import 'cat_run_coat_patterns.dart';
 import 'cat_run_v23_production_preview.dart';
 import 'cat_run_v24_presentation.dart';
+import 'fox_run_v1_section.dart';
 
 enum AmbientWildlifeV2Species { cat, bat, fox, birds }
 
@@ -36,7 +37,7 @@ abstract final class AmbientWildlifeV2Registry {
     ),
     AmbientWildlifeV2SpeciesDefinition(
       species: AmbientWildlifeV2Species.fox,
-      available: false,
+      available: true,
     ),
     AmbientWildlifeV2SpeciesDefinition(
       species: AmbientWildlifeV2Species.birds,
@@ -73,6 +74,7 @@ class AmbientWildlifeV2EventPlan {
 
   bool get isCat => species == AmbientWildlifeV2Species.cat;
   bool get isBat => species == AmbientWildlifeV2Species.bat;
+  bool get isFox => species == AmbientWildlifeV2Species.fox;
 
   static AmbientWildlifeV2EventPlan resolve({
     required AmbientWildlifeV2Species species,
@@ -95,8 +97,12 @@ class AmbientWildlifeV2EventPlan {
         leftToRight: leftToRight,
         nextInt: nextInt,
       ),
-      AmbientWildlifeV2Species.fox || AmbientWildlifeV2Species.birds =>
-        throw ArgumentError.value(species, 'species', 'not available'),
+      AmbientWildlifeV2Species.fox => _foxPlan(leftToRight: leftToRight),
+      AmbientWildlifeV2Species.birds => throw ArgumentError.value(
+        species,
+        'species',
+        'not available',
+      ),
     };
   }
 
@@ -142,6 +148,122 @@ class AmbientWildlifeV2EventPlan {
       ),
     );
   }
+
+  static AmbientWildlifeV2EventPlan _foxPlan({required bool leftToRight}) =>
+      AmbientWildlifeV2EventPlan._(
+        species: AmbientWildlifeV2Species.fox,
+        leftToRight: leftToRight,
+        isGlitch: false,
+        catPlan: null,
+        catExecutor: null,
+        batInstances: const [],
+      );
+}
+
+/// FOX's V2 renderer uses the existing Ambient quadruped's 17px torso
+/// authority. The canonical FOX cels are only mapped into that existing
+/// production footprint; the Sandbox 1x canvas size is not used here.
+abstract final class AmbientWildlifeV2Fox {
+  static const crossingDuration = Duration(milliseconds: 1600);
+  static const frameDuration = Duration(milliseconds: 80);
+  static const selectedFrames = <int>[0, 2, 4, 5, 6];
+  static const neutralFrame = 4;
+  static const verticalFlutterAmplitude = 1.0;
+  static const bodyFlexAmplitude = 2.0;
+  static const ambientTorsoLength = 17.0;
+  static const displayScale =
+      ambientTorsoLength / FoxRunV1ProductionGeometry.torsoLength;
+  static final canvasSize = Size(
+    FoxRunV1ProductionGeometry.canvasSize.width * displayScale,
+    FoxRunV1ProductionGeometry.canvasSize.height * displayScale,
+  );
+
+  static const _bodyOrigin = FoxRunV1ProductionGeometry.bodyOrigin;
+  static const _virtualGround = FoxRunV1ProductionGeometry.virtualGround;
+  static const _visibleBounds =
+      FoxRunV1ProductionGeometry.visibleBoundsCanonical;
+
+  static String assetForFrame(int frame) =>
+      'assets/animations/sandbox/fox_v1/canonical/'
+      'frame_${(frame + 1).toString().padLeft(2, '0')}.png';
+
+  static int frameAtElapsed(Duration elapsed) =>
+      FoxRunV1Motion.frameAtElapsed(elapsed, selectedFrames: selectedFrames);
+
+  static double flutterAtElapsed(Duration elapsed) =>
+      FoxRunV1Motion.verticalFlutterOffset(
+        phase: FoxRunV1Motion.flutterPhaseAtElapsed(elapsed),
+        amplitude: verticalFlutterAmplitude,
+      );
+
+  static double bodyFlexAtElapsed(Duration elapsed) =>
+      FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+        elapsed: elapsed,
+        amplitude: bodyFlexAmplitude,
+        motion: FoxRunV1BodyFlexMotion.smooth,
+        shrinkEnabled: false,
+      );
+
+  static double bodyFlexScale(double bodyFlexOffset) {
+    final torsoToGround = (_virtualGround - _bodyOrigin.dy) * displayScale;
+    return 1 + bodyFlexOffset / torsoToGround;
+  }
+
+  static Offset imageTopLeft({
+    required double bodyCenterX,
+    required double stageGroundY,
+    double verticalFlutterOffset = 0,
+  }) => Offset(
+    bodyCenterX - _bodyOrigin.dx * displayScale,
+    stageGroundY - _virtualGround * displayScale + verticalFlutterOffset,
+  );
+
+  static Rect visibleBoundsFor({
+    required double bodyCenterX,
+    required double stageGroundY,
+    required bool leftToRight,
+    double verticalFlutterOffset = 0,
+  }) {
+    final image = imageTopLeft(
+      bodyCenterX: bodyCenterX,
+      stageGroundY: stageGroundY,
+      verticalFlutterOffset: verticalFlutterOffset,
+    );
+    final relativeLeft = (_visibleBounds.left - _bodyOrigin.dx) * displayScale;
+    final relativeRight =
+        (_visibleBounds.right - _bodyOrigin.dx) * displayScale;
+    final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
+    final renderedRight = leftToRight ? relativeRight : -relativeLeft;
+    return Rect.fromLTRB(
+      bodyCenterX + renderedLeft,
+      image.dy + _visibleBounds.top * displayScale,
+      bodyCenterX + renderedRight,
+      image.dy + _visibleBounds.bottom * displayScale,
+    );
+  }
+
+  static double bodyCenterForProgress({
+    required double stageWidth,
+    required double progress,
+    required bool leftToRight,
+  }) {
+    final relativeLeft = (_visibleBounds.left - _bodyOrigin.dx) * displayScale;
+    final relativeRight =
+        (_visibleBounds.right - _bodyOrigin.dx) * displayScale;
+    final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
+    final renderedRight = leftToRight ? relativeRight : -relativeLeft;
+    const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
+    final leftExit = -safetyGap - renderedRight;
+    final rightExit = stageWidth + safetyGap - renderedLeft;
+    return leftToRight
+        ? leftExit + (rightExit - leftExit) * progress
+        : rightExit - (rightExit - leftExit) * progress;
+  }
+
+  static Alignment get groundAnchor => Alignment(
+    (_bodyOrigin.dx / FoxRunV1ProductionGeometry.canvasSize.width) * 2 - 1,
+    (_virtualGround / FoxRunV1ProductionGeometry.canvasSize.height) * 2 - 1,
+  );
 }
 
 /// Shared V2 event renderer. It owns just one event controller and consumes
@@ -217,6 +339,11 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       _continueCat();
       return;
     }
+    if (plan.isFox) {
+      _controller.value = 0;
+      _continueFox();
+      return;
+    }
     final duration = Duration(
       milliseconds:
           BatV3ProductionFlight.fullSpeedDurationMs +
@@ -231,6 +358,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     if (plan == null || widget.neutral || _controller.isCompleted) return;
     if (plan.isCat) {
       _continueCat();
+    } else if (plan.isFox) {
+      _continueFox();
     } else {
       _continueBat(
         Duration(
@@ -248,6 +377,19 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       1,
       duration: Duration(
         microseconds: (eventDuration.inMicroseconds * remaining).round(),
+      ),
+      curve: Curves.linear,
+    );
+  }
+
+  void _continueFox() {
+    final remaining = (1 - _controller.value).clamp(0.0, 1.0);
+    _controller.animateTo(
+      1,
+      duration: Duration(
+        microseconds:
+            (AmbientWildlifeV2Fox.crossingDuration.inMicroseconds * remaining)
+                .round(),
       ),
       curve: Curves.linear,
     );
@@ -337,6 +479,21 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                             catUnit: CatRunV23Travel.catUnit,
                             showGroundLine: true,
                           ),
+                        );
+                      }
+                      if (plan.isFox) {
+                        final elapsed = Duration(
+                          microseconds:
+                              (AmbientWildlifeV2Fox
+                                          .crossingDuration
+                                          .inMicroseconds *
+                                      _controller.value)
+                                  .round(),
+                        );
+                        return _AmbientWildlifeV2FoxMotion(
+                          progress: _controller.value,
+                          elapsed: elapsed,
+                          leftToRight: plan.leftToRight,
                         );
                       }
                       final eventDurationMs =
@@ -435,7 +592,126 @@ class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
         ),
       ),
     ),
-    AmbientWildlifeV2Species.fox ||
+    AmbientWildlifeV2Species.fox => _AmbientWildlifeV2FoxNeutral(
+      leftToRight: leftToRight,
+    ),
     AmbientWildlifeV2Species.birds => const SizedBox.shrink(),
   };
+}
+
+class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
+  const _AmbientWildlifeV2FoxMotion({
+    required this.progress,
+    required this.elapsed,
+    required this.leftToRight,
+  });
+
+  final double progress;
+  final Duration elapsed;
+  final bool leftToRight;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final stageGroundY =
+          constraints.maxHeight - AmbientWildlifeV2Stage.groundInset;
+      final flutter = AmbientWildlifeV2Fox.flutterAtElapsed(elapsed);
+      final bodyCenter = AmbientWildlifeV2Fox.bodyCenterForProgress(
+        stageWidth: constraints.maxWidth,
+        progress: progress,
+        leftToRight: leftToRight,
+      );
+      final image = AmbientWildlifeV2Fox.imageTopLeft(
+        bodyCenterX: bodyCenter,
+        stageGroundY: stageGroundY,
+        verticalFlutterOffset: flutter,
+      );
+      return Stack(
+        children: [
+          _AmbientWildlifeV2FoxCel(
+            key: const ValueKey('ambient-wildlife-v2-fox-motion'),
+            frame: AmbientWildlifeV2Fox.frameAtElapsed(elapsed),
+            left: image.dx,
+            top: image.dy,
+            leftToRight: leftToRight,
+            bodyFlexOffset: AmbientWildlifeV2Fox.bodyFlexAtElapsed(elapsed),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _AmbientWildlifeV2FoxNeutral extends StatelessWidget {
+  const _AmbientWildlifeV2FoxNeutral({required this.leftToRight});
+
+  final bool leftToRight;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final image = AmbientWildlifeV2Fox.imageTopLeft(
+        bodyCenterX: constraints.maxWidth / 2,
+        stageGroundY:
+            constraints.maxHeight - AmbientWildlifeV2Stage.groundInset,
+      );
+      return Stack(
+        children: [
+          _AmbientWildlifeV2FoxCel(
+            key: const ValueKey('ambient-wildlife-v2-neutral-fox'),
+            frame: AmbientWildlifeV2Fox.neutralFrame,
+            left: image.dx,
+            top: image.dy,
+            leftToRight: leftToRight,
+            bodyFlexOffset: 0,
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _AmbientWildlifeV2FoxCel extends StatelessWidget {
+  const _AmbientWildlifeV2FoxCel({
+    super.key,
+    required this.frame,
+    required this.left,
+    required this.top,
+    required this.leftToRight,
+    required this.bodyFlexOffset,
+  });
+
+  final int frame;
+  final double left;
+  final double top;
+  final bool leftToRight;
+  final double bodyFlexOffset;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: left,
+    top: top,
+    width: AmbientWildlifeV2Fox.canvasSize.width,
+    height: AmbientWildlifeV2Fox.canvasSize.height,
+    child: Transform(
+      key: const ValueKey('ambient-wildlife-v2-fox-body-flex'),
+      alignment: AmbientWildlifeV2Fox.groundAnchor,
+      transform: Matrix4.diagonal3Values(
+        leftToRight ? 1 : -1,
+        AmbientWildlifeV2Fox.bodyFlexScale(bodyFlexOffset),
+        1,
+      ),
+      child: ColorFiltered(
+        colorFilter: const ColorFilter.mode(
+          FoxRunV1ProductionStage.silhouetteColor,
+          BlendMode.srcIn,
+        ),
+        child: Image.asset(
+          AmbientWildlifeV2Fox.assetForFrame(frame),
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.low,
+        ),
+      ),
+    ),
+  );
 }

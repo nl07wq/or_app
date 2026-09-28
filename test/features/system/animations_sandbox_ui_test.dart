@@ -221,7 +221,7 @@ void main() {
             ),
           )
           .onPressed,
-      isNull,
+      isNotNull,
     );
     expect(
       tester
@@ -234,6 +234,17 @@ void main() {
           .onPressed,
       isNull,
     );
+    await tester.tap(find.byKey(const ValueKey('wildlife-preview-fox')));
+    await tester.pump();
+    expect(find.text('CURRENT: FOX / NEUTRAL / L → R'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-fox')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
+    );
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('wildlife-preview-bat')));
     await tester.pump();
     expect(find.text('CURRENT: BAT / NEUTRAL / L → R'), findsOneWidget);
