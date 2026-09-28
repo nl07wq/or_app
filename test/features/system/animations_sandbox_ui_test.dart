@@ -435,7 +435,42 @@ void main() {
       final value = find.byKey(
         const ValueKey('fox-pattern-preview-point-value'),
       );
+      final pointCount = find.byKey(
+        const ValueKey('fox-pattern-preview-point-count'),
+      );
       final initialValue = tester.widget<Text>(value).data;
+      final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+      final stageOrigin = tester.getTopLeft(stage);
+      final stageSize = tester.getSize(stage);
+
+      // The visible control dots use a deliberately larger direct hit target.
+      // Select and drag the root anchor, then select a cubic control directly.
+      final rootAnchor =
+          stageOrigin + Offset(stageSize.width * .035, stageSize.height * .50);
+      await tester.tapAt(rootAnchor);
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, contains('ANCHOR'));
+      final rootGesture = await tester.startGesture(rootAnchor);
+      await rootGesture.moveBy(const Offset(12, -8));
+      await rootGesture.up();
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
+      );
+      await tester.pump();
+      final tailControl =
+          stageOrigin + Offset(stageSize.width * .058, stageSize.height * .43);
+      await tester.tapAt(tailControl);
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, contains('CONTROL 1'));
+      final controlGesture = await tester.startGesture(tailControl);
+      await controlGesture.moveBy(const Offset(8, 6));
+      await controlGesture.up();
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
+
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-nudge-x-+1')),
       );
@@ -451,12 +486,42 @@ void main() {
         find.byKey(const ValueKey('fox-pattern-preview-frame-1')),
       );
       await tester.pump();
+      await tester.tapAt(tailControl);
+      await tester.pump();
       expect(tester.widget<Text>(value).data, editedValue);
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
       );
       await tester.pump();
       expect(tester.widget<Text>(value).data, initialValue);
+
+      // A newly inserted anchor is selected, nudgeable, copied, and removable.
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 16');
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-add-point')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 17');
+      expect(tester.widget<Text>(value).data, contains('ANCHOR 6'));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-y-+1')),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      final tailWithInsertedPoint = clipboardText!.split('\nJAW\n').first;
+      expect(tailWithInsertedPoint, contains('POINT_COUNT: 17'));
+      expect(tailWithInsertedPoint, contains('A6 role=anchor'));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-delete-point')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 16');
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
+      );
+      await tester.pump();
+
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-nudge-y-+1')),
       );
@@ -470,13 +535,18 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
       await tester.pump();
-      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 1'));
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 2'));
       for (final frame in ['01', '03', '05', '06', '07']) {
         expect(clipboardText, contains('FRAME $frame'));
       }
       expect(clipboardText, contains('TAIL'));
       expect(clipboardText, contains('JAW'));
       expect(clipboardText, contains('FEET'));
+      expect(clipboardText, contains('CLOSED: true'));
+      expect(clipboardText, contains('POINT_COUNT:'));
+      expect(clipboardText, contains('role=anchor'));
+      expect(clipboardText, contains('role=control'));
+      expect(clipboardText, contains('SEGMENT'));
       final firstCopy = clipboardText;
       await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
       await tester.pump();

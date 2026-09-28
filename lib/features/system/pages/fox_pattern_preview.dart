@@ -56,6 +56,8 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
 
   _MaskPath get _activeMask => _masks[_frame]![_part]!;
 
+  void _selectPoint(String pointId) => setState(() => _pointId = pointId);
+
   void _selectFrame(int frame) => setState(() {
     _frame = frame;
     _pointId = _activeMask.points.first.id;
@@ -87,6 +89,12 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
     );
   }
 
+  void _addPoint() =>
+      setState(() => _pointId = _activeMask.insertAnchorAfter(_pointId));
+
+  void _deletePoint() =>
+      setState(() => _pointId = _activeMask.deletePoint(_pointId));
+
   void _resetPart() => setState(() {
     _masks[_frame]![_part] = _initialMasks[_frame]![_part]!.copy();
     _pointId = _activeMask.points.first.id;
@@ -109,7 +117,7 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
   }
 
   String _copyText() {
-    final buffer = StringBuffer('FOX PATTERN DATA\nversion: 1\n');
+    final buffer = StringBuffer('FOX PATTERN DATA\nversion: 2\n');
     for (final frame in FoxPatternPreview.frames) {
       buffer.writeln();
       buffer.writeln('FRAME ${frame.toString().padLeft(2, '0')}');
@@ -180,6 +188,7 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                 masks: _masks[_frame]!,
                 activeMask: _activeMask,
                 selectedPointId: _pointId,
+                onSelectPoint: _selectPoint,
                 onDrag: _drag,
               ),
               AppSpacing.gapSM,
@@ -192,7 +201,7 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                   for (final candidate in _activeMask.points)
                     DropdownMenuItem(
                       value: candidate.id,
-                      child: Text(candidate.id),
+                      child: Text(candidate.displayName),
                     ),
                 ],
                 onChanged: (value) {
@@ -201,9 +210,13 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
               ),
               AppSpacing.gapSM,
               Text(
-                'X ${point.x.toStringAsFixed(5)}  •  '
+                '${point.displayName}  •  X ${point.x.toStringAsFixed(5)}  •  '
                 'Y ${point.y.toStringAsFixed(5)}  •  drag preview or nudge 1px',
                 key: const ValueKey('fox-pattern-preview-point-value'),
+              ),
+              Text(
+                'POINT COUNT: ${_activeMask.points.length}',
+                key: const ValueKey('fox-pattern-preview-point-count'),
               ),
               AppSpacing.gapXS,
               Wrap(
@@ -214,6 +227,18 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                   _nudgeButton('X +1', 1, 0),
                   _nudgeButton('Y -1', 0, -1),
                   _nudgeButton('Y +1', 0, 1),
+                  OutlinedButton(
+                    key: const ValueKey('fox-pattern-preview-add-point'),
+                    onPressed: _addPoint,
+                    child: const Text('ADD POINT'),
+                  ),
+                  OutlinedButton(
+                    key: const ValueKey('fox-pattern-preview-delete-point'),
+                    onPressed: _activeMask.canDelete(_pointId)
+                        ? _deletePoint
+                        : null,
+                    child: const Text('DELETE POINT'),
+                  ),
                   OutlinedButton(
                     key: const ValueKey('fox-pattern-preview-reset-part'),
                     onPressed: _resetPart,
@@ -256,6 +281,7 @@ class _MaskEditorStage extends StatelessWidget {
     required this.masks,
     required this.activeMask,
     required this.selectedPointId,
+    required this.onSelectPoint,
     required this.onDrag,
   });
 
@@ -263,6 +289,7 @@ class _MaskEditorStage extends StatelessWidget {
   final Map<_FoxPatternPart, _MaskPath> masks;
   final _MaskPath activeMask;
   final String selectedPointId;
+  final ValueChanged<String> onSelectPoint;
   final void Function(DragUpdateDetails details, Size size) onDrag;
 
   @override
@@ -277,8 +304,12 @@ class _MaskEditorStage extends StatelessWidget {
         child: SizedBox(
           width: size.width,
           height: size.height,
-          child: GestureDetector(
-            onPanUpdate: (details) => onDrag(details, size),
+          child: _DirectPointGestureLayer(
+            path: activeMask,
+            size: size,
+            selectedPointId: selectedPointId,
+            onSelectPoint: onSelectPoint,
+            onDrag: onDrag,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -309,6 +340,62 @@ class _MaskEditorStage extends StatelessWidget {
         ),
       );
     },
+  );
+}
+
+class _DirectPointGestureLayer extends StatefulWidget {
+  const _DirectPointGestureLayer({
+    required this.path,
+    required this.size,
+    required this.selectedPointId,
+    required this.onSelectPoint,
+    required this.onDrag,
+    required this.child,
+  });
+
+  final _MaskPath path;
+  final Size size;
+  final String selectedPointId;
+  final ValueChanged<String> onSelectPoint;
+  final void Function(DragUpdateDetails details, Size size) onDrag;
+  final Widget child;
+
+  @override
+  State<_DirectPointGestureLayer> createState() =>
+      _DirectPointGestureLayerState();
+}
+
+class _DirectPointGestureLayerState extends State<_DirectPointGestureLayer> {
+  String? _dragPointId;
+
+  void _selectAt(Offset position) {
+    final point = widget.path.nextHitPoint(
+      position,
+      widget.size,
+      afterId: widget.selectedPointId,
+    );
+    if (point != null) widget.onSelectPoint(point.id);
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTapUp: (details) => _selectAt(details.localPosition),
+    onPanStart: (details) {
+      final point = widget.path.nextHitPoint(
+        details.localPosition,
+        widget.size,
+        afterId: widget.selectedPointId,
+      );
+      _dragPointId = point?.id;
+      if (point != null) widget.onSelectPoint(point.id);
+    },
+    onPanUpdate: (details) {
+      if (_dragPointId != null) widget.onDrag(details, widget.size);
+    },
+    onPanEnd: (_) => _dragPointId = null,
+    onPanCancel: () => _dragPointId = null,
+    child: widget.child,
   );
 }
 
@@ -373,8 +460,12 @@ class _MaskControlPointPainter extends CustomPainter {
     final selectedPaint = Paint()..color = Colors.amberAccent;
     for (final segment in path.segments) {
       final anchor = segment.anchor.toOffset(size);
-      canvas.drawLine(segment.control1.toOffset(size), anchor, line);
-      canvas.drawLine(segment.control2.toOffset(size), anchor, line);
+      if (segment.control1 case final control1?) {
+        canvas.drawLine(control1.toOffset(size), anchor, line);
+      }
+      if (segment.control2 case final control2?) {
+        canvas.drawLine(control2.toOffset(size), anchor, line);
+      }
     }
     for (final point in path.points) {
       canvas.drawCircle(
@@ -389,12 +480,20 @@ class _MaskControlPointPainter extends CustomPainter {
   bool shouldRepaint(covariant _MaskControlPointPainter oldDelegate) => true;
 }
 
+enum _MaskPointRole { anchor, control }
+
 class _MaskPoint {
-  _MaskPoint(this.id, this.x, this.y);
+  _MaskPoint(this.id, this.x, this.y, this.role);
 
   final String id;
   double x;
   double y;
+  final _MaskPointRole role;
+
+  String get displayName => switch (role) {
+    _MaskPointRole.anchor => 'ANCHOR ${id.substring(1)}',
+    _MaskPointRole.control => 'CONTROL ${id.substring(1)}',
+  };
 
   Offset toOffset(Size size) => Offset(x * size.width, y * size.height);
 
@@ -403,20 +502,22 @@ class _MaskPoint {
     y = (y + dy).clamp(-.25, 1.25).toDouble();
   }
 
-  _MaskPoint copy() => _MaskPoint(id, x, y);
+  _MaskPoint copy() => _MaskPoint(id, x, y, role);
 
-  String serialize() => '$id ${x.toStringAsFixed(6)} ${y.toStringAsFixed(6)}';
+  String serialize() =>
+      '$id role=${role.name} x=${x.toStringAsFixed(6)} '
+      'y=${y.toStringAsFixed(6)}';
 }
 
 class _MaskCubicSegment {
   _MaskCubicSegment(this.control1, this.control2, this.anchor);
 
-  final _MaskPoint control1;
-  final _MaskPoint control2;
+  _MaskPoint? control1;
+  _MaskPoint? control2;
   final _MaskPoint anchor;
 
   _MaskCubicSegment copy() =>
-      _MaskCubicSegment(control1.copy(), control2.copy(), anchor.copy());
+      _MaskCubicSegment(control1?.copy(), control2?.copy(), anchor.copy());
 }
 
 class _MaskPath {
@@ -428,8 +529,8 @@ class _MaskPath {
   List<_MaskPoint> get points => [
     start,
     for (final segment in segments) ...[
-      segment.control1,
-      segment.control2,
+      if (segment.control1 != null) segment.control1!,
+      if (segment.control2 != null) segment.control2!,
       segment.anchor,
     ],
   ];
@@ -439,14 +540,29 @@ class _MaskPath {
   Path toPath(Size size) {
     final path = Path()..moveTo(start.x * size.width, start.y * size.height);
     for (final segment in segments) {
-      path.cubicTo(
-        segment.control1.x * size.width,
-        segment.control1.y * size.height,
-        segment.control2.x * size.width,
-        segment.control2.y * size.height,
-        segment.anchor.x * size.width,
-        segment.anchor.y * size.height,
-      );
+      final control1 = segment.control1;
+      final control2 = segment.control2;
+      final anchor = segment.anchor;
+      if (control1 != null && control2 != null) {
+        path.cubicTo(
+          control1.x * size.width,
+          control1.y * size.height,
+          control2.x * size.width,
+          control2.y * size.height,
+          anchor.x * size.width,
+          anchor.y * size.height,
+        );
+      } else if (control1 != null || control2 != null) {
+        final control = control1 ?? control2!;
+        path.quadraticBezierTo(
+          control.x * size.width,
+          control.y * size.height,
+          anchor.x * size.width,
+          anchor.y * size.height,
+        );
+      } else {
+        path.lineTo(anchor.x * size.width, anchor.y * size.height);
+      }
     }
     return path..close();
   }
@@ -454,13 +570,150 @@ class _MaskPath {
   _MaskPath copy() =>
       _MaskPath(start.copy(), [for (final segment in segments) segment.copy()]);
 
+  bool canDelete(String pointId) {
+    final candidate = point(pointId);
+    return candidate.role == _MaskPointRole.control || anchorCount > 3;
+  }
+
+  int get anchorCount =>
+      1 +
+      segments
+          .where((segment) => segment.anchor.role == _MaskPointRole.anchor)
+          .length;
+
+  _MaskPoint? nextHitPoint(
+    Offset position,
+    Size size, {
+    required String afterId,
+  }) {
+    const hitRadius = 18.0;
+    final candidates =
+        points
+            .map(
+              (point) => (
+                point: point,
+                distance: (point.toOffset(size) - position).distance,
+              ),
+            )
+            .where((candidate) => candidate.distance <= hitRadius)
+            .toList()
+          ..sort((left, right) => left.distance.compareTo(right.distance));
+    if (candidates.isEmpty) return null;
+
+    // Closed paths can intentionally share their start/end coordinate. Repeated
+    // direct taps cycle only points at that exact visual location, keeping every
+    // point editable without treating either endpoint as a hidden fixed anchor.
+    const overlapTolerance = .5;
+    final nearestDistance = candidates.first.distance;
+    final overlapping = candidates
+        .where(
+          (candidate) =>
+              (candidate.distance - nearestDistance).abs() <= overlapTolerance,
+        )
+        .map((candidate) => candidate.point)
+        .toList();
+    final selectedIndex = overlapping.indexWhere(
+      (point) => point.id == afterId,
+    );
+    if (selectedIndex >= 0) {
+      return overlapping[(selectedIndex + 1) % overlapping.length];
+    }
+    return overlapping.first;
+  }
+
+  String insertAnchorAfter(String pointId) {
+    final index = _segmentIndexFor(pointId);
+    final preceding = index < 0 ? start : segments[index].anchor;
+    final following = index + 1 < segments.length
+        ? segments[index + 1].anchor
+        : start;
+    final id = 'A${_nextAnchorOrdinal()}';
+    final anchor = _MaskPoint(
+      id,
+      (preceding.x + following.x) / 2,
+      (preceding.y + following.y) / 2,
+      _MaskPointRole.anchor,
+    );
+    segments.insert(index + 1, _MaskCubicSegment(null, null, anchor));
+    return id;
+  }
+
+  String deletePoint(String pointId) {
+    assert(canDelete(pointId));
+    if (start.id == pointId) {
+      final next = segments.removeAt(0);
+      start.x = next.anchor.x;
+      start.y = next.anchor.y;
+      return start.id;
+    }
+    for (var index = 0; index < segments.length; index++) {
+      final segment = segments[index];
+      if (segment.control1?.id == pointId) {
+        segment.control1 = null;
+        return _fallbackPointId(index);
+      }
+      if (segment.control2?.id == pointId) {
+        segment.control2 = null;
+        return _fallbackPointId(index);
+      }
+      if (segment.anchor.id == pointId) {
+        segments.removeAt(index);
+        return _fallbackPointId(index - 1);
+      }
+    }
+    throw StateError('Unknown mask point $pointId');
+  }
+
+  int _segmentIndexFor(String pointId) {
+    if (pointId == start.id) return -1;
+    return segments.indexWhere(
+      (segment) =>
+          segment.anchor.id == pointId ||
+          segment.control1?.id == pointId ||
+          segment.control2?.id == pointId,
+    );
+  }
+
+  String _fallbackPointId(int preferredSegment) {
+    if (segments.isEmpty) return start.id;
+    final safe = preferredSegment.clamp(0, segments.length - 1);
+    return segments[safe].anchor.id;
+  }
+
+  int _nextAnchorOrdinal() {
+    final existing = points
+        .where((point) => point.id.startsWith('A'))
+        .map((point) => int.tryParse(point.id.substring(1)) ?? -1);
+    return existing.reduce(
+          (maximum, value) => maximum > value ? maximum : value,
+        ) +
+        1;
+  }
+
   String serialize() => [
+    'CLOSED: true',
+    'POINT_COUNT: ${points.length}',
+    'ANCHOR_COUNT: $anchorCount',
     'MOVE ${start.serialize()}',
-    for (final segment in segments)
-      'CUBIC ${segment.control1.serialize()} | '
-          '${segment.control2.serialize()} | ${segment.anchor.serialize()}',
+    for (var index = 0; index < segments.length; index++)
+      _serializeSegment(index, segments[index]),
     'CLOSE',
   ].join('\n');
+
+  String _serializeSegment(int index, _MaskCubicSegment segment) {
+    final control1 = segment.control1;
+    final control2 = segment.control2;
+    if (control1 != null && control2 != null) {
+      return 'SEGMENT $index CUBIC ${control1.serialize()} | '
+          '${control2.serialize()} | ${segment.anchor.serialize()}';
+    }
+    final control = control1 ?? control2;
+    if (control != null) {
+      return 'SEGMENT $index QUADRATIC ${control.serialize()} | '
+          '${segment.anchor.serialize()}';
+    }
+    return 'SEGMENT $index LINE ${segment.anchor.serialize()}';
+  }
 }
 
 Map<int, Map<_FoxPatternPart, _MaskPath>> _buildInitialMasks() => {
@@ -472,7 +725,12 @@ Map<int, Map<_FoxPatternPart, _MaskPath>> _buildInitialMasks() => {
     },
 };
 
-_MaskPoint _point(String id, double x, double y) => _MaskPoint(id, x, y);
+_MaskPoint _point(String id, double x, double y) => _MaskPoint(
+  id,
+  x,
+  y,
+  id.startsWith('A') ? _MaskPointRole.anchor : _MaskPointRole.control,
+);
 
 _MaskPath _tailMask() => _MaskPath(_point('A0', .035, .50), [
   _MaskCubicSegment(
