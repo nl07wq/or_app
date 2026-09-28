@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
+import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
 import 'package:or_app/features/system/pages/fox_run_v1_section.dart';
 
 void main() {
@@ -101,6 +103,40 @@ void main() {
     );
   });
 
+  test('FOX preview uses the CAT environment and silhouette references', () {
+    expect(
+      FoxRunV1ProductionStage.previewBackgroundColor,
+      AmbientWildlifeV2Stage.environmentBackground,
+    );
+    expect(
+      FoxRunV1ProductionStage.silhouetteColor,
+      CatRunCoatPatterns.baseColor,
+    );
+    expect(FoxRunV1ProductionGeometry.groundInset, 28);
+    expect(FoxRunV1ProductionGeometry.groundVerticalOffset, 1);
+  });
+
+  testWidgets('FOX production stage renders the CAT visual treatment', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    final stage = find.byKey(const ValueKey('fox-run-v1-production-stage'));
+    final background = tester.widget<ColoredBox>(
+      find.descendant(of: stage, matching: find.byType(ColoredBox)).first,
+    );
+    final silhouette = tester.widget<ColorFiltered>(
+      find.descendant(of: stage, matching: find.byType(ColorFiltered)).first,
+    );
+    expect(background.color, FoxRunV1ProductionStage.previewBackgroundColor);
+    expect(
+      silhouette.colorFilter,
+      const ColorFilter.mode(
+        FoxRunV1ProductionStage.silhouetteColor,
+        BlendMode.srcIn,
+      ),
+    );
+  });
+
   test('RUN cadence follows ordered frames on the crossing timeline', () {
     expect(FoxRunV1Motion.frameCount, 10);
     expect(FoxRunV1Motion.frameDuration, const Duration(milliseconds: 80));
@@ -144,19 +180,19 @@ void main() {
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fast),
-      const Duration(milliseconds: 2300),
-    );
-    expect(
-      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
       const Duration(milliseconds: 2200),
     );
     expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
+      const Duration(milliseconds: 2000),
+    );
+    expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fastest),
-      const Duration(milliseconds: 2100),
+      const Duration(milliseconds: 1800),
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.maximum),
-      const Duration(milliseconds: 2000),
+      const Duration(milliseconds: 1600),
     );
     final durations = FoxRunV1Speed.values
         .map(FoxRunV1Motion.durationForSpeed)
@@ -515,7 +551,7 @@ void main() {
     await tester.pump();
     expect(crossingAnimation(tester).value, closeTo(before, .001));
     await tester.pump(const Duration(milliseconds: 120));
-    expect(crossingAnimation(tester).value, closeTo(before + 120 / 2100, .01));
+    expect(crossingAnimation(tester).value, closeTo(before + 120 / 1800, .01));
   });
 
   testWidgets('frame selection updates an active RUN without restarting', (

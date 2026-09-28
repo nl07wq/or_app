@@ -443,6 +443,10 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                         progress: _controller.value,
                         direction: _direction,
                         coatVariant: _coatVariant,
+                        showGroundLine: true,
+                        groundLineColor: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant,
                         crossings: _forcedPlan == null
                             ? null
                             : [
@@ -548,7 +552,7 @@ class CatRunV23StagePainter extends CustomPainter {
     this.crossings,
     this.catUnit = CatRunV23Travel.catUnit,
     this.showGroundLine = false,
-    this.neutralFrame01 = false,
+    this.neutralFrame02 = false,
     this.groundInset = 5,
     this.groundLineColor = const Color(0xFF383838),
   });
@@ -559,9 +563,10 @@ class CatRunV23StagePainter extends CustomPainter {
   final List<CatRunV23Crossing>? crossings;
   final double catUnit;
   final bool showGroundLine;
-  /// Renders the production canonical Frame 01 at the stage centre without
+
+  /// Renders the production canonical Frame 02 at the stage centre without
   /// consuming crossing progress. Used only by Ambient Wildlife neutral mode.
-  final bool neutralFrame01;
+  final bool neutralFrame02;
   final double groundInset;
   final Color groundLineColor;
 
@@ -580,8 +585,8 @@ class CatRunV23StagePainter extends CustomPainter {
           ..strokeWidth = 1,
       );
     }
-    if (neutralFrame01) {
-      _paintNeutralFrame01(canvas, size);
+    if (neutralFrame02) {
+      _paintNeutralFrame02(canvas, size);
       return;
     }
     final activeCrossings =
@@ -599,18 +604,34 @@ class CatRunV23StagePainter extends CustomPainter {
     }
   }
 
-  void _paintNeutralFrame01(Canvas canvas, Size size) {
-    final trace = catRunV2HighTraces.first;
+  void _paintNeutralFrame02(Canvas canvas, Size size) {
+    final trace = catRunV2HighTraces[1];
     final path = Path()..addPolygon(trace.points, true);
     final bounds = path.getBounds();
-    final groundY = size.height - groundInset - CatRunV2Registration.virtualGround * catUnit;
+    final groundY =
+        size.height -
+        groundInset -
+        CatRunV2Registration.virtualGround * catUnit;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     canvas.translate(size.width / 2, groundY);
-    canvas.scale(direction == CatRunV23Direction.leftToRight ? catUnit : -catUnit, catUnit);
+    canvas.scale(
+      direction == CatRunV23Direction.leftToRight ? catUnit : -catUnit,
+      catUnit,
+    );
     canvas.translate(-bounds.center.dx, 0);
-    canvas.drawPath(path, Paint()..color = CatRunCoatPatterns.baseColor..isAntiAlias = true);
-    CatRunCoatPatterns.paint(canvas: canvas, silhouette: path, trace: trace, variant: coatVariant);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = CatRunCoatPatterns.baseColor
+        ..isAntiAlias = true,
+    );
+    CatRunCoatPatterns.paint(
+      canvas: canvas,
+      silhouette: path,
+      trace: trace,
+      variant: coatVariant,
+    );
     canvas.restore();
   }
 
@@ -658,7 +679,7 @@ class CatRunV23StagePainter extends CustomPainter {
       oldDelegate.crossings != crossings ||
       oldDelegate.catUnit != catUnit ||
       oldDelegate.showGroundLine != showGroundLine ||
-      oldDelegate.neutralFrame01 != neutralFrame01 ||
+      oldDelegate.neutralFrame02 != neutralFrame02 ||
       oldDelegate.groundInset != groundInset ||
       oldDelegate.groundLineColor != groundLineColor;
 }

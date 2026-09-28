@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
+import 'package:or_app/features/system/pages/bat_v3_source_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 
 void main() {
@@ -96,6 +98,18 @@ void main() {
       find.byKey(const ValueKey('ambient-wildlife-v2-neutral-cat')),
       findsOneWidget,
     );
+    final catPainter =
+        tester
+                .widget<CustomPaint>(
+                  find.byKey(const ValueKey('ambient-wildlife-v2-neutral-cat')),
+                )
+                .painter!
+            as CatRunV23StagePainter;
+    expect(catPainter.neutralFrame02, isTrue);
+    expect(catPainter.catUnit, CatRunV23Travel.catUnit);
+    expect(catPainter.showGroundLine, isTrue);
+    expect(catPainter.groundInset, AmbientWildlifeV2Stage.groundInset);
+    expect(catPainter.groundLineColor, AmbientWildlifeV2Stage.groundLineColor);
 
     await pumpNeutral(AmbientWildlifeV2Species.bat);
     expect(
@@ -106,7 +120,57 @@ void main() {
       find.byKey(const ValueKey('ambient-wildlife-v2-neutral-bat')),
       findsOneWidget,
     );
+    final bat = tester.widget<BatV3CanonicalFrame>(
+      find.byType(BatV3CanonicalFrame),
+    );
+    expect(bat.pose, BatV3SourceSet.poses[1]);
     expect(find.byType(BatV3ProductionStage), findsNothing);
+  });
+
+  testWidgets('CAT production preview restores the FOX ground treatment', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: StandardTheme.theme,
+        home: const SingleChildScrollView(child: CatRunV23ProductionPreview()),
+      ),
+    );
+    final painter =
+        tester
+                .widget<CustomPaint>(
+                  find.byKey(const ValueKey('cat-run-v23-stage')),
+                )
+                .painter!
+            as CatRunV23StagePainter;
+    expect(painter.showGroundLine, isTrue);
+    expect(painter.groundLineColor, const Color(0xFF43474E));
+    expect(painter.groundInset, 5);
+    expect(CatRunV23Travel.stageHeight, 48);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('CAT motion keeps production size and shared ground', (
+    tester,
+  ) async {
+    final plan = AmbientWildlifeV2EventPlan.resolve(
+      species: AmbientWildlifeV2Species.cat,
+      leftToRight: true,
+      nextInt: (max) => max == 20 ? 1 : 0,
+    );
+    await tester.pumpWidget(_stageHost(plan: null, requestId: 0));
+    await tester.pumpWidget(_stageHost(plan: plan, requestId: 1));
+    await tester.pump(const Duration(milliseconds: 80));
+    final painter =
+        tester
+                .widget<CustomPaint>(
+                  find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+                )
+                .painter!
+            as CatRunV23StagePainter;
+    expect(painter.catUnit, CatRunV23Travel.catUnit);
+    expect(painter.showGroundLine, isTrue);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -211,6 +275,44 @@ void main() {
       expect(tester.getRect(environment), tester.getRect(stage));
       expect(tester.getRect(bat).overlaps(tester.getRect(stage)), isTrue);
       expect(tester.takeException(), isNull, reason: '$width');
+    }
+  });
+
+  testWidgets('neutral CAT and BAT fit the stage at target widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 300);
+      tester.view.devicePixelRatio = 1;
+      for (final species in [
+        AmbientWildlifeV2Species.cat,
+        AmbientWildlifeV2Species.bat,
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SizedBox(
+              width: width,
+              child: AmbientWildlifeV2Stage(
+                plan: null,
+                requestId: 0,
+                neutral: true,
+                neutralSpecies: species,
+                paused: false,
+                leftToRight: true,
+              ),
+            ),
+          ),
+        );
+        expect(
+          tester
+              .getSize(find.byKey(const ValueKey('ambient-wildlife-v2-stage')))
+              .width,
+          width,
+        );
+        expect(tester.takeException(), isNull, reason: '$species at $width');
+      }
     }
   });
 }

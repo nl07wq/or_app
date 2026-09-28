@@ -334,7 +334,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                   coatVariant: crossing.coatVariant,
                                 ),
                             ],
-                            catUnit: CatRunV23Travel.catUnit * .75,
+                            catUnit: CatRunV23Travel.catUnit,
                             showGroundLine: true,
                           ),
                         );
@@ -415,9 +415,9 @@ class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
             ? CatRunV23Direction.leftToRight
             : CatRunV23Direction.rightToLeft,
         coatVariant: CatRunCoatVariant.normal,
-        catUnit: CatRunV23Travel.catUnit * .75,
-        showGroundLine: false,
-        neutralFrame01: true,
+        catUnit: CatRunV23Travel.catUnit,
+        showGroundLine: true,
+        neutralFrame02: true,
       ),
     ),
     AmbientWildlifeV2Species.bat => Center(
@@ -426,7 +426,7 @@ class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
         width: BatV3ProductionFlight.batWidth,
         height: BatV3ProductionFlight.batHeight,
         child: BatV3CanonicalFrame(
-          pose: BatV3SourceSet.poses.first,
+          pose: BatV3SourceSet.poses[1],
           leftToRight: leftToRight,
           inspectionScale: 1,
           flutterY: 0,

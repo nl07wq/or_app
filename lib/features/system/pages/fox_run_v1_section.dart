@@ -380,10 +380,10 @@ abstract final class FoxRunV1Motion {
   static const cycleDuration = Duration(milliseconds: frameCount * 80);
   static const crossingDuration = Duration(milliseconds: 2400);
   static const slowCrossingDuration = Duration(milliseconds: 3200);
-  static const fastCrossingDuration = Duration(milliseconds: 2300);
-  static const fasterCrossingDuration = Duration(milliseconds: 2200);
-  static const fastestCrossingDuration = Duration(milliseconds: 2100);
-  static const maximumCrossingDuration = Duration(milliseconds: 2000);
+  static const fastCrossingDuration = Duration(milliseconds: 2200);
+  static const fasterCrossingDuration = Duration(milliseconds: 2000);
+  static const fastestCrossingDuration = Duration(milliseconds: 1800);
+  static const maximumCrossingDuration = Duration(milliseconds: 1600);
   static const flutterPhaseCount = 8;
   static const _flutterWave = <double>[0, -.5, -1, -.5, 0, .5, 1, .5];
 
@@ -615,6 +615,9 @@ class FoxRunV1ProductionStage extends StatelessWidget {
   final bool leftToRight;
   final double bodyScale;
   final double verticalFlutterOffset;
+  static const previewBackgroundColor = Color(0xFF101010);
+  static const silhouetteColor = Color(0xFF7A7A7A);
+
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('fox-run-v1-production-stage'),
@@ -624,11 +627,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(
-              child: ColoredBox(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest.withValues(alpha: .22),
-              ),
+              child: const ColoredBox(color: previewBackgroundColor),
             ),
             Positioned(
               left: 0,
@@ -686,8 +685,8 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                       1,
                     ),
                     child: ColorFiltered(
-                      colorFilter: ColorFilter.mode(
-                        Colors.grey.shade300,
+                      colorFilter: const ColorFilter.mode(
+                        silhouetteColor,
                         BlendMode.srcIn,
                       ),
                       child: Image.asset(asset, fit: BoxFit.fill),
