@@ -5,6 +5,9 @@ import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
 import 'package:or_app/features/system/pages/bat_v3_source_data.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
+import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
+import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
+import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 
 void main() {
   test('V2 registry exposes only CAT and BAT to RANDOM', () {
@@ -125,6 +128,36 @@ void main() {
     );
     expect(bat.pose, BatV3SourceSet.poses[1]);
     expect(find.byType(BatV3ProductionStage), findsNothing);
+  });
+
+  test('CAT neutral Frame 02 uses production motion geometry and ground', () {
+    final trace = catRunV2HighTraces[1];
+    final rawPath = Path()..addPolygon(trace.points, true);
+    final motionPath = Path()
+      ..addPolygon(CatRunV24ScaleAudit.correctedPoints(trace), true);
+    final neutralPath = Path()
+      ..addPolygon(CatRunV23StagePainter.neutralFrame02Points, true);
+    final rawBounds = rawPath.getBounds();
+    final motionBounds = motionPath.getBounds();
+    final neutralBounds = neutralPath.getBounds();
+    const stageSize = Size(390, CatRunV23Travel.stageHeight);
+    const unit = CatRunV23Travel.catUnit;
+    final groundY = stageSize.height - AmbientWildlifeV2Stage.groundInset;
+    final originY = groundY - CatRunV2Registration.virtualGround * unit;
+    final renderedBounds = Rect.fromCenter(
+      center: Offset(
+        stageSize.width / 2,
+        originY + neutralBounds.center.dy * unit,
+      ),
+      width: neutralBounds.width * unit,
+      height: neutralBounds.height * unit,
+    );
+
+    expect(neutralBounds, motionBounds);
+    expect(neutralBounds.width * unit, lessThan(rawBounds.width * unit));
+    expect(neutralBounds.height * unit, lessThan(rawBounds.height * unit));
+    expect(renderedBounds.center.dx, stageSize.width / 2);
+    expect(renderedBounds.bottom, closeTo(groundY, .001));
   });
 
   testWidgets('CAT production preview restores the FOX ground treatment', (

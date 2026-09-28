@@ -331,12 +331,22 @@ void main() {
     );
   });
 
-  test('body flex uses the requested ground-anchored 8-phase amplitudes', () {
-    const expectedOffsets = <FoxRunV1BodyFlex, List<double>>{
+  test('body flex exposes unilateral and shrink-enabled 8-phase waves', () {
+    const unilateralOffsets = <FoxRunV1BodyFlex, List<double>>{
+      FoxRunV1BodyFlex.off: [0, 0, 0, 0, 0, 0, 0, 0],
+      FoxRunV1BodyFlex.half: [0, .25, .5, .25, 0, 0, 0, 0],
+      FoxRunV1BodyFlex.one: [0, .5, 1, .5, 0, 0, 0, 0],
+      FoxRunV1BodyFlex.two: [0, 1, 2, 1, 0, 0, 0, 0],
+      FoxRunV1BodyFlex.four: [0, 2, 4, 2, 0, 0, 0, 0],
+      FoxRunV1BodyFlex.six: [0, 3, 6, 3, 0, 0, 0, 0],
+    };
+    const bilateralOffsets = <FoxRunV1BodyFlex, List<double>>{
       FoxRunV1BodyFlex.off: [0, 0, 0, 0, 0, 0, 0, 0],
       FoxRunV1BodyFlex.half: [0, .25, .5, .25, 0, -.25, -.5, -.25],
       FoxRunV1BodyFlex.one: [0, .5, 1, .5, 0, -.5, -1, -.5],
       FoxRunV1BodyFlex.two: [0, 1, 2, 1, 0, -1, -2, -1],
+      FoxRunV1BodyFlex.four: [0, 2, 4, 2, 0, -2, -4, -2],
+      FoxRunV1BodyFlex.six: [0, 3, 6, 3, 0, -3, -6, -3],
     };
     for (final bodyFlex in FoxRunV1BodyFlex.values) {
       expect([
@@ -345,12 +355,22 @@ void main() {
             phase: phase,
             amplitude: FoxRunV1Motion.bodyFlexAmplitude(bodyFlex),
           ),
-      ], expectedOffsets[bodyFlex]);
+      ], unilateralOffsets[bodyFlex]);
+      expect([
+        for (var phase = 0; phase < 8; phase++)
+          FoxRunV1Motion.bodyFlexOffset(
+            phase: phase,
+            amplitude: FoxRunV1Motion.bodyFlexAmplitude(bodyFlex),
+            shrinkEnabled: true,
+          ),
+      ], bilateralOffsets[bodyFlex]);
     }
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.off), 'OFF');
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.half), '0.5px');
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.one), '1px');
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.two), '2px');
+    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.four), '4px');
+    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.six), '6px');
   });
 
   test('body flex keeps virtual ground fixed at every BODY SIZE', () {
@@ -360,7 +380,19 @@ void main() {
               FoxRunV1ProductionGeometry.virtualGround) *
           FoxRunV1ProductionGeometry.displayScale *
           bodyScale;
-      for (final flex in [-2.0, -1.0, -.5, 0.0, .5, 1.0, 2.0]) {
+      for (final flex in [
+        -6.0,
+        -4.0,
+        -2.0,
+        -1.0,
+        -.5,
+        0.0,
+        .5,
+        1.0,
+        2.0,
+        4.0,
+        6.0,
+      ]) {
         final scale = FoxRunV1ProductionGeometry.bodyFlexScale(
           bodyScale: bodyScale,
           bodyFlexOffset: flex,
@@ -602,12 +634,32 @@ void main() {
             .selected,
         isTrue,
       );
-      for (final entry in flutterLabels.entries) {
+      const bodyFlexLabels = {
+        'off': 'OFF',
+        'half': '0.5px',
+        'one': '1px',
+        'two': '2px',
+        'four': '4px',
+        'six': '6px',
+      };
+      for (final entry in bodyFlexLabels.entries) {
         final chip = tester.widget<ChoiceChip>(
           find.byKey(ValueKey('fox-preview-body-flex-${entry.key}')),
         );
         expect((chip.label as Text).data, entry.value);
       }
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-body-shrink-off')),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-preview-body-shrink-on')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('fox-preview-vertical-flutter-four')),
         findsNothing,
@@ -849,6 +901,36 @@ void main() {
       );
     },
   );
+
+  testWidgets('BODY SHRINK applies live without resetting the active RUN', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 480));
+    final groundAnchor = bodyFlexGroundAnchorY(tester);
+    final torsoAnchor = bodyFlexTorsoAnchorY(tester);
+    final before = crossingAnimation(tester).value;
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-six')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+    expect(bodyFlexTorsoAnchorY(tester), closeTo(torsoAnchor, .001));
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-shrink-on')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+    expect(bodyFlexTorsoAnchorY(tester), closeTo(torsoAnchor + 6, .001));
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+    expect(bodyFlexTorsoAnchorY(tester), closeTo(torsoAnchor, .001));
+  });
 
   testWidgets('VERTICAL FLUTTER and BODY FLEX remain independent', (
     tester,

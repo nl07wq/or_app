@@ -570,6 +570,9 @@ class CatRunV23StagePainter extends CustomPainter {
   final double groundInset;
   final Color groundLineColor;
 
+  static List<Offset> get neutralFrame02Points =>
+      CatRunV24ScaleAudit.correctedPoints(catRunV2HighTraces[1]);
+
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
@@ -606,7 +609,7 @@ class CatRunV23StagePainter extends CustomPainter {
 
   void _paintNeutralFrame02(Canvas canvas, Size size) {
     final trace = catRunV2HighTraces[1];
-    final path = Path()..addPolygon(trace.points, true);
+    final path = Path()..addPolygon(neutralFrame02Points, true);
     final bounds = path.getBounds();
     final groundY =
         size.height -

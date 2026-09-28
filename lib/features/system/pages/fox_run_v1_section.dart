@@ -21,7 +21,9 @@ enum FoxRunV1BodySize { half, sevenTenths, full }
 
 enum FoxRunV1VerticalFlutter { off, half, one, two }
 
-enum FoxRunV1BodyFlex { off, half, one, two }
+enum FoxRunV1BodyFlex { off, half, one, two, four, six }
+
+enum FoxRunV1BodyShrink { off, on }
 
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
@@ -40,6 +42,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _bodySize = FoxRunV1BodySize.full;
   var _verticalFlutter = FoxRunV1VerticalFlutter.off;
   var _bodyFlex = FoxRunV1BodyFlex.off;
+  var _bodyShrink = FoxRunV1BodyShrink.off;
   var _flutterPhase = 0;
   var _frameElapsedOffset = Duration.zero;
   final _selectedFrames = <int>{0, 2, 4, 5, 6};
@@ -55,6 +58,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ? FoxRunV1Motion.bodyFlexOffset(
           phase: _flutterPhase,
           amplitude: FoxRunV1Motion.bodyFlexAmplitude(_bodyFlex),
+          shrinkEnabled: _bodyShrink == FoxRunV1BodyShrink.on,
         )
       : 0;
   List<int> get _orderedSelectedFrames => _selectedFrames.toList()..sort();
@@ -153,6 +157,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   void _setBodyFlex(FoxRunV1BodyFlex bodyFlex) {
     if (_bodyFlex == bodyFlex) return;
     setState(() => _bodyFlex = bodyFlex);
+  }
+
+  void _setBodyShrink(FoxRunV1BodyShrink bodyShrink) {
+    if (_bodyShrink == bodyShrink) return;
+    setState(() => _bodyShrink = bodyShrink);
   }
 
   @override
@@ -357,6 +366,22 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
             .toList(),
       ),
       AppSpacing.gapSM,
+      const Text('BODY SHRINK'),
+      Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: FoxRunV1BodyShrink.values
+            .map(
+              (bodyShrink) => ChoiceChip(
+                key: ValueKey('fox-preview-body-shrink-${bodyShrink.name}'),
+                label: Text(bodyShrink.name.toUpperCase()),
+                selected: _bodyShrink == bodyShrink,
+                onSelected: (_) => _setBodyShrink(bodyShrink),
+              ),
+            )
+            .toList(),
+      ),
+      AppSpacing.gapSM,
       const Text('FRAMES'),
       Align(
         alignment: Alignment.centerLeft,
@@ -385,7 +410,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)}',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • shrink ${_bodyShrink.name.toUpperCase()}',
       ),
     ],
   );
@@ -414,7 +439,8 @@ abstract final class FoxRunV1Motion {
   static const overCrossingDuration = Duration(milliseconds: 1200);
   static const flutterPhaseCount = 8;
   static const _flutterWave = <double>[0, -.5, -1, -.5, 0, .5, 1, .5];
-  static const _bodyFlexWave = <double>[0, .5, 1, .5, 0, -.5, -1, -.5];
+  static const _bodyFlexWave = <double>[0, .5, 1, .5, 0, 0, 0, 0];
+  static const _bodyFlexShrinkWave = <double>[0, .5, 1, .5, 0, -.5, -1, -.5];
 
   static Duration durationForSpeed(FoxRunV1Speed speed) => switch (speed) {
     FoxRunV1Speed.slow => slowCrossingDuration,
@@ -463,6 +489,8 @@ abstract final class FoxRunV1Motion {
         FoxRunV1BodyFlex.half => .5,
         FoxRunV1BodyFlex.one => 1,
         FoxRunV1BodyFlex.two => 2,
+        FoxRunV1BodyFlex.four => 4,
+        FoxRunV1BodyFlex.six => 6,
       };
 
   static String bodyFlexLabel(FoxRunV1BodyFlex bodyFlex) => switch (bodyFlex) {
@@ -470,12 +498,18 @@ abstract final class FoxRunV1Motion {
     FoxRunV1BodyFlex.half => '0.5px',
     FoxRunV1BodyFlex.one => '1px',
     FoxRunV1BodyFlex.two => '2px',
+    FoxRunV1BodyFlex.four => '4px',
+    FoxRunV1BodyFlex.six => '6px',
   };
 
   static double bodyFlexOffset({
     required int phase,
     required double amplitude,
-  }) => _bodyFlexWave[phase % flutterPhaseCount] * amplitude;
+    bool shrinkEnabled = false,
+  }) =>
+      (shrinkEnabled ? _bodyFlexShrinkWave : _bodyFlexWave)[phase %
+          flutterPhaseCount] *
+      amplitude;
 
   static int frameAtCrossingProgress(
     double progress, {
