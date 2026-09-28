@@ -44,7 +44,7 @@ void main() {
 
   Future<void> pumpPreview(WidgetTester tester, double width) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.binding.setSurfaceSize(Size(width, 1200));
+    await tester.binding.setSurfaceSize(Size(width, 1400));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(
       const MaterialApp(
@@ -338,7 +338,6 @@ void main() {
       FoxRunV1BodyFlex.one: [0, .5, 1, .5, 0, 0, 0, 0],
       FoxRunV1BodyFlex.two: [0, 1, 2, 1, 0, 0, 0, 0],
       FoxRunV1BodyFlex.four: [0, 2, 4, 2, 0, 0, 0, 0],
-      FoxRunV1BodyFlex.six: [0, 3, 6, 3, 0, 0, 0, 0],
     };
     const bilateralOffsets = <FoxRunV1BodyFlex, List<double>>{
       FoxRunV1BodyFlex.off: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -346,7 +345,6 @@ void main() {
       FoxRunV1BodyFlex.one: [0, .5, 1, .5, 0, -.5, -1, -.5],
       FoxRunV1BodyFlex.two: [0, 1, 2, 1, 0, -1, -2, -1],
       FoxRunV1BodyFlex.four: [0, 2, 4, 2, 0, -2, -4, -2],
-      FoxRunV1BodyFlex.six: [0, 3, 6, 3, 0, -3, -6, -3],
     };
     for (final bodyFlex in FoxRunV1BodyFlex.values) {
       expect([
@@ -370,7 +368,112 @@ void main() {
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.one), '1px');
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.two), '2px');
     expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.four), '4px');
-    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.six), '6px');
+  });
+
+  test('BODY FLEX motion modes preserve amplitude and smooth phase motion', () {
+    const amplitude = 4.0;
+    for (final shrinkEnabled in [false, true]) {
+      final current = [
+        for (var phase = 0; phase < 8; phase++)
+          FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+            elapsed: Duration(milliseconds: phase * 80),
+            amplitude: amplitude,
+            motion: FoxRunV1BodyFlexMotion.current,
+            shrinkEnabled: shrinkEnabled,
+          ),
+      ];
+      expect(
+        current,
+        shrinkEnabled ? [0, 2, 4, 2, 0, -2, -4, -2] : [0, 2, 4, 2, 0, 0, 0, 0],
+      );
+
+      for (final motion in [
+        FoxRunV1BodyFlexMotion.smooth,
+        FoxRunV1BodyFlexMotion.hold,
+      ]) {
+        final samples = [
+          for (var milliseconds = 0; milliseconds < 640; milliseconds++)
+            FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+              elapsed: Duration(milliseconds: milliseconds),
+              amplitude: amplitude,
+              motion: motion,
+              shrinkEnabled: shrinkEnabled,
+            ),
+        ];
+        expect(samples.reduce((a, b) => a > b ? a : b), closeTo(4, .001));
+        expect(samples.every((value) => value.abs() <= 4), isTrue);
+        expect(
+          samples.reduce((a, b) => a < b ? a : b),
+          shrinkEnabled ? closeTo(-4, .001) : greaterThanOrEqualTo(0),
+        );
+        expect(
+          FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+            elapsed: const Duration(microseconds: 159999),
+            amplitude: amplitude,
+            motion: motion,
+            shrinkEnabled: shrinkEnabled,
+          ),
+          closeTo(4, .01),
+        );
+        expect(
+          FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+            elapsed: const Duration(milliseconds: 160, microseconds: 1),
+            amplitude: amplitude,
+            motion: motion,
+            shrinkEnabled: shrinkEnabled,
+          ),
+          closeTo(4, .01),
+        );
+      }
+    }
+  });
+
+  test('HOLD retains each peak for 40ms without changing the 640ms cycle', () {
+    expect(
+      FoxRunV1Motion.bodyFlexPeakHoldDuration,
+      const Duration(milliseconds: 40),
+    );
+    expect(
+      FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+        elapsed: const Duration(milliseconds: 140),
+        amplitude: 4,
+        motion: FoxRunV1BodyFlexMotion.smooth,
+      ),
+      lessThan(4),
+    );
+    for (final shrinkEnabled in [false, true]) {
+      for (final milliseconds in [140, 150, 160, 170, 180]) {
+        expect(
+          FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+            elapsed: Duration(milliseconds: milliseconds),
+            amplitude: 4,
+            motion: FoxRunV1BodyFlexMotion.hold,
+            shrinkEnabled: shrinkEnabled,
+          ),
+          closeTo(4, .001),
+        );
+      }
+      expect(
+        FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+          elapsed: const Duration(milliseconds: 640),
+          amplitude: 4,
+          motion: FoxRunV1BodyFlexMotion.hold,
+          shrinkEnabled: shrinkEnabled,
+        ),
+        0,
+      );
+    }
+    for (final milliseconds in [460, 470, 480, 490, 500]) {
+      expect(
+        FoxRunV1Motion.bodyFlexOffsetAtElapsed(
+          elapsed: Duration(milliseconds: milliseconds),
+          amplitude: 4,
+          motion: FoxRunV1BodyFlexMotion.hold,
+          shrinkEnabled: true,
+        ),
+        closeTo(-4, .001),
+      );
+    }
   });
 
   test('body flex keeps virtual ground fixed at every BODY SIZE', () {
@@ -380,19 +483,7 @@ void main() {
               FoxRunV1ProductionGeometry.virtualGround) *
           FoxRunV1ProductionGeometry.displayScale *
           bodyScale;
-      for (final flex in [
-        -6.0,
-        -4.0,
-        -2.0,
-        -1.0,
-        -.5,
-        0.0,
-        .5,
-        1.0,
-        2.0,
-        4.0,
-        6.0,
-      ]) {
+      for (final flex in [-4.0, -2.0, -1.0, -.5, 0.0, .5, 1.0, 2.0, 4.0]) {
         final scale = FoxRunV1ProductionGeometry.bodyFlexScale(
           bodyScale: bodyScale,
           bodyFlexOffset: flex,
@@ -640,13 +731,32 @@ void main() {
         'one': '1px',
         'two': '2px',
         'four': '4px',
-        'six': '6px',
       };
       for (final entry in bodyFlexLabels.entries) {
         final chip = tester.widget<ChoiceChip>(
           find.byKey(ValueKey('fox-preview-body-flex-${entry.key}')),
         );
         expect((chip.label as Text).data, entry.value);
+      }
+      expect(
+        find.byKey(const ValueKey('fox-preview-body-flex-six')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(
+                const ValueKey('fox-preview-body-flex-motion-current'),
+              ),
+            )
+            .selected,
+        isTrue,
+      );
+      for (final motion in FoxRunV1BodyFlexMotion.values) {
+        expect(
+          find.byKey(ValueKey('fox-preview-body-flex-motion-${motion.name}')),
+          findsOneWidget,
+        );
       }
       expect(
         tester
@@ -902,6 +1012,66 @@ void main() {
     },
   );
 
+  testWidgets(
+    'BODY FLEX MOTION applies live without resetting crossing progress',
+    (tester) async {
+      await pumpPreview(tester, 390);
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-four')),
+      );
+      await tester.pump();
+      final groundAnchor = bodyFlexGroundAnchorY(tester);
+      final currentTorso = bodyFlexTorsoAnchorY(tester);
+      final progress = crossingAnimation(tester).value;
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-motion-smooth')),
+      );
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(progress, .001));
+      expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+      final smoothTorso = bodyFlexTorsoAnchorY(tester);
+      expect(smoothTorso, lessThan(currentTorso));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-motion-hold')),
+      );
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(progress, .001));
+      expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+      expect(bodyFlexTorsoAnchorY(tester), lessThan(smoothTorso));
+    },
+  );
+
+  testWidgets(
+    'HOLD retains deformation while crossing and frame animation continue',
+    (tester) async {
+      await pumpPreview(tester, 390);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-four')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-motion-hold')),
+      );
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 140));
+      final groundAnchor = bodyFlexGroundAnchorY(tester);
+      final heldTorso = bodyFlexTorsoAnchorY(tester);
+      final progress = crossingAnimation(tester).value;
+      final asset = displayedAsset(tester);
+
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(crossingAnimation(tester).value, greaterThan(progress));
+      expect(displayedAsset(tester), isNot(asset));
+      expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+      expect(bodyFlexTorsoAnchorY(tester), closeTo(heldTorso, .001));
+    },
+  );
+
   testWidgets('BODY SHRINK applies live without resetting the active RUN', (
     tester,
   ) async {
@@ -913,7 +1083,7 @@ void main() {
     final torsoAnchor = bodyFlexTorsoAnchorY(tester);
     final before = crossingAnimation(tester).value;
 
-    await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-six')));
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-four')));
     await tester.pump();
     expect(crossingAnimation(tester).value, closeTo(before, .001));
     expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
@@ -923,7 +1093,7 @@ void main() {
     await tester.pump();
     expect(crossingAnimation(tester).value, closeTo(before, .001));
     expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
-    expect(bodyFlexTorsoAnchorY(tester), closeTo(torsoAnchor + 6, .001));
+    expect(bodyFlexTorsoAnchorY(tester), closeTo(torsoAnchor + 4, .001));
 
     await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
     await tester.pump();
