@@ -13,24 +13,31 @@ void main() {
   final stageRect = Rect.fromLTWH(0, 0, stageWidth, stageHeight);
   final ground = FoxRunV1ProductionGeometry.stageGroundY(stageHeight);
 
-  Rect boundsAt(double bodyCenterX, {required bool leftToRight}) =>
-      FoxRunV1ProductionGeometry.visibleBounds(
-        bodyCenterX: bodyCenterX,
-        stageGroundY: ground,
-        leftToRight: leftToRight,
-      );
+  Rect boundsAt(
+    double bodyCenterX, {
+    required bool leftToRight,
+    double bodyScale = 1,
+  }) => FoxRunV1ProductionGeometry.visibleBounds(
+    bodyCenterX: bodyCenterX,
+    stageGroundY: ground,
+    leftToRight: leftToRight,
+    bodyScale: bodyScale,
+  );
 
   Rect boundsFor({
     required double width,
     required double progress,
     required bool leftToRight,
+    double bodyScale = 1,
   }) => boundsAt(
     FoxRunV1ProductionGeometry.bodyCenterForProgress(
       stageWidth: width,
       progress: progress,
       leftToRight: leftToRight,
+      bodyScale: bodyScale,
     ),
     leftToRight: leftToRight,
+    bodyScale: bodyScale,
   );
 
   Future<void> pumpPreview(WidgetTester tester, double width) async {
@@ -143,6 +150,14 @@ void main() {
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
       const Duration(milliseconds: 1600),
     );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fastest),
+      const Duration(milliseconds: 1200),
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.maximum),
+      const Duration(milliseconds: 800),
+    );
   });
 
   test('selected frames repeat in canonical order at the 80ms cadence', () {
@@ -164,6 +179,30 @@ void main() {
     expect(
       FoxRunV1Motion.frameAtCrossingProgress(.5, selectedFrames: const [4]),
       4,
+    );
+    expect(
+      [
+        for (var milliseconds = 0; milliseconds < 480; milliseconds += 80)
+          FoxRunV1Motion.frameAtElapsed(
+            Duration(milliseconds: milliseconds),
+            selectedFrames: const [0, 2, 4, 5, 7, 9],
+          ),
+      ],
+      [0, 2, 4, 5, 7, 9],
+    );
+  });
+
+  test('BODY SIZE 0.5x is half of the deployed 1x geometry', () {
+    final full = FoxRunV1ProductionGeometry.scaledCanvasFor(1);
+    final half = FoxRunV1ProductionGeometry.scaledCanvasFor(.5);
+    expect(full, FoxRunV1ProductionGeometry.scaledCanvas);
+    expect(full.width, closeTo(220, .001));
+    expect(full.height, closeTo(104.6537, .001));
+    expect(half.width, closeTo(full.width * .5, .001));
+    expect(half.height, closeTo(full.height * .5, .001));
+    expect(
+      FoxRunV1ProductionGeometry.displayedTorsoLengthFor(.5),
+      closeTo(FoxRunV1ProductionGeometry.displayedTorsoLengthFor(1) * .5, .001),
     );
   });
 
@@ -296,7 +335,53 @@ void main() {
     });
   }
 
-  testWidgets('diagnostic controls default to CURRENT and all 10 frames', (
+  test('both BODY SIZE values keep ground registration and extent exits', () {
+    for (final width in [320.0, 390.0, 900.0]) {
+      for (final bodyScale in [.5, 1.0]) {
+        for (final leftToRight in [true, false]) {
+          final start = boundsFor(
+            width: width,
+            progress: 0,
+            leftToRight: leftToRight,
+            bodyScale: bodyScale,
+          );
+          final end = boundsFor(
+            width: width,
+            progress: 1,
+            leftToRight: leftToRight,
+            bodyScale: bodyScale,
+          );
+          final center = FoxRunV1ProductionGeometry.bodyCenterForProgress(
+            stageWidth: width,
+            progress: .5,
+            leftToRight: leftToRight,
+            bodyScale: bodyScale,
+          );
+          final image = FoxRunV1ProductionGeometry.imageTopLeft(
+            bodyCenterX: center,
+            stageGroundY: ground,
+            bodyScale: bodyScale,
+          );
+          expect(
+            image.dy +
+                FoxRunV1ProductionGeometry.virtualGround *
+                    FoxRunV1ProductionGeometry.displayScale *
+                    bodyScale,
+            closeTo(ground, .001),
+          );
+          if (leftToRight) {
+            expect(start.right, closeTo(-8, .001));
+            expect(end.left, closeTo(width + 8, .001));
+          } else {
+            expect(start.left, closeTo(width + 8, .001));
+            expect(end.right, closeTo(-8, .001));
+          }
+        }
+      }
+    }
+  });
+
+  testWidgets('diagnostic controls expose the requested defaults', (
     tester,
   ) async {
     for (final width in [320.0, 390.0, 900.0]) {
@@ -305,6 +390,15 @@ void main() {
         find.byKey(const ValueKey('fox-preview-speed-current')),
       );
       expect(current.selected, isTrue, reason: '${width.toInt()}px');
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-body-size-full')),
+            )
+            .selected,
+        isTrue,
+      );
+      const defaultFrames = {1, 3, 5, 6, 8, 10};
       for (var frame = 1; frame <= 10; frame++) {
         expect(
           tester
@@ -312,7 +406,7 @@ void main() {
                 find.byKey(ValueKey('fox-preview-frame-$frame')),
               )
               .selected,
-          isTrue,
+          defaultFrames.contains(frame),
           reason: 'frame $frame at ${width.toInt()}px',
         );
       }
@@ -330,10 +424,12 @@ void main() {
     tester,
   ) async {
     const expectedProgress = <FoxRunV1Speed, double>{
-      FoxRunV1Speed.slow: 1 / 6,
-      FoxRunV1Speed.current: 1 / 4,
-      FoxRunV1Speed.fast: 1 / 3,
-      FoxRunV1Speed.faster: 1 / 2,
+      FoxRunV1Speed.slow: 1 / 12,
+      FoxRunV1Speed.current: 1 / 8,
+      FoxRunV1Speed.fast: 1 / 6,
+      FoxRunV1Speed.faster: 1 / 4,
+      FoxRunV1Speed.fastest: 1 / 3,
+      FoxRunV1Speed.maximum: 1 / 2,
     };
     for (final entry in expectedProgress.entries) {
       await pumpPreview(tester, 390);
@@ -347,8 +443,8 @@ void main() {
       await tester.pump();
       expect(displayedAsset(tester), endsWith('frame_01.png'));
       await tester.pump(const Duration(milliseconds: 80));
-      expect(displayedAsset(tester), endsWith('frame_02.png'));
-      await tester.pump(const Duration(milliseconds: 720));
+      expect(displayedAsset(tester), endsWith('frame_03.png'));
+      await tester.pump(const Duration(milliseconds: 320));
       expect(
         crossingAnimation(tester).value,
         closeTo(entry.value, .01),
@@ -357,13 +453,85 @@ void main() {
     }
   });
 
+  testWidgets('SPEED updates an active RUN without resetting progress', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 640));
+    final before = crossingAnimation(tester).value;
+    expect(before, closeTo(.2, .01));
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-speed-fastest')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(crossingAnimation(tester).value, closeTo(before + .1, .01));
+  });
+
+  testWidgets('frame selection updates an active RUN without restarting', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(displayedAsset(tester), endsWith('frame_03.png'));
+    final before = crossingAnimation(tester).value;
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-3')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    expect(displayedAsset(tester), endsWith('frame_05.png'));
+  });
+
+  testWidgets(
+    'BODY SIZE updates an active RUN on the same ground and progress',
+    (tester) async {
+      await pumpPreview(tester, 390);
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 640));
+      final image = find.descendant(
+        of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+        matching: find.byType(Image),
+      );
+      final fullRect = tester.getRect(image);
+      final fullGround =
+          fullRect.top +
+          fullRect.height *
+              (FoxRunV1ProductionGeometry.virtualGround /
+                  FoxRunV1ProductionGeometry.canvasSize.height);
+      final before = crossingAnimation(tester).value;
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-size-half')),
+      );
+      await tester.pump();
+      final halfRect = tester.getRect(image);
+      final halfGround =
+          halfRect.top +
+          halfRect.height *
+              (FoxRunV1ProductionGeometry.virtualGround /
+                  FoxRunV1ProductionGeometry.canvasSize.height);
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(halfRect.width, closeTo(fullRect.width * .5, .001));
+      expect(halfRect.height, closeTo(fullRect.height * .5, .001));
+      expect(halfGround, closeTo(fullGround, .001));
+    },
+  );
+
   testWidgets('subset, one-frame guard, and repeated RUN stay deterministic', (
     tester,
   ) async {
     await pumpPreview(tester, 390);
     const selected = {3, 6, 8};
     for (var frame = 1; frame <= 10; frame++) {
-      if (!selected.contains(frame)) {
+      final chip = tester.widget<FilterChip>(
+        find.byKey(ValueKey('fox-preview-frame-$frame')),
+      );
+      if (chip.selected != selected.contains(frame)) {
         await tester.tap(find.byKey(ValueKey('fox-preview-frame-$frame')));
         await tester.pump();
       }
@@ -425,7 +593,7 @@ void main() {
     );
   });
 
-  testWidgets('all four speeds fully exit and reset', (tester) async {
+  testWidgets('all six speeds fully exit and reset', (tester) async {
     for (final speed in FoxRunV1Speed.values) {
       await pumpPreview(tester, 390);
       if (speed != FoxRunV1Speed.current) {
@@ -438,6 +606,20 @@ void main() {
       await tester.pump();
       await tester.pump(FoxRunV1Motion.durationForSpeed(speed));
       expect(crossingAnimation(tester).value, closeTo(0, .01));
+      expect(
+        displayedAsset(tester),
+        anyOf(
+          endsWith('frame_01.png'),
+          endsWith('frame_03.png'),
+          endsWith('frame_05.png'),
+          endsWith('frame_06.png'),
+          endsWith('frame_08.png'),
+          endsWith('frame_10.png'),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(0, .001));
       expect(displayedAsset(tester), endsWith('frame_01.png'));
     }
   });
@@ -479,7 +661,7 @@ void main() {
     await tester.pump();
     expect(crossing(), closeTo(0, .001));
     expect(asset(), endsWith('frame_01.png'));
-    for (var frame = 2; frame <= 10; frame++) {
+    for (final frame in [3, 5, 6, 8, 10]) {
       await tester.pump(const Duration(milliseconds: 80));
       expect(
         asset(),
@@ -488,17 +670,9 @@ void main() {
     }
     await tester.pump(const Duration(milliseconds: 80));
     expect(asset(), endsWith('frame_01.png'));
+    await tester.pump(const Duration(milliseconds: 320));
     expect(crossing(), closeTo(.25, .01));
-    expect(asset(), endsWith('frame_01.png'));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(crossing(), closeTo(.5, .01));
-    expect(asset(), endsWith('frame_01.png'));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(crossing(), closeTo(.75, .01));
-    expect(asset(), endsWith('frame_01.png'));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(crossing(), closeTo(0, .01));
-    expect(asset(), endsWith('frame_01.png'));
+    expect(asset(), endsWith('frame_08.png'));
 
     await tester.pump(const Duration(milliseconds: 400));
     expect(crossing(), greaterThan(.1));
@@ -506,9 +680,9 @@ void main() {
     await tester.pump();
     expect(crossing(), closeTo(0, .001));
     expect(asset(), endsWith('frame_01.png'));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(crossing(), closeTo(.25, .01));
-    expect(asset(), endsWith('frame_01.png'));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(crossing(), greaterThan(0));
+    expect(asset(), endsWith('frame_03.png'));
     expect(tester.takeException(), isNull);
   });
 

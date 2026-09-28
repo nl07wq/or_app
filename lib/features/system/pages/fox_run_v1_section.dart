@@ -15,7 +15,9 @@ class FoxRunV1Section extends StatefulWidget {
 
 enum _FoxAuditMode { source, canonical, overlay }
 
-enum FoxRunV1Speed { slow, current, fast, faster }
+enum FoxRunV1Speed { slow, current, fast, faster, fastest, maximum }
+
+enum FoxRunV1BodySize { half, full }
 
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
@@ -31,8 +33,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _inspectionScale = 0.5;
   var _leftToRight = true;
   var _speed = FoxRunV1Speed.current;
-  final _selectedFrames = <int>{for (var frame = 0; frame < 10; frame++) frame};
+  var _bodySize = FoxRunV1BodySize.full;
+  var _frameElapsedOffset = Duration.zero;
+  final _selectedFrames = <int>{0, 2, 4, 5, 7, 9};
   Duration get _crossingDuration => FoxRunV1Motion.durationForSpeed(_speed);
+  double get _bodyScale => FoxRunV1ProductionGeometry.scaleFor(_bodySize);
   List<int> get _orderedSelectedFrames => _selectedFrames.toList()..sort();
   late final AnimationController _crossing = AnimationController(
     vsync: this,
@@ -60,16 +65,18 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
 
   void _syncFrameToCrossing() {
     if (!mounted || !_crossing.isAnimating) return;
-    final nextFrame = FoxRunV1Motion.frameAtCrossingProgress(
-      _crossing.value,
-      runDuration: _crossingDuration,
+    final nextFrame = FoxRunV1Motion.frameAtElapsed(
+      _frameElapsedOffset + (_crossing.lastElapsedDuration ?? Duration.zero),
       selectedFrames: _orderedSelectedFrames,
     );
     if (nextFrame != _frame) setState(() => _frame = nextFrame);
   }
 
   void _restart() {
-    setState(() => _frame = _orderedSelectedFrames.first);
+    setState(() {
+      _frame = _orderedSelectedFrames.first;
+      _frameElapsedOffset = Duration.zero;
+    });
     _crossing
       ..stop()
       ..value = 0;
@@ -77,9 +84,20 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   }
 
   void _setSpeed(FoxRunV1Speed speed) {
+    if (_speed == speed) return;
+    final wasAnimating = _crossing.isAnimating;
+    final progress = _crossing.value;
+    if (wasAnimating) {
+      _frameElapsedOffset += _crossing.lastElapsedDuration ?? Duration.zero;
+      _crossing.stop();
+    }
     setState(() => _speed = speed);
     _crossing.duration = _crossingDuration;
-    _syncFrameToCrossing();
+    _crossing.value = progress;
+    if (wasAnimating) {
+      _crossing.repeat(period: _crossingDuration);
+      _syncFrameToCrossing();
+    }
   }
 
   void _toggleFrame(int frame) {
@@ -91,6 +109,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       }
     });
     _syncFrameToCrossing();
+  }
+
+  void _setBodySize(FoxRunV1BodySize bodySize) {
+    if (_bodySize == bodySize) return;
+    setState(() => _bodySize = bodySize);
   }
 
   @override
@@ -206,6 +229,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         crossing: _crossing,
         asset: _asset(source: false),
         leftToRight: _leftToRight,
+        bodyScale: _bodyScale,
       ),
       AppSpacing.gapSM,
       Wrap(
@@ -233,6 +257,21 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
                 label: Text(speed.name.toUpperCase()),
                 selected: _speed == speed,
                 onSelected: (_) => _setSpeed(speed),
+              ),
+            )
+            .toList(),
+      ),
+      AppSpacing.gapSM,
+      const Text('BODY SIZE'),
+      Wrap(
+        spacing: AppSpacing.xs,
+        children: FoxRunV1BodySize.values
+            .map(
+              (bodySize) => ChoiceChip(
+                key: ValueKey('fox-preview-body-size-${bodySize.name}'),
+                label: Text(bodySize == FoxRunV1BodySize.half ? '0.5×' : '1×'),
+                selected: _bodySize == bodySize,
+                onSelected: (_) => _setBodySize(bodySize),
               ),
             )
             .toList(),
@@ -266,7 +305,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLength.toStringAsFixed(0)}px',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px',
       ),
     ],
   );
@@ -293,12 +332,16 @@ abstract final class FoxRunV1Motion {
   static const slowCrossingDuration = Duration(milliseconds: 4800);
   static const fastCrossingDuration = Duration(milliseconds: 2400);
   static const fasterCrossingDuration = Duration(milliseconds: 1600);
+  static const fastestCrossingDuration = Duration(milliseconds: 1200);
+  static const maximumCrossingDuration = Duration(milliseconds: 800);
 
   static Duration durationForSpeed(FoxRunV1Speed speed) => switch (speed) {
     FoxRunV1Speed.slow => slowCrossingDuration,
     FoxRunV1Speed.current => crossingDuration,
     FoxRunV1Speed.fast => fastCrossingDuration,
     FoxRunV1Speed.faster => fasterCrossingDuration,
+    FoxRunV1Speed.fastest => fastestCrossingDuration,
+    FoxRunV1Speed.maximum => maximumCrossingDuration,
   };
 
   static Duration durationForCycles(int cycles, {Duration? celDuration}) =>
@@ -321,6 +364,17 @@ abstract final class FoxRunV1Motion {
         (resolvedRunDuration.inMicroseconds * safeProgress).round();
     final selectedIndex =
         (elapsedMicroseconds ~/ resolvedCelDuration.inMicroseconds) %
+        selectedFrames.length;
+    return selectedFrames[selectedIndex];
+  }
+
+  static int frameAtElapsed(
+    Duration elapsed, {
+    List<int> selectedFrames = orderedFrames,
+  }) {
+    assert(selectedFrames.isNotEmpty);
+    final selectedIndex =
+        (elapsed.inMicroseconds ~/ frameDuration.inMicroseconds) %
         selectedFrames.length;
     return selectedFrames[selectedIndex];
   }
@@ -391,32 +445,51 @@ abstract final class FoxRunV1ProductionGeometry {
     685.215,
   );
 
-  static Size get scaledCanvas =>
-      Size(canvasSize.width * displayScale, canvasSize.height * displayScale);
+  static double scaleFor(FoxRunV1BodySize bodySize) => switch (bodySize) {
+    FoxRunV1BodySize.half => 0.5,
+    FoxRunV1BodySize.full => 1.0,
+  };
+
+  static Size get scaledCanvas => scaledCanvasFor(1);
+
+  static Size scaledCanvasFor(double bodyScale) => Size(
+    canvasSize.width * displayScale * bodyScale,
+    canvasSize.height * displayScale * bodyScale,
+  );
+
+  static double displayedTorsoLengthFor(double bodyScale) =>
+      displayedTorsoLength * bodyScale;
 
   static double stageGroundY(double stageHeight) => stageHeight - groundInset;
 
   static Offset imageTopLeft({
     required double bodyCenterX,
     required double stageGroundY,
+    double bodyScale = 1,
   }) => Offset(
-    bodyCenterX - bodyOrigin.dx * displayScale,
-    stageGroundY - virtualGround * displayScale,
+    bodyCenterX - bodyOrigin.dx * displayScale * bodyScale,
+    stageGroundY - virtualGround * displayScale * bodyScale,
   );
 
   static Rect visibleBounds({
     required double bodyCenterX,
     required double stageGroundY,
     required bool leftToRight,
+    double bodyScale = 1,
   }) {
     final image = imageTopLeft(
       bodyCenterX: bodyCenterX,
       stageGroundY: stageGroundY,
+      bodyScale: bodyScale,
     );
     final relativeLeft =
-        (visibleBoundsCanonical.left - bodyOrigin.dx) * displayScale;
+        (visibleBoundsCanonical.left - bodyOrigin.dx) *
+        displayScale *
+        bodyScale;
     final relativeRight =
-        (visibleBoundsCanonical.right - bodyOrigin.dx) * displayScale;
+        (visibleBoundsCanonical.right - bodyOrigin.dx) *
+        displayScale *
+        bodyScale;
     final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
     final renderedRight = leftToRight ? relativeRight : -relativeLeft;
     return Rect.fromLTRB(
@@ -431,11 +504,16 @@ abstract final class FoxRunV1ProductionGeometry {
     required double stageWidth,
     required double progress,
     required bool leftToRight,
+    double bodyScale = 1,
   }) {
     final relativeLeft =
-        (visibleBoundsCanonical.left - bodyOrigin.dx) * displayScale;
+        (visibleBoundsCanonical.left - bodyOrigin.dx) *
+        displayScale *
+        bodyScale;
     final relativeRight =
-        (visibleBoundsCanonical.right - bodyOrigin.dx) * displayScale;
+        (visibleBoundsCanonical.right - bodyOrigin.dx) *
+        displayScale *
+        bodyScale;
     final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
     final renderedRight = leftToRight ? relativeRight : -relativeLeft;
     final leftExit = -crossingSafetyGap - renderedRight;
@@ -452,10 +530,12 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     required this.crossing,
     required this.asset,
     required this.leftToRight,
+    this.bodyScale = 1,
   });
   final Animation<double> crossing;
   final String asset;
   final bool leftToRight;
+  final double bodyScale;
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('fox-run-v1-production-stage'),
@@ -492,12 +572,16 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                       stageWidth: constraints.maxWidth,
                       progress: t,
                       leftToRight: leftToRight,
+                      bodyScale: bodyScale,
                     );
                 final image = FoxRunV1ProductionGeometry.imageTopLeft(
                   bodyCenterX: bodyCenter,
                   stageGroundY: stageGround,
+                  bodyScale: bodyScale,
                 );
-                final canvas = FoxRunV1ProductionGeometry.scaledCanvas;
+                final canvas = FoxRunV1ProductionGeometry.scaledCanvasFor(
+                  bodyScale,
+                );
                 return Positioned(
                   left: image.dx,
                   top: image.dy,
