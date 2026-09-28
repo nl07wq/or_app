@@ -392,22 +392,22 @@ void main() {
   testWidgets('Operation Date widens without glyph distortion', (tester) async {
     const baselines = {
       320: (
-        card: Rect.fromLTRB(16, 194, 304, 293.6),
-        group: Rect.fromLTRB(32, 213, 185.6, 274.6),
+        card: Rect.fromLTRB(16, 194, 304, 289.9),
+        group: Rect.fromLTRB(32, 213, 185.6, 270.9),
         heading: Rect.fromLTRB(47.4, 213, 185.6, 227),
         date: Rect.fromLTRB(32, 234.3, 183.4, 267.2),
         cycle: Rect.fromLTRB(192.9, 213, 288, 249.3),
       ),
       390: (
-        card: Rect.fromLTRB(16, 168, 374, 274.4),
-        group: Rect.fromLTRB(32, 187, 212, 255.4),
+        card: Rect.fromLTRB(16, 168, 374, 270.4),
+        group: Rect.fromLTRB(32, 187, 212, 251.4),
         heading: Rect.fromLTRB(50, 187, 212, 203.4),
         date: Rect.fromLTRB(32, 211.4, 197.6, 247.4),
         cycle: Rect.fromLTRB(236, 187, 356, 228.6),
       ),
       900: (
-        card: Rect.fromLTRB(16, 168, 884, 278),
-        group: Rect.fromLTRB(32, 187, 251.4, 259),
+        card: Rect.fromLTRB(16, 168, 884, 274),
+        group: Rect.fromLTRB(32, 187, 251.4, 255),
         heading: Rect.fromLTRB(54, 187, 251.4, 207),
         date: Rect.fromLTRB(32, 215, 197.6, 251),
         cycle: Rect.fromLTRB(276, 187, 396, 228.6),
@@ -467,16 +467,31 @@ void main() {
       expect(boundsRect.center.dx, closeTo(flipRect.center.dx, 0.5));
       expect(boundsRect.left, closeTo(switcherRect.left, 0.5));
       expect(boundsRect.right, closeTo(switcherRect.right, 0.5));
-      expect(tester.getSize(bounds), const Size(165.6, 44));
+      expect(tester.getSize(bounds), const Size(165.6, 40));
       if (width == 390) {
-        expect(cardRect.height, closeTo(106.4, 0.5));
-        expect(groupRect.height, closeTo(68.4, 0.5));
-        expect(boundsRect.height, closeTo(44, 0.5));
+        const historicalOuterHeight = 106.4;
+        const historicalDateBottomToSurfaceBottom = 20.0;
+        const preFixDateBottomToSurfaceBottom = 24.0;
+        const adoptedCompaction = 4.0;
+        final surfaceBottom = cardRect.bottom - 3;
+        expect(cardRect.height, closeTo(102.4, 0.5));
+        expect(groupRect.height, closeTo(64.4, 0.5));
+        expect(boundsRect.height, closeTo(40, 0.5));
         expect(flipRect.height, closeTo(36, 0.5));
         expect(boundsRect.top - headingRect.bottom, closeTo(8, 0.5));
         expect(flipRect.top - headingRect.bottom, closeTo(8, 0.5));
         expect(flipRect.top, closeTo(boundsRect.top, 0.5));
-        expect(boundsRect.bottom - flipRect.bottom, closeTo(8, 0.5));
+        expect(boundsRect.bottom - flipRect.bottom, closeTo(4, 0.5));
+        expect(cardRect.bottom - flipRect.bottom, closeTo(23, 0.5));
+        expect(surfaceBottom - flipRect.bottom, closeTo(20, 0.5));
+        expect(
+          historicalOuterHeight - cardRect.height,
+          closeTo(adoptedCompaction, 0.5),
+        );
+        expect(
+          preFixDateBottomToSurfaceBottom - historicalDateBottomToSurfaceBottom,
+          adoptedCompaction,
+        );
         expect(boundsRect.width, closeTo(165.6, 0.5));
         expect(cycleRect.width, closeTo(120, 0.5));
         expect(cycleRect.left, closeTo(236, 0.5));
@@ -568,6 +583,44 @@ void main() {
       await tester.pump();
     }
   });
+
+  testWidgets(
+    'compact CURRENT OPERATION keeps FLIP and NIXIE animation bounds stable',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await _pump(tester, width: width);
+        final bounds = find.byKey(
+          const ValueKey('current-operation-date-bounds'),
+        );
+        final switcher = find.byKey(
+          const ValueKey('operation-date-display-switcher'),
+        );
+        var expectedBounds = tester.getRect(bounds);
+
+        await tester.tap(switcher);
+        for (final duration in [100, 200, 300]) {
+          await tester.pump(Duration(milliseconds: duration));
+          _expectRectNear(tester.getRect(bounds), expectedBounds);
+          expect(tester.takeException(), isNull);
+        }
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pump(tester, width: width);
+        expectedBounds = tester.getRect(bounds);
+
+        await tester.drag(switcher, const Offset(-72, 0));
+        await tester.pump();
+        await tester.pump();
+        expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+        await tester.tap(switcher);
+        for (final duration in [120, 240, 400]) {
+          await tester.pump(Duration(milliseconds: duration));
+          _expectRectNear(tester.getRect(bounds), expectedBounds);
+          expect(tester.takeException(), isNull);
+        }
+      }
+    },
+  );
 
   testWidgets('date-only NIXIE keeps cycle state beside operation date', (
     tester,
