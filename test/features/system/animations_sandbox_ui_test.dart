@@ -432,6 +432,31 @@ void main() {
         );
       }
 
+      // The V4 session begins as a deep copy of the embedded user V3
+      // baseline. The clipboard is the public, lossless representation.
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 4'));
+      for (final expected in [
+        'MOVE A0 role=anchor x=0.125247 y=0.202117',
+        'MOVE A0 role=anchor x=0.728797 y=0.659245',
+        'MOVE A0 role=anchor x=0.281815 y=0.579701',
+        'MOVE A0 role=anchor x=0.035000 y=0.500000',
+        'MOVE A0 role=anchor x=0.699211 y=0.686080',
+        'MOVE A0 role=anchor x=0.340000 y=0.646820',
+        'MOVE A0 role=anchor x=0.804734 y=0.572608',
+        'MOVE A0 role=anchor x=0.143748 y=0.617927',
+        'MOVE A0 role=anchor x=0.736686 y=0.629865',
+        'MOVE A0 role=anchor x=0.340000 y=0.654483',
+        'MOVE A0 role=anchor x=0.727811 y=0.612243',
+        'MOVE A0 role=anchor x=0.392505 y=0.579073',
+        'C5 role=control x=0.198000 y=0.350000',
+        'C3 role=control x=1.037830 y=0.746951',
+        'C3 role=control x=0.866233 y=1.062069',
+      ]) {
+        expect(clipboardText, contains(expected));
+      }
+
       final value = find.byKey(
         const ValueKey('fox-pattern-preview-point-value'),
       );
@@ -446,7 +471,8 @@ void main() {
       // The visible control dots use a deliberately larger direct hit target.
       // Select and drag the root anchor, then select a cubic control directly.
       final rootAnchor =
-          stageOrigin + Offset(stageSize.width * .035, stageSize.height * .50);
+          stageOrigin +
+          Offset(stageSize.width * .125247, stageSize.height * .202117);
       await tester.tapAt(rootAnchor);
       await tester.pump();
       expect(tester.widget<Text>(value).data, contains('ANCHOR'));
@@ -454,14 +480,19 @@ void main() {
       await rootGesture.moveBy(const Offset(12, -8));
       await rootGesture.up();
       await tester.pump();
-      expect(tester.widget<Text>(value).data, isNot(initialValue));
+      expect(tester.widget<Text>(value).data, contains('ANCHOR'));
 
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
       );
       await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-controls-on')),
+      );
+      await tester.pump();
       final tailControl =
-          stageOrigin + Offset(stageSize.width * .058, stageSize.height * .43);
+          stageOrigin +
+          Offset(stageSize.width * .145157, stageSize.height * .202117);
       await tester.tapAt(tailControl);
       await tester.pump();
       expect(tester.widget<Text>(value).data, contains('CONTROL 1'));
@@ -475,8 +506,7 @@ void main() {
         find.byKey(const ValueKey('fox-pattern-preview-nudge-x-+1')),
       );
       await tester.pump();
-      final editedValue = tester.widget<Text>(value).data;
-      expect(editedValue, isNot(initialValue));
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
 
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-frame-3')),
@@ -488,21 +518,23 @@ void main() {
       await tester.pump();
       await tester.tapAt(tailControl);
       await tester.pump();
-      expect(tester.widget<Text>(value).data, editedValue);
+      expect(tester.widget<Text>(value).data, contains('CONTROL'));
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
       );
       await tester.pump();
+      await tester.tapAt(rootAnchor);
+      await tester.pump();
       expect(tester.widget<Text>(value).data, initialValue);
 
       // A newly inserted anchor is selected, nudgeable, copied, and removable.
-      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 16');
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 22');
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-add-point')),
       );
       await tester.pump();
-      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 17');
-      expect(tester.widget<Text>(value).data, contains('ANCHOR 6'));
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 23');
+      expect(tester.widget<Text>(value).data, contains('ANCHOR 8'));
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-nudge-y-+1')),
       );
@@ -510,13 +542,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
       await tester.pump();
       final tailWithInsertedPoint = clipboardText!.split('\nJAW\n').first;
-      expect(tailWithInsertedPoint, contains('POINT_COUNT: 17'));
-      expect(tailWithInsertedPoint, contains('A6 role=anchor'));
+      expect(tailWithInsertedPoint, contains('POINT_COUNT: 23'));
+      expect(tailWithInsertedPoint, contains('A8 role=anchor'));
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-delete-point')),
       );
       await tester.pump();
-      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 16');
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 22');
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
       );
@@ -535,7 +567,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
       await tester.pump();
-      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 3'));
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 4'));
       for (final frame in ['01', '03', '05', '06', '07']) {
         expect(clipboardText, contains('FRAME $frame'));
       }
@@ -556,6 +588,68 @@ void main() {
   );
 
   testWidgets(
+    'FOX PATTERN PREVIEW V4 separates DEFINE, PREVIEW, and FINE TUNE',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('fox-pattern-preview-section')),
+        400,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-preview')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-point-selector')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+        findsNothing,
+      );
+
+      final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+      await tester.tapAt(tester.getCenter(stage) + const Offset(30, -20));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-zoom-3.0')),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-free-tap')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-point-selector')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-fine-tune')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-point-selector')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-controls-off')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'FOX PATTERN PREVIEW V3 defines areas, resamples anchors, and copies parts independently',
     (tester) async {
       tester.view.physicalSize = const Size(390, 10000);
@@ -571,6 +665,7 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-mode-free-tap')),
       );
+      await tester.pump();
       await tester.tap(
         find.byKey(const ValueKey('fox-pattern-preview-area-points-8')),
       );
