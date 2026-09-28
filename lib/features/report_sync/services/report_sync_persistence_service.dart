@@ -44,8 +44,6 @@ class ReportSyncImportFailure implements Exception {
 }
 
 class ReportSyncPersistenceService {
-  static const createdAtClockTolerance = Duration(minutes: 5);
-
   final IndexedDbDatabase database;
   final ReportSyncHistoryRepository historyRepository;
   final ReportSyncValidator validator;
@@ -776,16 +774,10 @@ class ReportSyncPersistenceService {
   }) {
     final normalizedCompletedAt = completedAt.toUtc();
     final responseCreatedAt = response.createdAt.toUtc();
-    if (responseCreatedAt.isAfter(
-      normalizedCompletedAt.add(createdAtClockTolerance),
-    )) {
-      throw const FormatException(
-        'createdAt is later than the allowed clock tolerance.',
-      );
-    }
-    // A small device/source clock skew must not invalidate an otherwise valid
-    // delayed import. operationDate remains the formal data date; these values
-    // describe the sync attempt timeline only.
+    // An external responder owns createdAt and can have a different clock.
+    // operationDate remains the formal data date; these values describe the
+    // local sync attempt timeline, so a future response timestamp starts at
+    // the local import time instead of invalidating an otherwise valid import.
     final startedAt = responseCreatedAt.isAfter(normalizedCompletedAt)
         ? normalizedCompletedAt
         : responseCreatedAt;
