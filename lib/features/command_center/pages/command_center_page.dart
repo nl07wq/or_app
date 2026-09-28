@@ -502,9 +502,9 @@ class _CurrentOperationCard extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 280;
-        // Keep the original column relationship while reserving the wider
-        // date presentation before placing CYCLE STATE.
-        final groupGap = narrow ? AppSpacing.sm : AppSpacing.xl;
+        // Keep the narrow fit while balancing the wider date presentation
+        // against CYCLE STATE at standard and wide widths.
+        final groupGap = narrow ? AppSpacing.sm : 16.32;
         final dateGroupWidth = narrow
             ? 168.0
             : constraints.maxWidth < 600

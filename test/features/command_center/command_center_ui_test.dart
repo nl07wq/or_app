@@ -404,16 +404,17 @@ void main() {
         group: Rect.fromLTRB(32, 187, 212, 247.4),
         heading: Rect.fromLTRB(50, 187, 212, 203.4),
         date: Rect.fromLTRB(32, 211.4, 197.6, 247.4),
-        cycle: Rect.fromLTRB(236, 187, 356, 228.6),
+        cycle: Rect.fromLTRB(228.32, 187, 348.32, 228.6),
       ),
       900: (
         card: Rect.fromLTRB(16, 168, 884, 270),
         group: Rect.fromLTRB(32, 187, 251.4, 251),
         heading: Rect.fromLTRB(54, 187, 251.4, 207),
         date: Rect.fromLTRB(32, 215, 197.6, 251),
-        cycle: Rect.fromLTRB(276, 187, 396, 228.6),
+        cycle: Rect.fromLTRB(268.32, 187, 388.32, 228.6),
       ),
     };
+    const expectedVisibleGaps = {320: 9.5, 390: 30.72, 900: 70.72};
 
     for (final width in [320.0, 390.0, 900.0]) {
       await _pump(tester, width: width);
@@ -443,6 +444,9 @@ void main() {
       final dateCycleRow = find.byKey(
         const ValueKey('current-operation-date-cycle-row'),
       );
+      final dateCycleRowWidget = tester.widget<Row>(dateCycleRow);
+      final explicitGroupGap =
+          (dateCycleRowWidget.children[1] as SizedBox).width!;
       final cycleGroup = find.byKey(
         const ValueKey('current-operation-cycle-group'),
       );
@@ -463,6 +467,11 @@ void main() {
       _expectRectNear(headingRect, baseline.heading);
       _expectRectNear(flipRect, baseline.date);
       _expectRectNear(cycleRect, baseline.cycle);
+      expect(
+        cycleRect.left - flipRect.right,
+        closeTo(expectedVisibleGaps[width.toInt()]!, 0.5),
+      );
+      expect(explicitGroupGap, closeTo(width == 320 ? 8 : 16.32, 0.001));
       expect(boundsRect.left, greaterThanOrEqualTo(groupRect.left));
       expect(boundsRect.right, lessThanOrEqualTo(groupRect.right));
       expect(boundsRect.center.dx, closeTo(flipRect.center.dx, 0.5));
@@ -495,8 +504,11 @@ void main() {
         );
         expect(boundsRect.width, closeTo(165.6, 0.5));
         expect(cycleRect.width, closeTo(120, 0.5));
-        expect(cycleRect.left, closeTo(236, 0.5));
+        expect(cycleRect.left, closeTo(228.32, 0.5));
         expect(cycleRect.top, closeTo(187, 0.5));
+        expect(cycleRect.left - flipRect.right, closeTo(38.4 * 0.8, 0.01));
+        expect(38.4 - (cycleRect.left - flipRect.right), closeTo(7.68, 0.01));
+        expect(tester.getSize(dateCycleRow).width, closeTo(316.32, 0.01));
         expect(
           tester.getRect(dateCycleRow).width,
           closeTo(tester.getSize(dateCycleRow).width, 0.5),
@@ -523,6 +535,7 @@ void main() {
         expect(tester.getRect(dateCycleRow).width, closeTo(256, 0.5));
       } else if (width == 900) {
         expect(cycleRect.width, closeTo(120, 0.5));
+        expect(tester.getSize(dateCycleRow).width, closeTo(356.32, 0.01));
         expect(
           tester.getRect(dateCycleRow).width,
           closeTo(tester.getSize(dateCycleRow).width, 0.5),
