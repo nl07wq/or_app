@@ -510,7 +510,7 @@ class _CurrentOperationCard extends StatelessWidget {
             : constraints.maxWidth < 600
             ? 180.0
             : 220.0;
-        final cycleGroupWidth = narrow ? 104.0 : 110.0;
+        final cycleGroupWidth = narrow ? 104.0 : 120.0;
         final dateGroup = Column(
           key: const ValueKey('current-operation-card-content'),
           crossAxisAlignment: CrossAxisAlignment.start,

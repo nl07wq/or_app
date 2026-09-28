@@ -403,14 +403,14 @@ void main() {
         group: Rect.fromLTRB(32, 187, 212, 255.4),
         heading: Rect.fromLTRB(50, 187, 212, 203.4),
         date: Rect.fromLTRB(32, 215.4, 197.6, 251.4),
-        cycle: Rect.fromLTRB(236, 187, 346, 227.4),
+        cycle: Rect.fromLTRB(236, 187, 356, 228.6),
       ),
       900: (
         card: Rect.fromLTRB(16, 168, 884, 278),
         group: Rect.fromLTRB(32, 187, 251.4, 259),
         heading: Rect.fromLTRB(54, 187, 251.4, 207),
         date: Rect.fromLTRB(32, 219, 197.6, 255),
-        cycle: Rect.fromLTRB(276, 187, 386, 227.4),
+        cycle: Rect.fromLTRB(276, 187, 396, 228.6),
       ),
     };
 
@@ -439,6 +439,20 @@ void main() {
       final cycleRect = tester.getRect(
         find.byKey(const ValueKey('current-operation-cycle-group')),
       );
+      final dateCycleRow = find.byKey(
+        const ValueKey('current-operation-date-cycle-row'),
+      );
+      final cycleGroup = find.byKey(
+        const ValueKey('current-operation-cycle-group'),
+      );
+      final cycleFittedBoxes = find.descendant(
+        of: cycleGroup,
+        matching: find.byType(FittedBox),
+      );
+      final cycleHeadingBox = cycleFittedBoxes.at(0);
+      final cycleValueBox = find.byKey(
+        const ValueKey('current-operation-cycle-value'),
+      );
 
       _expectRectNear(cardRect, baseline.card);
       _expectRectNear(groupRect, baseline.group);
@@ -460,7 +474,39 @@ void main() {
         expect(flipRect.top - headingRect.bottom, closeTo(12, 0.5));
         expect(boundsRect.bottom - flipRect.bottom, closeTo(4, 0.5));
         expect(boundsRect.width, closeTo(165.6, 0.5));
-        expect(cycleRect.width, closeTo(110, 0.5));
+        expect(cycleRect.width, closeTo(120, 0.5));
+        expect(cycleRect.left, closeTo(236, 0.5));
+        expect(cycleRect.top, closeTo(187, 0.5));
+        expect(
+          tester.getRect(dateCycleRow).width,
+          closeTo(tester.getSize(dateCycleRow).width, 0.5),
+          reason: '390px does not scale the outer date/cycle row',
+        );
+        expect(
+          tester.getRect(cycleValueBox).top -
+              tester.getRect(cycleHeadingBox).bottom,
+          closeTo(4, 0.5),
+        );
+        expect(tester.getRect(cycleHeadingBox).height, closeTo(13.6, 0.5));
+        expect(tester.getRect(cycleValueBox).height, closeTo(24, 0.5));
+      } else if (width == 320) {
+        expect(tester.getSize(cycleGroup).width, closeTo(104, 0.5));
+        expect(tester.getSize(dateCycleRow).width, closeTo(280, 0.5));
+        expect(tester.getRect(dateCycleRow).width, closeTo(256, 0.5));
+      } else if (width == 900) {
+        expect(cycleRect.width, closeTo(120, 0.5));
+        expect(
+          tester.getRect(dateCycleRow).width,
+          closeTo(tester.getSize(dateCycleRow).width, 0.5),
+          reason: '900px does not scale the outer date/cycle row',
+        );
+        expect(
+          tester.getRect(cycleValueBox).top -
+              tester.getRect(cycleHeadingBox).bottom,
+          closeTo(4, 0.5),
+        );
+        expect(tester.getRect(cycleHeadingBox).height, closeTo(13.6, 0.5));
+        expect(tester.getRect(cycleValueBox).height, closeTo(24, 0.5));
       }
       expect(flipRect.left, greaterThanOrEqualTo(boundsRect.left));
       expect(flipRect.right, lessThanOrEqualTo(boundsRect.right));
