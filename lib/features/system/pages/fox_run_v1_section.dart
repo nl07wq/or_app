@@ -21,6 +21,8 @@ enum FoxRunV1BodySize { half, sevenTenths, full }
 
 enum FoxRunV1VerticalFlutter { off, half, one, two }
 
+enum FoxRunV1BodyFlex { off, half, one, two }
+
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
   static const _canvasSize = Size(1646, 783);
@@ -37,6 +39,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _speed = FoxRunV1Speed.current;
   var _bodySize = FoxRunV1BodySize.full;
   var _verticalFlutter = FoxRunV1VerticalFlutter.off;
+  var _bodyFlex = FoxRunV1BodyFlex.off;
   var _flutterPhase = 0;
   var _frameElapsedOffset = Duration.zero;
   final _selectedFrames = <int>{0, 2, 4, 5, 6};
@@ -46,6 +49,12 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ? FoxRunV1Motion.verticalFlutterOffset(
           phase: _flutterPhase,
           amplitude: FoxRunV1Motion.flutterAmplitude(_verticalFlutter),
+        )
+      : 0;
+  double get _bodyFlexOffset => _crossing.isAnimating
+      ? FoxRunV1Motion.bodyFlexOffset(
+          phase: _flutterPhase,
+          amplitude: FoxRunV1Motion.bodyFlexAmplitude(_bodyFlex),
         )
       : 0;
   List<int> get _orderedSelectedFrames => _selectedFrames.toList()..sort();
@@ -139,6 +148,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   void _setVerticalFlutter(FoxRunV1VerticalFlutter verticalFlutter) {
     if (_verticalFlutter == verticalFlutter) return;
     setState(() => _verticalFlutter = verticalFlutter);
+  }
+
+  void _setBodyFlex(FoxRunV1BodyFlex bodyFlex) {
+    if (_bodyFlex == bodyFlex) return;
+    setState(() => _bodyFlex = bodyFlex);
   }
 
   @override
@@ -256,6 +270,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         leftToRight: _leftToRight,
         bodyScale: _bodyScale,
         verticalFlutterOffset: _verticalFlutterOffset,
+        bodyFlexOffset: _bodyFlexOffset,
       ),
       AppSpacing.gapSM,
       Wrap(
@@ -326,6 +341,22 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
             .toList(),
       ),
       AppSpacing.gapSM,
+      const Text('BODY FLEX'),
+      Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: FoxRunV1BodyFlex.values
+            .map(
+              (bodyFlex) => ChoiceChip(
+                key: ValueKey('fox-preview-body-flex-${bodyFlex.name}'),
+                label: Text(FoxRunV1Motion.bodyFlexLabel(bodyFlex)),
+                selected: _bodyFlex == bodyFlex,
+                onSelected: (_) => _setBodyFlex(bodyFlex),
+              ),
+            )
+            .toList(),
+      ),
+      AppSpacing.gapSM,
       const Text('FRAMES'),
       Align(
         alignment: Alignment.centerLeft,
@@ -354,7 +385,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)}',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)}',
       ),
     ],
   );
@@ -383,6 +414,7 @@ abstract final class FoxRunV1Motion {
   static const overCrossingDuration = Duration(milliseconds: 1200);
   static const flutterPhaseCount = 8;
   static const _flutterWave = <double>[0, -.5, -1, -.5, 0, .5, 1, .5];
+  static const _bodyFlexWave = <double>[0, .5, 1, .5, 0, -.5, -1, -.5];
 
   static Duration durationForSpeed(FoxRunV1Speed speed) => switch (speed) {
     FoxRunV1Speed.slow => slowCrossingDuration,
@@ -424,6 +456,26 @@ abstract final class FoxRunV1Motion {
     required int phase,
     required double amplitude,
   }) => _flutterWave[phase % flutterPhaseCount] * amplitude;
+
+  static double bodyFlexAmplitude(FoxRunV1BodyFlex bodyFlex) =>
+      switch (bodyFlex) {
+        FoxRunV1BodyFlex.off => 0,
+        FoxRunV1BodyFlex.half => .5,
+        FoxRunV1BodyFlex.one => 1,
+        FoxRunV1BodyFlex.two => 2,
+      };
+
+  static String bodyFlexLabel(FoxRunV1BodyFlex bodyFlex) => switch (bodyFlex) {
+    FoxRunV1BodyFlex.off => 'OFF',
+    FoxRunV1BodyFlex.half => '0.5px',
+    FoxRunV1BodyFlex.one => '1px',
+    FoxRunV1BodyFlex.two => '2px',
+  };
+
+  static double bodyFlexOffset({
+    required int phase,
+    required double amplitude,
+  }) => _bodyFlexWave[phase % flutterPhaseCount] * amplitude;
 
   static int frameAtCrossingProgress(
     double progress, {
@@ -510,7 +562,7 @@ abstract final class FoxRunV1ProductionGeometry {
   static const stageHeight = 150.0;
   static const groundInset = 28.0;
   static const crossingSafetyGap = 8.0;
-  static const groundVerticalOffset = 1.0;
+  static const groundVerticalOffset = 2.0;
 
   /// Union of all registered canonical silhouette bounds.  This is the
   /// endpoint authority; it intentionally excludes transparent canvas area.
@@ -536,6 +588,17 @@ abstract final class FoxRunV1ProductionGeometry {
 
   static double displayedTorsoLengthFor(double bodyScale) =>
       displayedTorsoLength * bodyScale;
+
+  /// Converts a requested torso displacement into a Y scale around the
+  /// canonical ground anchor, keeping the contact point stationary.
+  static double bodyFlexScale({
+    required double bodyScale,
+    required double bodyFlexOffset,
+  }) {
+    final torsoToGround =
+        (virtualGround - bodyOrigin.dy) * displayScale * bodyScale;
+    return 1 + bodyFlexOffset / torsoToGround;
+  }
 
   static double stageGroundY(double stageHeight) => stageHeight - groundInset;
 
@@ -615,12 +678,14 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     required this.leftToRight,
     this.bodyScale = 1,
     this.verticalFlutterOffset = 0,
+    this.bodyFlexOffset = 0,
   });
   final Animation<double> crossing;
   final String asset;
   final bool leftToRight;
   final double bodyScale;
   final double verticalFlutterOffset;
+  final double bodyFlexOffset;
   static const previewBackgroundColor = Color(0xFF101010);
   static const silhouetteColor = Color(0xFF7A7A7A);
 
@@ -673,12 +738,13 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                   width: canvas.width,
                   height: canvas.height,
                   child: Transform(
+                    key: const ValueKey('fox-run-v1-body-flex'),
                     alignment: Alignment(
                       (FoxRunV1ProductionGeometry.bodyOrigin.dx /
                                   FoxRunV1ProductionGeometry.canvasSize.width) *
                               2 -
                           1,
-                      (FoxRunV1ProductionGeometry.bodyOrigin.dy /
+                      (FoxRunV1ProductionGeometry.virtualGround /
                                   FoxRunV1ProductionGeometry
                                       .canvasSize
                                       .height) *
@@ -687,7 +753,10 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                     ),
                     transform: Matrix4.diagonal3Values(
                       leftToRight ? 1 : -1,
-                      1,
+                      FoxRunV1ProductionGeometry.bodyFlexScale(
+                        bodyScale: bodyScale,
+                        bodyFlexOffset: bodyFlexOffset,
+                      ),
                       1,
                     ),
                     child: ColorFiltered(

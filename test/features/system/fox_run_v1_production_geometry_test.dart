@@ -44,7 +44,7 @@ void main() {
 
   Future<void> pumpPreview(WidgetTester tester, double width) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.binding.setSurfaceSize(Size(width, 1000));
+    await tester.binding.setSurfaceSize(Size(width, 1200));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(
       const MaterialApp(
@@ -74,6 +74,42 @@ void main() {
                   .image
               as AssetImage)
           .assetName;
+
+  double bodyFlexGroundAnchorY(WidgetTester tester) {
+    final image = find.descendant(
+      of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+      matching: find.byType(Image),
+    );
+    final box = tester.renderObject<RenderBox>(image);
+    return box
+        .localToGlobal(
+          Offset(
+            0,
+            box.size.height *
+                (FoxRunV1ProductionGeometry.virtualGround /
+                    FoxRunV1ProductionGeometry.canvasSize.height),
+          ),
+        )
+        .dy;
+  }
+
+  double bodyFlexTorsoAnchorY(WidgetTester tester) {
+    final image = find.descendant(
+      of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+      matching: find.byType(Image),
+    );
+    final box = tester.renderObject<RenderBox>(image);
+    return box
+        .localToGlobal(
+          Offset(
+            0,
+            box.size.height *
+                (FoxRunV1ProductionGeometry.bodyOrigin.dy /
+                    FoxRunV1ProductionGeometry.canvasSize.height),
+          ),
+        )
+        .dy;
+  }
 
   test('canonical FOX assets 01 through 10 decode', () async {
     for (var frame = 1; frame <= 10; frame++) {
@@ -113,7 +149,7 @@ void main() {
       CatRunCoatPatterns.baseColor,
     );
     expect(FoxRunV1ProductionGeometry.groundInset, 28);
-    expect(FoxRunV1ProductionGeometry.groundVerticalOffset, 1);
+    expect(FoxRunV1ProductionGeometry.groundVerticalOffset, 2);
   });
 
   testWidgets('FOX production stage renders the CAT visual treatment', (
@@ -295,8 +331,48 @@ void main() {
     );
   });
 
+  test('body flex uses the requested ground-anchored 8-phase amplitudes', () {
+    const expectedOffsets = <FoxRunV1BodyFlex, List<double>>{
+      FoxRunV1BodyFlex.off: [0, 0, 0, 0, 0, 0, 0, 0],
+      FoxRunV1BodyFlex.half: [0, .25, .5, .25, 0, -.25, -.5, -.25],
+      FoxRunV1BodyFlex.one: [0, .5, 1, .5, 0, -.5, -1, -.5],
+      FoxRunV1BodyFlex.two: [0, 1, 2, 1, 0, -1, -2, -1],
+    };
+    for (final bodyFlex in FoxRunV1BodyFlex.values) {
+      expect([
+        for (var phase = 0; phase < 8; phase++)
+          FoxRunV1Motion.bodyFlexOffset(
+            phase: phase,
+            amplitude: FoxRunV1Motion.bodyFlexAmplitude(bodyFlex),
+          ),
+      ], expectedOffsets[bodyFlex]);
+    }
+    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.off), 'OFF');
+    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.half), '0.5px');
+    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.one), '1px');
+    expect(FoxRunV1Motion.bodyFlexLabel(FoxRunV1BodyFlex.two), '2px');
+  });
+
+  test('body flex keeps virtual ground fixed at every BODY SIZE', () {
+    for (final bodyScale in [.5, .7, 1.0]) {
+      final torsoFromAnchor =
+          (FoxRunV1ProductionGeometry.bodyOrigin.dy -
+              FoxRunV1ProductionGeometry.virtualGround) *
+          FoxRunV1ProductionGeometry.displayScale *
+          bodyScale;
+      for (final flex in [-2.0, -1.0, -.5, 0.0, .5, 1.0, 2.0]) {
+        final scale = FoxRunV1ProductionGeometry.bodyFlexScale(
+          bodyScale: bodyScale,
+          bodyFlexOffset: flex,
+        );
+        expect(0 * scale, 0, reason: 'ground contact is the transform anchor');
+        expect(torsoFromAnchor * scale - torsoFromAnchor, closeTo(-flex, .001));
+      }
+    }
+  });
+
   test('Frame 01 static body center and virtual ground are visible', () {
-    expect(FoxRunV1ProductionGeometry.groundVerticalOffset, 1);
+    expect(FoxRunV1ProductionGeometry.groundVerticalOffset, 2);
     const bodyCenterX = stageWidth / 2;
     final image = FoxRunV1ProductionGeometry.imageTopLeft(
       bodyCenterX: bodyCenterX,
@@ -519,6 +595,20 @@ void main() {
         expect((chip.label as Text).data, entry.value);
       }
       expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-body-flex-off')),
+            )
+            .selected,
+        isTrue,
+      );
+      for (final entry in flutterLabels.entries) {
+        final chip = tester.widget<ChoiceChip>(
+          find.byKey(ValueKey('fox-preview-body-flex-${entry.key}')),
+        );
+        expect((chip.label as Text).data, entry.value);
+      }
+      expect(
         find.byKey(const ValueKey('fox-preview-vertical-flutter-four')),
         findsNothing,
       );
@@ -723,6 +813,72 @@ void main() {
       expect(tester.getTopLeft(image).dy, closeTo(groundedTop, .001));
     },
   );
+
+  testWidgets(
+    'BODY FLEX updates an active RUN around the fixed ground anchor',
+    (tester) async {
+      await pumpPreview(tester, 390);
+      final image = find.descendant(
+        of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+        matching: find.byType(Image),
+      );
+      final transform = find.byKey(const ValueKey('fox-run-v1-body-flex'));
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+      final imageRect = tester.getRect(image);
+      final groundAnchor = bodyFlexGroundAnchorY(tester);
+      final torsoAnchor = bodyFlexTorsoAnchorY(tester);
+      final before = crossingAnimation(tester).value;
+
+      await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-one')));
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      final flexTransform = tester.widget<Transform>(transform);
+      expect(flexTransform.transform.getMaxScaleOnAxis(), greaterThan(1));
+      expect(tester.getSize(image), imageRect.size);
+      expect(bodyFlexGroundAnchorY(tester), closeTo(groundAnchor, .001));
+      expect(bodyFlexTorsoAnchorY(tester), closeTo(torsoAnchor - 1, .001));
+
+      await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(
+        tester.widget<Transform>(transform).transform.getMaxScaleOnAxis(),
+        closeTo(1, .001),
+      );
+    },
+  );
+
+  testWidgets('VERTICAL FLUTTER and BODY FLEX remain independent', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    final baseGround = bodyFlexGroundAnchorY(tester);
+    final progress = crossingAnimation(tester).value;
+
+    await tester.tap(
+      find.byKey(const ValueKey('fox-preview-vertical-flutter-one')),
+    );
+    await tester.pump();
+    expect(bodyFlexGroundAnchorY(tester), closeTo(baseGround - 1, .001));
+    expect(crossingAnimation(tester).value, closeTo(progress, .001));
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-one')));
+    await tester.pump();
+    expect(bodyFlexGroundAnchorY(tester), closeTo(baseGround - 1, .001));
+    expect(crossingAnimation(tester).value, closeTo(progress, .001));
+    expect(
+      tester
+          .widget<Transform>(find.byKey(const ValueKey('fox-run-v1-body-flex')))
+          .transform
+          .getMaxScaleOnAxis(),
+      greaterThan(1),
+    );
+  });
 
   testWidgets('subset, one-frame guard, and repeated RUN stay deterministic', (
     tester,
