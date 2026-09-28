@@ -15,6 +15,7 @@ import 'ambient_wildlife_v2.dart';
 import 'cat_run_v2_poc_section.dart';
 import 'cat_run_v23_production_preview.dart';
 import 'fox_run_v1_section.dart';
+import 'fox_pattern_preview.dart';
 import 'pixel_lab_page.dart';
 
 const _bootSequenceAssets = [
@@ -175,6 +176,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         const CatRunV23ProductionPreview(),
         AppSpacing.gapXL,
         const FoxRunV1Section(),
+        AppSpacing.gapXL,
+        const FoxPatternPreview(),
       ],
     ),
   );

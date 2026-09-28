@@ -160,9 +160,9 @@ class AmbientWildlifeV2EventPlan {
       );
 }
 
-/// FOX's V2 renderer uses the existing Ambient quadruped's 17px torso
-/// authority. The canonical FOX cels are only mapped into that existing
-/// production footprint; the Sandbox 1x canvas size is not used here.
+/// FOX's V2 renderer owns a 48px torso authority. The canonical FOX cels are
+/// mapped into that production footprint; the Sandbox 1x canvas size is not
+/// used here.
 abstract final class AmbientWildlifeV2Fox {
   static const crossingDuration = Duration(milliseconds: 1600);
   static const frameDuration = Duration(milliseconds: 80);
@@ -170,7 +170,7 @@ abstract final class AmbientWildlifeV2Fox {
   static const neutralFrame = 4;
   static const verticalFlutterAmplitude = 1.0;
   static const bodyFlexAmplitude = 2.0;
-  static const ambientTorsoLength = 17.0;
+  static const ambientTorsoLength = 48.0;
   static const displayScale =
       ambientTorsoLength / FoxRunV1ProductionGeometry.torsoLength;
   static final canvasSize = Size(

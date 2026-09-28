@@ -26,7 +26,7 @@ void main() {
     );
   });
 
-  test('FOX production policy keeps the Ambient size authority', () {
+  test('FOX production policy uses the 48px Ambient torso authority', () {
     final plan = AmbientWildlifeV2EventPlan.resolve(
       species: AmbientWildlifeV2Species.fox,
       leftToRight: true,
@@ -55,9 +55,9 @@ void main() {
     );
     expect(AmbientWildlifeV2Fox.verticalFlutterAmplitude, 1);
     expect(AmbientWildlifeV2Fox.bodyFlexAmplitude, 2);
-    expect(AmbientWildlifeV2Fox.ambientTorsoLength, 17);
-    expect(AmbientWildlifeV2Fox.canvasSize.width, closeTo(54.229, .001));
-    expect(AmbientWildlifeV2Fox.canvasSize.height, closeTo(25.7965, .001));
+    expect(AmbientWildlifeV2Fox.ambientTorsoLength, 48);
+    expect(AmbientWildlifeV2Fox.canvasSize.width, closeTo(153.1163, .001));
+    expect(AmbientWildlifeV2Fox.canvasSize.height, closeTo(72.8372, .001));
     expect(AmbientWildlifeV2Fox.neutralFrame, 4);
     expect(
       AmbientWildlifeV2Fox.assetForFrame(AmbientWildlifeV2Fox.neutralFrame),
@@ -241,9 +241,45 @@ void main() {
       leftToRight: true,
     );
 
-    expect(bounds.width, closeTo(47.85, .01));
+    expect(bounds.width, closeTo(135.1326, .01));
     expect(bounds.bottom, lessThanOrEqualTo(groundY));
     expect(groundY, stageHeight - AmbientWildlifeV2Stage.groundInset);
+  });
+
+  test('48px FOX fully enters and exits at all supported Ambient widths', () {
+    const groundY =
+        BatV3ProductionFlight.stageHeight - AmbientWildlifeV2Stage.groundInset;
+    for (final width in [320.0, 390.0, 900.0]) {
+      for (final leftToRight in [true, false]) {
+        final startCenter = AmbientWildlifeV2Fox.bodyCenterForProgress(
+          stageWidth: width,
+          progress: 0,
+          leftToRight: leftToRight,
+        );
+        final endCenter = AmbientWildlifeV2Fox.bodyCenterForProgress(
+          stageWidth: width,
+          progress: 1,
+          leftToRight: leftToRight,
+        );
+        final start = AmbientWildlifeV2Fox.visibleBoundsFor(
+          bodyCenterX: startCenter,
+          stageGroundY: groundY,
+          leftToRight: leftToRight,
+        );
+        final end = AmbientWildlifeV2Fox.visibleBoundsFor(
+          bodyCenterX: endCenter,
+          stageGroundY: groundY,
+          leftToRight: leftToRight,
+        );
+        if (leftToRight) {
+          expect(start.right, lessThanOrEqualTo(-7.999));
+          expect(end.left, greaterThanOrEqualTo(width + 7.999));
+        } else {
+          expect(start.left, greaterThanOrEqualTo(width + 7.999));
+          expect(end.right, lessThanOrEqualTo(-7.999));
+        }
+      }
+    }
   });
 
   test('CAT neutral Frame 02 uses production motion geometry and ground', () {

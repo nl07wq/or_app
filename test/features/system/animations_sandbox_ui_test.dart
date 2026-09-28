@@ -14,6 +14,7 @@ import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
 import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
+import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
@@ -355,6 +356,157 @@ void main() {
         );
         final stage = find.byKey(const ValueKey('ambient-wildlife-v2-stage'));
         expect(tester.getSize(stage).height, BatV3ProductionFlight.stageHeight);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  test(
+    'Ambient FOX keeps its production motion configuration at 48px torso',
+    () {
+      expect(AmbientWildlifeV2Fox.ambientTorsoLength, 48);
+      expect(
+        AmbientWildlifeV2Fox.crossingDuration,
+        const Duration(milliseconds: 1600),
+      );
+      expect(
+        AmbientWildlifeV2Fox.frameDuration,
+        const Duration(milliseconds: 80),
+      );
+      expect(AmbientWildlifeV2Fox.selectedFrames, const [0, 2, 4, 5, 6]);
+      expect(AmbientWildlifeV2Fox.neutralFrame, 4);
+      expect(AmbientWildlifeV2Fox.verticalFlutterAmplitude, 1);
+      expect(AmbientWildlifeV2Fox.bodyFlexAmplitude, 2);
+      expect(AmbientWildlifeV2Fox.canvasSize.width, greaterThan(150));
+      expect(AmbientWildlifeV2Fox.canvasSize.height, greaterThan(70));
+    },
+  );
+
+  testWidgets(
+    'FOX PATTERN PREVIEW edits frame-aware session masks and copies all data',
+    (tester) async {
+      String? clipboardText;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              clipboardText =
+                  (call.arguments as Map<Object?, Object?>)['text'] as String?;
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final section = find.byKey(const ValueKey('fox-pattern-preview-section'));
+      await tester.scrollUntilVisible(section, 400);
+      expect(section, findsOneWidget);
+      for (final frame in [1, 3, 5, 6, 7]) {
+        expect(
+          find.descendant(
+            of: section,
+            matching: find.byKey(ValueKey('fox-pattern-preview-frame-$frame')),
+          ),
+          findsOneWidget,
+        );
+      }
+      expect(
+        find.descendant(
+          of: section,
+          matching: find.byKey(const ValueKey('fox-pattern-preview-frame-2')),
+        ),
+        findsNothing,
+      );
+      for (final part in ['tail', 'jaw', 'feet']) {
+        expect(
+          find.descendant(
+            of: section,
+            matching: find.byKey(ValueKey('fox-pattern-preview-part-$part')),
+          ),
+          findsOneWidget,
+        );
+      }
+
+      final value = find.byKey(
+        const ValueKey('fox-pattern-preview-point-value'),
+      );
+      final initialValue = tester.widget<Text>(value).data;
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-x-+1')),
+      );
+      await tester.pump();
+      final editedValue = tester.widget<Text>(value).data;
+      expect(editedValue, isNot(initialValue));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-3')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-1')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, editedValue);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, initialValue);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-y-+1')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-frame')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, initialValue);
+
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 1'));
+      for (final frame in ['01', '03', '05', '06', '07']) {
+        expect(clipboardText, contains('FRAME $frame'));
+      }
+      expect(clipboardText, contains('TAIL'));
+      expect(clipboardText, contains('JAW'));
+      expect(clipboardText, contains('FEET'));
+      final firstCopy = clipboardText;
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      expect(clipboardText, firstCopy);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'FOX PATTERN PREVIEW remains responsive at 320, 390, and 900 pixels',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final width in [320.0, 390.0, 900.0]) {
+        tester.view.physicalSize = Size(width, 10000);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey('fox-pattern-preview-$width'),
+            home: const AnimationsSandboxPage(),
+          ),
+        );
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('fox-pattern-preview-section')),
+          400,
+        );
+        expect(
+          find.byKey(const ValueKey('fox-pattern-preview-stage')),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
       }
     },
