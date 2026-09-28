@@ -176,7 +176,17 @@ void main() {
       find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
       findsOneWidget,
     );
-    for (final offset in [0.0, -1.0, -2.0, -3.0, -4.0]) {
+    for (final offset in [
+      0.0,
+      -1.0,
+      -2.0,
+      -3.0,
+      -4.0,
+      -5.0,
+      -6.0,
+      -7.0,
+      -8.0,
+    ]) {
       expect(
         find.byKey(ValueKey('wildlife-ground-line-$offset')),
         findsOneWidget,

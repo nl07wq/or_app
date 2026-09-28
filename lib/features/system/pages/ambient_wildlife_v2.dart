@@ -590,9 +590,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
               Positioned.fill(
                 child: CustomPaint(
                   key: ValueKey('ambient-wildlife-v2-environment'),
-                  painter: _AmbientWildlifeV2EnvironmentPainter(
-                    visualGroundLineOffset: widget.visualGroundLineOffset,
-                  ),
+                  painter: const _AmbientWildlifeV2EnvironmentPainter(),
                 ),
               ),
               Positioned.fill(
@@ -680,6 +678,16 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                         },
                       ),
               ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('ambient-wildlife-v2-ground-line'),
+                    painter: _AmbientWildlifeV2GroundLinePainter(
+                      visualGroundLineOffset: widget.visualGroundLineOffset,
+                    ),
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -689,11 +697,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
 }
 
 class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
-  const _AmbientWildlifeV2EnvironmentPainter({
-    required this.visualGroundLineOffset,
-  });
-
-  final double visualGroundLineOffset;
+  const _AmbientWildlifeV2EnvironmentPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -701,21 +705,28 @@ class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = AmbientWildlifeV2Stage.environmentBackground,
     );
+  }
+
+  @override
+  bool shouldRepaint(_AmbientWildlifeV2EnvironmentPainter oldDelegate) => false;
+}
+
+class _AmbientWildlifeV2GroundLinePainter extends CustomPainter {
+  const _AmbientWildlifeV2GroundLinePainter({
+    required this.visualGroundLineOffset,
+  });
+
+  final double visualGroundLineOffset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final groundY = AmbientWildlifeV2Stage.visualGroundLineY(
+      stageHeight: size.height,
+      offset: visualGroundLineOffset,
+    );
     canvas.drawLine(
-      Offset(
-        0,
-        AmbientWildlifeV2Stage.visualGroundLineY(
-          stageHeight: size.height,
-          offset: visualGroundLineOffset,
-        ),
-      ),
-      Offset(
-        size.width,
-        AmbientWildlifeV2Stage.visualGroundLineY(
-          stageHeight: size.height,
-          offset: visualGroundLineOffset,
-        ),
-      ),
+      Offset(0, groundY),
+      Offset(size.width, groundY),
       Paint()
         ..color = AmbientWildlifeV2Stage.groundLineColor
         ..strokeWidth = 1,
@@ -723,7 +734,7 @@ class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_AmbientWildlifeV2EnvironmentPainter oldDelegate) =>
+  bool shouldRepaint(_AmbientWildlifeV2GroundLinePainter oldDelegate) =>
       oldDelegate.visualGroundLineOffset != visualGroundLineOffset;
 }
 

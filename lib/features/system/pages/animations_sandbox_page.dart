@@ -567,7 +567,17 @@ class _AmbientWildlifeSandboxSectionState
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final offset in [0.0, -1.0, -2.0, -3.0, -4.0])
+                  for (final offset in [
+                    0.0,
+                    -1.0,
+                    -2.0,
+                    -3.0,
+                    -4.0,
+                    -5.0,
+                    -6.0,
+                    -7.0,
+                    -8.0,
+                  ])
                     ChoiceChip(
                       key: ValueKey('wildlife-ground-line-$offset'),
                       label: Text(

@@ -218,6 +218,10 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-ground-line')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('ambient-wildlife-v2-neutral-cat')),
       findsOneWidget,
     );
@@ -366,7 +370,7 @@ void main() {
       final juvenilePosition = tester.getTopLeft(juvenile);
 
       await tester.pumpWidget(
-        _stageHost(plan: plan, requestId: 1, visualGroundLineOffset: -4),
+        _stageHost(plan: plan, requestId: 1, visualGroundLineOffset: -8),
       );
       await tester.pump();
 
@@ -374,11 +378,16 @@ void main() {
       expect(tester.getTopLeft(juvenile), juvenilePosition);
       expect(plan.foxSpawn!.juvenileCount, 9);
       expect(plan.foxSpawn!.pattern, FoxRunV1Pattern.fox);
-      expect(AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112), 107);
-      expect(
-        AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112, offset: -4),
-        103,
-      );
+      for (var offset = 0; offset >= -8; offset--) {
+        expect(
+          AmbientWildlifeV2Stage.visualGroundLineY(
+            stageHeight: 112,
+            offset: offset.toDouble(),
+          ),
+          107 + offset,
+          reason: 'offset $offset',
+        );
+      }
       expect(tester.takeException(), isNull);
     },
   );
