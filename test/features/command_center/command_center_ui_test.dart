@@ -395,21 +395,21 @@ void main() {
         card: Rect.fromLTRB(16, 194, 304, 293.6),
         group: Rect.fromLTRB(32, 213, 185.6, 274.6),
         heading: Rect.fromLTRB(47.4, 213, 185.6, 227),
-        date: Rect.fromLTRB(32, 238, 183.4, 270.9),
+        date: Rect.fromLTRB(32, 234.3, 183.4, 267.2),
         cycle: Rect.fromLTRB(192.9, 213, 288, 249.3),
       ),
       390: (
         card: Rect.fromLTRB(16, 168, 374, 274.4),
         group: Rect.fromLTRB(32, 187, 212, 255.4),
         heading: Rect.fromLTRB(50, 187, 212, 203.4),
-        date: Rect.fromLTRB(32, 215.4, 197.6, 251.4),
+        date: Rect.fromLTRB(32, 211.4, 197.6, 247.4),
         cycle: Rect.fromLTRB(236, 187, 356, 228.6),
       ),
       900: (
         card: Rect.fromLTRB(16, 168, 884, 278),
         group: Rect.fromLTRB(32, 187, 251.4, 259),
         heading: Rect.fromLTRB(54, 187, 251.4, 207),
-        date: Rect.fromLTRB(32, 219, 197.6, 255),
+        date: Rect.fromLTRB(32, 215, 197.6, 251),
         cycle: Rect.fromLTRB(276, 187, 396, 228.6),
       ),
     };
@@ -453,6 +453,9 @@ void main() {
       final cycleValueBox = find.byKey(
         const ValueKey('current-operation-cycle-value'),
       );
+      final dateHeadingBox = find
+          .descendant(of: group, matching: find.byType(FittedBox))
+          .first;
 
       _expectRectNear(cardRect, baseline.card);
       _expectRectNear(groupRect, baseline.group);
@@ -471,8 +474,9 @@ void main() {
         expect(boundsRect.height, closeTo(44, 0.5));
         expect(flipRect.height, closeTo(36, 0.5));
         expect(boundsRect.top - headingRect.bottom, closeTo(8, 0.5));
-        expect(flipRect.top - headingRect.bottom, closeTo(12, 0.5));
-        expect(boundsRect.bottom - flipRect.bottom, closeTo(4, 0.5));
+        expect(flipRect.top - headingRect.bottom, closeTo(8, 0.5));
+        expect(flipRect.top, closeTo(boundsRect.top, 0.5));
+        expect(boundsRect.bottom - flipRect.bottom, closeTo(8, 0.5));
         expect(boundsRect.width, closeTo(165.6, 0.5));
         expect(cycleRect.width, closeTo(120, 0.5));
         expect(cycleRect.left, closeTo(236, 0.5));
@@ -489,6 +493,14 @@ void main() {
         );
         expect(tester.getRect(cycleHeadingBox).height, closeTo(13.6, 0.5));
         expect(tester.getRect(cycleValueBox).height, closeTo(24, 0.5));
+        expect(
+          flipRect.top - tester.getRect(cycleValueBox).top,
+          closeTo(6.8, 0.5),
+        );
+        expect(
+          flipRect.top - tester.getRect(dateHeadingBox).bottom,
+          closeTo(8, 0.5),
+        );
       } else if (width == 320) {
         expect(tester.getSize(cycleGroup).width, closeTo(104, 0.5));
         expect(tester.getSize(dateCycleRow).width, closeTo(280, 0.5));
@@ -534,6 +546,7 @@ void main() {
       _expectRectNear(tester.getRect(bounds), boundsRect);
       _expectRectNear(tester.getRect(switcher), switcherRect);
       _expectRectNear(tester.getRect(nixie), flipRect);
+      _expectRectNear(tester.getRect(cycleGroup), cycleRect);
       final nixieGlyphKeys = [
         'nixie-label-AUG',
         'nixie-active-01',

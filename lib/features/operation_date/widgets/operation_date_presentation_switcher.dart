@@ -26,6 +26,7 @@ class OperationDatePresentationSwitcher extends StatefulWidget {
     this.contentMode = OperationDatePresentationContentMode.dateAndTime,
     this.dateTileWidth = OperationDateNixieDisplay.dateTileWidth,
     this.dateTileGap = OperationDateNixieDisplay.tileGap,
+    this.dateVerticalPadding = const EdgeInsets.symmetric(vertical: 4),
   });
 
   final Future<OperationLocalDate> operationDateFuture;
@@ -35,6 +36,7 @@ class OperationDatePresentationSwitcher extends StatefulWidget {
   final OperationDatePresentationContentMode contentMode;
   final double dateTileWidth;
   final double dateTileGap;
+  final EdgeInsetsGeometry dateVerticalPadding;
 
   @override
   State<OperationDatePresentationSwitcher> createState() =>
@@ -178,6 +180,7 @@ class _OperationDatePresentationSwitcherState
                   contentMode: widget.contentMode,
                   tileWidth: widget.dateTileWidth,
                   tileGap: widget.dateTileGap,
+                  dateVerticalPadding: widget.dateVerticalPadding,
                 )
               : OperationDateNixieDisplay(
                   operationDateFuture: widget.operationDateFuture,
@@ -185,6 +188,7 @@ class _OperationDatePresentationSwitcherState
                   previewTransitionToken: _previewTransitionToken,
                   dateFieldWidth: widget.dateTileWidth,
                   dateFieldGap: widget.dateTileGap,
+                  dateVerticalPadding: widget.dateVerticalPadding,
                   showTime:
                       widget.contentMode ==
                       OperationDatePresentationContentMode.dateAndTime,
@@ -207,6 +211,7 @@ class _FlipDatePresentation extends StatelessWidget {
     required this.contentMode,
     required this.tileWidth,
     required this.tileGap,
+    required this.dateVerticalPadding,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
@@ -215,6 +220,7 @@ class _FlipDatePresentation extends StatelessWidget {
   final OperationDatePresentationContentMode contentMode;
   final double tileWidth;
   final double tileGap;
+  final EdgeInsetsGeometry dateVerticalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +237,7 @@ class _FlipDatePresentation extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: dateVerticalPadding,
           child: OperationDateFlipCalendar(
             operationDateFuture: operationDateFuture,
             transitionToken: transitionToken,

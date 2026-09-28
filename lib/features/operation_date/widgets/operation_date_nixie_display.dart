@@ -17,6 +17,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
     this.showTime = true,
     this.dateFieldWidth = OperationDateNixieDisplay.dateTileWidth,
     this.dateFieldGap = OperationDateNixieDisplay.tileGap,
+    this.dateVerticalPadding = const EdgeInsets.symmetric(vertical: 4),
     super.key,
     this.initialTransitionFrom,
   });
@@ -31,6 +32,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
   final bool showTime;
   final double dateFieldWidth;
   final double dateFieldGap;
+  final EdgeInsetsGeometry dateVerticalPadding;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -42,7 +44,7 @@ class OperationDateNixieDisplay extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: dateVerticalPadding,
           child: _OperationDateNixieCalendar(
             operationDateFuture: operationDateFuture,
             transitionToken: transitionToken,

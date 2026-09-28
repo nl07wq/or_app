@@ -553,6 +553,7 @@ class _CurrentOperationCard extends StatelessWidget {
                     contentMode: OperationDatePresentationContentMode.dateOnly,
                     dateTileWidth: _dateTileWidth,
                     dateTileGap: _dateTileGap,
+                    dateVerticalPadding: const EdgeInsets.only(bottom: 8),
                   ),
                 ),
               ],
