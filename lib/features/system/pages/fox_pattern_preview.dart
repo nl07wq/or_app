@@ -21,6 +21,24 @@ class FoxPatternPreview extends StatefulWidget {
 
 enum _FoxPatternPart { tail, jaw, feet }
 
+/// Read-only production projection of the immutable V4 editor baseline.
+/// FOX RUN uses this directly; editable session masks never escape the editor.
+class FoxPatternProductionGeometry {
+  static Path path({
+    required int frame,
+    required String part,
+    required Size size,
+  }) {
+    final resolvedPart = switch (part) {
+      'tail' => _FoxPatternPart.tail,
+      'jaw' => _FoxPatternPart.jaw,
+      'feet' => _FoxPatternPart.feet,
+      _ => throw ArgumentError.value(part, 'part'),
+    };
+    return _buildInitialMasks()[frame]![resolvedPart]!.toPath(size);
+  }
+}
+
 extension on _FoxPatternPart {
   String get label => switch (this) {
     _FoxPatternPart.tail => 'TAIL',
@@ -439,7 +457,7 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                 ),
               if (_editorMode == _EditorMode.fineTune) ...[
                 AppSpacing.gapMD,
-              const Text('FINE TUNE'),
+                const Text('FINE TUNE'),
                 const Text('CONTROL POINT'),
                 DropdownButton<String>(
                   key: const ValueKey('fox-pattern-preview-point-selector'),
@@ -462,12 +480,12 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                   'Y ${point.y.toStringAsFixed(5)}  •  drag preview or nudge 1px',
                   key: const ValueKey('fox-pattern-preview-point-value'),
                 ),
-              Text(
-                'POINT COUNT: ${_activeMask.points.length}',
-                key: const ValueKey('fox-pattern-preview-point-count'),
-              ),
-              const Text('SHOW CONTROLS'),
-              Wrap(
+                Text(
+                  'POINT COUNT: ${_activeMask.points.length}',
+                  key: const ValueKey('fox-pattern-preview-point-count'),
+                ),
+                const Text('SHOW CONTROLS'),
+                Wrap(
                   spacing: 8,
                   children: [
                     ChoiceChip(
@@ -1303,8 +1321,7 @@ class _MaskPath {
     final candidates =
         points
             .where(
-              (point) =>
-                  includeControls || point.role == _MaskPointRole.anchor,
+              (point) => includeControls || point.role == _MaskPointRole.anchor,
             )
             .map(
               (point) => (
@@ -1447,10 +1464,10 @@ Map<int, Map<_FoxPatternPart, _MaskPath>> _buildInitialMasks() => {
       [.047188, .394899, .056043, .351562, .069356, .312500],
     ]),
     _FoxPatternPart.jaw: _userMask(.728797, .659245, [
-      [.688752, .643938, .719737, .589967, .713054, .557918],
+      [.688752, .643938, .719737, .589967, .717307, .566858],
       [.725138, .525869, .743703, .495042, .761203, .466953],
       [.778703, .438864, .798279, .402171, .824735, .389384],
-      [.851192, .371505, .900994, .379167, .919943, .381295],
+      [.851192, .371505, .900994, .379167, .934524, .403006],
       [.942685, .396422, .938432, .450417, .938432, .480151],
       [.932931, .509884, .904884, .540369, .886935, .568638],
       [.868986, .596906, .857094, .634662, .830738, .649763],
@@ -1472,9 +1489,9 @@ Map<int, Map<_FoxPatternPart, _MaskPath>> _buildInitialMasks() => {
     ]),
     _FoxPatternPart.jaw: _userMask(.699211, .686080, [
       [.699211, .659850, .699684, .570421, .720409, .556518],
-      [.734452, .515795, .744850, .452086, .783465, .426414],
-      [.812359, .387972, .862652, .368085, .893774, .371837],
-      [.921859, .371837, .951207, .390397, .951973, .418275],
+      [.734452, .515795, .744850, .452086, .783465, .404703],
+      [.812359, .387972, .862652, .368085, .940554, .394826],
+      [.921859, .371837, .951207, .390397, .959871, .437432],
       [.951973, .446153, .917701, .506523, .898370, .539103],
       [.879039, .571683, .860059, .584623, .835986, .613755],
       [.811914, .642887, .776733, .701843, .753937, .713897],
@@ -1494,13 +1511,13 @@ Map<int, Map<_FoxPatternPart, _MaskPath>> _buildInitialMasks() => {
       [.186000, .490000, .172000, .528000, .153000, .550000],
       [.112000, .560000, .073000, .540000, .035000, .500000],
     ]),
-    _FoxPatternPart.jaw: _userMask(.804734, .572608, [
-      [.780910, .588050, .751561, .627230, .739411, .627230],
-      [.731832, .624108, .731832, .579601, .731832, .553876],
+    _FoxPatternPart.jaw: _userMask(.804734, .545788, [
+      [.780910, .575279, .751561, .602964, .739411, .601687],
+      [.726364, .603674, .731832, .579601, .731832, .553876],
       [.735796, .528151, .747078, .494501, .763192, .472880],
       [.779305, .451259, .806241, .434730, .828513, .424151],
-      [.850785, .413573, .877695, .409410, .896823, .409410],
-      [.915952, .417832, .943284, .453823, .943284, .474684],
+      [.850785, .413573, .877695, .409410, .896823, .413241],
+      [.915952, .417832, .943284, .453823, .965763, .399333],
       [.940872, .495545, .905444, .518257, .882353, .534578],
     ]),
     _FoxPatternPart.feet: _userMask(.143748, .617927, [
@@ -1518,11 +1535,11 @@ Map<int, Map<_FoxPatternPart, _MaskPath>> _buildInitialMasks() => {
       [.186000, .490000, .172000, .528000, .153000, .550000],
       [.112000, .560000, .073000, .540000, .035000, .500000],
     ]),
-    _FoxPatternPart.jaw: _userMask(.736686, .629865, [
-      [.719401, .616277, .719401, .564315, .719401, .535074],
+    _FoxPatternPart.jaw: _userMask(.777391, .576225, [
+      [.703605, .682688, .719401, .564315, .719401, .535074],
       [.725695, .505833, .751169, .475366, .774451, .454418],
       [.797733, .433469, .828862, .417950, .859093, .409384],
-      [.889325, .403019, .939119, .403019, .955840, .403019],
+      [.889325, .403019, .939119, .403019, .963738, .460490],
       [.959420, .413118, .959420, .445445, .959420, .469975],
       [.950761, .494504, .925011, .525756, .903885, .550194],
       [.882759, .574632, .860531, .603326, .832665, .616604],

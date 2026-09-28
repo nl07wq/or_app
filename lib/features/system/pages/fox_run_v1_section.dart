@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'fox_pattern_preview.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -961,7 +962,11 @@ class _FoxPatternCel extends StatelessWidget {
     required Color color,
   }) => ClipPath(
     key: key,
-    clipper: _FoxPatternRegionClipper(region),
+    clipper: _FoxPatternRegionClipper(
+      region,
+      int.tryParse(RegExp(r'frame_(\d+)').firstMatch(asset)?.group(1) ?? '') ??
+          5,
+    ),
     child: _coloredCel(color: color),
   );
 
@@ -975,14 +980,24 @@ class _FoxPatternCel extends StatelessWidget {
 enum _FoxPatternRegion { tailTip, jawThroat, feet }
 
 class _FoxPatternRegionClipper extends CustomClipper<Path> {
-  const _FoxPatternRegionClipper(this.region);
+  const _FoxPatternRegionClipper(this.region, this.frame);
 
   final _FoxPatternRegion region;
+  final int frame;
 
   @override
   Path getClip(Size size) {
-    Offset point(double x, double y) => Offset(size.width * x, size.height * y);
-    return switch (region) {
+    final part = switch (region) {
+      _FoxPatternRegion.tailTip => 'tail',
+      _FoxPatternRegion.jawThroat => 'jaw',
+      _FoxPatternRegion.feet => 'feet',
+    };
+    return FoxPatternProductionGeometry.path(
+      frame: FoxPatternPreview.frames.contains(frame) ? frame : 5,
+      part: part,
+      size: size,
+    );
+    /*return switch (region) {
       _FoxPatternRegion.tailTip =>
         Path()
           ..moveTo(size.width * .035, size.height * .50)
@@ -1100,12 +1115,12 @@ class _FoxPatternRegionClipper extends CustomClipper<Path> {
           point(.74, .93),
           point(.34, .93),
         ], true),
-    };
+    };*/
   }
 
   @override
   bool shouldReclip(covariant _FoxPatternRegionClipper oldClipper) =>
-      oldClipper.region != region;
+      oldClipper.region != region || oldClipper.frame != frame;
 }
 
 class _FoxBodyOverlayPainter extends CustomPainter {
