@@ -105,7 +105,7 @@ void main() {
     expect(FoxRunV1Motion.frameCount, 10);
     expect(FoxRunV1Motion.frameDuration, const Duration(milliseconds: 80));
     expect(FoxRunV1Motion.cycleDuration, const Duration(milliseconds: 800));
-    expect(FoxRunV1Motion.crossingDuration, const Duration(milliseconds: 3200));
+    expect(FoxRunV1Motion.crossingDuration, const Duration(milliseconds: 2400));
     for (final milliseconds in [60, 80, 100]) {
       expect(
         FoxRunV1Motion.durationForCycles(
@@ -115,11 +115,11 @@ void main() {
         Duration(milliseconds: milliseconds * 10 * 4),
       );
     }
-    for (var cycle = 0; cycle < 4; cycle++) {
+    for (var cycle = 0; cycle < 3; cycle++) {
       for (var frame = 0; frame < 10; frame++) {
         final elapsedMilliseconds = cycle * 800 + frame * 80;
         expect(
-          FoxRunV1Motion.frameAtCrossingProgress(elapsedMilliseconds / 3200),
+          FoxRunV1Motion.frameAtCrossingProgress(elapsedMilliseconds / 2400),
           frame,
           reason: '${elapsedMilliseconds}ms',
         );
@@ -129,10 +129,10 @@ void main() {
     expect(FoxRunV1Motion.frameAtCrossingProgress(0), 0);
   });
 
-  test('diagnostic speeds preserve the deployed CURRENT authority', () {
+  test('diagnostic speeds use the requested V2 durations and ordering', () {
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.slow),
-      const Duration(milliseconds: 4800),
+      const Duration(milliseconds: 3200),
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.current),
@@ -140,24 +140,30 @@ void main() {
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.current),
-      const Duration(milliseconds: 3200),
-    );
-    expect(
-      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fast),
       const Duration(milliseconds: 2400),
     );
     expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fast),
+      const Duration(milliseconds: 2300),
+    );
+    expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
-      const Duration(milliseconds: 1600),
+      const Duration(milliseconds: 2200),
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fastest),
-      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 2100),
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.maximum),
-      const Duration(milliseconds: 800),
+      const Duration(milliseconds: 2000),
     );
+    final durations = FoxRunV1Speed.values
+        .map(FoxRunV1Motion.durationForSpeed)
+        .toList();
+    for (var index = 1; index < durations.length; index++) {
+      expect(durations[index], lessThan(durations[index - 1]));
+    }
   });
 
   test('selected frames repeat in canonical order at the 80ms cadence', () {
@@ -185,28 +191,60 @@ void main() {
         for (var milliseconds = 0; milliseconds < 480; milliseconds += 80)
           FoxRunV1Motion.frameAtElapsed(
             Duration(milliseconds: milliseconds),
-            selectedFrames: const [0, 2, 4, 5, 7, 9],
+            selectedFrames: const [0, 2, 4, 5, 6],
           ),
       ],
-      [0, 2, 4, 5, 7, 9],
+      [0, 2, 4, 5, 6, 0],
     );
   });
 
-  test('BODY SIZE 0.5x is half of the deployed 1x geometry', () {
+  test('BODY SIZE 0.5x and 0.7x derive from the deployed 1x geometry', () {
     final full = FoxRunV1ProductionGeometry.scaledCanvasFor(1);
     final half = FoxRunV1ProductionGeometry.scaledCanvasFor(.5);
+    final sevenTenths = FoxRunV1ProductionGeometry.scaledCanvasFor(.7);
     expect(full, FoxRunV1ProductionGeometry.scaledCanvas);
     expect(full.width, closeTo(220, .001));
     expect(full.height, closeTo(104.6537, .001));
     expect(half.width, closeTo(full.width * .5, .001));
     expect(half.height, closeTo(full.height * .5, .001));
+    expect(sevenTenths.width, closeTo(full.width * .7, .001));
+    expect(sevenTenths.height, closeTo(full.height * .7, .001));
     expect(
       FoxRunV1ProductionGeometry.displayedTorsoLengthFor(.5),
       closeTo(FoxRunV1ProductionGeometry.displayedTorsoLengthFor(1) * .5, .001),
     );
+    expect(
+      FoxRunV1ProductionGeometry.displayedTorsoLengthFor(.7),
+      closeTo(FoxRunV1ProductionGeometry.displayedTorsoLengthFor(1) * .7, .001),
+    );
+    expect(FoxRunV1ProductionGeometry.scaleFor(FoxRunV1BodySize.half), .5);
+    expect(
+      FoxRunV1ProductionGeometry.scaleFor(FoxRunV1BodySize.sevenTenths),
+      .7,
+    );
+    expect(FoxRunV1ProductionGeometry.scaleFor(FoxRunV1BodySize.full), 1);
+  });
+
+  test('vertical flutter uses the requested BAT-style 8-phase amplitudes', () {
+    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.off), 0);
+    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.two), 2);
+    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.four), 4);
+    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.six), 6);
+    expect(
+      [
+        for (var phase = 0; phase < 8; phase++)
+          FoxRunV1Motion.verticalFlutterOffset(phase: phase, amplitude: 4),
+      ],
+      [0, -2, -4, -2, 0, 2, 4, 2],
+    );
+    expect(
+      FoxRunV1Motion.flutterPhaseAtElapsed(const Duration(milliseconds: 640)),
+      0,
+    );
   });
 
   test('Frame 01 static body center and virtual ground are visible', () {
+    expect(FoxRunV1ProductionGeometry.groundVerticalOffset, 1);
     const bodyCenterX = stageWidth / 2;
     final image = FoxRunV1ProductionGeometry.imageTopLeft(
       bodyCenterX: bodyCenterX,
@@ -225,7 +263,7 @@ void main() {
       image.dy +
           FoxRunV1ProductionGeometry.virtualGround *
               FoxRunV1ProductionGeometry.displayScale,
-      closeTo(ground, 0.001),
+      closeTo(ground + FoxRunV1ProductionGeometry.groundVerticalOffset, 0.001),
     );
     expect(bounds.intersect(stageRect).width, greaterThan(190));
     expect(bounds.intersect(stageRect).height, greaterThan(78));
@@ -335,9 +373,9 @@ void main() {
     });
   }
 
-  test('both BODY SIZE values keep ground registration and extent exits', () {
+  test('all BODY SIZE values keep ground registration and extent exits', () {
     for (final width in [320.0, 390.0, 900.0]) {
-      for (final bodyScale in [.5, 1.0]) {
+      for (final bodyScale in [.5, .7, 1.0]) {
         for (final leftToRight in [true, false]) {
           final start = boundsFor(
             width: width,
@@ -367,7 +405,10 @@ void main() {
                 FoxRunV1ProductionGeometry.virtualGround *
                     FoxRunV1ProductionGeometry.displayScale *
                     bodyScale,
-            closeTo(ground, .001),
+            closeTo(
+              ground + FoxRunV1ProductionGeometry.groundVerticalOffset,
+              .001,
+            ),
           );
           if (leftToRight) {
             expect(start.right, closeTo(-8, .001));
@@ -398,7 +439,19 @@ void main() {
             .selected,
         isTrue,
       );
-      const defaultFrames = {1, 3, 5, 6, 8, 10};
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-preview-body-size-sevenTenths')),
+        findsOneWidget,
+      );
+      const defaultFrames = {1, 3, 5, 6, 7};
       for (var frame = 1; frame <= 10; frame++) {
         expect(
           tester
@@ -423,19 +476,11 @@ void main() {
   testWidgets('speed controls alter travel only and retain 80ms cadence', (
     tester,
   ) async {
-    const expectedProgress = <FoxRunV1Speed, double>{
-      FoxRunV1Speed.slow: 1 / 12,
-      FoxRunV1Speed.current: 1 / 8,
-      FoxRunV1Speed.fast: 1 / 6,
-      FoxRunV1Speed.faster: 1 / 4,
-      FoxRunV1Speed.fastest: 1 / 3,
-      FoxRunV1Speed.maximum: 1 / 2,
-    };
-    for (final entry in expectedProgress.entries) {
+    for (final speed in FoxRunV1Speed.values) {
       await pumpPreview(tester, 390);
-      if (entry.key != FoxRunV1Speed.current) {
+      if (speed != FoxRunV1Speed.current) {
         await tester.tap(
-          find.byKey(ValueKey('fox-preview-speed-${entry.key.name}')),
+          find.byKey(ValueKey('fox-preview-speed-${speed.name}')),
         );
         await tester.pump();
       }
@@ -447,8 +492,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 320));
       expect(
         crossingAnimation(tester).value,
-        closeTo(entry.value, .01),
-        reason: entry.key.name,
+        closeTo(
+          400 / FoxRunV1Motion.durationForSpeed(speed).inMilliseconds,
+          .01,
+        ),
+        reason: speed.name,
       );
     }
   });
@@ -461,13 +509,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 640));
     final before = crossingAnimation(tester).value;
-    expect(before, closeTo(.2, .01));
+    expect(before, closeTo(640 / 2400, .01));
 
     await tester.tap(find.byKey(const ValueKey('fox-preview-speed-fastest')));
     await tester.pump();
     expect(crossingAnimation(tester).value, closeTo(before, .001));
     await tester.pump(const Duration(milliseconds: 120));
-    expect(crossingAnimation(tester).value, closeTo(before + .1, .01));
+    expect(crossingAnimation(tester).value, closeTo(before + 120 / 2100, .01));
   });
 
   testWidgets('frame selection updates an active RUN without restarting', (
@@ -506,6 +554,21 @@ void main() {
       final before = crossingAnimation(tester).value;
 
       await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-size-sevenTenths')),
+      );
+      await tester.pump();
+      final sevenTenthsRect = tester.getRect(image);
+      final sevenTenthsGround =
+          sevenTenthsRect.top +
+          sevenTenthsRect.height *
+              (FoxRunV1ProductionGeometry.virtualGround /
+                  FoxRunV1ProductionGeometry.canvasSize.height);
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(sevenTenthsRect.width, closeTo(fullRect.width * .7, .001));
+      expect(sevenTenthsRect.height, closeTo(fullRect.height * .7, .001));
+      expect(sevenTenthsGround, closeTo(fullGround, .001));
+
+      await tester.tap(
         find.byKey(const ValueKey('fox-preview-body-size-half')),
       );
       await tester.pump();
@@ -519,6 +582,53 @@ void main() {
       expect(halfRect.width, closeTo(fullRect.width * .5, .001));
       expect(halfRect.height, closeTo(fullRect.height * .5, .001));
       expect(halfGround, closeTo(fullGround, .001));
+    },
+  );
+
+  testWidgets(
+    'VERTICAL FLUTTER updates an active RUN without resetting progress',
+    (tester) async {
+      await pumpPreview(tester, 390);
+      final image = find.descendant(
+        of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+        matching: find.byType(Image),
+      );
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
+      final groundedTop = tester.getTopLeft(image).dy;
+      final before = crossingAnimation(tester).value;
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-two')),
+      );
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 1, .001));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-six')),
+      );
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 3, .001));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
+      );
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop, .001));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-four')),
+      );
+      await tester.pump();
+      expect(crossingAnimation(tester).value, closeTo(before, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 2, .001));
+      await tester.tap(find.byKey(const ValueKey('fox-preview-pause')));
+      await tester.pump();
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop, .001));
     },
   );
 
@@ -613,8 +723,7 @@ void main() {
           endsWith('frame_03.png'),
           endsWith('frame_05.png'),
           endsWith('frame_06.png'),
-          endsWith('frame_08.png'),
-          endsWith('frame_10.png'),
+          endsWith('frame_07.png'),
         ),
       );
       await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
@@ -661,7 +770,7 @@ void main() {
     await tester.pump();
     expect(crossing(), closeTo(0, .001));
     expect(asset(), endsWith('frame_01.png'));
-    for (final frame in [3, 5, 6, 8, 10]) {
+    for (final frame in [3, 5, 6, 7]) {
       await tester.pump(const Duration(milliseconds: 80));
       expect(
         asset(),
@@ -671,8 +780,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
     expect(asset(), endsWith('frame_01.png'));
     await tester.pump(const Duration(milliseconds: 320));
-    expect(crossing(), closeTo(.25, .01));
-    expect(asset(), endsWith('frame_08.png'));
+    expect(crossing(), closeTo(720 / 2400, .01));
+    expect(asset(), endsWith('frame_07.png'));
 
     await tester.pump(const Duration(milliseconds: 400));
     expect(crossing(), greaterThan(.1));

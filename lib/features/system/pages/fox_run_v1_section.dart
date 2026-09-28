@@ -17,7 +17,9 @@ enum _FoxAuditMode { source, canonical, overlay }
 
 enum FoxRunV1Speed { slow, current, fast, faster, fastest, maximum }
 
-enum FoxRunV1BodySize { half, full }
+enum FoxRunV1BodySize { half, sevenTenths, full }
+
+enum FoxRunV1VerticalFlutter { off, two, four, six }
 
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
@@ -34,10 +36,18 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _leftToRight = true;
   var _speed = FoxRunV1Speed.current;
   var _bodySize = FoxRunV1BodySize.full;
+  var _verticalFlutter = FoxRunV1VerticalFlutter.off;
+  var _flutterPhase = 0;
   var _frameElapsedOffset = Duration.zero;
-  final _selectedFrames = <int>{0, 2, 4, 5, 7, 9};
+  final _selectedFrames = <int>{0, 2, 4, 5, 6};
   Duration get _crossingDuration => FoxRunV1Motion.durationForSpeed(_speed);
   double get _bodyScale => FoxRunV1ProductionGeometry.scaleFor(_bodySize);
+  double get _verticalFlutterOffset => _crossing.isAnimating
+      ? FoxRunV1Motion.verticalFlutterOffset(
+          phase: _flutterPhase,
+          amplitude: FoxRunV1Motion.flutterAmplitude(_verticalFlutter),
+        )
+      : 0;
   List<int> get _orderedSelectedFrames => _selectedFrames.toList()..sort();
   late final AnimationController _crossing = AnimationController(
     vsync: this,
@@ -57,6 +67,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   void _setPlayback(bool playing) {
     if (!playing) {
       _crossing.stop();
+      setState(() => _flutterPhase = 0);
       return;
     }
     _crossing.repeat();
@@ -65,17 +76,26 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
 
   void _syncFrameToCrossing() {
     if (!mounted || !_crossing.isAnimating) return;
+    final elapsed =
+        _frameElapsedOffset + (_crossing.lastElapsedDuration ?? Duration.zero);
     final nextFrame = FoxRunV1Motion.frameAtElapsed(
-      _frameElapsedOffset + (_crossing.lastElapsedDuration ?? Duration.zero),
+      elapsed,
       selectedFrames: _orderedSelectedFrames,
     );
-    if (nextFrame != _frame) setState(() => _frame = nextFrame);
+    final nextFlutterPhase = FoxRunV1Motion.flutterPhaseAtElapsed(elapsed);
+    if (nextFrame != _frame || nextFlutterPhase != _flutterPhase) {
+      setState(() {
+        _frame = nextFrame;
+        _flutterPhase = nextFlutterPhase;
+      });
+    }
   }
 
   void _restart() {
     setState(() {
       _frame = _orderedSelectedFrames.first;
       _frameElapsedOffset = Duration.zero;
+      _flutterPhase = 0;
     });
     _crossing
       ..stop()
@@ -114,6 +134,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   void _setBodySize(FoxRunV1BodySize bodySize) {
     if (_bodySize == bodySize) return;
     setState(() => _bodySize = bodySize);
+  }
+
+  void _setVerticalFlutter(FoxRunV1VerticalFlutter verticalFlutter) {
+    if (_verticalFlutter == verticalFlutter) return;
+    setState(() => _verticalFlutter = verticalFlutter);
   }
 
   @override
@@ -230,6 +255,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         asset: _asset(source: false),
         leftToRight: _leftToRight,
         bodyScale: _bodyScale,
+        verticalFlutterOffset: _verticalFlutterOffset,
       ),
       AppSpacing.gapSM,
       Wrap(
@@ -265,13 +291,40 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       const Text('BODY SIZE'),
       Wrap(
         spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
         children: FoxRunV1BodySize.values
             .map(
               (bodySize) => ChoiceChip(
                 key: ValueKey('fox-preview-body-size-${bodySize.name}'),
-                label: Text(bodySize == FoxRunV1BodySize.half ? '0.5×' : '1×'),
+                label: Text(switch (bodySize) {
+                  FoxRunV1BodySize.half => '0.5×',
+                  FoxRunV1BodySize.sevenTenths => '0.7×',
+                  FoxRunV1BodySize.full => '1×',
+                }),
                 selected: _bodySize == bodySize,
                 onSelected: (_) => _setBodySize(bodySize),
+              ),
+            )
+            .toList(),
+      ),
+      AppSpacing.gapSM,
+      const Text('VERTICAL FLUTTER'),
+      Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: FoxRunV1VerticalFlutter.values
+            .map(
+              (verticalFlutter) => ChoiceChip(
+                key: ValueKey(
+                  'fox-preview-vertical-flutter-${verticalFlutter.name}',
+                ),
+                label: Text(
+                  verticalFlutter == FoxRunV1VerticalFlutter.off
+                      ? 'OFF'
+                      : '${FoxRunV1Motion.flutterAmplitude(verticalFlutter).toStringAsFixed(0)}px',
+                ),
+                selected: _verticalFlutter == verticalFlutter,
+                onSelected: (_) => _setVerticalFlutter(verticalFlutter),
               ),
             )
             .toList(),
@@ -305,7 +358,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${_verticalFlutter == FoxRunV1VerticalFlutter.off ? 'OFF' : '${FoxRunV1Motion.flutterAmplitude(_verticalFlutter).toStringAsFixed(0)}px'}',
       ),
     ],
   );
@@ -325,15 +378,14 @@ abstract final class FoxRunV1Motion {
   static const orderedFrames = <int>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   static const frameDuration = Duration(milliseconds: 80);
   static const cycleDuration = Duration(milliseconds: frameCount * 80);
-  static const crossingCycles = 4;
-  static const crossingDuration = Duration(
-    milliseconds: frameCount * 80 * crossingCycles,
-  );
-  static const slowCrossingDuration = Duration(milliseconds: 4800);
-  static const fastCrossingDuration = Duration(milliseconds: 2400);
-  static const fasterCrossingDuration = Duration(milliseconds: 1600);
-  static const fastestCrossingDuration = Duration(milliseconds: 1200);
-  static const maximumCrossingDuration = Duration(milliseconds: 800);
+  static const crossingDuration = Duration(milliseconds: 2400);
+  static const slowCrossingDuration = Duration(milliseconds: 3200);
+  static const fastCrossingDuration = Duration(milliseconds: 2300);
+  static const fasterCrossingDuration = Duration(milliseconds: 2200);
+  static const fastestCrossingDuration = Duration(milliseconds: 2100);
+  static const maximumCrossingDuration = Duration(milliseconds: 2000);
+  static const flutterPhaseCount = 8;
+  static const _flutterWave = <double>[0, -.5, -1, -.5, 0, .5, 1, .5];
 
   static Duration durationForSpeed(FoxRunV1Speed speed) => switch (speed) {
     FoxRunV1Speed.slow => slowCrossingDuration,
@@ -349,6 +401,23 @@ abstract final class FoxRunV1Motion {
         microseconds:
             (celDuration ?? frameDuration).inMicroseconds * frameCount * cycles,
       );
+
+  static double flutterAmplitude(FoxRunV1VerticalFlutter verticalFlutter) =>
+      switch (verticalFlutter) {
+        FoxRunV1VerticalFlutter.off => 0,
+        FoxRunV1VerticalFlutter.two => 2,
+        FoxRunV1VerticalFlutter.four => 4,
+        FoxRunV1VerticalFlutter.six => 6,
+      };
+
+  static int flutterPhaseAtElapsed(Duration elapsed) =>
+      (elapsed.inMicroseconds ~/ frameDuration.inMicroseconds) %
+      flutterPhaseCount;
+
+  static double verticalFlutterOffset({
+    required int phase,
+    required double amplitude,
+  }) => _flutterWave[phase % flutterPhaseCount] * amplitude;
 
   static int frameAtCrossingProgress(
     double progress, {
@@ -435,6 +504,7 @@ abstract final class FoxRunV1ProductionGeometry {
   static const stageHeight = 150.0;
   static const groundInset = 28.0;
   static const crossingSafetyGap = 8.0;
+  static const groundVerticalOffset = 1.0;
 
   /// Union of all registered canonical silhouette bounds.  This is the
   /// endpoint authority; it intentionally excludes transparent canvas area.
@@ -447,6 +517,7 @@ abstract final class FoxRunV1ProductionGeometry {
 
   static double scaleFor(FoxRunV1BodySize bodySize) => switch (bodySize) {
     FoxRunV1BodySize.half => 0.5,
+    FoxRunV1BodySize.sevenTenths => 0.7,
     FoxRunV1BodySize.full => 1.0,
   };
 
@@ -466,9 +537,13 @@ abstract final class FoxRunV1ProductionGeometry {
     required double bodyCenterX,
     required double stageGroundY,
     double bodyScale = 1,
+    double verticalFlutterOffset = 0,
   }) => Offset(
     bodyCenterX - bodyOrigin.dx * displayScale * bodyScale,
-    stageGroundY - virtualGround * displayScale * bodyScale,
+    stageGroundY -
+        virtualGround * displayScale * bodyScale +
+        groundVerticalOffset +
+        verticalFlutterOffset,
   );
 
   static Rect visibleBounds({
@@ -476,11 +551,13 @@ abstract final class FoxRunV1ProductionGeometry {
     required double stageGroundY,
     required bool leftToRight,
     double bodyScale = 1,
+    double verticalFlutterOffset = 0,
   }) {
     final image = imageTopLeft(
       bodyCenterX: bodyCenterX,
       stageGroundY: stageGroundY,
       bodyScale: bodyScale,
+      verticalFlutterOffset: verticalFlutterOffset,
     );
     final relativeLeft =
         (visibleBoundsCanonical.left - bodyOrigin.dx) *
@@ -531,11 +608,13 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     required this.asset,
     required this.leftToRight,
     this.bodyScale = 1,
+    this.verticalFlutterOffset = 0,
   });
   final Animation<double> crossing;
   final String asset;
   final bool leftToRight;
   final double bodyScale;
+  final double verticalFlutterOffset;
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('fox-run-v1-production-stage'),
@@ -578,6 +657,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                   bodyCenterX: bodyCenter,
                   stageGroundY: stageGround,
                   bodyScale: bodyScale,
+                  verticalFlutterOffset: verticalFlutterOffset,
                 );
                 final canvas = FoxRunV1ProductionGeometry.scaledCanvasFor(
                   bodyScale,
