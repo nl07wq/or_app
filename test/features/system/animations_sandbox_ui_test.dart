@@ -535,7 +535,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
       await tester.pump();
-      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 2'));
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 3'));
       for (final frame in ['01', '03', '05', '06', '07']) {
         expect(clipboardText, contains('FRAME $frame'));
       }
@@ -554,6 +554,172 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'FOX PATTERN PREVIEW V3 defines areas, resamples anchors, and copies parts independently',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final section = find.byKey(const ValueKey('fox-pattern-preview-section'));
+      await tester.scrollUntilVisible(section, 400);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-part-jaw')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-free-tap')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-area-points-8')),
+      );
+      await tester.pump();
+      final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+      final origin = tester.getTopLeft(stage);
+      final size = tester.getSize(stage);
+      for (final point in const [
+        Offset(.70, .35),
+        Offset(.82, .32),
+        Offset(.94, .42),
+        Offset(.89, .57),
+        Offset(.77, .60),
+      ]) {
+        await tester.tapAt(
+          origin + Offset(size.width * point.dx, size.height * point.dy),
+        );
+      }
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+            )
+            .data,
+        contains('5 points'),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-undo-area')),
+      );
+      await tester.pump();
+      await tester.tapAt(origin + Offset(size.width * .77, size.height * .60));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-close-area')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+            )
+            .data,
+        contains('CANDIDATE READY'),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-apply-area')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-point-count')),
+            )
+            .data,
+        'POINT COUNT: 22',
+      );
+      final sourceValue = tester
+          .widget<Text>(
+            find.byKey(const ValueKey('fox-pattern-preview-point-value')),
+          )
+          .data;
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-3')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-copy-from-frame')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-point-value')),
+            )
+            .data,
+        sourceValue,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-x-+1')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-1')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-point-value')),
+            )
+            .data,
+        sourceValue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('FOX PATTERN PREVIEW V3 traces and D-pad nudges at editor zoom', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('fox-pattern-preview-section')),
+      400,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('fox-pattern-preview-zoom-2.0')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('fox-pattern-preview-mode-trace')),
+    );
+    await tester.pump();
+    final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+    final origin = tester.getTopLeft(stage);
+    final gesture = await tester.startGesture(origin + const Offset(80, 55));
+    await gesture.moveBy(const Offset(50, 12));
+    await gesture.moveBy(const Offset(20, 45));
+    await gesture.moveBy(const Offset(-65, 18));
+    await gesture.up();
+    await tester.pump();
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+          )
+          .data,
+      contains('CANDIDATE READY'),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('fox-pattern-preview-mode-fine-tune')),
+    );
+    await tester.pump();
+    final value = find.byKey(const ValueKey('fox-pattern-preview-point-value'));
+    final before = tester.widget<Text>(value).data;
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_right));
+    await tester.pump();
+    expect(tester.widget<Text>(value).data, isNot(before));
+    final longPress = await tester.startGesture(
+      tester.getCenter(find.byIcon(Icons.keyboard_arrow_right)),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    await longPress.up();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'FOX PATTERN PREVIEW remains responsive at 320, 390, and 900 pixels',

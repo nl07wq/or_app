@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -36,9 +38,16 @@ extension on _FoxPatternPart {
 class _FoxPatternPreviewState extends State<FoxPatternPreview> {
   late final Map<int, Map<_FoxPatternPart, _MaskPath>> _initialMasks;
   late final Map<int, Map<_FoxPatternPart, _MaskPath>> _masks;
+  final Map<String, _AreaCandidate> _candidates = {};
   var _frame = FoxPatternPreview.frames.first;
   var _part = _FoxPatternPart.tail;
   late String _pointId;
+  var _areaMode = _AreaMode.fineTune;
+  var _areaPointCount = 8;
+  var _zoom = 1.0;
+  var _pan = Offset.zero;
+  var _showControls = false;
+  var _copySourceFrame = 3;
 
   @override
   void initState() {
@@ -55,16 +64,76 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
   }
 
   _MaskPath get _activeMask => _masks[_frame]![_part]!;
+  String get _candidateKey => '$_frame:${_part.name}';
+  _AreaCandidate get _activeCandidate =>
+      _candidates.putIfAbsent(_candidateKey, _AreaCandidate.new);
 
   void _selectPoint(String pointId) => setState(() => _pointId = pointId);
 
   void _selectFrame(int frame) => setState(() {
     _frame = frame;
     _pointId = _activeMask.points.first.id;
+    if (_copySourceFrame == frame) {
+      _copySourceFrame = FoxPatternPreview.frames.firstWhere(
+        (candidate) => candidate != frame,
+      );
+    }
   });
 
   void _selectPart(_FoxPatternPart part) => setState(() {
     _part = part;
+    _pointId = _activeMask.points.first.id;
+  });
+
+  void _setAreaMode(_AreaMode mode) => setState(() => _areaMode = mode);
+
+  void _setZoom(double zoom) => setState(() {
+    _zoom = zoom;
+    _pan = Offset.zero;
+  });
+
+  void _panCanvas(Offset delta, Size size) => setState(() {
+    if (_zoom == 1) return;
+    _pan = Offset(
+      (_pan.dx + delta.dx).clamp(-size.width * (_zoom - 1), 0).toDouble(),
+      (_pan.dy + delta.dy).clamp(-size.height * (_zoom - 1), 0).toDouble(),
+    );
+  });
+
+  void _addAreaPoint(Offset point) => setState(() {
+    final candidate = _activeCandidate;
+    if (_areaMode == _AreaMode.freeTap) candidate.add(point);
+  });
+
+  void _startTrace(Offset point) => setState(() {
+    final candidate = _activeCandidate;
+    candidate.clear();
+    candidate.add(point);
+  });
+
+  void _extendTrace(Offset point) =>
+      setState(() => _activeCandidate.add(point));
+
+  void _finishTrace() => setState(() {
+    final candidate = _activeCandidate;
+    if (candidate.points.length >= 3) candidate.closed = true;
+  });
+
+  void _undoAreaPoint() => setState(_activeCandidate.undo);
+  void _clearArea() => setState(_activeCandidate.clear);
+  void _closeArea() => setState(() => _activeCandidate.closed = true);
+
+  void _applyArea() => setState(() {
+    final candidate = _activeCandidate;
+    if (!candidate.isReady) return;
+    _masks[_frame]![_part] = candidate.toMaskPath(_areaPointCount);
+    _pointId = _activeMask.points.first.id;
+    candidate.clear();
+    _areaMode = _AreaMode.fineTune;
+  });
+
+  void _copyFromFrame() => setState(() {
+    _masks[_frame]![_part] = _masks[_copySourceFrame]![_part]!.copy();
     _pointId = _activeMask.points.first.id;
   });
 
@@ -117,7 +186,7 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
   }
 
   String _copyText() {
-    final buffer = StringBuffer('FOX PATTERN DATA\nversion: 2\n');
+    final buffer = StringBuffer('FOX PATTERN DATA\nversion: 3\n');
     for (final frame in FoxPatternPreview.frames) {
       buffer.writeln();
       buffer.writeln('FRAME ${frame.toString().padLeft(2, '0')}');
@@ -182,16 +251,126 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                 ],
               ),
               AppSpacing.gapMD,
+              const Text('AREA DEFINE'),
+              AppSpacing.gapXS,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    key: const ValueKey('fox-pattern-preview-mode-free-tap'),
+                    label: const Text('FREE TAP'),
+                    selected: _areaMode == _AreaMode.freeTap,
+                    onSelected: (_) => _setAreaMode(_AreaMode.freeTap),
+                  ),
+                  ChoiceChip(
+                    key: const ValueKey('fox-pattern-preview-mode-trace'),
+                    label: const Text('TRACE'),
+                    selected: _areaMode == _AreaMode.trace,
+                    onSelected: (_) => _setAreaMode(_AreaMode.trace),
+                  ),
+                  ChoiceChip(
+                    key: const ValueKey('fox-pattern-preview-mode-fine-tune'),
+                    label: const Text('FINE TUNE'),
+                    selected: _areaMode == _AreaMode.fineTune,
+                    onSelected: (_) => _setAreaMode(_AreaMode.fineTune),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('POINTS'),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final count in [6, 8, 10, 12])
+                    ChoiceChip(
+                      key: ValueKey('fox-pattern-preview-area-points-$count'),
+                      label: Text('$count'),
+                      selected: _areaPointCount == count,
+                      onSelected: (_) =>
+                          setState(() => _areaPointCount = count),
+                    ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              const Text('ZOOM'),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final zoom in [1.0, 2.0, 3.0, 4.0])
+                    ChoiceChip(
+                      key: ValueKey('fox-pattern-preview-zoom-$zoom'),
+                      label: Text('${zoom.toInt()}×'),
+                      selected: _zoom == zoom,
+                      onSelected: (_) => _setZoom(zoom),
+                    ),
+                ],
+              ),
+              if (_areaMode != _AreaMode.fineTune) ...[
+                AppSpacing.gapSM,
+                Text(
+                  _activeCandidate.closed
+                      ? 'CANDIDATE READY: ${_activeCandidate.points.length} input points'
+                      : 'AREA INPUT: ${_activeCandidate.points.length} points',
+                  key: const ValueKey('fox-pattern-preview-area-status'),
+                ),
+              ],
+              AppSpacing.gapMD,
               _MaskEditorStage(
                 key: const ValueKey('fox-pattern-preview-stage'),
                 frame: _frame,
+                part: _part,
                 masks: _masks[_frame]!,
                 activeMask: _activeMask,
                 selectedPointId: _pointId,
+                candidate: _activeCandidate,
+                areaPointCount: _areaPointCount,
+                areaMode: _areaMode,
+                zoom: _zoom,
+                pan: _pan,
+                showControls: _showControls,
                 onSelectPoint: _selectPoint,
                 onDrag: _drag,
+                onAreaTap: _addAreaPoint,
+                onTraceStart: _startTrace,
+                onTraceUpdate: _extendTrace,
+                onTraceEnd: _finishTrace,
+                onPanCanvas: _panCanvas,
               ),
               AppSpacing.gapSM,
+              if (_areaMode != _AreaMode.fineTune)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      key: const ValueKey('fox-pattern-preview-undo-area'),
+                      onPressed: _activeCandidate.points.isEmpty
+                          ? null
+                          : _undoAreaPoint,
+                      child: const Text('UNDO POINT'),
+                    ),
+                    OutlinedButton(
+                      key: const ValueKey('fox-pattern-preview-clear-area'),
+                      onPressed: _activeCandidate.points.isEmpty
+                          ? null
+                          : _clearArea,
+                      child: const Text('CLEAR AREA'),
+                    ),
+                    OutlinedButton(
+                      key: const ValueKey('fox-pattern-preview-close-area'),
+                      onPressed: _activeCandidate.canClose ? _closeArea : null,
+                      child: const Text('CLOSE AREA'),
+                    ),
+                    FilledButton(
+                      key: const ValueKey('fox-pattern-preview-apply-area'),
+                      onPressed: _activeCandidate.isReady ? _applyArea : null,
+                      child: const Text('APPLY AREA'),
+                    ),
+                  ],
+                ),
+              if (_areaMode != _AreaMode.fineTune) AppSpacing.gapMD,
+              const Text('FINE TUNE'),
               const Text('CONTROL POINT'),
               DropdownButton<String>(
                 key: const ValueKey('fox-pattern-preview-point-selector'),
@@ -218,6 +397,23 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                 'POINT COUNT: ${_activeMask.points.length}',
                 key: const ValueKey('fox-pattern-preview-point-count'),
               ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    key: const ValueKey('fox-pattern-preview-controls-off'),
+                    label: const Text('CONTROLS OFF'),
+                    selected: !_showControls,
+                    onSelected: (_) => setState(() => _showControls = false),
+                  ),
+                  ChoiceChip(
+                    key: const ValueKey('fox-pattern-preview-controls-on'),
+                    label: const Text('CONTROLS ON'),
+                    selected: _showControls,
+                    onSelected: (_) => setState(() => _showControls = true),
+                  ),
+                ],
+              ),
               AppSpacing.gapXS,
               Wrap(
                 spacing: 8,
@@ -227,6 +423,10 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                   _nudgeButton('X +1', 1, 0),
                   _nudgeButton('Y -1', 0, -1),
                   _nudgeButton('Y +1', 0, 1),
+                  _DPad(
+                    onNudge: _nudge,
+                    key: const ValueKey('fox-pattern-preview-dpad'),
+                  ),
                   OutlinedButton(
                     key: const ValueKey('fox-pattern-preview-add-point'),
                     onPressed: _addPoint,
@@ -250,6 +450,34 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                     child: const Text('RESET FRAME'),
                   ),
                 ],
+              ),
+              AppSpacing.gapSM,
+              const Text('COPY FROM FRAME'),
+              DropdownButton<int>(
+                key: const ValueKey('fox-pattern-preview-copy-source'),
+                value: _copySourceFrame,
+                isExpanded: true,
+                items: [
+                  for (final frame in FoxPatternPreview.frames)
+                    DropdownMenuItem(
+                      value: frame,
+                      enabled: frame != _frame,
+                      child: Text(frame.toString().padLeft(2, '0')),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null && value != _frame) {
+                    setState(() => _copySourceFrame = value);
+                  }
+                },
+              ),
+              OutlinedButton(
+                key: const ValueKey('fox-pattern-preview-copy-from-frame'),
+                onPressed: _copySourceFrame == _frame ? null : _copyFromFrame,
+                child: Text(
+                  'COPY ${_part.label} FRAME ${_copySourceFrame.toString().padLeft(2, '0')} '
+                  '→ ${_frame.toString().padLeft(2, '0')}',
+                ),
               ),
               AppSpacing.gapMD,
               FilledButton.icon(
@@ -278,19 +506,43 @@ class _MaskEditorStage extends StatelessWidget {
   const _MaskEditorStage({
     super.key,
     required this.frame,
+    required this.part,
     required this.masks,
     required this.activeMask,
     required this.selectedPointId,
+    required this.candidate,
+    required this.areaPointCount,
+    required this.areaMode,
+    required this.zoom,
+    required this.pan,
+    required this.showControls,
     required this.onSelectPoint,
     required this.onDrag,
+    required this.onAreaTap,
+    required this.onTraceStart,
+    required this.onTraceUpdate,
+    required this.onTraceEnd,
+    required this.onPanCanvas,
   });
 
   final int frame;
+  final _FoxPatternPart part;
   final Map<_FoxPatternPart, _MaskPath> masks;
   final _MaskPath activeMask;
   final String selectedPointId;
+  final _AreaCandidate candidate;
+  final int areaPointCount;
+  final _AreaMode areaMode;
+  final double zoom;
+  final Offset pan;
+  final bool showControls;
   final ValueChanged<String> onSelectPoint;
   final void Function(DragUpdateDetails details, Size size) onDrag;
+  final ValueChanged<Offset> onAreaTap;
+  final ValueChanged<Offset> onTraceStart;
+  final ValueChanged<Offset> onTraceUpdate;
+  final VoidCallback onTraceEnd;
+  final void Function(Offset delta, Size size) onPanCanvas;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -300,41 +552,81 @@ class _MaskEditorStage extends StatelessWidget {
         width,
         width / FoxRunV1ProductionGeometry.canvasSize.aspectRatio,
       );
-      return Center(
-        child: SizedBox(
-          width: size.width,
-          height: size.height,
-          child: _DirectPointGestureLayer(
+      return SizedBox(
+        width: size.width,
+        height: size.height,
+        child: ClipRect(
+          child: _EditorGestureLayer(
             path: activeMask,
             size: size,
             selectedPointId: selectedPointId,
+            areaMode: areaMode,
+            zoom: zoom,
+            pan: pan,
             onSelectPoint: onSelectPoint,
             onDrag: onDrag,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                const ColoredBox(
-                  color: FoxRunV1ProductionStage.previewBackgroundColor,
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top:
-                      size.height *
-                      FoxRunV1ProductionGeometry.virtualGround /
-                      FoxRunV1ProductionGeometry.canvasSize.height,
-                  child: const Divider(height: 1),
-                ),
-                _PreviewPatternCel(frame: frame, masks: masks),
-                IgnorePointer(
-                  child: CustomPaint(
-                    painter: _MaskControlPointPainter(
-                      path: activeMask,
-                      selectedPointId: selectedPointId,
-                    ),
+            onAreaTap: onAreaTap,
+            onTraceStart: onTraceStart,
+            onTraceUpdate: onTraceUpdate,
+            onTraceEnd: onTraceEnd,
+            onPanCanvas: onPanCanvas,
+            child: Transform.scale(
+              alignment: Alignment.topLeft,
+              scale: zoom,
+              transformHitTests: false,
+              child: Transform.translate(
+                offset: pan / zoom,
+                transformHitTests: false,
+                child: SizedBox(
+                  width: size.width,
+                  height: size.height,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      const ColoredBox(
+                        color: FoxRunV1ProductionStage.previewBackgroundColor,
+                      ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top:
+                            size.height *
+                            FoxRunV1ProductionGeometry.virtualGround /
+                            FoxRunV1ProductionGeometry.canvasSize.height,
+                        child: const Divider(height: 1),
+                      ),
+                      _PreviewPatternCel(frame: frame, masks: masks),
+                      if (candidate.isReady)
+                        ClipPath(
+                          clipper: _MaskPathClipper(
+                            candidate.toMaskPath(areaPointCount),
+                          ),
+                          child: _PreviewPatternCel.single(
+                            frame: frame,
+                            color: part.color,
+                          ),
+                        ),
+                      IgnorePointer(
+                        child: CustomPaint(
+                          painter: _MaskControlPointPainter(
+                            path: activeMask,
+                            selectedPointId: selectedPointId,
+                            showControls: showControls,
+                          ),
+                        ),
+                      ),
+                      if (areaMode != _AreaMode.fineTune)
+                        IgnorePointer(
+                          child: CustomPaint(
+                            painter: _AreaCandidatePainter(
+                              candidate: candidate,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -343,34 +635,58 @@ class _MaskEditorStage extends StatelessWidget {
   );
 }
 
-class _DirectPointGestureLayer extends StatefulWidget {
-  const _DirectPointGestureLayer({
+class _EditorGestureLayer extends StatefulWidget {
+  const _EditorGestureLayer({
     required this.path,
     required this.size,
     required this.selectedPointId,
+    required this.areaMode,
+    required this.zoom,
+    required this.pan,
     required this.onSelectPoint,
     required this.onDrag,
+    required this.onAreaTap,
+    required this.onTraceStart,
+    required this.onTraceUpdate,
+    required this.onTraceEnd,
+    required this.onPanCanvas,
     required this.child,
   });
 
   final _MaskPath path;
   final Size size;
   final String selectedPointId;
+  final _AreaMode areaMode;
+  final double zoom;
+  final Offset pan;
   final ValueChanged<String> onSelectPoint;
   final void Function(DragUpdateDetails details, Size size) onDrag;
+  final ValueChanged<Offset> onAreaTap;
+  final ValueChanged<Offset> onTraceStart;
+  final ValueChanged<Offset> onTraceUpdate;
+  final VoidCallback onTraceEnd;
+  final void Function(Offset delta, Size size) onPanCanvas;
   final Widget child;
 
   @override
-  State<_DirectPointGestureLayer> createState() =>
-      _DirectPointGestureLayerState();
+  State<_EditorGestureLayer> createState() => _EditorGestureLayerState();
 }
 
-class _DirectPointGestureLayerState extends State<_DirectPointGestureLayer> {
+class _EditorGestureLayerState extends State<_EditorGestureLayer> {
   String? _dragPointId;
+
+  Offset _canvas(Offset position) => (position - widget.pan) / widget.zoom;
+  Offset _normalized(Offset position) {
+    final canvas = _canvas(position);
+    return Offset(
+      canvas.dx / widget.size.width,
+      canvas.dy / widget.size.height,
+    );
+  }
 
   void _selectAt(Offset position) {
     final point = widget.path.nextHitPoint(
-      position,
+      _canvas(position),
       widget.size,
       afterId: widget.selectedPointId,
     );
@@ -380,10 +696,21 @@ class _DirectPointGestureLayerState extends State<_DirectPointGestureLayer> {
   @override
   Widget build(BuildContext context) => GestureDetector(
     behavior: HitTestBehavior.opaque,
-    onTapUp: (details) => _selectAt(details.localPosition),
+    onTapUp: (details) {
+      if (widget.areaMode == _AreaMode.freeTap) {
+        widget.onAreaTap(_normalized(details.localPosition));
+      } else if (widget.areaMode == _AreaMode.fineTune) {
+        _selectAt(details.localPosition);
+      }
+    },
     onPanStart: (details) {
+      if (widget.areaMode == _AreaMode.trace) {
+        widget.onTraceStart(_normalized(details.localPosition));
+        return;
+      }
+      if (widget.areaMode != _AreaMode.fineTune) return;
       final point = widget.path.nextHitPoint(
-        details.localPosition,
+        _canvas(details.localPosition),
         widget.size,
         afterId: widget.selectedPointId,
       );
@@ -391,30 +718,60 @@ class _DirectPointGestureLayerState extends State<_DirectPointGestureLayer> {
       if (point != null) widget.onSelectPoint(point.id);
     },
     onPanUpdate: (details) {
-      if (_dragPointId != null) widget.onDrag(details, widget.size);
+      if (widget.areaMode == _AreaMode.trace) {
+        widget.onTraceUpdate(_normalized(details.localPosition));
+      } else if (_dragPointId != null) {
+        widget.onDrag(
+          DragUpdateDetails(
+            globalPosition: details.globalPosition,
+            localPosition: _canvas(details.localPosition),
+            delta: details.delta / widget.zoom,
+            primaryDelta: details.primaryDelta,
+          ),
+          widget.size,
+        );
+      } else if (widget.areaMode == _AreaMode.fineTune && widget.zoom > 1) {
+        widget.onPanCanvas(details.delta, widget.size);
+      }
     },
-    onPanEnd: (_) => _dragPointId = null,
-    onPanCancel: () => _dragPointId = null,
+    onPanEnd: (_) {
+      if (widget.areaMode == _AreaMode.trace) widget.onTraceEnd();
+      _dragPointId = null;
+    },
+    onPanCancel: () {
+      _dragPointId = null;
+    },
     child: widget.child,
   );
 }
 
 class _PreviewPatternCel extends StatelessWidget {
-  const _PreviewPatternCel({required this.frame, required this.masks});
+  const _PreviewPatternCel({required this.frame, required this.masks})
+    : _singleColor = null;
 
   final int frame;
   final Map<_FoxPatternPart, _MaskPath> masks;
+
+  const _PreviewPatternCel.single({required this.frame, required Color color})
+    : masks = const {},
+      _singleColor = color;
+
+  final Color? _singleColor;
 
   @override
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
     children: [
-      _cel(FoxRunV1ProductionStage.silhouetteColor),
-      for (final part in _FoxPatternPart.values)
-        ClipPath(
-          clipper: _MaskPathClipper(masks[part]!),
-          child: _cel(part.color),
-        ),
+      if (_singleColor case final color?)
+        _cel(color)
+      else
+        _cel(FoxRunV1ProductionStage.silhouetteColor),
+      if (_singleColor == null)
+        for (final part in _FoxPatternPart.values)
+          ClipPath(
+            clipper: _MaskPathClipper(masks[part]!),
+            child: _cel(part.color),
+          ),
     ],
   );
 
@@ -441,14 +798,47 @@ class _MaskPathClipper extends CustomClipper<Path> {
   bool shouldReclip(covariant _MaskPathClipper oldClipper) => true;
 }
 
+class _AreaCandidatePainter extends CustomPainter {
+  const _AreaCandidatePainter({required this.candidate});
+
+  final _AreaCandidate candidate;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (candidate.points.isEmpty) return;
+    final points = candidate.points
+        .map((point) => Offset(point.dx * size.width, point.dy * size.height))
+        .toList();
+    final line = Paint()
+      ..color = Colors.orangeAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    if (candidate.closed) path.close();
+    canvas.drawPath(path, line);
+    final marker = Paint()..color = Colors.orangeAccent;
+    for (final point in points) {
+      canvas.drawCircle(point, 6, marker);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AreaCandidatePainter oldDelegate) => true;
+}
+
 class _MaskControlPointPainter extends CustomPainter {
   const _MaskControlPointPainter({
     required this.path,
     required this.selectedPointId,
+    required this.showControls,
   });
 
   final _MaskPath path;
   final String selectedPointId;
+  final bool showControls;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -468,16 +858,239 @@ class _MaskControlPointPainter extends CustomPainter {
       }
     }
     for (final point in path.points) {
-      canvas.drawCircle(
-        point.toOffset(size),
-        point.id == selectedPointId ? 5 : 3,
-        point.id == selectedPointId ? selectedPaint : pointPaint,
-      );
+      if (!showControls && point.role == _MaskPointRole.control) continue;
+      final selected = point.id == selectedPointId;
+      final paint = selected ? selectedPaint : pointPaint;
+      final offset = point.toOffset(size);
+      if (point.role == _MaskPointRole.anchor) {
+        canvas.drawCircle(offset, selected ? 10 : 7, paint);
+      } else {
+        final radius = selected ? 6 : 4;
+        final diamond = Path()
+          ..moveTo(offset.dx, offset.dy - radius)
+          ..lineTo(offset.dx + radius, offset.dy)
+          ..lineTo(offset.dx, offset.dy + radius)
+          ..lineTo(offset.dx - radius, offset.dy)
+          ..close();
+        canvas.drawPath(diamond, paint);
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant _MaskControlPointPainter oldDelegate) => true;
+}
+
+enum _AreaMode { fineTune, freeTap, trace }
+
+class _AreaCandidate {
+  final List<Offset> points = [];
+  bool closed = false;
+
+  bool get canClose => points.length >= 3 && !closed;
+  bool get isReady => closed && points.length >= 3;
+
+  void add(Offset point) {
+    final normalized = Offset(
+      point.dx.clamp(-.25, 1.25).toDouble(),
+      point.dy.clamp(-.25, 1.25).toDouble(),
+    );
+    if (points.isEmpty || (points.last - normalized).distance > .002) {
+      points.add(normalized);
+    }
+    closed = false;
+  }
+
+  void undo() {
+    if (points.isNotEmpty) points.removeLast();
+    closed = false;
+  }
+
+  void clear() {
+    points.clear();
+    closed = false;
+  }
+
+  _MaskPath toMaskPath(int anchorCount) {
+    final anchors = _resampleClosed(points, anchorCount);
+    final bounds = _Bounds.fromPoints(anchors);
+    clampPoint(Offset point) => Offset(
+      point.dx.clamp(bounds.minX, bounds.maxX).toDouble(),
+      point.dy.clamp(bounds.minY, bounds.maxY).toDouble(),
+    );
+    pointFor(int index) => anchors[index % anchors.length];
+    control1(int from, int to) {
+      final previous = pointFor(from - 1);
+      final current = pointFor(from);
+      final next = pointFor(to);
+      return clampPoint(current + (next - previous) / 6);
+    }
+
+    control2(int from, int to) {
+      final current = pointFor(from);
+      final next = pointFor(to);
+      final after = pointFor(to + 1);
+      return clampPoint(next - (after - current) / 6);
+    }
+
+    final start = _MaskPoint(
+      'A0',
+      anchors.first.dx,
+      anchors.first.dy,
+      _MaskPointRole.anchor,
+    );
+    final segments = <_MaskCubicSegment>[];
+    for (var index = 1; index < anchors.length; index++) {
+      final c1 = control1(index - 1, index);
+      final c2 = control2(index - 1, index);
+      segments.add(
+        _MaskCubicSegment(
+          _MaskPoint('C${index * 2 - 1}', c1.dx, c1.dy, _MaskPointRole.control),
+          _MaskPoint('C${index * 2}', c2.dx, c2.dy, _MaskPointRole.control),
+          _MaskPoint(
+            'A$index',
+            anchors[index].dx,
+            anchors[index].dy,
+            _MaskPointRole.anchor,
+          ),
+        ),
+      );
+    }
+    return _MaskPath(start, segments);
+  }
+}
+
+class _Bounds {
+  const _Bounds(this.minX, this.maxX, this.minY, this.maxY);
+
+  final double minX;
+  final double maxX;
+  final double minY;
+  final double maxY;
+
+  factory _Bounds.fromPoints(List<Offset> points) => _Bounds(
+    points.map((point) => point.dx).reduce((a, b) => a < b ? a : b),
+    points.map((point) => point.dx).reduce((a, b) => a > b ? a : b),
+    points.map((point) => point.dy).reduce((a, b) => a < b ? a : b),
+    points.map((point) => point.dy).reduce((a, b) => a > b ? a : b),
+  );
+}
+
+List<Offset> _resampleClosed(List<Offset> input, int count) {
+  final contour = [...input, input.first];
+  final lengths = <double>[0];
+  for (var index = 1; index < contour.length; index++) {
+    lengths.add(lengths.last + (contour[index] - contour[index - 1]).distance);
+  }
+  final total = lengths.last;
+  if (total == 0) return List.filled(count, input.first);
+  return List.generate(count, (index) {
+    final target = total * index / count;
+    var segment = 1;
+    while (segment < lengths.length && lengths[segment] < target) {
+      segment++;
+    }
+    final begin = lengths[segment - 1];
+    final end = lengths[segment];
+    final t = end == begin ? 0.0 : (target - begin) / (end - begin);
+    return Offset.lerp(contour[segment - 1], contour[segment], t)!;
+  });
+}
+
+class _DPad extends StatelessWidget {
+  const _DPad({super.key, required this.onNudge});
+
+  final void Function({required double dx, required double dy}) onNudge;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 128,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _RepeatNudgeButton(
+          icon: Icons.keyboard_arrow_up,
+          dx: 0,
+          dy: -1,
+          onNudge: onNudge,
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _RepeatNudgeButton(
+              icon: Icons.keyboard_arrow_left,
+              dx: -1,
+              dy: 0,
+              onNudge: onNudge,
+            ),
+            const SizedBox(width: 32, height: 32),
+            _RepeatNudgeButton(
+              icon: Icons.keyboard_arrow_right,
+              dx: 1,
+              dy: 0,
+              onNudge: onNudge,
+            ),
+          ],
+        ),
+        _RepeatNudgeButton(
+          icon: Icons.keyboard_arrow_down,
+          dx: 0,
+          dy: 1,
+          onNudge: onNudge,
+        ),
+      ],
+    ),
+  );
+}
+
+class _RepeatNudgeButton extends StatefulWidget {
+  const _RepeatNudgeButton({
+    required this.icon,
+    required this.dx,
+    required this.dy,
+    required this.onNudge,
+  });
+
+  final IconData icon;
+  final double dx;
+  final double dy;
+  final void Function({required double dx, required double dy}) onNudge;
+
+  @override
+  State<_RepeatNudgeButton> createState() => _RepeatNudgeButtonState();
+}
+
+class _RepeatNudgeButtonState extends State<_RepeatNudgeButton> {
+  Timer? _delay;
+  Timer? _repeat;
+
+  void _start() {
+    widget.onNudge(dx: widget.dx, dy: widget.dy);
+    _delay = Timer(const Duration(milliseconds: 300), () {
+      _repeat = Timer.periodic(const Duration(milliseconds: 80), (_) {
+        widget.onNudge(dx: widget.dx, dy: widget.dy);
+      });
+    });
+  }
+
+  void _stop() {
+    _delay?.cancel();
+    _repeat?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => _start(),
+    onPointerUp: (_) => _stop(),
+    onPointerCancel: (_) => _stop(),
+    child: IconButton(icon: Icon(widget.icon), onPressed: () {}),
+  );
 }
 
 enum _MaskPointRole { anchor, control }
