@@ -985,20 +985,113 @@ class _FoxPatternRegionClipper extends CustomClipper<Path> {
     return switch (region) {
       _FoxPatternRegion.tailTip =>
         Path()
-          ..moveTo(size.width * .04, size.height * .48)
-          ..lineTo(size.width * .13, size.height * .32)
-          ..lineTo(size.width * .27, size.height * .27)
-          ..lineTo(size.width * .25, size.height * .53)
-          ..lineTo(size.width * .11, size.height * .57)
+          ..moveTo(size.width * .035, size.height * .50)
+          ..cubicTo(
+            size.width * .058,
+            size.height * .43,
+            size.width * .092,
+            size.height * .365,
+            size.width * .125,
+            size.height * .34,
+          )
+          ..cubicTo(
+            size.width * .148,
+            size.height * .322,
+            size.width * .17,
+            size.height * .31,
+            size.width * .18,
+            size.height * .302,
+          )
+          ..cubicTo(
+            size.width * .198,
+            size.height * .35,
+            size.width * .198,
+            size.height * .402,
+            size.width * .192,
+            size.height * .445,
+          )
+          ..cubicTo(
+            size.width * .186,
+            size.height * .49,
+            size.width * .172,
+            size.height * .528,
+            size.width * .153,
+            size.height * .55,
+          )
+          ..cubicTo(
+            size.width * .112,
+            size.height * .56,
+            size.width * .073,
+            size.height * .54,
+            size.width * .035,
+            size.height * .50,
+          )
           ..close(),
       _FoxPatternRegion.jawThroat =>
         Path()
-          ..moveTo(size.width * .76, size.height * .35)
-          ..lineTo(size.width * .98, size.height * .32)
-          ..lineTo(size.width * .94, size.height * .46)
-          ..lineTo(size.width * .84, size.height * .49)
-          ..lineTo(size.width * .72, size.height * .61)
-          ..lineTo(size.width * .69, size.height * .53)
+          ..moveTo(size.width * .982, size.height * .382)
+          ..cubicTo(
+            size.width * .968,
+            size.height * .4,
+            size.width * .951,
+            size.height * .409,
+            size.width * .932,
+            size.height * .414,
+          )
+          ..cubicTo(
+            size.width * .905,
+            size.height * .423,
+            size.width * .892,
+            size.height * .445,
+            size.width * .877,
+            size.height * .473,
+          )
+          ..cubicTo(
+            size.width * .855,
+            size.height * .504,
+            size.width * .835,
+            size.height * .536,
+            size.width * .806,
+            size.height * .568,
+          )
+          ..quadraticBezierTo(
+            size.width * .784,
+            size.height * .588,
+            size.width * .76,
+            size.height * .583,
+          )
+          ..cubicTo(
+            size.width * .779,
+            size.height * .555,
+            size.width * .795,
+            size.height * .526,
+            size.width * .812,
+            size.height * .502,
+          )
+          ..cubicTo(
+            size.width * .83,
+            size.height * .479,
+            size.width * .845,
+            size.height * .455,
+            size.width * .861,
+            size.height * .431,
+          )
+          ..cubicTo(
+            size.width * .883,
+            size.height * .404,
+            size.width * .91,
+            size.height * .385,
+            size.width * .937,
+            size.height * .374,
+          )
+          ..cubicTo(
+            size.width * .954,
+            size.height * .365,
+            size.width * .97,
+            size.height * .368,
+            size.width * .982,
+            size.height * .382,
+          )
           ..close(),
       _FoxPatternRegion.feet =>
         Path()..addPolygon([

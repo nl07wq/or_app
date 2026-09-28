@@ -245,6 +245,55 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('FOX pattern V2 keeps the face upper plane base-colored', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SizedBox(
+          width: 390,
+          child: FoxRunV1ProductionStage(
+            crossing: AlwaysStoppedAnimation(.5),
+            asset: 'assets/animations/sandbox/fox_v1/canonical/frame_01.png',
+            leftToRight: true,
+            pattern: FoxRunV1Pattern.fox,
+          ),
+        ),
+      ),
+    );
+
+    final canvas = FoxRunV1ProductionGeometry.canvasSize;
+    Path clipFor(String key) => tester
+        .widget<ClipPath>(find.byKey(ValueKey(key)))
+        .clipper!
+        .getClip(canvas);
+
+    final jaw = clipFor('fox-run-v1-pattern-jaw-throat');
+    expect(
+      jaw.contains(Offset(canvas.width * .85, canvas.height * .37)),
+      isFalse,
+    );
+    expect(
+      jaw.contains(Offset(canvas.width * .94, canvas.height * .40)),
+      isTrue,
+    );
+    expect(
+      jaw.contains(Offset(canvas.width * .80, canvas.height * .55)),
+      isTrue,
+    );
+
+    final tail = clipFor('fox-run-v1-pattern-tail-tip');
+    expect(
+      tail.contains(Offset(canvas.width * .08, canvas.height * .47)),
+      isTrue,
+    );
+    expect(
+      tail.contains(Offset(canvas.width * .23, canvas.height * .40)),
+      isFalse,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('FOX pattern supports every frame, size, and direction', (
     tester,
   ) async {
