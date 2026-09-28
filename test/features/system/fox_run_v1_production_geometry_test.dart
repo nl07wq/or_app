@@ -245,7 +245,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('FOX pattern V2 keeps the face upper plane base-colored', (
+  testWidgets('FOX pattern V4 keeps the face upper plane base-colored', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -275,7 +275,7 @@ void main() {
     );
     expect(
       jaw.contains(Offset(canvas.width * .94, canvas.height * .40)),
-      isTrue,
+      isFalse,
     );
     expect(
       jaw.contains(Offset(canvas.width * .80, canvas.height * .55)),
@@ -1139,7 +1139,9 @@ void main() {
     expect(displayedAsset(tester), endsWith('frame_03.png'));
     final before = crossingAnimation(tester).value;
 
-    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-3')));
+    final frameThree = find.byKey(const ValueKey('fox-preview-frame-3'));
+    await tester.ensureVisible(frameThree);
+    await tester.tap(frameThree);
     await tester.pump();
     expect(crossingAnimation(tester).value, closeTo(before, .001));
     expect(displayedAsset(tester), endsWith('frame_05.png'));
@@ -1432,12 +1434,16 @@ void main() {
         find.byKey(ValueKey('fox-preview-frame-$frame')),
       );
       if (chip.selected != selected.contains(frame)) {
-        await tester.tap(find.byKey(ValueKey('fox-preview-frame-$frame')));
+        final frameChip = find.byKey(ValueKey('fox-preview-frame-$frame'));
+        await tester.ensureVisible(frameChip);
+        await tester.tap(frameChip);
         await tester.pump();
       }
     }
 
-    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    final play = find.byKey(const ValueKey('fox-preview-play'));
+    await tester.ensureVisible(play);
+    await tester.tap(play);
     await tester.pump();
     expect(displayedAsset(tester), endsWith('frame_03.png'));
     await tester.pump(const Duration(milliseconds: 80));
@@ -1447,12 +1453,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
     expect(displayedAsset(tester), endsWith('frame_03.png'));
 
-    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.ensureVisible(play);
+    await tester.tap(play);
     await tester.pump();
     expect(displayedAsset(tester), endsWith('frame_03.png'));
 
-    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-6')));
-    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-8')));
+    final frameSix = find.byKey(const ValueKey('fox-preview-frame-6'));
+    final frameEight = find.byKey(const ValueKey('fox-preview-frame-8'));
+    await tester.ensureVisible(frameSix);
+    await tester.tap(frameSix);
+    await tester.ensureVisible(frameEight);
+    await tester.tap(frameEight);
     await tester.pump();
     final imageBefore = tester.getRect(
       find.descendant(
@@ -1460,7 +1471,9 @@ void main() {
         matching: find.byType(Image),
       ),
     );
-    await tester.tap(find.byKey(const ValueKey('fox-preview-frame-3')));
+    final remainingFrame = find.byKey(const ValueKey('fox-preview-frame-3'));
+    await tester.ensureVisible(remainingFrame);
+    await tester.tap(remainingFrame);
     await tester.pump();
     expect(
       tester
@@ -1590,4 +1603,174 @@ void main() {
     expect(end.right, closeTo(-8, .001));
     expect(end.intersect(stageRect).isEmpty, isTrue);
   });
+
+  test(
+    'PACK juvenile geometry preserves a 20px torso and safety-gapped lag',
+    () {
+      final juvenileScale = FoxRunV1ProductionGeometry.juvenileBodyScale;
+      expect(
+        FoxRunV1ProductionGeometry.displayedTorsoLengthFor(juvenileScale),
+        closeTo(FoxRunV1ProductionGeometry.juvenileTorsoLength, .001),
+      );
+      expect(
+        FoxRunV1ProductionGeometry.juvenileFollowerSpacing,
+        closeTo(
+          FoxRunV1ProductionGeometry.juvenileVisibleWidth +
+              FoxRunV1ProductionGeometry.crossingSafetyGap,
+          .001,
+        ),
+      );
+    },
+  );
+
+  test('PACK trailing formation fully enters and exits in both directions', () {
+    const juvenileCount = 9;
+    final trailingDistance =
+        juvenileCount * FoxRunV1ProductionGeometry.juvenileFollowerSpacing;
+    final juvenileScale = FoxRunV1ProductionGeometry.juvenileBodyScale;
+    for (final leftToRight in [true, false]) {
+      final leaderAtStart = FoxRunV1ProductionGeometry.bodyCenterForProgress(
+        stageWidth: stageWidth,
+        progress: 0,
+        leftToRight: leftToRight,
+        trailingDistance: trailingDistance,
+      );
+      final leaderAtEnd = FoxRunV1ProductionGeometry.bodyCenterForProgress(
+        stageWidth: stageWidth,
+        progress: 1,
+        leftToRight: leftToRight,
+        trailingDistance: trailingDistance,
+      );
+      final behind = leftToRight ? -1.0 : 1.0;
+      final tailAtStart = boundsAt(
+        leaderAtStart + behind * trailingDistance,
+        leftToRight: leftToRight,
+        bodyScale: juvenileScale,
+      );
+      final tailAtEnd = boundsAt(
+        leaderAtEnd + behind * trailingDistance,
+        leftToRight: leftToRight,
+        bodyScale: juvenileScale,
+      );
+      expect(tailAtStart.intersect(stageRect).isEmpty, isTrue);
+      expect(tailAtEnd.intersect(stageRect).isEmpty, isTrue);
+    }
+  });
+
+  testWidgets('PACK MODE renders deterministic juvenile counts between RUNs', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    expect(
+      find.byKey(const ValueKey('fox-preview-pack-mode-one')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('fox-preview-pack-mode-two')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('fox-preview-pack-mode-three')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('fox-preview-pack-mode-gricthTen')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump(const Duration(milliseconds: 160));
+    final progress = crossingAnimation(tester).value;
+    final runningChip = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('fox-preview-pack-mode-two')),
+    );
+    expect(runningChip.onSelected, isNull);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-pause')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('fox-preview-pack-mode-two')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(progress, .001));
+    expect(find.byKey(const ValueKey('fox-run-v1-juvenile-1')), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('fox-preview-pack-mode-gricthTen')),
+    );
+    await tester.pump();
+    for (var index = 1; index <= 9; index++) {
+      expect(
+        find.byKey(ValueKey('fox-run-v1-juvenile-$index')),
+        findsOneWidget,
+      );
+    }
+    final adult = find.byKey(const ValueKey('fox-run-v1-body-flex'));
+    final firstJuvenile = find.byKey(const ValueKey('fox-run-v1-juvenile-1'));
+    double bodyCenterX(Finder fox, double bodyScale) =>
+        tester.getTopLeft(fox).dx +
+        FoxRunV1ProductionGeometry.bodyOrigin.dx *
+            FoxRunV1ProductionGeometry.displayScale *
+            bodyScale;
+    expect(
+      bodyCenterX(firstJuvenile, FoxRunV1ProductionGeometry.juvenileBodyScale),
+      lessThan(bodyCenterX(adult, 1)),
+    );
+    final direction = find.byKey(const ValueKey('fox-preview-direction'));
+    await tester.ensureVisible(direction);
+    await tester.tap(direction);
+    await tester.pump();
+    expect(
+      bodyCenterX(firstJuvenile, FoxRunV1ProductionGeometry.juvenileBodyScale),
+      greaterThan(bodyCenterX(adult, 1)),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+        matching: find.byType(Image),
+      ),
+      findsNWidgets(10),
+    );
+
+    final juvenileSize = tester.getSize(
+      find.byKey(const ValueKey('fox-run-v1-juvenile-1')),
+    );
+    expect(
+      juvenileSize,
+      FoxRunV1ProductionGeometry.scaledCanvasFor(
+        FoxRunV1ProductionGeometry.juvenileBodyScale,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-size-half')));
+    await tester.pump();
+    expect(
+      tester.getSize(find.byKey(const ValueKey('fox-run-v1-juvenile-1'))),
+      juvenileSize,
+    );
+    final patternFox = find.byKey(const ValueKey('fox-preview-pattern-fox'));
+    await tester.ensureVisible(patternFox);
+    await tester.tap(patternFox);
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+        matching: find.byType(Image),
+      ),
+      findsNWidgets(40),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'PACK MODE choice chips remain responsive at 320, 390, and 900px',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await pumpPreview(tester, width);
+        for (final packMode in FoxRunV1PackMode.values) {
+          expect(
+            find.byKey(ValueKey('fox-preview-pack-mode-${packMode.name}')),
+            findsOneWidget,
+          );
+        }
+        expect(tester.takeException(), isNull, reason: '${width}px');
+      }
+    },
+  );
 }

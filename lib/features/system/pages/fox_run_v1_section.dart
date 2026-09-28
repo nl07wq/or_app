@@ -30,6 +30,8 @@ enum FoxRunV1BodyShrink { off, on }
 
 enum FoxRunV1Pattern { off, fox }
 
+enum FoxRunV1PackMode { one, two, three, gricthTen }
+
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
   static const _canvasSize = Size(1646, 783);
@@ -50,11 +52,18 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _bodyFlexMotion = FoxRunV1BodyFlexMotion.smooth;
   var _bodyShrink = FoxRunV1BodyShrink.off;
   var _pattern = FoxRunV1Pattern.off;
+  var _packMode = FoxRunV1PackMode.one;
   var _flutterPhase = 0;
   var _frameElapsedOffset = Duration.zero;
   final _selectedFrames = <int>{0, 2, 4, 5, 6};
   Duration get _crossingDuration => FoxRunV1Motion.durationForSpeed(_speed);
   double get _bodyScale => FoxRunV1ProductionGeometry.scaleFor(_bodySize);
+  int get _juvenileCount => switch (_packMode) {
+    FoxRunV1PackMode.one => 0,
+    FoxRunV1PackMode.two => 1,
+    FoxRunV1PackMode.three => 2,
+    FoxRunV1PackMode.gricthTen => 9,
+  };
   double get _verticalFlutterOffset => _crossing.isAnimating
       ? FoxRunV1Motion.verticalFlutterOffset(
           phase: _flutterPhase,
@@ -184,6 +193,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
     setState(() => _pattern = pattern);
   }
 
+  void _setPackMode(FoxRunV1PackMode packMode) {
+    if (_packMode == packMode) return;
+    setState(() => _packMode = packMode);
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -301,6 +315,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         verticalFlutterOffset: _verticalFlutterOffset,
         bodyFlexOffsetProvider: () => _bodyFlexOffset,
         pattern: _pattern,
+        juvenileCount: _juvenileCount,
       ),
       AppSpacing.gapSM,
       Wrap(
@@ -315,6 +330,29 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
             'fox-preview-direction',
           ),
         ],
+      ),
+      AppSpacing.gapSM,
+      const Text('PACK MODE'),
+      Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: FoxRunV1PackMode.values
+            .map(
+              (packMode) => ChoiceChip(
+                key: ValueKey('fox-preview-pack-mode-${packMode.name}'),
+                label: Text(switch (packMode) {
+                  FoxRunV1PackMode.one => '×1',
+                  FoxRunV1PackMode.two => '×2',
+                  FoxRunV1PackMode.three => '×3',
+                  FoxRunV1PackMode.gricthTen => 'GRICTH ×10',
+                }),
+                selected: _packMode == packMode,
+                onSelected: _crossing.isAnimating
+                    ? null
+                    : (_) => _setPackMode(packMode),
+              ),
+            )
+            .toList(),
       ),
       AppSpacing.gapSM,
       const Text('SPEED'),
@@ -463,7 +501,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • flex motion ${_bodyFlexMotion.name.toUpperCase()} • shrink ${_bodyShrink.name.toUpperCase()} • pattern ${_pattern.name.toUpperCase()}',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • adult 1 + juvenile $_juvenileCount (20px) • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • flex motion ${_bodyFlexMotion.name.toUpperCase()} • shrink ${_bodyShrink.name.toUpperCase()} • pattern ${_pattern.name.toUpperCase()}',
       ),
     ],
   );
@@ -704,6 +742,7 @@ abstract final class FoxRunV1ProductionGeometry {
   static const groundInset = 28.0;
   static const crossingSafetyGap = 8.0;
   static const groundVerticalOffset = 2.0;
+  static const juvenileTorsoLength = 20.0;
 
   /// Union of all registered canonical silhouette bounds.  This is the
   /// endpoint authority; it intentionally excludes transparent canvas area.
@@ -729,6 +768,19 @@ abstract final class FoxRunV1ProductionGeometry {
 
   static double displayedTorsoLengthFor(double bodyScale) =>
       displayedTorsoLength * bodyScale;
+
+  /// The juvenile's 20px torso is its own display authority and deliberately
+  /// does not inherit the adult BODY SIZE selector.
+  static double get juvenileBodyScale =>
+      juvenileTorsoLength / displayedTorsoLength;
+
+  static double get juvenileVisibleWidth =>
+      visibleBoundsCanonical.width * displayScale * juvenileBodyScale;
+
+  /// A one-body-width, safety-gapped single-file formation keeps the
+  /// transparent FOX canvases from making the visible silhouettes overlap.
+  static double get juvenileFollowerSpacing =>
+      juvenileVisibleWidth + crossingSafetyGap;
 
   /// Converts a requested torso displacement into a Y scale around the
   /// canonical ground anchor, keeping the contact point stationary.
@@ -792,6 +844,7 @@ abstract final class FoxRunV1ProductionGeometry {
     required double progress,
     required bool leftToRight,
     double bodyScale = 1,
+    double trailingDistance = 0,
   }) {
     final relativeLeft =
         (visibleBoundsCanonical.left - bodyOrigin.dx) *
@@ -805,9 +858,11 @@ abstract final class FoxRunV1ProductionGeometry {
     final renderedRight = leftToRight ? relativeRight : -relativeLeft;
     final leftExit = -crossingSafetyGap - renderedRight;
     final rightExit = stageWidth + crossingSafetyGap - renderedLeft;
-    return leftToRight
-        ? leftExit + (rightExit - leftExit) * progress
-        : rightExit - (rightExit - leftExit) * progress;
+    final start = leftToRight ? leftExit : rightExit;
+    final end = leftToRight
+        ? rightExit + trailingDistance
+        : leftExit - trailingDistance;
+    return start + (end - start) * progress;
   }
 }
 
@@ -822,6 +877,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     this.bodyFlexOffset = 0,
     this.bodyFlexOffsetProvider,
     this.pattern = FoxRunV1Pattern.off,
+    this.juvenileCount = 0,
   });
   final Animation<double> crossing;
   final String asset;
@@ -831,6 +887,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
   final double bodyFlexOffset;
   final double Function()? bodyFlexOffsetProvider;
   final FoxRunV1Pattern pattern;
+  final int juvenileCount;
   static const previewBackgroundColor = Color(0xFF101010);
   static const silhouetteColor = Color(0xFF7A7A7A);
   static const patternLightColor = Color(0xFF9F9F9F);
@@ -855,73 +912,109 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                 color: Theme.of(context).colorScheme.outlineVariant,
               ),
             ),
-            AnimatedBuilder(
-              key: const ValueKey('fox-run-v1-crossing'),
-              animation: crossing,
-              builder: (_, child) {
-                final t = crossing.value;
-                final stageGround = FoxRunV1ProductionGeometry.stageGroundY(
-                  constraints.maxHeight,
-                );
-                final bodyCenter =
-                    FoxRunV1ProductionGeometry.bodyCenterForProgress(
-                      stageWidth: constraints.maxWidth,
-                      progress: t,
-                      leftToRight: leftToRight,
-                      bodyScale: bodyScale,
-                    );
-                final image = FoxRunV1ProductionGeometry.imageTopLeft(
-                  bodyCenterX: bodyCenter,
-                  stageGroundY: stageGround,
-                  bodyScale: bodyScale,
-                  verticalFlutterOffset: verticalFlutterOffset,
-                );
-                final canvas = FoxRunV1ProductionGeometry.scaledCanvasFor(
-                  bodyScale,
-                );
-                final resolvedBodyFlexOffset =
-                    bodyFlexOffsetProvider?.call() ?? bodyFlexOffset;
-                return Positioned(
-                  left: image.dx,
-                  top: image.dy,
-                  width: canvas.width,
-                  height: canvas.height,
-                  child: Transform(
-                    key: const ValueKey('fox-run-v1-body-flex'),
-                    alignment: Alignment(
-                      (FoxRunV1ProductionGeometry.bodyOrigin.dx /
-                                  FoxRunV1ProductionGeometry.canvasSize.width) *
-                              2 -
-                          1,
-                      (FoxRunV1ProductionGeometry.virtualGround /
-                                  FoxRunV1ProductionGeometry
-                                      .canvasSize
-                                      .height) *
-                              2 -
-                          1,
-                    ),
-                    transform: Matrix4.diagonal3Values(
-                      leftToRight ? 1 : -1,
-                      FoxRunV1ProductionGeometry.bodyFlexScale(
+            Positioned.fill(
+              child: AnimatedBuilder(
+                key: const ValueKey('fox-run-v1-crossing'),
+                animation: crossing,
+                builder: (_, child) {
+                  final t = crossing.value;
+                  final stageGround = FoxRunV1ProductionGeometry.stageGroundY(
+                    constraints.maxHeight,
+                  );
+                  final followerSpacing =
+                      FoxRunV1ProductionGeometry.juvenileFollowerSpacing;
+                  final bodyCenter =
+                      FoxRunV1ProductionGeometry.bodyCenterForProgress(
+                        stageWidth: constraints.maxWidth,
+                        progress: t,
+                        leftToRight: leftToRight,
+                        bodyScale: bodyScale,
+                        trailingDistance: juvenileCount * followerSpacing,
+                      );
+                  final resolvedBodyFlexOffset =
+                      bodyFlexOffsetProvider?.call() ?? bodyFlexOffset;
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildFox(
+                        bodyCenterX: bodyCenter,
+                        stageGroundY: stageGround,
                         bodyScale: bodyScale,
                         bodyFlexOffset: resolvedBodyFlexOffset,
+                        flexKey: const ValueKey('fox-run-v1-body-flex'),
                       ),
-                      1,
-                    ),
-                    child: _FoxPatternCel(asset: asset, pattern: pattern),
-                  ),
-                );
-              },
+                      for (var index = 0; index < juvenileCount; index++)
+                        _buildFox(
+                          bodyCenterX:
+                              bodyCenter +
+                              (leftToRight ? -1 : 1) *
+                                  followerSpacing *
+                                  (index + 1),
+                          stageGroundY: stageGround,
+                          bodyScale:
+                              FoxRunV1ProductionGeometry.juvenileBodyScale,
+                          bodyFlexOffset: resolvedBodyFlexOffset,
+                          celKey: ValueKey('fox-run-v1-juvenile-${index + 1}'),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ],
         ),
       ),
     ),
   );
+
+  Widget _buildFox({
+    required double bodyCenterX,
+    required double stageGroundY,
+    required double bodyScale,
+    required double bodyFlexOffset,
+    Key? flexKey,
+    Key? celKey,
+  }) {
+    final image = FoxRunV1ProductionGeometry.imageTopLeft(
+      bodyCenterX: bodyCenterX,
+      stageGroundY: stageGroundY,
+      bodyScale: bodyScale,
+      verticalFlutterOffset: verticalFlutterOffset,
+    );
+    final canvas = FoxRunV1ProductionGeometry.scaledCanvasFor(bodyScale);
+    return Positioned(
+      left: image.dx,
+      top: image.dy,
+      width: canvas.width,
+      height: canvas.height,
+      child: Transform(
+        key: flexKey,
+        alignment: Alignment(
+          (FoxRunV1ProductionGeometry.bodyOrigin.dx /
+                      FoxRunV1ProductionGeometry.canvasSize.width) *
+                  2 -
+              1,
+          (FoxRunV1ProductionGeometry.virtualGround /
+                      FoxRunV1ProductionGeometry.canvasSize.height) *
+                  2 -
+              1,
+        ),
+        transform: Matrix4.diagonal3Values(
+          leftToRight ? 1 : -1,
+          FoxRunV1ProductionGeometry.bodyFlexScale(
+            bodyScale: bodyScale,
+            bodyFlexOffset: bodyFlexOffset,
+          ),
+          1,
+        ),
+        child: _FoxPatternCel(key: celKey, asset: asset, pattern: pattern),
+      ),
+    );
+  }
 }
 
 class _FoxPatternCel extends StatelessWidget {
-  const _FoxPatternCel({required this.asset, required this.pattern});
+  const _FoxPatternCel({super.key, required this.asset, required this.pattern});
 
   final String asset;
   final FoxRunV1Pattern pattern;
