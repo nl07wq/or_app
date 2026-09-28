@@ -117,6 +117,15 @@ void main() {
     expect(saved.version, 3);
     expect(saved.startTime, isNull);
     expect(saved.endTime, isNull);
+    expect(saved.entryState!['planAuthorityVersion'], 2);
+    final authority = Map<String, Object?>.from(
+      saved.entryState!['planAuthority']! as Map,
+    );
+    final items = authority['items']! as List;
+    expect(items, hasLength(1));
+    final planItem = Map<String, Object?>.from(items.single as Map);
+    expect(planItem['planItemId'], fixture.identity);
+    expect(planItem['attachedExerciseInstanceId'], isNotNull);
     expect(
       await fixture.container.training.findAllRecords(),
       hasLength(before.length),

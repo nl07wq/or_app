@@ -22,6 +22,8 @@ class TrainingExerciseV2Editor extends StatefulWidget {
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback onChanged;
+  final VoidCallback? onAttachmentRequested;
+  final Widget? reorderHandle;
 
   const TrainingExerciseV2Editor({
     super.key,
@@ -34,6 +36,8 @@ class TrainingExerciseV2Editor extends StatefulWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onChanged,
+    this.onAttachmentRequested,
+    this.reorderHandle,
   });
 
   @override
@@ -108,6 +112,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
                 tooltip: 'Delete exercise',
                 onPressed: widget.onDelete,
               ),
+              if (widget.reorderHandle != null) widget.reorderHandle!,
             ],
           ),
           AppSpacing.gapXS,
@@ -123,6 +128,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
                 controller.equipmentSelectionMade = true;
               });
               widget.onChanged();
+              widget.onAttachmentRequested?.call();
             },
           ),
           if (name.isNotEmpty) ...[
@@ -157,6 +163,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
       }
     });
     widget.onChanged();
+    widget.onAttachmentRequested?.call();
   }
 
   TrainingEquipmentCandidates _equipmentCandidates() {

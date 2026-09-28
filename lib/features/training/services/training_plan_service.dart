@@ -454,59 +454,93 @@ class TrainingPlanService {
     ).map((exercise) => exercise.name).take(3).toList(growable: false),
   );
 
-  Map<String, Object?> _entryState(TrainingPlanPreview preview) => {
-    'sessionName': '',
-    'sessionMemo': '',
-    'overallEvaluation': '',
-    'sessionGrade': null,
-    'dynamicStretchCompleted': null,
-    'cooldownStretchCompleted': null,
-    'planMetadata': {
-      'exchangeId': preview.response.exchangeId,
-      'sourceDigest': preview.sourceDigest,
-      'sourceRecordId': preview.response.payload['sourceRecordId'],
-      'sourceOperationDate': preview.referenceOperationDate,
-      'note': preview.plan.note,
-    },
-    'exercises': [
-      for (final exercise in preview.plan.exercises)
-        {
-          'exerciseName': exercise.name,
-          'equipment': exercise.equipment?.toJson(),
-          'equipmentSelectionMade': true,
-          'evaluation': '',
-          'targetWeight': '',
-          'targetReps': <String>[],
-          'targetNotes': '',
-          'planSlots': [
-            for (final (index, set) in exercise.sets.indexed)
-              {
-                'index': index,
-                'setType': set.setType.stableId,
-                'plannedWeightKg': set.plannedWeightKg,
-                'targetMinReps': set.targetMinReps,
-                'targetMaxReps': set.targetMaxReps,
-                'restAfterSeconds': set.restAfterSeconds,
-              },
-          ],
-          'sets': [
-            for (final (index, set) in exercise.sets.indexed)
-              {
-                'planSlotIndex': index,
-                'setType': set.setType.stableId,
-                'weight': _displayNumber(set.plannedWeightKg),
-                'reps': '${set.targetMinReps}',
-                'rpe': null,
-                'rest': set.restAfterSeconds?.toString() ?? '',
-                'plannedWeightKg': set.plannedWeightKg,
-                'targetMinReps': set.targetMinReps,
-                'targetMaxReps': set.targetMaxReps,
-              },
-          ],
-        },
-    ],
-    'cardioEntries': <Object?>[],
-  };
+  Map<String, Object?> _entryState(TrainingPlanPreview preview) {
+    final importedAtMicros = DateTime.now().microsecondsSinceEpoch;
+    return {
+      'sessionName': '',
+      'sessionMemo': '',
+      'overallEvaluation': '',
+      'sessionGrade': null,
+      'dynamicStretchCompleted': null,
+      'cooldownStretchCompleted': null,
+      'planMetadata': {
+        'exchangeId': preview.response.exchangeId,
+        'sourceDigest': preview.sourceDigest,
+        'sourceRecordId': preview.response.payload['sourceRecordId'],
+        'sourceOperationDate': preview.referenceOperationDate,
+        'note': preview.plan.note,
+      },
+      // V2 draft-only plan cassette.  Materialized exercise slots remain
+      // disposable execution state; this is the prescribed authority.
+      'planAuthorityVersion': 2,
+      'planAuthority': {
+        'items': [
+          for (final exercise in preview.plan.exercises)
+            {
+              'planItemId': exercise.identity,
+              'exerciseIdentity': exercise.identity,
+              'exerciseName': exercise.name,
+              'equipment': exercise.equipment?.toJson(),
+              'planSlots': [
+                for (final (index, set) in exercise.sets.indexed)
+                  {
+                    'index': index,
+                    'setType': set.setType.stableId,
+                    'plannedWeightKg': set.plannedWeightKg,
+                    'targetMinReps': set.targetMinReps,
+                    'targetMaxReps': set.targetMaxReps,
+                    'restAfterSeconds': set.restAfterSeconds,
+                  },
+              ],
+              'attachedExerciseInstanceId':
+                  'plan-exercise-${preview.response.exchangeId}-${exercise.identity}',
+            },
+        ],
+      },
+      'exercises': [
+        for (final exercise in preview.plan.exercises)
+          {
+            'instanceId':
+                'plan-exercise-${preview.response.exchangeId}-${exercise.identity}',
+            'createdAtMicros': importedAtMicros,
+            'exerciseIdentity': exercise.identity,
+            'exerciseName': exercise.name,
+            'equipment': exercise.equipment?.toJson(),
+            'equipmentSelectionMade': true,
+            'evaluation': '',
+            'targetWeight': '',
+            'targetReps': <String>[],
+            'targetNotes': '',
+            'planSlots': [
+              for (final (index, set) in exercise.sets.indexed)
+                {
+                  'index': index,
+                  'setType': set.setType.stableId,
+                  'plannedWeightKg': set.plannedWeightKg,
+                  'targetMinReps': set.targetMinReps,
+                  'targetMaxReps': set.targetMaxReps,
+                  'restAfterSeconds': set.restAfterSeconds,
+                },
+            ],
+            'sets': [
+              for (final (index, set) in exercise.sets.indexed)
+                {
+                  'planSlotIndex': index,
+                  'setType': set.setType.stableId,
+                  'weight': _displayNumber(set.plannedWeightKg),
+                  'reps': '${set.targetMinReps}',
+                  'rpe': null,
+                  'rest': set.restAfterSeconds?.toString() ?? '',
+                  'plannedWeightKg': set.plannedWeightKg,
+                  'targetMinReps': set.targetMinReps,
+                  'targetMaxReps': set.targetMaxReps,
+                },
+            ],
+          },
+      ],
+      'cardioEntries': <Object?>[],
+    };
+  }
 
   String _displayNumber(double value) => value == value.roundToDouble()
       ? value.round().toString()

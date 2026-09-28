@@ -35,7 +35,7 @@ void main() {
           'operationDate': '2026-08-11',
           'startTime': '2026-08-11T21:19:00+09:00',
           'endTime': null,
-          'entryState': _emptyEntryState(),
+          'entryState': started.entryState,
         },
       );
     },

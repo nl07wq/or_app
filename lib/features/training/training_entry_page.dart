@@ -628,25 +628,54 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     title: 'EXERCISE',
                   ),
                   AppSpacing.gapMD,
-                  for (final (index, exercise) in _form.exercises.indexed)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TrainingExerciseV2Editor(
-                        index: index,
-                        controller: exercise,
-                        preferredRecords: _preferredRecords,
-                        targetRecord: widget.existingRecord,
-                        sessionDate: _form.date,
-                        expanded: identical(_expandedItem, exercise),
-                        onToggle: () => _toggle(exercise),
-                        onDelete: () => _confirmDeleteExercise(exercise),
-                        onChanged: _handleEntryChanged,
-                      ),
-                    ),
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    itemCount: _form.exercises.length,
+                    onReorderItem: (oldIndex, newIndex) {
+                      final exercise = _form.exercises.removeAt(oldIndex);
+                      _form.exercises.insert(newIndex, exercise);
+                      _handleEntryChanged();
+                    },
+                    itemBuilder: (context, index) {
+                      final exercise = _form.exercises[index];
+                      return Padding(
+                        key: ValueKey(
+                          'training-exercise-${exercise.instanceId}',
+                        ),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: TrainingExerciseV2Editor(
+                          index: index,
+                          controller: exercise,
+                          preferredRecords: _preferredRecords,
+                          targetRecord: widget.existingRecord,
+                          sessionDate: _form.date,
+                          expanded: identical(_expandedItem, exercise),
+                          onToggle: () => _toggle(exercise),
+                          onDelete: () => _confirmDeleteExercise(exercise),
+                          onChanged: _handleEntryChanged,
+                          onAttachmentRequested: () {
+                            if (_form.attachDetachedPlanForNewExercise(
+                              exercise,
+                            )) {
+                              _handleEntryChanged();
+                            }
+                          },
+                          reorderHandle: ReorderableDelayedDragStartListener(
+                            index: index,
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.drag_handle),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                   OutlinedButton.icon(
                     onPressed: () {
-                      _form.addExercise();
-                      _expandedItem = _form.exercises.last;
+                      _expandedItem = _form.addExercise();
                       _handleEntryChanged();
                     },
                     icon: const Icon(Icons.add),
