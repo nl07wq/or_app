@@ -171,6 +171,147 @@ void main() {
         BlendMode.srcIn,
       ),
     );
+    expect(
+      find.descendant(of: stage, matching: find.byType(ColorFiltered)),
+      findsOneWidget,
+    );
+  });
+
+  test('FOX pattern uses restrained tones around the base silhouette', () {
+    expect(FoxRunV1ProductionStage.silhouetteColor, const Color(0xFF7A7A7A));
+    expect(FoxRunV1ProductionStage.patternLightColor, const Color(0xFF9F9F9F));
+    expect(FoxRunV1ProductionStage.patternDarkColor, const Color(0xFF535353));
+  });
+
+  testWidgets('FOX pattern is alpha-clipped in canonical local coordinates', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SizedBox(
+          width: 390,
+          child: FoxRunV1ProductionStage(
+            crossing: AlwaysStoppedAnimation(.5),
+            asset: 'assets/animations/sandbox/fox_v1/canonical/frame_01.png',
+            leftToRight: true,
+            pattern: FoxRunV1Pattern.fox,
+          ),
+        ),
+      ),
+    );
+
+    final stage = find.byKey(const ValueKey('fox-run-v1-production-stage'));
+    final base = find.byKey(const ValueKey('fox-run-v1-pattern-base'));
+    expect(base, findsOneWidget);
+    expect(
+      tester.widget<ColorFiltered>(base).colorFilter,
+      const ColorFilter.mode(
+        FoxRunV1ProductionStage.silhouetteColor,
+        BlendMode.srcIn,
+      ),
+    );
+    const regions = <String, Color>{
+      'fox-run-v1-pattern-tail-tip': FoxRunV1ProductionStage.patternLightColor,
+      'fox-run-v1-pattern-jaw-throat':
+          FoxRunV1ProductionStage.patternLightColor,
+      'fox-run-v1-pattern-feet': FoxRunV1ProductionStage.patternDarkColor,
+    };
+    final canvasRect = Offset.zero & FoxRunV1ProductionGeometry.canvasSize;
+    for (final entry in regions.entries) {
+      final region = find.byKey(ValueKey(entry.key));
+      expect(region, findsOneWidget);
+      final clipPath = tester.widget<ClipPath>(region);
+      final clipBounds = clipPath.clipper!
+          .getClip(FoxRunV1ProductionGeometry.canvasSize)
+          .getBounds();
+      expect(canvasRect.contains(clipBounds.topLeft), isTrue);
+      expect(canvasRect.contains(clipBounds.bottomRight), isTrue);
+      final filter = tester.widget<ColorFiltered>(
+        find.descendant(of: region, matching: find.byType(ColorFiltered)),
+      );
+      expect(
+        filter.colorFilter,
+        ColorFilter.mode(entry.value, BlendMode.srcIn),
+      );
+      expect(
+        find.descendant(of: region, matching: find.byType(Image)),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.descendant(of: stage, matching: find.byType(Image)),
+      findsNWidgets(4),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FOX pattern supports every frame, size, and direction', (
+    tester,
+  ) async {
+    for (var frame = 1; frame <= 10; frame++) {
+      final asset =
+          'assets/animations/sandbox/fox_v1/canonical/frame_${frame.toString().padLeft(2, '0')}.png';
+      for (final leftToRight in [true, false]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SizedBox(
+              width: 390,
+              child: FoxRunV1ProductionStage(
+                crossing: const AlwaysStoppedAnimation(.5),
+                asset: asset,
+                leftToRight: leftToRight,
+                pattern: FoxRunV1Pattern.fox,
+              ),
+            ),
+          ),
+        );
+        final images = find.descendant(
+          of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
+          matching: find.byType(Image),
+        );
+        expect(images, findsNWidgets(4));
+        for (final image in tester.widgetList<Image>(images)) {
+          expect((image.image as AssetImage).assetName, asset);
+        }
+        final transform = tester.widget<Transform>(
+          find.byKey(const ValueKey('fox-run-v1-body-flex')),
+        );
+        expect(transform.transform.storage[0], leftToRight ? 1 : -1);
+        expect(tester.takeException(), isNull);
+      }
+    }
+
+    for (final bodyScale in [.5, .7, 1.0]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 390,
+            child: FoxRunV1ProductionStage(
+              crossing: const AlwaysStoppedAnimation(.5),
+              asset: 'assets/animations/sandbox/fox_v1/canonical/frame_01.png',
+              leftToRight: true,
+              bodyScale: bodyScale,
+              verticalFlutterOffset: 1,
+              bodyFlexOffset: 4,
+              pattern: FoxRunV1Pattern.fox,
+            ),
+          ),
+        ),
+      );
+      final base = find.byKey(const ValueKey('fox-run-v1-pattern-base'));
+      expect(
+        tester.getSize(base),
+        FoxRunV1ProductionGeometry.scaledCanvasFor(bodyScale),
+      );
+      for (final key in [
+        'fox-run-v1-pattern-tail-tip',
+        'fox-run-v1-pattern-jaw-throat',
+        'fox-run-v1-pattern-feet',
+      ]) {
+        expect(tester.getSize(find.byKey(ValueKey(key))), tester.getSize(base));
+      }
+      expect(tester.takeException(), isNull);
+    }
   });
 
   test('RUN cadence follows ordered frames on the crossing timeline', () {
@@ -678,10 +819,10 @@ void main() {
   ) async {
     for (final width in [320.0, 390.0, 900.0]) {
       await pumpPreview(tester, width);
-      final current = tester.widget<ChoiceChip>(
-        find.byKey(const ValueKey('fox-preview-speed-current')),
+      final fastest = tester.widget<ChoiceChip>(
+        find.byKey(const ValueKey('fox-preview-speed-fastest')),
       );
-      expect(current.selected, isTrue, reason: '${width.toInt()}px');
+      expect(fastest.selected, isTrue, reason: '${width.toInt()}px');
       for (final speed in FoxRunV1Speed.values) {
         expect(
           find.byKey(ValueKey('fox-preview-speed-${speed.name}')),
@@ -703,6 +844,14 @@ void main() {
               find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
             )
             .selected,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-vertical-flutter-one')),
+            )
+            .selected,
         isTrue,
       );
       const flutterLabels = {
@@ -721,6 +870,14 @@ void main() {
         tester
             .widget<ChoiceChip>(
               find.byKey(const ValueKey('fox-preview-body-flex-off')),
+            )
+            .selected,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-body-flex-two')),
             )
             .selected,
         isTrue,
@@ -745,9 +902,7 @@ void main() {
       expect(
         tester
             .widget<ChoiceChip>(
-              find.byKey(
-                const ValueKey('fox-preview-body-flex-motion-current'),
-              ),
+              find.byKey(const ValueKey('fox-preview-body-flex-motion-smooth')),
             )
             .selected,
         isTrue,
@@ -770,6 +925,20 @@ void main() {
         find.byKey(const ValueKey('fox-preview-body-shrink-on')),
         findsOneWidget,
       );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('fox-preview-pattern-off')),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-preview-pattern-fox')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('FASTEST: canonical FOX'), findsOneWidget);
+      expect(find.textContaining('1600ms crossing'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('fox-preview-vertical-flutter-four')),
         findsNothing,
@@ -809,7 +978,7 @@ void main() {
   ) async {
     for (final speed in FoxRunV1Speed.values) {
       await pumpPreview(tester, 390);
-      if (speed != FoxRunV1Speed.current) {
+      if (speed != FoxRunV1Speed.fastest) {
         await tester.tap(
           find.byKey(ValueKey('fox-preview-speed-${speed.name}')),
         );
@@ -841,7 +1010,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 440));
       final before = crossingAnimation(tester).value;
-      expect(before, closeTo(440 / 2200, .01));
+      expect(before, closeTo(440 / 1600, .01));
 
       await tester.tap(find.byKey(ValueKey('fox-preview-speed-${speed.name}')));
       await tester.pump();
@@ -860,6 +1029,55 @@ void main() {
         reason: '${speed.name} applies immediately',
       );
     }
+  });
+
+  testWidgets('FOX pattern applies live without restarting the active RUN', (
+    tester,
+  ) async {
+    await pumpPreview(tester, 390);
+    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    final before = crossingAnimation(tester).value;
+    final frameBefore = displayedAsset(tester);
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-pattern-fox')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    expect(
+      (tester
+                  .widget<Image>(
+                    find.descendant(
+                      of: find.byKey(const ValueKey('fox-run-v1-pattern-base')),
+                      matching: find.byType(Image),
+                    ),
+                  )
+                  .image
+              as AssetImage)
+          .assetName,
+      frameBefore,
+    );
+    expect(
+      find.byKey(const ValueKey('fox-run-v1-pattern-tail-tip')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('fox-run-v1-pattern-jaw-throat')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('fox-run-v1-pattern-feet')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('fox-preview-pattern-off')));
+    await tester.pump();
+    expect(crossingAnimation(tester).value, closeTo(before, .001));
+    expect(displayedAsset(tester), frameBefore);
+    expect(
+      find.byKey(const ValueKey('fox-run-v1-pattern-tail-tip')),
+      findsNothing,
+    );
   });
 
   testWidgets('frame selection updates an active RUN without restarting', (
@@ -933,6 +1151,11 @@ void main() {
     'VERTICAL FLUTTER updates an active RUN without resetting progress',
     (tester) async {
       await pumpPreview(tester, 390);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
+      );
+      await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
+      await tester.pump();
       final image = find.descendant(
         of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
         matching: find.byType(Image),
@@ -980,6 +1203,11 @@ void main() {
     'BODY FLEX updates an active RUN around the fixed ground anchor',
     (tester) async {
       await pumpPreview(tester, 390);
+      await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-motion-current')),
+      );
+      await tester.pump();
       final image = find.descendant(
         of: find.byKey(const ValueKey('fox-run-v1-production-stage')),
         matching: find.byType(Image),
@@ -1016,6 +1244,11 @@ void main() {
     'BODY FLEX MOTION applies live without resetting crossing progress',
     (tester) async {
       await pumpPreview(tester, 390);
+      await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-body-flex-motion-current')),
+      );
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 120));
@@ -1050,6 +1283,9 @@ void main() {
     'HOLD retains deformation while crossing and frame animation continue',
     (tester) async {
       await pumpPreview(tester, 390);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
+      );
       await tester.tap(
         find.byKey(const ValueKey('fox-preview-body-flex-four')),
       );
@@ -1106,6 +1342,11 @@ void main() {
     tester,
   ) async {
     await pumpPreview(tester, 390);
+    await tester.tap(
+      find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
+    );
+    await tester.tap(find.byKey(const ValueKey('fox-preview-body-flex-off')));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 160));
@@ -1206,7 +1447,7 @@ void main() {
   testWidgets('all seven speeds fully exit and reset', (tester) async {
     for (final speed in FoxRunV1Speed.values) {
       await pumpPreview(tester, 390);
-      if (speed != FoxRunV1Speed.current) {
+      if (speed != FoxRunV1Speed.fastest) {
         await tester.tap(
           find.byKey(ValueKey('fox-preview-speed-${speed.name}')),
         );
@@ -1280,7 +1521,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
     expect(asset(), endsWith('frame_01.png'));
     await tester.pump(const Duration(milliseconds: 320));
-    expect(crossing(), closeTo(720 / 2200, .01));
+    expect(crossing(), closeTo(720 / 1600, .01));
     expect(asset(), endsWith('frame_07.png'));
 
     await tester.pump(const Duration(milliseconds: 400));

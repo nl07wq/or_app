@@ -27,6 +27,8 @@ enum FoxRunV1BodyFlexMotion { current, smooth, hold }
 
 enum FoxRunV1BodyShrink { off, on }
 
+enum FoxRunV1Pattern { off, fox }
+
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
   static const _canvasSize = Size(1646, 783);
@@ -40,12 +42,13 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
   var _auditMode = _FoxAuditMode.canonical;
   var _inspectionScale = 0.5;
   var _leftToRight = true;
-  var _speed = FoxRunV1Speed.current;
+  var _speed = FoxRunV1Speed.fastest;
   var _bodySize = FoxRunV1BodySize.full;
-  var _verticalFlutter = FoxRunV1VerticalFlutter.off;
-  var _bodyFlex = FoxRunV1BodyFlex.off;
-  var _bodyFlexMotion = FoxRunV1BodyFlexMotion.current;
+  var _verticalFlutter = FoxRunV1VerticalFlutter.one;
+  var _bodyFlex = FoxRunV1BodyFlex.two;
+  var _bodyFlexMotion = FoxRunV1BodyFlexMotion.smooth;
   var _bodyShrink = FoxRunV1BodyShrink.off;
+  var _pattern = FoxRunV1Pattern.off;
   var _flutterPhase = 0;
   var _frameElapsedOffset = Duration.zero;
   final _selectedFrames = <int>{0, 2, 4, 5, 6};
@@ -175,6 +178,11 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
     setState(() => _bodyShrink = bodyShrink);
   }
 
+  void _setPattern(FoxRunV1Pattern pattern) {
+    if (_pattern == pattern) return;
+    setState(() => _pattern = pattern);
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -291,6 +299,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         bodyScale: _bodyScale,
         verticalFlutterOffset: _verticalFlutterOffset,
         bodyFlexOffsetProvider: () => _bodyFlexOffset,
+        pattern: _pattern,
       ),
       AppSpacing.gapSM,
       Wrap(
@@ -409,6 +418,22 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
             .toList(),
       ),
       AppSpacing.gapSM,
+      const Text('FOX PATTERN'),
+      Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: FoxRunV1Pattern.values
+            .map(
+              (pattern) => ChoiceChip(
+                key: ValueKey('fox-preview-pattern-${pattern.name}'),
+                label: Text(pattern.name.toUpperCase()),
+                selected: _pattern == pattern,
+                onSelected: (_) => _setPattern(pattern),
+              ),
+            )
+            .toList(),
+      ),
+      AppSpacing.gapSM,
       const Text('FRAMES'),
       Align(
         alignment: Alignment.centerLeft,
@@ -437,7 +462,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • flex motion ${_bodyFlexMotion.name.toUpperCase()} • shrink ${_bodyShrink.name.toUpperCase()}',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)} • flex ${FoxRunV1Motion.bodyFlexLabel(_bodyFlex)} • flex motion ${_bodyFlexMotion.name.toUpperCase()} • shrink ${_bodyShrink.name.toUpperCase()} • pattern ${_pattern.name.toUpperCase()}',
       ),
     ],
   );
@@ -795,6 +820,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
     this.verticalFlutterOffset = 0,
     this.bodyFlexOffset = 0,
     this.bodyFlexOffsetProvider,
+    this.pattern = FoxRunV1Pattern.off,
   });
   final Animation<double> crossing;
   final String asset;
@@ -803,8 +829,11 @@ class FoxRunV1ProductionStage extends StatelessWidget {
   final double verticalFlutterOffset;
   final double bodyFlexOffset;
   final double Function()? bodyFlexOffsetProvider;
+  final FoxRunV1Pattern pattern;
   static const previewBackgroundColor = Color(0xFF101010);
   static const silhouetteColor = Color(0xFF7A7A7A);
+  static const patternLightColor = Color(0xFF9F9F9F);
+  static const patternDarkColor = Color(0xFF535353);
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -878,13 +907,7 @@ class FoxRunV1ProductionStage extends StatelessWidget {
                       ),
                       1,
                     ),
-                    child: ColorFiltered(
-                      colorFilter: const ColorFilter.mode(
-                        silhouetteColor,
-                        BlendMode.srcIn,
-                      ),
-                      child: Image.asset(asset, fit: BoxFit.fill),
-                    ),
+                    child: _FoxPatternCel(asset: asset, pattern: pattern),
                   ),
                 );
               },
@@ -894,6 +917,102 @@ class FoxRunV1ProductionStage extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _FoxPatternCel extends StatelessWidget {
+  const _FoxPatternCel({required this.asset, required this.pattern});
+
+  final String asset;
+  final FoxRunV1Pattern pattern;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = _coloredCel(
+      key: const ValueKey('fox-run-v1-pattern-base'),
+      color: FoxRunV1ProductionStage.silhouetteColor,
+    );
+    if (pattern == FoxRunV1Pattern.off) return base;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        base,
+        _patternRegion(
+          key: const ValueKey('fox-run-v1-pattern-tail-tip'),
+          region: _FoxPatternRegion.tailTip,
+          color: FoxRunV1ProductionStage.patternLightColor,
+        ),
+        _patternRegion(
+          key: const ValueKey('fox-run-v1-pattern-jaw-throat'),
+          region: _FoxPatternRegion.jawThroat,
+          color: FoxRunV1ProductionStage.patternLightColor,
+        ),
+        _patternRegion(
+          key: const ValueKey('fox-run-v1-pattern-feet'),
+          region: _FoxPatternRegion.feet,
+          color: FoxRunV1ProductionStage.patternDarkColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _patternRegion({
+    required Key key,
+    required _FoxPatternRegion region,
+    required Color color,
+  }) => ClipPath(
+    key: key,
+    clipper: _FoxPatternRegionClipper(region),
+    child: _coloredCel(color: color),
+  );
+
+  Widget _coloredCel({Key? key, required Color color}) => ColorFiltered(
+    key: key,
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    child: Image.asset(asset, fit: BoxFit.fill),
+  );
+}
+
+enum _FoxPatternRegion { tailTip, jawThroat, feet }
+
+class _FoxPatternRegionClipper extends CustomClipper<Path> {
+  const _FoxPatternRegionClipper(this.region);
+
+  final _FoxPatternRegion region;
+
+  @override
+  Path getClip(Size size) {
+    Offset point(double x, double y) => Offset(size.width * x, size.height * y);
+    return switch (region) {
+      _FoxPatternRegion.tailTip =>
+        Path()
+          ..moveTo(size.width * .04, size.height * .48)
+          ..lineTo(size.width * .13, size.height * .32)
+          ..lineTo(size.width * .27, size.height * .27)
+          ..lineTo(size.width * .25, size.height * .53)
+          ..lineTo(size.width * .11, size.height * .57)
+          ..close(),
+      _FoxPatternRegion.jawThroat =>
+        Path()
+          ..moveTo(size.width * .76, size.height * .35)
+          ..lineTo(size.width * .98, size.height * .32)
+          ..lineTo(size.width * .94, size.height * .46)
+          ..lineTo(size.width * .84, size.height * .49)
+          ..lineTo(size.width * .72, size.height * .61)
+          ..lineTo(size.width * .69, size.height * .53)
+          ..close(),
+      _FoxPatternRegion.feet =>
+        Path()..addPolygon([
+          point(.34, .62),
+          point(.74, .62),
+          point(.74, .93),
+          point(.34, .93),
+        ], true),
+    };
+  }
+
+  @override
+  bool shouldReclip(covariant _FoxPatternRegionClipper oldClipper) =>
+      oldClipper.region != region;
 }
 
 class _FoxBodyOverlayPainter extends CustomPainter {
