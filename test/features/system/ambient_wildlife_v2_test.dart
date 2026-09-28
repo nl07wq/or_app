@@ -8,6 +8,7 @@ import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
+import 'package:or_app/features/system/pages/fox_run_v1_section.dart';
 
 void main() {
   test('V2 registry exposes CAT, BAT, and FOX to RANDOM', () {
@@ -63,7 +64,86 @@ void main() {
       AmbientWildlifeV2Fox.assetForFrame(AmbientWildlifeV2Fox.neutralFrame),
       endsWith('frame_05.png'),
     );
+    expect(AmbientWildlifeV2Fox.juvenileTorsoLength, 30);
+    expect(AmbientWildlifeV2Fox.juvenileFollowerSpacing, closeTo(92.458, .01));
   });
+
+  test('FOX spawn uses independent exact pattern and pack boundaries', () {
+    AmbientWildlifeV2EventPlan planFor(List<int> rolls) {
+      var index = 0;
+      return AmbientWildlifeV2EventPlan.resolve(
+        species: AmbientWildlifeV2Species.fox,
+        leftToRight: true,
+        nextInt: (_) => rolls[index++],
+      );
+    }
+
+    final patternOne = planFor([0, 79, 94, 54]).foxSpawn!;
+    final noPatternOne = planFor([0, 80, 94, 54]).foxSpawn!;
+    final two = planFor([0, 79, 94, 55]).foxSpawn!;
+    final three = planFor([0, 79, 94, 85]).foxSpawn!;
+    final gricth = planFor([0, 80, 95]).foxSpawn!;
+
+    expect(AmbientWildlifeV2FoxSpawn.patternProbability, .80);
+    expect(AmbientWildlifeV2FoxSpawn.abnormalPackProbability, .05);
+    expect(patternOne.pattern, FoxRunV1Pattern.fox);
+    expect(noPatternOne.pattern, FoxRunV1Pattern.off);
+    expect(patternOne.pack, AmbientWildlifeV2FoxPack.one);
+    expect(two.pack, AmbientWildlifeV2FoxPack.two);
+    expect(three.pack, AmbientWildlifeV2FoxPack.three);
+    expect(gricth.pack, AmbientWildlifeV2FoxPack.gricthTen);
+    expect(gricth.juvenileCount, 9);
+  });
+
+  test(
+    'FOX pack duration extends event time while retaining individual speed',
+    () {
+      const width = 390.0;
+      const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
+      final baseStart = AmbientWildlifeV2Fox.bodyCenterForProgress(
+        stageWidth: width,
+        progress: 0,
+        leftToRight: true,
+      );
+      final baseEnd = AmbientWildlifeV2Fox.bodyCenterForProgress(
+        stageWidth: width,
+        progress: 1,
+        leftToRight: true,
+      );
+      final trailingDistance = 9 * AmbientWildlifeV2Fox.juvenileFollowerSpacing;
+      final packStart = AmbientWildlifeV2Fox.bodyCenterForProgress(
+        stageWidth: width,
+        progress: 0,
+        leftToRight: true,
+        trailingDistance: trailingDistance,
+      );
+      final packEnd = AmbientWildlifeV2Fox.bodyCenterForProgress(
+        stageWidth: width,
+        progress: 1,
+        leftToRight: true,
+        trailingDistance: trailingDistance,
+      );
+      final duration = AmbientWildlifeV2Fox.durationForPack(
+        stageWidth: width,
+        leftToRight: true,
+        juvenileCount: 9,
+      );
+
+      expect(
+        AmbientWildlifeV2Fox.juvenileFollowerSpacing,
+        greaterThan(safetyGap),
+      );
+      expect(duration, greaterThan(AmbientWildlifeV2Fox.crossingDuration));
+      expect(
+        (packEnd - packStart) / duration.inMicroseconds,
+        closeTo(
+          (baseEnd - baseStart) /
+              AmbientWildlifeV2Fox.crossingDuration.inMicroseconds,
+          .000001,
+        ),
+      );
+    },
+  );
 
   test('CAT policy retains its production 5% glitch authority', () {
     final glitch = AmbientWildlifeV2EventPlan.resolve(
@@ -223,6 +303,94 @@ void main() {
         reason: 'repeated run $leftToRight',
       );
       expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'FOX keeps each sampled pattern and pack fixed through its spawn',
+    (tester) async {
+      AmbientWildlifeV2EventPlan planFor(List<int> rolls) {
+        var index = 0;
+        return AmbientWildlifeV2EventPlan.resolve(
+          species: AmbientWildlifeV2Species.fox,
+          leftToRight: true,
+          nextInt: (_) => rolls[index++],
+        );
+      }
+
+      final patternedPack = planFor([0, 0, 95]);
+      await tester.pumpWidget(_stageHost(plan: null, requestId: 0));
+      await tester.pumpWidget(_stageHost(plan: patternedPack, requestId: 1));
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(patternedPack.foxSpawn!.pattern, FoxRunV1Pattern.fox);
+      expect(patternedPack.foxSpawn!.juvenileCount, 9);
+      for (var index = 1; index <= 9; index++) {
+        expect(
+          find.byKey(ValueKey('ambient-wildlife-v2-fox-juvenile-$index')),
+          findsOneWidget,
+        );
+      }
+      expect(find.byType(ClipPath), findsNWidgets(30));
+      expect(tester.takeException(), isNull);
+
+      final plainAdult = planFor([0, 80, 94, 54]);
+      await tester.pumpWidget(_stageHost(plan: plainAdult, requestId: 2));
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(plainAdult.foxSpawn!.pattern, FoxRunV1Pattern.off);
+      expect(plainAdult.foxSpawn!.juvenileCount, 0);
+      expect(find.byType(ClipPath), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('FOX pack entry and last-follower exit work at Ambient widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 300);
+      tester.view.devicePixelRatio = 1;
+      var index = 0;
+      final plan = AmbientWildlifeV2EventPlan.resolve(
+        species: AmbientWildlifeV2Species.fox,
+        leftToRight: false,
+        nextInt: (_) => [0, 0, 95][index++],
+      );
+      final duration = AmbientWildlifeV2Fox.durationForPack(
+        stageWidth: width,
+        leftToRight: false,
+        juvenileCount: 9,
+      );
+      await tester.pumpWidget(
+        _stageHost(plan: null, requestId: 0, width: width),
+      );
+      await tester.pumpWidget(
+        _stageHost(plan: plan, requestId: 1, width: width),
+      );
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
+        findsOneWidget,
+        reason: '$width entry',
+      );
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-juvenile-9')),
+        findsOneWidget,
+      );
+      await tester.pump(
+        duration -
+            const Duration(milliseconds: 160) +
+            const Duration(milliseconds: 20),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+        findsOneWidget,
+        reason: '$width full pack exit',
+      );
+      expect(tester.takeException(), isNull, reason: '$width');
     }
   });
 

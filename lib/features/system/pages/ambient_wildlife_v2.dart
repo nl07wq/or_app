@@ -7,6 +7,7 @@ import 'bat_v3_source_data.dart';
 import 'cat_run_coat_patterns.dart';
 import 'cat_run_v23_production_preview.dart';
 import 'cat_run_v24_presentation.dart';
+import 'fox_pattern_preview.dart';
 import 'fox_run_v1_section.dart';
 
 enum AmbientWildlifeV2Species { cat, bat, fox, birds }
@@ -63,6 +64,7 @@ class AmbientWildlifeV2EventPlan {
     required this.catPlan,
     required this.catExecutor,
     required this.batInstances,
+    required this.foxSpawn,
   });
 
   final AmbientWildlifeV2Species species;
@@ -71,6 +73,7 @@ class AmbientWildlifeV2EventPlan {
   final CatRunProductionEventPlan? catPlan;
   final CatRunProductionEventExecutor? catExecutor;
   final List<BatV3ProductionInstance> batInstances;
+  final AmbientWildlifeV2FoxSpawn? foxSpawn;
 
   bool get isCat => species == AmbientWildlifeV2Species.cat;
   bool get isBat => species == AmbientWildlifeV2Species.bat;
@@ -97,7 +100,10 @@ class AmbientWildlifeV2EventPlan {
         leftToRight: leftToRight,
         nextInt: nextInt,
       ),
-      AmbientWildlifeV2Species.fox => _foxPlan(leftToRight: leftToRight),
+      AmbientWildlifeV2Species.fox => _foxPlan(
+        leftToRight: leftToRight,
+        nextInt: nextInt,
+      ),
       AmbientWildlifeV2Species.birds => throw ArgumentError.value(
         species,
         'species',
@@ -126,6 +132,7 @@ class AmbientWildlifeV2EventPlan {
       catPlan: catPlan,
       catExecutor: CatRunProductionEventExecutor(plan: catPlan, random: random),
       batInstances: const [],
+      foxSpawn: null,
     );
   }
 
@@ -146,18 +153,63 @@ class AmbientWildlifeV2EventPlan {
         eventRoll: eventRoll,
         countRoll: countRoll,
       ),
+      foxSpawn: null,
     );
   }
 
-  static AmbientWildlifeV2EventPlan _foxPlan({required bool leftToRight}) =>
-      AmbientWildlifeV2EventPlan._(
-        species: AmbientWildlifeV2Species.fox,
-        leftToRight: leftToRight,
-        isGlitch: false,
-        catPlan: null,
-        catExecutor: null,
-        batInstances: const [],
-      );
+  static AmbientWildlifeV2EventPlan _foxPlan({
+    required bool leftToRight,
+    required int Function(int max) nextInt,
+  }) => AmbientWildlifeV2EventPlan._(
+    species: AmbientWildlifeV2Species.fox,
+    leftToRight: leftToRight,
+    isGlitch: false,
+    catPlan: null,
+    catExecutor: null,
+    batInstances: const [],
+    foxSpawn: AmbientWildlifeV2FoxSpawn.sample(nextInt: nextInt),
+  );
+}
+
+enum AmbientWildlifeV2FoxPack { one, two, three, gricthTen }
+
+/// Fixed once a FOX spawn has already been selected by Ambient's existing
+/// species picker. This result never participates in species selection.
+@immutable
+class AmbientWildlifeV2FoxSpawn {
+  const AmbientWildlifeV2FoxSpawn({required this.pattern, required this.pack});
+
+  static const patternProbability = .80;
+  static const abnormalPackProbability = .05;
+
+  final FoxRunV1Pattern pattern;
+  final AmbientWildlifeV2FoxPack pack;
+
+  int get juvenileCount => switch (pack) {
+    AmbientWildlifeV2FoxPack.one => 0,
+    AmbientWildlifeV2FoxPack.two => 1,
+    AmbientWildlifeV2FoxPack.three => 2,
+    AmbientWildlifeV2FoxPack.gricthTen => 9,
+  };
+
+  static AmbientWildlifeV2FoxSpawn sample({
+    required int Function(int max) nextInt,
+  }) {
+    final pattern = nextInt(100) < 80
+        ? FoxRunV1Pattern.fox
+        : FoxRunV1Pattern.off;
+    final pack = nextInt(100) >= 95
+        ? AmbientWildlifeV2FoxPack.gricthTen
+        : _normalPackForRoll(nextInt(100));
+    return AmbientWildlifeV2FoxSpawn(pattern: pattern, pack: pack);
+  }
+
+  static AmbientWildlifeV2FoxPack _normalPackForRoll(int roll) {
+    assert(roll >= 0 && roll < 100);
+    if (roll < 55) return AmbientWildlifeV2FoxPack.one;
+    if (roll < 85) return AmbientWildlifeV2FoxPack.two;
+    return AmbientWildlifeV2FoxPack.three;
+  }
 }
 
 /// FOX's V2 renderer owns a 48px torso authority. The canonical FOX cels are
@@ -171,17 +223,27 @@ abstract final class AmbientWildlifeV2Fox {
   static const verticalFlutterAmplitude = 1.0;
   static const bodyFlexAmplitude = 2.0;
   static const ambientTorsoLength = 48.0;
+  static const juvenileTorsoLength =
+      FoxRunV1ProductionGeometry.juvenileTorsoLength;
   static const displayScale =
       ambientTorsoLength / FoxRunV1ProductionGeometry.torsoLength;
   static final canvasSize = Size(
     FoxRunV1ProductionGeometry.canvasSize.width * displayScale,
     FoxRunV1ProductionGeometry.canvasSize.height * displayScale,
   );
+  static double get juvenileBodyScale =>
+      juvenileTorsoLength / ambientTorsoLength;
+  static Size canvasSizeFor(double bodyScale) =>
+      Size(canvasSize.width * bodyScale, canvasSize.height * bodyScale);
 
   static const _bodyOrigin = FoxRunV1ProductionGeometry.bodyOrigin;
   static const _virtualGround = FoxRunV1ProductionGeometry.virtualGround;
   static const _visibleBounds =
       FoxRunV1ProductionGeometry.visibleBoundsCanonical;
+  static double get juvenileVisibleWidth =>
+      _visibleBounds.width * displayScale * juvenileBodyScale;
+  static double get juvenileFollowerSpacing =>
+      juvenileVisibleWidth + FoxRunV1ProductionGeometry.crossingSafetyGap;
 
   static String assetForFrame(int frame) =>
       'assets/animations/sandbox/fox_v1/canonical/'
@@ -204,8 +266,9 @@ abstract final class AmbientWildlifeV2Fox {
         shrinkEnabled: false,
       );
 
-  static double bodyFlexScale(double bodyFlexOffset) {
-    final torsoToGround = (_virtualGround - _bodyOrigin.dy) * displayScale;
+  static double bodyFlexScale(double bodyFlexOffset, {double bodyScale = 1}) {
+    final torsoToGround =
+        (_virtualGround - _bodyOrigin.dy) * displayScale * bodyScale;
     return 1 + bodyFlexOffset / torsoToGround;
   }
 
@@ -213,9 +276,12 @@ abstract final class AmbientWildlifeV2Fox {
     required double bodyCenterX,
     required double stageGroundY,
     double verticalFlutterOffset = 0,
+    double bodyScale = 1,
   }) => Offset(
-    bodyCenterX - _bodyOrigin.dx * displayScale,
-    stageGroundY - _virtualGround * displayScale + verticalFlutterOffset,
+    bodyCenterX - _bodyOrigin.dx * displayScale * bodyScale,
+    stageGroundY -
+        _virtualGround * displayScale * bodyScale +
+        verticalFlutterOffset,
   );
 
   static Rect visibleBoundsFor({
@@ -223,22 +289,25 @@ abstract final class AmbientWildlifeV2Fox {
     required double stageGroundY,
     required bool leftToRight,
     double verticalFlutterOffset = 0,
+    double bodyScale = 1,
   }) {
     final image = imageTopLeft(
       bodyCenterX: bodyCenterX,
       stageGroundY: stageGroundY,
       verticalFlutterOffset: verticalFlutterOffset,
+      bodyScale: bodyScale,
     );
-    final relativeLeft = (_visibleBounds.left - _bodyOrigin.dx) * displayScale;
+    final relativeLeft =
+        (_visibleBounds.left - _bodyOrigin.dx) * displayScale * bodyScale;
     final relativeRight =
-        (_visibleBounds.right - _bodyOrigin.dx) * displayScale;
+        (_visibleBounds.right - _bodyOrigin.dx) * displayScale * bodyScale;
     final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
     final renderedRight = leftToRight ? relativeRight : -relativeLeft;
     return Rect.fromLTRB(
       bodyCenterX + renderedLeft,
-      image.dy + _visibleBounds.top * displayScale,
+      image.dy + _visibleBounds.top * displayScale * bodyScale,
       bodyCenterX + renderedRight,
-      image.dy + _visibleBounds.bottom * displayScale,
+      image.dy + _visibleBounds.bottom * displayScale * bodyScale,
     );
   }
 
@@ -246,6 +315,7 @@ abstract final class AmbientWildlifeV2Fox {
     required double stageWidth,
     required double progress,
     required bool leftToRight,
+    double trailingDistance = 0,
   }) {
     final relativeLeft = (_visibleBounds.left - _bodyOrigin.dx) * displayScale;
     final relativeRight =
@@ -256,9 +326,50 @@ abstract final class AmbientWildlifeV2Fox {
     final leftExit = -safetyGap - renderedRight;
     final rightExit = stageWidth + safetyGap - renderedLeft;
     return leftToRight
-        ? leftExit + (rightExit - leftExit) * progress
-        : rightExit - (rightExit - leftExit) * progress;
+        ? leftExit + (rightExit + trailingDistance - leftExit) * progress
+        : rightExit - (rightExit - trailingDistance - leftExit) * progress;
   }
+
+  static Duration durationForPack({
+    required double stageWidth,
+    required bool leftToRight,
+    required int juvenileCount,
+  }) {
+    if (juvenileCount == 0) return crossingDuration;
+    final baseDistance = _crossingDistance(
+      stageWidth: stageWidth,
+      leftToRight: leftToRight,
+    );
+    final packDistance = _crossingDistance(
+      stageWidth: stageWidth,
+      leftToRight: leftToRight,
+      trailingDistance: juvenileCount * juvenileFollowerSpacing,
+    );
+    return Duration(
+      microseconds:
+          (crossingDuration.inMicroseconds * packDistance / baseDistance)
+              .round(),
+    );
+  }
+
+  static double _crossingDistance({
+    required double stageWidth,
+    required bool leftToRight,
+    double trailingDistance = 0,
+  }) =>
+      (bodyCenterForProgress(
+                stageWidth: stageWidth,
+                progress: 1,
+                leftToRight: leftToRight,
+                trailingDistance: trailingDistance,
+              ) -
+              bodyCenterForProgress(
+                stageWidth: stageWidth,
+                progress: 0,
+                leftToRight: leftToRight,
+                trailingDistance: trailingDistance,
+              ))
+          .abs();
 
   static Alignment get groundAnchor => Alignment(
     (_bodyOrigin.dx / FoxRunV1ProductionGeometry.canvasSize.width) * 2 - 1,
@@ -300,6 +411,8 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
 class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  double? _stageWidth;
+  bool _waitingForFoxStageWidth = false;
 
   @override
   void initState() {
@@ -340,6 +453,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       return;
     }
     if (plan.isFox) {
+      if (_stageWidth == null) {
+        _waitingForFoxStageWidth = true;
+        return;
+      }
       _controller.value = 0;
       _continueFox();
       return;
@@ -387,12 +504,33 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     _controller.animateTo(
       1,
       duration: Duration(
-        microseconds:
-            (AmbientWildlifeV2Fox.crossingDuration.inMicroseconds * remaining)
-                .round(),
+        microseconds: (_foxDuration.inMicroseconds * remaining).round(),
       ),
       curve: Curves.linear,
     );
+  }
+
+  Duration get _foxDuration {
+    final spawn = widget.plan?.foxSpawn;
+    final width = _stageWidth;
+    if (spawn == null || width == null) {
+      return AmbientWildlifeV2Fox.crossingDuration;
+    }
+    return AmbientWildlifeV2Fox.durationForPack(
+      stageWidth: width,
+      leftToRight: widget.plan!.leftToRight,
+      juvenileCount: spawn.juvenileCount,
+    );
+  }
+
+  void _recordStageWidth(double width) {
+    if (_stageWidth == width) return;
+    _stageWidth = width;
+    if (!_waitingForFoxStageWidth) return;
+    _waitingForFoxStageWidth = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _start();
+    });
   }
 
   void _continueCat() {
@@ -434,98 +572,106 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     return SizedBox(
       key: const ValueKey('ambient-wildlife-v2-stage'),
       height: BatV3ProductionFlight.stageHeight,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          const Positioned.fill(
-            child: CustomPaint(
-              key: ValueKey('ambient-wildlife-v2-environment'),
-              painter: _AmbientWildlifeV2EnvironmentPainter(),
-            ),
-          ),
-          Positioned.fill(
-            child: widget.neutral
-                ? _AmbientWildlifeV2NeutralArt(
-                    species: widget.neutralSpecies,
-                    leftToRight: plan?.leftToRight ?? widget.leftToRight,
-                  )
-                : AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, _) {
-                      if (plan == null || _controller.isCompleted) {
-                        return const SizedBox.expand(
-                          key: ValueKey('ambient-wildlife-preview-idle'),
-                        );
-                      }
-                      if (plan.isCat) {
-                        final catPlan = plan.catPlan!;
-                        return CustomPaint(
-                          key: const ValueKey('ambient-wildlife-v2-cat-stage'),
-                          painter: CatRunV23StagePainter(
-                            progress: _controller.value,
-                            direction: catPlan.direction,
-                            coatVariant: catPlan.crossings.first.coatVariant,
-                            crossings: [
-                              for (final crossing
-                                  in plan.catExecutor!.crossings)
-                                CatRunV23Crossing(
-                                  progress:
-                                      _controller.value -
-                                      crossing.startedAtProgress,
-                                  direction: catPlan.direction,
-                                  coatVariant: crossing.coatVariant,
-                                ),
-                            ],
-                            catUnit: CatRunV23Travel.catUnit,
-                            showGroundLine: true,
-                          ),
-                        );
-                      }
-                      if (plan.isFox) {
-                        final elapsed = Duration(
-                          microseconds:
-                              (AmbientWildlifeV2Fox
-                                          .crossingDuration
-                                          .inMicroseconds *
-                                      _controller.value)
-                                  .round(),
-                        );
-                        return _AmbientWildlifeV2FoxMotion(
-                          progress: _controller.value,
-                          elapsed: elapsed,
-                          leftToRight: plan.leftToRight,
-                        );
-                      }
-                      final eventDurationMs =
-                          BatV3ProductionFlight.fullSpeedDurationMs +
-                          plan.batInstances.last.startDelayMs;
-                      final elapsed = (_controller.value * eventDurationMs)
-                          .round();
-                      return BatV3ProductionStage(
-                        leftToRight: plan.leftToRight,
-                        cycleIndex:
-                            (elapsed ~/ BatV3ProductionFlight.poseDurationMs) %
-                            8,
-                        crossingElapsed: elapsed,
-                        crossingDuration:
-                            BatV3ProductionFlight.fullSpeedDurationMs,
-                        instances: plan.batInstances
-                            .where(
-                              (instance) =>
-                                  !BatV3ProductionFlight.isInstanceComplete(
-                                    elapsedMs: elapsed,
-                                    durationMs: BatV3ProductionFlight
-                                        .fullSpeedDurationMs,
-                                    instance: instance,
-                                  ),
-                            )
-                            .toList(growable: false),
-                        flutterOn: true,
-                      );
-                    },
-                  ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          _recordStageWidth(constraints.maxWidth);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              const Positioned.fill(
+                child: CustomPaint(
+                  key: ValueKey('ambient-wildlife-v2-environment'),
+                  painter: _AmbientWildlifeV2EnvironmentPainter(),
+                ),
+              ),
+              Positioned.fill(
+                child: widget.neutral
+                    ? _AmbientWildlifeV2NeutralArt(
+                        species: widget.neutralSpecies,
+                        leftToRight: plan?.leftToRight ?? widget.leftToRight,
+                      )
+                    : AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, _) {
+                          if (plan == null || _controller.isCompleted) {
+                            return const SizedBox.expand(
+                              key: ValueKey('ambient-wildlife-preview-idle'),
+                            );
+                          }
+                          if (plan.isCat) {
+                            final catPlan = plan.catPlan!;
+                            return CustomPaint(
+                              key: const ValueKey(
+                                'ambient-wildlife-v2-cat-stage',
+                              ),
+                              painter: CatRunV23StagePainter(
+                                progress: _controller.value,
+                                direction: catPlan.direction,
+                                coatVariant:
+                                    catPlan.crossings.first.coatVariant,
+                                crossings: [
+                                  for (final crossing
+                                      in plan.catExecutor!.crossings)
+                                    CatRunV23Crossing(
+                                      progress:
+                                          _controller.value -
+                                          crossing.startedAtProgress,
+                                      direction: catPlan.direction,
+                                      coatVariant: crossing.coatVariant,
+                                    ),
+                                ],
+                                catUnit: CatRunV23Travel.catUnit,
+                                showGroundLine: true,
+                              ),
+                            );
+                          }
+                          if (plan.isFox) {
+                            final elapsed = Duration(
+                              microseconds:
+                                  (_foxDuration.inMicroseconds *
+                                          _controller.value)
+                                      .round(),
+                            );
+                            return _AmbientWildlifeV2FoxMotion(
+                              progress: _controller.value,
+                              elapsed: elapsed,
+                              leftToRight: plan.leftToRight,
+                              spawn: plan.foxSpawn!,
+                            );
+                          }
+                          final eventDurationMs =
+                              BatV3ProductionFlight.fullSpeedDurationMs +
+                              plan.batInstances.last.startDelayMs;
+                          final elapsed = (_controller.value * eventDurationMs)
+                              .round();
+                          return BatV3ProductionStage(
+                            leftToRight: plan.leftToRight,
+                            cycleIndex:
+                                (elapsed ~/
+                                    BatV3ProductionFlight.poseDurationMs) %
+                                8,
+                            crossingElapsed: elapsed,
+                            crossingDuration:
+                                BatV3ProductionFlight.fullSpeedDurationMs,
+                            instances: plan.batInstances
+                                .where(
+                                  (instance) =>
+                                      !BatV3ProductionFlight.isInstanceComplete(
+                                        elapsedMs: elapsed,
+                                        durationMs: BatV3ProductionFlight
+                                            .fullSpeedDurationMs,
+                                        instance: instance,
+                                      ),
+                                )
+                                .toList(growable: false),
+                            flutterOn: true,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -604,11 +750,13 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
     required this.progress,
     required this.elapsed,
     required this.leftToRight,
+    required this.spawn,
   });
 
   final double progress;
   final Duration elapsed;
   final bool leftToRight;
+  final AmbientWildlifeV2FoxSpawn spawn;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -620,22 +768,39 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
         stageWidth: constraints.maxWidth,
         progress: progress,
         leftToRight: leftToRight,
+        trailingDistance:
+            spawn.juvenileCount * AmbientWildlifeV2Fox.juvenileFollowerSpacing,
       );
-      final image = AmbientWildlifeV2Fox.imageTopLeft(
-        bodyCenterX: bodyCenter,
-        stageGroundY: stageGroundY,
-        verticalFlutterOffset: flutter,
-      );
+      final frame = AmbientWildlifeV2Fox.frameAtElapsed(elapsed);
+      final bodyFlex = AmbientWildlifeV2Fox.bodyFlexAtElapsed(elapsed);
       return Stack(
         children: [
           _AmbientWildlifeV2FoxCel(
             key: const ValueKey('ambient-wildlife-v2-fox-motion'),
-            frame: AmbientWildlifeV2Fox.frameAtElapsed(elapsed),
-            left: image.dx,
-            top: image.dy,
+            frame: frame,
+            bodyCenterX: bodyCenter,
+            stageGroundY: stageGroundY,
             leftToRight: leftToRight,
-            bodyFlexOffset: AmbientWildlifeV2Fox.bodyFlexAtElapsed(elapsed),
+            verticalFlutterOffset: flutter,
+            bodyFlexOffset: bodyFlex,
+            pattern: spawn.pattern,
           ),
+          for (var index = 0; index < spawn.juvenileCount; index++)
+            _AmbientWildlifeV2FoxCel(
+              key: ValueKey('ambient-wildlife-v2-fox-juvenile-${index + 1}'),
+              frame: frame,
+              bodyCenterX:
+                  bodyCenter +
+                  (leftToRight ? -1 : 1) *
+                      AmbientWildlifeV2Fox.juvenileFollowerSpacing *
+                      (index + 1),
+              stageGroundY: stageGroundY,
+              leftToRight: leftToRight,
+              verticalFlutterOffset: flutter,
+              bodyFlexOffset: bodyFlex,
+              bodyScale: AmbientWildlifeV2Fox.juvenileBodyScale,
+              pattern: spawn.pattern,
+            ),
         ],
       );
     },
@@ -650,18 +815,14 @@ class _AmbientWildlifeV2FoxNeutral extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final image = AmbientWildlifeV2Fox.imageTopLeft(
-        bodyCenterX: constraints.maxWidth / 2,
-        stageGroundY:
-            constraints.maxHeight - AmbientWildlifeV2Stage.groundInset,
-      );
       return Stack(
         children: [
           _AmbientWildlifeV2FoxCel(
             key: const ValueKey('ambient-wildlife-v2-neutral-fox'),
             frame: AmbientWildlifeV2Fox.neutralFrame,
-            left: image.dx,
-            top: image.dy,
+            bodyCenterX: constraints.maxWidth / 2,
+            stageGroundY:
+                constraints.maxHeight - AmbientWildlifeV2Stage.groundInset,
             leftToRight: leftToRight,
             bodyFlexOffset: 0,
           ),
@@ -675,43 +836,112 @@ class _AmbientWildlifeV2FoxCel extends StatelessWidget {
   const _AmbientWildlifeV2FoxCel({
     super.key,
     required this.frame,
-    required this.left,
-    required this.top,
+    required this.bodyCenterX,
+    required this.stageGroundY,
     required this.leftToRight,
     required this.bodyFlexOffset,
+    this.verticalFlutterOffset = 0,
+    this.bodyScale = 1,
+    this.pattern = FoxRunV1Pattern.off,
   });
 
   final int frame;
-  final double left;
-  final double top;
+  final double bodyCenterX;
+  final double stageGroundY;
   final bool leftToRight;
   final double bodyFlexOffset;
+  final double verticalFlutterOffset;
+  final double bodyScale;
+  final FoxRunV1Pattern pattern;
 
   @override
-  Widget build(BuildContext context) => Positioned(
-    left: left,
-    top: top,
-    width: AmbientWildlifeV2Fox.canvasSize.width,
-    height: AmbientWildlifeV2Fox.canvasSize.height,
-    child: Transform(
-      key: const ValueKey('ambient-wildlife-v2-fox-body-flex'),
-      alignment: AmbientWildlifeV2Fox.groundAnchor,
-      transform: Matrix4.diagonal3Values(
-        leftToRight ? 1 : -1,
-        AmbientWildlifeV2Fox.bodyFlexScale(bodyFlexOffset),
-        1,
-      ),
-      child: ColorFiltered(
-        colorFilter: const ColorFilter.mode(
-          FoxRunV1ProductionStage.silhouetteColor,
-          BlendMode.srcIn,
+  Widget build(BuildContext context) {
+    final image = AmbientWildlifeV2Fox.imageTopLeft(
+      bodyCenterX: bodyCenterX,
+      stageGroundY: stageGroundY,
+      verticalFlutterOffset: verticalFlutterOffset,
+      bodyScale: bodyScale,
+    );
+    final canvas = AmbientWildlifeV2Fox.canvasSizeFor(bodyScale);
+    return Positioned(
+      left: image.dx,
+      top: image.dy,
+      width: canvas.width,
+      height: canvas.height,
+      child: Transform(
+        key: bodyScale == 1
+            ? const ValueKey('ambient-wildlife-v2-fox-body-flex')
+            : null,
+        alignment: AmbientWildlifeV2Fox.groundAnchor,
+        transform: Matrix4.diagonal3Values(
+          leftToRight ? 1 : -1,
+          AmbientWildlifeV2Fox.bodyFlexScale(
+            bodyFlexOffset,
+            bodyScale: bodyScale,
+          ),
+          1,
         ),
-        child: Image.asset(
-          AmbientWildlifeV2Fox.assetForFrame(frame),
-          fit: BoxFit.fill,
-          filterQuality: FilterQuality.low,
-        ),
+        child: _AmbientWildlifeV2FoxPatternCel(frame: frame, pattern: pattern),
       ),
+    );
+  }
+}
+
+class _AmbientWildlifeV2FoxPatternCel extends StatelessWidget {
+  const _AmbientWildlifeV2FoxPatternCel({
+    required this.frame,
+    required this.pattern,
+  });
+
+  final int frame;
+  final FoxRunV1Pattern pattern;
+
+  String get _asset => AmbientWildlifeV2Fox.assetForFrame(frame);
+
+  @override
+  Widget build(BuildContext context) {
+    final base = _colored(FoxRunV1ProductionStage.silhouetteColor);
+    if (pattern == FoxRunV1Pattern.off) return base;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        base,
+        _region('tail', FoxRunV1ProductionStage.patternLightColor),
+        _region('jaw', FoxRunV1ProductionStage.patternLightColor),
+        _region('feet', FoxRunV1ProductionStage.patternDarkColor),
+      ],
+    );
+  }
+
+  Widget _region(String part, Color color) => ClipPath(
+    clipper: _AmbientWildlifeV2FoxPatternClipper(frame: frame + 1, part: part),
+    child: _colored(color),
+  );
+
+  Widget _colored(Color color) => ColorFiltered(
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    child: Image.asset(
+      _asset,
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.low,
     ),
   );
+}
+
+class _AmbientWildlifeV2FoxPatternClipper extends CustomClipper<Path> {
+  const _AmbientWildlifeV2FoxPatternClipper({
+    required this.frame,
+    required this.part,
+  });
+
+  final int frame;
+  final String part;
+
+  @override
+  Path getClip(Size size) =>
+      FoxPatternProductionGeometry.path(frame: frame, part: part, size: size);
+
+  @override
+  bool shouldReclip(_AmbientWildlifeV2FoxPatternClipper oldClipper) =>
+      oldClipper.frame != frame || oldClipper.part != part;
 }
