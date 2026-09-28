@@ -263,16 +263,28 @@ void main() {
 
   test('vertical flutter uses the requested BAT-style 8-phase amplitudes', () {
     expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.off), 0);
+    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.half), .5);
+    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.one), 1);
     expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.two), 2);
-    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.four), 4);
-    expect(FoxRunV1Motion.flutterAmplitude(FoxRunV1VerticalFlutter.six), 6);
-    expect(
-      [
+    const expectedOffsets = {
+      FoxRunV1VerticalFlutter.off: [0, 0, 0, 0, 0, 0, 0, 0],
+      FoxRunV1VerticalFlutter.half: [0, -.25, -.5, -.25, 0, .25, .5, .25],
+      FoxRunV1VerticalFlutter.one: [0, -.5, -1, -.5, 0, .5, 1, .5],
+      FoxRunV1VerticalFlutter.two: [0, -1, -2, -1, 0, 1, 2, 1],
+    };
+    for (final verticalFlutter in FoxRunV1VerticalFlutter.values) {
+      expect([
         for (var phase = 0; phase < 8; phase++)
-          FoxRunV1Motion.verticalFlutterOffset(phase: phase, amplitude: 4),
-      ],
-      [0, -2, -4, -2, 0, 2, 4, 2],
-    );
+          FoxRunV1Motion.verticalFlutterOffset(
+            phase: phase,
+            amplitude: FoxRunV1Motion.flutterAmplitude(verticalFlutter),
+          ),
+      ], expectedOffsets[verticalFlutter]);
+    }
+    expect(FoxRunV1Motion.flutterLabel(FoxRunV1VerticalFlutter.off), 'OFF');
+    expect(FoxRunV1Motion.flutterLabel(FoxRunV1VerticalFlutter.half), '0.5px');
+    expect(FoxRunV1Motion.flutterLabel(FoxRunV1VerticalFlutter.one), '1px');
+    expect(FoxRunV1Motion.flutterLabel(FoxRunV1VerticalFlutter.two), '2px');
     expect(
       FoxRunV1Motion.flutterPhaseAtElapsed(const Duration(milliseconds: 640)),
       0,
@@ -483,6 +495,26 @@ void main() {
             .selected,
         isTrue,
       );
+      const flutterLabels = {
+        'off': 'OFF',
+        'half': '0.5px',
+        'one': '1px',
+        'two': '2px',
+      };
+      for (final entry in flutterLabels.entries) {
+        final chip = tester.widget<ChoiceChip>(
+          find.byKey(ValueKey('fox-preview-vertical-flutter-${entry.key}')),
+        );
+        expect((chip.label as Text).data, entry.value);
+      }
+      expect(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-four')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-six')),
+        findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('fox-preview-body-size-sevenTenths')),
         findsOneWidget,
@@ -636,18 +668,18 @@ void main() {
       final before = crossingAnimation(tester).value;
 
       await tester.tap(
-        find.byKey(const ValueKey('fox-preview-vertical-flutter-two')),
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-half')),
       );
       await tester.pump();
       expect(crossingAnimation(tester).value, closeTo(before, .001));
-      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 1, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - .25, .001));
 
       await tester.tap(
-        find.byKey(const ValueKey('fox-preview-vertical-flutter-six')),
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-one')),
       );
       await tester.pump();
       expect(crossingAnimation(tester).value, closeTo(before, .001));
-      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 3, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - .5, .001));
 
       await tester.tap(
         find.byKey(const ValueKey('fox-preview-vertical-flutter-off')),
@@ -657,11 +689,11 @@ void main() {
       expect(tester.getTopLeft(image).dy, closeTo(groundedTop, .001));
 
       await tester.tap(
-        find.byKey(const ValueKey('fox-preview-vertical-flutter-four')),
+        find.byKey(const ValueKey('fox-preview-vertical-flutter-two')),
       );
       await tester.pump();
       expect(crossingAnimation(tester).value, closeTo(before, .001));
-      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 2, .001));
+      expect(tester.getTopLeft(image).dy, closeTo(groundedTop - 1, .001));
       await tester.tap(find.byKey(const ValueKey('fox-preview-pause')));
       await tester.pump();
       expect(tester.getTopLeft(image).dy, closeTo(groundedTop, .001));

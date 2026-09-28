@@ -19,7 +19,7 @@ enum FoxRunV1Speed { slow, current, fast, faster, fastest, maximum }
 
 enum FoxRunV1BodySize { half, sevenTenths, full }
 
-enum FoxRunV1VerticalFlutter { off, two, four, six }
+enum FoxRunV1VerticalFlutter { off, half, one, two }
 
 class _FoxRunV1SectionState extends State<FoxRunV1Section>
     with TickerProviderStateMixin {
@@ -318,11 +318,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
                 key: ValueKey(
                   'fox-preview-vertical-flutter-${verticalFlutter.name}',
                 ),
-                label: Text(
-                  verticalFlutter == FoxRunV1VerticalFlutter.off
-                      ? 'OFF'
-                      : '${FoxRunV1Motion.flutterAmplitude(verticalFlutter).toStringAsFixed(0)}px',
-                ),
+                label: Text(FoxRunV1Motion.flutterLabel(verticalFlutter)),
                 selected: _verticalFlutter == verticalFlutter,
                 onSelected: (_) => _setVerticalFlutter(verticalFlutter),
               ),
@@ -358,7 +354,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
       ),
       AppSpacing.gapSM,
       Text(
-        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${_verticalFlutter == FoxRunV1VerticalFlutter.off ? 'OFF' : '${FoxRunV1Motion.flutterAmplitude(_verticalFlutter).toStringAsFixed(0)}px'}',
+        '${_speed.name.toUpperCase()}: canonical FOX • ${FoxRunV1Motion.frameDuration.inMilliseconds}ms/frame • ${_crossingDuration.inMilliseconds}ms crossing • display body ${FoxRunV1ProductionGeometry.displayedTorsoLengthFor(_bodyScale).toStringAsFixed(0)}px • flutter ${FoxRunV1Motion.flutterLabel(_verticalFlutter)}',
       ),
     ],
   );
@@ -405,9 +401,17 @@ abstract final class FoxRunV1Motion {
   static double flutterAmplitude(FoxRunV1VerticalFlutter verticalFlutter) =>
       switch (verticalFlutter) {
         FoxRunV1VerticalFlutter.off => 0,
+        FoxRunV1VerticalFlutter.half => .5,
+        FoxRunV1VerticalFlutter.one => 1,
         FoxRunV1VerticalFlutter.two => 2,
-        FoxRunV1VerticalFlutter.four => 4,
-        FoxRunV1VerticalFlutter.six => 6,
+      };
+
+  static String flutterLabel(FoxRunV1VerticalFlutter verticalFlutter) =>
+      switch (verticalFlutter) {
+        FoxRunV1VerticalFlutter.off => 'OFF',
+        FoxRunV1VerticalFlutter.half => '0.5px',
+        FoxRunV1VerticalFlutter.one => '1px',
+        FoxRunV1VerticalFlutter.two => '2px',
       };
 
   static int flutterPhaseAtElapsed(Duration elapsed) =>
