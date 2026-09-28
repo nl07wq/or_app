@@ -446,6 +446,7 @@ class _AmbientWildlifeSandboxSectionState
   var _playing = false;
   var _paused = false;
   var _requestId = 0;
+  var _visualGroundLineOffset = 0.0;
 
   int _next(int max) => _random.nextInt(max);
 
@@ -556,7 +557,27 @@ class _AmbientWildlifeSandboxSectionState
                 neutralSpecies: _selectedSpecies,
                 paused: _paused,
                 leftToRight: _leftToRight,
+                visualGroundLineOffset: _visualGroundLineOffset,
                 onCompleted: _onCompleted,
+              ),
+              AppSpacing.gapMD,
+              const Text('GROUND LINE'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final offset in [0.0, -1.0, -2.0, -3.0, -4.0])
+                    ChoiceChip(
+                      key: ValueKey('wildlife-ground-line-$offset'),
+                      label: Text(
+                        offset == 0 ? 'CURRENT' : '${offset.toInt()}px',
+                      ),
+                      selected: _visualGroundLineOffset == offset,
+                      onSelected: (_) =>
+                          setState(() => _visualGroundLineOffset = offset),
+                    ),
+                ],
               ),
               AppSpacing.gapMD,
               const Text('MODE'),

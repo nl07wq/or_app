@@ -230,7 +230,7 @@ void main() {
             as CatRunV23StagePainter;
     expect(catPainter.neutralFrame02, isTrue);
     expect(catPainter.catUnit, CatRunV23Travel.catUnit);
-    expect(catPainter.showGroundLine, isTrue);
+    expect(catPainter.showGroundLine, isFalse);
     expect(catPainter.groundInset, AmbientWildlifeV2Stage.groundInset);
     expect(catPainter.groundLineColor, AmbientWildlifeV2Stage.groundLineColor);
 
@@ -343,6 +343,69 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'visual ground line moves without moving a FOX pack or rerolling it',
+    (tester) async {
+      var index = 0;
+      final plan = AmbientWildlifeV2EventPlan.resolve(
+        species: AmbientWildlifeV2Species.fox,
+        leftToRight: true,
+        nextInt: (_) => [0, 0, 95][index++],
+      );
+      await tester.pumpWidget(_stageHost(plan: null, requestId: 0));
+      await tester.pumpWidget(_stageHost(plan: plan, requestId: 1));
+      await tester.pump(const Duration(milliseconds: 160));
+      final adult = find.byKey(
+        const ValueKey('ambient-wildlife-v2-fox-motion'),
+      );
+      final juvenile = find.byKey(
+        const ValueKey('ambient-wildlife-v2-fox-juvenile-9'),
+      );
+      final adultPosition = tester.getTopLeft(adult);
+      final juvenilePosition = tester.getTopLeft(juvenile);
+
+      await tester.pumpWidget(
+        _stageHost(plan: plan, requestId: 1, visualGroundLineOffset: -4),
+      );
+      await tester.pump();
+
+      expect(tester.getTopLeft(adult), adultPosition);
+      expect(tester.getTopLeft(juvenile), juvenilePosition);
+      expect(plan.foxSpawn!.juvenileCount, 9);
+      expect(plan.foxSpawn!.pattern, FoxRunV1Pattern.fox);
+      expect(AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112), 107);
+      expect(
+        AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112, offset: -4),
+        103,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('visual ground line leaves Neutral FOX placement unchanged', (
+    tester,
+  ) async {
+    Widget host(double offset) => MaterialApp(
+      home: AmbientWildlifeV2Stage(
+        plan: null,
+        requestId: 0,
+        neutral: true,
+        neutralSpecies: AmbientWildlifeV2Species.fox,
+        paused: false,
+        leftToRight: false,
+        visualGroundLineOffset: offset,
+      ),
+    );
+
+    await tester.pumpWidget(host(0));
+    final fox = find.byKey(const ValueKey('ambient-wildlife-v2-neutral-fox'));
+    final position = tester.getTopLeft(fox);
+    await tester.pumpWidget(host(-3));
+    await tester.pump();
+    expect(tester.getTopLeft(fox), position);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('FOX pack entry and last-follower exit work at Ambient widths', (
     tester,
@@ -522,7 +585,7 @@ void main() {
                 .painter!
             as CatRunV23StagePainter;
     expect(painter.catUnit, CatRunV23Travel.catUnit);
-    expect(painter.showGroundLine, isTrue);
+    expect(painter.showGroundLine, isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -675,6 +738,7 @@ Widget _stageHost({
   required AmbientWildlifeV2EventPlan? plan,
   required int requestId,
   double width = 390,
+  double visualGroundLineOffset = 0,
 }) => MaterialApp(
   home: Scaffold(
     body: SizedBox(
@@ -686,6 +750,7 @@ Widget _stageHost({
         neutralSpecies: AmbientWildlifeV2Species.bat,
         paused: false,
         leftToRight: plan?.leftToRight ?? true,
+        visualGroundLineOffset: visualGroundLineOffset,
       ),
     ),
   ),

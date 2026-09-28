@@ -176,6 +176,12 @@ void main() {
       find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
       findsOneWidget,
     );
+    for (final offset in [0.0, -1.0, -2.0, -3.0, -4.0]) {
+      expect(
+        find.byKey(ValueKey('wildlife-ground-line-$offset')),
+        findsOneWidget,
+      );
+    }
 
     final v1Toggle = find.byKey(const ValueKey('ambient-wildlife-v1-toggle'));
     await tester.ensureVisible(v1Toggle);

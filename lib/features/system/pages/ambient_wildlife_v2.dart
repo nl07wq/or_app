@@ -387,6 +387,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     required this.neutralSpecies,
     required this.paused,
     required this.leftToRight,
+    this.visualGroundLineOffset = 0,
     super.key,
     this.onCompleted,
   });
@@ -397,12 +398,20 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final AmbientWildlifeV2Species neutralSpecies;
   final bool paused;
   final bool leftToRight;
+  final double visualGroundLineOffset;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
   static const environmentBackground = Color(0xFF101010);
   static const groundLineColor = Color(0xFF383838);
   static const groundInset = 5.0;
+
+  /// Visual-only diagnostic. FOX and every species keep using [groundInset]
+  /// for placement; this value moves only the painted environment line.
+  static double visualGroundLineY({
+    required double stageHeight,
+    double offset = 0,
+  }) => stageHeight - groundInset + offset;
 
   @override
   State<AmbientWildlifeV2Stage> createState() => _AmbientWildlifeV2StageState();
@@ -578,10 +587,12 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
           return Stack(
             fit: StackFit.expand,
             children: [
-              const Positioned.fill(
+              Positioned.fill(
                 child: CustomPaint(
                   key: ValueKey('ambient-wildlife-v2-environment'),
-                  painter: _AmbientWildlifeV2EnvironmentPainter(),
+                  painter: _AmbientWildlifeV2EnvironmentPainter(
+                    visualGroundLineOffset: widget.visualGroundLineOffset,
+                  ),
                 ),
               ),
               Positioned.fill(
@@ -621,7 +632,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                     ),
                                 ],
                                 catUnit: CatRunV23Travel.catUnit,
-                                showGroundLine: true,
+                                showGroundLine: false,
                               ),
                             );
                           }
@@ -678,7 +689,11 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
 }
 
 class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
-  const _AmbientWildlifeV2EnvironmentPainter();
+  const _AmbientWildlifeV2EnvironmentPainter({
+    required this.visualGroundLineOffset,
+  });
+
+  final double visualGroundLineOffset;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -687,8 +702,20 @@ class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
       Paint()..color = AmbientWildlifeV2Stage.environmentBackground,
     );
     canvas.drawLine(
-      Offset(0, size.height - AmbientWildlifeV2Stage.groundInset),
-      Offset(size.width, size.height - AmbientWildlifeV2Stage.groundInset),
+      Offset(
+        0,
+        AmbientWildlifeV2Stage.visualGroundLineY(
+          stageHeight: size.height,
+          offset: visualGroundLineOffset,
+        ),
+      ),
+      Offset(
+        size.width,
+        AmbientWildlifeV2Stage.visualGroundLineY(
+          stageHeight: size.height,
+          offset: visualGroundLineOffset,
+        ),
+      ),
       Paint()
         ..color = AmbientWildlifeV2Stage.groundLineColor
         ..strokeWidth = 1,
@@ -696,7 +723,8 @@ class _AmbientWildlifeV2EnvironmentPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_AmbientWildlifeV2EnvironmentPainter oldDelegate) => false;
+  bool shouldRepaint(_AmbientWildlifeV2EnvironmentPainter oldDelegate) =>
+      oldDelegate.visualGroundLineOffset != visualGroundLineOffset;
 }
 
 class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
@@ -719,7 +747,7 @@ class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
             : CatRunV23Direction.rightToLeft,
         coatVariant: CatRunCoatVariant.normal,
         catUnit: CatRunV23Travel.catUnit,
-        showGroundLine: true,
+        showGroundLine: false,
         neutralFrame02: true,
       ),
     ),
