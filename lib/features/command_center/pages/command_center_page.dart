@@ -495,7 +495,7 @@ class _CurrentOperationCard extends StatelessWidget {
   static const _datePresentationWidth = _datePresentationNaturalWidth * 1.2;
   static const _dateTileWidth = OperationDateNixieDisplay.dateTileWidth * 1.2;
   static const _dateTileGap = OperationDateNixieDisplay.tileGap * 1.2;
-  static const _datePresentationHeight = 40.0;
+  static const _datePresentationHeight = 36.0;
 
   @override
   Widget build(BuildContext context) => OperationCard(
@@ -553,7 +553,7 @@ class _CurrentOperationCard extends StatelessWidget {
                     contentMode: OperationDatePresentationContentMode.dateOnly,
                     dateTileWidth: _dateTileWidth,
                     dateTileGap: _dateTileGap,
-                    dateVerticalPadding: const EdgeInsets.only(bottom: 4),
+                    dateVerticalPadding: EdgeInsets.zero,
                   ),
                 ),
               ],
