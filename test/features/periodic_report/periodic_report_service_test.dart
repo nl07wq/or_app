@@ -10,7 +10,7 @@ import 'package:or_app/features/report_sync/services/report_sync_canonical_servi
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
-  final now = DateTime.now().toUtc();
+  final now = DateTime.utc(2026, 8, 24, 9, 17);
 
   test(
     'prepare exports immutable formal facts and the analysis-only contract',
@@ -23,6 +23,9 @@ void main() {
 
       expect(prepared.facts.periodId, 'weekly:2026-08-24');
       expect(prepared.prompt, contains('"exchangeType": "periodicReport"'));
+      expect(prepared.prompt, contains('2026-08-24T09:17:00.000Z'));
+      expect(prepared.prompt, contains('authoritative UTC timestamp'));
+      expect(prepared.prompt, isNot(contains('<UTC_TIMESTAMP>')));
       expect(prepared.prompt, contains('"reportType": "weekly"'));
       expect(prepared.prompt, contains('7700 kcal/kg'));
       expect(prepared.prompt, contains('Do not invent'));

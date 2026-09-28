@@ -77,6 +77,7 @@ void main() {
           operationDate: '2026-08-25',
           sourceRecordId: 'status:2026-08-25',
           sourceDigest: 'a' * 64,
+          authoritativeCreatedAt: DateTime.utc(2026, 8, 25, 9, 17),
         );
     final debrief = registry
         .forType(ReportSyncExchangeType.dailyDebrief)

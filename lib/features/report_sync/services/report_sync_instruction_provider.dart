@@ -21,6 +21,7 @@ abstract interface class ReportSyncInstructionProvider {
     Map<String, Object?>? recentContext,
     DailyDebriefSources? dailyDebriefSources,
     Map<String, Object?>? dailyDebriefSource,
+    DateTime? authoritativeCreatedAt,
   });
 }
 
@@ -40,6 +41,7 @@ class StandardReportSyncInstructionProvider
     Map<String, Object?>? recentContext,
     DailyDebriefSources? dailyDebriefSources,
     Map<String, Object?>? dailyDebriefSource,
+    DateTime? authoritativeCreatedAt,
   }) {
     if (exchangeType == ReportSyncExchangeType.dailyDebrief) {
       if (dailyDebriefSources == null || dailyDebriefSource == null) {
@@ -60,8 +62,10 @@ class StandardReportSyncInstructionProvider
         sourceRecordId,
         sourceDigest,
         recentContext ?? const <String, Object?>{},
+        _authoritativeUtcTimestamp(authoritativeCreatedAt),
       );
     }
+    final createdAt = _authoritativeUtcTimestamp(authoritativeCreatedAt);
     final importSchema2 =
         exchangeType == ReportSyncExchangeType.training ||
         exchangeType == ReportSyncExchangeType.food;
@@ -93,7 +97,7 @@ class StandardReportSyncInstructionProvider
       'exchangeType': exchangeType.stableId,
       'exchangeId': '<UNIQUE_RESPONSE_ID>',
       'operationDate': operationDate,
-      'createdAt': '<UTC_TIMESTAMP>',
+      'createdAt': createdAt,
       'confirmationDigest': confirmationDigest,
       'payload': payload,
       'packageDigest': importSchema2 ? null : _legacyDigestPlaceholder,
@@ -104,6 +108,7 @@ class StandardReportSyncInstructionProvider
         operationDate,
         responseExample,
         confirmationDigest,
+        createdAt,
       );
     }
     return '''
@@ -120,7 +125,7 @@ Return JSON only. Do not return Markdown, code fences, comments, headings, or ex
 Use format "${ReportSyncEnvelope.formatId}", envelopeVersion 1, schemaVersion "1.0", direction "response", exchangeType "${exchangeType.stableId}", and operationDate "$operationDate" exactly.
 Do not add unknown fields or sections. Do not convert numbers to strings. Preserve null separately from numeric zero and do not convert null to an empty string.
 Do not invent facts, infer missing facts, mix another date, or generate values absent from the source. Use only the allowed stable IDs shown by the schema.
-Create a unique exchangeId and a UTC createdAt timestamp. The packageDigest must be lowercase SHA-256 over canonical JSON of the complete envelope excluding packageDigest itself. Do not hash the prompt or source text.
+Create a unique exchangeId. The authoritative UTC timestamp for this exchange is "$createdAt". Copy that exact value to createdAt without changing it. Do not infer the current time or timezone, create a timestamp, or convert the supplied timestamp. The packageDigest must be lowercase SHA-256 over canonical JSON of the complete envelope excluding packageDigest itself. Do not hash the prompt or source text.
 
 The complete response field structure is shown below. Placeholder values describe types only and are not facts. Replace every placeholder from the supplied $_sourceName; use null only where the schema permits it.
 ${const JsonEncoder.withIndent('  ').convert(responseExample)}
@@ -214,6 +219,7 @@ ${const JsonEncoder.withIndent('  ').convert(analysis)}
     String sourceRecordId,
     String sourceDigest,
     Map<String, Object?> recentContext,
+    String createdAt,
   ) {
     final responseExample = <String, Object?>{
       'format': ReportSyncEnvelope.formatId,
@@ -223,7 +229,7 @@ ${const JsonEncoder.withIndent('  ').convert(analysis)}
       'exchangeType': ReportSyncExchangeType.morningBrief.stableId,
       'exchangeId': '<UNIQUE_RESPONSE_ID>',
       'operationDate': operationDate,
-      'createdAt': '<UTC_TIMESTAMP>',
+      'createdAt': createdAt,
       'confirmationDigest': null,
       'payload': {
         'operationDate': operationDate,
@@ -295,6 +301,7 @@ SOURCE CONTRACT
 RESPONSE CONTRACT
 返答全体は、開始Fenceが```text、終了Fenceが```の単一のPlain Textコードブロック1つだけにしてください。コードブロック内には単一のImport用JSON Objectだけを入れ、コードブロック外には説明、見出し、挨拶、注記を一切出力しないでください。コピーされる内容は{で始まり}で終わる必要があります。
 formatは「${ReportSyncEnvelope.formatId}」、envelopeVersionは1、schemaVersionは「2.0」、directionは「response」、exchangeTypeは「morningBrief」、operationDateは「$operationDate」に固定してください。
+createdAtはOperation Rebootがこのexchangeへ付与したauthoritative UTC timestampである「$createdAt」を完全一致でコピーしてください。現在時刻・timezoneを推測せず、createdAtを生成・変換・変更しないでください。
 packageDigestはnullにしてください。Digestを計算せず、Placeholderや文字列へ置換しないでください。アプリがStrict Validation後に正式Digestを生成します。
 Unknown Field、旧Schema 1.0 Field、argoComment、actionIdを追加しないでください。situationAnalysisを単一Stringにしないでください。
 situationAnalysisのbody/recovery/condition/work/carryover/overallと、bodyDisplay/recoveryDisplay/conditionDisplay/workDisplay、operatingPolicy、strategicResourceDecision、operationStatus、commanderIntent、actions、decisionTraceをすべて返してください。decisionTraceは表示用日本語ではなく監査用の構造化データです。STATUS SOURCEと supplied context から実際に使った値だけをsourceSnapshotへ不変のJSON値として保存し、欠損値はnullのままにしてください。各rules/interactions要素はruleId、ruleVersion、domain、inputFacts、result、effect、reasonCodeを持ちます。effectはNEUTRAL、SUPPORT_GREEN、ESCALATE_YELLOW、ESCALATE_RED、DEESCALATE、GUARDRAIL、NOT_APPLICABLEのいずれかにしてください。finalDecisionはcandidateStatuses object、modifiers string array、guardrails string array、operationStatus、reasonCodes string arrayを持ちます。finalDecision.operationStatusはcontent.operationStatusと完全に一致させてください。
@@ -360,6 +367,7 @@ When the formal workType is holiday, the complete human-readable WORK presentati
     String operationDate,
     Map<String, Object?> responseExample,
     String? confirmationDigest,
+    String createdAt,
   ) {
     final isFood = exchangeType == ReportSyncExchangeType.food;
     final retainedData = isFood ? 'all Meal Data records' : 'Training Record';
@@ -384,7 +392,7 @@ Use only ASCII half-width double quotation marks (U+0022). Smart quotes and typo
 Use format "${ReportSyncEnvelope.formatId}", envelopeVersion 1, schemaVersion "2.0", direction "response", exchangeType "${exchangeType.stableId}", and operationDate "$operationDate" exactly.
 Do not add unknown fields or sections. Do not convert numbers to strings. Preserve null separately from numeric zero and do not convert null to an empty string.
 Do not invent facts, infer missing facts, mix another date, or generate values absent from the retained record. Use only the allowed stable IDs shown by the schema.
-Create a unique exchangeId and a UTC createdAt timestamp. Set packageDigest to null. Do not calculate a digest and do not replace null with a placeholder or any string. Operation Reboot calculates the formal digest after strict validation.
+Create a unique exchangeId. The authoritative UTC timestamp for this exchange is "$createdAt". Copy that exact value to createdAt without changing it. Do not infer the current time or timezone, create a timestamp, or convert the supplied timestamp. Set packageDigest to null. Do not calculate a digest and do not replace null with a placeholder or any string. Operation Reboot calculates the formal digest after strict validation.
 
 The complete response field structure is shown below. Placeholder values describe types only and are not facts. Replace every placeholder from the retained record; use null only where the schema permits it.
 ${const JsonEncoder.withIndent('  ').convert(responseExample)}
@@ -408,6 +416,13 @@ ${const JsonEncoder.withIndent('  ').convert(responseExample)}
     ReportSyncExchangeType.periodicReport =>
       'Prepare the formal PERIODIC REPORT analysis for $date.',
   };
+
+  String _authoritativeUtcTimestamp(DateTime? timestamp) {
+    if (timestamp == null) {
+      throw StateError('OR-APP authoritative timestamp is required.');
+    }
+    return timestamp.toUtc().toIso8601String();
+  }
 
   String get _sourceName => switch (exchangeType) {
     ReportSyncExchangeType.training => 'Training Record',

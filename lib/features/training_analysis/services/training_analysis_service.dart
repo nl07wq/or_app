@@ -449,6 +449,7 @@ class TrainingAnalysisService {
   String _prompt(ReportSyncEnvelope request, String sourceDigest) {
     final operationDate = request.operationDate;
     final targetRecordId = request.payload['targetRecordId'];
+    final authoritativeCreatedAt = request.createdAt.toUtc().toIso8601String();
     final example = {
       'format': ReportSyncEnvelope.formatId,
       'envelopeVersion': 1,
@@ -457,7 +458,7 @@ class TrainingAnalysisService {
       'exchangeType': ReportSyncExchangeType.trainingAnalysis.stableId,
       'exchangeId': '<UNIQUE_RESPONSE_ID>',
       'operationDate': operationDate,
-      'createdAt': '<UTC_TIMESTAMP>',
+      'createdAt': authoritativeCreatedAt,
       'confirmationDigest': null,
       'payload': {
         'operationDate': operationDate,
@@ -492,7 +493,7 @@ FACT / ANALYSIS RESPONSIBILITY
 Operation Reboot owns every Training fact and numeric comparison. Preserve all facts exactly. Do not invent, complete, modify, recalculate, or replace Training records, exercises, sets, weight, reps, cardio, dates, duration, grade, evaluation, memo, calories, or comparison values. Return analysis and proposals only. Use the supplied previous records only; do not infer missing history.
 
 RESPONSE CONTRACT
-Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Use schemaVersion "2.0", direction "response", exchangeType "trainingAnalysis", operationDate "$operationDate", targetRecordId "$targetRecordId", and sourceDigest "$sourceDigest" exactly. Set packageDigest to null. Create a unique exchangeId and UTC createdAt. Do not add, remove, or rename fields. Use concise natural Japanese. Return exactly one exerciseAnalyses entry for every current exercise, preserving each exerciseIdentity and exerciseName exactly.
+Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Use schemaVersion "2.0", direction "response", exchangeType "trainingAnalysis", operationDate "$operationDate", targetRecordId "$targetRecordId", and sourceDigest "$sourceDigest" exactly. Set packageDigest to null. Create a unique exchangeId. Copy the authoritative UTC timestamp "$authoritativeCreatedAt" to createdAt exactly; do not infer the current time or timezone, create a timestamp, or convert the supplied value. Do not add, remove, or rename fields. Use concise natural Japanese. Return exactly one exerciseAnalyses entry for every current exercise, preserving each exerciseIdentity and exerciseName exactly.
 
 JAPANESE LOAD TERMINOLOGY
 Use "負荷量" for Volume, "総負荷量" for Recorded Volume, and "メインセット負荷量" for Working Volume or Main Set Volume. Never use "ボリューム", "記録ボリューム", or "ワーキングボリューム" in analysis prose. When a supplied metric has a *Display value, reproduce that formatter value verbatim in prose; do not restate its raw *Kg value. Missing metrics remain unavailable and must not be written as zero.

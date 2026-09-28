@@ -514,6 +514,7 @@ class TrainingPlanService {
 
   String _prompt(ReportSyncEnvelope request, String sourceDigest) {
     final operationDate = request.operationDate;
+    final authoritativeCreatedAt = request.createdAt.toUtc().toIso8601String();
     final example = {
       'format': ReportSyncEnvelope.formatId,
       'envelopeVersion': 1,
@@ -522,7 +523,7 @@ class TrainingPlanService {
       'exchangeType': ReportSyncExchangeType.trainingPlan.stableId,
       'exchangeId': '<UNIQUE_RESPONSE_ID>',
       'operationDate': operationDate,
-      'createdAt': '<UTC_TIMESTAMP>',
+      'createdAt': authoritativeCreatedAt,
       'confirmationDigest': null,
       'payload': {
         'operationDate': operationDate,
@@ -561,7 +562,7 @@ PLAN TYPE CONTRACT
 If Training is appropriate, return "planType": "training" with one or more exercises. If Training is not appropriate and rest should be prioritized, return "planType": "rest", an empty exercises array, and a non-empty Japanese note explaining the reason. Never use an empty exercise array for planType training. Do not infer or alter Formal Facts when choosing the plan type.
 
 RESPONSE CONTRACT
-Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Use schemaVersion "2.0", direction "response", exchangeType "trainingPlan", operationDate "$operationDate", and sourceDigest "$sourceDigest" exactly. Set packageDigest to null. Create a unique exchangeId and UTC createdAt. Do not add, remove, or rename fields.
+Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Use schemaVersion "2.0", direction "response", exchangeType "trainingPlan", operationDate "$operationDate", and sourceDigest "$sourceDigest" exactly. Set packageDigest to null. Create a unique exchangeId. Copy the authoritative UTC timestamp "$authoritativeCreatedAt" to createdAt exactly; do not infer the current time or timezone, create a timestamp, or convert the supplied value. Do not add, remove, or rename fields.
 
 COMPLETE RESPONSE SHAPE
 ${const JsonEncoder.withIndent('  ').convert(example)}

@@ -289,6 +289,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       final instructionRequest = _isImportOnly
           ? ReportSyncRequestPreparation(
               operationDate: _targetDateController.text,
+              authoritativeCreatedAt: request.authoritativeCreatedAt,
             )
           : request;
       final instruction = _gateway.instruction(

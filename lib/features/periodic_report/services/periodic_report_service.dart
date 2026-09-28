@@ -226,6 +226,7 @@ class PeriodicReportService {
 
   String _prompt(ReportSyncEnvelope request) {
     final payload = request.payload;
+    final authoritativeCreatedAt = request.createdAt.toUtc().toIso8601String();
     final facts = Map<String, Object?>.from(payload['facts'] as Map);
     final exerciseLabels = periodicReportExerciseDisplayLabels(
       (facts['exercisesPerformed'] as List).whereType<String>(),
@@ -238,7 +239,7 @@ class PeriodicReportService {
       'exchangeType': 'periodicReport',
       'exchangeId': '<UNIQUE_RESPONSE_ID>',
       'operationDate': request.operationDate,
-      'createdAt': '<UTC_TIMESTAMP>',
+      'createdAt': authoritativeCreatedAt,
       'confirmationDigest': null,
       'payload': {
         'operationDate': request.operationDate,
@@ -267,7 +268,7 @@ DISPLAY-ONLY EXERCISE LABELS
 ${const JsonEncoder.withIndent('  ').convert(exerciseLabels)}
 
 RESPONSE CONTRACT
-Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Preserve periodId, reportType, sourceDigest, and operationDate exactly. Use schemaVersion "2.0", direction "response", exchangeType "periodicReport", packageDigest null, a unique exchangeId, and UTC createdAt. Do not add, remove, or rename fields.
+Return exactly one fenced Plain Text code block using ```text. Put one JSON object inside and nothing outside it. Preserve periodId, reportType, sourceDigest, and operationDate exactly. Use schemaVersion "2.0", direction "response", exchangeType "periodicReport", and packageDigest null. Create a unique exchangeId. Copy the authoritative UTC timestamp "$authoritativeCreatedAt" to createdAt exactly; do not infer the current time or timezone, create a timestamp, or convert the supplied value. Do not add, remove, or rename fields.
 
 COMPLETE RESPONSE SHAPE
 ${const JsonEncoder.withIndent('  ').convert(example)}

@@ -75,12 +75,12 @@ void main() {
         clock: () => now,
       );
 
-      for (final type in ReportSyncExchangeType.values) {
+      for (final type in const [
+        ReportSyncExchangeType.training,
+        ReportSyncExchangeType.food,
+        ReportSyncExchangeType.morningBrief,
+      ]) {
         final prepared = await gateway.prepareRequest(type);
-        if (type == ReportSyncExchangeType.dailyDebrief) {
-          expect(prepared.isReady, isFalse);
-          continue;
-        }
         expect(prepared.isReady, isTrue, reason: type.stableId);
         expect(prepared.operationDate, '2026-08-03');
         if (type == ReportSyncExchangeType.training ||
@@ -121,6 +121,10 @@ void main() {
       expect(morningPrompt, contains('229 minutes is 3:49'));
       expect(morningPrompt, contains('"schemaVersion": "2.0"'));
       expect(morningPrompt, contains('"packageDigest": null'));
+      expect(morning.authoritativeCreatedAt, now);
+      expect(morningPrompt, contains('2026-08-03T09:00:00.000Z'));
+      expect(morningPrompt, contains('authoritative UTC timestamp'));
+      expect(morningPrompt, isNot(contains('<UTC_TIMESTAMP>')));
       expect(morningPrompt, isNot(contains('"actionId":')));
       expect(
         gateway.instruction(

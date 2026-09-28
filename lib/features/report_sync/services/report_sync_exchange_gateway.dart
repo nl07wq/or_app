@@ -68,6 +68,7 @@ class ReportSyncRequestPreparation {
     this.dailyDebriefSource,
     this.recentContext,
     this.eligibleDates = const [],
+    this.authoritativeCreatedAt,
   });
 
   final ReportSyncEnvelope? envelope;
@@ -81,6 +82,7 @@ class ReportSyncRequestPreparation {
   final DailyDebriefSourcePackage? dailyDebriefSource;
   final RecentContext? recentContext;
   final List<String> eligibleDates;
+  final DateTime? authoritativeCreatedAt;
   bool get isReady => operationDate != null;
   bool get canCopySource => sourceText != null;
 }
@@ -216,13 +218,19 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
 
     switch (type) {
       case ReportSyncExchangeType.training:
-        return ReportSyncRequestPreparation(operationDate: operationDate);
+        return ReportSyncRequestPreparation(
+          operationDate: operationDate,
+          authoritativeCreatedAt: _clock().toUtc(),
+        );
       case ReportSyncExchangeType.trainingAnalysis:
         throw StateError('Training Analysis uses its dedicated report flow.');
       case ReportSyncExchangeType.trainingPlan:
         throw StateError('Training Plan uses its dedicated plan flow.');
       case ReportSyncExchangeType.food:
-        return ReportSyncRequestPreparation(operationDate: operationDate);
+        return ReportSyncRequestPreparation(
+          operationDate: operationDate,
+          authoritativeCreatedAt: _clock().toUtc(),
+        );
       case ReportSyncExchangeType.morningBrief:
         if (state.phase != OperationPhase.open) {
           return const ReportSyncRequestPreparation(
@@ -243,6 +251,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
             statusSourceExport: source,
             recentContext: recentContext,
             statusLabel: 'READY',
+            authoritativeCreatedAt: _clock().toUtc(),
           );
         } on StatusReportSyncSourceException catch (error) {
           return ReportSyncRequestPreparation(
@@ -333,6 +342,7 @@ class ProductionReportSyncExchangeGateway implements ReportSyncExchangeGateway {
           recentContext: preparation.recentContext?.toJson(),
           dailyDebriefSources: preparation.dailyDebriefSource?.references,
           dailyDebriefSource: preparation.dailyDebriefSource?.promptSource,
+          authoritativeCreatedAt: preparation.authoritativeCreatedAt,
         );
     if (type != ReportSyncExchangeType.morningBrief) return instruction;
 

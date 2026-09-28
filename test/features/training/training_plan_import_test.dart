@@ -61,6 +61,9 @@ void main() {
     );
 
     expect(preparation.prompt, contains('"exchangeType": "trainingPlan"'));
+    expect(preparation.prompt, contains('2026-08-24T12:00:00.000Z'));
+    expect(preparation.prompt, contains('authoritative UTC timestamp'));
+    expect(preparation.prompt, isNot(contains('<UTC_TIMESTAMP>')));
     expect(preparation.prompt, contains('"sessionSummary": "Latest analysis"'));
     expect(preparation.prompt, contains('"planType": "training"'));
     expect(preparation.prompt, contains('"planType": "rest"'));

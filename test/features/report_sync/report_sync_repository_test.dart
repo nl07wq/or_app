@@ -253,7 +253,7 @@ void main() {
         expect(stored.toRecord(), isNot(contains('payload')));
         expect(stored.toRecord(), isNot(contains('rawText')));
       }
-      expect(await repository.list(), hasLength(3));
+      expect(await repository.list(), hasLength(ReportSyncExchangeType.values.length));
     },
   );
 }

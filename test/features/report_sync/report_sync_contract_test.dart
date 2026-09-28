@@ -300,6 +300,7 @@ void main() {
   test('registry provides all active exchange instructions', () {
     final registry = ReportSyncInstructionProviderRegistry.standard();
     for (final type in ReportSyncExchangeType.values) {
+      if (type == ReportSyncExchangeType.dailyDebrief) continue;
       final text = registry
           .forType(type)
           .buildInstruction(
@@ -310,12 +311,19 @@ void main() {
             sourceDigest: type == ReportSyncExchangeType.morningBrief
                 ? 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
                 : null,
+            authoritativeCreatedAt: DateTime.utc(2026, 8, 2, 9, 17),
           );
       expect(text, contains('2026-08-02'));
+      if (type != ReportSyncExchangeType.dailyDebrief) {
+        expect(text, contains('2026-08-02T09:17:00.000Z'));
+        expect(text, contains('authoritative UTC timestamp'));
+        expect(text, isNot(contains('<UTC_TIMESTAMP>')));
+        expect(text, isNot(contains('Create a unique exchangeId and a UTC')));
+      }
       expect(text, isNot(contains('requestId')));
       expect(text, isNot(contains('requestDigest')));
       if (type == ReportSyncExchangeType.morningBrief) {
-        expect(text, contains('正式なMORNING BRIEF'));
+        expect(text, contains('正式なDAILY BRIEF'));
         expect(text, contains('```text'));
         expect(text, contains('"schemaVersion": "2.0"'));
         expect(text, contains('"packageDigest": null'));
@@ -346,7 +354,10 @@ void main() {
     final registry = ReportSyncInstructionProviderRegistry.standard();
     final training = registry
         .forType(ReportSyncExchangeType.training)
-        .buildInstruction(operationDate: '2026-08-02');
+        .buildInstruction(
+          operationDate: '2026-08-02',
+          authoritativeCreatedAt: DateTime.utc(2026, 8, 2, 9, 17),
+        );
     expect(training, contains('Training Record that you already retain'));
     expect(training, contains('will not send another source record'));
     expect(training, contains('ASCII half-width double quotation marks'));
@@ -359,7 +370,10 @@ void main() {
 
     final food = registry
         .forType(ReportSyncExchangeType.food)
-        .buildInstruction(operationDate: '2026-08-02');
+        .buildInstruction(
+          operationDate: '2026-08-02',
+          authoritativeCreatedAt: DateTime.utc(2026, 8, 2, 9, 17),
+        );
     expect(food, contains('all Meal Data records'));
     expect(food, contains('Return every meal'));
     expect(food, contains('Do not merge meals'));
@@ -379,12 +393,15 @@ void main() {
           sourceRecordId: 'status:2026-08-02',
           sourceDigest:
               'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          authoritativeCreatedAt: DateTime.utc(2026, 8, 2, 9, 17),
         );
     expect(morning, contains('正式なSTATUS SOURCEだけを使用'));
     expect(morning, contains('packageDigestはnull'));
     expect(morning, contains('operationStatusはgreen/yellow/red'));
     expect(morning, contains('actionIdはアプリが生成'));
     expect(morning, contains('単一のPlain Textコードブロック'));
+    expect(morning, contains('2026-08-02T09:17:00.000Z'));
+    expect(morning, contains('createdAtを生成・変換・変更しない'));
   });
 
   test('daily brief instruction recalibrates plantar risk and actions', () {
@@ -395,6 +412,7 @@ void main() {
           sourceRecordId: 'status:2026-08-02',
           sourceDigest:
               'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          authoritativeCreatedAt: DateTime.utc(2026, 8, 2, 9, 17),
         );
 
     expect(morning, contains('DAILY BRIEF PLANTAR RISK CALIBRATION V2'));
@@ -417,7 +435,10 @@ void main() {
     () {
       final training = ReportSyncInstructionProviderRegistry.standard()
           .forType(ReportSyncExchangeType.training)
-          .buildInstruction(operationDate: '2026-08-02');
+          .buildInstruction(
+            operationDate: '2026-08-02',
+            authoritativeCreatedAt: DateTime.utc(2026, 8, 2, 9, 17),
+          );
 
       for (final field in const [
         'estimatedCaloriesKcal',
@@ -428,7 +449,7 @@ void main() {
         expect(training, contains(field));
       }
       expect(training, contains('all four fields together'));
-      expect(training, contains('set all four fields to null'));
+      expect(training, contains('set all four formal snapshot fields to null'));
       expect(training, contains('calculationMethod must be metsAcsmV1'));
       expect(training, contains('calculationVersion must be 1'));
       expect(training, contains('leaving the other snapshot fields null'));
