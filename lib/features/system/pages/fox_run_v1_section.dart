@@ -15,7 +15,7 @@ class FoxRunV1Section extends StatefulWidget {
 
 enum _FoxAuditMode { source, canonical, overlay }
 
-enum FoxRunV1Speed { slow, current, fast, faster, fastest, maximum }
+enum FoxRunV1Speed { slow, current, fast, faster, fastest, maximum, over }
 
 enum FoxRunV1BodySize { half, sevenTenths, full }
 
@@ -374,12 +374,13 @@ abstract final class FoxRunV1Motion {
   static const orderedFrames = <int>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   static const frameDuration = Duration(milliseconds: 80);
   static const cycleDuration = Duration(milliseconds: frameCount * 80);
-  static const crossingDuration = Duration(milliseconds: 2400);
+  static const crossingDuration = Duration(milliseconds: 2200);
   static const slowCrossingDuration = Duration(milliseconds: 3200);
-  static const fastCrossingDuration = Duration(milliseconds: 2200);
-  static const fasterCrossingDuration = Duration(milliseconds: 2000);
-  static const fastestCrossingDuration = Duration(milliseconds: 1800);
-  static const maximumCrossingDuration = Duration(milliseconds: 1600);
+  static const fastCrossingDuration = Duration(milliseconds: 2000);
+  static const fasterCrossingDuration = Duration(milliseconds: 1800);
+  static const fastestCrossingDuration = Duration(milliseconds: 1600);
+  static const maximumCrossingDuration = Duration(milliseconds: 1400);
+  static const overCrossingDuration = Duration(milliseconds: 1200);
   static const flutterPhaseCount = 8;
   static const _flutterWave = <double>[0, -.5, -1, -.5, 0, .5, 1, .5];
 
@@ -390,6 +391,7 @@ abstract final class FoxRunV1Motion {
     FoxRunV1Speed.faster => fasterCrossingDuration,
     FoxRunV1Speed.fastest => fastestCrossingDuration,
     FoxRunV1Speed.maximum => maximumCrossingDuration,
+    FoxRunV1Speed.over => overCrossingDuration,
   };
 
   static Duration durationForCycles(int cycles, {Duration? celDuration}) =>

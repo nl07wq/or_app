@@ -141,7 +141,7 @@ void main() {
     expect(FoxRunV1Motion.frameCount, 10);
     expect(FoxRunV1Motion.frameDuration, const Duration(milliseconds: 80));
     expect(FoxRunV1Motion.cycleDuration, const Duration(milliseconds: 800));
-    expect(FoxRunV1Motion.crossingDuration, const Duration(milliseconds: 2400));
+    expect(FoxRunV1Motion.crossingDuration, const Duration(milliseconds: 2200));
     for (final milliseconds in [60, 80, 100]) {
       expect(
         FoxRunV1Motion.durationForCycles(
@@ -151,17 +151,17 @@ void main() {
         Duration(milliseconds: milliseconds * 10 * 4),
       );
     }
-    for (var cycle = 0; cycle < 3; cycle++) {
+    for (var cycle = 0; cycle < 2; cycle++) {
       for (var frame = 0; frame < 10; frame++) {
         final elapsedMilliseconds = cycle * 800 + frame * 80;
         expect(
-          FoxRunV1Motion.frameAtCrossingProgress(elapsedMilliseconds / 2400),
+          FoxRunV1Motion.frameAtCrossingProgress(elapsedMilliseconds / 2200),
           frame,
           reason: '${elapsedMilliseconds}ms',
         );
       }
     }
-    expect(FoxRunV1Motion.frameAtCrossingProgress(.999999), 9);
+    expect(FoxRunV1Motion.frameAtCrossingProgress(.999999), 7);
     expect(FoxRunV1Motion.frameAtCrossingProgress(0), 0);
   });
 
@@ -176,23 +176,27 @@ void main() {
     );
     expect(
       FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.current),
-      const Duration(milliseconds: 2400),
-    );
-    expect(
-      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fast),
       const Duration(milliseconds: 2200),
     );
     expect(
-      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fast),
       const Duration(milliseconds: 2000),
     );
     expect(
-      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fastest),
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.faster),
       const Duration(milliseconds: 1800),
     );
     expect(
-      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.maximum),
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.fastest),
       const Duration(milliseconds: 1600),
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.maximum),
+      const Duration(milliseconds: 1400),
+    );
+    expect(
+      FoxRunV1Motion.durationForSpeed(FoxRunV1Speed.over),
+      const Duration(milliseconds: 1200),
     );
     final durations = FoxRunV1Speed.values
         .map(FoxRunV1Motion.durationForSpeed)
@@ -479,6 +483,13 @@ void main() {
         find.byKey(const ValueKey('fox-preview-speed-current')),
       );
       expect(current.selected, isTrue, reason: '${width.toInt()}px');
+      for (final speed in FoxRunV1Speed.values) {
+        expect(
+          find.byKey(ValueKey('fox-preview-speed-${speed.name}')),
+          findsOneWidget,
+          reason: '${speed.name} at ${width.toInt()}px',
+        );
+      }
       expect(
         tester
             .widget<ChoiceChip>(
@@ -569,21 +580,34 @@ void main() {
     }
   });
 
-  testWidgets('SPEED updates an active RUN without resetting progress', (
+  testWidgets('all SPEED values update an active RUN without reset', (
     tester,
   ) async {
-    await pumpPreview(tester, 390);
-    await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 640));
-    final before = crossingAnimation(tester).value;
-    expect(before, closeTo(640 / 2400, .01));
+    for (final speed in FoxRunV1Speed.values) {
+      await pumpPreview(tester, 390);
+      await tester.tap(find.byKey(const ValueKey('fox-preview-play')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 440));
+      final before = crossingAnimation(tester).value;
+      expect(before, closeTo(440 / 2200, .01));
 
-    await tester.tap(find.byKey(const ValueKey('fox-preview-speed-fastest')));
-    await tester.pump();
-    expect(crossingAnimation(tester).value, closeTo(before, .001));
-    await tester.pump(const Duration(milliseconds: 120));
-    expect(crossingAnimation(tester).value, closeTo(before + 120 / 1800, .01));
+      await tester.tap(find.byKey(ValueKey('fox-preview-speed-${speed.name}')));
+      await tester.pump();
+      expect(
+        crossingAnimation(tester).value,
+        closeTo(before, .001),
+        reason: '${speed.name} preserves normalized progress',
+      );
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        crossingAnimation(tester).value,
+        closeTo(
+          before + 120 / FoxRunV1Motion.durationForSpeed(speed).inMilliseconds,
+          .01,
+        ),
+        reason: '${speed.name} applies immediately',
+      );
+    }
   });
 
   testWidgets('frame selection updates an active RUN without restarting', (
@@ -771,7 +795,7 @@ void main() {
     );
   });
 
-  testWidgets('all six speeds fully exit and reset', (tester) async {
+  testWidgets('all seven speeds fully exit and reset', (tester) async {
     for (final speed in FoxRunV1Speed.values) {
       await pumpPreview(tester, 390);
       if (speed != FoxRunV1Speed.current) {
@@ -848,7 +872,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
     expect(asset(), endsWith('frame_01.png'));
     await tester.pump(const Duration(milliseconds: 320));
-    expect(crossing(), closeTo(720 / 2400, .01));
+    expect(crossing(), closeTo(720 / 2200, .01));
     expect(asset(), endsWith('frame_07.png'));
 
     await tester.pump(const Duration(milliseconds: 400));
