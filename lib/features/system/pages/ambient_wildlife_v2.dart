@@ -328,7 +328,7 @@ abstract final class AmbientWildlifeV2Fox {
     final rightExit = stageWidth + safetyGap - renderedLeft;
     return leftToRight
         ? leftExit + (rightExit + trailingDistance - leftExit) * progress
-        : rightExit - (rightExit - trailingDistance - leftExit) * progress;
+        : rightExit - (rightExit + trailingDistance - leftExit) * progress;
   }
 
   static Duration durationForPack({
@@ -351,6 +351,40 @@ abstract final class AmbientWildlifeV2Fox {
           (crossingDuration.inMicroseconds * packDistance / baseDistance)
               .round(),
     );
+  }
+
+  /// The single horizontal completion contract for every FOX pack. At progress
+  /// 1 the adult (×1) or final juvenile (all other packs) has crossed the
+  /// same safety-gap boundary used to build its event duration.
+  static bool lastActiveFoxHasFullyExited({
+    required double stageWidth,
+    required double progress,
+    required bool leftToRight,
+    required int juvenileCount,
+  }) {
+    final isAdult = juvenileCount == 0;
+    final bodyScale = isAdult ? 1.0 : juvenileBodyScale;
+    final trailingDistance = juvenileCount * juvenileFollowerSpacing;
+    final leaderCenter = bodyCenterForProgress(
+      stageWidth: stageWidth,
+      progress: progress,
+      leftToRight: leftToRight,
+      trailingDistance: trailingDistance,
+    );
+    final lastCenter =
+        leaderCenter +
+        (isAdult ? 0 : (leftToRight ? -1 : 1) * trailingDistance);
+    final bounds = visibleBoundsFor(
+      bodyCenterX: lastCenter,
+      stageGroundY: 0,
+      leftToRight: leftToRight,
+      bodyScale: bodyScale,
+    );
+    const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
+    const numericalTolerance = .001;
+    return leftToRight
+        ? bounds.left >= stageWidth + safetyGap - numericalTolerance
+        : bounds.right <= -safetyGap + numericalTolerance;
   }
 
   static double _crossingDistance({
@@ -567,7 +601,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
           if (widget.plan?.isFox ?? false) {
-            if (!_lastActiveFoxHasFullyExited()) return;
+            assert(_lastActiveFoxHasFullyExited());
             if (_foxCompletionEmitted) return;
             _foxCompletionEmitted = true;
           }
@@ -704,31 +738,12 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     final width = _stageWidth;
     if (plan == null || spawn == null || width == null) return false;
 
-    final isAdult = spawn.juvenileCount == 0;
-    final bodyScale = isAdult ? 1.0 : AmbientWildlifeV2Fox.juvenileBodyScale;
-    final trailingDistance =
-        spawn.juvenileCount * AmbientWildlifeV2Fox.juvenileFollowerSpacing;
-    final leaderCenter = AmbientWildlifeV2Fox.bodyCenterForProgress(
+    return AmbientWildlifeV2Fox.lastActiveFoxHasFullyExited(
       stageWidth: width,
       progress: _controller.value,
       leftToRight: plan.leftToRight,
-      trailingDistance: trailingDistance,
+      juvenileCount: spawn.juvenileCount,
     );
-    final lastCenter =
-        leaderCenter +
-        (isAdult ? 0 : (plan.leftToRight ? -1 : 1) * trailingDistance);
-    final bounds = AmbientWildlifeV2Fox.visibleBoundsFor(
-      bodyCenterX: lastCenter,
-      stageGroundY:
-          BatV3ProductionFlight.stageHeight -
-          AmbientWildlifeV2Stage.groundInset,
-      leftToRight: plan.leftToRight,
-      bodyScale: bodyScale,
-    );
-    const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
-    return plan.leftToRight
-        ? bounds.left >= width + safetyGap
-        : bounds.right <= -safetyGap;
   }
 
   void _continueCat() {

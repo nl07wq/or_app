@@ -181,16 +181,12 @@ class _DashboardAmbientWildlifeStageState
             width: double.infinity,
             child: ClipRect(
               key: const ValueKey('dashboard-ambient-wildlife-clip'),
-              child: OverflowBox(
-                alignment: Alignment.topCenter,
-                minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-                maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-                child: Transform.translate(
-                  offset: const Offset(
-                    0,
-                    -DashboardAmbientWildlifeStage
-                        .canonicalBottomAlignmentOffset,
-                  ),
+              child: ColoredBox(
+                color: AmbientWildlifeV2Stage.environmentBackground,
+                child: OverflowBox(
+                  alignment: Alignment.bottomCenter,
+                  minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+                  maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
                   child: Transform.scale(
                     scale: DashboardAmbientWildlifeStage.presentationScale,
                     alignment: Alignment.bottomCenter,

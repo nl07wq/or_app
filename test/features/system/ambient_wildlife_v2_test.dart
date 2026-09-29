@@ -145,6 +145,35 @@ void main() {
     },
   );
 
+  test('every FOX pack reaches its last-active full-exit endpoint', () {
+    for (final width in [320.0, 390.0, 900.0]) {
+      for (final leftToRight in [true, false]) {
+        for (final juvenileCount in [0, 1, 2, 9]) {
+          expect(
+            AmbientWildlifeV2Fox.lastActiveFoxHasFullyExited(
+              stageWidth: width,
+              progress: 0,
+              leftToRight: leftToRight,
+              juvenileCount: juvenileCount,
+            ),
+            isFalse,
+            reason: '$width / $leftToRight / $juvenileCount start',
+          );
+          expect(
+            AmbientWildlifeV2Fox.lastActiveFoxHasFullyExited(
+              stageWidth: width,
+              progress: 1,
+              leftToRight: leftToRight,
+              juvenileCount: juvenileCount,
+            ),
+            isTrue,
+            reason: '$width / $leftToRight / $juvenileCount end',
+          );
+        }
+      }
+    }
+  });
+
   test('CAT policy retains its production 5% glitch authority', () {
     final glitch = AmbientWildlifeV2EventPlan.resolve(
       species: AmbientWildlifeV2Species.cat,
@@ -859,8 +888,60 @@ void main() {
         find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
         findsOneWidget,
       );
+
+      await tester.pump(
+        AmbientWildlifeV2Fox.crossingDuration +
+            const Duration(milliseconds: 20),
+      );
+      await tester.pump();
+      expect(stageKey.currentState!.hasQueuedManualSequence, isFalse);
+      expect(stageKey.currentState!.isActive, isTrue);
     },
   );
+
+  testWidgets('production scheduler advances from FOX to the next species', (
+    tester,
+  ) async {
+    final stageKey = GlobalKey<AmbientWildlifeV2ProductionStageState>();
+    final rolls = <int>[2, 0, 0, 0, 95, 0, 0, 0, 0];
+    var rollIndex = 0;
+    const width = 390.0;
+    final foxDuration = AmbientWildlifeV2Fox.durationForPack(
+      stageWidth: width,
+      leftToRight: true,
+      juvenileCount: 9,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: width,
+            child: AmbientWildlifeV2ProductionStage(
+              key: stageKey,
+              nextInt: (max) => rolls[rollIndex++ % rolls.length] % max,
+              minimumInterval: const Duration(milliseconds: 1),
+              maximumInterval: const Duration(milliseconds: 1),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-fox-juvenile-9')),
+      findsOneWidget,
+    );
+    expect(stageKey.currentState!.isActive, isTrue);
+
+    await tester.pump(foxDuration + const Duration(milliseconds: 10));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(stageKey.currentState!.isActive, isTrue);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+      findsOneWidget,
+    );
+  });
 }
 
 Widget _stageHost({
