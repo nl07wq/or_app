@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../system/pages/cat_run_coat_patterns.dart';
 import '../../system/pages/cat_run_v23_production_preview.dart';
 import '../../system/pages/cat_run_v24_presentation.dart';
 

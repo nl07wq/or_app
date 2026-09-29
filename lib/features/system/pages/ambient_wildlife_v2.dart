@@ -443,17 +443,21 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final Duration maximumInterval;
 
   @override
-  State<AmbientWildlifeV2ProductionStage> createState() =>
-      _AmbientWildlifeV2ProductionStageState();
+  AmbientWildlifeV2ProductionStageState createState() =>
+      AmbientWildlifeV2ProductionStageState();
 }
 
-class _AmbientWildlifeV2ProductionStageState
+class AmbientWildlifeV2ProductionStageState
     extends State<AmbientWildlifeV2ProductionStage> {
   final math.Random _random = math.Random();
   AmbientWildlifeV2EventPlan? _plan;
   Timer? _timer;
   var _requestId = 0;
   var _reducedMotion = false;
+  var _manualSequenceQueued = false;
+
+  bool get isActive => _plan != null;
+  bool get hasQueuedManualSequence => _manualSequenceQueued;
 
   int _next(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
 
@@ -464,7 +468,10 @@ class _AmbientWildlifeV2ProductionStageState
     if (_reducedMotion) {
       _timer?.cancel();
       _timer = null;
-      _plan = null;
+      if (_plan != null) {
+        _plan = null;
+      }
+      _manualSequenceQueued = false;
     } else {
       _schedule();
     }
@@ -480,26 +487,49 @@ class _AmbientWildlifeV2ProductionStageState
       () {
         _timer = null;
         if (!mounted || _reducedMotion) return;
-        final species =
-            AmbientWildlifeV2Registry.availableSpecies[_next(
-              AmbientWildlifeV2Registry.availableSpecies.length,
-            )];
-        setState(() {
-          _plan = AmbientWildlifeV2EventPlan.resolve(
-            species: species,
-            leftToRight: _next(2) == 0,
-            nextInt: _next,
-          );
-          _requestId++;
-        });
+        _startSequence();
       },
     );
+  }
+
+  /// Starts a V2 plan immediately when idle. While a crossing is active this
+  /// records exactly one follow-up request, preserving the active plan.
+  bool triggerManualSequence() {
+    if (!mounted || _reducedMotion) return false;
+    _timer?.cancel();
+    _timer = null;
+    if (_plan != null) {
+      _manualSequenceQueued = true;
+      return true;
+    }
+    _startSequence();
+    return true;
+  }
+
+  void _startSequence() {
+    if (!mounted || _reducedMotion || _plan != null) return;
+    final species = AmbientWildlifeV2Registry.availableSpecies[_next(
+      AmbientWildlifeV2Registry.availableSpecies.length,
+    )];
+    setState(() {
+      _plan = AmbientWildlifeV2EventPlan.resolve(
+        species: species,
+        leftToRight: _next(2) == 0,
+        nextInt: _next,
+      );
+      _requestId++;
+    });
   }
 
   void _complete() {
     if (!mounted) return;
     setState(() => _plan = null);
-    _schedule();
+    if (_manualSequenceQueued) {
+      _manualSequenceQueued = false;
+      _startSequence();
+    } else {
+      _schedule();
+    }
   }
 
   @override

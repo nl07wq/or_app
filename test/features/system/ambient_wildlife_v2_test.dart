@@ -765,6 +765,46 @@ void main() {
       }
     }
   });
+
+  testWidgets(
+    'production manual trigger uses V2 species planning and queues one follow-up',
+    (tester) async {
+      final stageKey = GlobalKey<AmbientWildlifeV2ProductionStageState>();
+      final rolls = <int>[2, 0, 0, 0, 0];
+      var rollIndex = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              child: AmbientWildlifeV2ProductionStage(
+                key: stageKey,
+                nextInt: (max) => rolls[rollIndex++ % rolls.length] % max,
+                minimumInterval: const Duration(hours: 1),
+                maximumInterval: const Duration(hours: 1),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(stageKey.currentState!.isActive, isFalse);
+      expect(stageKey.currentState!.triggerManualSequence(), isTrue);
+      await tester.pump();
+      expect(stageKey.currentState!.isActive, isTrue);
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
+        findsOneWidget,
+      );
+
+      expect(stageKey.currentState!.triggerManualSequence(), isTrue);
+      expect(stageKey.currentState!.hasQueuedManualSequence, isTrue);
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 Widget _stageHost({

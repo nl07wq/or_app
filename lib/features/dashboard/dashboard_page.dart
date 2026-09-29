@@ -65,7 +65,8 @@ import '../report_sync/models/morning_brief_state.dart';
 import 'models/dynamic_daily_target.dart';
 import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
-import 'widgets/dashboard_cat_run_stage.dart';
+import 'widgets/dashboard_ambient_wildlife_stage.dart';
+import '../system/pages/ambient_wildlife_v2.dart';
 
 /// A single, pre-planned electrical phase for the Dashboard brand sign.
 ///
@@ -547,12 +548,12 @@ class _DashboardPageState extends State<DashboardPage> {
   late final FinalizeDateTransition? _dashboardFinalizeTransition;
   int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<DashboardCatRunStageState> _catStageKey = GlobalKey();
+  final GlobalKey<AmbientWildlifeV2ProductionStageState> _ambientStageKey =
+      GlobalKey();
   final GlobalKey _wildlifeNaturalSlotKey = GlobalKey();
   final GlobalKey _dashboardViewportKey = GlobalKey();
   Rect? _wildlifeStageRect;
   bool _wildlifeMeasurementQueued = false;
-  bool _catEventActive = false;
 
   @override
   void initState() {
@@ -600,7 +601,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (slot is! RenderBox || viewport is! RenderBox) return;
       final naturalOrigin = slot.localToGlobal(Offset.zero, ancestor: viewport);
       final naturalRect = naturalOrigin & slot.size;
-      final next = dashboardAdaptiveCatStageRect(
+      final next = dashboardAdaptiveAmbientStageRect(
         naturalSlotRect: naturalRect,
         viewportSize: viewport.size,
         safeBottom: MediaQuery.paddingOf(context).bottom,
@@ -642,10 +643,9 @@ class _DashboardPageState extends State<DashboardPage> {
                         return Scaffold(
                           appBar: AppBar(
                             leadingWidth: 56,
-                            leading: _DashboardCatManualTrigger(
-                              active: _catEventActive,
-                              onPressed: () => _catStageKey.currentState
-                                  ?.triggerManualAppearance(),
+                            leading: _DashboardAmbientManualTrigger(
+                              onPressed: () => _ambientStageKey.currentState
+                                  ?.triggerManualSequence(),
                             ),
                             title: const _DashboardNeonBrandMark(),
                             actions: const [SystemMenuButton()],
@@ -659,10 +659,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                 AppSpacing.lg,
                                 dashboardConstraints.maxHeight -
                                     MediaQuery.paddingOf(context).bottom -
-                                    DashboardCatRunStage.height,
+                                    DashboardAmbientWildlifeStage.height,
                                 dashboardConstraints.maxWidth -
                                     (AppSpacing.lg * 2),
-                                DashboardCatRunStage.height,
+                                DashboardAmbientWildlifeStage.height,
                               );
                               return Stack(
                                 key: _dashboardViewportKey,
@@ -766,7 +766,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                               SizedBox(
                                                 key: _wildlifeNaturalSlotKey,
                                                 height:
-                                                    DashboardCatRunStage.height,
+                                                    DashboardAmbientWildlifeStage.height,
                                               ),
                                             ],
                                           ),
@@ -777,16 +777,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   Positioned.fromRect(
                                     rect:
                                         _wildlifeStageRect ?? fallbackStageRect,
-                                    child: DashboardCatRunStage(
-                                      key: _catStageKey,
-                                      onEventActiveChanged: (active) {
-                                        if (mounted &&
-                                            _catEventActive != active) {
-                                          setState(
-                                            () => _catEventActive = active,
-                                          );
-                                        }
-                                      },
+                                    child: DashboardAmbientWildlifeStage(
+                                      productionStageKey: _ambientStageKey,
                                     ),
                                   ),
                                 ],
@@ -2936,37 +2928,26 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
   }
 }
 
-abstract final class DashboardCatPawColors {
-  static const ready = Color(0xC738BDF8);
-  static const active = Color(0xFF8C959C);
-}
+class _DashboardAmbientManualTrigger extends StatelessWidget {
+  const _DashboardAmbientManualTrigger({required this.onPressed});
 
-class _DashboardCatManualTrigger extends StatelessWidget {
-  const _DashboardCatManualTrigger({
-    required this.active,
-    required this.onPressed,
-  });
-
-  final bool active;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) => Center(
     child: Semantics(
       button: true,
-      label: 'Run cat',
+      label: 'Run ambient wildlife',
       child: SizedBox(
-        key: const ValueKey('dashboard-cat-manual-trigger'),
+        key: const ValueKey('dashboard-ambient-manual-trigger'),
         width: 44,
         height: 44,
         child: IconButton(
-          tooltip: 'Run cat',
+          tooltip: 'Run ambient wildlife',
           onPressed: onPressed,
           icon: Icon(
             Symbols.pets,
-            color: active
-                ? DashboardCatPawColors.active
-                : DashboardCatPawColors.ready,
+            color: const Color(0xC738BDF8),
             size: 20,
           ),
         ),

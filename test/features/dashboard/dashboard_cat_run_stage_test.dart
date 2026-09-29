@@ -7,6 +7,8 @@ import 'package:or_app/features/dashboard/widgets/dashboard_cat_run_stage.dart';
 import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
+import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
+import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
 
 void main() {
   Future<void> pumpStage(
@@ -475,14 +477,14 @@ void main() {
   });
 
   testWidgets(
-    'Dashboard paw control is responsive and starts the shared production CAT stage',
+    'Dashboard paw control is responsive and starts the shared V2 stage',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       tester.view.devicePixelRatio = 1;
       final semantics = tester.ensureSemantics();
 
-      final paw = find.byKey(const ValueKey('dashboard-cat-manual-trigger'));
+      final paw = find.byKey(const ValueKey('dashboard-ambient-manual-trigger'));
       final sign = find.byKey(const ValueKey('dashboard-neon-physical-sign'));
       for (final width in [320.0, 390.0, 900.0]) {
         tester.view.physicalSize = Size(width, 844);
@@ -491,15 +493,7 @@ void main() {
 
         expect(paw, findsOneWidget, reason: 'width $width');
         expect(tester.getSize(paw), const Size(44, 44));
-        expect(tester.getSemantics(paw).label, contains('Run cat'));
-        expect(
-          tester
-              .widget<Icon>(
-                find.descendant(of: paw, matching: find.byType(Icon)),
-              )
-              .color,
-          DashboardCatPawColors.ready,
-        );
+        expect(tester.getSemantics(paw).label, contains('Run ambient wildlife'));
         expect(sign, findsOneWidget, reason: 'width $width');
         expect(
           tester.getRect(paw).right,
@@ -508,16 +502,28 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'width $width');
       }
 
+      expect(find.byType(AmbientWildlifeV2ProductionStage), findsOneWidget);
+      final ambientStage = find.byKey(
+        const ValueKey('dashboard-ambient-wildlife-stage'),
+      );
+      expect(tester.getSize(ambientStage).height, 112);
+      expect(
+        AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112),
+        99,
+      );
       expect(find.byKey(DashboardCatRunStage.activeKey), findsNothing);
 
       await tester.tap(paw);
       await tester.pump();
-      expect(find.byKey(DashboardCatRunStage.activeKey), findsOneWidget);
       expect(
-        tester
-            .widget<Icon>(find.descendant(of: paw, matching: find.byType(Icon)))
-            .color,
-        DashboardCatPawColors.active,
+        find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage'))
+            .evaluate()
+            .isNotEmpty ||
+            find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion'))
+                .evaluate()
+                .isNotEmpty ||
+            find.byType(BatV3ProductionStage).evaluate().isNotEmpty,
+        isTrue,
       );
       expect(
         tester
@@ -527,7 +533,7 @@ void main() {
             .onPressed,
         isNotNull,
       );
-      expect(tester.getSemantics(paw).label, contains('Run cat'));
+      expect(tester.getSemantics(paw).label, contains('Run ambient wildlife'));
       expect(tester.takeException(), isNull);
       semantics.dispose();
     },

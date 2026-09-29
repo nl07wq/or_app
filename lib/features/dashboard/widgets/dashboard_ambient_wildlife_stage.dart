@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -29,6 +28,23 @@ double wildlifeSpeedFor(WildlifeKind kind) => switch (kind) {
   WildlifeKind.birds => 110,
   WildlifeKind.bat => 130,
 };
+
+/// Keeps the sole Dashboard Ambient V2 stage pinned to the safe viewport
+/// bottom until its natural final-row slot arrives in view.
+Rect dashboardAdaptiveAmbientStageRect({
+  required Rect naturalSlotRect,
+  required Size viewportSize,
+  required double safeBottom,
+}) {
+  final pinnedTop =
+      viewportSize.height - safeBottom - DashboardAmbientWildlifeStage.height;
+  return Rect.fromLTWH(
+    naturalSlotRect.left,
+    math.min(naturalSlotRect.top, pinnedTop),
+    naturalSlotRect.width,
+    DashboardAmbientWildlifeStage.height,
+  );
+}
 
 /// Deterministic, scheduler-free plan used by the diagnostic Sandbox. This
 /// shares production speed/duration and renderer data while intentionally
@@ -117,11 +133,12 @@ class WildlifeEventPlan {
   }
 }
 
-/// A quiet, decorative Dashboard-bottom lane. It owns no product state and
-/// remains completely idle except for its bounded next-event timer.
+/// A quiet, decorative Dashboard-bottom lane backed by the shared Ambient V2
+/// production runtime.
 class DashboardAmbientWildlifeStage extends StatefulWidget {
   const DashboardAmbientWildlifeStage({
     super.key,
+    this.productionStageKey,
     this.localNow = DateTime.now,
     this.nextInt,
     this.minimumInterval = const Duration(seconds: 45),
@@ -131,6 +148,8 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   static const double height = AmbientWildlifeV2ProductionStage.height;
   static const double groundInset = 5;
 
+  final GlobalKey<AmbientWildlifeV2ProductionStageState>?
+  productionStageKey;
   final DateTime Function() localNow;
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
@@ -142,130 +161,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
 }
 
 class _DashboardAmbientWildlifeStageState
-    extends State<DashboardAmbientWildlifeStage>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final math.Random _random = math.Random();
-  late final AnimationController _controller = AnimationController(vsync: this)
-    ..addStatusListener(_onAnimationStatus);
-  Timer? _nextEventTimer;
-  WildlifeEventPlan? _activePlan;
-  bool _reducedMotion = false;
-  bool _tickerEnabled = true;
-  bool _appActive = true;
-  bool _waitingForMeasurement = false;
-  double _stageWidth = 0;
-
-  bool get _motionAllowed =>
-      !_reducedMotion && _tickerEnabled && _appActive && mounted;
-
-  int _next(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    _tickerEnabled = TickerMode.valuesOf(context).enabled;
-    _stageWidth = 0;
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _appActive = state == AppLifecycleState.resumed;
-    _syncScheduling();
-  }
-
-  void _syncScheduling() {
-    if (!_motionAllowed) {
-      _cancelAndClear();
-      return;
-    }
-    if (_activePlan == null && _nextEventTimer == null) {
-      _scheduleNextEvent();
-    }
-  }
-
-  void _cancelAndClear() {
-    _nextEventTimer?.cancel();
-    _nextEventTimer = null;
-    _waitingForMeasurement = false;
-    _controller.stop();
-    if (_activePlan != null && mounted) {
-      setState(() => _activePlan = null);
-    } else {
-      _activePlan = null;
-    }
-  }
-
-  Duration _nextInterval() {
-    final minimum = widget.minimumInterval;
-    final maximum = widget.maximumInterval;
-    assert(maximum >= minimum);
-    final delta = maximum.inMilliseconds - minimum.inMilliseconds;
-    return minimum + Duration(milliseconds: delta == 0 ? 0 : _next(delta + 1));
-  }
-
-  void _scheduleNextEvent() {
-    if (!_motionAllowed || _activePlan != null || _nextEventTimer != null) {
-      return;
-    }
-    _nextEventTimer = Timer(_nextInterval(), () {
-      _nextEventTimer = null;
-      _startEvent();
-    });
-  }
-
-  WildlifeEventPlan _createPlan() {
-    final kinds = wildlifeKindsFor(wildlifePeriodFor(widget.localNow()));
-    final kind = kinds[_next(kinds.length)];
-    final count = switch (kind) {
-      WildlifeKind.birds => 2 + _next(3),
-      WildlifeKind.bat => 1 + _next(3),
-      WildlifeKind.cat || WildlifeKind.fox => 1,
-    };
-    return WildlifeEventPlan(
-      kind: kind,
-      leftToRight: _next(2) == 0,
-      count: count,
-      phaseSeed: _next(1000) / 1000,
-      speedPixelsPerSecond: wildlifeSpeedFor(kind),
-    );
-  }
-
-  void _startEvent() {
-    if (!_motionAllowed || _activePlan != null) return;
-    if (_stageWidth <= 0) {
-      if (_waitingForMeasurement) return;
-      _waitingForMeasurement = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _waitingForMeasurement = false;
-        _startEvent();
-      });
-      return;
-    }
-    final plan = _createPlan();
-    setState(() => _activePlan = plan);
-    _controller
-      ..duration = plan.durationForWidth(_stageWidth)
-      ..forward(from: 0);
-  }
-
-  void _onAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed || !mounted) return;
-    setState(() => _activePlan = null);
-    _scheduleNextEvent();
-  }
-
-  @override
-  void dispose() {
-    _nextEventTimer?.cancel();
-    super.dispose();
-  }
-
+    extends State<DashboardAmbientWildlifeStage> {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
@@ -278,6 +174,7 @@ class _DashboardAmbientWildlifeStageState
             child: ClipRect(
               key: const ValueKey('dashboard-ambient-wildlife-clip'),
               child: AmbientWildlifeV2ProductionStage(
+                key: widget.productionStageKey,
                 nextInt: widget.nextInt,
                 minimumInterval: widget.minimumInterval,
                 maximumInterval: widget.maximumInterval,
