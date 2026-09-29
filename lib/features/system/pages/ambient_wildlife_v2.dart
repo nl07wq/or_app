@@ -217,7 +217,11 @@ class AmbientWildlifeV2FoxSpawn {
 /// mapped into that production footprint; the Sandbox 1x canvas size is not
 /// used here.
 abstract final class AmbientWildlifeV2Fox {
+  /// Sandbox/canonical V2 speed, equivalent to FOX RUN's FASTEST selection.
   static const crossingDuration = Duration(milliseconds: 1600);
+
+  /// Dashboard-only production speed, equivalent to FOX RUN's FASTER option.
+  static const dashboardCrossingDuration = Duration(milliseconds: 1800);
   static const frameDuration = Duration(milliseconds: 80);
   static const selectedFrames = <int>[0, 2, 4, 5, 6];
   static const neutralFrame = 4;
@@ -335,8 +339,9 @@ abstract final class AmbientWildlifeV2Fox {
     required double stageWidth,
     required bool leftToRight,
     required int juvenileCount,
+    Duration baseDuration = crossingDuration,
   }) {
-    if (juvenileCount == 0) return crossingDuration;
+    if (juvenileCount == 0) return baseDuration;
     final baseDistance = _crossingDistance(
       stageWidth: stageWidth,
       leftToRight: leftToRight,
@@ -347,9 +352,8 @@ abstract final class AmbientWildlifeV2Fox {
       trailingDistance: juvenileCount * juvenileFollowerSpacing,
     );
     return Duration(
-      microseconds:
-          (crossingDuration.inMicroseconds * packDistance / baseDistance)
-              .round(),
+      microseconds: (baseDuration.inMicroseconds * packDistance / baseDistance)
+          .round(),
     );
   }
 
@@ -423,6 +427,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     required this.paused,
     required this.leftToRight,
     this.visualGroundLineOffset = 0,
+    this.foxCrossingDuration = AmbientWildlifeV2Fox.crossingDuration,
     super.key,
     this.onCompleted,
   });
@@ -434,6 +439,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final bool paused;
   final bool leftToRight;
   final double visualGroundLineOffset;
+  final Duration foxCrossingDuration;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -543,9 +549,10 @@ class AmbientWildlifeV2ProductionStageState
 
   void _startSequence() {
     if (!mounted || _reducedMotion || _plan != null) return;
-    final species = AmbientWildlifeV2Registry.availableSpecies[_next(
-      AmbientWildlifeV2Registry.availableSpecies.length,
-    )];
+    final species =
+        AmbientWildlifeV2Registry.availableSpecies[_next(
+          AmbientWildlifeV2Registry.availableSpecies.length,
+        )];
     setState(() {
       _plan = AmbientWildlifeV2EventPlan.resolve(
         species: species,
@@ -581,6 +588,7 @@ class AmbientWildlifeV2ProductionStageState
     neutralSpecies: AmbientWildlifeV2Species.fox,
     paused: false,
     leftToRight: _plan?.leftToRight ?? true,
+    foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
     onCompleted: _complete,
   );
 }
@@ -693,6 +701,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       stageWidth: width,
       leftToRight: widget.plan!.leftToRight,
       juvenileCount: spawn.juvenileCount,
+      baseDuration: widget.foxCrossingDuration,
     );
     final remaining = (1 - _controller.value).clamp(0.0, 1.0);
     _controller.animateTo(
@@ -716,6 +725,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       stageWidth: width,
       leftToRight: widget.plan!.leftToRight,
       juvenileCount: spawn.juvenileCount,
+      baseDuration: widget.foxCrossingDuration,
     );
   }
 
@@ -1172,6 +1182,7 @@ class _AmbientWildlifeV2FoxPatternCel extends StatelessWidget {
       _asset,
       fit: BoxFit.fill,
       filterQuality: FilterQuality.low,
+      gaplessPlayback: true,
     ),
   );
 }

@@ -41,6 +41,10 @@ void main() {
       const Duration(milliseconds: 1600),
     );
     expect(
+      AmbientWildlifeV2Fox.dashboardCrossingDuration,
+      const Duration(milliseconds: 1800),
+    );
+    expect(
       AmbientWildlifeV2Fox.frameDuration,
       const Duration(milliseconds: 80),
     );
@@ -144,6 +148,28 @@ void main() {
       );
     },
   );
+
+  test('Dashboard FOX uses FASTER while canonical V2 remains FASTEST', () {
+    const width = 390.0;
+    expect(
+      AmbientWildlifeV2Fox.durationForPack(
+        stageWidth: width,
+        leftToRight: true,
+        juvenileCount: 0,
+        baseDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
+      ),
+      const Duration(milliseconds: 1800),
+    );
+    expect(
+      AmbientWildlifeV2Fox.durationForPack(
+        stageWidth: width,
+        leftToRight: true,
+        juvenileCount: 9,
+        baseDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
+      ),
+      greaterThan(const Duration(milliseconds: 1800)),
+    );
+  });
 
   test('every FOX pack reaches its last-active full-exit endpoint', () {
     for (final width in [320.0, 390.0, 900.0]) {
@@ -890,7 +916,7 @@ void main() {
       );
 
       await tester.pump(
-        AmbientWildlifeV2Fox.crossingDuration +
+        AmbientWildlifeV2Fox.dashboardCrossingDuration +
             const Duration(milliseconds: 20),
       );
       await tester.pump();
@@ -910,6 +936,7 @@ void main() {
       stageWidth: width,
       leftToRight: true,
       juvenileCount: 9,
+      baseDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
     );
     await tester.pumpWidget(
       MaterialApp(

@@ -150,7 +150,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// relative geometry; only unused upper airspace is cropped.
   static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
   static const double presentationScale = .9;
-  static const double height = 95;
+  static const double height = 93;
   static const double scaledCanonicalHeight =
       canonicalHeight * presentationScale;
   static const double topAirspaceCrop = scaledCanonicalHeight - height;

@@ -517,10 +517,10 @@ void main() {
         tester.getSize(ambientStage).height,
         DashboardAmbientWildlifeStage.height,
       );
-      expect(DashboardAmbientWildlifeStage.height, 95);
+      expect(DashboardAmbientWildlifeStage.height, 93);
       expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
       expect(DashboardAmbientWildlifeStage.presentationScale, .9);
-      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, closeTo(5.8, .01));
+      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, closeTo(7.8, .01));
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
       );
@@ -590,7 +590,7 @@ void main() {
           (visibleBottom - DashboardAmbientWildlifeStage.canonicalHeight) *
               DashboardAmbientWildlifeStage.presentationScale -
           DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
-      expect(presentationTop, greaterThanOrEqualTo(4));
+      expect(presentationTop, greaterThanOrEqualTo(2));
       expect(
         DashboardAmbientWildlifeStage.height - presentationBottom,
         greaterThan(10),
