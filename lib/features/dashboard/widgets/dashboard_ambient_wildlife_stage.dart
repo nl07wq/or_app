@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../system/pages/ambient_wildlife_v2.dart';
 
 /// The local-clock periods used exclusively by Dashboard wildlife selection.
 enum WildlifePeriod { day, night }
@@ -127,7 +128,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
     this.maximumInterval = const Duration(seconds: 150),
   });
 
-  static const double height = 48;
+  static const double height = AmbientWildlifeV2ProductionStage.height;
   static const double groundInset = 5;
 
   final DateTime Function() localNow;
@@ -162,7 +163,6 @@ class _DashboardAmbientWildlifeStageState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -170,7 +170,7 @@ class _DashboardAmbientWildlifeStageState
     super.didChangeDependencies();
     _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     _tickerEnabled = TickerMode.valuesOf(context).enabled;
-    _syncScheduling();
+    _stageWidth = 0;
   }
 
   @override
@@ -262,9 +262,7 @@ class _DashboardAmbientWildlifeStageState
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _nextEventTimer?.cancel();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -277,26 +275,13 @@ class _DashboardAmbientWildlifeStageState
             key: const ValueKey('dashboard-ambient-wildlife-stage'),
             height: DashboardAmbientWildlifeStage.height,
             width: double.infinity,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                _stageWidth = constraints.maxWidth;
-                return ClipRect(
-                  key: const ValueKey('dashboard-ambient-wildlife-clip'),
-                  child: CustomPaint(
-                    key: ValueKey(
-                      'dashboard-ambient-wildlife-${_activePlan?.kind.name ?? 'idle'}',
-                    ),
-                    painter: DashboardAmbientWildlifePainter(
-                      plan: _reducedMotion ? null : _activePlan,
-                      progress: _controller,
-                      palette: DashboardAmbientWildlifePalette.forTheme(
-                        Theme.of(context),
-                      ),
-                    ),
-                    willChange: _activePlan != null,
-                  ),
-                );
-              },
+            child: ClipRect(
+              key: const ValueKey('dashboard-ambient-wildlife-clip'),
+              child: AmbientWildlifeV2ProductionStage(
+                nextInt: widget.nextInt,
+                minimumInterval: widget.minimumInterval,
+                maximumInterval: widget.maximumInterval,
+              ),
             ),
           ),
         ),

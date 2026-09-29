@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -405,16 +406,118 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   static const environmentBackground = Color(0xFF101010);
   static const groundLineColor = Color(0xFF383838);
   static const groundInset = 5.0;
+  static const productionGroundLineOffset = -8.0;
 
-  /// Visual-only diagnostic. FOX and every species keep using [groundInset]
-  /// for placement; this value moves only the painted environment line.
+  /// Visual-only diagnostic relative to the production ground baseline. FOX
+  /// and every species keep using [groundInset] for placement.
   static double visualGroundLineY({
+    required double stageHeight,
+    double offset = 0,
+  }) => stageHeight - groundInset + productionGroundLineOffset + offset;
+
+  /// Compatibility reference for the prior diagnostic coordinate system.
+  static double legacyVisualGroundLineY({
     required double stageHeight,
     double offset = 0,
   }) => stageHeight - groundInset + offset;
 
   @override
   State<AmbientWildlifeV2Stage> createState() => _AmbientWildlifeV2StageState();
+}
+
+/// Production consumer for surfaces such as Dashboard. It owns scheduling
+/// only; species, FOX packs/patterns, motion, and ground all stay in the V2
+/// authority above.
+class AmbientWildlifeV2ProductionStage extends StatefulWidget {
+  const AmbientWildlifeV2ProductionStage({
+    super.key,
+    this.nextInt,
+    this.minimumInterval = const Duration(seconds: 45),
+    this.maximumInterval = const Duration(seconds: 150),
+  });
+
+  static const height = BatV3ProductionFlight.stageHeight;
+
+  final int Function(int max)? nextInt;
+  final Duration minimumInterval;
+  final Duration maximumInterval;
+
+  @override
+  State<AmbientWildlifeV2ProductionStage> createState() =>
+      _AmbientWildlifeV2ProductionStageState();
+}
+
+class _AmbientWildlifeV2ProductionStageState
+    extends State<AmbientWildlifeV2ProductionStage> {
+  final math.Random _random = math.Random();
+  AmbientWildlifeV2EventPlan? _plan;
+  Timer? _timer;
+  var _requestId = 0;
+  var _reducedMotion = false;
+
+  int _next(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reducedMotion) {
+      _timer?.cancel();
+      _timer = null;
+      _plan = null;
+    } else {
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    if (!mounted || _reducedMotion || _plan != null || _timer != null) return;
+    final minimum = widget.minimumInterval.inMilliseconds;
+    final maximum = widget.maximumInterval.inMilliseconds;
+    final delta = maximum - minimum;
+    _timer = Timer(
+      Duration(milliseconds: minimum + (delta == 0 ? 0 : _next(delta + 1))),
+      () {
+        _timer = null;
+        if (!mounted || _reducedMotion) return;
+        final species =
+            AmbientWildlifeV2Registry.availableSpecies[_next(
+              AmbientWildlifeV2Registry.availableSpecies.length,
+            )];
+        setState(() {
+          _plan = AmbientWildlifeV2EventPlan.resolve(
+            species: species,
+            leftToRight: _next(2) == 0,
+            nextInt: _next,
+          );
+          _requestId++;
+        });
+      },
+    );
+  }
+
+  void _complete() {
+    if (!mounted) return;
+    setState(() => _plan = null);
+    _schedule();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AmbientWildlifeV2Stage(
+    plan: _reducedMotion ? null : _plan,
+    requestId: _requestId,
+    neutral: false,
+    neutralSpecies: AmbientWildlifeV2Species.fox,
+    paused: false,
+    leftToRight: _plan?.leftToRight ?? true,
+    onCompleted: _complete,
+  );
 }
 
 class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>

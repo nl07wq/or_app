@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
+import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 
 void main() {
   Widget subject({
@@ -35,6 +36,29 @@ void main() {
               )
               .painter!
           as DashboardAmbientWildlifePainter;
+
+  testWidgets('Dashboard consumes the Ambient V2 production runtime only', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        nextInt: (_) => 0,
+        minimumInterval: const Duration(milliseconds: 1),
+        maximumInterval: const Duration(milliseconds: 1),
+      ),
+    );
+    expect(find.byType(AmbientWildlifeV2ProductionStage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+      findsOneWidget,
+    );
+    expect(find.text('GROUND LINE'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+      findsOneWidget,
+    );
+  });
 
   test('local clock boundaries select the correct wildlife period', () {
     expect(

@@ -569,19 +569,19 @@ class _AmbientWildlifeSandboxSectionState
                 children: [
                   for (final offset in [
                     0.0,
-                    -1.0,
-                    -2.0,
-                    -3.0,
-                    -4.0,
-                    -5.0,
-                    -6.0,
-                    -7.0,
-                    -8.0,
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.0,
+                    7.0,
+                    8.0,
                   ])
                     ChoiceChip(
                       key: ValueKey('wildlife-ground-line-$offset'),
                       label: Text(
-                        offset == 0 ? 'CURRENT' : '${offset.toInt()}px',
+                        offset == 0 ? 'CURRENT' : '+${offset.toInt()}px',
                       ),
                       selected: _visualGroundLineOffset == offset,
                       onSelected: (_) =>

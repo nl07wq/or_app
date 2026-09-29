@@ -393,13 +393,20 @@ void main() {
       expect(tester.getTopLeft(juvenile), juvenilePosition);
       expect(plan.foxSpawn!.juvenileCount, 9);
       expect(plan.foxSpawn!.pattern, FoxRunV1Pattern.fox);
-      for (var offset = 0; offset >= -8; offset--) {
+      expect(
+        AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112),
+        AmbientWildlifeV2Stage.legacyVisualGroundLineY(
+          stageHeight: 112,
+          offset: -8,
+        ),
+      );
+      for (var offset = 0; offset <= 8; offset++) {
         expect(
           AmbientWildlifeV2Stage.visualGroundLineY(
             stageHeight: 112,
             offset: offset.toDouble(),
           ),
-          107 + offset,
+          99 + offset,
           reason: 'offset $offset',
         );
       }
