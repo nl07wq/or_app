@@ -428,6 +428,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     required this.leftToRight,
     this.visualGroundLineOffset = 0,
     this.foxCrossingDuration = AmbientWildlifeV2Fox.crossingDuration,
+    this.batFlightEnvelopeScale = 1,
     super.key,
     this.onCompleted,
   });
@@ -440,6 +441,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final bool leftToRight;
   final double visualGroundLineOffset;
   final Duration foxCrossingDuration;
+  final double batFlightEnvelopeScale;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -477,6 +479,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
+  static const dashboardBatFlightEnvelopeScale = .68;
 
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
@@ -589,6 +592,8 @@ class AmbientWildlifeV2ProductionStageState
     paused: false,
     leftToRight: _plan?.leftToRight ?? true,
     foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
+    batFlightEnvelopeScale:
+        AmbientWildlifeV2ProductionStage.dashboardBatFlightEnvelopeScale,
     onCompleted: _complete,
   );
 }
@@ -902,6 +907,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                 )
                                 .toList(growable: false),
                             flutterOn: true,
+                            flightEnvelopeScale: widget.batFlightEnvelopeScale,
                           );
                         },
                       ),

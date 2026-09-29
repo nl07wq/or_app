@@ -517,10 +517,10 @@ void main() {
         tester.getSize(ambientStage).height,
         DashboardAmbientWildlifeStage.height,
       );
-      expect(DashboardAmbientWildlifeStage.height, 93);
+      expect(DashboardAmbientWildlifeStage.height, 85);
       expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
       expect(DashboardAmbientWildlifeStage.presentationScale, .9);
-      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, closeTo(7.8, .01));
+      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, closeTo(15.8, .01));
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
       );
@@ -561,25 +561,31 @@ void main() {
   );
 
   test(
-    '90% Dashboard presentation retains BAT’s worst visible alpha envelope',
+    'compact Dashboard lane retains BAT’s compressed visible alpha envelope',
     () {
       final scale =
           BatV3ProductionFlight.batHeight /
           BatV3SourceSet.canonicalCanvas.height;
+      const dashboardBatFlightEnvelopeScale =
+          AmbientWildlifeV2ProductionStage.dashboardBatFlightEnvelopeScale;
       final visibleTop =
-          BatV3ProductionFlight.topFor(-18 - 8) +
+          BatV3ProductionFlight.topFor(
+            (-18 - 8) * dashboardBatFlightEnvelopeScale,
+          ) +
           BatV3SourceSet.poses
                   .map((pose) => pose.canonicalSilhouette.minY)
                   .reduce(math.min) *
               scale;
       final visibleBottom =
-          BatV3ProductionFlight.topFor(18 + 8) +
+          BatV3ProductionFlight.topFor(
+            (18 + 8) * dashboardBatFlightEnvelopeScale,
+          ) +
           BatV3SourceSet.poses
                   .map((pose) => pose.canonicalSilhouette.maxY)
                   .reduce(math.max) *
               scale;
 
-      expect(visibleTop, closeTo(11.56, .01));
+      expect(visibleTop, closeTo(19.88, .01));
       final presentationTop =
           DashboardAmbientWildlifeStage.canonicalHeight +
           (visibleTop - DashboardAmbientWildlifeStage.canonicalHeight) *

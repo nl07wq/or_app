@@ -1082,6 +1082,7 @@ class BatV3ProductionStage extends StatelessWidget {
     required this.crossingDuration,
     required this.instances,
     required this.flutterOn,
+    this.flightEnvelopeScale = 1,
   });
 
   final bool leftToRight;
@@ -1090,6 +1091,7 @@ class BatV3ProductionStage extends StatelessWidget {
   final int crossingDuration;
   final List<BatV3ProductionInstance> instances;
   final bool flutterOn;
+  final double flightEnvelopeScale;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1130,7 +1132,9 @@ class BatV3ProductionStage extends StatelessWidget {
         ),
         leftToRight: leftToRight,
       ),
-      top: BatV3ProductionFlight.topFor(instance.formationY + flutterY),
+      top: BatV3ProductionFlight.topFor(
+        (instance.formationY + flutterY) * flightEnvelopeScale,
+      ),
       width: BatV3ProductionFlight.batWidth,
       height: BatV3ProductionFlight.batHeight,
       child: BatV3CanonicalFrame(
