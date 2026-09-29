@@ -75,9 +75,13 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       return false;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('MEALの保存に失敗しました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data.isWaterEntry ? 'WATER SAVE FAILED' : 'MEALの保存に失敗しました',
+            ),
+          ),
+        );
       }
       return false;
     }

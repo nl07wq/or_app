@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/meal_type.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
@@ -782,6 +783,66 @@ void main() {
       findsNothing,
     );
     expect(find.text('Water Volume (ml)'), findsOneWidget);
+  });
+
+  testWidgets('water saves through its dedicated callback without sources', (
+    tester,
+  ) async {
+    MealData? savedWater;
+    var sourceSaveCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              onSave: (data) async {
+                savedWater = data;
+                return true;
+              },
+              onSaveWithSources: (_, _) async {
+                sourceSaveCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WATER').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Water Volume (ml)'),
+      '500',
+    );
+    await tester.tap(find.text('Save Water'));
+    await tester.pumpAndSettle();
+
+    expect(sourceSaveCount, 0);
+    expect(savedWater, isNotNull);
+    expect(savedWater!.isWaterEntry, isTrue);
+    expect(savedWater!.waterMl, 500);
+    expect(savedWater!.items, isEmpty);
+  });
+
+  testWidgets('water quick add increments the pending volume only', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject());
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WATER').last);
+    await tester.pumpAndSettle();
+    final volume = find.widgetWithText(TextField, 'Water Volume (ml)');
+    await tester.enterText(volume, '500');
+    await tester.tap(find.text('+250 ml'));
+    await tester.pump();
+    expect(tester.widget<TextField>(volume).controller!.text, '750');
+    await tester.tap(find.text('+250 ml'));
+    await tester.pump();
+    expect(tester.widget<TextField>(volume).controller!.text, '1000');
   });
 
   testWidgets('water keeps the prior meal selection for return to meal mode', (

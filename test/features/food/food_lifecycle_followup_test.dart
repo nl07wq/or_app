@@ -119,8 +119,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Water'));
-    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WATER').last);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Water Volume (ml)'),
       '500',

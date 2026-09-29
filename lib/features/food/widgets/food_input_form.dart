@@ -1584,7 +1584,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       usageSetQuantities: usageSetQuantities,
       quantitySemantics: quantitySemantics,
     );
-    final saved = widget.onSaveWithSources != null
+    final saved = isWaterEntry
+        ? await widget.onSave(meal)
+        : widget.onSaveWithSources != null
         ? await widget.onSaveWithSources!(meal, entrySources)
         : (sources.any((entry) => entry != null) ||
                   recipeSources.any((entry) => entry != null) ||
