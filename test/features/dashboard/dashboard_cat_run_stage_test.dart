@@ -3,12 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
+import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_cat_run_stage.dart';
 import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
+import 'package:or_app/features/system/pages/bat_v3_source_data.dart';
 
 void main() {
   Future<void> pumpStage(
@@ -484,7 +486,9 @@ void main() {
       tester.view.devicePixelRatio = 1;
       final semantics = tester.ensureSemantics();
 
-      final paw = find.byKey(const ValueKey('dashboard-ambient-manual-trigger'));
+      final paw = find.byKey(
+        const ValueKey('dashboard-ambient-manual-trigger'),
+      );
       final sign = find.byKey(const ValueKey('dashboard-neon-physical-sign'));
       for (final width in [320.0, 390.0, 900.0]) {
         tester.view.physicalSize = Size(width, 844);
@@ -493,7 +497,10 @@ void main() {
 
         expect(paw, findsOneWidget, reason: 'width $width');
         expect(tester.getSize(paw), const Size(44, 44));
-        expect(tester.getSemantics(paw).label, contains('Run ambient wildlife'));
+        expect(
+          tester.getSemantics(paw).label,
+          contains('Run ambient wildlife'),
+        );
         expect(sign, findsOneWidget, reason: 'width $width');
         expect(
           tester.getRect(paw).right,
@@ -506,20 +513,33 @@ void main() {
       final ambientStage = find.byKey(
         const ValueKey('dashboard-ambient-wildlife-stage'),
       );
-      expect(tester.getSize(ambientStage).height, 112);
       expect(
-        AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112),
-        99,
+        tester.getSize(ambientStage).height,
+        DashboardAmbientWildlifeStage.height,
       );
+      expect(DashboardAmbientWildlifeStage.height, 105);
+      expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
+      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, 7);
+      final canonicalStage = find.byKey(
+        const ValueKey('ambient-wildlife-v2-stage'),
+      );
+      expect(
+        tester.getRect(canonicalStage).top,
+        tester.getRect(ambientStage).top -
+            DashboardAmbientWildlifeStage.topAirspaceCrop,
+      );
+      expect(AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112), 99);
       expect(find.byKey(DashboardCatRunStage.activeKey), findsNothing);
 
       await tester.tap(paw);
       await tester.pump();
       expect(
-        find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage'))
-            .evaluate()
-            .isNotEmpty ||
-            find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion'))
+        find
+                .byKey(const ValueKey('ambient-wildlife-v2-cat-stage'))
+                .evaluate()
+                .isNotEmpty ||
+            find
+                .byKey(const ValueKey('ambient-wildlife-v2-fox-motion'))
                 .evaluate()
                 .isNotEmpty ||
             find.byType(BatV3ProductionStage).evaluate().isNotEmpty,
@@ -538,6 +558,33 @@ void main() {
       semantics.dispose();
     },
   );
+
+  test('compact Dashboard crop retains BAT’s worst visible alpha envelope', () {
+    final scale =
+        BatV3ProductionFlight.batHeight / BatV3SourceSet.canonicalCanvas.height;
+    final visibleTop =
+        BatV3ProductionFlight.topFor(-18 - 8) +
+        BatV3SourceSet.poses
+                .map((pose) => pose.canonicalSilhouette.minY)
+                .reduce(math.min) *
+            scale;
+    final visibleBottom =
+        BatV3ProductionFlight.topFor(18 + 8) +
+        BatV3SourceSet.poses
+                .map((pose) => pose.canonicalSilhouette.maxY)
+                .reduce(math.max) *
+            scale;
+
+    expect(visibleTop, closeTo(11.56, .01));
+    expect(
+      visibleTop - DashboardAmbientWildlifeStage.topAirspaceCrop,
+      greaterThanOrEqualTo(4),
+    );
+    expect(
+      DashboardAmbientWildlifeStage.canonicalHeight - visibleBottom,
+      greaterThan(12),
+    );
+  });
 }
 
 class _SequenceRandom implements math.Random {

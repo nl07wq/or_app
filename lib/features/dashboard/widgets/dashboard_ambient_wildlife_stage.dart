@@ -145,11 +145,15 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
     this.maximumInterval = const Duration(seconds: 150),
   });
 
-  static const double height = AmbientWildlifeV2ProductionStage.height;
+  /// The V2 render surface remains canonical 112px. Dashboard crops only the
+  /// 7px of unused top airspace: BAT's worst visible alpha top is 11.56px,
+  /// leaving a 4.56px safety margin after this presentation-only crop.
+  static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
+  static const double topAirspaceCrop = 7;
+  static const double height = canonicalHeight - topAirspaceCrop;
   static const double groundInset = 5;
 
-  final GlobalKey<AmbientWildlifeV2ProductionStageState>?
-  productionStageKey;
+  final GlobalKey<AmbientWildlifeV2ProductionStageState>? productionStageKey;
   final DateTime Function() localNow;
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
@@ -173,11 +177,22 @@ class _DashboardAmbientWildlifeStageState
             width: double.infinity,
             child: ClipRect(
               key: const ValueKey('dashboard-ambient-wildlife-clip'),
-              child: AmbientWildlifeV2ProductionStage(
-                key: widget.productionStageKey,
-                nextInt: widget.nextInt,
-                minimumInterval: widget.minimumInterval,
-                maximumInterval: widget.maximumInterval,
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+                maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+                child: Transform.translate(
+                  offset: const Offset(
+                    0,
+                    -DashboardAmbientWildlifeStage.topAirspaceCrop,
+                  ),
+                  child: AmbientWildlifeV2ProductionStage(
+                    key: widget.productionStageKey,
+                    nextInt: widget.nextInt,
+                    minimumInterval: widget.minimumInterval,
+                    maximumInterval: widget.maximumInterval,
+                  ),
+                ),
               ),
             ),
           ),
