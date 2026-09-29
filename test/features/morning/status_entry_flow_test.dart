@@ -233,6 +233,16 @@ void main() {
     },
   );
 
+  testWidgets('rapid STATUS saves keep one confirmation flow', (tester) async {
+    await _pumpEntry(tester);
+    await tester.ensureVisible(find.text('SAVE STATUS'));
+    await tester.tap(find.text('SAVE STATUS'));
+    await tester.tap(find.text('SAVE STATUS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'), findsOneWidget);
+  });
+
   testWidgets(
     'STATUS brief success preserves its parent route for COMMAND CENTER back navigation',
     (tester) async {
