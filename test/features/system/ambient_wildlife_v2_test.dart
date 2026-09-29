@@ -235,8 +235,23 @@ void main() {
     expect(catPainter.neutralFrame02, isTrue);
     expect(catPainter.catUnit, CatRunV23Travel.catUnit);
     expect(catPainter.showGroundLine, isFalse);
+    expect(catPainter.paintBackground, isFalse);
     expect(catPainter.groundInset, AmbientWildlifeV2Stage.groundInset);
     expect(catPainter.groundLineColor, AmbientWildlifeV2Stage.groundLineColor);
+    final stageStack = tester
+        .widgetList<Stack>(
+          find.descendant(
+            of: find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+            matching: find.byType(Stack),
+          ),
+        )
+        .first;
+    final groundLayer = stageStack.children[1] as Positioned;
+    expect(
+      ((groundLayer.child as IgnorePointer).child as CustomPaint).key,
+      const ValueKey('ambient-wildlife-v2-ground-line'),
+    );
+    expect(stageStack.children[2], isA<Positioned>());
 
     await pumpNeutral(AmbientWildlifeV2Species.bat);
     expect(
@@ -569,6 +584,7 @@ void main() {
                 .painter!
             as CatRunV23StagePainter;
     expect(painter.showGroundLine, isTrue);
+    expect(painter.paintBackground, isTrue);
     expect(painter.groundLineColor, const Color(0xFF43474E));
     expect(painter.groundInset, 5);
     expect(CatRunV23Travel.stageHeight, 48);
@@ -595,6 +611,7 @@ void main() {
             as CatRunV23StagePainter;
     expect(painter.catUnit, CatRunV23Travel.catUnit);
     expect(painter.showGroundLine, isFalse);
+    expect(painter.paintBackground, isFalse);
     expect(tester.takeException(), isNull);
   });
 

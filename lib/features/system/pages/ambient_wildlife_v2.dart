@@ -593,6 +593,19 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                   painter: const _AmbientWildlifeV2EnvironmentPainter(),
                 ),
               ),
+              // The visual ground belongs behind the species artwork. Ambient
+              // CAT opts out of its opaque painter background below so this
+              // shared line remains visible without a local duplicate.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('ambient-wildlife-v2-ground-line'),
+                    painter: _AmbientWildlifeV2GroundLinePainter(
+                      visualGroundLineOffset: widget.visualGroundLineOffset,
+                    ),
+                  ),
+                ),
+              ),
               Positioned.fill(
                 child: widget.neutral
                     ? _AmbientWildlifeV2NeutralArt(
@@ -631,6 +644,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                 ],
                                 catUnit: CatRunV23Travel.catUnit,
                                 showGroundLine: false,
+                                paintBackground: false,
                               ),
                             );
                           }
@@ -677,16 +691,6 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                           );
                         },
                       ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    key: const ValueKey('ambient-wildlife-v2-ground-line'),
-                    painter: _AmbientWildlifeV2GroundLinePainter(
-                      visualGroundLineOffset: widget.visualGroundLineOffset,
-                    ),
-                  ),
-                ),
               ),
             ],
           );
@@ -759,6 +763,7 @@ class _AmbientWildlifeV2NeutralArt extends StatelessWidget {
         coatVariant: CatRunCoatVariant.normal,
         catUnit: CatRunV23Travel.catUnit,
         showGroundLine: false,
+        paintBackground: false,
         neutralFrame02: true,
       ),
     ),

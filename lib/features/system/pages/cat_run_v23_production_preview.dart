@@ -552,6 +552,7 @@ class CatRunV23StagePainter extends CustomPainter {
     this.crossings,
     this.catUnit = CatRunV23Travel.catUnit,
     this.showGroundLine = false,
+    this.paintBackground = true,
     this.neutralFrame02 = false,
     this.groundInset = 5,
     this.groundLineColor = const Color(0xFF383838),
@@ -563,6 +564,7 @@ class CatRunV23StagePainter extends CustomPainter {
   final List<CatRunV23Crossing>? crossings;
   final double catUnit;
   final bool showGroundLine;
+  final bool paintBackground;
 
   /// Renders the production canonical Frame 02 at the stage centre without
   /// consuming crossing progress. Used only by Ambient Wildlife neutral mode.
@@ -575,10 +577,12 @@ class CatRunV23StagePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFF101010),
-    );
+    if (paintBackground) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = const Color(0xFF101010),
+      );
+    }
     if (showGroundLine) {
       canvas.drawLine(
         Offset(0, size.height - groundInset),
@@ -682,6 +686,7 @@ class CatRunV23StagePainter extends CustomPainter {
       oldDelegate.crossings != crossings ||
       oldDelegate.catUnit != catUnit ||
       oldDelegate.showGroundLine != showGroundLine ||
+      oldDelegate.paintBackground != paintBackground ||
       oldDelegate.neutralFrame02 != neutralFrame02 ||
       oldDelegate.groundInset != groundInset ||
       oldDelegate.groundLineColor != groundLineColor;
