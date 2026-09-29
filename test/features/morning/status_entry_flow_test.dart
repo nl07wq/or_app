@@ -197,7 +197,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
-      expect(find.text('COMMANDER CENTER'), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.titleKey), findsOneWidget);
       final briefDebriefTab = tester.widget<Text>(
         find.descendant(
           of: find.byKey(const ValueKey('command-center-tab-1')),
