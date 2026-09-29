@@ -428,7 +428,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     required this.leftToRight,
     this.visualGroundLineOffset = 0,
     this.foxCrossingDuration = AmbientWildlifeV2Fox.crossingDuration,
-    this.batFlightEnvelopeScale = 1,
+    this.speciesPresentationScale = 1,
     super.key,
     this.onCompleted,
   });
@@ -441,7 +441,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final bool leftToRight;
   final double visualGroundLineOffset;
   final Duration foxCrossingDuration;
-  final double batFlightEnvelopeScale;
+  final double speciesPresentationScale;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -476,14 +476,15 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.nextInt,
     this.minimumInterval = const Duration(seconds: 45),
     this.maximumInterval = const Duration(seconds: 150),
+    this.speciesPresentationScale = 1,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
-  static const dashboardBatFlightEnvelopeScale = .68;
 
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
   final Duration maximumInterval;
+  final double speciesPresentationScale;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -592,8 +593,7 @@ class AmbientWildlifeV2ProductionStageState
     paused: false,
     leftToRight: _plan?.leftToRight ?? true,
     foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
-    batFlightEnvelopeScale:
-        AmbientWildlifeV2ProductionStage.dashboardBatFlightEnvelopeScale,
+    speciesPresentationScale: widget.speciesPresentationScale,
     onCompleted: _complete,
   );
 }
@@ -861,7 +861,9 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                       coatVariant: crossing.coatVariant,
                                     ),
                                 ],
-                                catUnit: CatRunV23Travel.catUnit,
+                                catUnit:
+                                    CatRunV23Travel.catUnit *
+                                    widget.speciesPresentationScale,
                                 showGroundLine: false,
                                 paintBackground: false,
                               ),
@@ -879,6 +881,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                               elapsed: elapsed,
                               leftToRight: plan.leftToRight,
                               spawn: plan.foxSpawn!,
+                              presentationScale:
+                                  widget.speciesPresentationScale,
                             );
                           }
                           final eventDurationMs =
@@ -907,7 +911,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                 )
                                 .toList(growable: false),
                             flutterOn: true,
-                            flightEnvelopeScale: widget.batFlightEnvelopeScale,
+                            presentationScale: widget.speciesPresentationScale,
                           );
                         },
                       ),
@@ -1015,12 +1019,14 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
     required this.elapsed,
     required this.leftToRight,
     required this.spawn,
+    required this.presentationScale,
   });
 
   final double progress;
   final Duration elapsed;
   final bool leftToRight;
   final AmbientWildlifeV2FoxSpawn spawn;
+  final double presentationScale;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1045,8 +1051,9 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
             bodyCenterX: bodyCenter,
             stageGroundY: stageGroundY,
             leftToRight: leftToRight,
-            verticalFlutterOffset: flutter,
-            bodyFlexOffset: bodyFlex,
+            verticalFlutterOffset: flutter * presentationScale,
+            bodyFlexOffset: bodyFlex * presentationScale,
+            bodyScale: presentationScale,
             pattern: spawn.pattern,
           ),
           for (var index = 0; index < spawn.juvenileCount; index++)
@@ -1060,9 +1067,10 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
                       (index + 1),
               stageGroundY: stageGroundY,
               leftToRight: leftToRight,
-              verticalFlutterOffset: flutter,
-              bodyFlexOffset: bodyFlex,
-              bodyScale: AmbientWildlifeV2Fox.juvenileBodyScale,
+              verticalFlutterOffset: flutter * presentationScale,
+              bodyFlexOffset: bodyFlex * presentationScale,
+              bodyScale:
+                  AmbientWildlifeV2Fox.juvenileBodyScale * presentationScale,
               pattern: spawn.pattern,
             ),
         ],

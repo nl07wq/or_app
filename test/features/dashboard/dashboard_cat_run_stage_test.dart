@@ -519,10 +519,22 @@ void main() {
       );
       expect(DashboardAmbientWildlifeStage.height, 85);
       expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
-      expect(DashboardAmbientWildlifeStage.presentationScale, .9);
-      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, closeTo(15.8, .01));
+      expect(DashboardAmbientWildlifeStage.animalPresentationScale, .8);
+      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, 27);
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(
+              find.byType(AmbientWildlifeV2ProductionStage),
+            )
+            .speciesPresentationScale,
+        DashboardAmbientWildlifeStage.animalPresentationScale,
+      );
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
+      );
+      expect(
+        tester.getSize(canonicalStage).width,
+        tester.getSize(ambientStage).width,
       );
       expect(
         tester.getRect(canonicalStage).top,
@@ -560,49 +572,39 @@ void main() {
     },
   );
 
-  test(
-    'compact Dashboard lane retains BAT’s compressed visible alpha envelope',
-    () {
-      final scale =
-          BatV3ProductionFlight.batHeight /
-          BatV3SourceSet.canonicalCanvas.height;
-      const dashboardBatFlightEnvelopeScale =
-          AmbientWildlifeV2ProductionStage.dashboardBatFlightEnvelopeScale;
-      final visibleTop =
-          BatV3ProductionFlight.topFor(
-            (-18 - 8) * dashboardBatFlightEnvelopeScale,
-          ) +
-          BatV3SourceSet.poses
-                  .map((pose) => pose.canonicalSilhouette.minY)
-                  .reduce(math.min) *
-              scale;
-      final visibleBottom =
-          BatV3ProductionFlight.topFor(
-            (18 + 8) * dashboardBatFlightEnvelopeScale,
-          ) +
-          BatV3SourceSet.poses
-                  .map((pose) => pose.canonicalSilhouette.maxY)
-                  .reduce(math.max) *
-              scale;
+  test('compact Dashboard lane preserves canonical BAT motion inputs', () {
+    final scale =
+        BatV3ProductionFlight.batHeight / BatV3SourceSet.canonicalCanvas.height;
+    final visibleTop =
+        BatV3ProductionFlight.topFor(-18 - 8) +
+        BatV3SourceSet.poses
+                .map((pose) => pose.canonicalSilhouette.minY)
+                .reduce(math.min) *
+            scale;
+    final visibleBottom =
+        BatV3ProductionFlight.topFor(18 + 8) +
+        BatV3SourceSet.poses
+                .map((pose) => pose.canonicalSilhouette.maxY)
+                .reduce(math.max) *
+            scale;
 
-      expect(visibleTop, closeTo(19.88, .01));
-      final presentationTop =
-          DashboardAmbientWildlifeStage.canonicalHeight +
-          (visibleTop - DashboardAmbientWildlifeStage.canonicalHeight) *
-              DashboardAmbientWildlifeStage.presentationScale -
-          DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
-      final presentationBottom =
-          DashboardAmbientWildlifeStage.canonicalHeight +
-          (visibleBottom - DashboardAmbientWildlifeStage.canonicalHeight) *
-              DashboardAmbientWildlifeStage.presentationScale -
-          DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
-      expect(presentationTop, greaterThanOrEqualTo(2));
-      expect(
-        DashboardAmbientWildlifeStage.height - presentationBottom,
-        greaterThan(10),
-      );
-    },
-  );
+    expect(visibleTop, closeTo(11.56, .01));
+    final presentationTop =
+        DashboardAmbientWildlifeStage.canonicalHeight +
+        (visibleTop - DashboardAmbientWildlifeStage.canonicalHeight) *
+            DashboardAmbientWildlifeStage.animalPresentationScale -
+        DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
+    final presentationBottom =
+        DashboardAmbientWildlifeStage.canonicalHeight +
+        (visibleBottom - DashboardAmbientWildlifeStage.canonicalHeight) *
+            DashboardAmbientWildlifeStage.animalPresentationScale -
+        DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
+    expect(presentationTop, greaterThanOrEqualTo(4));
+    expect(
+      DashboardAmbientWildlifeStage.height - presentationBottom,
+      greaterThanOrEqualTo(7),
+    );
+  });
 }
 
 class _SequenceRandom implements math.Random {

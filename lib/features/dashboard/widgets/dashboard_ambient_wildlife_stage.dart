@@ -145,15 +145,13 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
     this.maximumInterval = const Duration(seconds: 150),
   });
 
-  /// Dashboard is a 90% presentation of the canonical V2 surface. Scaling is
-  /// anchored at the stage bottom so ground and species retain their canonical
-  /// relative geometry; only unused upper airspace is cropped.
+  /// Dashboard crops the canonical V2 surface vertically, while the species
+  /// renderer owns its visual scale. The stage and crossing coordinates remain
+  /// full width.
   static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
-  static const double presentationScale = .9;
+  static const double animalPresentationScale = .8;
   static const double height = 85;
-  static const double scaledCanonicalHeight =
-      canonicalHeight * presentationScale;
-  static const double topAirspaceCrop = scaledCanonicalHeight - height;
+  static const double topAirspaceCrop = canonicalHeight - height;
   static const double canonicalBottomAlignmentOffset = canonicalHeight - height;
   static const double groundInset = 5;
 
@@ -187,15 +185,13 @@ class _DashboardAmbientWildlifeStageState
                   alignment: Alignment.bottomCenter,
                   minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
                   maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-                  child: Transform.scale(
-                    scale: DashboardAmbientWildlifeStage.presentationScale,
-                    alignment: Alignment.bottomCenter,
-                    child: AmbientWildlifeV2ProductionStage(
-                      key: widget.productionStageKey,
-                      nextInt: widget.nextInt,
-                      minimumInterval: widget.minimumInterval,
-                      maximumInterval: widget.maximumInterval,
-                    ),
+                  child: AmbientWildlifeV2ProductionStage(
+                    key: widget.productionStageKey,
+                    nextInt: widget.nextInt,
+                    minimumInterval: widget.minimumInterval,
+                    maximumInterval: widget.maximumInterval,
+                    speciesPresentationScale:
+                        DashboardAmbientWildlifeStage.animalPresentationScale,
                   ),
                 ),
               ),

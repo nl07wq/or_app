@@ -1083,6 +1083,7 @@ class BatV3ProductionStage extends StatelessWidget {
     required this.instances,
     required this.flutterOn,
     this.flightEnvelopeScale = 1,
+    this.presentationScale = 1,
   });
 
   final bool leftToRight;
@@ -1092,6 +1093,7 @@ class BatV3ProductionStage extends StatelessWidget {
   final List<BatV3ProductionInstance> instances;
   final bool flutterOn;
   final double flightEnvelopeScale;
+  final double presentationScale;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1132,19 +1134,29 @@ class BatV3ProductionStage extends StatelessWidget {
         ),
         leftToRight: leftToRight,
       ),
-      top: BatV3ProductionFlight.topFor(
-        (instance.formationY + flutterY) * flightEnvelopeScale,
+      top: _presentationTop(
+        BatV3ProductionFlight.topFor(
+          (instance.formationY + flutterY) * flightEnvelopeScale,
+        ),
       ),
       width: BatV3ProductionFlight.batWidth,
       height: BatV3ProductionFlight.batHeight,
-      child: BatV3CanonicalFrame(
-        pose: pose,
-        leftToRight: leftToRight,
-        inspectionScale: 1,
-        flutterY: 0,
-        bodyOverlay: false,
-        viewportHeight: BatV3ProductionFlight.batHeight,
+      child: Transform.scale(
+        alignment: Alignment.topCenter,
+        scale: presentationScale,
+        child: BatV3CanonicalFrame(
+          pose: pose,
+          leftToRight: leftToRight,
+          inspectionScale: 1,
+          flutterY: 0,
+          bodyOverlay: false,
+          viewportHeight: BatV3ProductionFlight.batHeight,
+        ),
       ),
     );
   }
+
+  double _presentationTop(double canonicalTop) =>
+      BatV3ProductionFlight.stageHeight -
+      (BatV3ProductionFlight.stageHeight - canonicalTop) * presentationScale;
 }
