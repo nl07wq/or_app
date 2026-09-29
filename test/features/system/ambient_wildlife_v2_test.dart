@@ -767,6 +767,61 @@ void main() {
   });
 
   testWidgets(
+    'FOX completion waits for the selected pack duration and emits once',
+    (tester) async {
+      var rollIndex = 0;
+      final rolls = <int>[0, 0, 95];
+      var completed = 0;
+      const width = 390.0;
+      final duration = AmbientWildlifeV2Fox.durationForPack(
+        stageWidth: width,
+        leftToRight: true,
+        juvenileCount: 9,
+      );
+      Widget host(AmbientWildlifeV2EventPlan? plan, int requestId) =>
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: width,
+                child: AmbientWildlifeV2Stage(
+                  plan: plan,
+                  requestId: requestId,
+                  neutral: false,
+                  neutralSpecies: AmbientWildlifeV2Species.fox,
+                  paused: false,
+                  leftToRight: true,
+                  onCompleted: () => completed++,
+                ),
+              ),
+            ),
+          );
+      final plan = AmbientWildlifeV2EventPlan.resolve(
+        species: AmbientWildlifeV2Species.fox,
+        leftToRight: true,
+        nextInt: (max) => rolls[rollIndex++ % rolls.length] % max,
+      );
+      await tester.pumpWidget(host(null, 0));
+      await tester.pumpWidget(host(plan, 1));
+
+      await tester.pump();
+      await tester.pump(duration - const Duration(milliseconds: 1));
+      expect(completed, 0);
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-v2-fox-juvenile-9')),
+        findsOneWidget,
+      );
+
+      await tester.pump(const Duration(milliseconds: 2));
+      await tester.pump();
+      expect(completed, 1);
+      expect(
+        find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'production manual trigger uses V2 species planning and queues one follow-up',
     (tester) async {
       final stageKey = GlobalKey<AmbientWildlifeV2ProductionStageState>();
@@ -799,6 +854,7 @@ void main() {
 
       expect(stageKey.currentState!.triggerManualSequence(), isTrue);
       expect(stageKey.currentState!.hasQueuedManualSequence, isTrue);
+      expect(stageKey.currentState!.triggerManualSequence(), isFalse);
       expect(
         find.byKey(const ValueKey('ambient-wildlife-v2-fox-motion')),
         findsOneWidget,

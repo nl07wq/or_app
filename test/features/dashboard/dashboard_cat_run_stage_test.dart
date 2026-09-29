@@ -517,9 +517,10 @@ void main() {
         tester.getSize(ambientStage).height,
         DashboardAmbientWildlifeStage.height,
       );
-      expect(DashboardAmbientWildlifeStage.height, 105);
+      expect(DashboardAmbientWildlifeStage.height, 95);
       expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
-      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, 7);
+      expect(DashboardAmbientWildlifeStage.presentationScale, .9);
+      expect(DashboardAmbientWildlifeStage.topAirspaceCrop, closeTo(5.8, .01));
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
       );
@@ -559,32 +560,43 @@ void main() {
     },
   );
 
-  test('compact Dashboard crop retains BAT’s worst visible alpha envelope', () {
-    final scale =
-        BatV3ProductionFlight.batHeight / BatV3SourceSet.canonicalCanvas.height;
-    final visibleTop =
-        BatV3ProductionFlight.topFor(-18 - 8) +
-        BatV3SourceSet.poses
-                .map((pose) => pose.canonicalSilhouette.minY)
-                .reduce(math.min) *
-            scale;
-    final visibleBottom =
-        BatV3ProductionFlight.topFor(18 + 8) +
-        BatV3SourceSet.poses
-                .map((pose) => pose.canonicalSilhouette.maxY)
-                .reduce(math.max) *
-            scale;
+  test(
+    '90% Dashboard presentation retains BAT’s worst visible alpha envelope',
+    () {
+      final scale =
+          BatV3ProductionFlight.batHeight /
+          BatV3SourceSet.canonicalCanvas.height;
+      final visibleTop =
+          BatV3ProductionFlight.topFor(-18 - 8) +
+          BatV3SourceSet.poses
+                  .map((pose) => pose.canonicalSilhouette.minY)
+                  .reduce(math.min) *
+              scale;
+      final visibleBottom =
+          BatV3ProductionFlight.topFor(18 + 8) +
+          BatV3SourceSet.poses
+                  .map((pose) => pose.canonicalSilhouette.maxY)
+                  .reduce(math.max) *
+              scale;
 
-    expect(visibleTop, closeTo(11.56, .01));
-    expect(
-      visibleTop - DashboardAmbientWildlifeStage.topAirspaceCrop,
-      greaterThanOrEqualTo(4),
-    );
-    expect(
-      DashboardAmbientWildlifeStage.canonicalHeight - visibleBottom,
-      greaterThan(12),
-    );
-  });
+      expect(visibleTop, closeTo(11.56, .01));
+      final presentationTop =
+          DashboardAmbientWildlifeStage.canonicalHeight +
+          (visibleTop - DashboardAmbientWildlifeStage.canonicalHeight) *
+              DashboardAmbientWildlifeStage.presentationScale -
+          DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
+      final presentationBottom =
+          DashboardAmbientWildlifeStage.canonicalHeight +
+          (visibleBottom - DashboardAmbientWildlifeStage.canonicalHeight) *
+              DashboardAmbientWildlifeStage.presentationScale -
+          DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
+      expect(presentationTop, greaterThanOrEqualTo(4));
+      expect(
+        DashboardAmbientWildlifeStage.height - presentationBottom,
+        greaterThan(10),
+      );
+    },
+  );
 }
 
 class _SequenceRandom implements math.Random {

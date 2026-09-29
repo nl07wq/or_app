@@ -145,12 +145,16 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
     this.maximumInterval = const Duration(seconds: 150),
   });
 
-  /// The V2 render surface remains canonical 112px. Dashboard crops only the
-  /// 7px of unused top airspace: BAT's worst visible alpha top is 11.56px,
-  /// leaving a 4.56px safety margin after this presentation-only crop.
+  /// Dashboard is a 90% presentation of the canonical V2 surface. Scaling is
+  /// anchored at the stage bottom so ground and species retain their canonical
+  /// relative geometry; only unused upper airspace is cropped.
   static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
-  static const double topAirspaceCrop = 7;
-  static const double height = canonicalHeight - topAirspaceCrop;
+  static const double presentationScale = .9;
+  static const double height = 95;
+  static const double scaledCanonicalHeight =
+      canonicalHeight * presentationScale;
+  static const double topAirspaceCrop = scaledCanonicalHeight - height;
+  static const double canonicalBottomAlignmentOffset = canonicalHeight - height;
   static const double groundInset = 5;
 
   final GlobalKey<AmbientWildlifeV2ProductionStageState>? productionStageKey;
@@ -184,13 +188,18 @@ class _DashboardAmbientWildlifeStageState
                 child: Transform.translate(
                   offset: const Offset(
                     0,
-                    -DashboardAmbientWildlifeStage.topAirspaceCrop,
+                    -DashboardAmbientWildlifeStage
+                        .canonicalBottomAlignmentOffset,
                   ),
-                  child: AmbientWildlifeV2ProductionStage(
-                    key: widget.productionStageKey,
-                    nextInt: widget.nextInt,
-                    minimumInterval: widget.minimumInterval,
-                    maximumInterval: widget.maximumInterval,
+                  child: Transform.scale(
+                    scale: DashboardAmbientWildlifeStage.presentationScale,
+                    alignment: Alignment.bottomCenter,
+                    child: AmbientWildlifeV2ProductionStage(
+                      key: widget.productionStageKey,
+                      nextInt: widget.nextInt,
+                      minimumInterval: widget.minimumInterval,
+                      maximumInterval: widget.maximumInterval,
+                    ),
                   ),
                 ),
               ),

@@ -499,6 +499,7 @@ class AmbientWildlifeV2ProductionStageState
     _timer?.cancel();
     _timer = null;
     if (_plan != null) {
+      if (_manualSequenceQueued) return false;
       _manualSequenceQueued = true;
       return true;
     }
@@ -522,7 +523,7 @@ class AmbientWildlifeV2ProductionStageState
   }
 
   void _complete() {
-    if (!mounted) return;
+    if (!mounted || _plan == null) return;
     setState(() => _plan = null);
     if (_manualSequenceQueued) {
       _manualSequenceQueued = false;
@@ -555,6 +556,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
   late final AnimationController _controller;
   double? _stageWidth;
   bool _waitingForFoxStageWidth = false;
+  Duration? _activeFoxDuration;
+  bool _foxCompletionEmitted = false;
 
   @override
   void initState() {
@@ -563,6 +566,11 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       ..addListener(_advanceCat)
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
+          if (widget.plan?.isFox ?? false) {
+            if (!_lastActiveFoxHasFullyExited()) return;
+            if (_foxCompletionEmitted) return;
+            _foxCompletionEmitted = true;
+          }
           setState(() {});
           widget.onCompleted?.call();
         }
@@ -585,6 +593,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
 
   void _start() {
     final plan = widget.plan;
+    _activeFoxDuration = null;
+    _foxCompletionEmitted = false;
     if (plan == null || widget.neutral || widget.paused) {
       _controller.stop();
       return;
@@ -642,6 +652,14 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
   }
 
   void _continueFox() {
+    final width = _stageWidth;
+    final spawn = widget.plan?.foxSpawn;
+    if (width == null || spawn == null) return;
+    _activeFoxDuration ??= AmbientWildlifeV2Fox.durationForPack(
+      stageWidth: width,
+      leftToRight: widget.plan!.leftToRight,
+      juvenileCount: spawn.juvenileCount,
+    );
     final remaining = (1 - _controller.value).clamp(0.0, 1.0);
     _controller.animateTo(
       1,
@@ -653,6 +671,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
   }
 
   Duration get _foxDuration {
+    final activeDuration = _activeFoxDuration;
+    if (activeDuration != null) return activeDuration;
     final spawn = widget.plan?.foxSpawn;
     final width = _stageWidth;
     if (spawn == null || width == null) {
@@ -673,6 +693,42 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _start();
     });
+  }
+
+  /// FOX completes only after the final active individual has cleared the
+  /// viewport and its safety gap. The controller endpoint does not act as an
+  /// independent lifecycle authority.
+  bool _lastActiveFoxHasFullyExited() {
+    final plan = widget.plan;
+    final spawn = plan?.foxSpawn;
+    final width = _stageWidth;
+    if (plan == null || spawn == null || width == null) return false;
+
+    final isAdult = spawn.juvenileCount == 0;
+    final bodyScale = isAdult ? 1.0 : AmbientWildlifeV2Fox.juvenileBodyScale;
+    final trailingDistance =
+        spawn.juvenileCount * AmbientWildlifeV2Fox.juvenileFollowerSpacing;
+    final leaderCenter = AmbientWildlifeV2Fox.bodyCenterForProgress(
+      stageWidth: width,
+      progress: _controller.value,
+      leftToRight: plan.leftToRight,
+      trailingDistance: trailingDistance,
+    );
+    final lastCenter =
+        leaderCenter +
+        (isAdult ? 0 : (plan.leftToRight ? -1 : 1) * trailingDistance);
+    final bounds = AmbientWildlifeV2Fox.visibleBoundsFor(
+      bodyCenterX: lastCenter,
+      stageGroundY:
+          BatV3ProductionFlight.stageHeight -
+          AmbientWildlifeV2Stage.groundInset,
+      leftToRight: plan.leftToRight,
+      bodyScale: bodyScale,
+    );
+    const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
+    return plan.leftToRight
+        ? bounds.left >= width + safetyGap
+        : bounds.right <= -safetyGap;
   }
 
   void _continueCat() {
