@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -250,7 +252,13 @@ class _MonthGrid extends StatelessWidget {
     final first = DateTime(month.year, month.month);
     final days = DateTime(month.year, month.month + 1, 0).day;
     final offset = first.weekday % 7;
-    return OperationCard(
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: .55)),
+        borderRadius: BorderRadius.circular(4),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: .35),
+      ),
       child: Column(
         children: [
           Row(
@@ -261,7 +269,7 @@ class _MonthGrid extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  '${month.year}.${month.month.toString().padLeft(2, '0')}',
+                  'CALENDAR  ${month.year} / ${month.month.toString().padLeft(2, '0')}',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -455,7 +463,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
             if (_kind == ScheduleEntryKind.schedule &&
                 _type == ScheduleType.work &&
                 !_allDay)
-              OperationTextField(controller: _break, label: 'BREAK (HH:mm)'),
+              _DurationControl(label: 'BREAK', controller: _break),
             if (_kind == ScheduleEntryKind.reminder)
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
@@ -516,25 +524,62 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   }
 }
 
-class _TimeControl extends StatelessWidget {
+class _TimeControl extends StatefulWidget {
   const _TimeControl({required this.label, required this.controller});
   final String label;
   final TextEditingController controller;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    title: Text(label),
-    subtitle: Text(controller.text.isEmpty ? 'NOT SET' : controller.text),
-    trailing: const Icon(Icons.access_time),
-    onTap: () async {
-      final result = await showModalBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => _ClockDial(initial: controller.text),
-      );
-      if (result != null) controller.text = result;
-    },
+  State<_TimeControl> createState() => _TimeControlState();
+}
+
+class _TimeControlState extends State<_TimeControl> {
+  void _step(int delta) {
+    final value = _parseClock(widget.controller.text) ?? 0;
+    widget.controller.text = _formatClock((value + delta) % 1440);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(widget.label, style: Theme.of(context).textTheme.labelSmall),
+      Row(
+        children: [
+          IconButton(
+            onPressed: () => _step(-15),
+            icon: const Icon(Icons.remove),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                final result = await showModalBottomSheet<String>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => _ClockDial(initial: widget.controller.text),
+                );
+                if (result != null) {
+                  widget.controller.text = result;
+                  setState(() {});
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  widget.controller.text.isEmpty
+                      ? 'NOT SET'
+                      : widget.controller.text,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+          IconButton(onPressed: () => _step(15), icon: const Icon(Icons.add)),
+        ],
+      ),
+      const Divider(height: 1),
+    ],
   );
 }
 
@@ -567,27 +612,23 @@ class _ClockDialState extends State<_ClockDial> {
               '${_hour.toString().padLeft(2, '0')} : ${_minute.toString().padLeft(2, '0')}',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            Text(_minutes ? 'SELECT MINUTE' : 'SELECT HOUR'),
+            Text(_minutes ? 'PICK MINUTE' : 'PICK HOUR'),
             const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 6,
-              children: [
-                for (final value in values)
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        if (_minutes) {
-                          _minute = value;
-                        } else {
-                          _hour = value;
-                          _minutes = true;
-                        }
-                      });
-                    },
-                    child: Text(value.toString().padLeft(2, '0')),
-                  ),
-              ],
+            SizedBox(
+              width: 310,
+              height: 310,
+              child: _CircularDial(
+                values: values,
+                selected: _minutes ? _minute : _hour,
+                onSelected: (value) => setState(() {
+                  if (_minutes) {
+                    _minute = value;
+                  } else {
+                    _hour = value;
+                    _minutes = true;
+                  }
+                }),
+              ),
             ),
             Row(
               children: [
@@ -615,6 +656,143 @@ class _ClockDialState extends State<_ClockDial> {
     );
   }
 }
+
+class _CircularDial extends StatelessWidget {
+  const _CircularDial({
+    required this.values,
+    required this.selected,
+    required this.onSelected,
+  });
+  final List<int> values;
+  final int selected;
+  final ValueChanged<int> onSelected;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final size = constraints.biggest.shortestSide;
+      final radius = size * .39;
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size.square(size),
+            painter: _DialPainter(values.length, values.indexOf(selected)),
+          ),
+          for (var index = 0; index < values.length; index++)
+            Transform.translate(
+              offset: Offset(
+                radius *
+                    math.cos(index / values.length * math.pi * 2 - math.pi / 2),
+                radius *
+                    math.sin(index / values.length * math.pi * 2 - math.pi / 2),
+              ),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    shape: const CircleBorder(),
+                    backgroundColor: values[index] == selected
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                    padding: EdgeInsets.zero,
+                  ),
+                  onPressed: () => onSelected(values[index]),
+                  child: Text(values[index].toString().padLeft(2, '0')),
+                ),
+              ),
+            ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.cyan,
+              shape: BoxShape.circle,
+            ),
+            child: SizedBox(width: 8, height: 8),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _DialPainter extends CustomPainter {
+  const _DialPainter(this.count, this.selectedIndex);
+  final int count, selectedIndex;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide * .39;
+    final paint = Paint()
+      ..color = Colors.cyan.withValues(alpha: .45)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawCircle(center, radius, paint);
+    final angle = selectedIndex / count * math.pi * 2 - math.pi / 2;
+    canvas.drawLine(
+      center,
+      center + Offset(radius * math.cos(angle), radius * math.sin(angle)),
+      paint..strokeWidth = 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DialPainter old) =>
+      old.count != count || old.selectedIndex != selectedIndex;
+}
+
+class _DurationControl extends StatefulWidget {
+  const _DurationControl({required this.label, required this.controller});
+  final String label;
+  final TextEditingController controller;
+  @override
+  State<_DurationControl> createState() => _DurationControlState();
+}
+
+class _DurationControlState extends State<_DurationControl> {
+  void _step(int delta) {
+    final value = (_parseClock(widget.controller.text) ?? 60) + delta;
+    widget.controller.text = _formatClock(value.clamp(0, 720));
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(widget.label, style: Theme.of(context).textTheme.labelSmall),
+      Row(
+        children: [
+          IconButton(
+            onPressed: () => _step(-15),
+            icon: const Icon(Icons.remove),
+          ),
+          Expanded(
+            child: Text(
+              widget.controller.text.isEmpty ? '01:00' : widget.controller.text,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          IconButton(onPressed: () => _step(15), icon: const Icon(Icons.add)),
+        ],
+      ),
+      const Divider(height: 1),
+    ],
+  );
+}
+
+int? _parseClock(String value) {
+  final parts = value.split(':');
+  if (parts.length != 2) return null;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null || hour < 0 || minute < 0 || minute > 59) {
+    return null;
+  }
+  return hour * 60 + minute;
+}
+
+String _formatClock(int total) =>
+    '${(total ~/ 60).toString().padLeft(2, '0')}:${(total % 60).toString().padLeft(2, '0')}';
 
 DateTime _dateOnly(DateTime value) =>
     DateTime(value.year, value.month, value.day);
