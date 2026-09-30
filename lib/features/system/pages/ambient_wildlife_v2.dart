@@ -429,6 +429,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.visualGroundLineOffset = 0,
     this.foxCrossingDuration = AmbientWildlifeV2Fox.crossingDuration,
     this.speciesPresentationScale = 1,
+    this.catPresentationOffsetY = 0,
     super.key,
     this.onCompleted,
   });
@@ -442,6 +443,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final double visualGroundLineOffset;
   final Duration foxCrossingDuration;
   final double speciesPresentationScale;
+  final double catPresentationOffsetY;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -477,6 +479,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.minimumInterval = const Duration(seconds: 45),
     this.maximumInterval = const Duration(seconds: 150),
     this.speciesPresentationScale = 1,
+    this.catPresentationOffsetY = 0,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -485,6 +488,8 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final Duration minimumInterval;
   final Duration maximumInterval;
   final double speciesPresentationScale;
+  /// Dashboard-only visual clearance. The canonical/sandbox default is zero.
+  final double catPresentationOffsetY;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -594,6 +599,7 @@ class AmbientWildlifeV2ProductionStageState
     leftToRight: _plan?.leftToRight ?? true,
     foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
     speciesPresentationScale: widget.speciesPresentationScale,
+    catPresentationOffsetY: widget.catPresentationOffsetY,
     onCompleted: _complete,
   );
 }
@@ -841,11 +847,13 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                           }
                           if (plan.isCat) {
                             final catPlan = plan.catPlan!;
-                            return CustomPaint(
-                              key: const ValueKey(
-                                'ambient-wildlife-v2-cat-stage',
-                              ),
-                              painter: CatRunV23StagePainter(
+                            return Transform.translate(
+                              offset: Offset(0, widget.catPresentationOffsetY),
+                              child: CustomPaint(
+                                key: const ValueKey(
+                                  'ambient-wildlife-v2-cat-stage',
+                                ),
+                                painter: CatRunV23StagePainter(
                                 progress: _controller.value,
                                 direction: catPlan.direction,
                                 coatVariant:
@@ -865,7 +873,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                     CatRunV23Travel.catUnit *
                                     widget.speciesPresentationScale,
                                 showGroundLine: false,
-                                paintBackground: false,
+                                  paintBackground: false,
+                                ),
                               ),
                             );
                           }

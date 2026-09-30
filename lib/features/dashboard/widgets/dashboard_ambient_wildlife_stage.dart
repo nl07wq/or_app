@@ -149,7 +149,11 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// renderer owns its visual scale. The stage and crossing coordinates remain
   /// full width.
   static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
-  static const double animalPresentationScale = .8;
+  /// The former Dashboard presentation was 0.80 of canonical. V3 scales the
+  /// resulting rendered animal a further 0.80 without changing the lane width
+  /// or crossing coordinates.
+  static const double animalPresentationScale = .64;
+  static const double catPresentationOffsetY = -2;
   static const double height = 85;
   static const double topAirspaceCrop = canonicalHeight - height;
   static const double canonicalBottomAlignmentOffset = canonicalHeight - height;
@@ -192,6 +196,8 @@ class _DashboardAmbientWildlifeStageState
                     maximumInterval: widget.maximumInterval,
                     speciesPresentationScale:
                         DashboardAmbientWildlifeStage.animalPresentationScale,
+                    catPresentationOffsetY:
+                        DashboardAmbientWildlifeStage.catPresentationOffsetY,
                   ),
                 ),
               ),
