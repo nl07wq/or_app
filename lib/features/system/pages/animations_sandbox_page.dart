@@ -11,6 +11,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'bat_v3_flight_motion_poc.dart';
+import 'bird_v1_flight_preview.dart';
 import 'ambient_wildlife_v2.dart';
 import 'cat_run_v2_poc_section.dart';
 import 'cat_run_v23_production_preview.dart';
@@ -171,6 +172,10 @@ class AnimationsSandboxPage extends StatelessWidget {
         const BatV3FlightMotionPoc(),
         AppSpacing.gapXL,
         const BatV3ProductionPreview(),
+        AppSpacing.gapXL,
+        const BirdV1Sandbox(),
+        AppSpacing.gapXL,
+        const BirdV1ProductionPreview(),
         AppSpacing.gapXL,
         const CatRunV2PocSection(),
         AppSpacing.gapXL,
