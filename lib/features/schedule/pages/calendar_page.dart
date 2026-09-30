@@ -1649,10 +1649,9 @@ class _ClockDialState extends State<_ClockDial> {
                         // instrument, including its action rail, visible on
                         // compact phone viewports rather than clipping the
                         // lower circumference and controls.
-                        final viewportWidth = MediaQuery.sizeOf(context).width;
-                        final maximumDialSize = viewportWidth <= 350
+                        final maximumDialSize = constraints.maxWidth <= 320
                             ? 200.0
-                            : viewportWidth <= 420
+                            : constraints.maxWidth <= 400
                             ? 220.0
                             : 310.0;
                         final dialSize = math.min(
