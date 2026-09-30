@@ -1411,22 +1411,28 @@ class _ClockDialState extends State<_ClockDial> {
             ),
             Text(_minutes ? 'PICK MINUTE' : 'PICK HOUR'),
             const SizedBox(height: 12),
-            SizedBox(
-              width: 310,
-              height: 310,
-              child: _DirectClockFace(
-                minutes: _minutes,
-                hour: _hour,
-                minute: _minute,
-                hourRing: _dragHourRing ?? clockDialHourRingForHour(_hour),
-                onHourGestureStarted: _beginHourGesture,
-                onHourChanged: _selectHour,
-                onHourCompleted: _completeHourSelection,
-                onHourCancelled: _cancelHourGesture,
-                onMinuteGestureStarted: _beginMinuteGesture,
-                onMinuteChanged: _selectMinute,
-                onMinuteCancelled: _cancelMinuteGesture,
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final dialSize = math.min(310.0, constraints.maxWidth);
+                return SizedBox(
+                  width: dialSize,
+                  height: dialSize,
+                  child: _DirectClockFace(
+                    minutes: _minutes,
+                    hour: _hour,
+                    minute: _minute,
+                    hourRing:
+                        _dragHourRing ?? clockDialHourRingForHour(_hour),
+                    onHourGestureStarted: _beginHourGesture,
+                    onHourChanged: _selectHour,
+                    onHourCompleted: _completeHourSelection,
+                    onHourCancelled: _cancelHourGesture,
+                    onMinuteGestureStarted: _beginMinuteGesture,
+                    onMinuteChanged: _selectMinute,
+                    onMinuteCancelled: _cancelMinuteGesture,
+                  ),
+                );
+              },
             ),
             Row(
               children: [
