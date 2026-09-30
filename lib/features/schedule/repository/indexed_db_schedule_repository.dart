@@ -25,9 +25,13 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
 
   @override
   Future<ScheduleRecord?> findWorkForDate(String localDate) async {
-    final work = (await findForDate(
-      localDate,
-    )).where((record) => record.type == ScheduleType.work).toList();
+    final work = (await findForDate(localDate))
+        .where(
+          (record) =>
+              record.kind == ScheduleEntryKind.schedule &&
+              record.type == ScheduleType.work,
+        )
+        .toList();
     if (work.length > 1) {
       throw StateError('Multiple WORK schedules exist for $localDate.');
     }
@@ -44,7 +48,8 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
         storeNames: const [IndexedDbStoreNames.scheduleRecords],
         mode: IndexedDbTransactionMode.readWrite,
         action: (transaction) async {
-          if (record.type == ScheduleType.work) {
+          if (record.kind == ScheduleEntryKind.schedule &&
+              record.type == ScheduleType.work) {
             final existingWork =
                 (await transaction.findAll(IndexedDbStoreNames.scheduleRecords))
                     .map(ScheduleRecord.fromRecord)
@@ -52,6 +57,7 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
                       (value) =>
                           value.id != record.id &&
                           value.localDate == record.localDate &&
+                          value.kind == ScheduleEntryKind.schedule &&
                           value.type == ScheduleType.work,
                     );
             if (existingWork) {
@@ -70,10 +76,13 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
               localDate: record.localDate,
               type: record.type,
               title: record.title.trim(),
+              kind: record.kind,
+              allDay: record.allDay,
               startTime: record.startTime,
               endTime: record.endTime,
               breakDuration: record.breakDuration,
               memo: record.memo,
+              completed: record.completed,
               createdAt: existing == null
                   ? timestamp
                   : ScheduleRecord.fromRecord(existing).createdAt,

@@ -35,7 +35,7 @@ class BackupDigests {
 
 class BackupPackage {
   static const schemaName = 'operation-reboot-backup';
-  static const currentSchemaVersion = 16;
+  static const currentSchemaVersion = 17;
   static const legacyFullSchemaVersion = 13;
   static const previousSchemaVersion = 2;
 
@@ -155,6 +155,7 @@ abstract final class BackupSections {
   ];
   static const schema15 = [...schema14, foodMealMasters];
   static const schema16 = [...schema15, schedules];
+  static const schema17 = schema16;
   static const all = schema13;
 
   /// Full local snapshot. Current Normal backups intentionally omit the
@@ -177,6 +178,7 @@ abstract final class BackupSections {
     14 => schema14,
     15 => schema15,
     16 => schema16,
+    17 => schema17,
     _ => throw BackupException(
       'unsupported_schema',
       'Backup schema is not supported.',

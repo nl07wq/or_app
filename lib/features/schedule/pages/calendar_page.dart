@@ -278,7 +278,11 @@ class _ScheduleEditor extends StatefulWidget {
 }
 
 class _ScheduleEditorState extends State<_ScheduleEditor> {
+  late ScheduleEntryKind _kind =
+      widget.record?.kind ?? ScheduleEntryKind.schedule;
   late ScheduleType _type = widget.record?.type ?? ScheduleType.personal;
+  late bool _allDay = widget.record?.allDay ?? false;
+  late bool _completed = widget.record?.completed ?? false;
   late DateTime _date =
       DateTime.tryParse(widget.record?.localDate ?? '') ?? widget.initialDate;
   late final _title = TextEditingController(text: widget.record?.title ?? '');
@@ -287,7 +291,11 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   );
   late final _end = TextEditingController(text: widget.record?.endTime ?? '');
   late final _break = TextEditingController(
-    text: widget.record?.breakDuration ?? '',
+    text:
+        widget.record?.breakDuration ??
+        (_kind == ScheduleEntryKind.schedule && _type == ScheduleType.work
+            ? '01:00'
+            : ''),
   );
   late final _memo = TextEditingController(text: widget.record?.memo ?? '');
   @override
@@ -302,11 +310,25 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.record == null ? 'ADD SCHEDULE' : 'EDIT SCHEDULE'),
+    title: Text(widget.record == null ? 'NEW ENTRY' : 'EDIT ENTRY'),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          SegmentedButton<ScheduleEntryKind>(
+            segments: const [
+              ButtonSegment(
+                value: ScheduleEntryKind.schedule,
+                label: Text('SCHEDULE'),
+              ),
+              ButtonSegment(
+                value: ScheduleEntryKind.reminder,
+                label: Text('REMINDER'),
+              ),
+            ],
+            selected: {_kind},
+            onSelectionChanged: (value) => setState(() => _kind = value.single),
+          ),
           DropdownButtonFormField<ScheduleType>(
             initialValue: _type,
             items: ScheduleType.values
@@ -332,9 +354,33 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
             },
             child: Text('DATE ${_key(_date)}'),
           ),
-          OperationTextField(controller: _start, label: 'START (HH:mm)'),
-          OperationTextField(controller: _end, label: 'END (HH:mm)'),
-          OperationTextField(controller: _break, label: 'BREAK (HH:mm)'),
+          if (_kind == ScheduleEntryKind.schedule)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('ALL DAY'),
+              value: _allDay,
+              onChanged: (value) => setState(() => _allDay = value),
+            ),
+          if (!_allDay)
+            OperationTextField(
+              controller: _start,
+              label: _kind == ScheduleEntryKind.reminder
+                  ? 'TIME (OPTIONAL HH:mm)'
+                  : 'START (HH:mm)',
+            ),
+          if (_kind == ScheduleEntryKind.schedule && !_allDay)
+            OperationTextField(controller: _end, label: 'END (HH:mm)'),
+          if (_kind == ScheduleEntryKind.schedule &&
+              _type == ScheduleType.work &&
+              !_allDay)
+            OperationTextField(controller: _break, label: 'BREAK (HH:mm)'),
+          if (_kind == ScheduleEntryKind.reminder)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('COMPLETED'),
+              value: _completed,
+              onChanged: (value) => setState(() => _completed = value ?? false),
+            ),
           OperationTextField(controller: _memo, label: 'MEMO', maxLines: 3),
         ],
       ),
@@ -359,10 +405,26 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         localDate: _key(_date),
         type: _type,
         title: _title.text,
-        startTime: _start.text.trim().isEmpty ? null : _start.text.trim(),
-        endTime: _end.text.trim().isEmpty ? null : _end.text.trim(),
-        breakDuration: _break.text.trim().isEmpty ? null : _break.text.trim(),
+        kind: _kind,
+        allDay: _kind == ScheduleEntryKind.schedule && _allDay,
+        startTime: _allDay || _start.text.trim().isEmpty
+            ? null
+            : _start.text.trim(),
+        endTime:
+            _kind == ScheduleEntryKind.schedule &&
+                !_allDay &&
+                _end.text.trim().isNotEmpty
+            ? _end.text.trim()
+            : null,
+        breakDuration:
+            _kind == ScheduleEntryKind.schedule &&
+                _type == ScheduleType.work &&
+                !_allDay &&
+                _break.text.trim().isNotEmpty
+            ? _break.text.trim()
+            : null,
         memo: _memo.text.trim().isEmpty ? null : _memo.text.trim(),
+        completed: _kind == ScheduleEntryKind.reminder && _completed,
         createdAt: widget.record?.createdAt ?? DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
       ),
