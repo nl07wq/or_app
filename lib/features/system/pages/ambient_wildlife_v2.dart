@@ -430,6 +430,8 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.foxCrossingDuration = AmbientWildlifeV2Fox.crossingDuration,
     this.speciesPresentationScale = 1,
     this.catPresentationOffsetY = 0,
+    this.batPresentationVerticalAnchor = AirbornePresentationVerticalAnchor.bottom,
+    this.batPresentationTopCrop = 0,
     super.key,
     this.onCompleted,
   });
@@ -444,6 +446,8 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final Duration foxCrossingDuration;
   final double speciesPresentationScale;
   final double catPresentationOffsetY;
+  final AirbornePresentationVerticalAnchor batPresentationVerticalAnchor;
+  final double batPresentationTopCrop;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -480,6 +484,8 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.maximumInterval = const Duration(seconds: 150),
     this.speciesPresentationScale = 1,
     this.catPresentationOffsetY = 0,
+    this.batPresentationVerticalAnchor = AirbornePresentationVerticalAnchor.bottom,
+    this.batPresentationTopCrop = 0,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -488,8 +494,11 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final Duration minimumInterval;
   final Duration maximumInterval;
   final double speciesPresentationScale;
+
   /// Dashboard-only visual clearance. The canonical/sandbox default is zero.
   final double catPresentationOffsetY;
+  final AirbornePresentationVerticalAnchor batPresentationVerticalAnchor;
+  final double batPresentationTopCrop;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -600,6 +609,8 @@ class AmbientWildlifeV2ProductionStageState
     foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
     speciesPresentationScale: widget.speciesPresentationScale,
     catPresentationOffsetY: widget.catPresentationOffsetY,
+    batPresentationVerticalAnchor: widget.batPresentationVerticalAnchor,
+    batPresentationTopCrop: widget.batPresentationTopCrop,
     onCompleted: _complete,
   );
 }
@@ -921,6 +932,9 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                 .toList(growable: false),
                             flutterOn: true,
                             presentationScale: widget.speciesPresentationScale,
+                            presentationVerticalAnchor:
+                                widget.batPresentationVerticalAnchor,
+                            presentationTopCrop: widget.batPresentationTopCrop,
                           );
                         },
                       ),

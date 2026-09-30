@@ -1073,6 +1073,11 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
   );
 }
 
+/// Chooses the vertical origin used only while presenting an already-canonical
+/// BAT flight on another surface. It never changes flight, formation, or
+/// flutter values.
+enum AirbornePresentationVerticalAnchor { bottom, canonicalAirspace }
+
 class BatV3ProductionStage extends StatelessWidget {
   const BatV3ProductionStage({
     super.key,
@@ -1084,6 +1089,8 @@ class BatV3ProductionStage extends StatelessWidget {
     required this.flutterOn,
     this.flightEnvelopeScale = 1,
     this.presentationScale = 1,
+    this.presentationVerticalAnchor = AirbornePresentationVerticalAnchor.bottom,
+    this.presentationTopCrop = 0,
   });
 
   final bool leftToRight;
@@ -1094,6 +1101,11 @@ class BatV3ProductionStage extends StatelessWidget {
   final bool flutterOn;
   final double flightEnvelopeScale;
   final double presentationScale;
+  final AirbornePresentationVerticalAnchor presentationVerticalAnchor;
+
+  /// Canonical pixels removed above a compact presentation lane. The value is
+  /// added before that outer ClipRect removes the identical amount.
+  final double presentationTopCrop;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1157,6 +1169,12 @@ class BatV3ProductionStage extends StatelessWidget {
   }
 
   double _presentationTop(double canonicalTop) =>
-      BatV3ProductionFlight.stageHeight -
-      (BatV3ProductionFlight.stageHeight - canonicalTop) * presentationScale;
+      switch (presentationVerticalAnchor) {
+        AirbornePresentationVerticalAnchor.bottom =>
+          BatV3ProductionFlight.stageHeight -
+              (BatV3ProductionFlight.stageHeight - canonicalTop) *
+                  presentationScale,
+        AirbornePresentationVerticalAnchor.canonicalAirspace =>
+          presentationTopCrop + canonicalTop * presentationScale,
+      };
 }

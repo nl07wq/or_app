@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../system/pages/ambient_wildlife_v2.dart';
+import '../../system/pages/bat_v3_flight_motion_poc.dart';
 
 /// The local-clock periods used exclusively by Dashboard wildlife selection.
 enum WildlifePeriod { day, night }
@@ -149,6 +150,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// renderer owns its visual scale. The stage and crossing coordinates remain
   /// full width.
   static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
+
   /// The former Dashboard presentation was 0.80 of canonical. V3 scales the
   /// resulting rendered animal a further 0.80 without changing the lane width
   /// or crossing coordinates.
@@ -198,6 +200,10 @@ class _DashboardAmbientWildlifeStageState
                         DashboardAmbientWildlifeStage.animalPresentationScale,
                     catPresentationOffsetY:
                         DashboardAmbientWildlifeStage.catPresentationOffsetY,
+                    batPresentationVerticalAnchor:
+                        AirbornePresentationVerticalAnchor.canonicalAirspace,
+                    batPresentationTopCrop:
+                        DashboardAmbientWildlifeStage.topAirspaceCrop,
                   ),
                 ),
               ),

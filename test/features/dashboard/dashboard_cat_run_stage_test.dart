@@ -519,7 +519,7 @@ void main() {
       );
       expect(DashboardAmbientWildlifeStage.height, 85);
       expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
-      expect(DashboardAmbientWildlifeStage.animalPresentationScale, .8);
+      expect(DashboardAmbientWildlifeStage.animalPresentationScale, .64);
       expect(DashboardAmbientWildlifeStage.topAirspaceCrop, 27);
       expect(
         tester
@@ -528,6 +528,22 @@ void main() {
             )
             .speciesPresentationScale,
         DashboardAmbientWildlifeStage.animalPresentationScale,
+      );
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(
+              find.byType(AmbientWildlifeV2ProductionStage),
+            )
+            .batPresentationVerticalAnchor,
+        AirbornePresentationVerticalAnchor.canonicalAirspace,
+      );
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(
+              find.byType(AmbientWildlifeV2ProductionStage),
+            )
+            .batPresentationTopCrop,
+        DashboardAmbientWildlifeStage.topAirspaceCrop,
       );
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
@@ -572,39 +588,43 @@ void main() {
     },
   );
 
-  test('compact Dashboard lane preserves canonical BAT motion inputs', () {
-    final scale =
-        BatV3ProductionFlight.batHeight / BatV3SourceSet.canonicalCanvas.height;
-    final visibleTop =
-        BatV3ProductionFlight.topFor(-18 - 8) +
-        BatV3SourceSet.poses
-                .map((pose) => pose.canonicalSilhouette.minY)
-                .reduce(math.min) *
-            scale;
-    final visibleBottom =
-        BatV3ProductionFlight.topFor(18 + 8) +
-        BatV3SourceSet.poses
-                .map((pose) => pose.canonicalSilhouette.maxY)
-                .reduce(math.max) *
-            scale;
+  test(
+    'compact Dashboard lane maps BAT from canonical airspace, not ground',
+    () {
+      final scale =
+          BatV3ProductionFlight.batHeight /
+          BatV3SourceSet.canonicalCanvas.height;
+      final visibleTop =
+          BatV3ProductionFlight.topFor(-18 - 8) +
+          BatV3SourceSet.poses
+                  .map((pose) => pose.canonicalSilhouette.minY)
+                  .reduce(math.min) *
+              scale;
+      final visibleBottom =
+          BatV3ProductionFlight.topFor(18 + 8) +
+          BatV3SourceSet.poses
+                  .map((pose) => pose.canonicalSilhouette.maxY)
+                  .reduce(math.max) *
+              scale;
 
-    expect(visibleTop, closeTo(11.56, .01));
-    final presentationTop =
-        DashboardAmbientWildlifeStage.canonicalHeight +
-        (visibleTop - DashboardAmbientWildlifeStage.canonicalHeight) *
-            DashboardAmbientWildlifeStage.animalPresentationScale -
-        DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
-    final presentationBottom =
-        DashboardAmbientWildlifeStage.canonicalHeight +
-        (visibleBottom - DashboardAmbientWildlifeStage.canonicalHeight) *
-            DashboardAmbientWildlifeStage.animalPresentationScale -
-        DashboardAmbientWildlifeStage.canonicalBottomAlignmentOffset;
-    expect(presentationTop, greaterThanOrEqualTo(4));
-    expect(
-      DashboardAmbientWildlifeStage.height - presentationBottom,
-      greaterThanOrEqualTo(7),
-    );
-  });
+      expect(visibleTop, closeTo(11.56, .01));
+      // The outer Dashboard clip removes [topAirspaceCrop] canonical pixels.
+      // Adding that same value before clipping yields this final screen mapping:
+      // canonical visible Y × presentation scale. It intentionally has no
+      // ground/bottom anchor term.
+      final presentationTop =
+          visibleTop * DashboardAmbientWildlifeStage.animalPresentationScale;
+      final presentationBottom =
+          visibleBottom * DashboardAmbientWildlifeStage.animalPresentationScale;
+      final dashboardGround =
+          AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112) -
+          DashboardAmbientWildlifeStage.topAirspaceCrop;
+
+      expect(presentationTop, closeTo(7.40, .01));
+      expect(presentationBottom, closeTo(63.74, .01));
+      expect(dashboardGround - presentationBottom, greaterThanOrEqualTo(8));
+    },
+  );
 }
 
 class _SequenceRandom implements math.Random {
