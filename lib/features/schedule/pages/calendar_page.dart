@@ -135,6 +135,14 @@ class _CalendarPageState extends State<CalendarPage> {
     };
   });
 
+  /// Calendar actions retain their normal callback path; this only folds the
+  /// contextual Weather layer before that action proceeds.
+  void _collapseWeatherForCalendarAction() {
+    if (_weatherDisclosure != _WeatherDisclosure.collapsed) {
+      setState(() => _weatherDisclosure = _WeatherDisclosure.collapsed);
+    }
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     final values = await AppRepositoryRegistry.container.schedules.findForMonth(
@@ -220,18 +228,21 @@ class _CalendarPageState extends State<CalendarPage> {
                   selected: _selected,
                   byDate: _byDate,
                   onPrevious: () {
+                    _collapseWeatherForCalendarAction();
                     setState(
                       () => _month = DateTime(_month.year, _month.month - 1),
                     );
                     _load();
                   },
                   onNext: () {
+                    _collapseWeatherForCalendarAction();
                     setState(
                       () => _month = DateTime(_month.year, _month.month + 1),
                     );
                     _load();
                   },
                   onToday: () {
+                    _collapseWeatherForCalendarAction();
                     final now = _dateOnly(DateTime.now());
                     setState(() {
                       _selected = now;
@@ -239,7 +250,10 @@ class _CalendarPageState extends State<CalendarPage> {
                     });
                     _load();
                   },
-                  onSelect: (date) => setState(() => _selected = date),
+                  onSelect: (date) {
+                    _collapseWeatherForCalendarAction();
+                    setState(() => _selected = date);
+                  },
                 ),
                 AppSpacing.gapLG,
                 SectionHeader(icon: Icons.timeline, title: "TODAY'S TIMELINE"),
@@ -265,7 +279,10 @@ class _CalendarPageState extends State<CalendarPage> {
                     onDismissed: (_) => _deleteRecord(record),
                     child: _TimelineEntry(
                       record: record,
-                      onTap: () => _openEditor(record),
+                      onTap: () {
+                        _collapseWeatherForCalendarAction();
+                        _openEditor(record);
+                      },
                       onReminderToggle:
                           record.kind == ScheduleEntryKind.reminder
                           ? () => _toggleReminder(record)
@@ -277,7 +294,10 @@ class _CalendarPageState extends State<CalendarPage> {
                 OperationButton(
                   text: 'ADD ENTRY',
                   icon: Icons.add,
-                  onPressed: () => _openEditor(),
+                  onPressed: () {
+                    _collapseWeatherForCalendarAction();
+                    _openEditor();
+                  },
                   role: OperationActionRole.primary,
                 ),
               ],
@@ -2100,11 +2120,7 @@ class _DirectClockFacePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeWidth = minutes ? 2.0 : 3.5;
     canvas.drawLine(center, endpoint, hand);
-    canvas.drawCircle(
-      endpoint,
-      4.5,
-      Paint()..color = color.withValues(alpha: .94),
-    );
+    _paintHandTip(canvas, endpoint, angle, minutes);
     _paintPivot(canvas, center);
     final focusRadius = minutes
         ? dialRadius * .67
@@ -2112,6 +2128,25 @@ class _DirectClockFacePainter extends CustomPainter {
               ? outerNumeralRadius
               : innerNumeralRadius);
     _paintSelectedArc(canvas, center, focusRadius, selectedAngle);
+  }
+
+  void _paintHandTip(
+    Canvas canvas,
+    Offset endpoint,
+    double angle,
+    bool minutes,
+  ) {
+    final direction = Offset(math.cos(angle), math.sin(angle));
+    final normal = Offset(-direction.dy, direction.dx);
+    final tip = endpoint + direction * (minutes ? 5.5 : 4.5);
+    final base = endpoint - direction * (minutes ? 3.0 : 3.5);
+    final width = minutes ? 2.5 : 4.0;
+    final path = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo((base + normal * width).dx, (base + normal * width).dy)
+      ..lineTo((base - normal * width).dx, (base - normal * width).dy)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color.withValues(alpha: .94));
   }
 
   void _paintHourTicks(Canvas canvas, Offset center, double radius) {
