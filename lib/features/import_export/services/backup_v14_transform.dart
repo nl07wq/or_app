@@ -116,7 +116,9 @@ abstract final class BackupV14Transform {
   }
 
   static void validatePair(BackupPackage normal, BackupAuditPackage audit) {
-    if ((normal.schemaVersion != 14 && normal.schemaVersion != 15) ||
+    if ((normal.schemaVersion != 14 &&
+            normal.schemaVersion != 15 &&
+            normal.schemaVersion != 16) ||
         normal.auditArchiveId != audit.archiveId ||
         normal.exportId != audit.normalExportId ||
         normal.digests.package != audit.normalPackageDigest) {

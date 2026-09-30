@@ -29,6 +29,7 @@ abstract final class IndexedDbStoreNames {
   static const legacyDailySummaryRecords = 'legacy_daily_summary_records';
   static const profileRecords = 'profile_records';
   static const dailyAggregateRecords = 'daily_aggregate_records';
+  static const scheduleRecords = 'schedule_records';
 
   static const legacy = [morningFacts, trainings];
 
@@ -55,6 +56,7 @@ abstract final class IndexedDbStoreNames {
     legacyDailySummaryRecords,
     profileRecords,
     dailyAggregateRecords,
+    scheduleRecords,
   ];
 
   static const drafts = [activityDrafts, activeTrainingDrafts];

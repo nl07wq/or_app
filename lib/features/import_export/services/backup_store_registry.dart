@@ -9,6 +9,7 @@ import '../../food/models/recipe_models_v2.dart';
 import '../../food/models/food_meal_master_models.dart';
 import '../../food/services/food_v2_canonical_service.dart';
 import '../../status/models/persisted_status_record.dart';
+import '../../schedule/models/schedule_record.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
 import '../../training_analysis/models/training_analysis_report.dart';
@@ -49,6 +50,7 @@ abstract final class BackupStoreRegistry {
     BackupSections.profile: IndexedDbStoreNames.profileRecords,
     BackupSections.dailyAggregateRecords:
         IndexedDbStoreNames.dailyAggregateRecords,
+    BackupSections.schedules: IndexedDbStoreNames.scheduleRecords,
   };
 
   static void validateRecord(String section, Map<String, Object?> record) {
@@ -95,6 +97,8 @@ abstract final class BackupStoreRegistry {
         ProfileModel.fromBackupRecord(record);
       case BackupSections.dailyAggregateRecords:
         DailyAggregateV1.fromJson(record);
+      case BackupSections.schedules:
+        ScheduleRecord.fromRecord(record);
       default:
         throw BackupException('unknown_section', 'Unknown section: $section.');
     }
@@ -180,6 +184,7 @@ abstract final class BackupStoreRegistry {
         '${record['localDate']}\u0000$id',
       BackupSections.profile => id,
       BackupSections.dailyAggregateRecords => record['operationDate'] as String,
+      BackupSections.schedules => '${record['localDate']}\u0000${record['id']}',
       _ => id.toString(),
     };
   }

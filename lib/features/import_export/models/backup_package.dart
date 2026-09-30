@@ -35,7 +35,7 @@ class BackupDigests {
 
 class BackupPackage {
   static const schemaName = 'operation-reboot-backup';
-  static const currentSchemaVersion = 15;
+  static const currentSchemaVersion = 16;
   static const legacyFullSchemaVersion = 13;
   static const previousSchemaVersion = 2;
 
@@ -115,6 +115,7 @@ abstract final class BackupSections {
   static const legacyDailySummaryRecords = 'legacyDailySummaryRecords';
   static const profile = 'profile';
   static const dailyAggregateRecords = 'dailyAggregateRecords';
+  static const schedules = 'scheduleRecords';
 
   static const schema2 = [
     status,
@@ -153,8 +154,12 @@ abstract final class BackupSections {
     periodicReportRecords,
   ];
   static const schema15 = [...schema14, foodMealMasters];
+  static const schema16 = [...schema15, schedules];
   static const all = schema13;
-  static const allCurrent = [...schema13, foodMealMasters];
+
+  /// Full local snapshot. Current Normal backups intentionally omit the
+  /// sections archived separately by the v14+ audit companion.
+  static const allCurrent = [...schema13, foodMealMasters, schedules];
 
   static List<String> forSchema(int schemaVersion) => switch (schemaVersion) {
     2 => schema2,
@@ -171,6 +176,7 @@ abstract final class BackupSections {
     13 => schema13,
     14 => schema14,
     15 => schema15,
+    16 => schema16,
     _ => throw BackupException(
       'unsupported_schema',
       'Backup schema is not supported.',

@@ -44,6 +44,8 @@ import '../report_sync/services/report_sync_validator.dart';
 import '../report_sync/services/daily_debrief_source_service.dart';
 import '../status/repositories/indexed_db_status_repository.dart';
 import '../status/repositories/status_repository.dart';
+import '../schedule/repository/indexed_db_schedule_repository.dart';
+import '../schedule/repository/schedule_repository.dart';
 import '../system/repository/indexed_db_profile_repository.dart';
 import '../system/repository/profile_repository.dart';
 import '../training/repository/indexed_db_training_repository.dart';
@@ -56,6 +58,7 @@ import '../periodic_report/repository/periodic_report_repository.dart';
 class AppRepositoryContainer {
   final IndexedDbDatabase database;
   final StatusRepository status;
+  final ScheduleRepository schedules;
   final ActivityRepository activity;
   final ActivityDraftRepository activityDrafts;
   final FoodRepository food;
@@ -93,6 +96,7 @@ class AppRepositoryContainer {
   AppRepositoryContainer._({
     required this.database,
     required this.status,
+    required this.schedules,
     required this.activity,
     required this.activityDrafts,
     required this.food,
@@ -168,6 +172,7 @@ class AppRepositoryContainer {
     return AppRepositoryContainer._(
       database: database,
       status: IndexedDbStatusRepository(database),
+      schedules: IndexedDbScheduleRepository(database),
       activity: IndexedDbActivityRepository(database),
       activityDrafts: IndexedDbActivityDraftRepository(database),
       food: food,

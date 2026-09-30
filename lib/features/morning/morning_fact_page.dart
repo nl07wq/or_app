@@ -105,6 +105,18 @@ class _MorningFactPageState extends State<MorningFactPage> {
       bodyFatController.text = values.bodyFat;
       sleepController.text = values.sleep;
       sleepScoreController.text = values.sleepScore;
+      if (values.workType != null) {
+        selectedWorkType = values.workType!;
+      }
+      if (values.workStart != null) {
+        workStartController.text = values.workStart!;
+      }
+      if (values.workEnd != null) {
+        workEndController.text = values.workEnd!;
+      }
+      if (values.workBreak != null) {
+        workBreakController.text = values.workBreak!;
+      }
 
       setState(() {
         if (values.hasPreviousRecord) {

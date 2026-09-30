@@ -20,7 +20,7 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   test(
-    'schema 15 Normal plus Audit round-trips every current store without loss',
+    'current Normal plus Audit round-trips every current store without loss',
     () async {
       final timestamp = DateTime.utc(2026, 9, 1);
       final source = FakeIndexedDbDatabase();
@@ -50,7 +50,7 @@ void main() {
         controller: AppInitializationController()..markReady(),
         clock: () => timestamp,
       ).createCurrentBundle();
-      expect(bundle.normal.schemaVersion, 15);
+      expect(bundle.normal.schemaVersion, BackupPackage.currentSchemaVersion);
       expect(bundle.normal.databaseVersion, IndexedDbSchema.databaseVersion);
       expect(bundle.normal.data[BackupSections.foodMealMasters], hasLength(1));
 
