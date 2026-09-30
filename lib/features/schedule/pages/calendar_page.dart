@@ -421,6 +421,12 @@ class _CalendarWeatherHud extends StatelessWidget {
     final selected = matchingDays == null || matchingDays.isEmpty
         ? null
         : matchingDays.first;
+    final detailsVisible =
+        disclosure == _WeatherDisclosure.details ||
+        disclosure == _WeatherDisclosure.hourly;
+    final hourly = selected == null
+        ? const <WeatherHourly>[]
+        : _hourlyForDay(snapshot!, selected);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
@@ -435,88 +441,133 @@ class _CalendarWeatherHud extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _WeatherHeader(
-            preferences: preferences,
-            location: location,
-            disclosure: disclosure,
-            loading: refreshing,
-            canRefresh: location != null,
-            onRefresh: onRefresh,
-            onSettings: onSettings,
+          _WeatherSurfaceGesture(
+            enabled: preferences.locations.length > 1,
             onSwipeLocation: onSwipeLocation,
-            onToggleDisclosure: onToggleDisclosure,
-          ),
-          if (location == null)
-            _WeatherMessage(
-              text: 'SET A WEATHER LOCATION TO START FORECAST SYNC.',
-              action: 'SET LOCATION',
-              onAction: onSettings,
-            )
-          else if (snapshot == null)
-            _WeatherMessage(
-              text: loading
-                  ? 'SYNCING WEATHER...'
-                  : error ?? 'WEATHER UNAVAILABLE',
-              action: 'RETRY',
-              onAction: onRefresh,
-            )
-          else ...[
-            if (selected != null)
-              _WeatherSummary(
-                day: selected,
-                snapshot: snapshot!,
-                onTap: disclosure == _WeatherDisclosure.collapsed
-                    ? onToggleDisclosure
-                    : onShowDetails,
-              ),
-            if (disclosure != _WeatherDisclosure.collapsed) ...[
-              const SizedBox(height: 3),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  children: [
-                    for (final day in snapshot!.daily.take(7))
-                      Expanded(
-                        child: _WeatherDayCell(
-                          value: day,
-                          selected: day.date == selectedDate,
-                          onTap: () => onSelectDate(day.date),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _WeatherHeader(
+                  preferences: preferences,
+                  location: location,
+                  disclosure: disclosure,
+                  loading: refreshing,
+                  canRefresh: location != null,
+                  onRefresh: onRefresh,
+                  onSettings: onSettings,
+                  onSwitchLocation: onSwipeLocation,
+                  onToggleDisclosure: onToggleDisclosure,
+                ),
+                if (location == null)
+                  _WeatherMessage(
+                    text: 'SET A WEATHER LOCATION TO START FORECAST SYNC.',
+                    action: 'SET LOCATION',
+                    onAction: onSettings,
+                  )
+                else if (snapshot == null)
+                  _WeatherMessage(
+                    text: loading
+                        ? 'SYNCING WEATHER...'
+                        : error ?? 'WEATHER UNAVAILABLE',
+                    action: 'RETRY',
+                    onAction: onRefresh,
+                  )
+                else ...[
+                  if (selected != null)
+                    _WeatherSummary(
+                      day: selected,
+                      snapshot: snapshot!,
+                      onTap: disclosure == _WeatherDisclosure.collapsed
+                          ? onToggleDisclosure
+                          : onShowDetails,
+                    ),
+                  if (disclosure != _WeatherDisclosure.collapsed) ...[
+                    const SizedBox(height: 3),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        children: [
+                          for (final day in snapshot!.daily.take(7))
+                            Expanded(
+                              child: _WeatherDayCell(
+                                value: day,
+                                selected: day.date == selectedDate,
+                                onTap: () => onSelectDate(day.date),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (disclosure == _WeatherDisclosure.sevenDay &&
+                      selected != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: onShowDetails,
+                        icon: const Icon(Icons.expand_more, size: 16),
+                        label: const Text('DETAILS'),
+                      ),
+                    ),
+                  if (stale)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 5, 12, 0),
+                      child: Text(
+                        'OFFLINE / CACHED · UPDATED UTC ${_displayFetchedAt(snapshot!.fetchedAt)}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: scheme.secondary,
                         ),
                       ),
-                  ],
-                ),
-              ),
-            ],
-            if (stale)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 5, 12, 0),
-                child: Text(
-                  'OFFLINE / CACHED · UPDATED UTC ${_displayFetchedAt(snapshot!.fetchedAt)}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
-                ),
-              ),
-            if (selected != null &&
-                (disclosure == _WeatherDisclosure.details ||
-                    disclosure == _WeatherDisclosure.hourly))
-              _WeatherDetails(
-                day: selected,
-                snapshot: snapshot!,
-                hourlyVisible: disclosure == _WeatherDisclosure.hourly,
-                onToggleHourly: onToggleHourly,
-              ),
-            if (disclosure == _WeatherDisclosure.details ||
-                disclosure == _WeatherDisclosure.hourly)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 3, 12, 0),
-                child: _OpenMeteoAttribution(),
-              ),
-          ],
+                    ),
+                  if (selected != null && detailsVisible)
+                    _WeatherDetails(
+                      day: selected,
+                      snapshot: snapshot!,
+                      hourlyVisible: disclosure == _WeatherDisclosure.hourly,
+                      hourlyAvailable: hourly.isNotEmpty,
+                      onToggleHourly: onToggleHourly,
+                    ),
+                  if (detailsVisible)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(12, 3, 12, 0),
+                      child: _OpenMeteoAttribution(),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          if (detailsVisible && disclosure == _WeatherDisclosure.hourly)
+            _WeatherHourlyRail(values: hourly),
         ],
       ),
     );
   }
+}
+
+class _WeatherSurfaceGesture extends StatelessWidget {
+  const _WeatherSurfaceGesture({
+    required this.enabled,
+    required this.onSwipeLocation,
+    required this.child,
+  });
+
+  final bool enabled;
+  final ValueChanged<int> onSwipeLocation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onHorizontalDragEnd: enabled
+        ? (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity.abs() > 120) {
+              onSwipeLocation(velocity < 0 ? 1 : -1);
+            }
+          }
+        : null,
+    child: child,
+  );
 }
 
 class _WeatherHeader extends StatelessWidget {
@@ -528,7 +579,7 @@ class _WeatherHeader extends StatelessWidget {
     required this.canRefresh,
     required this.onRefresh,
     required this.onSettings,
-    required this.onSwipeLocation,
+    required this.onSwitchLocation,
     required this.onToggleDisclosure,
   });
 
@@ -539,13 +590,12 @@ class _WeatherHeader extends StatelessWidget {
   final bool canRefresh;
   final VoidCallback onRefresh;
   final VoidCallback onSettings;
-  final ValueChanged<int> onSwipeLocation;
+  final ValueChanged<int> onSwitchLocation;
   final VoidCallback onToggleDisclosure;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final multiLocation = preferences.locations.length > 1;
     final activeIndex = preferences.locations.indexWhere(
       (value) => value.stableId == preferences.activeLocationId,
     );
@@ -555,14 +605,6 @@ class _WeatherHeader extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onToggleDisclosure,
-            onHorizontalDragEnd: multiLocation
-                ? (details) {
-                    final velocity = details.primaryVelocity ?? 0;
-                    if (velocity.abs() > 120) {
-                      onSwipeLocation(velocity < 0 ? 1 : -1);
-                    }
-                  }
-                : null,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 7, 2, 7),
               child: Row(
@@ -581,11 +623,11 @@ class _WeatherHeader extends StatelessWidget {
                       ).textTheme.labelLarge?.copyWith(letterSpacing: 0.7),
                     ),
                   ),
-                  if (multiLocation) ...[
+                  if (preferences.locations.length > 1) ...[
                     _HeaderArrow(
                       icon: Icons.chevron_left,
                       tooltip: 'Previous weather location',
-                      onPressed: () => onSwipeLocation(-1),
+                      onPressed: () => onSwitchLocation(-1),
                     ),
                     Text(
                       '${activeIndex + 1}/${preferences.locations.length}',
@@ -594,7 +636,7 @@ class _WeatherHeader extends StatelessWidget {
                     _HeaderArrow(
                       icon: Icons.chevron_right,
                       tooltip: 'Next weather location',
-                      onPressed: () => onSwipeLocation(1),
+                      onPressed: () => onSwitchLocation(1),
                     ),
                   ],
                   Icon(
@@ -786,18 +828,19 @@ class _WeatherDetails extends StatelessWidget {
     required this.day,
     required this.snapshot,
     required this.hourlyVisible,
+    required this.hourlyAvailable,
     required this.onToggleHourly,
   });
 
   final WeatherDaily day;
   final WeatherSnapshot snapshot;
   final bool hourlyVisible;
+  final bool hourlyAvailable;
   final VoidCallback onToggleHourly;
 
   @override
   Widget build(BuildContext context) {
-    final hourly = _hourlyForDay(snapshot, day);
-    final current = _firstHourly(hourly);
+    final current = _firstHourly(_hourlyForDay(snapshot, day));
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       child: Column(
@@ -819,7 +862,7 @@ class _WeatherDetails extends StatelessWidget {
               ],
             ],
           ),
-          if (hourly.isNotEmpty)
+          if (hourlyAvailable)
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
@@ -831,49 +874,57 @@ class _WeatherDetails extends StatelessWidget {
                 label: Text(hourlyVisible ? 'HIDE HOURLY' : 'HOURLY'),
               ),
             ),
-          if (hourlyVisible)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final value in hourly)
-                    Container(
-                      width: 50,
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: .2),
-                          ),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _shortTime(value.time),
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          Icon(_weatherIcon(value.code), size: 15),
-                          Text(
-                            '${value.temperature.round()}°',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          Text(
-                            '${value.precipitationProbability}%',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
         ],
       ),
     );
   }
+}
+
+class _WeatherHourlyRail extends StatelessWidget {
+  const _WeatherHourlyRail({required this.values});
+
+  final List<WeatherHourly> values;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
+    child: Row(
+      children: [
+        for (final value in values)
+          Container(
+            width: 50,
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .2),
+                ),
+              ),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  _shortTime(value.time),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                Icon(_weatherIcon(value.code), size: 15),
+                Text(
+                  '${value.temperature.round()}°',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                Text(
+                  '${value.precipitationProbability}%',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 List<WeatherHourly> _hourlyForDay(WeatherSnapshot snapshot, WeatherDaily day) =>
