@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -91,30 +92,46 @@ class _BirdDisclosure extends StatelessWidget {
 }
 
 class BirdV1Frame extends StatelessWidget {
-  const BirdV1Frame({super.key, required this.frame, required this.leftToRight, required this.height, this.bob = 0});
-  final int frame; final bool leftToRight; final double height; final double bob;
+  const BirdV1Frame({
+    super.key,
+    required this.frame,
+    required this.leftToRight,
+    required this.height,
+    this.bob = 0,
+    this.rotationRadians = 0,
+  });
+
+  final int frame;
+  final bool leftToRight;
+  final double height;
+  final double bob;
+  final double rotationRadians;
+
   @override Widget build(BuildContext context) => SizedBox(
     key: ValueKey('bird-v1-renderer-${frame + 1}'),
     width: height,
     height: height,
     child: Transform.translate(
       offset: Offset(0, bob),
-      child: Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.diagonal3Values(leftToRight ? 1 : -1, 1, 1),
-        child: ColorFiltered(
-          // The exact established Ambient Wildlife silhouette authority.
-          colorFilter: const ColorFilter.mode(
-            FoxRunV1ProductionStage.silhouetteColor,
-            BlendMode.srcIn,
-          ),
-          child: Image.asset(
-            BirdV1SourceSet.assets[frame],
-            key: ValueKey('bird-v1-cel-${frame + 1}'),
-            width: height,
-            height: height,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
+      child: Transform.rotate(
+        angle: rotationRadians,
+        child: Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.diagonal3Values(leftToRight ? 1 : -1, 1, 1),
+          child: ColorFiltered(
+            // The exact established Ambient Wildlife silhouette authority.
+            colorFilter: const ColorFilter.mode(
+              FoxRunV1ProductionStage.silhouetteColor,
+              BlendMode.srcIn,
+            ),
+            child: Image.asset(
+              BirdV1SourceSet.assets[frame],
+              key: ValueKey('bird-v1-cel-${frame + 1}'),
+              width: height,
+              height: height,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
           ),
         ),
       ),
@@ -122,22 +139,320 @@ class BirdV1Frame extends StatelessWidget {
   );
 }
 
-class BirdV1ProductionPreview extends StatefulWidget { const BirdV1ProductionPreview({super.key}); @override State<BirdV1ProductionPreview> createState() => _BirdV1ProductionPreviewState(); }
+enum BirdV1Cadence { current, smooth, glide }
+
+/// Production-preview-only timing authority. It never changes the canonical
+/// source cycle, source assets, or any production Ambient registry.
+abstract final class BirdV1FlightTuning {
+  static const tickerIntervalMs = 20;
+  static const minimumFrameCount = 2;
+  static const birdFlutterVerticalAmplitude = 0.45;
+  static const birdFlutterRotationAmplitude = 0.004;
+
+  /// Current preserves the shipped 40ms-per-pose preview reference.
+  static const currentHoldsMs = <int>[40, 40, 40, 40, 40, 40];
+
+  /// A measured, deliberate pass: turning poses remain short while the
+  /// extended wing poses have room to read.
+  static const smoothHoldsMs = <int>[55, 55, 60, 60, 70, 70];
+
+  /// Glide intentionally holds the two broad-wing poses (05/06), rather than
+  /// slowing every cel by one uniform multiplier.
+  static const glideHoldsMs = <int>[70, 55, 55, 70, 130, 150];
+
+  static List<int> holdsFor(BirdV1Cadence cadence) => switch (cadence) {
+    BirdV1Cadence.current => currentHoldsMs,
+    BirdV1Cadence.smooth => smoothHoldsMs,
+    BirdV1Cadence.glide => glideHoldsMs,
+  };
+
+  static int cycleDurationMs(BirdV1Cadence cadence) => holdsFor(
+    cadence,
+  ).fold(0, (sum, hold) => sum + hold);
+
+  static List<int> filteredForwardCycle(List<bool> selected) => [
+    for (var frame = 0; frame < BirdV1SourceSet.cycle.length; frame++)
+      if (selected[frame]) BirdV1SourceSet.cycle[frame],
+  ];
+
+  static int nextFrame(List<int> activeFrames, int frame) {
+    final position = activeFrames.indexOf(frame);
+    return activeFrames[(position + 1) % activeFrames.length];
+  }
+
+  /// Continuous and seam-safe. It is deliberately independent of a filtered
+  /// cel set, so skipping a cel cannot create a vertical position jump.
+  static double bobForElapsed(int elapsedMs, BirdV1Cadence cadence) {
+    final phase =
+        (elapsedMs % cycleDurationMs(cadence)) / cycleDurationMs(cadence);
+    return -1.4 * math.sin(phase * math.pi * 2);
+  }
+
+  /// Bird flutter is much smaller/slower than BAT's 8px preview flutter.
+  static double flutterYForElapsed(int elapsedMs, BirdV1Cadence cadence) {
+    final phase =
+        (elapsedMs % cycleDurationMs(cadence)) / cycleDurationMs(cadence);
+    return birdFlutterVerticalAmplitude * math.sin(phase * math.pi);
+  }
+
+  static double flutterRotationForElapsed(
+    int elapsedMs,
+    BirdV1Cadence cadence,
+  ) {
+    final phase =
+        (elapsedMs % cycleDurationMs(cadence)) / cycleDurationMs(cadence);
+    return birdFlutterRotationAmplitude * math.sin(phase * math.pi);
+  }
+}
+
+class BirdV1ProductionPreview extends StatefulWidget {
+  const BirdV1ProductionPreview({super.key});
+
+  @override
+  State<BirdV1ProductionPreview> createState() =>
+      _BirdV1ProductionPreviewState();
+}
+
 class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
-  Timer? _ticker; var _cycle = 0; var _elapsed = 0; var _playing = false; var _flutter = true; var _ltr = true; var _speed = '1×'; var _count = 1;
-  int get _duration => _speed == '0.5×' ? 4400 : 2200;
-  @override void dispose() { _ticker?.cancel(); super.dispose(); }
-  void _play() { _ticker?.cancel(); setState(() { _playing = true; _elapsed = 0; _cycle = 0; }); _ticker = Timer.periodic(const Duration(milliseconds: 40), (_) { if (!mounted) return; setState(() { _elapsed += 40; _cycle = (_cycle + 1) % BirdV1SourceSet.cycle.length; if (_elapsed >= _duration) { _elapsed = 0; } }); }); }
-  Widget _option(String id, String label, bool selected, VoidCallback action) => OutlinedButton(key: ValueKey(id), style: selected ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer) : null, onPressed: action, child: Text(label));
-  @override Widget build(BuildContext context) { final frame = BirdV1SourceSet.cycle[_cycle]; final bob = BirdV1SourceSet.bobOffsets[_cycle]; final flutter = _flutter ? BirdV1SourceSet.flutterOffsets[_cycle] : 0.0; return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    const SectionHeader(icon: Icons.flight_outlined, title: 'BIRD FLIGHT — PRODUCTION PREVIEW V1'), AppSpacing.gapSM,
-    OperationCard(key: const ValueKey('bird-v1-production-preview'), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('FRAME ${(frame + 1).toString().padLeft(2, '0')} · FLAP BOB ${bob.toStringAsFixed(0)}px · FLUTTER ${_flutter ? 'ON' : 'OFF'} · $_speed · ×$_count · ${_ltr ? 'L→R' : 'R→L'}'),
-      SizedBox(height: 112, child: LayoutBuilder(builder: (context, c) => ClipRect(child: Stack(children: [for (var i = 0; i < _count; i++) Positioned(left: _birdLeft(c.maxWidth, i), top: 24 + bob + flutter + (i * 10), width: 56, height: 56, child: BirdV1Frame(frame: (frame + i) % 6, leftToRight: _ltr, height: 56))])))),
-      Wrap(spacing: 8, runSpacing: 8, children: [_option('bird-v1-production-play-restart','PLAY / RESTART',_playing,_play), _option('bird-v1-production-flutter-off','FLUTTER OFF',!_flutter,()=>setState(()=>_flutter=false)), _option('bird-v1-production-flutter-on','FLUTTER ON',_flutter,()=>setState(()=>_flutter=true))]),
-      AppSpacing.gapSM, Wrap(spacing: 8, runSpacing: 8, children: [_option('bird-v1-production-ltr','L→R',_ltr,()=>setState(()=>_ltr=true)), _option('bird-v1-production-rtl','R→L',!_ltr,()=>setState(()=>_ltr=false)), _option('bird-v1-production-speed-1x','1×',_speed=='1×',()=>setState(()=>_speed='1×')), _option('bird-v1-production-speed-half','0.5×',_speed=='0.5×',()=>setState(()=>_speed='0.5×')), for(final count in [1,2,3]) _option('bird-v1-production-count-$count','×$count',_count==count,()=>setState(()=>_count=count))]),
-      const Text('Sandbox-only preview · body-registered source cels · flap-synchronous bob · no Ambient production wiring.'),
-    ])),
-  ]); }
-  double _birdLeft(double width, int instance) { final p = (_elapsed - instance * 160).clamp(0, _duration) / _duration; final start = -60.0; final end = width + 4; final x = start + (end - start) * p; return _ltr ? x : width - 56 - x; }
+  Timer? _ticker;
+  var _flightElapsed = 0;
+  var _flapElapsed = 0;
+  var _bobElapsed = 0;
+  var _frame = 0;
+  var _playing = false;
+  var _flutter = false;
+  var _leftToRight = true;
+  var _speed = '1×';
+  var _count = 1;
+  var _cadence = BirdV1Cadence.current;
+  final _frameSet = List<bool>.filled(BirdV1SourceSet.cycle.length, true);
+  String? _frameSetFeedback;
+
+  int get _crossingDuration => _speed == '0.5×' ? 4400 : 2200;
+  List<int> get _activeFrames => BirdV1FlightTuning.filteredForwardCycle(
+    _frameSet,
+  );
+  List<int> get _holds => BirdV1FlightTuning.holdsFor(_cadence);
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _play() {
+    _ticker?.cancel();
+    setState(() {
+      _playing = true;
+      _flightElapsed = 0;
+      _flapElapsed = 0;
+      _bobElapsed = 0;
+      _frame = _activeFrames.first;
+    });
+    _ticker = Timer.periodic(
+      const Duration(milliseconds: BirdV1FlightTuning.tickerIntervalMs),
+      (_) {
+        if (!mounted) return;
+        setState(_tick);
+      },
+    );
+  }
+
+  void _tick() {
+    _flightElapsed += BirdV1FlightTuning.tickerIntervalMs;
+    _flapElapsed += BirdV1FlightTuning.tickerIntervalMs;
+    _bobElapsed += BirdV1FlightTuning.tickerIntervalMs;
+    if (_flightElapsed >= _crossingDuration) _flightElapsed = 0;
+    while (_flapElapsed >= _holds[_frame]) {
+      _flapElapsed -= _holds[_frame];
+      _frame = BirdV1FlightTuning.nextFrame(_activeFrames, _frame);
+    }
+  }
+
+  void _toggleFrame(int frame) {
+    if (_frameSet[frame] &&
+        _activeFrames.length == BirdV1FlightTuning.minimumFrameCount) {
+      setState(() => _frameSetFeedback = 'MIN 2 FRAMES');
+      return;
+    }
+    setState(() {
+      _frameSet[frame] = !_frameSet[frame];
+      _frameSetFeedback = null;
+      if (!_frameSet[_frame]) _frame = _activeFrames.first;
+      _flapElapsed = 0;
+    });
+  }
+
+  void _setCadence(BirdV1Cadence cadence) {
+    setState(() {
+      _cadence = cadence;
+      _flapElapsed = 0;
+    });
+  }
+
+  Widget _option(
+    String id,
+    String label,
+    bool selected,
+    VoidCallback action,
+  ) => OutlinedButton(
+    key: ValueKey(id),
+    style: selected
+        ? OutlinedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          )
+        : null,
+    onPressed: action,
+    child: Text(label),
+  );
+
+  Widget _controlRow(String label, List<Widget> children) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [Text(label), AppSpacing.gapXS, Wrap(spacing: 8, runSpacing: 8, children: children)],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final bob = BirdV1FlightTuning.bobForElapsed(_bobElapsed, _cadence);
+    final flutterY = _flutter
+        ? BirdV1FlightTuning.flutterYForElapsed(_bobElapsed, _cadence)
+        : 0.0;
+    final flutterRotation = _flutter
+        ? BirdV1FlightTuning.flutterRotationForElapsed(_bobElapsed, _cadence)
+        : 0.0;
+    final setReadout = _activeFrames
+        .map((frame) => (frame + 1).toString().padLeft(2, '0'))
+        .join('·');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.flight_outlined,
+          title: 'BIRD FLIGHT — PRODUCTION PREVIEW V1',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          key: const ValueKey('bird-v1-production-preview'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'FRAME ${(_frame + 1).toString().padLeft(2, '0')} · '
+                'SET $setReadout · ${_cadence.name.toUpperCase()} · '
+                'BOB ${bob.toStringAsFixed(1)}px · '
+                'FLUTTER ${_flutter ? 'ON' : 'OFF'} · $_speed · ×$_count · '
+                '${_leftToRight ? 'L→R' : 'R→L'}',
+              ),
+              SizedBox(
+                height: 112,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => ClipRect(
+                    child: Stack(
+                      children: [
+                        for (var index = 0; index < _count; index++)
+                          Positioned(
+                            left: _birdLeft(constraints.maxWidth, index),
+                            top: 24 + bob + flutterY + (index * 10),
+                            width: 56,
+                            height: 56,
+                            child: BirdV1Frame(
+                              frame: _activeFrames[
+                                  (_activeFrames.indexOf(_frame) + index) %
+                                      _activeFrames.length],
+                              leftToRight: _leftToRight,
+                              height: 56,
+                              rotationRadians: flutterRotation,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              _controlRow('FLIGHT', [
+                _option(
+                  'bird-v1-production-play-restart',
+                  'PLAY / RESTART',
+                  _playing,
+                  _play,
+                ),
+              ]),
+              _controlRow('FLUTTER', [
+                _option(
+                  'bird-v1-production-flutter-off',
+                  'FLUTTER OFF',
+                  !_flutter,
+                  () => setState(() => _flutter = false),
+                ),
+                _option(
+                  'bird-v1-production-flutter-on',
+                  'FLUTTER ON',
+                  _flutter,
+                  () => setState(() => _flutter = true),
+                ),
+              ]),
+              _controlRow('DIRECTION', [
+                _option('bird-v1-production-ltr', 'L→R', _leftToRight,
+                    () => setState(() => _leftToRight = true)),
+                _option('bird-v1-production-rtl', 'R→L', !_leftToRight,
+                    () => setState(() => _leftToRight = false)),
+              ]),
+              _controlRow('SPEED', [
+                _option('bird-v1-production-speed-1x', '1×', _speed == '1×',
+                    () => setState(() => _speed = '1×')),
+                _option('bird-v1-production-speed-half', '0.5×',
+                    _speed == '0.5×', () => setState(() => _speed = '0.5×')),
+              ]),
+              _controlRow('COUNT', [
+                for (final count in [1, 2, 3])
+                  _option('bird-v1-production-count-$count', '×$count',
+                      _count == count, () => setState(() => _count = count)),
+              ]),
+              _controlRow('FRAME SET', [
+                for (var frame = 0; frame < BirdV1SourceSet.cycle.length; frame++)
+                  _option(
+                    'bird-v1-production-frame-${frame + 1}',
+                    (frame + 1).toString().padLeft(2, '0'),
+                    _frameSet[frame],
+                    () => _toggleFrame(frame),
+                  ),
+              ]),
+              if (_frameSetFeedback != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(_frameSetFeedback!),
+                ),
+              _controlRow('CADENCE', [
+                for (final cadence in BirdV1Cadence.values)
+                  _option(
+                    'bird-v1-production-cadence-${cadence.name}',
+                    cadence.name.toUpperCase(),
+                    _cadence == cadence,
+                    () => _setCadence(cadence),
+                  ),
+              ]),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Sandbox-only tuning bench · frame selection and cadence do '
+                  'not alter the 6-frame source cycle or Ambient production.',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  double _birdLeft(double width, int instance) {
+    final progress =
+        (_flightElapsed - instance * 160).clamp(0, _crossingDuration) /
+            _crossingDuration;
+    final x = -60.0 + (width + 64) * progress;
+    return _leftToRight ? x : width - 56 - x;
+  }
 }

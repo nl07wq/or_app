@@ -17,4 +17,62 @@ void main() {
       expect(bytes.lengthInBytes, greaterThan(1000), reason: asset);
     }
   });
+
+  test('Production tuning frame selection retains only forward source order', () {
+    expect(
+      BirdV1FlightTuning.filteredForwardCycle(
+        const [true, true, false, true, false, true],
+      ),
+      const [0, 1, 3, 5],
+    );
+    expect(
+      BirdV1FlightTuning.nextFrame(const [0, 1, 3, 5], 5),
+      0,
+    );
+    expect(BirdV1FlightTuning.minimumFrameCount, 2);
+  });
+
+  test('Cadences preserve current timing and give Smooth and Glide distinct holds', () {
+    expect(
+      BirdV1FlightTuning.holdsFor(BirdV1Cadence.current),
+      const [40, 40, 40, 40, 40, 40],
+    );
+    expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.current), 240);
+    expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.smooth), 370);
+    expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.glide), 530);
+    expect(
+      BirdV1FlightTuning.holdsFor(BirdV1Cadence.glide)[4],
+      greaterThan(BirdV1FlightTuning.holdsFor(BirdV1Cadence.smooth)[4]),
+    );
+    expect(
+      BirdV1FlightTuning.holdsFor(BirdV1Cadence.glide)[5],
+      greaterThan(BirdV1FlightTuning.holdsFor(BirdV1Cadence.smooth)[5]),
+    );
+  });
+
+  test('Bob and bird-specific flutter are continuous at a cadence seam', () {
+    const cadence = BirdV1Cadence.current;
+    final period = BirdV1FlightTuning.cycleDurationMs(cadence);
+    expect(BirdV1FlightTuning.bobForElapsed(0, cadence), closeTo(0, 0.0001));
+    expect(
+      BirdV1FlightTuning.bobForElapsed(period, cadence),
+      closeTo(0, 0.0001),
+    );
+    expect(
+      BirdV1FlightTuning.flutterYForElapsed(0, cadence),
+      closeTo(0, 0.0001),
+    );
+    expect(
+      BirdV1FlightTuning.flutterYForElapsed(period, cadence),
+      closeTo(0, 0.0001),
+    );
+    expect(
+      BirdV1FlightTuning.birdFlutterVerticalAmplitude,
+      lessThan(1),
+    );
+    expect(
+      BirdV1FlightTuning.birdFlutterRotationAmplitude,
+      lessThan(0.01),
+    );
+  });
 }
