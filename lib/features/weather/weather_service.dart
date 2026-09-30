@@ -134,13 +134,15 @@ class WeatherService {
   Future<List<WeatherGeocodingResult>> searchLocations(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
-    final source = await _geocodingRequest(trimmed);
-    var result = _geocodingResults(source);
-    final fallbackQuery = _japaneseQueryAliases[trimmed];
-    if (result.isEmpty && fallbackQuery != null) {
-      result = _geocodingResults(await _geocodingRequest(fallbackQuery));
+    final candidates = [...await _geocodingCandidates(trimmed)];
+    if (_isJapaneseQuery(trimmed) &&
+        !_hasPreferredJapaneseCandidate(candidates, trimmed)) {
+      for (final variant in _japaneseSearchVariants(trimmed)) {
+        candidates.addAll(await _geocodingCandidates(variant));
+        if (_hasPreferredJapaneseCandidate(candidates, trimmed)) break;
+      }
     }
-    return result;
+    return _rankCandidates(candidates, trimmed);
   }
 
   Future<String> _geocodingRequest(String query) {
@@ -154,26 +156,124 @@ class WeatherService {
     return _client.get(uri.toString());
   }
 
-  List<WeatherGeocodingResult> _geocodingResults(String source) {
+  Future<List<_GeocodingCandidate>> _geocodingCandidates(String query) async =>
+      _parseGeocodingCandidates(await _geocodingRequest(query));
+
+  List<_GeocodingCandidate> _parseGeocodingCandidates(String source) {
     final response = Map<String, Object?>.from(jsonDecode(source) as Map);
     final results = response['results'];
     if (results is! List) return const [];
     return results
         .map((value) {
           final item = Map<String, Object?>.from(value as Map);
-          final segments = <String>[
-            item['name'] as String,
-            if (item['admin1'] is String) item['admin1'] as String,
-            if (item['country'] is String) item['country'] as String,
-          ];
-          return WeatherGeocodingResult(
-            displayName: segments.join(' / '),
+          return _GeocodingCandidate(
+            name: item['name'] as String,
+            admin1: item['admin1'] as String?,
+            country: item['country'] as String?,
+            countryCode: item['country_code'] as String?,
+            featureCode: item['feature_code'] as String?,
             latitude: (item['latitude'] as num).toDouble(),
             longitude: (item['longitude'] as num).toDouble(),
             timezone: item['timezone'] as String,
           );
         })
         .toList(growable: false);
+  }
+
+  List<WeatherGeocodingResult> _rankCandidates(
+    List<_GeocodingCandidate> candidates,
+    String query,
+  ) {
+    final japanese = _isJapaneseQuery(query);
+    final ranked =
+        candidates
+            .where(
+              (candidate) =>
+                  candidate.countryCode == null ||
+                  candidate.countryCode == 'JP',
+            )
+            .map(
+              (candidate) => (
+                candidate: candidate,
+                score: japanese ? _japaneseCandidateScore(candidate, query) : 0,
+              ),
+            )
+            .where((value) => !japanese || value.score > 0)
+            .toList()
+          ..sort((a, b) => b.score.compareTo(a.score));
+
+    final seen = <String>{};
+    final values = <WeatherGeocodingResult>[];
+    for (final value in ranked) {
+      final candidate = value.candidate;
+      final identity =
+          '${candidate.latitude.toStringAsFixed(5)}:${candidate.longitude.toStringAsFixed(5)}:${candidate.timezone}';
+      if (!seen.add(identity)) continue;
+      values.add(candidate.toResult());
+      if (values.length == 5) break;
+    }
+    return values;
+  }
+
+  bool _hasPreferredJapaneseCandidate(
+    List<_GeocodingCandidate> candidates,
+    String query,
+  ) => candidates.any(
+    (candidate) =>
+        (candidate.countryCode == null || candidate.countryCode == 'JP') &&
+        _isMunicipalityFeature(candidate.featureCode) &&
+        _japaneseStem(candidate.name) == _japaneseStem(query),
+  );
+
+  int _japaneseCandidateScore(_GeocodingCandidate candidate, String query) {
+    final stem = _japaneseStem(query);
+    final name = _normalizeJapanese(candidate.name);
+    if (stem.isEmpty || !name.contains(stem)) return -10000;
+
+    var score = 200;
+    if (name == _normalizeJapanese(query)) score += 1000;
+    if (name == '$stem市') score += 1100;
+    if (_japaneseStem(name) == stem) score += 800;
+    if (_japaneseStem(candidate.admin1 ?? '') == stem) score += 140;
+    if (_isMunicipalityFeature(candidate.featureCode)) score += 260;
+    return score;
+  }
+
+  bool _isMunicipalityFeature(String? featureCode) =>
+      featureCode == 'PPLA' ||
+      featureCode == 'PPLA2' ||
+      featureCode == 'PPLA3' ||
+      featureCode == 'PPLC';
+
+  bool _isJapaneseQuery(String value) =>
+      RegExp(r'[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f]').hasMatch(value);
+
+  String _normalizeJapanese(String value) =>
+      value.replaceAll(RegExp(r'\s+'), '').trim();
+
+  String _japaneseStem(String value) {
+    final normalized = _normalizeJapanese(value);
+    if (normalized.isEmpty) return normalized;
+    const suffixes = ['市', '区', '町', '村', '都', '道', '府', '県'];
+    for (final suffix in suffixes) {
+      if (normalized.endsWith(suffix) &&
+          normalized.length - suffix.length >= 2) {
+        return normalized.substring(0, normalized.length - suffix.length);
+      }
+    }
+    return normalized;
+  }
+
+  List<String> _japaneseSearchVariants(String query) {
+    final stem = _japaneseStem(query);
+    if (stem.isEmpty) return const [];
+    return <String>{
+      '$stem市',
+      '$stem都',
+      '$stem道',
+      '$stem府',
+      '$stem県',
+    }.where((variant) => variant != query).toList(growable: false);
   }
 
   Future<WeatherSnapshot> _fetchForecast(WeatherLocation location) async {
@@ -265,17 +365,36 @@ class WeatherService {
 
   List<T> _values<T>(Map<String, Object?> data, String key) =>
       (data[key] as List).cast<T>();
+}
 
-  static const _japaneseQueryAliases = <String, String>{
-    '千葉': 'Chiba',
-    '千葉県': 'Chiba',
-    '市原': 'Ichihara',
-    '市原市': 'Ichihara',
-    '札幌': 'Sapporo',
-    '札幌市': 'Sapporo',
-    '東京': 'Tokyo',
-    '東京都': 'Tokyo',
-    '大阪': 'Osaka',
-    '大阪市': 'Osaka',
-  };
+class _GeocodingCandidate {
+  const _GeocodingCandidate({
+    required this.name,
+    required this.admin1,
+    required this.country,
+    required this.countryCode,
+    required this.featureCode,
+    required this.latitude,
+    required this.longitude,
+    required this.timezone,
+  });
+
+  final String name;
+  final String? admin1;
+  final String? country;
+  final String? countryCode;
+  final String? featureCode;
+  final double latitude;
+  final double longitude;
+  final String timezone;
+
+  WeatherGeocodingResult toResult() {
+    final segments = <String>[name, ?admin1, ?country];
+    return WeatherGeocodingResult(
+      displayName: segments.join(' / '),
+      latitude: latitude,
+      longitude: longitude,
+      timezone: timezone,
+    );
+  }
 }

@@ -37,35 +37,26 @@ void main() {
   });
 
   test(
-    'uses a Japanese alias only after the native Japanese query is empty',
+    'uses bounded Japanese suffix normalization without Latin aliases',
     () async {
       final client = _SequenceClient([
-        jsonEncode({}),
-        jsonEncode({
-          'results': [
-            {
-              'name': '札幌市',
-              'admin1': 'Hokkaido',
-              'country': 'Japan',
-              'latitude': 43.0618,
-              'longitude': 141.3545,
-              'timezone': 'Asia/Tokyo',
-            },
-          ],
-        }),
+        _geocodingResponse('市原', featureCode: 'PPL', admin1: '熊本県'),
+        _geocodingResponse('市原市', featureCode: 'PPLA2', admin1: '千葉県'),
       ]);
-      final service = WeatherService(store: WeatherStore(), client: client);
+      final results = await WeatherService(
+        store: WeatherStore(),
+        client: client,
+      ).searchLocations('市原');
 
-      final results = await service.searchLocations('札幌');
-
-      expect(results, hasLength(1));
-      expect(results.single.displayName, contains('札幌市'));
-      expect(results.single.timezone, 'Asia/Tokyo');
+      expect(results.single.displayName, contains('市原市'));
       expect(client.urls, hasLength(2));
-      expect(client.urls.first, contains('name=%E6%9C%AD%E5%B9%8C'));
-      expect(client.urls.last, contains('name=Sapporo'));
-      expect(client.urls.last, contains('language=ja'));
-      expect(client.urls.last, contains('countryCode=JP'));
+      expect(client.urls.first, contains('name=%E5%B8%82%E5%8E%9F'));
+      expect(client.urls.last, contains('name=%E5%B8%82%E5%8E%9F%E5%B8%82'));
+      expect(client.urls.every((url) => url.contains('language=ja')), isTrue);
+      expect(
+        client.urls.every((url) => url.contains('countryCode=JP')),
+        isTrue,
+      );
     },
   );
 
@@ -84,28 +75,83 @@ void main() {
     },
   );
 
-  test('supports the approved Japanese place-name searches', () async {
-    const aliases = {
-      '千葉': 'Chiba',
-      '市原': 'Ichihara',
-      '札幌': 'Sapporo',
-      '東京': 'Tokyo',
-      '大阪': 'Osaka',
-    };
-    for (final entry in aliases.entries) {
+  test('supports generalized Japanese municipality queries', () async {
+    const cityQueries = ['千葉', '市原', '札幌', '大阪', '静岡', '横浜', '名古屋', '京都', '福岡'];
+    for (final query in cityQueries) {
       final client = _SequenceClient([
         jsonEncode({}),
-        _geocodingResponse('${entry.key}市'),
+        _geocodingResponse('$query市', featureCode: 'PPLA'),
       ]);
 
       final results = await WeatherService(
         store: WeatherStore(),
         client: client,
-      ).searchLocations(entry.key);
+      ).searchLocations(query);
 
       expect(results, hasLength(1));
       expect(client.urls, hasLength(2));
-      expect(client.urls.last, contains('name=${entry.value}'));
+      expect(client.urls.last, contains('language=ja'));
+      expect(client.urls.last, isNot(contains('name=Chiba')));
+    }
+  });
+
+  test(
+    'uses the bounded administrative variant when a city variant is absent',
+    () async {
+      final client = _SequenceClient([
+        jsonEncode({}),
+        jsonEncode({}),
+        _geocodingResponse('東京都', featureCode: 'PPLC', admin1: '東京都'),
+      ]);
+      final results = await WeatherService(
+        store: WeatherStore(),
+        client: client,
+      ).searchLocations('東京');
+
+      expect(results.single.displayName, contains('東京都'));
+      expect(client.urls, hasLength(3));
+      expect(client.urls.last, contains('name=%E6%9D%B1%E4%BA%AC%E9%83%BD'));
+    },
+  );
+
+  test(
+    'ranks a matching Japanese municipality above unrelated provider results',
+    () async {
+      final client = _SequenceClient([
+        jsonEncode({
+          'results': [
+            _result('Chibana', 26.3, 127.8, featureCode: 'PPL'),
+            _result('千葉ニュータウン', 35.8, 140.1, featureCode: 'PPL'),
+          ],
+        }),
+        jsonEncode({
+          'results': [_result('千葉市', 35.6, 140.1, featureCode: 'PPLA')],
+        }),
+      ]);
+      final results = await WeatherService(
+        store: WeatherStore(),
+        client: client,
+      ).searchLocations('千葉');
+
+      expect(results.first.displayName, startsWith('千葉市'));
+      expect(
+        results.any((result) => result.displayName.startsWith('Chibana')),
+        isFalse,
+      );
+    },
+  );
+
+  test('keeps English geocoding as a single provider query', () async {
+    for (final query in ['chiba', 'ichihara', 'sapporo', 'tokyo', 'shizuoka']) {
+      final client = _FakeClient(response: _geocodingResponse('Tokyo'));
+      final results = await WeatherService(
+        store: WeatherStore(),
+        client: client,
+      ).searchLocations(query);
+
+      expect(results, hasLength(1));
+      expect(client.urls, hasLength(1));
+      expect(client.urls.single, contains('name=$query'));
     }
   });
 
@@ -277,18 +323,32 @@ WeatherLocation _location(String name, double latitude, double longitude) =>
       timezone: 'Asia/Tokyo',
     );
 
-String _geocodingResponse(String name) => jsonEncode({
+String _geocodingResponse(
+  String name, {
+  String admin1 = '千葉県',
+  String featureCode = 'PPLA',
+}) => jsonEncode({
   'results': [
-    {
-      'name': name,
-      'admin1': '千葉県',
-      'country': '日本',
-      'latitude': 35.4973,
-      'longitude': 140.1158,
-      'timezone': 'Asia/Tokyo',
-    },
+    _result(name, 35.4973, 140.1158, admin1: admin1, featureCode: featureCode),
   ],
 });
+
+Map<String, Object> _result(
+  String name,
+  double latitude,
+  double longitude, {
+  String admin1 = '千葉県',
+  String featureCode = 'PPLA',
+}) => {
+  'name': name,
+  'admin1': admin1,
+  'country': '日本',
+  'country_code': 'JP',
+  'feature_code': featureCode,
+  'latitude': latitude,
+  'longitude': longitude,
+  'timezone': 'Asia/Tokyo',
+};
 
 WeatherSnapshot _snapshot(WeatherLocation location, DateTime fetchedAt) =>
     WeatherSnapshot(
