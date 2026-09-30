@@ -432,6 +432,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.catPresentationOffsetY = 0,
     this.batPresentationVerticalAnchor = AirbornePresentationVerticalAnchor.bottom,
     this.batPresentationTopCrop = 0,
+    this.batPresentationAltitudeOffsetY = 0,
     super.key,
     this.onCompleted,
   });
@@ -448,6 +449,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final double catPresentationOffsetY;
   final AirbornePresentationVerticalAnchor batPresentationVerticalAnchor;
   final double batPresentationTopCrop;
+  final double batPresentationAltitudeOffsetY;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -486,6 +488,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.catPresentationOffsetY = 0,
     this.batPresentationVerticalAnchor = AirbornePresentationVerticalAnchor.bottom,
     this.batPresentationTopCrop = 0,
+    this.batPresentationAltitudeOffsetY = 0,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -499,6 +502,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double catPresentationOffsetY;
   final AirbornePresentationVerticalAnchor batPresentationVerticalAnchor;
   final double batPresentationTopCrop;
+  final double batPresentationAltitudeOffsetY;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -611,6 +615,7 @@ class AmbientWildlifeV2ProductionStageState
     catPresentationOffsetY: widget.catPresentationOffsetY,
     batPresentationVerticalAnchor: widget.batPresentationVerticalAnchor,
     batPresentationTopCrop: widget.batPresentationTopCrop,
+    batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
     onCompleted: _complete,
   );
 }
@@ -935,6 +940,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                             presentationVerticalAnchor:
                                 widget.batPresentationVerticalAnchor,
                             presentationTopCrop: widget.batPresentationTopCrop,
+                            presentationAltitudeOffsetY:
+                                widget.batPresentationAltitudeOffsetY,
                           );
                         },
                       ),

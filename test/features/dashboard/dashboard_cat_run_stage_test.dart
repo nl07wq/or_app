@@ -545,6 +545,15 @@ void main() {
             .batPresentationTopCrop,
         DashboardAmbientWildlifeStage.topAirspaceCrop,
       );
+      expect(DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY, -3);
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(
+              find.byType(AmbientWildlifeV2ProductionStage),
+            )
+            .batPresentationAltitudeOffsetY,
+        DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
+      );
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
       );
@@ -622,7 +631,16 @@ void main() {
 
       expect(presentationTop, closeTo(7.40, .01));
       expect(presentationBottom, closeTo(63.74, .01));
-      expect(dashboardGround - presentationBottom, greaterThanOrEqualTo(8));
+      final adjustedTop =
+          presentationTop +
+          DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY;
+      final adjustedBottom =
+          presentationBottom +
+          DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY;
+      expect(adjustedTop, closeTo(4.40, .01));
+      expect(adjustedBottom, closeTo(60.74, .01));
+      expect(dashboardGround - adjustedBottom, closeTo(11.26, .01));
+      expect(adjustedTop, greaterThanOrEqualTo(4));
     },
   );
 }

@@ -156,6 +156,10 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// or crossing coordinates.
   static const double animalPresentationScale = .64;
   static const double catPresentationOffsetY = -2;
+
+  /// A deliberate Dashboard-only optical altitude adjustment. It is applied
+  /// after canonical airborne mapping; it never changes BAT flight data.
+  static const double batPresentationAltitudeOffsetY = -3;
   static const double height = 85;
   static const double topAirspaceCrop = canonicalHeight - height;
   static const double canonicalBottomAlignmentOffset = canonicalHeight - height;
@@ -204,6 +208,9 @@ class _DashboardAmbientWildlifeStageState
                         AirbornePresentationVerticalAnchor.canonicalAirspace,
                     batPresentationTopCrop:
                         DashboardAmbientWildlifeStage.topAirspaceCrop,
+                    batPresentationAltitudeOffsetY:
+                        DashboardAmbientWildlifeStage
+                            .batPresentationAltitudeOffsetY,
                   ),
                 ),
               ),

@@ -1091,6 +1091,7 @@ class BatV3ProductionStage extends StatelessWidget {
     this.presentationScale = 1,
     this.presentationVerticalAnchor = AirbornePresentationVerticalAnchor.bottom,
     this.presentationTopCrop = 0,
+    this.presentationAltitudeOffsetY = 0,
   });
 
   final bool leftToRight;
@@ -1106,6 +1107,10 @@ class BatV3ProductionStage extends StatelessWidget {
   /// Canonical pixels removed above a compact presentation lane. The value is
   /// added before that outer ClipRect removes the identical amount.
   final double presentationTopCrop;
+
+  /// Presentation-only offset applied after the canonical airborne mapping.
+  /// The canonical flight, formation, and flutter remain unchanged.
+  final double presentationAltitudeOffsetY;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1146,11 +1151,13 @@ class BatV3ProductionStage extends StatelessWidget {
         ),
         leftToRight: leftToRight,
       ),
-      top: _presentationTop(
-        BatV3ProductionFlight.topFor(
-          (instance.formationY + flutterY) * flightEnvelopeScale,
-        ),
-      ),
+      top:
+          _presentationTop(
+            BatV3ProductionFlight.topFor(
+              (instance.formationY + flutterY) * flightEnvelopeScale,
+            ),
+          ) +
+          presentationAltitudeOffsetY,
       width: BatV3ProductionFlight.batWidth,
       height: BatV3ProductionFlight.batHeight,
       child: Transform.scale(
