@@ -106,4 +106,22 @@ void main() {
     expect(clockDialHourRingForHour(19), ClockDialHourRing.outer);
     expect(clockDialHourRingForHour(0), ClockDialHourRing.outer);
   });
+
+  test('keeps a continuous hand angle separate from snapped values', () {
+    expect(
+      clockDialHandAngleForOffset(offset: at(0, .78), dialRadius: radius),
+      closeTo(-1.5707963, .0001),
+    );
+    expect(
+      clockDialHandAngleForOffset(offset: at(3, .78), dialRadius: radius),
+      closeTo(0, .0001),
+    );
+    expect(
+      clockDialHandAngleForOffset(
+        offset: const Offset(4, 0),
+        dialRadius: radius,
+      ),
+      isNull,
+    );
+  });
 }

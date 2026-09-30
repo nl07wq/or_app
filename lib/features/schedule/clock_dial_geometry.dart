@@ -19,6 +19,19 @@ int clockDialDirectionForOffset(Offset offset) {
   return (angle / (math.pi * 2 / 12)).round() % 12;
 }
 
+/// Returns the continuous hand angle for a stable pointer position.
+///
+/// This is intentionally independent from the discrete clock values: the
+/// instrument hand can follow a finger smoothly while the selected hour or
+/// minute continues to snap to its formal sector.
+double? clockDialHandAngleForOffset({
+  required Offset offset,
+  required double dialRadius,
+}) {
+  if (dialRadius <= 0 || offset.distance < dialRadius * .20) return null;
+  return math.atan2(offset.dy, offset.dx);
+}
+
 ClockDialHourSelection? clockDialHourSelectionForOffset({
   required Offset offset,
   required double dialRadius,
