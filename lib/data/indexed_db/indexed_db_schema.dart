@@ -314,6 +314,15 @@ abstract final class IndexedDbSchema {
       keyPath: 'operationDate',
     ),
     IndexedDbStoreDefinition(
+      name: IndexedDbStoreNames.scheduleRecords,
+      indexes: [
+        IndexedDbIndexDefinition(
+          name: IndexedDbIndexNames.byLocalDate,
+          keyPath: 'localDate',
+        ),
+      ],
+    ),
+    IndexedDbStoreDefinition(
       name: IndexedDbStoreNames.activityDrafts,
       indexes: [
         IndexedDbIndexDefinition(
@@ -330,15 +339,6 @@ abstract final class IndexedDbSchema {
           name: IndexedDbIndexNames.byOperationDate,
           keyPath: 'operationDate',
           unique: true,
-        ),
-      ],
-    ),
-    IndexedDbStoreDefinition(
-      name: IndexedDbStoreNames.scheduleRecords,
-      indexes: [
-        IndexedDbIndexDefinition(
-          name: IndexedDbIndexNames.byLocalDate,
-          keyPath: 'localDate',
         ),
       ],
     ),

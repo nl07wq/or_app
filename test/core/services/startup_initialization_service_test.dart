@@ -67,7 +67,7 @@ void main() {
 
       await service.initialize();
 
-      expect(database.schemaVersion, 15);
+      expect(database.schemaVersion, 17);
       expect(controller.value.mode, PersistenceMode.indexedDbReadWrite);
       expect(restored, isTrue);
       expect(

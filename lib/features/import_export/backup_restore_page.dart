@@ -139,7 +139,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   Future<void> _selectAuditArchive() async {
     final normal = _selectedNormalPackage;
     if (normal == null ||
-        (normal.schemaVersion != 14 && normal.schemaVersion != 15)) {
+        (normal.schemaVersion != 14 &&
+            normal.schemaVersion != 15 &&
+            normal.schemaVersion != 16 &&
+            normal.schemaVersion != 17)) {
       return;
     }
     setState(() {
