@@ -24,23 +24,24 @@ void main() {
     expect(weatherConditionForCode(999), WeatherCondition.unknown);
   });
 
-  test('persists the explicit location authority without GPS data', () async {
+  test('persists active multi-location authority without GPS data', () async {
     final service = WeatherService(store: WeatherStore());
 
-    await service.saveLocation(location);
+    await service.addLocation(location);
 
-    final reloaded = await service.loadLocation();
+    final reloaded = await service.loadActiveLocation();
     expect(reloaded?.displayName, location.displayName);
     expect(reloaded?.latitude, location.latitude);
     expect(reloaded?.longitude, location.longitude);
     expect(reloaded?.timezone, 'Asia/Tokyo');
   });
 
-  test('returns explicit geocoding candidates instead of selecting one', () async {
-    final service = WeatherService(
-      store: WeatherStore(),
-      client: _FakeClient(
-        response: jsonEncode({
+  test(
+    'uses a Japanese alias only after the native Japanese query is empty',
+    () async {
+      final client = _SequenceClient([
+        jsonEncode({}),
+        jsonEncode({
           'results': [
             {
               'name': '札幌市',
@@ -52,15 +53,116 @@ void main() {
             },
           ],
         }),
-      ),
-    );
+      ]);
+      final service = WeatherService(store: WeatherStore(), client: client);
 
-    final results = await service.searchLocations('札幌');
+      final results = await service.searchLocations('札幌');
 
-    expect(results, hasLength(1));
-    expect(results.single.displayName, contains('札幌市'));
-    expect(results.single.timezone, 'Asia/Tokyo');
+      expect(results, hasLength(1));
+      expect(results.single.displayName, contains('札幌市'));
+      expect(results.single.timezone, 'Asia/Tokyo');
+      expect(client.urls, hasLength(2));
+      expect(client.urls.first, contains('name=%E6%9C%AD%E5%B9%8C'));
+      expect(client.urls.last, contains('name=Sapporo'));
+      expect(client.urls.last, contains('language=ja'));
+      expect(client.urls.last, contains('countryCode=JP'));
+    },
+  );
+
+  test(
+    'keeps successful native Japanese geocoding as the provider query',
+    () async {
+      final client = _FakeClient(response: _geocodingResponse('市原市'));
+      final results = await WeatherService(
+        store: WeatherStore(),
+        client: client,
+      ).searchLocations('市原');
+
+      expect(results.single.displayName, contains('市原市'));
+      expect(client.urls, hasLength(1));
+      expect(client.urls.single, contains('name=%E5%B8%82%E5%8E%9F'));
+    },
+  );
+
+  test('supports the approved Japanese place-name searches', () async {
+    const aliases = {
+      '千葉': 'Chiba',
+      '市原': 'Ichihara',
+      '札幌': 'Sapporo',
+      '東京': 'Tokyo',
+      '大阪': 'Osaka',
+    };
+    for (final entry in aliases.entries) {
+      final client = _SequenceClient([
+        jsonEncode({}),
+        _geocodingResponse('${entry.key}市'),
+      ]);
+
+      final results = await WeatherService(
+        store: WeatherStore(),
+        client: client,
+      ).searchLocations(entry.key);
+
+      expect(results, hasLength(1));
+      expect(client.urls, hasLength(2));
+      expect(client.urls.last, contains('name=${entry.value}'));
+    }
   });
+
+  test(
+    'limits saved locations to three and persists an explicit active location',
+    () async {
+      final service = WeatherService(store: WeatherStore());
+      final tokyo = _location('Tokyo', 35.6762, 139.6503);
+      final osaka = _location('Osaka', 34.6937, 135.5023);
+
+      await service.addLocation(location);
+      await service.addLocation(tokyo);
+      await service.addLocation(osaka);
+      await service.setActiveLocation(tokyo.stableId);
+
+      final saved = await service.loadLocations();
+      expect(saved.locations, hasLength(3));
+      expect(saved.activeLocation?.stableId, tokyo.stableId);
+      await expectLater(
+        service.addLocation(_location('Chiba', 35.6074, 140.1065)),
+        throwsA(isA<StateError>()),
+      );
+      await expectLater(service.addLocation(tokyo), throwsA(isA<StateError>()));
+    },
+  );
+
+  test(
+    'migrates the V1 location into the first active V1.1 location',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'weather.location.v1': jsonEncode(location.toJson()),
+      });
+
+      final preferences = await WeatherStore().loadLocations();
+
+      expect(preferences.locations, hasLength(1));
+      expect(preferences.activeLocation?.stableId, location.stableId);
+    },
+  );
+
+  test(
+    'removing the active location selects the first remaining location',
+    () async {
+      final service = WeatherService(store: WeatherStore());
+      final tokyo = _location('Tokyo', 35.6762, 139.6503);
+      await service.addLocation(location);
+      await service.addLocation(tokyo);
+      await service.setActiveLocation(tokyo.stableId);
+
+      await service.removeLocation(tokyo.stableId);
+
+      expect(
+        (await service.loadLocations()).activeLocation?.stableId,
+        location.stableId,
+      );
+    },
+  );
 
   test('uses a fresh matching cache without a network request', () async {
     final store = WeatherStore();
@@ -150,6 +252,43 @@ class _FakeClient implements WeatherHttpClient {
     return Future<String>.value(response!);
   }
 }
+
+class _SequenceClient implements WeatherHttpClient {
+  _SequenceClient(this.responses);
+
+  final List<String> responses;
+  final urls = <String>[];
+
+  @override
+  Future<String> get(String url) {
+    urls.add(url);
+    if (responses.isEmpty) {
+      return Future<String>.error(StateError('Unexpected request'));
+    }
+    return Future<String>.value(responses.removeAt(0));
+  }
+}
+
+WeatherLocation _location(String name, double latitude, double longitude) =>
+    WeatherLocation(
+      displayName: '$name / Japan',
+      latitude: latitude,
+      longitude: longitude,
+      timezone: 'Asia/Tokyo',
+    );
+
+String _geocodingResponse(String name) => jsonEncode({
+  'results': [
+    {
+      'name': name,
+      'admin1': '千葉県',
+      'country': '日本',
+      'latitude': 35.4973,
+      'longitude': 140.1158,
+      'timezone': 'Asia/Tokyo',
+    },
+  ],
+});
 
 WeatherSnapshot _snapshot(WeatherLocation location, DateTime fetchedAt) =>
     WeatherSnapshot(

@@ -6,12 +6,18 @@ class WeatherLocation {
     required this.latitude,
     required this.longitude,
     required this.timezone,
+    this.id,
   });
+  final String? id;
   final String displayName;
   final double latitude;
   final double longitude;
   final String timezone;
+  String get stableId =>
+      id ??
+      'weather_${latitude.toStringAsFixed(5)}_${longitude.toStringAsFixed(5)}_$timezone';
   Map<String, Object> toJson() => {
+    'id': stableId,
     'displayName': displayName,
     'latitude': latitude,
     'longitude': longitude,
@@ -19,11 +25,49 @@ class WeatherLocation {
   };
   factory WeatherLocation.fromJson(Map<String, Object?> json) =>
       WeatherLocation(
+        id: json['id'] as String?,
         displayName: json['displayName'] as String,
         latitude: (json['latitude'] as num).toDouble(),
         longitude: (json['longitude'] as num).toDouble(),
         timezone: json['timezone'] as String,
       );
+}
+
+class WeatherLocationPreferences {
+  const WeatherLocationPreferences({
+    required this.locations,
+    required this.activeLocationId,
+  });
+
+  static const maximumLocations = 3;
+  final List<WeatherLocation> locations;
+  final String? activeLocationId;
+  WeatherLocation? get activeLocation {
+    for (final location in locations) {
+      if (location.stableId == activeLocationId) return location;
+    }
+    return null;
+  }
+
+  Map<String, Object?> toJson() => {
+    'locations': locations.map((location) => location.toJson()).toList(),
+    'activeLocationId': activeLocationId,
+  };
+  factory WeatherLocationPreferences.fromJson(Map<String, Object?> json) {
+    final locations = (json['locations'] as List)
+        .map(
+          (value) =>
+              WeatherLocation.fromJson(Map<String, Object?>.from(value as Map)),
+        )
+        .toList(growable: false);
+    final active = json['activeLocationId'] as String?;
+    return WeatherLocationPreferences(
+      locations: locations,
+      activeLocationId: locations.any((location) => location.stableId == active)
+          ? active
+          : (locations.isEmpty ? null : locations.first.stableId),
+    );
+  }
 }
 
 enum WeatherCondition {

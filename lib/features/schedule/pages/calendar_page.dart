@@ -27,12 +27,15 @@ class _CalendarPageState extends State<CalendarPage> {
   Map<String, List<ScheduleRecord>> _byDate = const {};
   bool _loading = true;
   final WeatherService _weatherService = WeatherService();
-  WeatherLocation? _weatherLocation;
+  WeatherLocationPreferences _weatherPreferences =
+      const WeatherLocationPreferences(locations: [], activeLocationId: null);
   WeatherSnapshot? _weatherSnapshot;
   bool _weatherLoading = false;
   bool _weatherRefreshing = false;
   bool _weatherStale = false;
   String? _weatherError;
+  bool _weatherDetailsExpanded = false;
+  bool _weatherHourlyExpanded = false;
 
   @override
   void initState() {
@@ -41,18 +44,22 @@ class _CalendarPageState extends State<CalendarPage> {
     _loadWeather();
   }
 
-  Future<void> _loadWeather({bool forceRefresh = false}) async {
-    if (_weatherRefreshing) return;
+  Future<void> _loadWeather({
+    bool forceRefresh = false,
+    WeatherLocation? location,
+  }) async {
+    if (_weatherLoading) return;
     setState(() {
       _weatherLoading = true;
       _weatherRefreshing = forceRefresh;
       _weatherError = null;
     });
-    final location = await _weatherService.loadLocation();
-    if (location == null) {
+    final preferences = await _weatherService.loadLocations();
+    final selectedLocation = location ?? preferences.activeLocation;
+    if (selectedLocation == null) {
       if (!mounted) return;
       setState(() {
-        _weatherLocation = null;
+        _weatherPreferences = preferences;
         _weatherSnapshot = null;
         _weatherLoading = false;
         _weatherRefreshing = false;
@@ -60,12 +67,12 @@ class _CalendarPageState extends State<CalendarPage> {
       return;
     }
     final result = await _weatherService.load(
-      location,
+      selectedLocation,
       forceRefresh: forceRefresh,
     );
     if (!mounted) return;
     setState(() {
-      _weatherLocation = location;
+      _weatherPreferences = preferences;
       _weatherSnapshot = result.snapshot;
       _weatherStale = result.isStale;
       _weatherError = result.snapshot == null ? 'WEATHER UNAVAILABLE' : null;
@@ -77,7 +84,35 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> _openWeatherSettings() async {
     await Navigator.of(context).pushNamed(AppRoutes.weatherSettings);
     if (!mounted) return;
-    await _loadWeather(forceRefresh: true);
+    setState(() {
+      _weatherDetailsExpanded = false;
+      _weatherHourlyExpanded = false;
+    });
+    await _loadWeather();
+  }
+
+  Future<void> _switchWeatherLocation(int direction) async {
+    final locations = _weatherPreferences.locations;
+    if (locations.length < 2) return;
+    final activeId = _weatherPreferences.activeLocationId;
+    final index = locations.indexWhere(
+      (location) => location.stableId == activeId,
+    );
+    final next =
+        locations[(index + direction + locations.length) % locations.length];
+    await _weatherService.setActiveLocation(next.stableId);
+    if (!mounted) return;
+    setState(() {
+      _weatherPreferences = WeatherLocationPreferences(
+        locations: locations,
+        activeLocationId: next.stableId,
+      );
+      _weatherSnapshot = null;
+      _weatherStale = false;
+      _weatherDetailsExpanded = false;
+      _weatherHourlyExpanded = false;
+    });
+    await _loadWeather(location: next);
   }
 
   void _selectWeatherDate(String value) {
@@ -86,6 +121,7 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _selected = _dateOnly(date);
       _month = DateTime(date.year, date.month);
+      _weatherHourlyExpanded = false;
     });
     _load();
   }
@@ -146,16 +182,28 @@ class _CalendarPageState extends State<CalendarPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _CalendarWeatherHud(
-                  location: _weatherLocation,
+                  preferences: _weatherPreferences,
                   snapshot: _weatherSnapshot,
                   selectedDate: _selectedKey,
                   loading: _weatherLoading,
                   stale: _weatherStale,
                   error: _weatherError,
                   refreshing: _weatherRefreshing,
+                  detailsExpanded: _weatherDetailsExpanded,
+                  hourlyExpanded: _weatherHourlyExpanded,
                   onSettings: _openWeatherSettings,
                   onRefresh: () => _loadWeather(forceRefresh: true),
                   onSelectDate: _selectWeatherDate,
+                  onSwipeLocation: _switchWeatherLocation,
+                  onToggleDetails: () => setState(() {
+                    _weatherDetailsExpanded = !_weatherDetailsExpanded;
+                    if (!_weatherDetailsExpanded) {
+                      _weatherHourlyExpanded = false;
+                    }
+                  }),
+                  onToggleHourly: () => setState(
+                    () => _weatherHourlyExpanded = !_weatherHourlyExpanded,
+                  ),
                 ),
                 AppSpacing.gapLG,
                 _MonthGrid(
@@ -321,31 +369,42 @@ class _TimelineDeleteBackground extends StatelessWidget {
 
 class _CalendarWeatherHud extends StatelessWidget {
   const _CalendarWeatherHud({
-    required this.location,
+    required this.preferences,
     required this.snapshot,
     required this.selectedDate,
     required this.loading,
     required this.stale,
     required this.error,
     required this.refreshing,
+    required this.detailsExpanded,
+    required this.hourlyExpanded,
     required this.onSettings,
     required this.onRefresh,
     required this.onSelectDate,
+    required this.onSwipeLocation,
+    required this.onToggleDetails,
+    required this.onToggleHourly,
   });
 
-  final WeatherLocation? location;
+  final WeatherLocationPreferences preferences;
   final WeatherSnapshot? snapshot;
   final String selectedDate;
   final bool loading;
   final bool stale;
   final String? error;
   final bool refreshing;
+  final bool detailsExpanded;
+  final bool hourlyExpanded;
   final VoidCallback onSettings;
   final VoidCallback onRefresh;
   final ValueChanged<String> onSelectDate;
+  final ValueChanged<int> onSwipeLocation;
+  final VoidCallback onToggleDetails;
+  final VoidCallback onToggleHourly;
 
   @override
   Widget build(BuildContext context) {
+    final location = preferences.activeLocation;
     final scheme = Theme.of(context).colorScheme;
     final matchingDays = snapshot?.daily
         .where((day) => day.date == selectedDate)
@@ -353,106 +412,140 @@ class _CalendarWeatherHud extends StatelessWidget {
     final selected = matchingDays == null || matchingDays.isEmpty
         ? null
         : matchingDays.first;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: scheme.primary.withValues(alpha: .42)),
-          bottom: BorderSide(color: scheme.primary.withValues(alpha: .24)),
-        ),
-        gradient: LinearGradient(
-          colors: [scheme.primary.withValues(alpha: .08), Colors.transparent],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.cloud_outlined, color: scheme.primary, size: 18),
-              const SizedBox(width: 7),
-              Text(
-                'WEATHER / 7 DAYS',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(letterSpacing: 1.1),
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Refresh weather',
-                icon: refreshing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh, size: 18),
-                onPressed: refreshing || location == null ? null : onRefresh,
-              ),
-              IconButton(
-                tooltip: 'Weather location',
-                icon: const Icon(Icons.settings_outlined, size: 18),
-                onPressed: onSettings,
-              ),
-            ],
+    return GestureDetector(
+      onHorizontalDragEnd: preferences.locations.length > 1
+          ? (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity.abs() > 120) onSwipeLocation(velocity < 0 ? 1 : -1);
+            }
+          : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: scheme.primary.withValues(alpha: .42)),
+            bottom: BorderSide(color: scheme.primary.withValues(alpha: .24)),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              location?.displayName ?? 'LOCATION NOT SET',
-              style: Theme.of(context).textTheme.bodySmall,
+          gradient: LinearGradient(
+            colors: [scheme.primary.withValues(alpha: .08), Colors.transparent],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud_outlined, color: scheme.primary, size: 18),
+                const SizedBox(width: 7),
+                Text(
+                  'WEATHER / 7 DAYS',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(letterSpacing: 1.1),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Refresh weather',
+                  icon: refreshing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh, size: 18),
+                  onPressed: refreshing || location == null ? null : onRefresh,
+                ),
+                IconButton(
+                  tooltip: 'Weather location',
+                  icon: const Icon(Icons.settings_outlined, size: 18),
+                  onPressed: onSettings,
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          if (location == null)
-            _WeatherMessage(
-              text: 'SET A WEATHER LOCATION TO START FORECAST SYNC.',
-              action: 'SET LOCATION',
-              onAction: onSettings,
-            )
-          else if (snapshot == null)
-            _WeatherMessage(
-              text: loading
-                  ? 'SYNCING WEATHER...'
-                  : error ?? 'WEATHER UNAVAILABLE',
-              action: 'RETRY',
-              onAction: onRefresh,
-            )
-          else ...[
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  for (final day in snapshot!.daily)
-                    _WeatherDayCell(
-                      value: day,
-                      selected: day.date == selectedDate,
-                      onTap: () => onSelectDate(day.date),
+                  Expanded(
+                    child: Text(
+                      location?.displayName ?? 'LOCATION NOT SET',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  if (preferences.locations.length > 1)
+                    Text(
+                      List.generate(
+                        preferences.locations.length,
+                        (index) =>
+                            preferences.locations[index].stableId ==
+                                preferences.activeLocationId
+                            ? '●'
+                            : '○',
+                      ).join(' '),
+                      style: Theme.of(context).textTheme.labelSmall,
                     ),
                 ],
               ),
             ),
-            if (stale)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Text(
-                  'OFFLINE / CACHED · LAST UPDATED UTC ${_displayFetchedAt(snapshot!.fetchedAt)}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
+            const SizedBox(height: 3),
+            if (location == null)
+              _WeatherMessage(
+                text: 'SET A WEATHER LOCATION TO START FORECAST SYNC.',
+                action: 'SET LOCATION',
+                onAction: onSettings,
+              )
+            else if (snapshot == null)
+              _WeatherMessage(
+                text: loading
+                    ? 'SYNCING WEATHER...'
+                    : error ?? 'WEATHER UNAVAILABLE',
+                action: 'RETRY',
+                onAction: onRefresh,
+              )
+            else ...[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    for (final day in snapshot!.daily)
+                      _WeatherDayCell(
+                        value: day,
+                        selected: day.date == selectedDate,
+                        onTap: () => onSelectDate(day.date),
+                      ),
+                  ],
                 ),
               ),
-            if (selected != null) ...[
-              const SizedBox(height: 12),
-              _WeatherDetail(day: selected, snapshot: snapshot!),
+              if (stale)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: Text(
+                    'OFFLINE / CACHED · LAST UPDATED UTC ${_displayFetchedAt(snapshot!.fetchedAt)}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
+                  ),
+                ),
+              if (selected != null) ...[
+                const SizedBox(height: 5),
+                _WeatherDetail(
+                  day: selected,
+                  snapshot: snapshot!,
+                  expanded: detailsExpanded,
+                  hourlyExpanded: hourlyExpanded,
+                  onToggleDetails: onToggleDetails,
+                  onToggleHourly: onToggleHourly,
+                ),
+              ],
+              if (detailsExpanded)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(12, 3, 12, 0),
+                  child: _OpenMeteoAttribution(),
+                ),
             ],
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
-              child: _OpenMeteoAttribution(),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -505,9 +598,9 @@ class _WeatherDayCell extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          width: 74,
+          width: 62,
           margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 3),
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(color: scheme.primary.withValues(alpha: .22)),
@@ -526,9 +619,9 @@ class _WeatherDayCell extends StatelessWidget {
                 '${date.month}/${date.day}',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
-              const SizedBox(height: 4),
-              Icon(_weatherIcon(value.code), color: scheme.primary, size: 21),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
+              Icon(_weatherIcon(value.code), color: scheme.primary, size: 17),
+              const SizedBox(height: 2),
               Text(
                 '${value.high.round()}°/${value.low.round()}°',
                 style: Theme.of(context).textTheme.labelSmall,
@@ -548,10 +641,21 @@ class _WeatherDayCell extends StatelessWidget {
 }
 
 class _WeatherDetail extends StatelessWidget {
-  const _WeatherDetail({required this.day, required this.snapshot});
+  const _WeatherDetail({
+    required this.day,
+    required this.snapshot,
+    required this.expanded,
+    required this.hourlyExpanded,
+    required this.onToggleDetails,
+    required this.onToggleHourly,
+  });
 
   final WeatherDaily day;
   final WeatherSnapshot snapshot;
+  final bool expanded;
+  final bool hourlyExpanded;
+  final VoidCallback onToggleDetails;
+  final VoidCallback onToggleHourly;
 
   @override
   Widget build(BuildContext context) {
@@ -578,74 +682,94 @@ class _WeatherDetail extends StatelessWidget {
               Text('${day.high.round()}° / ${day.low.round()}°'),
             ],
           ),
-          const SizedBox(height: 7),
-          Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              _metric(
-                'RAIN',
-                '${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)} mm',
-              ),
-              _metric(
-                'SUN',
-                '${_shortTime(day.sunrise)} / ${_shortTime(day.sunset)}',
-              ),
-              if (current != null) ...[
-                _metric('FEELS', '${current.apparentTemperature.round()}°'),
-                _metric('HUMIDITY', '${current.humidity}%'),
-                _metric(
-                  'WIND',
-                  '${current.windSpeed.round()} / ${current.windGust.round()} km/h',
-                ),
-                _metric('CLOUD', '${current.cloudCover}%'),
-              ],
-            ],
+          const SizedBox(height: 3),
+          Text(
+            'RAIN ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm'
+            '${current == null ? '' : ' · WIND ${current.windSpeed.round()}km/h'}',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (hourly.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text('HOURLY', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 4),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final value in hourly)
-                    Container(
-                      width: 61,
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(
-                            color: scheme.primary.withValues(alpha: .2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onToggleDetails,
+              icon: Icon(
+                expanded ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+              ),
+              label: Text(expanded ? 'COLLAPSE' : 'DETAILS'),
+            ),
+          ),
+          if (expanded) ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 3,
+              children: [
+                _metric(
+                  'SUN',
+                  '${_shortTime(day.sunrise)} / ${_shortTime(day.sunset)}',
+                ),
+                if (current != null) ...[
+                  _metric('FEELS', '${current.apparentTemperature.round()}°'),
+                  _metric('HUMIDITY', '${current.humidity}%'),
+                  _metric('GUST', '${current.windGust.round()}km/h'),
+                  _metric('CLOUD', '${current.cloudCover}%'),
+                ],
+              ],
+            ),
+            if (hourly.isNotEmpty) ...[
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onToggleHourly,
+                  icon: Icon(
+                    hourlyExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                  ),
+                  label: Text(hourlyExpanded ? 'HIDE HOURLY' : 'HOURLY'),
+                ),
+              ),
+              if (hourlyExpanded)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final value in hourly)
+                        Container(
+                          width: 54,
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              left: BorderSide(
+                                color: scheme.primary.withValues(alpha: .2),
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                _shortTime(value.time),
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                              Icon(
+                                _weatherIcon(value.code),
+                                size: 15,
+                                color: scheme.primary,
+                              ),
+                              Text(
+                                '${value.temperature.round()}°',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                              Text(
+                                '${value.precipitationProbability}%',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _shortTime(value.time),
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          Icon(
-                            _weatherIcon(value.code),
-                            size: 17,
-                            color: scheme.primary,
-                          ),
-                          Text(
-                            '${value.temperature.round()}°',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          Text(
-                            '${value.precipitationProbability}%',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+                    ],
+                  ),
+                ),
+            ],
           ],
         ],
       ),

@@ -33,19 +33,72 @@ class WeatherService {
   final WeatherHttpClient _client;
   final DateTime Function() _now;
 
-  Future<WeatherLocation?> loadLocation() => _store.loadLocation();
+  Future<WeatherLocationPreferences> loadLocations() => _store.loadLocations();
 
-  Future<void> saveLocation(WeatherLocation value) =>
-      _store.saveLocation(value);
+  Future<WeatherLocation?> loadActiveLocation() async =>
+      (await _store.loadLocations()).activeLocation;
 
-  Future<void> removeLocation() => _store.removeLocation();
+  Future<void> addLocation(WeatherLocation value) async {
+    final preferences = await _store.loadLocations();
+    if (preferences.locations.any(
+      (location) => location.stableId == value.stableId,
+    )) {
+      throw StateError('LOCATION ALREADY SAVED');
+    }
+    if (preferences.locations.length >=
+        WeatherLocationPreferences.maximumLocations) {
+      throw StateError('LOCATION LIMIT REACHED');
+    }
+    final locations = [...preferences.locations, value];
+    await _store.saveLocations(
+      WeatherLocationPreferences(
+        locations: locations,
+        activeLocationId: preferences.activeLocationId ?? value.stableId,
+      ),
+    );
+  }
+
+  Future<void> setActiveLocation(String locationId) async {
+    final preferences = await _store.loadLocations();
+    if (!preferences.locations.any(
+      (location) => location.stableId == locationId,
+    )) {
+      throw StateError('LOCATION NOT SAVED');
+    }
+    await _store.saveLocations(
+      WeatherLocationPreferences(
+        locations: preferences.locations,
+        activeLocationId: locationId,
+      ),
+    );
+  }
+
+  Future<void> removeLocation(String locationId) async {
+    final preferences = await _store.loadLocations();
+    final removed = preferences.locations
+        .where((location) => location.stableId == locationId)
+        .toList(growable: false);
+    final locations = preferences.locations
+        .where((location) => location.stableId != locationId)
+        .toList(growable: false);
+    await _store.saveLocations(
+      WeatherLocationPreferences(
+        locations: locations,
+        activeLocationId: preferences.activeLocationId == locationId
+            ? (locations.isEmpty ? null : locations.first.stableId)
+            : preferences.activeLocationId,
+      ),
+    );
+    for (final location in removed) {
+      await _store.removeCache(location);
+    }
+  }
 
   Future<WeatherLoadResult> load(
     WeatherLocation location, {
     bool forceRefresh = false,
   }) async {
-    final cached = await _store.loadCache();
-    final matchingCache = _matches(cached?.location, location) ? cached : null;
+    final matchingCache = await _store.loadCache(location);
     final isFresh =
         matchingCache != null &&
         _now().toUtc().difference(matchingCache.fetchedAt).abs() < cacheTtl;
@@ -81,13 +134,27 @@ class WeatherService {
   Future<List<WeatherGeocodingResult>> searchLocations(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
+    final source = await _geocodingRequest(trimmed);
+    var result = _geocodingResults(source);
+    final fallbackQuery = _japaneseQueryAliases[trimmed];
+    if (result.isEmpty && fallbackQuery != null) {
+      result = _geocodingResults(await _geocodingRequest(fallbackQuery));
+    }
+    return result;
+  }
+
+  Future<String> _geocodingRequest(String query) {
     final uri = Uri.https('geocoding-api.open-meteo.com', '/v1/search', {
-      'name': trimmed,
+      'name': query,
       'count': '8',
       'language': 'ja',
       'format': 'json',
+      'countryCode': 'JP',
     });
-    final source = await _client.get(uri.toString());
+    return _client.get(uri.toString());
+  }
+
+  List<WeatherGeocodingResult> _geocodingResults(String source) {
     final response = Map<String, Object?>.from(jsonDecode(source) as Map);
     final results = response['results'];
     if (results is! List) return const [];
@@ -199,9 +266,16 @@ class WeatherService {
   List<T> _values<T>(Map<String, Object?> data, String key) =>
       (data[key] as List).cast<T>();
 
-  bool _matches(WeatherLocation? left, WeatherLocation right) =>
-      left != null &&
-      left.latitude == right.latitude &&
-      left.longitude == right.longitude &&
-      left.timezone == right.timezone;
+  static const _japaneseQueryAliases = <String, String>{
+    '千葉': 'Chiba',
+    '千葉県': 'Chiba',
+    '市原': 'Ichihara',
+    '市原市': 'Ichihara',
+    '札幌': 'Sapporo',
+    '札幌市': 'Sapporo',
+    '東京': 'Tokyo',
+    '東京都': 'Tokyo',
+    '大阪': 'Osaka',
+    '大阪市': 'Osaka',
+  };
 }
