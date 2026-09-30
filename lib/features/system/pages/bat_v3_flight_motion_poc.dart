@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import 'bat_v3_source_data.dart';
+import 'fox_run_v1_section.dart';
 
 enum BatV3View { canonical, bodyOverlay }
 
@@ -507,11 +508,19 @@ class _BatV3RegisteredSource extends StatelessWidget {
   final BatV3SourcePose pose;
 
   @override
-  Widget build(BuildContext context) => Image.asset(
-    pose.canonicalAsset,
-    width: BatV3SourceSet.canonicalCanvas.width,
-    height: BatV3SourceSet.canonicalCanvas.height,
-    fit: BoxFit.fill,
+  Widget build(BuildContext context) => ColorFiltered(
+    // Sandbox BAT uses the same established Ambient Wildlife silhouette
+    // presentation as CAT, FOX, and Bird. The source PNG remains untouched.
+    colorFilter: const ColorFilter.mode(
+      FoxRunV1ProductionStage.silhouetteColor,
+      BlendMode.srcIn,
+    ),
+    child: Image.asset(
+      pose.canonicalAsset,
+      width: BatV3SourceSet.canonicalCanvas.width,
+      height: BatV3SourceSet.canonicalCanvas.height,
+      fit: BoxFit.fill,
+    ),
   );
 }
 
