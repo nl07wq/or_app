@@ -52,9 +52,11 @@ class _CalendarPageState extends State<CalendarPage> {
       _byDate[_selectedKey] ?? const [];
 
   Future<void> _openEditor([ScheduleRecord? record]) async {
-    final result = await showDialog<ScheduleRecord>(
-      context: context,
-      builder: (_) => _ScheduleEditor(record: record, initialDate: _selected),
+    final result = await Navigator.of(context).push<ScheduleRecord>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _ScheduleEditor(record: record, initialDate: _selected),
+      ),
     );
     if (result == null) {
       return;
@@ -131,31 +133,56 @@ class _CalendarPageState extends State<CalendarPage> {
                   onSelect: (date) => setState(() => _selected = date),
                 ),
                 AppSpacing.gapLG,
-                SectionHeader(
-                  icon: Icons.event_note,
-                  title: 'SCHEDULE — $_selectedKey',
+                SectionHeader(icon: Icons.timeline, title: "TODAY'S TIMELINE"),
+                Text(
+                  '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 AppSpacing.gapSM,
                 if (_selectedSchedules.isEmpty)
-                  const OperationCard(child: Text('NO SCHEDULES')),
+                  const OperationCard(child: Text('NO PLANNED ENTRIES')),
                 for (final record in _selectedSchedules)
                   OperationCard(
                     selectable: true,
                     onTap: () => _openEditor(record),
                     child: Row(
                       children: [
+                        SizedBox(
+                          width: 58,
+                          child: Text(
+                            record.allDay
+                                ? 'ALL DAY'
+                                : record.startTime ?? 'ANYTIME',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ),
+                        Container(
+                          width: 2,
+                          height: 42,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(record.title),
                               Text(
-                                '${record.type.name.toUpperCase()}  ${_timeLabel(record)}',
+                                '${record.kind.name.toUpperCase()} · ${record.type.name.toUpperCase()}  ${_timeLabel(record)}',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
                           ),
                         ),
+                        if (record.kind == ScheduleEntryKind.reminder)
+                          IconButton(
+                            icon: Icon(
+                              record.completed
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked,
+                            ),
+                            onPressed: () => _toggleReminder(record),
+                          ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline),
                           onPressed: () => _delete(record),
@@ -165,7 +192,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                 AppSpacing.gapMD,
                 OperationButton(
-                  text: 'ADD SCHEDULE',
+                  text: 'ADD ENTRY',
                   icon: Icons.add,
                   onPressed: () => _openEditor(),
                   role: OperationActionRole.primary,
@@ -178,6 +205,27 @@ class _CalendarPageState extends State<CalendarPage> {
   String _timeLabel(ScheduleRecord record) => record.startTime == null
       ? ''
       : '${record.startTime}–${record.endTime ?? ''}${record.breakDuration == null ? '' : '  BREAK ${record.breakDuration}'}';
+
+  Future<void> _toggleReminder(ScheduleRecord record) async {
+    await AppRepositoryRegistry.container.schedules.save(
+      ScheduleRecord(
+        id: record.id,
+        localDate: record.localDate,
+        type: record.type,
+        title: record.title,
+        kind: record.kind,
+        allDay: record.allDay,
+        startTime: record.startTime,
+        endTime: record.endTime,
+        breakDuration: record.breakDuration,
+        memo: record.memo,
+        completed: !record.completed,
+        createdAt: record.createdAt,
+        updatedAt: DateTime.now().toUtc(),
+      ),
+    );
+    await _load();
+  }
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -224,6 +272,20 @@ class _MonthGrid extends StatelessWidget {
             ],
           ),
           TextButton(onPressed: onToday, child: const Text('TODAY')),
+          Row(
+            children: [
+              for (final label in [
+                'SUN',
+                'MON',
+                'TUE',
+                'WED',
+                'THU',
+                'FRI',
+                'SAT',
+              ])
+                Expanded(child: Text(label, textAlign: TextAlign.center)),
+            ],
+          ),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -256,7 +318,21 @@ class _MonthGrid extends StatelessWidget {
                     children: [
                       Text('${date.day}'),
                       if (schedules.isNotEmpty)
-                        const Icon(Icons.circle, size: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (schedules.any(
+                              (value) =>
+                                  value.kind == ScheduleEntryKind.schedule,
+                            ))
+                              const Icon(Icons.remove, size: 12),
+                            if (schedules.any(
+                              (value) =>
+                                  value.kind == ScheduleEntryKind.reminder,
+                            ))
+                              const Icon(Icons.circle_outlined, size: 8),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -309,89 +385,97 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.record == null ? 'NEW ENTRY' : 'EDIT ENTRY'),
-    content: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SegmentedButton<ScheduleEntryKind>(
-            segments: const [
-              ButtonSegment(
-                value: ScheduleEntryKind.schedule,
-                label: Text('SCHEDULE'),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(widget.record == null ? 'NEW ENTRY' : 'EDIT ENTRY'),
+      actions: [IconButton(icon: const Icon(Icons.check), onPressed: _save)],
+    ),
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: AppSpacing.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SegmentedButton<ScheduleEntryKind>(
+              segments: const [
+                ButtonSegment(
+                  value: ScheduleEntryKind.schedule,
+                  label: Text('SCHEDULE'),
+                ),
+                ButtonSegment(
+                  value: ScheduleEntryKind.reminder,
+                  label: Text('REMINDER'),
+                ),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (value) =>
+                  setState(() => _kind = value.single),
+            ),
+            DropdownButtonFormField<ScheduleType>(
+              initialValue: _type,
+              items: ScheduleType.values
+                  .map(
+                    (value) => DropdownMenuItem(
+                      value: value,
+                      child: Text(value.name.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _type = value!),
+            ),
+            OperationTextField(controller: _title, label: 'TITLE'),
+            TextButton(
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _date,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) setState(() => _date = picked);
+              },
+              child: Text('DATE ${_key(_date)}'),
+            ),
+            if (_kind == ScheduleEntryKind.schedule)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('ALL DAY'),
+                value: _allDay,
+                onChanged: (value) => setState(() => _allDay = value),
               ),
-              ButtonSegment(
-                value: ScheduleEntryKind.reminder,
-                label: Text('REMINDER'),
+            if (!_allDay)
+              _TimeControl(
+                label: _kind == ScheduleEntryKind.reminder
+                    ? 'TIME · OPTIONAL'
+                    : 'START',
+                controller: _start,
               ),
-            ],
-            selected: {_kind},
-            onSelectionChanged: (value) => setState(() => _kind = value.single),
-          ),
-          DropdownButtonFormField<ScheduleType>(
-            initialValue: _type,
-            items: ScheduleType.values
-                .map(
-                  (value) => DropdownMenuItem(
-                    value: value,
-                    child: Text(value.name.toUpperCase()),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _type = value!),
-          ),
-          OperationTextField(controller: _title, label: 'TITLE'),
-          TextButton(
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _date,
-                firstDate: DateTime(2000),
-                lastDate: DateTime(2100),
-              );
-              if (picked != null) setState(() => _date = picked);
-            },
-            child: Text('DATE ${_key(_date)}'),
-          ),
-          if (_kind == ScheduleEntryKind.schedule)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('ALL DAY'),
-              value: _allDay,
-              onChanged: (value) => setState(() => _allDay = value),
+            if (_kind == ScheduleEntryKind.schedule && !_allDay)
+              _TimeControl(label: 'END', controller: _end),
+            if (_kind == ScheduleEntryKind.schedule &&
+                _type == ScheduleType.work &&
+                !_allDay)
+              OperationTextField(controller: _break, label: 'BREAK (HH:mm)'),
+            if (_kind == ScheduleEntryKind.reminder)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('COMPLETED'),
+                value: _completed,
+                onChanged: (value) =>
+                    setState(() => _completed = value ?? false),
+              ),
+            OperationTextField(controller: _memo, label: 'MEMO', maxLines: 3),
+            AppSpacing.gapLG,
+            OperationButton(
+              text: 'SAVE ENTRY',
+              icon: Icons.check,
+              role: OperationActionRole.primary,
+              onPressed: _save,
             ),
-          if (!_allDay)
-            OperationTextField(
-              controller: _start,
-              label: _kind == ScheduleEntryKind.reminder
-                  ? 'TIME (OPTIONAL HH:mm)'
-                  : 'START (HH:mm)',
-            ),
-          if (_kind == ScheduleEntryKind.schedule && !_allDay)
-            OperationTextField(controller: _end, label: 'END (HH:mm)'),
-          if (_kind == ScheduleEntryKind.schedule &&
-              _type == ScheduleType.work &&
-              !_allDay)
-            OperationTextField(controller: _break, label: 'BREAK (HH:mm)'),
-          if (_kind == ScheduleEntryKind.reminder)
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('COMPLETED'),
-              value: _completed,
-              onChanged: (value) => setState(() => _completed = value ?? false),
-            ),
-          OperationTextField(controller: _memo, label: 'MEMO', maxLines: 3),
-        ],
+          ],
+        ),
       ),
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('CANCEL'),
-      ),
-      TextButton(onPressed: _save, child: const Text('SAVE')),
-    ],
   );
 
   void _save() {
@@ -427,6 +511,106 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         completed: _kind == ScheduleEntryKind.reminder && _completed,
         createdAt: widget.record?.createdAt ?? DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
+      ),
+    );
+  }
+}
+
+class _TimeControl extends StatelessWidget {
+  const _TimeControl({required this.label, required this.controller});
+  final String label;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    title: Text(label),
+    subtitle: Text(controller.text.isEmpty ? 'NOT SET' : controller.text),
+    trailing: const Icon(Icons.access_time),
+    onTap: () async {
+      final result = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => _ClockDial(initial: controller.text),
+      );
+      if (result != null) controller.text = result;
+    },
+  );
+}
+
+class _ClockDial extends StatefulWidget {
+  const _ClockDial({required this.initial});
+  final String initial;
+  @override
+  State<_ClockDial> createState() => _ClockDialState();
+}
+
+class _ClockDialState extends State<_ClockDial> {
+  late int _hour = int.tryParse(widget.initial.split(':').first) ?? 0;
+  late int _minute = widget.initial.contains(':')
+      ? int.tryParse(widget.initial.split(':').last) ?? 0
+      : 0;
+  bool _minutes = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _minutes
+        ? List.generate(12, (i) => i * 5)
+        : List.generate(24, (i) => i);
+    return SafeArea(
+      child: Padding(
+        padding: AppSpacing.cardPadding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${_hour.toString().padLeft(2, '0')} : ${_minute.toString().padLeft(2, '0')}',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            Text(_minutes ? 'SELECT MINUTE' : 'SELECT HOUR'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              crossAxisCount: 6,
+              children: [
+                for (final value in values)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        if (_minutes) {
+                          _minute = value;
+                        } else {
+                          _hour = value;
+                          _minutes = true;
+                        }
+                      });
+                    },
+                    child: Text(value.toString().padLeft(2, '0')),
+                  ),
+              ],
+            ),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CANCEL'),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => setState(() => _minutes = false),
+                  child: const Text('HOUR'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(
+                    context,
+                    '${_hour.toString().padLeft(2, '0')}:${_minute.toString().padLeft(2, '0')}',
+                  ),
+                  child: const Text('DONE'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
