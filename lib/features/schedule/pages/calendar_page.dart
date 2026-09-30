@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
@@ -75,29 +74,6 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Future<void> _delete(ScheduleRecord record) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('DELETE SCHEDULE'),
-        content: Text('Delete ${record.title}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('DELETE'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await AppRepositoryRegistry.container.schedules.delete(record.id);
-    await _load();
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('CALENDAR'), centerTitle: true),
@@ -142,54 +118,28 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
                 AppSpacing.gapSM,
                 if (_selectedSchedules.isEmpty)
-                  const OperationCard(child: Text('NO PLANNED ENTRIES')),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'NO PLANNED ENTRIES',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 for (final record in _selectedSchedules)
-                  OperationCard(
-                    selectable: true,
-                    onTap: () => _openEditor(record),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 58,
-                          child: Text(
-                            record.allDay
-                                ? 'ALL DAY'
-                                : record.startTime ?? 'ANYTIME',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ),
-                        Container(
-                          width: 2,
-                          height: 42,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(record.title),
-                              Text(
-                                '${record.kind.name.toUpperCase()} · ${record.type.name.toUpperCase()}  ${_timeLabel(record)}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (record.kind == ScheduleEntryKind.reminder)
-                          IconButton(
-                            icon: Icon(
-                              record.completed
-                                  ? Icons.check_circle
-                                  : Icons.radio_button_unchecked,
-                            ),
-                            onPressed: () => _toggleReminder(record),
-                          ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => _delete(record),
-                        ),
-                      ],
+                  Dismissible(
+                    key: ValueKey('schedule-entry-${record.id}'),
+                    direction: DismissDirection.endToStart,
+                    background: const _TimelineDeleteBackground(),
+                    confirmDismiss: (_) => _confirmDelete(record),
+                    onDismissed: (_) => _deleteRecord(record),
+                    child: _TimelineEntry(
+                      record: record,
+                      onTap: () => _openEditor(record),
+                      onReminderToggle:
+                          record.kind == ScheduleEntryKind.reminder
+                          ? () => _toggleReminder(record)
+                          : null,
+                      onMove: (minutes) => _moveTimed(record, minutes),
                     ),
                   ),
                 AppSpacing.gapMD,
@@ -203,10 +153,6 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
   );
-
-  String _timeLabel(ScheduleRecord record) => record.startTime == null
-      ? ''
-      : '${record.startTime}–${record.endTime ?? ''}${record.breakDuration == null ? '' : '  BREAK ${record.breakDuration}'}';
 
   Future<void> _toggleReminder(ScheduleRecord record) async {
     await AppRepositoryRegistry.container.schedules.save(
@@ -227,6 +173,185 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
     await _load();
+  }
+
+  Future<void> _moveTimed(ScheduleRecord record, int minutes) async {
+    final start = _parseClock(record.startTime ?? '');
+    if (start == null) return;
+    final shifted = _formatClock((start + minutes) % 1440);
+    final end = _parseClock(record.endTime ?? '');
+    final shiftedEnd = end == null
+        ? null
+        : _formatClock((end + minutes) % 1440);
+    await AppRepositoryRegistry.container.schedules.save(
+      ScheduleRecord(
+        id: record.id,
+        localDate: record.localDate,
+        type: record.type,
+        title: record.title,
+        kind: record.kind,
+        allDay: record.allDay,
+        startTime: shifted,
+        endTime: shiftedEnd,
+        breakDuration: record.breakDuration,
+        memo: record.memo,
+        completed: record.completed,
+        createdAt: record.createdAt,
+        updatedAt: DateTime.now().toUtc(),
+      ),
+    );
+    await _load();
+  }
+
+  Future<bool> _confirmDelete(ScheduleRecord record) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('DELETE ENTRY?'),
+            content: Text('Remove "${record.title}" from the planner?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('CANCEL'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('DELETE'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _deleteRecord(ScheduleRecord record) async {
+    await AppRepositoryRegistry.container.schedules.delete(record.id);
+    await _load();
+  }
+}
+
+class _TimelineDeleteBackground extends StatelessWidget {
+  const _TimelineDeleteBackground();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    alignment: Alignment.centerRight,
+    padding: const EdgeInsets.only(right: 20),
+    color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: .5),
+    child: Icon(
+      Icons.delete_outline,
+      color: Theme.of(context).colorScheme.onErrorContainer,
+    ),
+  );
+}
+
+class _TimelineEntry extends StatefulWidget {
+  const _TimelineEntry({
+    required this.record,
+    required this.onTap,
+    required this.onMove,
+    this.onReminderToggle,
+  });
+  final ScheduleRecord record;
+  final VoidCallback onTap;
+  final ValueChanged<int> onMove;
+  final VoidCallback? onReminderToggle;
+  @override
+  State<_TimelineEntry> createState() => _TimelineEntryState();
+}
+
+class _TimelineEntryState extends State<_TimelineEntry> {
+  Offset? _origin;
+  int _previewMinutes = 0;
+  @override
+  Widget build(BuildContext context) {
+    final record = widget.record;
+    final timed = record.startTime != null && !record.allDay;
+    return GestureDetector(
+      onTap: widget.onTap,
+      onLongPressStart: timed
+          ? (event) => setState(() => _origin = event.globalPosition)
+          : null,
+      onLongPressMoveUpdate: timed
+          ? (event) {
+              final origin = _origin;
+              if (origin == null) return;
+              setState(
+                () => _previewMinutes =
+                    ((event.globalPosition.dy - origin.dy) / 12).round() * 15,
+              );
+            }
+          : null,
+      onLongPressEnd: timed
+          ? (_) {
+              final shift = _previewMinutes;
+              setState(() {
+                _origin = null;
+                _previewMinutes = 0;
+              });
+              if (shift != 0) widget.onMove(shift);
+            }
+          : null,
+      child: Semantics(
+        label:
+            '${record.kind.name} ${record.title} ${record.startTime ?? 'untimed'}',
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 56,
+                child: Text(
+                  record.allDay ? 'ALL DAY' : record.startTime ?? 'UNTIMED',
+                ),
+              ),
+              Column(
+                children: [
+                  Icon(
+                    record.kind == ScheduleEntryKind.reminder
+                        ? (record.completed
+                              ? Icons.check_circle
+                              : Icons.diamond_outlined)
+                        : Icons.circle,
+                    size: 14,
+                  ),
+                  Container(
+                    width: 1,
+                    height: 38,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: .5),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(record.title),
+                    Text(
+                      '${record.type.name.toUpperCase()}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.onReminderToggle != null)
+                IconButton(
+                  icon: Icon(
+                    record.completed
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                  ),
+                  onPressed: widget.onReminderToggle,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -252,106 +377,162 @@ class _MonthGrid extends StatelessWidget {
     final first = DateTime(month.year, month.month);
     final days = DateTime(month.year, month.month + 1, 0).day;
     final offset = first.weekday % 7;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: .55)),
-        borderRadius: BorderRadius.circular(4),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: .35),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: onPrevious,
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: Text(
-                  'CALENDAR  ${month.year} / ${month.month.toString().padLeft(2, '0')}',
-                  textAlign: TextAlign.center,
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if ((details.primaryVelocity ?? 0) > 180) onPrevious();
+        if ((details.primaryVelocity ?? 0) < -180) onNext();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Theme.of(context).colorScheme.surface.withValues(alpha: .12),
+              Colors.transparent,
+            ],
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Expanded(
+                  child: Text(
+                    '${month.year}\n${_monthName(month.month)}',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            TextButton(onPressed: onToday, child: const Text('TODAY')),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'SCHEDULE │ REMINDER',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  letterSpacing: 1.1,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .8),
                 ),
               ),
-              IconButton(
-                onPressed: onNext,
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-          TextButton(onPressed: onToday, child: const Text('TODAY')),
-          Row(
-            children: [
-              for (final label in [
-                'SUN',
-                'MON',
-                'TUE',
-                'WED',
-                'THU',
-                'FRI',
-                'SAT',
-              ])
-                Expanded(child: Text(label, textAlign: TextAlign.center)),
-            ],
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: offset + days,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
             ),
-            itemBuilder: (context, index) {
-              if (index < offset) return const SizedBox();
-              final date = DateTime(
-                month.year,
-                month.month,
-                index - offset + 1,
-              );
-              final schedules = byDate[_key(date)] ?? const [];
-              return InkWell(
-                onTap: () => onSelect(date),
-                child: Container(
-                  margin: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    color: _sameDay(date, selected)
-                        ? Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: .2)
-                        : null,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('${date.day}'),
-                      if (schedules.isNotEmpty)
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                for (final label in [
+                  'SUN',
+                  'MON',
+                  'TUE',
+                  'WED',
+                  'THU',
+                  'FRI',
+                  'SAT',
+                ])
+                  Expanded(child: Text(label, textAlign: TextAlign.center)),
+              ],
+            ),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: offset + days,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+              ),
+              itemBuilder: (context, index) {
+                if (index < offset) return const SizedBox();
+                final date = DateTime(
+                  month.year,
+                  month.month,
+                  index - offset + 1,
+                );
+                final schedules = byDate[_key(date)] ?? const [];
+                final scheduleCount = schedules
+                    .where((value) => value.kind == ScheduleEntryKind.schedule)
+                    .length;
+                final reminderCount = schedules
+                    .where((value) => value.kind == ScheduleEntryKind.reminder)
+                    .length;
+                final isToday = _sameDay(date, DateTime.now());
+                final isSelected = _sameDay(date, selected);
+                return InkWell(
+                  onTap: () => onSelect(date),
+                  child: Container(
+                    margin: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: isSelected
+                          ? Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : isToday
+                          ? Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.secondary.withValues(alpha: .7),
+                            )
+                          : null,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (schedules.any(
-                              (value) =>
-                                  value.kind == ScheduleEntryKind.schedule,
-                            ))
-                              const Icon(Icons.remove, size: 12),
-                            if (schedules.any(
-                              (value) =>
-                                  value.kind == ScheduleEntryKind.reminder,
-                            ))
-                              const Icon(Icons.circle_outlined, size: 8),
+                            Text('${date.day}'),
+                            if (isToday)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 2),
+                                child: Icon(
+                                  Icons.circle,
+                                  size: 4,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary,
+                                ),
+                              ),
                           ],
                         ),
-                    ],
+                        if (schedules.isNotEmpty)
+                          Text(
+                            '${scheduleCount == 0 ? '–' : scheduleCount}│${reminderCount == 0 ? '–' : reminderCount}',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-        ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+String _monthName(int month) => const [
+  'JANUARY',
+  'FEBRUARY',
+  'MARCH',
+  'APRIL',
+  'MAY',
+  'JUNE',
+  'JULY',
+  'AUGUST',
+  'SEPTEMBER',
+  'OCTOBER',
+  'NOVEMBER',
+  'DECEMBER',
+][month - 1];
 
 class _ScheduleEditor extends StatefulWidget {
   const _ScheduleEditor({this.record, required this.initialDate});
