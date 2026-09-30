@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import 'fox_run_v1_section.dart';
 
 /// Sandbox-only source authority. The PNG cels are user supplied, untouched,
 /// transparent-black silhouettes. No generated or interpolated pose exists.
@@ -92,7 +93,33 @@ class _BirdDisclosure extends StatelessWidget {
 class BirdV1Frame extends StatelessWidget {
   const BirdV1Frame({super.key, required this.frame, required this.leftToRight, required this.height, this.bob = 0});
   final int frame; final bool leftToRight; final double height; final double bob;
-  @override Widget build(BuildContext context) => SizedBox(height: height, child: Center(child: Transform.translate(offset: Offset(0, bob), child: Transform(alignment: Alignment.center, transform: Matrix4.diagonal3Values(leftToRight ? 1 : -1, 1, 1), child: ColorFiltered(colorFilter: ColorFilter.mode(Theme.of(context).colorScheme.onSurface.withValues(alpha: .82), BlendMode.srcIn), child: Image.asset(BirdV1SourceSet.assets[frame], key: ValueKey('bird-v1-cel-${frame + 1}'), height: height, fit: BoxFit.contain, filterQuality: FilterQuality.high))))));
+  @override Widget build(BuildContext context) => SizedBox(
+    key: ValueKey('bird-v1-renderer-${frame + 1}'),
+    width: height,
+    height: height,
+    child: Transform.translate(
+      offset: Offset(0, bob),
+      child: Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.diagonal3Values(leftToRight ? 1 : -1, 1, 1),
+        child: ColorFiltered(
+          // The exact established Ambient Wildlife silhouette authority.
+          colorFilter: const ColorFilter.mode(
+            FoxRunV1ProductionStage.silhouetteColor,
+            BlendMode.srcIn,
+          ),
+          child: Image.asset(
+            BirdV1SourceSet.assets[frame],
+            key: ValueKey('bird-v1-cel-${frame + 1}'),
+            width: height,
+            height: height,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class BirdV1ProductionPreview extends StatefulWidget { const BirdV1ProductionPreview({super.key}); @override State<BirdV1ProductionPreview> createState() => _BirdV1ProductionPreviewState(); }
