@@ -336,21 +336,35 @@ Future<void> _pumpEntry(
                 const Text('DASHBOARD TEST'),
                 TextButton(
                   onPressed: () =>
-                      Navigator.pushNamed(context, '/status-entry'),
+                      Navigator.pushNamed(context, AppRoutes.morning),
                   child: const Text('OPEN STATUS TEST'),
                 ),
               ],
             ),
           ),
         ),
-        '/status-entry': (_) => MorningFactPage(
-          dailyBriefCreationPageBuilder: dailyBriefCreationPageBuilder,
+        AppRoutes.morning: (context) => Scaffold(
+          body: Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => MorningFactPage(
+                    dailyBriefCreationPageBuilder:
+                        dailyBriefCreationPageBuilder,
+                  ),
+                ),
+              ),
+              child: const Text('OPEN STATUS FACT TEST'),
+            ),
+          ),
         ),
       },
     ),
   );
   await tester.pumpAndSettle();
   await tester.tap(find.text('OPEN STATUS TEST'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OPEN STATUS FACT TEST'));
   await tester.pumpAndSettle();
 }
 

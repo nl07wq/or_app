@@ -28,6 +28,10 @@ typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
 typedef DailyLogFinalizeCompleted = Future<void> Function();
 
+const finalizeDayConfirmationCopy =
+    'DAILY DEBRIEFを含むこの日の記録を確定して\n'
+    'OPERATION DATEを翌日へ進めますか？';
+
 /// The single post-finalize Backup presentation used by both Dashboard and
 /// Command Center. A completed finalize crosses asynchronous formal writes,
 /// so iOS PWA no longer has a reliable user-activation token for an automatic
@@ -224,10 +228,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('FINALIZE DAY'),
-        content: const Text(
-          'Daily Debriefを含むこの日の記録を確定して\n'
-          'Operation Dateを翌日へ進めますか？',
-        ),
+        content: const Text(finalizeDayConfirmationCopy),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
