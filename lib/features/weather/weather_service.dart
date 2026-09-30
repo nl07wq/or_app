@@ -185,12 +185,20 @@ class WeatherService {
     String query,
   ) {
     final japanese = _isJapaneseQuery(query);
+    final hasPreferredJapaneseResult =
+        japanese && _hasPreferredJapaneseCandidate(candidates, query);
     final ranked =
         candidates
             .where(
               (candidate) =>
                   candidate.countryCode == null ||
                   candidate.countryCode == 'JP',
+            )
+            .where(
+              (candidate) =>
+                  !hasPreferredJapaneseResult ||
+                  (_isMunicipalityFeature(candidate.featureCode) &&
+                      _japaneseStem(candidate.name) == _japaneseStem(query)),
             )
             .map(
               (candidate) => (
