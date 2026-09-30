@@ -71,8 +71,8 @@ flutter:
     - assets/animations/sandbox/pixel_lab/
     - assets/animations/sandbox/bat_v3/
     - assets/animations/sandbox/bat_v3/canonical/
-      - assets/animations/sandbox/bat_v3_canonical/
-      - assets/animations/sandbox/bird_v1/
+    - assets/animations/sandbox/bat_v3_canonical/
+    - assets/animations/sandbox/bird_v1/
     - assets/animations/sandbox/fox_v1/source/
     - assets/animations/sandbox/fox_v1/canonical/
     - assets/animations/sandbox/fox_v1/source_manifest.json
