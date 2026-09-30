@@ -11,6 +11,7 @@ import '../../repositories/app_repository_container.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
+import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -1320,17 +1321,84 @@ class _ClockDial extends StatefulWidget {
 }
 
 class _ClockDialState extends State<_ClockDial> {
-  late int _hour = int.tryParse(widget.initial.split(':').first) ?? 0;
+  late int _hour = (int.tryParse(widget.initial.split(':').first) ?? 0).clamp(
+    0,
+    23,
+  );
   late int _minute = widget.initial.contains(':')
-      ? int.tryParse(widget.initial.split(':').last) ?? 0
+      ? (int.tryParse(widget.initial.split(':').last) ?? 0).clamp(0, 59)
       : 0;
   bool _minutes = false;
+  ClockDialHourRing? _dragHourRing;
+  int? _hourBeforeDrag;
+  int? _minuteBeforeDrag;
+  bool _hourGestureHasSelection = false;
+
+  void _selectHour(Offset position, Size size) {
+    final selection = clockDialHourSelectionForOffset(
+      offset: position - size.center(Offset.zero),
+      dialRadius: size.shortestSide / 2,
+      previousRing: _dragHourRing ?? clockDialHourRingForHour(_hour),
+    );
+    if (selection == null) return;
+    setState(() {
+      _hour = selection.hour;
+      _dragHourRing = selection.ring;
+      _hourGestureHasSelection = true;
+    });
+  }
+
+  void _selectMinute(Offset position, Size size) {
+    final minute = clockDialMinuteForOffset(
+      offset: position - size.center(Offset.zero),
+      dialRadius: size.shortestSide / 2,
+    );
+    if (minute == null) return;
+    setState(() => _minute = minute);
+  }
+
+  void _completeHourSelection() {
+    if (!_hourGestureHasSelection) {
+      _hourBeforeDrag = null;
+      return;
+    }
+    setState(() {
+      _dragHourRing = null;
+      _hourBeforeDrag = null;
+      _hourGestureHasSelection = false;
+      _minutes = true;
+    });
+  }
+
+  void _beginHourGesture() {
+    _hourBeforeDrag = _hour;
+    _hourGestureHasSelection = false;
+  }
+
+  void _beginMinuteGesture() => _minuteBeforeDrag = _minute;
+
+  void _cancelHourGesture() {
+    final original = _hourBeforeDrag;
+    if (original == null) return;
+    setState(() {
+      _hour = original;
+      _dragHourRing = null;
+      _hourBeforeDrag = null;
+      _hourGestureHasSelection = false;
+    });
+  }
+
+  void _cancelMinuteGesture() {
+    final original = _minuteBeforeDrag;
+    if (original == null) return;
+    setState(() {
+      _minute = original;
+      _minuteBeforeDrag = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final values = _minutes
-        ? List.generate(12, (i) => i * 5)
-        : List.generate(24, (i) => i);
     return SafeArea(
       child: Padding(
         padding: AppSpacing.cardPadding,
@@ -1346,17 +1414,18 @@ class _ClockDialState extends State<_ClockDial> {
             SizedBox(
               width: 310,
               height: 310,
-              child: _CircularDial(
-                values: values,
-                selected: _minutes ? _minute : _hour,
-                onSelected: (value) => setState(() {
-                  if (_minutes) {
-                    _minute = value;
-                  } else {
-                    _hour = value;
-                    _minutes = true;
-                  }
-                }),
+              child: _DirectClockFace(
+                minutes: _minutes,
+                hour: _hour,
+                minute: _minute,
+                hourRing: _dragHourRing ?? clockDialHourRingForHour(_hour),
+                onHourGestureStarted: _beginHourGesture,
+                onHourChanged: _selectHour,
+                onHourCompleted: _completeHourSelection,
+                onHourCancelled: _cancelHourGesture,
+                onMinuteGestureStarted: _beginMinuteGesture,
+                onMinuteChanged: _selectMinute,
+                onMinuteCancelled: _cancelMinuteGesture,
               ),
             ),
             Row(
@@ -1386,87 +1455,216 @@ class _ClockDialState extends State<_ClockDial> {
   }
 }
 
-class _CircularDial extends StatelessWidget {
-  const _CircularDial({
-    required this.values,
-    required this.selected,
-    required this.onSelected,
+class _DirectClockFace extends StatelessWidget {
+  const _DirectClockFace({
+    required this.minutes,
+    required this.hour,
+    required this.minute,
+    required this.hourRing,
+    required this.onHourGestureStarted,
+    required this.onHourChanged,
+    required this.onHourCompleted,
+    required this.onHourCancelled,
+    required this.onMinuteGestureStarted,
+    required this.onMinuteChanged,
+    required this.onMinuteCancelled,
   });
-  final List<int> values;
-  final int selected;
-  final ValueChanged<int> onSelected;
+
+  final bool minutes;
+  final int hour;
+  final int minute;
+  final ClockDialHourRing hourRing;
+  final VoidCallback onHourGestureStarted;
+  final void Function(Offset position, Size size) onHourChanged;
+  final VoidCallback onHourCompleted;
+  final VoidCallback onHourCancelled;
+  final VoidCallback onMinuteGestureStarted;
+  final void Function(Offset position, Size size) onMinuteChanged;
+  final VoidCallback onMinuteCancelled;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final size = constraints.biggest.shortestSide;
-      final radius = size * .39;
-      return Stack(
-        alignment: Alignment.center,
-        children: [
-          CustomPaint(
-            size: Size.square(size),
-            painter: _DialPainter(values.length, values.indexOf(selected)),
+      final size = Size.square(constraints.biggest.shortestSide);
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (details) {
+          if (minutes) {
+            onMinuteChanged(details.localPosition, size);
+          } else {
+            onHourChanged(details.localPosition, size);
+            onHourCompleted();
+          }
+        },
+        onPanStart: (details) {
+          if (minutes) {
+            onMinuteGestureStarted();
+            onMinuteChanged(details.localPosition, size);
+          } else {
+            onHourGestureStarted();
+            onHourChanged(details.localPosition, size);
+          }
+        },
+        onPanUpdate: (details) {
+          if (minutes) {
+            onMinuteChanged(details.localPosition, size);
+          } else {
+            onHourChanged(details.localPosition, size);
+          }
+        },
+        onPanEnd: (_) {
+          if (!minutes) onHourCompleted();
+        },
+        onPanCancel: () {
+          if (minutes) {
+            onMinuteCancelled();
+          } else {
+            onHourCancelled();
+          }
+        },
+        child: CustomPaint(
+          size: size,
+          painter: _DirectClockFacePainter(
+            minutes: minutes,
+            hour: hour,
+            minute: minute,
+            hourRing: hourRing,
+            color: Theme.of(context).colorScheme.primary,
           ),
-          for (var index = 0; index < values.length; index++)
-            Transform.translate(
-              offset: Offset(
-                radius *
-                    math.cos(index / values.length * math.pi * 2 - math.pi / 2),
-                radius *
-                    math.sin(index / values.length * math.pi * 2 - math.pi / 2),
-              ),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    shape: const CircleBorder(),
-                    backgroundColor: values[index] == selected
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                    padding: EdgeInsets.zero,
-                  ),
-                  onPressed: () => onSelected(values[index]),
-                  child: Text(values[index].toString().padLeft(2, '0')),
-                ),
-              ),
+          child: IgnorePointer(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (minutes)
+                  for (var direction = 0; direction < 12; direction++)
+                    _DialNumber(
+                      value: direction * 5,
+                      direction: direction,
+                      radiusFactor: .78,
+                      selected: minute == direction * 5,
+                    )
+                else ...[
+                  for (var direction = 0; direction < 12; direction++)
+                    _DialNumber(
+                      value: direction == 0 ? 0 : direction + 12,
+                      direction: direction,
+                      radiusFactor: .78,
+                      selected:
+                          hourRing == ClockDialHourRing.outer &&
+                          hour == (direction == 0 ? 0 : direction + 12),
+                    ),
+                  for (var direction = 0; direction < 12; direction++)
+                    _DialNumber(
+                      value: direction == 0 ? 12 : direction,
+                      direction: direction,
+                      radiusFactor: .52,
+                      selected:
+                          hourRing == ClockDialHourRing.inner &&
+                          hour == (direction == 0 ? 12 : direction),
+                    ),
+                ],
+              ],
             ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.cyan,
-              shape: BoxShape.circle,
-            ),
-            child: SizedBox(width: 8, height: 8),
           ),
-        ],
+        ),
       );
     },
   );
 }
 
-class _DialPainter extends CustomPainter {
-  const _DialPainter(this.count, this.selectedIndex);
-  final int count, selectedIndex;
+class _DialNumber extends StatelessWidget {
+  const _DialNumber({
+    required this.value,
+    required this.direction,
+    required this.radiusFactor,
+    required this.selected,
+  });
+
+  final int value;
+  final int direction;
+  final double radiusFactor;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final radius = constraints.biggest.shortestSide / 2 * radiusFactor;
+      final angle = direction / 12 * math.pi * 2 - math.pi / 2;
+      return Transform.translate(
+        offset: Offset(radius * math.cos(angle), radius * math.sin(angle)),
+        child: Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: selected
+              ? BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                )
+              : null,
+          child: Text(value.toString().padLeft(2, '0')),
+        ),
+      );
+    },
+  );
+}
+
+class _DirectClockFacePainter extends CustomPainter {
+  const _DirectClockFacePainter({
+    required this.minutes,
+    required this.hour,
+    required this.minute,
+    required this.hourRing,
+    required this.color,
+  });
+
+  final bool minutes;
+  final int hour;
+  final int minute;
+  final ClockDialHourRing hourRing;
+  final Color color;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final radius = size.shortestSide * .39;
-    final paint = Paint()
-      ..color = Colors.cyan.withValues(alpha: .45)
+    final dialRadius = size.shortestSide / 2;
+    final outerRadius = dialRadius * .78;
+    final innerRadius = dialRadius * .52;
+    final selectedDirection = minutes
+        ? minute / 5
+        : (hour == 0 || hour == 12 ? 0 : hour % 12);
+    final selectedRadius = minutes
+        ? outerRadius
+        : (hourRing == ClockDialHourRing.outer ? outerRadius : innerRadius);
+    final angle = selectedDirection / 12 * math.pi * 2 - math.pi / 2;
+    final endpoint =
+        center +
+        Offset(
+          selectedRadius * math.cos(angle),
+          selectedRadius * math.sin(angle),
+        );
+    final trace = Paint()
+      ..color = color.withValues(alpha: .44)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
-    canvas.drawCircle(center, radius, paint);
-    final angle = selectedIndex / count * math.pi * 2 - math.pi / 2;
-    canvas.drawLine(
-      center,
-      center + Offset(radius * math.cos(angle), radius * math.sin(angle)),
-      paint..strokeWidth = 2,
+    canvas.drawCircle(center, outerRadius, trace);
+    if (!minutes) canvas.drawCircle(center, innerRadius, trace);
+    canvas.drawLine(center, endpoint, trace..strokeWidth = 2);
+    canvas.drawCircle(
+      endpoint,
+      7,
+      Paint()..color = color.withValues(alpha: .9),
     );
+    canvas.drawCircle(center, 4, Paint()..color = color);
   }
 
   @override
-  bool shouldRepaint(covariant _DialPainter old) =>
-      old.count != count || old.selectedIndex != selectedIndex;
+  bool shouldRepaint(covariant _DirectClockFacePainter old) =>
+      old.minutes != minutes ||
+      old.hour != hour ||
+      old.minute != minute ||
+      old.hourRing != hourRing ||
+      old.color != color;
 }
 
 class _DurationControl extends StatefulWidget {
