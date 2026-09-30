@@ -108,7 +108,6 @@ class _CalendarPageState extends State<CalendarPage> {
       );
       _weatherSnapshot = null;
       _weatherStale = false;
-      _weatherDisclosure = _WeatherDisclosure.collapsed;
     });
     await _loadWeather(location: next);
   }
@@ -461,7 +460,7 @@ class _CalendarWeatherHud extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _WeatherSurfaceGesture(
+          WeatherSurfaceGesture(
             enabled: preferences.locations.length > 1,
             onSwipeLocation: onSwipeLocation,
             child: Column(
@@ -564,8 +563,12 @@ class _CalendarWeatherHud extends StatelessWidget {
   }
 }
 
-class _WeatherSurfaceGesture extends StatelessWidget {
-  const _WeatherSurfaceGesture({
+/// Owns a drag that starts on the visible Weather surface, even when its
+/// pointer ends beyond that surface. Calendar outside-tap handling must not
+/// reinterpret this sequence as a collapse action.
+class WeatherSurfaceGesture extends StatelessWidget {
+  const WeatherSurfaceGesture({
+    super.key,
     required this.enabled,
     required this.onSwipeLocation,
     required this.child,
