@@ -46,6 +46,8 @@ class AppRoutes {
 
   static const profile = '/profile';
 
+  static const weatherSettings = '/weather-settings';
+
   static const about = '/about';
 
   static const system = '/system';
