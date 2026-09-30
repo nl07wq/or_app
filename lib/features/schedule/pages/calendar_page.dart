@@ -1644,7 +1644,21 @@ class _ClockDialState extends State<_ClockDial> {
                     const SizedBox(height: 8),
                     LayoutBuilder(
                       builder: (context, constraints) {
-                        final dialSize = math.min(310.0, constraints.maxWidth);
+                        // A modal selector receives less vertical room than the
+                        // full-screen editor behind it. Keep the complete
+                        // instrument, including its action rail, visible on
+                        // compact phone viewports rather than clipping the
+                        // lower circumference and controls.
+                        final viewportWidth = MediaQuery.sizeOf(context).width;
+                        final maximumDialSize = viewportWidth <= 350
+                            ? 200.0
+                            : viewportWidth <= 420
+                            ? 220.0
+                            : 310.0;
+                        final dialSize = math.min(
+                          maximumDialSize,
+                          constraints.maxWidth,
+                        );
                         return SizedBox(
                           width: dialSize,
                           height: dialSize,
