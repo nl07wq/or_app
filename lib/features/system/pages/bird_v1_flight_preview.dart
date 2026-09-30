@@ -18,10 +18,11 @@ abstract final class BirdV1SourceSet {
     'assets/animations/sandbox/bird_v1/frame_06.png',
   ];
 
-  /// Forward flap followed by the same supplied cels in reverse.
-  static const cycle = <int>[0, 1, 2, 3, 4, 5, 4, 3, 2, 1];
-  static const bobOffsets = <double>[0, -1, -2, -3, -2, -1, 0, 1, 2, 1];
-  static const flutterOffsets = <double>[0, -1, 1, -2, 1, 0, -1, 1, -1, 0];
+  /// The approved six-cel forward loop: 01 → 02 → 03 → 04 → 05 → 06.
+  static const cycle = <int>[0, 1, 2, 3, 4, 5];
+  /// Ends at the same baseline at the 06 → 01 seam.
+  static const bobOffsets = <double>[0, -1, -2, -2, -1, 0];
+  static const flutterOffsets = <double>[0, -1, 1, -1, 1, 0];
 }
 
 class BirdV1Sandbox extends StatefulWidget {
@@ -77,7 +78,7 @@ class _BirdV1SandboxState extends State<BirdV1Sandbox> {
       BirdV1Frame(frame: _frame, leftToRight: true, height: 170, bob: BirdV1SourceSet.bobOffsets[_cycle]),
       Wrap(spacing: 8, children: [OutlinedButton(key: const ValueKey('bird-v1-play'), onPressed: _play, child: const Text('PLAY')), OutlinedButton(onPressed: _pause, child: const Text('PAUSE')), OutlinedButton(key: const ValueKey('bird-v1-restart'), onPressed: () { _pause(); setState(() { _frame = 0; _cycle = 0; }); _play(); }, child: const Text('RESTART'))]),
       AppSpacing.gapSM, _frameButtons('bird-v1-cycle-frame'),
-      const Text('01 → 02 → 03 → 04 → 05 → 06 → 05 → 04 → 03 → 02 → LOOP · fixed body rect registration.'),
+      const Text('01 → 02 → 03 → 04 → 05 → 06 → 01 → LOOP · fixed body rect registration.'),
     ]))],
   ]);
 }
@@ -91,7 +92,7 @@ class _BirdDisclosure extends StatelessWidget {
 class BirdV1Frame extends StatelessWidget {
   const BirdV1Frame({super.key, required this.frame, required this.leftToRight, required this.height, this.bob = 0});
   final int frame; final bool leftToRight; final double height; final double bob;
-  @override Widget build(BuildContext context) => SizedBox(height: height, child: Center(child: Transform.translate(offset: Offset(0, bob), child: Transform(alignment: Alignment.center, transform: Matrix4.diagonal3Values(leftToRight ? 1 : -1, 1, 1), child: Image.asset(BirdV1SourceSet.assets[frame], key: ValueKey('bird-v1-cel-${frame + 1}'), height: height, fit: BoxFit.contain, filterQuality: FilterQuality.high)))));
+  @override Widget build(BuildContext context) => SizedBox(height: height, child: Center(child: Transform.translate(offset: Offset(0, bob), child: Transform(alignment: Alignment.center, transform: Matrix4.diagonal3Values(leftToRight ? 1 : -1, 1, 1), child: ColorFiltered(colorFilter: ColorFilter.mode(Theme.of(context).colorScheme.onSurface.withValues(alpha: .82), BlendMode.srcIn), child: Image.asset(BirdV1SourceSet.assets[frame], key: ValueKey('bird-v1-cel-${frame + 1}'), height: height, fit: BoxFit.contain, filterQuality: FilterQuality.high))))));
 }
 
 class BirdV1ProductionPreview extends StatefulWidget { const BirdV1ProductionPreview({super.key}); @override State<BirdV1ProductionPreview> createState() => _BirdV1ProductionPreviewState(); }
