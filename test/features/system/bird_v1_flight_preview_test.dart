@@ -54,7 +54,7 @@ void main() {
       ]);
       expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.current), 240);
       expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.smooth), 370);
-      expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.glide), 530);
+      expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.glide), 595);
       expect(
         BirdV1FlightTuning.holdsFor(BirdV1Cadence.glide)[4],
         greaterThan(BirdV1FlightTuning.holdsFor(BirdV1Cadence.smooth)[4]),
