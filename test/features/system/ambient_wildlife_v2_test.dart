@@ -379,10 +379,11 @@ void main() {
     },
   );
 
-  test('BIRD uses a bird-only 28px Dashboard presentation scale', () {
+  test('BIRD uses a bird-only 22.4px Dashboard scale and higher airspace', () {
     const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
-    expect(BirdV1ProductionFlight.renderedSize * scale, 28);
-    expect(DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY, -6);
+    expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(22.4, .001));
+    expect(scale, .4);
+    expect(DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY, -11);
 
     final single = BirdV1ProductionFlight.visibleEnvelopeFor(
       values: BirdV1ProductionFlight.instances.take(1).toList(),
@@ -420,8 +421,11 @@ void main() {
       DashboardAmbientWildlifeStage.height -
           DashboardAmbientWildlifeStage.groundInset -
           flock.bottom,
-      greaterThan(8),
+      greaterThan(29),
     );
+    expect(single.top, closeTo(22.46, .01));
+    expect(flock.top, closeTo(17.52, .01));
+    expect(flock.bottom, lessThan(51));
   });
 
   test('BIRD spatial launch spacing stays readable across stage widths', () {
