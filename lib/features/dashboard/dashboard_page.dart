@@ -61,8 +61,12 @@ import '../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../report_sync/models/daily_debrief_record.dart';
 import '../report_sync/models/daily_debrief_state.dart';
 import '../report_sync/models/morning_brief_state.dart';
+import '../schedule/models/schedule_plan_revision.dart';
+import '../schedule/models/schedule_record.dart';
+import '../schedule/pages/calendar_page.dart';
 
 import 'models/dynamic_daily_target.dart';
+import 'services/dashboard_plan_information_service.dart';
 import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
 import 'widgets/dashboard_ambient_wildlife_stage.dart';
@@ -545,6 +549,7 @@ class _DashboardPageState extends State<DashboardPage> {
   late final InformationNoticeService _informationService =
       InformationNoticeService();
   late Future<List<InformationNotice>> _informationNoticesFuture;
+  late Future<DashboardPlanInformation> _planInformationFuture;
   late final FinalizeDateTransition? _dashboardFinalizeTransition;
   int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
@@ -564,8 +569,10 @@ class _DashboardPageState extends State<DashboardPage> {
         ? const OperationDateService().current()
         : Future.value(finalizeTransition.fromDate);
     _informationNoticesFuture = _informationService.activeNotices();
+    _planInformationFuture = _loadPlanInformation();
     informationNoticeRevision.addListener(_refreshInformation);
     morningBriefRevisionNotifier.addListener(_refreshInformation);
+    schedulePlanRevisionNotifier.addListener(_refreshPlanInformation);
     _scrollController.addListener(_scheduleWildlifeMeasurement);
     if (finalizeTransition != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -578,6 +585,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void dispose() {
     informationNoticeRevision.removeListener(_refreshInformation);
     morningBriefRevisionNotifier.removeListener(_refreshInformation);
+    schedulePlanRevisionNotifier.removeListener(_refreshPlanInformation);
     _scrollController.removeListener(_scheduleWildlifeMeasurement);
     _scrollController.dispose();
     super.dispose();
@@ -588,6 +596,27 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() {
       _informationNoticesFuture = _informationService.activeNotices();
     });
+  }
+
+  Future<DashboardPlanInformation> _loadPlanInformation() async {
+    final operationDate = await _operationDateFuture;
+    return DashboardPlanInformationService(
+      AppRepositoryRegistry.container.schedules,
+    ).loadFor(operationDate.value);
+  }
+
+  void _refreshPlanInformation() {
+    if (!mounted) return;
+    setState(() => _planInformationFuture = _loadPlanInformation());
+  }
+
+  Future<void> _openCalendarForDate(String localDate) async {
+    final date = DateTime.tryParse(localDate);
+    if (date == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => CalendarPage(initialDate: date)),
+    );
+    _refreshPlanInformation();
   }
 
   void _scheduleWildlifeMeasurement() {
@@ -693,6 +722,24 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     _operationDateTransitionToken,
                                                 finalizeTransition:
                                                     _dashboardFinalizeTransition,
+                                              ),
+                                              AppSpacing.gapSM,
+                                              FutureBuilder<
+                                                DashboardPlanInformation
+                                              >(
+                                                future: _planInformationFuture,
+                                                builder: (context, snapshot) =>
+                                                    DashboardPlanInformationCard(
+                                                      information:
+                                                          snapshot.data,
+                                                      loading:
+                                                          snapshot.connectionState !=
+                                                              ConnectionState
+                                                                  .done &&
+                                                          !snapshot.hasError,
+                                                      onOpenDate:
+                                                          _openCalendarForDate,
+                                                    ),
                                               ),
                                               FutureBuilder<
                                                 List<InformationNotice>
@@ -811,6 +858,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     setState(() {
       _operationDateFuture = Future.value(transition.toDate);
+      _planInformationFuture = _loadPlanInformation();
       _operationDateTransitionToken++;
     });
   }
@@ -898,6 +946,203 @@ class _OperationDateCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+class DashboardPlanInformationCard extends StatelessWidget {
+  const DashboardPlanInformationCard({
+    super.key,
+    required this.information,
+    required this.loading,
+    required this.onOpenDate,
+  });
+
+  static const _visibleRowLimit = 3;
+
+  final DashboardPlanInformation? information;
+  final bool loading;
+  final ValueChanged<String> onOpenDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries =
+        information?.entries ?? const <DashboardPlanInformationEntry>[];
+    final visibleEntries = entries
+        .take(_visibleRowLimit)
+        .toList(growable: false);
+    final hiddenCount = entries.length - visibleEntries.length;
+    return OperationCard(
+      key: const ValueKey('dashboard-plan-information'),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: _DashboardPlanInformationHeader(),
+          ),
+          AppSpacing.gapXS,
+          if (loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Text('SYNCING PLAN...'),
+            )
+          else if (entries.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Text('NO SCHEDULE / REMINDERS'),
+            )
+          else ...[
+            for (var index = 0; index < visibleEntries.length; index++) ...[
+              if (index > 0)
+                const Divider(
+                  height: 1,
+                  indent: AppSpacing.md,
+                  endIndent: AppSpacing.md,
+                ),
+              _DashboardPlanInformationRow(
+                entry: visibleEntries[index],
+                onTap: () => onOpenDate(visibleEntries[index].record.localDate),
+              ),
+            ],
+            if (hiddenCount > 0) ...[
+              const Divider(
+                height: 1,
+                indent: AppSpacing.md,
+                endIndent: AppSpacing.md,
+              ),
+              Semantics(
+                button: true,
+                label: '$hiddenCount more Calendar entries',
+                child: TextButton(
+                  key: const ValueKey('dashboard-plan-information-more'),
+                  onPressed: () => onOpenDate(information!.operationDate),
+                  child: Text('+$hiddenCount MORE'),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardPlanInformationHeader extends StatelessWidget {
+  const _DashboardPlanInformationHeader();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(
+        Icons.info_outline,
+        color: Theme.of(context).colorScheme.primary,
+        semanticLabel: 'INFORMATION',
+      ),
+      AppSpacing.gapSM,
+      Text('INFORMATION', style: Theme.of(context).textTheme.labelLarge),
+    ],
+  );
+}
+
+class _DashboardPlanInformationRow extends StatelessWidget {
+  const _DashboardPlanInformationRow({
+    required this.entry,
+    required this.onTap,
+  });
+
+  final DashboardPlanInformationEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final record = entry.record;
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = entry.isOverdue ? colorScheme.error : colorScheme.primary;
+    return Semantics(
+      button: true,
+      label: '${_timeLabel(record)} ${record.title} ${_detailLabel(entry)}',
+      child: InkWell(
+        key: ValueKey('dashboard-plan-information-entry-${record.id}'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 66,
+                child: Text(
+                  _timeLabel(record),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: accent),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (entry.isOverdue)
+                      Text(
+                        'OVERDUE',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelSmall?.copyWith(color: accent),
+                      ),
+                    Text(
+                      record.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    Text(
+                      _detailLabel(entry),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              const Icon(Icons.chevron_right, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _timeLabel(ScheduleRecord record) {
+    if (record.allDay) return 'ALL DAY';
+    return record.startTime ?? 'UNTIMED';
+  }
+
+  String _detailLabel(DashboardPlanInformationEntry entry) {
+    final record = entry.record;
+    if (entry.isOverdue) {
+      final date =
+          '${record.localDate.substring(5, 7)}/${record.localDate.substring(8, 10)}';
+      final time = record.allDay ? 'ALL DAY' : record.startTime ?? 'UNTIMED';
+      return 'REMINDER · $date $time';
+    }
+    if (record.kind == ScheduleEntryKind.reminder) return 'REMINDER';
+    final timing = record.startTime == null
+        ? null
+        : record.endTime == null
+        ? record.startTime
+        : '${record.startTime}–${record.endTime}';
+    return ['SCHEDULE', record.type.name.toUpperCase(), ?timing].join(' · ');
+  }
 }
 
 class _DashboardOperationOverview extends StatefulWidget {

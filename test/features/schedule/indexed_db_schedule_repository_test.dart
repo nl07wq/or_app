@@ -32,6 +32,7 @@ void main() {
       final reloaded = IndexedDbScheduleRepository(database);
       expect((await reloaded.findForDate('2026-10-01')).single.id, 'a');
       expect((await reloaded.findForDate('2026-10-02')).single.id, 'b');
+      expect((await reloaded.findAll()).map((value) => value.id), ['a', 'b']);
     },
   );
 

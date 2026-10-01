@@ -11,6 +11,9 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
   final DateTime Function() _now;
 
   @override
+  Future<List<ScheduleRecord>> findAll() => _all();
+
+  @override
   Future<List<ScheduleRecord>> findForDate(String localDate) async =>
       (await _all()).where((record) => record.localDate == localDate).toList();
 

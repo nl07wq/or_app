@@ -13,6 +13,7 @@ import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
 import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
+import '../models/schedule_plan_revision.dart';
 
 enum _WeatherDisclosure { collapsed, sevenDay, details, hourly }
 
@@ -177,6 +178,7 @@ class _CalendarPageState extends State<CalendarPage> {
     }
     try {
       await AppRepositoryRegistry.container.schedules.save(result);
+      notifySchedulePlanChanged();
       await _load();
     } catch (error) {
       if (mounted) {
@@ -322,6 +324,7 @@ class _CalendarPageState extends State<CalendarPage> {
         updatedAt: DateTime.now().toUtc(),
       ),
     );
+    notifySchedulePlanChanged();
     await _load();
   }
 
@@ -350,6 +353,7 @@ class _CalendarPageState extends State<CalendarPage> {
         updatedAt: DateTime.now().toUtc(),
       ),
     );
+    notifySchedulePlanChanged();
     await _load();
   }
 
@@ -376,6 +380,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _deleteRecord(ScheduleRecord record) async {
     await AppRepositoryRegistry.container.schedules.delete(record.id);
+    notifySchedulePlanChanged();
     await _load();
   }
 }
