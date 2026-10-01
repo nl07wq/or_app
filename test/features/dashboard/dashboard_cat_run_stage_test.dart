@@ -554,6 +554,14 @@ void main() {
             .batPresentationAltitudeOffsetY,
         DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
       );
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(
+              find.byType(AmbientWildlifeV2ProductionStage),
+            )
+            .birdPresentationTopCrop,
+        DashboardAmbientWildlifeStage.topAirspaceCrop,
+      );
       final canonicalStage = find.byKey(
         const ValueKey('ambient-wildlife-v2-stage'),
       );
@@ -578,6 +586,10 @@ void main() {
                 .isNotEmpty ||
             find
                 .byKey(const ValueKey('ambient-wildlife-v2-fox-motion'))
+                .evaluate()
+                .isNotEmpty ||
+            find
+                .byKey(const ValueKey('ambient-wildlife-v2-bird-instance-0'))
                 .evaluate()
                 .isNotEmpty ||
             find.byType(BatV3ProductionStage).evaluate().isNotEmpty,
@@ -643,6 +655,19 @@ void main() {
       expect(adjustedTop, greaterThanOrEqualTo(4));
     },
   );
+
+  test('compact Dashboard lane preserves the Bird airborne envelope', () {
+    const scale = DashboardAmbientWildlifeStage.animalPresentationScale;
+    final top = BirdV1ProductionFlight.minimumTopClearance * scale;
+    final bottom = BirdV1ProductionFlight.maximumBottom * scale;
+    final ground =
+        AmbientWildlifeV2Stage.visualGroundLineY(stageHeight: 112) -
+        DashboardAmbientWildlifeStage.topAirspaceCrop;
+
+    expect(top, greaterThan(0));
+    expect(bottom, lessThan(ground));
+    expect(ground - bottom, greaterThan(10));
+  });
 }
 
 class _SequenceRandom implements math.Random {

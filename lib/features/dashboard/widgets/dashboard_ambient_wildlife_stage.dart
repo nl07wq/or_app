@@ -211,6 +211,8 @@ class _DashboardAmbientWildlifeStageState
                     batPresentationAltitudeOffsetY:
                         DashboardAmbientWildlifeStage
                             .batPresentationAltitudeOffsetY,
+                    birdPresentationTopCrop:
+                        DashboardAmbientWildlifeStage.topAirspaceCrop,
                   ),
                 ),
               ),

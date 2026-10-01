@@ -4,6 +4,7 @@ import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
 import 'package:or_app/features/system/pages/bat_v3_source_data.dart';
+import 'package:or_app/features/system/pages/bird_v1_flight_preview.dart';
 import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
@@ -11,11 +12,12 @@ import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/fox_run_v1_section.dart';
 
 void main() {
-  test('V2 registry exposes CAT, BAT, and FOX to RANDOM', () {
+  test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,
       AmbientWildlifeV2Species.bat,
       AmbientWildlifeV2Species.fox,
+      AmbientWildlifeV2Species.birds,
     ]);
     expect(
       AmbientWildlifeV2Registry.available(AmbientWildlifeV2Species.fox),
@@ -23,7 +25,7 @@ void main() {
     );
     expect(
       AmbientWildlifeV2Registry.available(AmbientWildlifeV2Species.birds),
-      isFalse,
+      isTrue,
     );
   });
 
@@ -249,6 +251,110 @@ void main() {
     expect(BatV3ProductionEventPolicy.normalCountForRoll(80), 3);
     expect(BatV3ProductionEventPolicy.normalCountForRoll(99), 3);
   });
+
+  test(
+    'BIRD production authority is the approved Cruise overlap candidate',
+    () {
+      expect(BirdV1ProductionFlight.frameSet, const [0, 1, 2, 3, 4, 5]);
+      expect(BirdV1ProductionFlight.holds, const [63, 55, 58, 68, 115, 125]);
+      expect(BirdV1ProductionFlight.transition, BirdV1Transition.overlap20);
+      expect(BirdV1ProductionFlight.transitionMs, 20);
+      expect(
+        BirdV1ProductionFlight.crossingDuration,
+        const Duration(milliseconds: 1467),
+      );
+      expect(BirdV1ProductionFlight.flutterOn, isTrue);
+      expect(BirdV1ProductionFlight.renderedSize, 56);
+      expect(
+        BirdV1ProductionFlight.flightSpeed,
+        BirdV1FlightSpeed.onePointFive,
+      );
+
+      final first = BirdV1ProductionFlight.frameFor(
+        elapsedMs: 0,
+        instance: BirdV1ProductionFlight.instances.first,
+      );
+      final second = BirdV1ProductionFlight.frameFor(
+        elapsedMs: 63,
+        instance: BirdV1ProductionFlight.instances.first,
+      );
+      final seam = BirdV1ProductionFlight.frameFor(
+        elapsedMs: BirdV1ProductionFlight.cycleDurationMs,
+        instance: BirdV1ProductionFlight.instances.first,
+      );
+      expect(first.frame, 0);
+      expect(second.frame, 1);
+      expect(second.previousFrame, 0);
+      expect(seam.frame, 0);
+      expect(seam.previousFrame, 5);
+    },
+  );
+
+  test(
+    'BIRD variants use deterministic formation and a rare GLITCH10 branch',
+    () {
+      AmbientWildlifeV2EventPlan planFor(List<int> rolls) {
+        var index = 0;
+        return AmbientWildlifeV2EventPlan.resolve(
+          species: AmbientWildlifeV2Species.birds,
+          leftToRight: true,
+          nextInt: (max) => rolls[index++] % max,
+        );
+      }
+
+      final one = planFor([0, 1, 0]);
+      final two = planFor([0, 1, 50]);
+      final three = planFor([0, 1, 80]);
+      final glitch = planFor([0, 0, 0]);
+      expect(one.isBird, isTrue);
+      expect(one.birdInstances, hasLength(1));
+      expect(two.birdInstances, hasLength(2));
+      expect(three.birdInstances, hasLength(3));
+      expect(glitch.isGlitch, isTrue);
+      expect(glitch.birdInstances, hasLength(10));
+      expect(BirdV1ProductionEventPolicy.glitchProbability, .05);
+      expect(
+        glitch.birdInstances.map((instance) => instance.formationY).toSet(),
+        hasLength(greaterThan(1)),
+      );
+      expect(
+        glitch.birdInstances.map((instance) => instance.phaseOffsetMs).toSet(),
+        hasLength(10),
+      );
+    },
+  );
+
+  test(
+    'BIRD formation exits fully and remains inside the airspace envelope',
+    () {
+      for (final width in [320.0, 390.0, 900.0]) {
+        for (final leftToRight in [true, false]) {
+          for (final instances in [
+            BirdV1ProductionFlight.instances.take(1).toList(),
+            BirdV1ProductionFlight.instances.take(2).toList(),
+            BirdV1ProductionFlight.instances,
+            BirdV1ProductionFlight.glitchInstances,
+          ]) {
+            final elapsed = BirdV1ProductionFlight.eventDurationMs(instances);
+            expect(
+              instances.every(
+                (instance) => BirdV1ProductionFlight.hasFullyExited(
+                  stageWidth: width,
+                  elapsedMs: elapsed,
+                  leftToRight: leftToRight,
+                  instance: instance,
+                ),
+              ),
+              isTrue,
+              reason: '$width / $leftToRight / ${instances.length}',
+            );
+          }
+        }
+      }
+      expect(BirdV1ProductionFlight.minimumTopClearance, greaterThan(0));
+      expect(BirdV1ProductionFlight.groundClearanceFor(99), greaterThan(0));
+    },
+  );
 
   testWidgets('neutral species art keeps the shared environment visible', (
     tester,
@@ -782,44 +888,93 @@ void main() {
     }
   });
 
-  testWidgets('neutral CAT, BAT, and FOX fit the stage at target widths', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    for (final width in [320.0, 390.0, 900.0]) {
-      tester.view.physicalSize = Size(width, 300);
-      tester.view.devicePixelRatio = 1;
-      for (final species in [
-        AmbientWildlifeV2Species.cat,
-        AmbientWildlifeV2Species.bat,
-        AmbientWildlifeV2Species.fox,
-      ]) {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: SizedBox(
-              width: width,
-              child: AmbientWildlifeV2Stage(
-                plan: null,
-                requestId: 0,
-                neutral: true,
-                neutralSpecies: species,
-                paused: false,
-                leftToRight: true,
+  testWidgets(
+    'neutral CAT, BAT, FOX, and BIRD fit the stage at target widths',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final width in [320.0, 390.0, 900.0]) {
+        tester.view.physicalSize = Size(width, 300);
+        tester.view.devicePixelRatio = 1;
+        for (final species in [
+          AmbientWildlifeV2Species.cat,
+          AmbientWildlifeV2Species.bat,
+          AmbientWildlifeV2Species.fox,
+          AmbientWildlifeV2Species.birds,
+        ]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: SizedBox(
+                width: width,
+                child: AmbientWildlifeV2Stage(
+                  plan: null,
+                  requestId: 0,
+                  neutral: true,
+                  neutralSpecies: species,
+                  paused: false,
+                  leftToRight: true,
+                ),
               ),
             ),
-          ),
-        );
-        expect(
-          tester
-              .getSize(find.byKey(const ValueKey('ambient-wildlife-v2-stage')))
-              .width,
-          width,
-        );
-        expect(tester.takeException(), isNull, reason: '$species at $width');
+          );
+          expect(
+            tester
+                .getSize(
+                  find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+                )
+                .width,
+            width,
+          );
+          expect(tester.takeException(), isNull, reason: '$species at $width');
+        }
       }
-    }
-  });
+    },
+  );
+
+  testWidgets(
+    'BIRD production motion is visible in both directions at target widths',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final plan = AmbientWildlifeV2EventPlan.resolve(
+        species: AmbientWildlifeV2Species.birds,
+        leftToRight: true,
+        nextInt: (max) => max == 20 ? 1 : 0,
+      );
+      for (final width in [320.0, 390.0, 900.0]) {
+        for (final leftToRight in [true, false]) {
+          tester.view.physicalSize = Size(width, 300);
+          tester.view.devicePixelRatio = 1;
+          final directionalPlan = AmbientWildlifeV2EventPlan.resolve(
+            species: AmbientWildlifeV2Species.birds,
+            leftToRight: leftToRight,
+            nextInt: (max) => max == 20 ? 1 : 0,
+          );
+          await tester.pumpWidget(
+            _stageHost(plan: null, requestId: 0, width: width),
+          );
+          await tester.pumpWidget(
+            _stageHost(plan: directionalPlan, requestId: 1, width: width),
+          );
+          await tester.pump(const Duration(milliseconds: 800));
+          final stage = find.byKey(const ValueKey('ambient-wildlife-v2-stage'));
+          final bird = find.byKey(
+            const ValueKey('ambient-wildlife-v2-bird-instance-0'),
+          );
+          expect(stage, findsOneWidget);
+          expect(bird, findsOneWidget, reason: '$width / $leftToRight');
+          expect(tester.getRect(bird).overlaps(tester.getRect(stage)), isTrue);
+          expect(find.byType(BirdV1Frame), findsWidgets);
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '$width / $leftToRight',
+          );
+        }
+      }
+      expect(plan.birdInstances, hasLength(1));
+    },
+  );
 
   testWidgets(
     'FOX completion waits for the selected pack duration and emits once',
@@ -924,6 +1079,39 @@ void main() {
       expect(stageKey.currentState!.isActive, isTrue);
     },
   );
+
+  testWidgets('production manual queue can select and complete BIRD', (
+    tester,
+  ) async {
+    final stageKey = GlobalKey<AmbientWildlifeV2ProductionStageState>();
+    final rolls = <int>[3, 0, 0, 1, 0];
+    var rollIndex = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: AmbientWildlifeV2ProductionStage(
+              key: stageKey,
+              nextInt: (max) => rolls[rollIndex++ % rolls.length] % max,
+              minimumInterval: const Duration(hours: 1),
+              maximumInterval: const Duration(hours: 1),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(stageKey.currentState!.triggerManualSequence(), isTrue);
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-bird-instance-0')),
+      findsOneWidget,
+    );
+    await tester.pump(BirdV1ProductionFlight.crossingDuration);
+    await tester.pump(const Duration(milliseconds: 5));
+    expect(stageKey.currentState!.isActive, isFalse);
+  });
 
   testWidgets('production scheduler advances from FOX to the next species', (
     tester,
