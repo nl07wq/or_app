@@ -3,6 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 
 void main() {
+  test('temperature range rail reserves numeric telemetry clearance', () {
+    expect(weatherTemperatureRailWidth(296), 88);
+    expect(weatherTemperatureRailWidth(366), 158);
+    expect(weatherTemperatureRailWidth(620), 250);
+    expect(weatherTemperatureRailWidth(320), 112);
+  });
+
   Future<void> pumpSurface(
     WidgetTester tester, {
     required ValueChanged<int> onSwipe,

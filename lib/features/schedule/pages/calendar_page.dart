@@ -119,9 +119,6 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _selected = _dateOnly(date);
       _month = DateTime(date.year, date.month);
-      if (_weatherDisclosure == _WeatherDisclosure.hourly) {
-        _weatherDisclosure = _WeatherDisclosure.details;
-      }
     });
     _load();
   }
@@ -824,59 +821,118 @@ class _WeatherForecastRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 7),
+          key: ValueKey('weather-forecast-row-${value.date}'),
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: scheme.primary.withValues(alpha: .18)),
-              left: selected
-                  ? BorderSide(color: scheme.primary, width: 2)
-                  : BorderSide.none,
+            color: selected ? scheme.surface.withValues(alpha: .30) : null,
+            border: Border.all(
+              color: selected
+                  ? scheme.primary.withValues(alpha: .78)
+                  : scheme.primary.withValues(alpha: .18),
             ),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 50,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(today ? '今日' : _weekdayJapanese(date.weekday)),
-                    Text(
-                      '${date.month}/${date.day}',
-                      style: Theme.of(context).textTheme.labelSmall,
+            borderRadius: BorderRadius.circular(7),
+            gradient: selected
+                ? LinearGradient(
+                    colors: [
+                      scheme.primary.withValues(alpha: .12),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: scheme.primary.withValues(alpha: .10),
+                      blurRadius: 8,
                     ),
-                  ],
-                ),
-              ),
-              Icon(_weatherIcon(value.code), color: scheme.primary, size: 19),
-              const SizedBox(width: 7),
-              SizedBox(width: 36, child: Text('${value.low.round()}°')),
-              Expanded(
-                child: SizedBox(
-                  height: 18,
-                  child: CustomPaint(
-                    painter: _TemperatureRangePainter(
-                      color: scheme.primary,
-                      low: value.low,
-                      high: value.high,
-                      globalLow: globalLow,
-                      globalHigh: globalHigh,
+                  ]
+                : null,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Numeric columns reserve their own space. The rail is capped
+              // rather than consuming the high-temperature/precipitation area.
+              final railWidth = weatherTemperatureRailWidth(
+                constraints.maxWidth,
+              );
+              return Row(
+                children: [
+                  SizedBox(
+                    width: 50,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(today ? '今日' : _weekdayJapanese(date.weekday)),
+                        Text(
+                          '${date.month}/${date.day}',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ),
-              SizedBox(width: 36, child: Text('${value.high.round()}°')),
-              SizedBox(
-                width: 36,
-                child: Text(
-                  '${value.precipitationProbability}%',
-                  textAlign: TextAlign.end,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
-                ),
-              ),
-            ],
+                  Icon(
+                    _weatherIcon(value.code),
+                    color: scheme.primary,
+                    size: 19,
+                  ),
+                  const SizedBox(width: 7),
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      '${value.low.round()}°',
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Semantics(
+                    button: true,
+                    label: '気温レンジの説明',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _showWeatherExplanation(
+                        context,
+                        _WeatherExplanation(
+                          title: '気温レンジ',
+                          value:
+                              'この日: 最低 ${value.low.round()}° / 最高 ${value.high.round()}°',
+                          body: '7日間全体の最低〜最高気温を基準に、この日の最低〜最高気温がどの範囲にあるかを示します。',
+                        ),
+                      ),
+                      child: SizedBox(
+                        key: ValueKey('weather-temperature-rail-${value.date}'),
+                        width: railWidth,
+                        height: 18,
+                        child: CustomPaint(
+                          painter: _TemperatureRangePainter(
+                            color: scheme.primary,
+                            low: value.low,
+                            high: value.high,
+                            globalLow: globalLow,
+                            globalHigh: globalHigh,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  SizedBox(width: 34, child: Text('${value.high.round()}°')),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${value.precipitationProbability}%',
+                      textAlign: TextAlign.end,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -928,6 +984,12 @@ class _TemperatureRangePainter extends CustomPainter {
       oldDelegate.globalLow != globalLow ||
       oldDelegate.globalHigh != globalHigh;
 }
+
+/// Keeps the temperature rail within its own logical column. The 208px
+/// reservation covers day/icon, low/high values, precipitation, and explicit
+/// gaps so the painter cannot draw beneath numeric telemetry.
+double weatherTemperatureRailWidth(double rowWidth) =>
+    (rowWidth - 208).clamp(44.0, 250.0).toDouble();
 
 class _WeatherSummary extends StatelessWidget {
   const _WeatherSummary({
@@ -986,6 +1048,7 @@ class _WeatherDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final forecast = _representativeHourly(_hourlyForDay(snapshot, day));
+    final uvValue = day.uvIndexMax ?? forecast?.uvIndex;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       child: Column(
@@ -997,6 +1060,10 @@ class _WeatherDetails extends StatelessWidget {
               letterSpacing: 1.1,
               color: Theme.of(context).colorScheme.primary,
             ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text('カードをタップすると説明を表示'),
           ),
           const SizedBox(height: 5),
           LayoutBuilder(
@@ -1021,6 +1088,16 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '--'
                                 : '気温 ${forecast.temperature.round()}°',
                             icon: Icons.thermostat_outlined,
+                            onExplain: () => _showWeatherExplanation(
+                              context,
+                              _WeatherExplanation(
+                                title: '体感温度',
+                                value: forecast == null
+                                    ? '--'
+                                    : '体感 ${forecast.apparentTemperature.round()}° / 気温 ${forecast.temperature.round()}°',
+                                body: '気温だけでなく、湿度や風などを考慮した体感上の温度です。',
+                              ),
+                            ),
                           ),
                           _TelemetryModule(
                             label: '湿度',
@@ -1031,6 +1108,16 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '露点 --'
                                 : '露点 ${forecast!.dewPoint!.round()}°',
                             icon: Icons.water_drop_outlined,
+                            onExplain: () => _showWeatherExplanation(
+                              context,
+                              _WeatherExplanation(
+                                title: '湿度・露点',
+                                value: forecast == null
+                                    ? '--'
+                                    : '湿度 ${forecast.humidity}% / 露点 ${forecast.dewPoint?.round() ?? '--'}°',
+                                body: '湿度は空気中の水分量の割合です。露点は空気中の水蒸気が結露し始める温度です。',
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -1043,6 +1130,15 @@ class _WeatherDetails extends StatelessWidget {
                             value: '${day.precipitation.toStringAsFixed(1)} mm',
                             detail: '${day.precipitationProbability}%',
                             icon: Icons.umbrella_outlined,
+                            onExplain: () => _showWeatherExplanation(
+                              context,
+                              _WeatherExplanation(
+                                title: '降水',
+                                value:
+                                    '${day.precipitation.toStringAsFixed(1)} mm / ${day.precipitationProbability}%',
+                                body: 'mmは予想される降水量、%はその日の降水確率を示します。',
+                              ),
+                            ),
                           ),
                           _TelemetryModule(
                             label: '視程',
@@ -1055,6 +1151,16 @@ class _WeatherDetails extends StatelessWidget {
                                     forecast!.visibility!,
                                   ),
                             icon: Icons.visibility_outlined,
+                            onExplain: () => _showWeatherExplanation(
+                              context,
+                              _WeatherExplanation(
+                                title: '視程',
+                                value: forecast?.visibility == null
+                                    ? '--'
+                                    : '${_visibilityValue(forecast!.visibility!)} / ${_visibilityCategoryJapanese(forecast.visibility!)}',
+                                body: '水平方向にどの程度遠くまで見通せるかを示します。',
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -1063,7 +1169,17 @@ class _WeatherDetails extends StatelessWidget {
                         columns: twoColumns ? 2 : 1,
                         children: [
                           _UvTelemetryModule(
-                            value: day.uvIndexMax ?? forecast?.uvIndex,
+                            value: uvValue,
+                            onExplain: () => _showWeatherExplanation(
+                              context,
+                              _WeatherExplanation(
+                                title: 'UV指数',
+                                value: uvValue == null
+                                    ? '--'
+                                    : '${uvValue.toStringAsFixed(0)} / ${_uvCategoryJapanese(uvValue)}',
+                                body: '紫外線の強さを表す指数です。値が高いほど紫外線が強くなります。',
+                              ),
+                            ),
                           ),
                           _TelemetryModule(
                             label: '雲量',
@@ -1072,19 +1188,60 @@ class _WeatherDetails extends StatelessWidget {
                                 : '${forecast.cloudCover}%',
                             detail: '',
                             icon: Icons.cloud_outlined,
+                            onExplain: () => _showWeatherExplanation(
+                              context,
+                              _WeatherExplanation(
+                                title: '雲量',
+                                value: forecast == null
+                                    ? '--'
+                                    : '${forecast.cloudCover}%',
+                                body: '空全体のうち雲に覆われている割合の目安です。',
+                              ),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       _PressureTelemetryModule(
                         value: forecast?.surfacePressure,
+                        onExplain: () => _showWeatherExplanation(
+                          context,
+                          _WeatherExplanation(
+                            title: '気圧',
+                            value: forecast?.surfacePressure == null
+                                ? '--'
+                                : '${forecast!.surfacePressure!.round()} hPa',
+                            body: 'この地点付近の地表面気圧の予報値です。',
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 6),
-                      _WindTelemetryModule(value: forecast),
+                      _WindTelemetryModule(
+                        value: forecast,
+                        onExplain: () => _showWeatherExplanation(
+                          context,
+                          _WeatherExplanation(
+                            title: '風',
+                            value: forecast == null
+                                ? '--'
+                                : '風速 ${forecast.windSpeed.round()} km/h / 突風 ${forecast.windGust.round()} km/h / ${_windDirection(forecast.windDirection)}',
+                            body: '風速は通常の風の強さ、突風は一時的に強く吹く風です。風向は風が吹いてくる方向です。',
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       _SunTelemetryModule(
                         sunrise: day.sunrise,
                         sunset: day.sunset,
+                        onExplain: () => _showWeatherExplanation(
+                          context,
+                          _WeatherExplanation(
+                            title: '日の出・日の入り',
+                            value:
+                                '日の出 ${_shortTime(day.sunrise)} / 日の入り ${_shortTime(day.sunset)}',
+                            body: '選択日の予想日の出・日の入り時刻です。arcは日中の時間帯を視覚的に示します。',
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1109,6 +1266,99 @@ class _WeatherDetails extends StatelessWidget {
     );
   }
 }
+
+class _WeatherExplanation {
+  const _WeatherExplanation({
+    required this.title,
+    required this.value,
+    required this.body,
+  });
+
+  final String title;
+  final String value;
+  final String body;
+}
+
+Future<void> _showWeatherExplanation(
+  BuildContext context,
+  _WeatherExplanation explanation,
+) => showModalBottomSheet<void>(
+  context: context,
+  backgroundColor: Colors.transparent,
+  isScrollControlled: true,
+  builder: (context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 16),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: .95),
+            border: Border.all(color: scheme.primary.withValues(alpha: .58)),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .35),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: .12),
+                Colors.transparent,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: 34,
+                  height: 2,
+                  color: scheme.primary.withValues(alpha: .45),
+                ),
+              ),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, color: scheme.primary, size: 18),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      explanation.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '閉じる',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              if (explanation.value != '--')
+                Text(
+                  explanation.value,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: scheme.primary),
+                ),
+              const SizedBox(height: 7),
+              Text(explanation.body),
+            ],
+          ),
+        ),
+      ),
+    );
+  },
+);
 
 class _TelemetryGrid extends StatelessWidget {
   const _TelemetryGrid({required this.columns, required this.children});
@@ -1138,115 +1388,135 @@ class _TelemetryModule extends StatelessWidget {
     required this.value,
     required this.detail,
     required this.icon,
+    required this.onExplain,
   });
 
   final String label;
   final String value;
   final String detail;
   final IconData icon;
+  final VoidCallback onExplain;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 82),
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .46),
-        border: Border.all(color: scheme.primary.withValues(alpha: .25)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          colors: [scheme.primary.withValues(alpha: .07), Colors.transparent],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 82),
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: .46),
+            border: Border.all(color: scheme.primary.withValues(alpha: .25)),
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: .07),
+                Colors.transparent,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 14, color: scheme.primary),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  label,
+              Row(
+                children: [
+                  Icon(icon, size: 14, color: scheme.primary),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (detail.isNotEmpty)
+                Text(
+                  detail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
-              ),
             ],
           ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: scheme.onSurface,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (detail.isNotEmpty)
-            Text(
-              detail,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _WindTelemetryModule extends StatelessWidget {
-  const _WindTelemetryModule({required this.value});
+  const _WindTelemetryModule({required this.value, required this.onExplain});
   final WeatherHourly? value;
+  final VoidCallback onExplain;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final direction = value?.windDirection;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 96),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .46),
-        border: Border.all(color: scheme.primary.withValues(alpha: .32)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          CustomPaint(
-            size: const Size(68, 68),
-            painter: _WindCompassPainter(
-              color: scheme.primary,
-              direction: direction,
-            ),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 96),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: .46),
+            border: Border.all(color: scheme.primary.withValues(alpha: .32)),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('風', style: Theme.of(context).textTheme.labelSmall),
-                Text(
-                  value == null ? '--' : '${value!.windSpeed.round()} km/h',
-                  style: Theme.of(context).textTheme.titleMedium,
+          child: Row(
+            children: [
+              CustomPaint(
+                size: const Size(68, 68),
+                painter: _WindCompassPainter(
+                  color: scheme.primary,
+                  direction: direction,
                 ),
-                Text(
-                  value == null
-                      ? '突風 -- · 風向 --'
-                      : '突風 ${value!.windGust.round()} km/h · ${_windDirection(direction)}',
-                  style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('風', style: Theme.of(context).textTheme.labelSmall),
+                    Text(
+                      value == null ? '--' : '${value!.windSpeed.round()} km/h',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(
+                      value == null
+                          ? '突風 -- · 風向 --'
+                          : '突風 ${value!.windGust.round()} km/h · ${_windDirection(direction)}',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1311,8 +1581,9 @@ class _WindCompassPainter extends CustomPainter {
 }
 
 class _UvTelemetryModule extends StatelessWidget {
-  const _UvTelemetryModule({required this.value});
+  const _UvTelemetryModule({required this.value, required this.onExplain});
   final double? value;
+  final VoidCallback onExplain;
 
   @override
   Widget build(BuildContext context) {
@@ -1321,100 +1592,130 @@ class _UvTelemetryModule extends StatelessWidget {
       value: value == null ? '--' : value!.toStringAsFixed(0),
       detail: value == null ? '--' : _uvCategoryJapanese(value!),
       icon: Icons.wb_sunny_outlined,
+      onExplain: onExplain,
     );
   }
 }
 
 class _SunTelemetryModule extends StatelessWidget {
-  const _SunTelemetryModule({required this.sunrise, required this.sunset});
+  const _SunTelemetryModule({
+    required this.sunrise,
+    required this.sunset,
+    required this.onExplain,
+  });
   final String sunrise;
   final String sunset;
+  final VoidCallback onExplain;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 86),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .46),
-        border: Border.all(color: scheme.primary.withValues(alpha: .25)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          colors: [scheme.primary.withValues(alpha: .07), Colors.transparent],
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.wb_twilight_outlined, color: scheme.primary, size: 18),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('日の出・日の入り', style: Theme.of(context).textTheme.labelSmall),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: [
-                    Text(
-                      '日の出 ${_shortTime(sunrise)}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Text(
-                      '日の入り ${_shortTime(sunset)}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ],
-                ),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 86),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: .46),
+            border: Border.all(color: scheme.primary.withValues(alpha: .25)),
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: .07),
+                Colors.transparent,
               ],
             ),
           ),
-          CustomPaint(
-            size: const Size(86, 38),
-            painter: _SolarArcPainter(color: scheme.primary),
+          child: Row(
+            children: [
+              Icon(Icons.wb_twilight_outlined, color: scheme.primary, size: 18),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '日の出・日の入り',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      children: [
+                        Text(
+                          '日の出 ${_shortTime(sunrise)}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          '日の入り ${_shortTime(sunset)}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              CustomPaint(
+                size: const Size(86, 38),
+                painter: _SolarArcPainter(color: scheme.primary),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _PressureTelemetryModule extends StatelessWidget {
-  const _PressureTelemetryModule({required this.value});
+  const _PressureTelemetryModule({
+    required this.value,
+    required this.onExplain,
+  });
   final double? value;
+  final VoidCallback onExplain;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 82),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .46),
-        border: Border.all(color: scheme.primary.withValues(alpha: .3)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          CustomPaint(
-            size: const Size(78, 42),
-            painter: _PressureGaugePainter(color: scheme.primary),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 82),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: .46),
+            border: Border.all(color: scheme.primary.withValues(alpha: .3)),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(width: 10),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text('気圧', style: Theme.of(context).textTheme.labelSmall),
-              Text(
-                value == null ? '--' : '${value!.round()} hPa',
-                style: Theme.of(context).textTheme.titleMedium,
+              CustomPaint(
+                size: const Size(78, 42),
+                painter: _PressureGaugePainter(color: scheme.primary),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('気圧', style: Theme.of(context).textTheme.labelSmall),
+                  Text(
+                    value == null ? '--' : '${value!.round()} hPa',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1500,6 +1801,9 @@ class _WeatherHourlyTimeline extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             SingleChildScrollView(
+              key: ValueKey(
+                'weather-hourly-${values.isEmpty ? 'empty' : values.first.time.substring(0, 10)}',
+              ),
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
