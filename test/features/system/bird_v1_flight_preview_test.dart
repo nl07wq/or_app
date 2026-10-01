@@ -66,6 +66,33 @@ void main() {
     },
   );
 
+  test('Flight speed scales only the horizontal crossing duration', () {
+    expect(BirdV1FlightTuning.flightSpeedLabel(BirdV1FlightSpeed.half), '0.5×');
+    expect(BirdV1FlightTuning.flightSpeedLabel(BirdV1FlightSpeed.one), '1×');
+    expect(
+      BirdV1FlightTuning.flightSpeedLabel(BirdV1FlightSpeed.onePointFive),
+      '1.5×',
+    );
+    expect(BirdV1FlightTuning.flightSpeedLabel(BirdV1FlightSpeed.two), '2×');
+    expect(BirdV1FlightTuning.crossingDurationMs(BirdV1FlightSpeed.half), 4400);
+    expect(BirdV1FlightTuning.crossingDurationMs(BirdV1FlightSpeed.one), 2200);
+    expect(
+      BirdV1FlightTuning.crossingDurationMs(BirdV1FlightSpeed.onePointFive),
+      1467,
+    );
+    expect(BirdV1FlightTuning.crossingDurationMs(BirdV1FlightSpeed.two), 1100);
+    expect(BirdV1FlightTuning.holdsFor(BirdV1Cadence.glide), const [
+      70,
+      55,
+      55,
+      75,
+      160,
+      180,
+    ]);
+    expect(BirdV1FlightTuning.transitionMs(BirdV1Transition.ms20), 20);
+    expect(BirdV1FlightTuning.transitionMs(BirdV1Transition.ms35), 35);
+  });
+
   test('Bob and bird-specific flutter are continuous at a cadence seam', () {
     const cadence = BirdV1Cadence.current;
     final period = BirdV1FlightTuning.cycleDurationMs(cadence);
@@ -101,6 +128,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('FRAME SET'), findsOneWidget);
+      expect(find.text('FLIGHT SPEED'), findsOneWidget);
       expect(find.text('CADENCE'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'width $width');
     }

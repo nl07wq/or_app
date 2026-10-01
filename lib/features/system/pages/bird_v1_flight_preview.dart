@@ -258,11 +258,16 @@ enum BirdV1Cadence { current, smooth, glide }
 
 enum BirdV1Transition { off, ms20, ms35 }
 
+/// Production-preview horizontal translation only. This deliberately has no
+/// relationship to flap cadence, cross-fade, bob, or flutter timing.
+enum BirdV1FlightSpeed { half, one, onePointFive, two }
+
 /// Production-preview-only timing authority. It never changes the canonical
 /// source cycle, source assets, or any production Ambient registry.
 abstract final class BirdV1FlightTuning {
   static const tickerIntervalMs = 20;
   static const minimumFrameCount = 2;
+  static const baselineCrossingDurationMs = 2200;
   static const birdFlutterVerticalAmplitude = 0.45;
   static const birdFlutterRotationAmplitude = 0.004;
 
@@ -282,6 +287,24 @@ abstract final class BirdV1FlightTuning {
     BirdV1Transition.ms20 => 20,
     BirdV1Transition.ms35 => 35,
   };
+
+  static double flightSpeedMultiplier(BirdV1FlightSpeed value) =>
+      switch (value) {
+        BirdV1FlightSpeed.half => 0.5,
+        BirdV1FlightSpeed.one => 1,
+        BirdV1FlightSpeed.onePointFive => 1.5,
+        BirdV1FlightSpeed.two => 2,
+      };
+
+  static String flightSpeedLabel(BirdV1FlightSpeed value) => switch (value) {
+    BirdV1FlightSpeed.half => '0.5×',
+    BirdV1FlightSpeed.one => '1×',
+    BirdV1FlightSpeed.onePointFive => '1.5×',
+    BirdV1FlightSpeed.two => '2×',
+  };
+
+  static int crossingDurationMs(BirdV1FlightSpeed value) =>
+      (baselineCrossingDurationMs / flightSpeedMultiplier(value)).round();
 
   static List<int> holdsFor(BirdV1Cadence cadence) => switch (cadence) {
     BirdV1Cadence.current => currentHoldsMs,
@@ -344,7 +367,7 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
   var _playing = false;
   var _flutter = true;
   var _leftToRight = true;
-  var _speed = '1×';
+  var _speed = BirdV1FlightSpeed.one;
   var _count = 1;
   var _cadence = BirdV1Cadence.current;
   var _transition = BirdV1Transition.off;
@@ -352,7 +375,7 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
   final _frameSet = List<bool>.filled(BirdV1SourceSet.cycle.length, true);
   String? _frameSetFeedback;
 
-  int get _crossingDuration => _speed == '0.5×' ? 4400 : 2200;
+  int get _crossingDuration => BirdV1FlightTuning.crossingDurationMs(_speed);
   List<int> get _activeFrames =>
       BirdV1FlightTuning.filteredForwardCycle(_frameSet);
   List<int> get _holds => BirdV1FlightTuning.holdsFor(_cadence);
@@ -472,7 +495,9 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
                 'SET $setReadout · ${_cadence.name.toUpperCase()} · '
                 'TRANSITION ${transitionMs}ms · '
                 'BOB ${bob.toStringAsFixed(1)}px · '
-                'FLUTTER ${_flutter ? 'ON' : 'OFF'} · $_speed · ×$_count · '
+                'FLUTTER ${_flutter ? 'ON' : 'OFF'} · '
+                'FLIGHT ${BirdV1FlightTuning.flightSpeedLabel(_speed)} · '
+                '×$_count · '
                 '${_leftToRight ? 'L→R' : 'R→L'}',
               ),
               SizedBox(
@@ -557,19 +582,14 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
                   () => setState(() => _leftToRight = false),
                 ),
               ]),
-              _controlRow('SPEED', [
-                _option(
-                  'bird-v1-production-speed-1x',
-                  '1×',
-                  _speed == '1×',
-                  () => setState(() => _speed = '1×'),
-                ),
-                _option(
-                  'bird-v1-production-speed-half',
-                  '0.5×',
-                  _speed == '0.5×',
-                  () => setState(() => _speed = '0.5×'),
-                ),
+              _controlRow('FLIGHT SPEED', [
+                for (final speed in BirdV1FlightSpeed.values)
+                  _option(
+                    'bird-v1-production-speed-${speed.name}',
+                    BirdV1FlightTuning.flightSpeedLabel(speed),
+                    _speed == speed,
+                    () => setState(() => _speed = speed),
+                  ),
               ]),
               _controlRow('COUNT', [
                 for (final count in [1, 2, 3])
