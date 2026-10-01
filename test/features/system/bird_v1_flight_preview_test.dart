@@ -42,7 +42,7 @@ void main() {
   );
 
   test(
-    'Cadences preserve current timing and give Smooth and Glide distinct holds',
+    'Cadences preserve current timing and Cruise is the rounded Smooth/Glide midpoint',
     () {
       expect(BirdV1FlightTuning.holdsFor(BirdV1Cadence.current), const [
         40,
@@ -54,7 +54,29 @@ void main() {
       ]);
       expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.current), 240);
       expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.smooth), 370);
+      expect(BirdV1FlightTuning.holdsFor(BirdV1Cadence.cruise), const [
+        63,
+        55,
+        58,
+        68,
+        115,
+        125,
+      ]);
+      expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.cruise), 484);
       expect(BirdV1FlightTuning.cycleDurationMs(BirdV1Cadence.glide), 595);
+      for (var index = 0; index < BirdV1SourceSet.cycle.length; index++) {
+        final smooth = BirdV1FlightTuning.smoothHoldsMs[index];
+        final glide = BirdV1FlightTuning.glideHoldsMs[index];
+        final cruise = BirdV1FlightTuning.cruiseHoldsMs[index];
+        expect(cruise, ((smooth + glide) / 2).round());
+        expect(
+          cruise,
+          inInclusiveRange(
+            smooth < glide ? smooth : glide,
+            smooth > glide ? smooth : glide,
+          ),
+        );
+      }
       expect(
         BirdV1FlightTuning.holdsFor(BirdV1Cadence.glide)[4],
         greaterThan(BirdV1FlightTuning.holdsFor(BirdV1Cadence.smooth)[4]),
@@ -91,6 +113,42 @@ void main() {
     ]);
     expect(BirdV1FlightTuning.transitionMs(BirdV1Transition.ms20), 20);
     expect(BirdV1FlightTuning.transitionMs(BirdV1Transition.ms35), 35);
+    expect(BirdV1FlightTuning.transitionMs(BirdV1Transition.overlap20), 20);
+    expect(BirdV1FlightTuning.holdsFor(BirdV1Cadence.cruise), const [
+      63,
+      55,
+      58,
+      68,
+      115,
+      125,
+    ]);
+  });
+
+  test('Overlap transition retains a fully opaque cel through both phases', () {
+    expect(BirdV1FlightTuning.transitionOpacities(BirdV1Transition.off, 0), (
+      outgoing: 0,
+      incoming: 1,
+    ));
+    expect(BirdV1FlightTuning.transitionOpacities(BirdV1Transition.ms20, 10), (
+      outgoing: 0.5,
+      incoming: 0.5,
+    ));
+    expect(
+      BirdV1FlightTuning.transitionOpacities(BirdV1Transition.overlap20, 0),
+      (outgoing: 1, incoming: 0),
+    );
+    expect(
+      BirdV1FlightTuning.transitionOpacities(BirdV1Transition.overlap20, 10),
+      (outgoing: 1, incoming: 1),
+    );
+    expect(
+      BirdV1FlightTuning.transitionOpacities(BirdV1Transition.overlap20, 15),
+      (outgoing: 0.5, incoming: 1),
+    );
+    expect(
+      BirdV1FlightTuning.transitionOpacities(BirdV1Transition.overlap20, 20),
+      (outgoing: 0, incoming: 1),
+    );
   });
 
   test('Bob and bird-specific flutter are continuous at a cadence seam', () {
@@ -130,6 +188,7 @@ void main() {
       expect(find.text('FRAME SET'), findsOneWidget);
       expect(find.text('FLIGHT SPEED'), findsOneWidget);
       expect(find.text('CADENCE'), findsOneWidget);
+      expect(find.text('OVERLAP 20'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'width $width');
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));

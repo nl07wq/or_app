@@ -254,9 +254,9 @@ class BirdV1Frame extends StatelessWidget {
   );
 }
 
-enum BirdV1Cadence { current, smooth, glide }
+enum BirdV1Cadence { current, smooth, cruise, glide }
 
-enum BirdV1Transition { off, ms20, ms35 }
+enum BirdV1Transition { off, ms20, ms35, overlap20 }
 
 /// Production-preview horizontal translation only. This deliberately has no
 /// relationship to flap cadence, cross-fade, bob, or flutter timing.
@@ -278,6 +278,10 @@ abstract final class BirdV1FlightTuning {
   /// extended wing poses have room to read.
   static const smoothHoldsMs = <int>[55, 55, 60, 60, 70, 70];
 
+  /// Cruise is the rounded midpoint between Smooth and Glide for each pose.
+  /// It gives the broad-wing cels breathing room without Glide's heavy hold.
+  static const cruiseHoldsMs = <int>[63, 55, 58, 68, 115, 125];
+
   /// Glide intentionally holds the two broad-wing poses (05/06), rather than
   /// slowing every cel by one uniform multiplier.
   static const glideHoldsMs = <int>[70, 55, 55, 75, 160, 180];
@@ -286,7 +290,38 @@ abstract final class BirdV1FlightTuning {
     BirdV1Transition.off => 0,
     BirdV1Transition.ms20 => 20,
     BirdV1Transition.ms35 => 35,
+    BirdV1Transition.overlap20 => 20,
   };
+
+  static String transitionLabel(BirdV1Transition value) => switch (value) {
+    BirdV1Transition.off => 'OFF',
+    BirdV1Transition.ms20 => 'CROSS 20',
+    BirdV1Transition.ms35 => 'CROSS 35',
+    BirdV1Transition.overlap20 => 'OVERLAP 20',
+  };
+
+  /// Returns outgoing/incoming sprite alpha within the current frame hold.
+  /// Overlap is intentionally sequential: one cel remains fully visible
+  /// throughout each half so the two cels are never simultaneously dim.
+  static ({double outgoing, double incoming}) transitionOpacities(
+    BirdV1Transition transition,
+    int elapsedMs,
+  ) {
+    final durationMs = transitionMs(transition);
+    if (durationMs == 0 || elapsedMs >= durationMs) {
+      return (outgoing: 0, incoming: 1);
+    }
+    if (transition != BirdV1Transition.overlap20) {
+      final blend = elapsedMs / durationMs;
+      return (outgoing: 1 - blend, incoming: blend);
+    }
+
+    const halfMs = 10;
+    if (elapsedMs <= halfMs) {
+      return (outgoing: 1, incoming: elapsedMs / halfMs);
+    }
+    return (outgoing: 1 - ((elapsedMs - halfMs) / halfMs), incoming: 1);
+  }
 
   static double flightSpeedMultiplier(BirdV1FlightSpeed value) =>
       switch (value) {
@@ -309,6 +344,7 @@ abstract final class BirdV1FlightTuning {
   static List<int> holdsFor(BirdV1Cadence cadence) => switch (cadence) {
     BirdV1Cadence.current => currentHoldsMs,
     BirdV1Cadence.smooth => smoothHoldsMs,
+    BirdV1Cadence.cruise => cruiseHoldsMs,
     BirdV1Cadence.glide => glideHoldsMs,
   };
 
@@ -476,7 +512,10 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
         .join('·');
     final transitionMs = BirdV1FlightTuning.transitionMs(_transition);
     final blending = transitionMs > 0 && _flapElapsed < transitionMs;
-    final blend = blending ? _flapElapsed / transitionMs : 1.0;
+    final opacities = BirdV1FlightTuning.transitionOpacities(
+      _transition,
+      _flapElapsed,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -493,7 +532,7 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
               Text(
                 'FRAME ${(_frame + 1).toString().padLeft(2, '0')} · '
                 'SET $setReadout · ${_cadence.name.toUpperCase()} · '
-                'TRANSITION ${transitionMs}ms · '
+                'TRANSITION ${BirdV1FlightTuning.transitionLabel(_transition)} · '
                 'BOB ${bob.toStringAsFixed(1)}px · '
                 'FLUTTER ${_flutter ? 'ON' : 'OFF'} · '
                 'FLIGHT ${BirdV1FlightTuning.flightSpeedLabel(_speed)} · '
@@ -516,7 +555,7 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
                               children: [
                                 if (blending)
                                   Opacity(
-                                    opacity: 1 - blend,
+                                    opacity: opacities.outgoing,
                                     child: BirdV1Frame(
                                       frame: _previousFrame,
                                       leftToRight: _leftToRight,
@@ -525,7 +564,7 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
                                     ),
                                   ),
                                 Opacity(
-                                  opacity: blend,
+                                  opacity: opacities.incoming,
                                   child: BirdV1Frame(
                                     frame:
                                         _activeFrames[(_activeFrames.indexOf(
@@ -633,8 +672,9 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
                     'bird-v1-production-transition-${value.name}',
                     switch (value) {
                       BirdV1Transition.off => 'OFF',
-                      BirdV1Transition.ms20 => '20ms',
-                      BirdV1Transition.ms35 => '35ms',
+                      BirdV1Transition.ms20 => 'CROSS 20',
+                      BirdV1Transition.ms35 => 'CROSS 35',
+                      BirdV1Transition.overlap20 => 'OVERLAP 20',
                     },
                     _transition == value,
                     () => setState(() => _transition = value),
