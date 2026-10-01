@@ -239,7 +239,7 @@ void main() {
             ),
           )
           .onPressed,
-      isNull,
+      isNotNull,
     );
     await tester.tap(find.byKey(const ValueKey('wildlife-preview-fox')));
     await tester.pump();
