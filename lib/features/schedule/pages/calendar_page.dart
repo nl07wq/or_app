@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -14,6 +15,7 @@ import '../../weather/weather_service.dart';
 import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
 import '../models/schedule_plan_revision.dart';
+import '../weather_forecast_summary.dart';
 
 enum _WeatherDisclosure { collapsed, sevenDay, details, hourly }
 
@@ -526,6 +528,7 @@ class _CalendarWeatherHud extends StatelessWidget {
                     const SizedBox(height: 3),
                     _WeatherForecastList(
                       values: snapshot!.daily.take(7).toList(growable: false),
+                      snapshot: snapshot!,
                       selectedDate: selectedDate,
                       onSelectDate: onSelectDate,
                     ),
@@ -558,17 +561,17 @@ class _CalendarWeatherHud extends StatelessWidget {
                       hourlyAvailable: hourly.isNotEmpty,
                       onToggleHourly: onToggleHourly,
                     ),
-                  if (detailsVisible)
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(12, 3, 12, 0),
-                      child: _OpenMeteoAttribution(),
-                    ),
                 ],
               ],
             ),
           ),
           if (detailsVisible && disclosure == _WeatherDisclosure.hourly)
             _WeatherHourlyTimeline(values: hourly),
+          if (snapshot != null && disclosure != _WeatherDisclosure.collapsed)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 5, 12, 0),
+              child: _OpenMeteoAttribution(),
+            ),
         ],
       ),
     );
@@ -758,11 +761,13 @@ class _WeatherMessage extends StatelessWidget {
 class _WeatherForecastList extends StatelessWidget {
   const _WeatherForecastList({
     required this.values,
+    required this.snapshot,
     required this.selectedDate,
     required this.onSelectDate,
   });
 
   final List<WeatherDaily> values;
+  final WeatherSnapshot snapshot;
   final String selectedDate;
   final ValueChanged<String> onSelectDate;
 
@@ -785,6 +790,10 @@ class _WeatherForecastList extends StatelessWidget {
                 today: _sameDay(DateTime.parse(value.date), today),
                 globalLow: globalLow,
                 globalHigh: globalHigh,
+                summary: WeatherForecastSummaryEngine.summarize(
+                  day: value,
+                  hourly: _hourlyForDay(snapshot, value),
+                ),
                 onTap: () => onSelectDate(value.date),
               ),
           ],
@@ -801,6 +810,7 @@ class _WeatherForecastRow extends StatelessWidget {
     required this.today,
     required this.globalLow,
     required this.globalHigh,
+    required this.summary,
     required this.onTap,
   });
 
@@ -809,6 +819,7 @@ class _WeatherForecastRow extends StatelessWidget {
   final bool today;
   final double globalLow;
   final double globalHigh;
+  final WeatherForecastSummary summary;
   final VoidCallback onTap;
 
   @override
@@ -819,7 +830,21 @@ class _WeatherForecastRow extends StatelessWidget {
       button: true,
       label: '${value.date}, ${_weatherConditionJapanese(value.code)}',
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          onTap();
+          _showWeatherExplanation(
+            context,
+            _WeatherExplanation(
+              title:
+                  '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}）',
+              value:
+                  '${_weatherConditionJapanese(value.code)} · ${value.low.round()}° / ${value.high.round()}° · 降水確率 ${value.precipitationProbability}%',
+              body: 'この日の時間別予報をまとめています。',
+              forecastSummary: summary.primary,
+              supportingData: summary.supporting,
+            ),
+          );
+        },
         child: Container(
           key: ValueKey('weather-forecast-row-${value.date}'),
           margin: const EdgeInsets.symmetric(vertical: 2),
@@ -899,6 +924,7 @@ class _WeatherForecastRow extends StatelessWidget {
                           value:
                               'この日: 最低 ${value.low.round()}° / 最高 ${value.high.round()}°',
                           body: '7日間全体の最低〜最高気温を基準に、この日の最低〜最高気温がどの範囲にあるかを示します。',
+                          forecastSummary: '週間の中で、この日の気温帯がどこに位置するかを比較できます。',
                         ),
                       ),
                       child: SizedBox(
@@ -1047,7 +1073,12 @@ class _WeatherDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final forecast = _representativeHourly(_hourlyForDay(snapshot, day));
+    final hourly = _hourlyForDay(snapshot, day);
+    final forecast = _representativeHourly(hourly);
+    final daySummary = WeatherForecastSummaryEngine.summarize(
+      day: day,
+      hourly: hourly,
+    );
     final uvValue = day.uvIndexMax ?? forecast?.uvIndex;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
@@ -1063,7 +1094,7 @@ class _WeatherDetails extends StatelessWidget {
           ),
           const Padding(
             padding: EdgeInsets.only(top: 2),
-            child: Text('カードをタップすると説明を表示'),
+            child: Text('カードをタップすると詳細を表示'),
           ),
           const SizedBox(height: 5),
           LayoutBuilder(
@@ -1096,6 +1127,10 @@ class _WeatherDetails extends StatelessWidget {
                                     ? '--'
                                     : '体感 ${forecast.apparentTemperature.round()}° / 気温 ${forecast.temperature.round()}°',
                                 body: '気温だけでなく、湿度や風などを考慮した体感上の温度です。',
+                                forecastSummary: forecast == null
+                                    ? daySummary.primary
+                                    : _feelsLikeSummary(forecast),
+                                supportingData: daySummary.supporting,
                               ),
                             ),
                           ),
@@ -1116,6 +1151,10 @@ class _WeatherDetails extends StatelessWidget {
                                     ? '--'
                                     : '湿度 ${forecast.humidity}% / 露点 ${forecast.dewPoint?.round() ?? '--'}°',
                                 body: '湿度は空気中の水分量の割合です。露点は空気中の水蒸気が結露し始める温度です。',
+                                forecastSummary: forecast == null
+                                    ? daySummary.primary
+                                    : 'この日の代表値は湿度 ${forecast.humidity}%、露点 ${forecast.dewPoint?.round() ?? '--'}° の予報です。',
+                                supportingData: daySummary.supporting,
                               ),
                             ),
                           ),
@@ -1137,6 +1176,8 @@ class _WeatherDetails extends StatelessWidget {
                                 value:
                                     '${day.precipitation.toStringAsFixed(1)} mm / ${day.precipitationProbability}%',
                                 body: 'mmは予想される降水量、%はその日の降水確率を示します。',
+                                forecastSummary: daySummary.primary,
+                                supportingData: daySummary.supporting,
                               ),
                             ),
                           ),
@@ -1159,6 +1200,10 @@ class _WeatherDetails extends StatelessWidget {
                                     ? '--'
                                     : '${_visibilityValue(forecast!.visibility!)} / ${_visibilityCategoryJapanese(forecast.visibility!)}',
                                 body: '水平方向にどの程度遠くまで見通せるかを示します。',
+                                forecastSummary: forecast?.visibility == null
+                                    ? daySummary.primary
+                                    : 'この日の代表的な視程は${_visibilityCategoryJapanese(forecast!.visibility!)}です。',
+                                supportingData: daySummary.supporting,
                               ),
                             ),
                           ),
@@ -1178,6 +1223,10 @@ class _WeatherDetails extends StatelessWidget {
                                     ? '--'
                                     : '${uvValue.toStringAsFixed(0)} / ${_uvCategoryJapanese(uvValue)}',
                                 body: '紫外線の強さを表す指数です。値が高いほど紫外線が強くなります。',
+                                forecastSummary: uvValue == null
+                                    ? daySummary.primary
+                                    : 'この日のUV指数の最大値は ${uvValue.toStringAsFixed(0)}（${_uvCategoryJapanese(uvValue)}）の予報です。',
+                                supportingData: daySummary.supporting,
                               ),
                             ),
                           ),
@@ -1196,6 +1245,10 @@ class _WeatherDetails extends StatelessWidget {
                                     ? '--'
                                     : '${forecast.cloudCover}%',
                                 body: '空全体のうち雲に覆われている割合の目安です。',
+                                forecastSummary: forecast == null
+                                    ? daySummary.primary
+                                    : 'この日の代表的な雲量は ${forecast.cloudCover}% の予報です。',
+                                supportingData: daySummary.supporting,
                               ),
                             ),
                           ),
@@ -1212,6 +1265,10 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '--'
                                 : '${forecast!.surfacePressure!.round()} hPa',
                             body: 'この地点付近の地表面気圧の予報値です。',
+                            forecastSummary: forecast?.surfacePressure == null
+                                ? daySummary.primary
+                                : 'この日の代表的な地表面気圧は ${forecast!.surfacePressure!.round()} hPa の予報です。',
+                            supportingData: daySummary.supporting,
                           ),
                         ),
                       ),
@@ -1226,6 +1283,8 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '--'
                                 : '風速 ${forecast.windSpeed.round()} km/h / 突風 ${forecast.windGust.round()} km/h / ${_windDirection(forecast.windDirection)}',
                             body: '風速は通常の風の強さ、突風は一時的に強く吹く風です。風向は風が吹いてくる方向です。',
+                            forecastSummary: _windForecastSummary(daySummary),
+                            supportingData: daySummary.supporting,
                           ),
                         ),
                       ),
@@ -1240,6 +1299,9 @@ class _WeatherDetails extends StatelessWidget {
                             value:
                                 '日の出 ${_shortTime(day.sunrise)} / 日の入り ${_shortTime(day.sunset)}',
                             body: '選択日の予想日の出・日の入り時刻です。arcは日中の時間帯を視覚的に示します。',
+                            forecastSummary:
+                                '日照可能時間は約 ${_daylightDuration(day.sunrise, day.sunset)} です。',
+                            supportingData: daySummary.supporting,
                           ),
                         ),
                       ),
@@ -1272,11 +1334,15 @@ class _WeatherExplanation {
     required this.title,
     required this.value,
     required this.body,
+    this.forecastSummary,
+    this.supportingData = const [],
   });
 
   final String title;
   final String value;
   final String body;
+  final String? forecastSummary;
+  final List<String> supportingData;
 }
 
 Future<void> _showWeatherExplanation(
@@ -1285,6 +1351,7 @@ Future<void> _showWeatherExplanation(
 ) => showModalBottomSheet<void>(
   context: context,
   backgroundColor: Colors.transparent,
+  barrierColor: Colors.black.withValues(alpha: .28),
   isScrollControlled: true,
   builder: (context) {
     final scheme = Theme.of(context).colorScheme;
@@ -1292,67 +1359,115 @@ Future<void> _showWeatherExplanation(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 10, 12, 16),
-          decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: .95),
-            border: Border.all(color: scheme.primary.withValues(alpha: .58)),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .35),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-            gradient: LinearGradient(
-              colors: [
-                scheme.primary.withValues(alpha: .12),
-                Colors.transparent,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Align(
-                alignment: Alignment.center,
-                child: Container(
-                  width: 34,
-                  height: 2,
-                  color: scheme.primary.withValues(alpha: .45),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 560),
+              padding: const EdgeInsets.fromLTRB(16, 10, 12, 16),
+              decoration: BoxDecoration(
+                color: scheme.surface.withValues(alpha: .92),
+                border: Border.all(
+                  color: scheme.primary.withValues(alpha: .62),
                 ),
-              ),
-              Row(
-                children: [
-                  Icon(Icons.info_outline, color: scheme.primary, size: 18),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Text(
-                      explanation.title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '閉じる',
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .42),
+                    blurRadius: 22,
+                    offset: const Offset(0, 8),
                   ),
                 ],
-              ),
-              if (explanation.value != '--')
-                Text(
-                  explanation.value,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: scheme.primary),
+                gradient: LinearGradient(
+                  colors: [
+                    scheme.primary.withValues(alpha: .14),
+                    Colors.black.withValues(alpha: .18),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              const SizedBox(height: 7),
-              Text(explanation.body),
-            ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 34,
+                      height: 2,
+                      color: scheme.primary.withValues(alpha: .45),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: scheme.primary, size: 18),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          explanation.title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: '閉じる',
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  if (explanation.value != '--')
+                    Text(
+                      explanation.value,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: scheme.primary),
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '指標について',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: .72),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    explanation.body,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: .82),
+                    ),
+                  ),
+                  if (explanation.forecastSummary != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(
+                        color: scheme.primary.withValues(alpha: .28),
+                      ),
+                    ),
+                    Text(
+                      '選択日の予報',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: scheme.primary),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      explanation.forecastSummary!,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    for (final item in explanation.supportingData)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          item,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1879,6 +1994,31 @@ WeatherHourly? _representativeHourly(List<WeatherHourly> values) {
     if (value.time.endsWith('T12:00')) return value;
   }
   return _firstHourly(values);
+}
+
+String _feelsLikeSummary(WeatherHourly forecast) {
+  final difference = forecast.apparentTemperature - forecast.temperature;
+  if (difference.abs() <= 1) {
+    return '実気温 ${forecast.temperature.round()}° とほぼ同程度に感じる予報です。';
+  }
+  return difference > 0
+      ? '実気温より ${difference.round()}° 高く感じる予報です。'
+      : '実気温より ${difference.abs().round()}° 低く感じる予報です。';
+}
+
+String _windForecastSummary(WeatherForecastSummary summary) {
+  for (final item in summary.supporting) {
+    if (item.contains('風が強まり')) return item;
+  }
+  return summary.primary;
+}
+
+String _daylightDuration(String sunrise, String sunset) {
+  final start = DateTime.tryParse(sunrise);
+  final end = DateTime.tryParse(sunset);
+  if (start == null || end == null) return '--';
+  final duration = end.difference(start);
+  return '${duration.inHours}時間${duration.inMinutes.remainder(60).toString().padLeft(2, '0')}分';
 }
 
 String _windDirection(double? degrees) {
