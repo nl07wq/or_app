@@ -39,6 +39,7 @@ class _CalendarPageState extends State<CalendarPage> {
   bool _weatherStale = false;
   String? _weatherError;
   _WeatherDisclosure _weatherDisclosure = _WeatherDisclosure.collapsed;
+  bool _weatherHourlyExpanded = false;
 
   @override
   void initState() {
@@ -122,6 +123,7 @@ class _CalendarPageState extends State<CalendarPage> {
       if (_weatherDisclosure == _WeatherDisclosure.hourly) {
         _weatherDisclosure = _WeatherDisclosure.details;
       }
+      _weatherHourlyExpanded = false;
     });
     _load();
   }
@@ -139,7 +141,10 @@ class _CalendarPageState extends State<CalendarPage> {
   /// contextual Weather layer before that action proceeds.
   void _collapseWeatherForCalendarAction() {
     if (_weatherDisclosure != _WeatherDisclosure.collapsed) {
-      setState(() => _weatherDisclosure = _WeatherDisclosure.collapsed);
+      setState(() {
+        _weatherDisclosure = _WeatherDisclosure.collapsed;
+        _weatherHourlyExpanded = false;
+      });
     }
   }
 
@@ -216,90 +221,113 @@ class _CalendarPageState extends State<CalendarPage> {
                   onShowDetails: () => setState(
                     () => _weatherDisclosure = _WeatherDisclosure.details,
                   ),
-                  onToggleHourly: () => setState(
-                    () => _weatherDisclosure =
+                  onToggleHourly: () => setState(() {
+                    _weatherDisclosure =
                         _weatherDisclosure == _WeatherDisclosure.hourly
                         ? _WeatherDisclosure.details
-                        : _WeatherDisclosure.hourly,
+                        : _WeatherDisclosure.hourly;
+                    _weatherHourlyExpanded = false;
+                  }),
+                  hourlyExpanded: _weatherHourlyExpanded,
+                  onToggleHourlyExpanded: () => setState(
+                    () => _weatherHourlyExpanded = !_weatherHourlyExpanded,
                   ),
                 ),
-                AppSpacing.gapLG,
-                _MonthGrid(
-                  month: _month,
-                  selected: _selected,
-                  byDate: _byDate,
-                  onPrevious: () {
-                    _collapseWeatherForCalendarAction();
-                    setState(
-                      () => _month = DateTime(_month.year, _month.month - 1),
-                    );
-                    _load();
-                  },
-                  onNext: () {
-                    _collapseWeatherForCalendarAction();
-                    setState(
-                      () => _month = DateTime(_month.year, _month.month + 1),
-                    );
-                    _load();
-                  },
-                  onToday: () {
-                    _collapseWeatherForCalendarAction();
-                    final now = _dateOnly(DateTime.now());
-                    setState(() {
-                      _selected = now;
-                      _month = DateTime(now.year, now.month);
-                    });
-                    _load();
-                  },
-                  onSelect: (date) {
-                    _collapseWeatherForCalendarAction();
-                    setState(() => _selected = date);
-                  },
-                ),
-                AppSpacing.gapLG,
-                SectionHeader(icon: Icons.timeline, title: "TODAY'S TIMELINE"),
-                Text(
-                  '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                AppSpacing.gapSM,
-                if (_selectedSchedules.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      'NO PLANNED ENTRIES',
-                      textAlign: TextAlign.center,
-                    ),
+                GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _collapseWeatherForCalendarAction,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AppSpacing.gapLG,
+                      _MonthGrid(
+                        month: _month,
+                        selected: _selected,
+                        byDate: _byDate,
+                        onPrevious: () {
+                          _collapseWeatherForCalendarAction();
+                          setState(
+                            () => _month = DateTime(
+                              _month.year,
+                              _month.month - 1,
+                            ),
+                          );
+                          _load();
+                        },
+                        onNext: () {
+                          _collapseWeatherForCalendarAction();
+                          setState(
+                            () => _month = DateTime(
+                              _month.year,
+                              _month.month + 1,
+                            ),
+                          );
+                          _load();
+                        },
+                        onToday: () {
+                          _collapseWeatherForCalendarAction();
+                          final now = _dateOnly(DateTime.now());
+                          setState(() {
+                            _selected = now;
+                            _month = DateTime(now.year, now.month);
+                          });
+                          _load();
+                        },
+                        onSelect: (date) {
+                          _collapseWeatherForCalendarAction();
+                          setState(() => _selected = date);
+                        },
+                      ),
+                      AppSpacing.gapLG,
+                      SectionHeader(
+                        icon: Icons.timeline,
+                        title: "TODAY'S TIMELINE",
+                      ),
+                      Text(
+                        '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      AppSpacing.gapSM,
+                      if (_selectedSchedules.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            'NO PLANNED ENTRIES',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      for (final record in _selectedSchedules)
+                        Dismissible(
+                          key: ValueKey('schedule-entry-${record.id}'),
+                          direction: DismissDirection.endToStart,
+                          background: const _TimelineDeleteBackground(),
+                          confirmDismiss: (_) => _confirmDelete(record),
+                          onDismissed: (_) => _deleteRecord(record),
+                          child: _TimelineEntry(
+                            record: record,
+                            onTap: () {
+                              _collapseWeatherForCalendarAction();
+                              _openEditor(record);
+                            },
+                            onReminderToggle:
+                                record.kind == ScheduleEntryKind.reminder
+                                ? () => _toggleReminder(record)
+                                : null,
+                            onMove: (minutes) => _moveTimed(record, minutes),
+                          ),
+                        ),
+                      AppSpacing.gapMD,
+                      OperationButton(
+                        text: 'ADD ENTRY',
+                        icon: Icons.add,
+                        onPressed: () {
+                          _collapseWeatherForCalendarAction();
+                          _openEditor();
+                        },
+                        role: OperationActionRole.primary,
+                      ),
+                    ],
                   ),
-                for (final record in _selectedSchedules)
-                  Dismissible(
-                    key: ValueKey('schedule-entry-${record.id}'),
-                    direction: DismissDirection.endToStart,
-                    background: const _TimelineDeleteBackground(),
-                    confirmDismiss: (_) => _confirmDelete(record),
-                    onDismissed: (_) => _deleteRecord(record),
-                    child: _TimelineEntry(
-                      record: record,
-                      onTap: () {
-                        _collapseWeatherForCalendarAction();
-                        _openEditor(record);
-                      },
-                      onReminderToggle:
-                          record.kind == ScheduleEntryKind.reminder
-                          ? () => _toggleReminder(record)
-                          : null,
-                      onMove: (minutes) => _moveTimed(record, minutes),
-                    ),
-                  ),
-                AppSpacing.gapMD,
-                OperationButton(
-                  text: 'ADD ENTRY',
-                  icon: Icons.add,
-                  onPressed: () {
-                    _collapseWeatherForCalendarAction();
-                    _openEditor();
-                  },
-                  role: OperationActionRole.primary,
                 ),
               ],
             ),
@@ -417,6 +445,8 @@ class _CalendarWeatherHud extends StatelessWidget {
     required this.onToggleDisclosure,
     required this.onShowDetails,
     required this.onToggleHourly,
+    required this.hourlyExpanded,
+    required this.onToggleHourlyExpanded,
   });
 
   final WeatherLocationPreferences preferences;
@@ -434,6 +464,8 @@ class _CalendarWeatherHud extends StatelessWidget {
   final VoidCallback onToggleDisclosure;
   final VoidCallback onShowDetails;
   final VoidCallback onToggleHourly;
+  final bool hourlyExpanded;
+  final VoidCallback onToggleHourlyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -561,7 +593,12 @@ class _CalendarWeatherHud extends StatelessWidget {
             ),
           ),
           if (detailsVisible && disclosure == _WeatherDisclosure.hourly)
-            _WeatherHourlyRail(values: hourly),
+            _WeatherHourlyTimeline(
+              values: hourly,
+              selectedDate: selectedDate,
+              expanded: hourlyExpanded,
+              onToggleExpanded: onToggleHourlyExpanded,
+            ),
         ],
       ),
     );
@@ -884,57 +921,96 @@ class _WeatherDetails extends StatelessWidget {
           const SizedBox(height: 5),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 360 ? 2 : 1;
-              return _TelemetryGrid(
-                columns: columns,
-                children: [
-                  _TelemetryModule(
-                    label: 'FEELS LIKE',
-                    value: forecast == null
-                        ? '--'
-                        : '${forecast.apparentTemperature.round()}°',
-                    detail: forecast == null
-                        ? 'FORECAST UNAVAILABLE'
-                        : 'ACTUAL ${forecast.temperature.round()}°',
-                    icon: Icons.thermostat_outlined,
+              final twoColumns = constraints.maxWidth >= 300;
+              final threeColumns = constraints.maxWidth >= 330;
+              return Align(
+                alignment: Alignment.topLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _TelemetryGrid(
+                        columns: twoColumns ? 2 : 1,
+                        children: [
+                          _TelemetryModule(
+                            label: 'FEELS LIKE',
+                            value: forecast == null
+                                ? '--'
+                                : '${forecast.apparentTemperature.round()}°',
+                            detail: forecast == null
+                                ? 'FORECAST UNAVAILABLE'
+                                : 'ACTUAL ${forecast.temperature.round()}°',
+                            icon: Icons.thermostat_outlined,
+                          ),
+                          _TelemetryModule(
+                            label: 'HUMIDITY',
+                            value: forecast == null
+                                ? '--'
+                                : '${forecast.humidity}%',
+                            detail: forecast?.dewPoint == null
+                                ? 'DEW --'
+                                : 'DEW ${forecast!.dewPoint!.round()}°',
+                            icon: Icons.water_drop_outlined,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _TelemetryGrid(
+                        columns: twoColumns ? 2 : 1,
+                        children: [
+                          _TelemetryModule(
+                            label: 'PRECIPITATION',
+                            value: '${day.precipitation.toStringAsFixed(1)} mm',
+                            detail: 'DAILY · ${day.precipitationProbability}%',
+                            icon: Icons.umbrella_outlined,
+                          ),
+                          _TelemetryModule(
+                            label: 'VISIBILITY',
+                            value: forecast?.visibility == null
+                                ? '--'
+                                : _visibilityValue(forecast!.visibility!),
+                            detail: forecast?.visibility == null
+                                ? 'FORECAST UNAVAILABLE'
+                                : _visibilityCategory(forecast!.visibility!),
+                            icon: Icons.visibility_outlined,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _TelemetryGrid(
+                        columns: threeColumns ? 3 : (twoColumns ? 2 : 1),
+                        compact: true,
+                        children: [
+                          _UvTelemetryModule(
+                            value: day.uvIndexMax ?? forecast?.uvIndex,
+                            compact: true,
+                          ),
+                          _TelemetryModule(
+                            label: 'CLOUD',
+                            value: forecast == null
+                                ? '--'
+                                : '${forecast.cloudCover}%',
+                            detail: 'REPRESENTATIVE HOUR',
+                            icon: Icons.cloud_outlined,
+                            compact: true,
+                          ),
+                          _PressureTelemetryModule(
+                            value: forecast?.surfacePressure,
+                            compact: true,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _WindTelemetryModule(value: forecast),
+                      const SizedBox(height: 6),
+                      _SunTelemetryModule(
+                        sunrise: day.sunrise,
+                        sunset: day.sunset,
+                      ),
+                    ],
                   ),
-                  _TelemetryModule(
-                    label: 'HUMIDITY',
-                    value: forecast == null ? '--' : '${forecast.humidity}%',
-                    detail: forecast?.dewPoint == null
-                        ? 'DEW --'
-                        : 'DEW ${forecast!.dewPoint!.round()}°',
-                    icon: Icons.water_drop_outlined,
-                  ),
-                  _WindTelemetryModule(value: forecast),
-                  _TelemetryModule(
-                    label: 'PRECIPITATION',
-                    value: '${day.precipitation.toStringAsFixed(1)} mm',
-                    detail: 'DAILY · ${day.precipitationProbability}%',
-                    icon: Icons.umbrella_outlined,
-                  ),
-                  _TelemetryModule(
-                    label: 'VISIBILITY',
-                    value: forecast?.visibility == null
-                        ? '--'
-                        : _visibilityValue(forecast!.visibility!),
-                    detail: forecast?.visibility == null
-                        ? 'FORECAST UNAVAILABLE'
-                        : _visibilityCategory(forecast!.visibility!),
-                    icon: Icons.visibility_outlined,
-                  ),
-                  _UvTelemetryModule(
-                    value: day.uvIndexMax ?? forecast?.uvIndex,
-                  ),
-                  _SunTelemetryModule(sunrise: day.sunrise, sunset: day.sunset),
-                  _PressureTelemetryModule(value: forecast?.surfacePressure),
-                  _TelemetryModule(
-                    label: 'CLOUD',
-                    value: forecast == null ? '--' : '${forecast.cloudCover}%',
-                    detail: 'REPRESENTATIVE HOUR',
-                    icon: Icons.cloud_outlined,
-                  ),
-                ],
+                ),
               );
             },
           ),
@@ -957,24 +1033,29 @@ class _WeatherDetails extends StatelessWidget {
 }
 
 class _TelemetryGrid extends StatelessWidget {
-  const _TelemetryGrid({required this.columns, required this.children});
+  const _TelemetryGrid({
+    required this.columns,
+    required this.children,
+    this.compact = false,
+  });
 
   final int columns;
   final List<Widget> children;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 6,
-    runSpacing: 6,
-    children: [
-      for (final child in children)
-        SizedBox(
-          width: columns == 1
-              ? double.infinity
-              : (MediaQuery.sizeOf(context).width - 54) / 2,
-          child: child,
-        ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      const gap = 6.0;
+      final width = (constraints.maxWidth - (columns - 1) * gap) / columns;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          for (final child in children) SizedBox(width: width, child: child),
+        ],
+      );
+    },
   );
 }
 
@@ -984,19 +1065,21 @@ class _TelemetryModule extends StatelessWidget {
     required this.value,
     required this.detail,
     required this.icon,
+    this.compact = false,
   });
 
   final String label;
   final String value;
   final String detail;
   final IconData icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      constraints: const BoxConstraints(minHeight: 82),
-      padding: const EdgeInsets.all(9),
+      constraints: BoxConstraints(minHeight: compact ? 68 : 82),
+      padding: EdgeInsets.all(compact ? 7 : 9),
       decoration: BoxDecoration(
         color: scheme.surface.withValues(alpha: .46),
         border: Border.all(color: scheme.primary.withValues(alpha: .25)),
@@ -1013,19 +1096,37 @@ class _TelemetryModule extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: scheme.primary),
-              const SizedBox(width: 5),
-              Text(label, style: Theme.of(context).textTheme.labelSmall),
+              Icon(icon, size: compact ? 12 : 14, color: scheme.primary),
+              SizedBox(width: compact ? 3 : 5),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
             ],
           ),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: scheme.onSurface,
-              fontWeight: FontWeight.w500,
-            ),
+            style:
+                (compact
+                        ? Theme.of(context).textTheme.titleMedium
+                        : Theme.of(context).textTheme.titleLarge)
+                    ?.copyWith(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          Text(detail, style: Theme.of(context).textTheme.labelSmall),
+          Text(
+            detail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
         ],
       ),
     );
@@ -1142,8 +1243,9 @@ class _WindCompassPainter extends CustomPainter {
 }
 
 class _UvTelemetryModule extends StatelessWidget {
-  const _UvTelemetryModule({required this.value});
+  const _UvTelemetryModule({required this.value, this.compact = false});
   final double? value;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1153,6 +1255,7 @@ class _UvTelemetryModule extends StatelessWidget {
       value: value == null ? '--' : value!.toStringAsFixed(0),
       detail: category,
       icon: Icons.wb_sunny_outlined,
+      compact: compact,
     );
   }
 }
@@ -1163,17 +1266,54 @@ class _SunTelemetryModule extends StatelessWidget {
   final String sunset;
 
   @override
-  Widget build(BuildContext context) => _TelemetryModule(
-    label: 'SUN',
-    value: '↑${_shortTime(sunrise)}  ↓${_shortTime(sunset)}',
-    detail: 'DAILY SOLAR WINDOW',
-    icon: Icons.wb_twilight_outlined,
-  );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 86),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: .46),
+        border: Border.all(color: scheme.primary.withValues(alpha: .25)),
+        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [scheme.primary.withValues(alpha: .07), Colors.transparent],
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.wb_twilight_outlined, color: scheme.primary, size: 18),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('SUN', style: Theme.of(context).textTheme.labelSmall),
+                Text(
+                  '↑${_shortTime(sunrise)}   ↓${_shortTime(sunset)}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  'DAILY SOLAR WINDOW',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+          CustomPaint(
+            size: const Size(86, 38),
+            painter: _SolarArcPainter(color: scheme.primary),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PressureTelemetryModule extends StatelessWidget {
-  const _PressureTelemetryModule({required this.value});
+  const _PressureTelemetryModule({required this.value, this.compact = false});
   final double? value;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => _TelemetryModule(
@@ -1181,54 +1321,158 @@ class _PressureTelemetryModule extends StatelessWidget {
     value: value == null ? '--' : '${value!.round()} hPa',
     detail: 'FORECAST SURFACE VALUE',
     icon: Icons.speed_outlined,
+    compact: compact,
   );
 }
 
-class _WeatherHourlyRail extends StatelessWidget {
-  const _WeatherHourlyRail({required this.values});
-
-  final List<WeatherHourly> values;
+class _SolarArcPainter extends CustomPainter {
+  const _SolarArcPainter({required this.color});
+  final Color color;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
-    child: Row(
-      children: [
-        for (final value in values)
-          Container(
-            width: 50,
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            decoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: .2),
-                ),
+  void paint(Canvas canvas, Size size) {
+    final arc = Paint()
+      ..color = color.withValues(alpha: .42)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final bounds = Rect.fromLTWH(4, 5, size.width - 8, size.height * 1.6);
+    canvas.drawArc(bounds, math.pi, math.pi, false, arc);
+    final horizon = Paint()
+      ..color = color.withValues(alpha: .25)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(4, size.height - 3),
+      Offset(size.width - 4, size.height - 3),
+      horizon,
+    );
+    canvas.drawCircle(Offset(size.width / 2, 8), 2.4, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SolarArcPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _WeatherHourlyTimeline extends StatelessWidget {
+  const _WeatherHourlyTimeline({
+    required this.values,
+    required this.selectedDate,
+    required this.expanded,
+    required this.onToggleExpanded,
+  });
+
+  static const _initialCount = 8;
+
+  final List<WeatherHourly> values;
+  final String selectedDate;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = _initialHourlyWindow(values, selectedDate, _initialCount);
+    final visible = expanded ? values : initial;
+    final hasMore = values.length > initial.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'HOURLY TIMELINE',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                letterSpacing: 1.1,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            child: Column(
-              children: [
-                Text(
-                  _shortTime(value.time),
-                  style: Theme.of(context).textTheme.labelSmall,
+            const SizedBox(height: 4),
+            for (final value in visible) _WeatherHourlyRow(value: value),
+            if (hasMore)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onToggleExpanded,
+                  icon: Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                  ),
+                  label: Text(expanded ? 'SHOW LESS' : 'SHOW MORE'),
                 ),
-                Icon(_weatherIcon(value.code), size: 15),
-                Text(
-                  '${value.temperature.round()}°',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                Text(
-                  '${value.precipitationProbability}%',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherHourlyRow extends StatelessWidget {
+  const _WeatherHourlyRow({required this.value});
+  final WeatherHourly value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: scheme.primary.withValues(alpha: .18)),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 42,
+            child: Text(
+              _shortTime(value.time),
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
-      ],
-    ),
-  );
+          Icon(_weatherIcon(value.code), size: 18, color: scheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            '${value.temperature.round()}°',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'FEELS ${value.apparentTemperature.round()}° · RAIN ${value.precipitationProbability}% · WIND ${value.windSpeed.round()} km/h',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<WeatherHourly> _initialHourlyWindow(
+  List<WeatherHourly> values,
+  String selectedDate,
+  int count,
+) {
+  if (values.length <= count) return values;
+  final today = DateTime.now();
+  final selected = DateTime.tryParse(selectedDate);
+  if (selected != null &&
+      selected.year == today.year &&
+      selected.month == today.month &&
+      selected.day == today.day) {
+    final fromNow = values
+        .where(
+          (value) => (DateTime.tryParse(value.time)?.hour ?? 0) >= today.hour,
+        )
+        .toList(growable: false);
+    if (fromNow.isNotEmpty) return fromNow.take(count).toList(growable: false);
+  }
+  return values.take(count).toList(growable: false);
 }
 
 List<WeatherHourly> _hourlyForDay(WeatherSnapshot snapshot, WeatherDaily day) =>
