@@ -10,6 +10,30 @@ void main() {
     expect(weatherTemperatureRailWidth(320), 112);
   });
 
+  test('forecast row opens daily detail only on a deliberate second tap', () {
+    expect(weatherForecastRowOpensDetail(selected: false), isFalse);
+    expect(weatherForecastRowOpensDetail(selected: true), isTrue);
+  });
+
+  test('solar progress is a daytime time marker only', () {
+    expect(
+      weatherSolarProgress(
+        '2026-10-02T06:00',
+        '2026-10-02T18:00',
+        now: DateTime(2026, 10, 2, 12),
+      ),
+      closeTo(.5, .001),
+    );
+    expect(
+      weatherSolarProgress(
+        '2026-10-02T06:00',
+        '2026-10-02T18:00',
+        now: DateTime(2026, 10, 2, 4),
+      ),
+      isNull,
+    );
+  });
+
   Future<void> pumpSurface(
     WidgetTester tester, {
     required ValueChanged<int> onSwipe,

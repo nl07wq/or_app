@@ -831,7 +831,12 @@ class _WeatherForecastRow extends StatelessWidget {
       label: '${value.date}, ${_weatherConditionJapanese(value.code)}',
       child: InkWell(
         onTap: () {
-          onTap();
+          // A new date selection is a state change only. Re-tapping the
+          // already selected row is the explicit request for its forecast.
+          if (!weatherForecastRowOpensDetail(selected: selected)) {
+            onTap();
+            return;
+          }
           _showWeatherExplanation(
             context,
             _WeatherExplanation(
@@ -912,34 +917,17 @@ class _WeatherForecastRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 9),
-                  Semantics(
-                    button: true,
-                    label: '気温レンジの説明',
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _showWeatherExplanation(
-                        context,
-                        _WeatherExplanation(
-                          title: '気温レンジ',
-                          value:
-                              'この日: 最低 ${value.low.round()}° / 最高 ${value.high.round()}°',
-                          body: '7日間全体の最低〜最高気温を基準に、この日の最低〜最高気温がどの範囲にあるかを示します。',
-                          forecastSummary: '週間の中で、この日の気温帯がどこに位置するかを比較できます。',
-                        ),
-                      ),
-                      child: SizedBox(
-                        key: ValueKey('weather-temperature-rail-${value.date}'),
-                        width: railWidth,
-                        height: 18,
-                        child: CustomPaint(
-                          painter: _TemperatureRangePainter(
-                            color: scheme.primary,
-                            low: value.low,
-                            high: value.high,
-                            globalLow: globalLow,
-                            globalHigh: globalHigh,
-                          ),
-                        ),
+                  SizedBox(
+                    key: ValueKey('weather-temperature-rail-${value.date}'),
+                    width: railWidth,
+                    height: 18,
+                    child: CustomPaint(
+                      painter: _TemperatureRangePainter(
+                        color: scheme.primary,
+                        low: value.low,
+                        high: value.high,
+                        globalLow: globalLow,
+                        globalHigh: globalHigh,
                       ),
                     ),
                   ),
@@ -1016,6 +1004,10 @@ class _TemperatureRangePainter extends CustomPainter {
 /// gaps so the painter cannot draw beneath numeric telemetry.
 double weatherTemperatureRailWidth(double rowWidth) =>
     (rowWidth - 208).clamp(44.0, 250.0).toDouble();
+
+/// A row owns both its date selection and its visual rail. A different date
+/// never opens a surface; a second, deliberate tap requests the daily detail.
+bool weatherForecastRowOpensDetail({required bool selected}) => selected;
 
 class _WeatherSummary extends StatelessWidget {
   const _WeatherSummary({
@@ -1119,6 +1111,11 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '--'
                                 : '気温 ${forecast.temperature.round()}°',
                             icon: Icons.thermostat_outlined,
+                            microHud: _MicroHudKind.feelsLike,
+                            instrumentValue: forecast == null
+                                ? null
+                                : forecast.apparentTemperature -
+                                      forecast.temperature,
                             onExplain: () => _showWeatherExplanation(
                               context,
                               _WeatherExplanation(
@@ -1143,6 +1140,8 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '露点 --'
                                 : '露点 ${forecast!.dewPoint!.round()}°',
                             icon: Icons.water_drop_outlined,
+                            microHud: _MicroHudKind.humidity,
+                            instrumentValue: forecast?.humidity.toDouble(),
                             onExplain: () => _showWeatherExplanation(
                               context,
                               _WeatherExplanation(
@@ -1169,6 +1168,9 @@ class _WeatherDetails extends StatelessWidget {
                             value: '${day.precipitation.toStringAsFixed(1)} mm',
                             detail: '${day.precipitationProbability}%',
                             icon: Icons.umbrella_outlined,
+                            microHud: _MicroHudKind.precipitation,
+                            instrumentValue: day.precipitationProbability
+                                .toDouble(),
                             onExplain: () => _showWeatherExplanation(
                               context,
                               _WeatherExplanation(
@@ -1192,6 +1194,8 @@ class _WeatherDetails extends StatelessWidget {
                                     forecast!.visibility!,
                                   ),
                             icon: Icons.visibility_outlined,
+                            microHud: _MicroHudKind.visibility,
+                            instrumentValue: forecast?.visibility,
                             onExplain: () => _showWeatherExplanation(
                               context,
                               _WeatherExplanation(
@@ -1237,6 +1241,8 @@ class _WeatherDetails extends StatelessWidget {
                                 : '${forecast.cloudCover}%',
                             detail: '',
                             icon: Icons.cloud_outlined,
+                            microHud: _MicroHudKind.cloud,
+                            instrumentValue: forecast?.cloudCover.toDouble(),
                             onExplain: () => _showWeatherExplanation(
                               context,
                               _WeatherExplanation(
@@ -1292,6 +1298,10 @@ class _WeatherDetails extends StatelessWidget {
                       _SunTelemetryModule(
                         sunrise: day.sunrise,
                         sunset: day.sunset,
+                        isToday: _sameDay(
+                          DateTime.parse(day.date),
+                          DateTime.now(),
+                        ),
                         onExplain: () => _showWeatherExplanation(
                           context,
                           _WeatherExplanation(
@@ -1523,6 +1533,8 @@ class _TelemetryGrid extends StatelessWidget {
   );
 }
 
+enum _MicroHudKind { feelsLike, humidity, precipitation, visibility, uv, cloud }
+
 class _TelemetryModule extends StatelessWidget {
   const _TelemetryModule({
     required this.label,
@@ -1530,6 +1542,8 @@ class _TelemetryModule extends StatelessWidget {
     required this.detail,
     required this.icon,
     required this.onExplain,
+    this.microHud,
+    this.instrumentValue,
   });
 
   final String label;
@@ -1537,6 +1551,8 @@ class _TelemetryModule extends StatelessWidget {
   final String detail;
   final IconData icon;
   final VoidCallback onExplain;
+  final _MicroHudKind? microHud;
+  final double? instrumentValue;
 
   @override
   Widget build(BuildContext context) {
@@ -1547,7 +1563,7 @@ class _TelemetryModule extends StatelessWidget {
         onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 82),
+          constraints: const BoxConstraints(minHeight: 88),
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
             color: scheme.surface.withValues(alpha: .46),
@@ -1596,12 +1612,102 @@ class _TelemetryModule extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
+              if (microHud != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: SizedBox(
+                    key: ValueKey('weather-micro-hud-${microHud!.name}'),
+                    width: double.infinity,
+                    height: 9,
+                    child: CustomPaint(
+                      painter: _MicroHudPainter(
+                        color: scheme.primary,
+                        kind: microHud!,
+                        value: instrumentValue,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _MicroHudPainter extends CustomPainter {
+  const _MicroHudPainter({
+    required this.color,
+    required this.kind,
+    required this.value,
+  });
+
+  final Color color;
+  final _MicroHudKind kind;
+  final double? value;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final track = Paint()
+      ..color = color.withValues(alpha: .16)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    final active = Paint()
+      ..color = color.withValues(alpha: .78)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    final y = size.height / 2;
+    final left = 2.0;
+    final right = size.width - 2;
+    canvas.drawLine(Offset(left, y), Offset(right, y), track);
+    if (value == null) return;
+    final normalized = switch (kind) {
+      _MicroHudKind.feelsLike => ((value! + 6) / 12).clamp(0.0, 1.0),
+      _MicroHudKind.humidity ||
+      _MicroHudKind.precipitation ||
+      _MicroHudKind.cloud => (value! / 100).clamp(0.0, 1.0),
+      _MicroHudKind.visibility => (value! / 30000).clamp(0.0, 1.0),
+      _MicroHudKind.uv => (value! / 11).clamp(0.0, 1.0),
+    };
+    if (kind == _MicroHudKind.uv || kind == _MicroHudKind.cloud) {
+      const segments = 6;
+      final width = (right - left - (segments - 1) * 2) / segments;
+      for (var index = 0; index < segments; index += 1) {
+        final isActive = normalized * segments > index;
+        final paint = Paint()
+          ..color = color.withValues(alpha: isActive ? .72 : .16);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(
+              left + index * (width + 2),
+              y - (kind == _MicroHudKind.cloud ? 2 : 2.5),
+              width,
+              kind == _MicroHudKind.cloud ? 4 : 5,
+            ),
+            const Radius.circular(1),
+          ),
+          paint,
+        );
+      }
+      return;
+    }
+    final x = left + (right - left) * normalized;
+    if (kind == _MicroHudKind.feelsLike) {
+      final middle = (left + right) / 2;
+      canvas.drawLine(Offset(middle, y - 3.5), Offset(middle, y + 3.5), track);
+      canvas.drawCircle(Offset(x, y), 3, active);
+      return;
+    }
+    canvas.drawLine(Offset(left, y), Offset(x, y), active);
+    canvas.drawCircle(Offset(x, y), 2.6, active);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MicroHudPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.kind != kind ||
+      oldDelegate.value != value;
 }
 
 class _WindTelemetryModule extends StatelessWidget {
@@ -1619,7 +1725,7 @@ class _WindTelemetryModule extends StatelessWidget {
         onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 96),
+          constraints: const BoxConstraints(minHeight: 112),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: scheme.surface.withValues(alpha: .46),
@@ -1629,7 +1735,7 @@ class _WindTelemetryModule extends StatelessWidget {
           child: Row(
             children: [
               CustomPaint(
-                size: const Size(68, 68),
+                size: const Size(82, 82),
                 painter: _WindCompassPainter(
                   color: scheme.primary,
                   direction: direction,
@@ -1642,14 +1748,24 @@ class _WindTelemetryModule extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text('風', style: Theme.of(context).textTheme.labelSmall),
-                    Text(
-                      value == null ? '--' : '${value!.windSpeed.round()} km/h',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          value == null ? '--' : '${value!.windSpeed.round()}',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4, bottom: 4),
+                          child: Text('km/h'),
+                        ),
+                      ],
                     ),
                     Text(
                       value == null
-                          ? '突風 -- · 風向 --'
-                          : '突風 ${value!.windGust.round()} km/h · ${_windDirection(direction)}',
+                          ? 'GUST -- · 風向 --'
+                          : 'GUST ${value!.windGust.round()} km/h · ${_windDirection(direction)}',
                       style: Theme.of(context).textTheme.labelSmall,
                     ),
                   ],
@@ -1671,22 +1787,32 @@ class _WindCompassPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2 - 3;
+    final radius = size.shortestSide / 2 - 4;
     final fine = Paint()
       ..color = color.withValues(alpha: .38)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     canvas.drawCircle(center, radius, fine);
-    for (var index = 0; index < 4; index++) {
-      final angle = index * math.pi / 2 - math.pi / 2;
+    canvas.drawCircle(
+      center,
+      radius - 7,
+      Paint()
+        ..color = color.withValues(alpha: .2)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    for (var index = 0; index < 36; index++) {
+      final angle = index * math.pi * 2 / 36 - math.pi / 2;
       final outer = center + Offset(math.cos(angle), math.sin(angle)) * radius;
       final inner =
-          center + Offset(math.cos(angle), math.sin(angle)) * (radius - 4);
+          center +
+          Offset(math.cos(angle), math.sin(angle)) *
+              (radius - (index % 9 == 0 ? 6 : 3));
       canvas.drawLine(inner, outer, fine);
     }
     final textStyle = TextStyle(
       color: color.withValues(alpha: .8),
-      fontSize: 8,
+      fontSize: 9,
     );
     for (final item in <(String, Offset)>[
       ('N', Offset(0, -radius + 8)),
@@ -1706,14 +1832,14 @@ class _WindCompassPainter extends CustomPainter {
     if (direction == null) return;
     final angle = direction! * math.pi / 180 - math.pi / 2;
     final tip =
-        center + Offset(math.cos(angle), math.sin(angle)) * (radius - 9);
+        center + Offset(math.cos(angle), math.sin(angle)) * (radius - 10);
     final pointer = Paint()
       ..color = color
-      ..strokeWidth = 2
+      ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(center, tip, pointer);
-    canvas.drawCircle(tip, 2.2, pointer);
-    canvas.drawCircle(center, 2, pointer);
+    canvas.drawCircle(tip, 2.8, pointer);
+    canvas.drawCircle(center, 3, pointer);
   }
 
   @override
@@ -1733,6 +1859,8 @@ class _UvTelemetryModule extends StatelessWidget {
       value: value == null ? '--' : value!.toStringAsFixed(0),
       detail: value == null ? '--' : _uvCategoryJapanese(value!),
       icon: Icons.wb_sunny_outlined,
+      microHud: _MicroHudKind.uv,
+      instrumentValue: value,
       onExplain: onExplain,
     );
   }
@@ -1742,10 +1870,12 @@ class _SunTelemetryModule extends StatelessWidget {
   const _SunTelemetryModule({
     required this.sunrise,
     required this.sunset,
+    required this.isToday,
     required this.onExplain,
   });
   final String sunrise;
   final String sunset;
+  final bool isToday;
   final VoidCallback onExplain;
 
   @override
@@ -1757,7 +1887,7 @@ class _SunTelemetryModule extends StatelessWidget {
         onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 86),
+          constraints: const BoxConstraints(minHeight: 104),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: scheme.surface.withValues(alpha: .46),
@@ -1772,8 +1902,6 @@ class _SunTelemetryModule extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.wb_twilight_outlined, color: scheme.primary, size: 18),
-              const SizedBox(width: 9),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1789,20 +1917,33 @@ class _SunTelemetryModule extends StatelessWidget {
                       children: [
                         Text(
                           '日の出 ${_shortTime(sunrise)}',
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: Theme.of(context).textTheme.titleSmall,
                         ),
                         Text(
                           '日の入り ${_shortTime(sunset)}',
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: Theme.of(context).textTheme.titleSmall,
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'DAYLIGHT ${_daylightDuration(sunrise, sunset)}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: scheme.primary),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               CustomPaint(
-                size: const Size(86, 38),
-                painter: _SolarArcPainter(color: scheme.primary),
+                size: const Size(116, 54),
+                painter: _SolarArcPainter(
+                  color: scheme.primary,
+                  progress: isToday
+                      ? weatherSolarProgress(sunrise, sunset)
+                      : null,
+                ),
               ),
             ],
           ),
@@ -1829,7 +1970,7 @@ class _PressureTelemetryModule extends StatelessWidget {
         onTap: onExplain,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 82),
+          constraints: const BoxConstraints(minHeight: 104),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: scheme.surface.withValues(alpha: .46),
@@ -1839,20 +1980,39 @@ class _PressureTelemetryModule extends StatelessWidget {
           child: Row(
             children: [
               CustomPaint(
-                size: const Size(78, 42),
-                painter: _PressureGaugePainter(color: scheme.primary),
+                size: const Size(108, 58),
+                painter: _PressureGaugePainter(
+                  color: scheme.primary,
+                  pressure: value,
+                ),
               ),
               const SizedBox(width: 10),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('気圧', style: Theme.of(context).textTheme.labelSmall),
-                  Text(
-                    value == null ? '--' : '${value!.round()} hPa',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('気圧', style: Theme.of(context).textTheme.labelSmall),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          value == null ? '--' : '${value!.round()}',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4, bottom: 4),
+                          child: Text('hPa'),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'REF 1013',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1863,37 +2023,57 @@ class _PressureTelemetryModule extends StatelessWidget {
 }
 
 class _PressureGaugePainter extends CustomPainter {
-  const _PressureGaugePainter({required this.color});
+  const _PressureGaugePainter({required this.color, required this.pressure});
   final Color color;
+  final double? pressure;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: .38)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    final bounds = Rect.fromLTWH(4, 4, size.width - 8, size.width - 8);
-    canvas.drawArc(bounds, math.pi, math.pi, false, paint);
+    final center = Offset(size.width / 2, size.height - 4);
+    final radius = math.min(size.width / 2 - 6, size.height - 8);
+    final normalized = pressure == null
+        ? .5
+        : ((pressure! - 980) / 70).clamp(0.0, 1.0);
+    for (var index = 0; index < 30; index += 1) {
+      final progress = index / 29;
+      final angle = math.pi + math.pi * progress;
+      final outer = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      final segmentLength = index % 5 == 0 ? 7.0 : 4.0;
+      final inner =
+          center +
+          Offset(math.cos(angle), math.sin(angle)) * (radius - segmentLength);
+      final active = (progress - normalized).abs() < .055;
+      final paint = Paint()
+        ..color = color.withValues(alpha: active ? .88 : .25)
+        ..strokeWidth = active ? 2.2 : 1.1
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(inner, outer, paint);
+    }
+    final refAngle = math.pi + math.pi * ((1013 - 980) / 70);
+    final ref =
+        center + Offset(math.cos(refAngle), math.sin(refAngle)) * (radius - 10);
+    canvas.drawCircle(ref, 1.8, Paint()..color = color.withValues(alpha: .55));
     final pointer = Paint()
       ..color = color
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
-    final center = Offset(size.width / 2, size.height - 2);
+    final angle = math.pi + math.pi * normalized;
     canvas.drawLine(
       center,
-      Offset(size.width * .67, size.height * .38),
+      center + Offset(math.cos(angle), math.sin(angle)) * (radius - 13),
       pointer,
     );
   }
 
   @override
   bool shouldRepaint(covariant _PressureGaugePainter oldDelegate) =>
-      oldDelegate.color != color;
+      oldDelegate.color != color || oldDelegate.pressure != pressure;
 }
 
 class _SolarArcPainter extends CustomPainter {
-  const _SolarArcPainter({required this.color});
+  const _SolarArcPainter({required this.color, required this.progress});
   final Color color;
+  final double? progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1901,22 +2081,33 @@ class _SolarArcPainter extends CustomPainter {
       ..color = color.withValues(alpha: .42)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
-    final bounds = Rect.fromLTWH(4, 5, size.width - 8, size.height * 1.6);
+    final bounds = Rect.fromLTWH(5, 7, size.width - 10, size.height * 1.55);
     canvas.drawArc(bounds, math.pi, math.pi, false, arc);
     final horizon = Paint()
       ..color = color.withValues(alpha: .25)
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(4, size.height - 3),
-      Offset(size.width - 4, size.height - 3),
+      Offset(4, size.height - 5),
+      Offset(size.width - 4, size.height - 5),
       horizon,
     );
-    canvas.drawCircle(Offset(size.width / 2, 8), 2.4, Paint()..color = color);
+    final horizonY = size.height - 5;
+    final start = Offset(6, horizonY);
+    final end = Offset(size.width - 6, horizonY);
+    canvas.drawCircle(start, 2, Paint()..color = color.withValues(alpha: .7));
+    canvas.drawCircle(end, 2, Paint()..color = color.withValues(alpha: .7));
+    if (progress != null) {
+      final safe = progress!.clamp(0.0, 1.0);
+      final x = start.dx + (end.dx - start.dx) * safe;
+      final y = horizonY - math.sin(math.pi * safe) * (size.height - 14);
+      final point = Paint()..color = color;
+      canvas.drawCircle(Offset(x, y), 3, point);
+    }
   }
 
   @override
   bool shouldRepaint(covariant _SolarArcPainter oldDelegate) =>
-      oldDelegate.color != color;
+      oldDelegate.color != color || oldDelegate.progress != progress;
 }
 
 class _WeatherHourlyTimeline extends StatelessWidget {
@@ -2099,6 +2290,18 @@ String _daylightDuration(String sunrise, String sunset) {
   if (start == null || end == null) return '--';
   final duration = end.difference(start);
   return '${duration.inHours}時間${duration.inMinutes.remainder(60).toString().padLeft(2, '0')}分';
+}
+
+/// A time-progress marker only: this intentionally does not claim solar
+/// altitude or introduce astronomical data beyond the provider timestamps.
+double? weatherSolarProgress(String sunrise, String sunset, {DateTime? now}) {
+  final start = DateTime.tryParse(sunrise);
+  final end = DateTime.tryParse(sunset);
+  if (start == null || end == null || !end.isAfter(start)) return null;
+  final current = now ?? DateTime.now();
+  if (current.isBefore(start) || current.isAfter(end)) return null;
+  return current.difference(start).inMilliseconds /
+      end.difference(start).inMilliseconds;
 }
 
 String _windDirection(double? degrees) {
