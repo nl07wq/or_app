@@ -566,7 +566,7 @@ class _CalendarWeatherHud extends StatelessWidget {
             ),
           ),
           if (detailsVisible && disclosure == _WeatherDisclosure.hourly)
-            _WeatherHourlyTimeline(values: hourly),
+            _WeatherHourlyTimeline(day: selected!, values: hourly),
           if (snapshot != null && disclosure != _WeatherDisclosure.collapsed)
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 5, 12, 0),
@@ -1335,6 +1335,7 @@ class _WeatherExplanation {
     required this.value,
     required this.body,
     this.forecastSummary,
+    this.forecastSummaryLabel = '選択日の予報',
     this.supportingData = const [],
   });
 
@@ -1342,6 +1343,7 @@ class _WeatherExplanation {
   final String value;
   final String body;
   final String? forecastSummary;
+  final String forecastSummaryLabel;
   final List<String> supportingData;
 }
 
@@ -1424,47 +1426,71 @@ Future<void> _showWeatherExplanation(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: scheme.primary),
                     ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '指標について',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurface.withValues(alpha: .72),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    explanation.body,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurface.withValues(alpha: .82),
-                    ),
-                  ),
                   if (explanation.forecastSummary != null) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Divider(
-                        color: scheme.primary.withValues(alpha: .28),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withValues(alpha: .10),
+                        border: Border(
+                          left: BorderSide(
+                            color: scheme.primary.withValues(alpha: .72),
+                            width: 2,
+                          ),
+                        ),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                    ),
-                    Text(
-                      '選択日の予報',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: scheme.primary),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      explanation.forecastSummary!,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            explanation.forecastSummaryLabel,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: scheme.primary),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            explanation.forecastSummary!,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontSize: 16,
+                                  height: 1.42,
+                                  color: scheme.onSurface,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
                     for (final item in explanation.supportingData)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           item,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: scheme.onSurface.withValues(alpha: .9),
+                              ),
                         ),
                       ),
                   ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: Divider(),
+                  ),
+                  Text(
+                    '指標について',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: .62),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    explanation.body,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: .72),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1894,8 +1920,9 @@ class _SolarArcPainter extends CustomPainter {
 }
 
 class _WeatherHourlyTimeline extends StatelessWidget {
-  const _WeatherHourlyTimeline({required this.values});
+  const _WeatherHourlyTimeline({required this.day, required this.values});
 
+  final WeatherDaily day;
   final List<WeatherHourly> values;
 
   @override
@@ -1922,7 +1949,8 @@ class _WeatherHourlyTimeline extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final value in values) _WeatherHourlyCell(value: value),
+                  for (var index = 0; index < values.length; index++)
+                    _WeatherHourlyCell(day: day, values: values, index: index),
                 ],
               ),
             ),
@@ -1934,48 +1962,91 @@ class _WeatherHourlyTimeline extends StatelessWidget {
 }
 
 class _WeatherHourlyCell extends StatelessWidget {
-  const _WeatherHourlyCell({required this.value});
-  final WeatherHourly value;
+  const _WeatherHourlyCell({
+    required this.day,
+    required this.values,
+    required this.index,
+  });
+
+  final WeatherDaily day;
+  final List<WeatherHourly> values;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
+    final value = values[index];
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 96,
-      margin: const EdgeInsets.only(right: 6),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .4),
-        border: Border.all(color: scheme.primary.withValues(alpha: .2)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _hourJapanese(value.time),
-            style: Theme.of(context).textTheme.labelSmall,
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        final summary = WeatherHourlyForecastSummaryEngine.summarize(
+          hourly: values,
+          index: index,
+        );
+        _showWeatherExplanation(
+          context,
+          _WeatherExplanation(
+            title: _hourlyDetailTitle(day, value.time),
+            value:
+                '${_weatherConditionJapanese(value.code)} · ${value.temperature.round()}°',
+            body: '時間別予報は、その時刻の予報値です。',
+            forecastSummaryLabel: 'この時間の予報',
+            forecastSummary: summary.primary,
+            supportingData: [
+              '体感 ${value.apparentTemperature.round()}° · 降水 ${value.precipitationProbability}%${value.precipitation > 0 ? ' / ${value.precipitation.toStringAsFixed(1)}mm' : ''}',
+              '風 ${value.windSpeed.round()} km/h · 突風 ${value.windGust.round()} km/h${value.windDirection == null ? '' : ' · ${_windDirection(value.windDirection)}'}',
+              '湿度 ${value.humidity}% · 雲量 ${value.cloudCover}%',
+              if (value.dewPoint != null) '露点 ${value.dewPoint!.round()}°',
+              if (value.visibility != null)
+                '視程 ${_visibilityValue(value.visibility!)}',
+              if (value.surfacePressure != null)
+                '気圧 ${value.surfacePressure!.round()} hPa',
+              if (value.uvIndex != null)
+                'UV指数 ${value.uvIndex!.toStringAsFixed(0)}',
+              ...summary.supporting,
+            ],
           ),
-          const SizedBox(height: 4),
-          Icon(_weatherIcon(value.code), size: 20, color: scheme.primary),
-          const SizedBox(height: 3),
-          Text(
-            '${value.temperature.round()}°',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text(
-            '体感 ${value.apparentTemperature.round()}°',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-          Text(
-            '降水 ${value.precipitationProbability}%',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-          Text(
-            '風 ${value.windSpeed.round()} km/h',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-        ],
+        );
+      },
+      child: Container(
+        width: 120,
+        height: 166,
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
+        decoration: BoxDecoration(
+          color: scheme.surface.withValues(alpha: .4),
+          border: Border.all(color: scheme.primary.withValues(alpha: .2)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _hourJapanese(value.time),
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            const SizedBox(height: 6),
+            Icon(_weatherIcon(value.code), size: 24, color: scheme.primary),
+            const SizedBox(height: 5),
+            Text(
+              '${value.temperature.round()}°',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              '体感 ${value.apparentTemperature.round()}°',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            Text(
+              '降水 ${value.precipitationProbability}%',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            Text(
+              '風 ${value.windSpeed.round()} km/h',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1985,6 +2056,15 @@ List<WeatherHourly> _hourlyForDay(WeatherSnapshot snapshot, WeatherDaily day) =>
     snapshot.hourly
         .where((value) => value.time.startsWith('${day.date}T'))
         .toList(growable: false);
+
+String _hourlyDetailTitle(WeatherDaily day, String time) {
+  final parsed = DateTime.tryParse(time);
+  if (parsed == null) return '時間別予報';
+  final today = _sameDay(DateTime.parse(day.date), DateTime.now());
+  return today
+      ? '${parsed.hour}時の予報'
+      : '${parsed.month}月${parsed.day}日（${_weekdayJapanese(parsed.weekday)}）${parsed.hour}時';
+}
 
 WeatherHourly? _firstHourly(List<WeatherHourly> values) =>
     values.isEmpty ? null : values.first;

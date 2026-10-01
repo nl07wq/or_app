@@ -25,6 +25,108 @@ class WeatherForecastSummary {
   final WeatherDaypart? strongestWindDaypart;
 }
 
+class WeatherHourlyForecastSummary {
+  const WeatherHourlyForecastSummary({
+    required this.primary,
+    required this.supporting,
+  });
+
+  final String primary;
+  final List<String> supporting;
+}
+
+/// A small, deterministic reading of one forecast hour. Neighbouring hours
+/// provide only short-term context; this never upgrades probability alone into
+/// a claim that rain will occur.
+abstract final class WeatherHourlyForecastSummaryEngine {
+  static WeatherHourlyForecastSummary summarize({
+    required List<WeatherHourly> hourly,
+    required int index,
+  }) {
+    if (hourly.isEmpty || index < 0 || index >= hourly.length) {
+      return const WeatherHourlyForecastSummary(
+        primary: 'この時間の詳細な予報は確認できません。',
+        supporting: [],
+      );
+    }
+    final current = hourly[index];
+    final previous = index > 0 ? hourly[index - 1] : null;
+    final next = index + 1 < hourly.length ? hourly[index + 1] : null;
+    final following = index + 2 < hourly.length ? hourly[index + 2] : null;
+    final currentRain = _supportsRain(current);
+    final nextRain = next != null && _supportsRain(next);
+    final followingRain = following != null && _supportsRain(following);
+
+    String primary;
+    if (currentRain && (previous == null || !_supportsRain(previous))) {
+      primary = 'この時間から雨が降りやすくなる予報です。';
+    } else if (currentRain && nextRain) {
+      primary = 'この時間も雨が続く予報です。';
+    } else if (currentRain) {
+      primary = '雨はこの時間をピークに、その後は弱まる予報です。';
+    } else if (nextRain || followingRain) {
+      primary = 'このあと雨が降りやすくなる予報です。';
+    } else {
+      primary = _stableConditionSummary(current);
+    }
+
+    final supporting = <String>[];
+    if (next != null && _windStrengthens(current, next)) {
+      supporting.add('このあと風が強まる予報です。');
+    } else if (next != null && _temperatureRises(current, next)) {
+      supporting.add('このあと気温が上がる予報です。');
+    } else if (next != null && _temperatureFalls(current, next)) {
+      supporting.add('このあと気温が下がる予報です。');
+    }
+    return WeatherHourlyForecastSummary(
+      primary: primary,
+      supporting: supporting,
+    );
+  }
+
+  static bool _supportsRain(WeatherHourly value) =>
+      switch (weatherConditionForCode(value.code)) {
+        WeatherCondition.drizzle ||
+        WeatherCondition.rain ||
+        WeatherCondition.showers ||
+        WeatherCondition.thunder => true,
+        _ => value.precipitation >= .2,
+      };
+
+  static String _stableConditionSummary(WeatherHourly value) {
+    final condition = weatherConditionForCode(value.code);
+    if ((condition == WeatherCondition.clear ||
+            condition == WeatherCondition.mainlyClear) &&
+        value.precipitationProbability <= 30) {
+      return '晴れが続き、降水の可能性は低い予報です。';
+    }
+    return 'この時間は${_hourlyConditionName(condition)}中心の予報です。';
+  }
+
+  static String _hourlyConditionName(WeatherCondition condition) =>
+      switch (condition) {
+        WeatherCondition.clear || WeatherCondition.mainlyClear => '晴れ',
+        WeatherCondition.partlyCloudy => '晴れ時々曇り',
+        WeatherCondition.cloudy => '曇り',
+        WeatherCondition.fog => '霧',
+        WeatherCondition.drizzle => '霧雨',
+        WeatherCondition.rain || WeatherCondition.showers => '雨',
+        WeatherCondition.snow => '雪',
+        WeatherCondition.thunder => '雷雨',
+        WeatherCondition.unknown => '変わりやすい天気',
+      };
+
+  static bool _windStrengthens(WeatherHourly current, WeatherHourly next) =>
+      next.windSpeed >= current.windSpeed + 5 ||
+      next.windGust >= current.windGust + 8;
+
+  static bool _temperatureRises(WeatherHourly current, WeatherHourly next) =>
+      next.temperature >= current.temperature + 3;
+
+  static bool _temperatureFalls(WeatherHourly current, WeatherHourly next) =>
+      next.temperature <= current.temperature - 3;
+}
+
 /// Presentation-only, deterministic forecast interpretation. It deliberately
 /// consumes the existing forecast payload and never makes a network request.
 abstract final class WeatherForecastSummaryEngine {
