@@ -121,6 +121,7 @@ class WeatherDaily {
     required this.precipitation,
     required this.sunrise,
     required this.sunset,
+    this.uvIndexMax,
   });
   final String date;
   final int code;
@@ -130,16 +131,23 @@ class WeatherDaily {
   final double precipitation;
   final String sunrise;
   final String sunset;
-  Map<String, Object> toJson() => {
-    'date': date,
-    'code': code,
-    'high': high,
-    'low': low,
-    'precipitationProbability': precipitationProbability,
-    'precipitation': precipitation,
-    'sunrise': sunrise,
-    'sunset': sunset,
-  };
+  final double? uvIndexMax;
+  Map<String, Object> toJson() {
+    final optional = <String, Object>{};
+    if (uvIndexMax != null) optional['uvIndexMax'] = uvIndexMax!;
+    return {
+      'date': date,
+      'code': code,
+      'high': high,
+      'low': low,
+      'precipitationProbability': precipitationProbability,
+      'precipitation': precipitation,
+      'sunrise': sunrise,
+      'sunset': sunset,
+      ...optional,
+    };
+  }
+
   factory WeatherDaily.fromJson(Map<String, Object?> json) => WeatherDaily(
     date: json['date'] as String,
     code: json['code'] as int,
@@ -149,6 +157,7 @@ class WeatherDaily {
     precipitation: (json['precipitation'] as num).toDouble(),
     sunrise: json['sunrise'] as String,
     sunset: json['sunset'] as String,
+    uvIndexMax: (json['uvIndexMax'] as num?)?.toDouble(),
   );
 }
 
@@ -164,6 +173,11 @@ class WeatherHourly {
     required this.cloudCover,
     required this.windSpeed,
     required this.windGust,
+    this.dewPoint,
+    this.windDirection,
+    this.surfacePressure,
+    this.visibility,
+    this.uvIndex,
   });
   final String time;
   final double temperature;
@@ -175,18 +189,35 @@ class WeatherHourly {
   final int cloudCover;
   final double windSpeed;
   final double windGust;
-  Map<String, Object> toJson() => {
-    'time': time,
-    'temperature': temperature,
-    'apparentTemperature': apparentTemperature,
-    'humidity': humidity,
-    'precipitationProbability': precipitationProbability,
-    'precipitation': precipitation,
-    'code': code,
-    'cloudCover': cloudCover,
-    'windSpeed': windSpeed,
-    'windGust': windGust,
-  };
+  final double? dewPoint;
+  final double? windDirection;
+  final double? surfacePressure;
+  final double? visibility;
+  final double? uvIndex;
+  Map<String, Object> toJson() {
+    final optional = <String, Object>{};
+    if (dewPoint != null) optional['dewPoint'] = dewPoint!;
+    if (windDirection != null) optional['windDirection'] = windDirection!;
+    if (surfacePressure != null) {
+      optional['surfacePressure'] = surfacePressure!;
+    }
+    if (visibility != null) optional['visibility'] = visibility!;
+    if (uvIndex != null) optional['uvIndex'] = uvIndex!;
+    return {
+      'time': time,
+      'temperature': temperature,
+      'apparentTemperature': apparentTemperature,
+      'humidity': humidity,
+      'precipitationProbability': precipitationProbability,
+      'precipitation': precipitation,
+      'code': code,
+      'cloudCover': cloudCover,
+      'windSpeed': windSpeed,
+      'windGust': windGust,
+      ...optional,
+    };
+  }
+
   factory WeatherHourly.fromJson(Map<String, Object?> json) => WeatherHourly(
     time: json['time'] as String,
     temperature: (json['temperature'] as num).toDouble(),
@@ -198,6 +229,11 @@ class WeatherHourly {
     cloudCover: json['cloudCover'] as int,
     windSpeed: (json['windSpeed'] as num).toDouble(),
     windGust: (json['windGust'] as num).toDouble(),
+    dewPoint: (json['dewPoint'] as num?)?.toDouble(),
+    windDirection: (json['windDirection'] as num?)?.toDouble(),
+    surfacePressure: (json['surfacePressure'] as num?)?.toDouble(),
+    visibility: (json['visibility'] as num?)?.toDouble(),
+    uvIndex: (json['uvIndex'] as num?)?.toDouble(),
   );
 }
 
@@ -214,7 +250,7 @@ class WeatherSnapshot {
   final List<WeatherHourly> hourly;
   String encode() => jsonEncode({
     'provider': 'open-meteo',
-    'cacheVersion': 1,
+    'cacheVersion': 2,
     'location': location.toJson(),
     'fetchedAt': fetchedAt.toUtc().toIso8601String(),
     'daily': daily.map((v) => v.toJson()).toList(),

@@ -868,27 +868,75 @@ class _WeatherDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final current = _firstHourly(_hourlyForDay(snapshot, day));
+    final forecast = _representativeHourly(_hourlyForDay(snapshot, day));
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 9,
-            runSpacing: 3,
-            children: [
-              Text(
-                'SUN ${_shortTime(day.sunrise)} / ${_shortTime(day.sunset)}',
-              ),
-              if (current != null) ...[
-                Text('FEELS ${current.apparentTemperature.round()}°'),
-                Text('HUMIDITY ${current.humidity}%'),
-                Text('WIND ${current.windSpeed.round()}km/h'),
-                Text('GUST ${current.windGust.round()}km/h'),
-                Text('CLOUD ${current.cloudCover}%'),
-              ],
-            ],
+          Text(
+            'ENVIRONMENT TELEMETRY · FORECAST',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              letterSpacing: 1.1,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 5),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 360 ? 2 : 1;
+              return _TelemetryGrid(
+                columns: columns,
+                children: [
+                  _TelemetryModule(
+                    label: 'FEELS LIKE',
+                    value: forecast == null
+                        ? '--'
+                        : '${forecast.apparentTemperature.round()}°',
+                    detail: forecast == null
+                        ? 'FORECAST UNAVAILABLE'
+                        : 'ACTUAL ${forecast.temperature.round()}°',
+                    icon: Icons.thermostat_outlined,
+                  ),
+                  _TelemetryModule(
+                    label: 'HUMIDITY',
+                    value: forecast == null ? '--' : '${forecast.humidity}%',
+                    detail: forecast?.dewPoint == null
+                        ? 'DEW --'
+                        : 'DEW ${forecast!.dewPoint!.round()}°',
+                    icon: Icons.water_drop_outlined,
+                  ),
+                  _WindTelemetryModule(value: forecast),
+                  _TelemetryModule(
+                    label: 'PRECIPITATION',
+                    value: '${day.precipitation.toStringAsFixed(1)} mm',
+                    detail: 'DAILY · ${day.precipitationProbability}%',
+                    icon: Icons.umbrella_outlined,
+                  ),
+                  _TelemetryModule(
+                    label: 'VISIBILITY',
+                    value: forecast?.visibility == null
+                        ? '--'
+                        : _visibilityValue(forecast!.visibility!),
+                    detail: forecast?.visibility == null
+                        ? 'FORECAST UNAVAILABLE'
+                        : _visibilityCategory(forecast!.visibility!),
+                    icon: Icons.visibility_outlined,
+                  ),
+                  _UvTelemetryModule(
+                    value: day.uvIndexMax ?? forecast?.uvIndex,
+                  ),
+                  _SunTelemetryModule(sunrise: day.sunrise, sunset: day.sunset),
+                  _PressureTelemetryModule(value: forecast?.surfacePressure),
+                  _TelemetryModule(
+                    label: 'CLOUD',
+                    value: forecast == null ? '--' : '${forecast.cloudCover}%',
+                    detail: 'REPRESENTATIVE HOUR',
+                    icon: Icons.cloud_outlined,
+                  ),
+                ],
+              );
+            },
           ),
           if (hourlyAvailable)
             Align(
@@ -906,6 +954,234 @@ class _WeatherDetails extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TelemetryGrid extends StatelessWidget {
+  const _TelemetryGrid({required this.columns, required this.children});
+
+  final int columns;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 6,
+    runSpacing: 6,
+    children: [
+      for (final child in children)
+        SizedBox(
+          width: columns == 1
+              ? double.infinity
+              : (MediaQuery.sizeOf(context).width - 54) / 2,
+          child: child,
+        ),
+    ],
+  );
+}
+
+class _TelemetryModule extends StatelessWidget {
+  const _TelemetryModule({
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final String detail;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 82),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: .46),
+        border: Border.all(color: scheme.primary.withValues(alpha: .25)),
+        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [scheme.primary.withValues(alpha: .07), Colors.transparent],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: scheme.primary),
+              const SizedBox(width: 5),
+              Text(label, style: Theme.of(context).textTheme.labelSmall),
+            ],
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(detail, style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindTelemetryModule extends StatelessWidget {
+  const _WindTelemetryModule({required this.value});
+  final WeatherHourly? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final direction = value?.windDirection;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 82),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: .46),
+        border: Border.all(color: scheme.primary.withValues(alpha: .32)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          CustomPaint(
+            size: const Size(54, 54),
+            painter: _WindCompassPainter(
+              color: scheme.primary,
+              direction: direction,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('WIND', style: Theme.of(context).textTheme.labelSmall),
+                Text(
+                  value == null ? '--' : '${value!.windSpeed.round()} km/h',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  value == null
+                      ? 'GUST -- · DIRECTION --'
+                      : 'GUST ${value!.windGust.round()} · ${_windDirection(direction)}',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindCompassPainter extends CustomPainter {
+  const _WindCompassPainter({required this.color, required this.direction});
+  final Color color;
+  final double? direction;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 3;
+    final fine = Paint()
+      ..color = color.withValues(alpha: .38)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawCircle(center, radius, fine);
+    for (var index = 0; index < 4; index++) {
+      final angle = index * math.pi / 2 - math.pi / 2;
+      final outer = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      final inner =
+          center + Offset(math.cos(angle), math.sin(angle)) * (radius - 4);
+      canvas.drawLine(inner, outer, fine);
+    }
+    final textStyle = TextStyle(
+      color: color.withValues(alpha: .8),
+      fontSize: 8,
+    );
+    for (final item in <(String, Offset)>[
+      ('N', Offset(0, -radius + 8)),
+      ('E', Offset(radius - 8, 0)),
+      ('S', Offset(0, radius - 8)),
+      ('W', Offset(-radius + 8, 0)),
+    ]) {
+      final painter = TextPainter(
+        text: TextSpan(text: item.$1, style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      painter.paint(
+        canvas,
+        center + item.$2 - Offset(painter.width / 2, painter.height / 2),
+      );
+    }
+    if (direction == null) return;
+    final angle = direction! * math.pi / 180 - math.pi / 2;
+    final tip =
+        center + Offset(math.cos(angle), math.sin(angle)) * (radius - 9);
+    final pointer = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(center, tip, pointer);
+    canvas.drawCircle(tip, 2.2, pointer);
+    canvas.drawCircle(center, 2, pointer);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WindCompassPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.direction != direction;
+}
+
+class _UvTelemetryModule extends StatelessWidget {
+  const _UvTelemetryModule({required this.value});
+  final double? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = value == null ? '--' : _uvCategory(value!);
+    return _TelemetryModule(
+      label: 'UV INDEX',
+      value: value == null ? '--' : value!.toStringAsFixed(0),
+      detail: category,
+      icon: Icons.wb_sunny_outlined,
+    );
+  }
+}
+
+class _SunTelemetryModule extends StatelessWidget {
+  const _SunTelemetryModule({required this.sunrise, required this.sunset});
+  final String sunrise;
+  final String sunset;
+
+  @override
+  Widget build(BuildContext context) => _TelemetryModule(
+    label: 'SUN',
+    value: '↑${_shortTime(sunrise)}  ↓${_shortTime(sunset)}',
+    detail: 'DAILY SOLAR WINDOW',
+    icon: Icons.wb_twilight_outlined,
+  );
+}
+
+class _PressureTelemetryModule extends StatelessWidget {
+  const _PressureTelemetryModule({required this.value});
+  final double? value;
+
+  @override
+  Widget build(BuildContext context) => _TelemetryModule(
+    label: 'SURFACE PRESSURE',
+    value: value == null ? '--' : '${value!.round()} hPa',
+    detail: 'FORECAST SURFACE VALUE',
+    icon: Icons.speed_outlined,
+  );
 }
 
 class _WeatherHourlyRail extends StatelessWidget {
@@ -962,6 +1238,55 @@ List<WeatherHourly> _hourlyForDay(WeatherSnapshot snapshot, WeatherDaily day) =>
 
 WeatherHourly? _firstHourly(List<WeatherHourly> values) =>
     values.isEmpty ? null : values.first;
+
+WeatherHourly? _representativeHourly(List<WeatherHourly> values) {
+  for (final value in values) {
+    if (value.time.endsWith('T12:00')) return value;
+  }
+  return _firstHourly(values);
+}
+
+String _windDirection(double? degrees) {
+  if (degrees == null) return 'DIRECTION --';
+  const labels = [
+    'N',
+    'NNE',
+    'NE',
+    'ENE',
+    'E',
+    'ESE',
+    'SE',
+    'SSE',
+    'S',
+    'SSW',
+    'SW',
+    'WSW',
+    'W',
+    'WNW',
+    'NW',
+    'NNW',
+  ];
+  final index = ((degrees % 360) / 22.5).round() % labels.length;
+  return '${labels[index]} / ${degrees.round()}°';
+}
+
+String _visibilityValue(double meters) =>
+    '${(meters / 1000).toStringAsFixed(meters >= 10000 ? 0 : 1)} km';
+
+String _visibilityCategory(double meters) => switch (meters) {
+  >= 20000 => 'EXCELLENT',
+  >= 10000 => 'GOOD',
+  >= 4000 => 'MODERATE',
+  _ => 'LOW',
+};
+
+String _uvCategory(double value) => switch (value) {
+  <= 2 => 'LOW',
+  <= 5 => 'MODERATE',
+  <= 7 => 'HIGH',
+  <= 10 => 'VERY HIGH',
+  _ => 'EXTREME',
+};
 
 class _OpenMeteoAttribution extends StatelessWidget {
   const _OpenMeteoAttribution();

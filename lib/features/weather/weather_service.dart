@@ -298,6 +298,7 @@ class WeatherService {
         'precipitation_sum',
         'sunrise',
         'sunset',
+        'uv_index_max',
       ].join(','),
       'hourly': [
         'temperature_2m',
@@ -309,6 +310,11 @@ class WeatherService {
         'cloud_cover',
         'wind_speed_10m',
         'wind_gusts_10m',
+        'dew_point_2m',
+        'wind_direction_10m',
+        'surface_pressure',
+        'visibility',
+        'uv_index',
       ].join(','),
     });
     final source = await _client.get(uri.toString());
@@ -340,6 +346,7 @@ class WeatherService {
         )[index].toDouble(),
         sunrise: _values<String>(data, 'sunrise')[index],
         sunset: _values<String>(data, 'sunset')[index],
+        uvIndexMax: _values<num>(data, 'uv_index_max')[index].toDouble(),
       ),
       growable: false,
     );
@@ -366,6 +373,17 @@ class WeatherService {
         cloudCover: _values<num>(data, 'cloud_cover')[index].toInt(),
         windSpeed: _values<num>(data, 'wind_speed_10m')[index].toDouble(),
         windGust: _values<num>(data, 'wind_gusts_10m')[index].toDouble(),
+        dewPoint: _values<num>(data, 'dew_point_2m')[index].toDouble(),
+        windDirection: _values<num>(
+          data,
+          'wind_direction_10m',
+        )[index].toDouble(),
+        surfacePressure: _values<num>(
+          data,
+          'surface_pressure',
+        )[index].toDouble(),
+        visibility: _values<num>(data, 'visibility')[index].toDouble(),
+        uvIndex: _values<num>(data, 'uv_index')[index].toDouble(),
       ),
       growable: false,
     );

@@ -258,7 +258,15 @@ void main() {
 
       expect(result.snapshot?.daily, hasLength(7));
       expect(result.snapshot?.hourly.first.time, '2026-09-30T00:00');
+      expect(result.snapshot?.daily.first.uvIndexMax, 3);
+      expect(result.snapshot?.hourly.first.dewPoint, 11);
+      expect(result.snapshot?.hourly.first.windDirection, 25);
+      expect(result.snapshot?.hourly.first.surfacePressure, 1012);
+      expect(result.snapshot?.hourly.first.visibility, 24000);
+      expect(result.snapshot?.hourly.first.uvIndex, 1);
       expect(client.urls.single, contains('timezone=Asia%2FTokyo'));
+      expect(client.urls.single, contains('dew_point_2m'));
+      expect(client.urls.single, contains('uv_index_max'));
     },
   );
 
@@ -388,6 +396,7 @@ String _forecastResponse() => jsonEncode({
     'precipitation_sum': List.filled(7, 0),
     'sunrise': List.filled(7, '2026-09-30T05:30'),
     'sunset': List.filled(7, '2026-09-30T17:00'),
+    'uv_index_max': List.filled(7, 3),
   },
   'hourly': {
     'time': ['2026-09-30T00:00'],
@@ -400,5 +409,10 @@ String _forecastResponse() => jsonEncode({
     'cloud_cover': [15],
     'wind_speed_10m': [8],
     'wind_gusts_10m': [13],
+    'dew_point_2m': [11],
+    'wind_direction_10m': [25],
+    'surface_pressure': [1012],
+    'visibility': [24000],
+    'uv_index': [1],
   },
 });
