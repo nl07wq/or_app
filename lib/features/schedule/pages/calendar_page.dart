@@ -17,8 +17,6 @@ import '../models/schedule_record.dart';
 import '../models/schedule_plan_revision.dart';
 import '../weather_forecast_summary.dart';
 
-enum _WeatherDisclosure { collapsed, sevenDay, details, hourly }
-
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key, this.initialDate});
   final DateTime? initialDate;
@@ -40,7 +38,13 @@ class _CalendarPageState extends State<CalendarPage> {
   bool _weatherRefreshing = false;
   bool _weatherStale = false;
   String? _weatherError;
-  _WeatherDisclosure _weatherDisclosure = _WeatherDisclosure.collapsed;
+  // The Weather surface has a master disclosure, while its console sections
+  // retain their own state during a Calendar session. Keeping these concerns
+  // separate prevents a date selection from implicitly changing a section.
+  bool _weatherExpanded = false;
+  bool _weatherHourlyExpanded = true;
+  bool _weatherDetailsExpanded = false;
+  bool _weatherSevenDayExpanded = true;
 
   @override
   void initState() {
@@ -89,7 +93,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> _openWeatherSettings() async {
     await Navigator.of(context).pushNamed(AppRoutes.weatherSettings);
     if (!mounted) return;
-    setState(() => _weatherDisclosure = _WeatherDisclosure.collapsed);
+    setState(() => _weatherExpanded = false);
     await _loadWeather();
   }
 
@@ -125,22 +129,25 @@ class _CalendarPageState extends State<CalendarPage> {
     _load();
   }
 
-  void _toggleWeatherDisclosure() => setState(() {
-    _weatherDisclosure = switch (_weatherDisclosure) {
-      _WeatherDisclosure.collapsed => _WeatherDisclosure.sevenDay,
-      _WeatherDisclosure.sevenDay => _WeatherDisclosure.collapsed,
-      _WeatherDisclosure.details => _WeatherDisclosure.sevenDay,
-      _WeatherDisclosure.hourly => _WeatherDisclosure.details,
-    };
-  });
+  void _shiftWeatherDate(int direction) {
+    final days =
+        _weatherSnapshot?.daily.take(7).toList(growable: false) ??
+        const <WeatherDaily>[];
+    final index = days.indexWhere((day) => day.date == _selectedKey);
+    if (index < 0) return;
+    final next = (index + direction).clamp(0, days.length - 1);
+    if (next == index) return;
+    _selectWeatherDate(days[next].date);
+  }
+
+  void _toggleWeatherDisclosure() =>
+      setState(() => _weatherExpanded = !_weatherExpanded);
 
   /// Calendar actions retain their normal callback path; this only folds the
   /// contextual Weather layer before that action proceeds.
   void _collapseWeatherForCalendarAction() {
-    if (_weatherDisclosure != _WeatherDisclosure.collapsed) {
-      setState(() {
-        _weatherDisclosure = _WeatherDisclosure.collapsed;
-      });
+    if (_weatherExpanded) {
+      setState(() => _weatherExpanded = false);
     }
   }
 
@@ -208,21 +215,25 @@ class _CalendarPageState extends State<CalendarPage> {
                   stale: _weatherStale,
                   error: _weatherError,
                   refreshing: _weatherRefreshing,
-                  disclosure: _weatherDisclosure,
+                  expanded: _weatherExpanded,
+                  hourlyExpanded: _weatherHourlyExpanded,
+                  detailsExpanded: _weatherDetailsExpanded,
+                  sevenDayExpanded: _weatherSevenDayExpanded,
                   onSettings: _openWeatherSettings,
                   onRefresh: () => _loadWeather(forceRefresh: true),
                   onSelectDate: _selectWeatherDate,
+                  onSwipeDate: _shiftWeatherDate,
                   onSwipeLocation: _switchWeatherLocation,
                   onToggleDisclosure: _toggleWeatherDisclosure,
-                  onShowDetails: () => setState(
-                    () => _weatherDisclosure = _WeatherDisclosure.details,
+                  onToggleHourly: () => setState(
+                    () => _weatherHourlyExpanded = !_weatherHourlyExpanded,
                   ),
-                  onToggleHourly: () => setState(() {
-                    _weatherDisclosure =
-                        _weatherDisclosure == _WeatherDisclosure.hourly
-                        ? _WeatherDisclosure.details
-                        : _WeatherDisclosure.hourly;
-                  }),
+                  onToggleDetails: () => setState(
+                    () => _weatherDetailsExpanded = !_weatherDetailsExpanded,
+                  ),
+                  onToggleSevenDay: () => setState(
+                    () => _weatherSevenDayExpanded = !_weatherSevenDayExpanded,
+                  ),
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.translucent,
@@ -428,14 +439,19 @@ class _CalendarWeatherHud extends StatelessWidget {
     required this.stale,
     required this.error,
     required this.refreshing,
-    required this.disclosure,
+    required this.expanded,
+    required this.hourlyExpanded,
+    required this.detailsExpanded,
+    required this.sevenDayExpanded,
     required this.onSettings,
     required this.onRefresh,
     required this.onSelectDate,
+    required this.onSwipeDate,
     required this.onSwipeLocation,
     required this.onToggleDisclosure,
-    required this.onShowDetails,
     required this.onToggleHourly,
+    required this.onToggleDetails,
+    required this.onToggleSevenDay,
   });
 
   final WeatherLocationPreferences preferences;
@@ -445,14 +461,19 @@ class _CalendarWeatherHud extends StatelessWidget {
   final bool stale;
   final String? error;
   final bool refreshing;
-  final _WeatherDisclosure disclosure;
+  final bool expanded;
+  final bool hourlyExpanded;
+  final bool detailsExpanded;
+  final bool sevenDayExpanded;
   final VoidCallback onSettings;
   final VoidCallback onRefresh;
   final ValueChanged<String> onSelectDate;
+  final ValueChanged<int> onSwipeDate;
   final ValueChanged<int> onSwipeLocation;
   final VoidCallback onToggleDisclosure;
-  final VoidCallback onShowDetails;
   final VoidCallback onToggleHourly;
+  final VoidCallback onToggleDetails;
+  final VoidCallback onToggleSevenDay;
 
   @override
   Widget build(BuildContext context) {
@@ -464,9 +485,6 @@ class _CalendarWeatherHud extends StatelessWidget {
     final selected = matchingDays == null || matchingDays.isEmpty
         ? null
         : matchingDays.first;
-    final detailsVisible =
-        disclosure == _WeatherDisclosure.details ||
-        disclosure == _WeatherDisclosure.hourly;
     final hourly = selected == null
         ? const <WeatherHourly>[]
         : _hourlyForDay(snapshot!, selected);
@@ -493,7 +511,7 @@ class _CalendarWeatherHud extends StatelessWidget {
                 _WeatherHeader(
                   preferences: preferences,
                   location: location,
-                  disclosure: disclosure,
+                  expanded: expanded,
                   loading: refreshing,
                   canRefresh: location != null,
                   onRefresh: onRefresh,
@@ -520,29 +538,46 @@ class _CalendarWeatherHud extends StatelessWidget {
                     _WeatherSummary(
                       day: selected,
                       snapshot: snapshot!,
-                      onTap: disclosure == _WeatherDisclosure.collapsed
-                          ? onToggleDisclosure
-                          : onShowDetails,
+                      onSwipeDate: onSwipeDate,
+                      onTap: expanded
+                          ? () => _showDailyForecastDetail(
+                              context,
+                              selected,
+                              snapshot!,
+                            )
+                          : onToggleDisclosure,
                     ),
-                  if (disclosure != _WeatherDisclosure.collapsed) ...[
-                    const SizedBox(height: 3),
-                    _WeatherForecastList(
-                      values: snapshot!.daily.take(7).toList(growable: false),
-                      snapshot: snapshot!,
-                      selectedDate: selectedDate,
-                      onSelectDate: onSelectDate,
+                  if (expanded && selected != null) ...[
+                    const SizedBox(height: 5),
+                    _WeatherConsoleSectionHeader(
+                      title: '時間別予報',
+                      expanded: hourlyExpanded,
+                      onTap: onToggleHourly,
                     ),
-                  ],
-                  if (disclosure == _WeatherDisclosure.sevenDay &&
-                      selected != null)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: onShowDetails,
-                        icon: const Icon(Icons.expand_more, size: 16),
-                        label: const Text('DETAILS'),
+                    if (hourlyExpanded)
+                      _WeatherHourlyTimeline(day: selected, values: hourly),
+                    const SizedBox(height: 6),
+                    _WeatherConsoleSectionHeader(
+                      title: '気象詳細',
+                      expanded: detailsExpanded,
+                      onTap: onToggleDetails,
+                    ),
+                    if (detailsExpanded)
+                      _WeatherDetails(day: selected, snapshot: snapshot!),
+                    const SizedBox(height: 6),
+                    _WeatherConsoleSectionHeader(
+                      title: '週間天気予報',
+                      expanded: sevenDayExpanded,
+                      onTap: onToggleSevenDay,
+                    ),
+                    if (sevenDayExpanded)
+                      _WeatherForecastList(
+                        values: snapshot!.daily.take(7).toList(growable: false),
+                        snapshot: snapshot!,
+                        selectedDate: selectedDate,
+                        onSelectDate: onSelectDate,
                       ),
-                    ),
+                  ],
                   if (stale)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 5, 12, 0),
@@ -553,21 +588,11 @@ class _CalendarWeatherHud extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (selected != null && detailsVisible)
-                    _WeatherDetails(
-                      day: selected,
-                      snapshot: snapshot!,
-                      hourlyVisible: disclosure == _WeatherDisclosure.hourly,
-                      hourlyAvailable: hourly.isNotEmpty,
-                      onToggleHourly: onToggleHourly,
-                    ),
                 ],
               ],
             ),
           ),
-          if (detailsVisible && disclosure == _WeatherDisclosure.hourly)
-            _WeatherHourlyTimeline(day: selected!, values: hourly),
-          if (snapshot != null && disclosure != _WeatherDisclosure.collapsed)
+          if (snapshot != null && expanded)
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 5, 12, 0),
               child: _OpenMeteoAttribution(),
@@ -612,7 +637,7 @@ class _WeatherHeader extends StatelessWidget {
   const _WeatherHeader({
     required this.preferences,
     required this.location,
-    required this.disclosure,
+    required this.expanded,
     required this.loading,
     required this.canRefresh,
     required this.onRefresh,
@@ -623,7 +648,7 @@ class _WeatherHeader extends StatelessWidget {
 
   final WeatherLocationPreferences preferences;
   final WeatherLocation? location;
-  final _WeatherDisclosure disclosure;
+  final bool expanded;
   final bool loading;
   final bool canRefresh;
   final VoidCallback onRefresh;
@@ -678,9 +703,7 @@ class _WeatherHeader extends StatelessWidget {
                     ),
                   ],
                   Icon(
-                    disclosure == _WeatherDisclosure.collapsed
-                        ? Icons.expand_more
-                        : Icons.expand_less,
+                    !expanded ? Icons.expand_more : Icons.expand_less,
                     size: 18,
                   ),
                 ],
@@ -756,6 +779,52 @@ class _WeatherMessage extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _WeatherConsoleSectionHeader extends StatelessWidget {
+  const _WeatherConsoleSectionHeader({
+    required this.title,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      expanded: expanded,
+      label: title,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: scheme.primary,
+                    letterSpacing: .8,
+                  ),
+                ),
+              ),
+              Icon(
+                expanded ? Icons.expand_less : Icons.expand_more,
+                size: 18,
+                color: scheme.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _WeatherForecastList extends StatelessWidget {
@@ -1009,39 +1078,122 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 /// never opens a surface; a second, deliberate tap requests the daily detail.
 bool weatherForecastRowOpensDetail({required bool selected}) => selected;
 
+Future<void> _showDailyForecastDetail(
+  BuildContext context,
+  WeatherDaily day,
+  WeatherSnapshot snapshot,
+) {
+  final date = DateTime.parse(day.date);
+  final summary = WeatherForecastSummaryEngine.summarize(
+    day: day,
+    hourly: _hourlyForDay(snapshot, day),
+  );
+  return _showWeatherExplanation(
+    context,
+    _WeatherExplanation(
+      title: '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}）',
+      value:
+          '${_weatherConditionJapanese(day.code)} · ${day.low.round()}° / ${day.high.round()}° · 降水確率 ${day.precipitationProbability}%',
+      body: 'この日の時間別予報をまとめています。',
+      forecastSummary: summary.primary,
+      supportingData: summary.supporting,
+    ),
+  );
+}
+
 class _WeatherSummary extends StatelessWidget {
   const _WeatherSummary({
     required this.day,
     required this.snapshot,
+    required this.onSwipeDate,
     required this.onTap,
   });
 
   final WeatherDaily day;
   final WeatherSnapshot snapshot;
+  final ValueChanged<int> onSwipeDate;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final current = _firstHourly(_hourlyForDay(snapshot, day));
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 2, 12, 3),
-        child: Row(
-          children: [
-            Icon(_weatherIcon(day.code), size: 17),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '${_weatherConditionJapanese(day.code)}  ${day.high.round()}°/${day.low.round()}°',
-                style: Theme.of(context).textTheme.bodySmall,
+    final hourly = _hourlyForDay(snapshot, day);
+    final representative = _representativeHourly(hourly);
+    final summary = WeatherForecastSummaryEngine.summarize(
+      day: day,
+      hourly: hourly,
+    );
+    final date = DateTime.parse(day.date);
+    final isToday = _sameDay(date, DateTime.now());
+    final tomorrow = _sameDay(
+      date,
+      DateTime.now().add(const Duration(days: 1)),
+    );
+    final label = isToday
+        ? '今日'
+        : tomorrow
+        ? '明日'
+        : '${date.month}/${date.day}（${_weekdayJapanese(date.weekday)}）';
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() > 120) onSwipeDate(velocity < 0 ? 1 : -1);
+      },
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          key: const ValueKey('weather-selected-day'),
+          margin: const EdgeInsets.fromLTRB(12, 3, 12, 2),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            border: Border.all(color: scheme.primary.withValues(alpha: .35)),
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: .12),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$label  ${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: scheme.primary,
+                  letterSpacing: .7,
+                ),
               ),
-            ),
-            Text(
-              '${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm${current == null ? '' : ' · ${current.windSpeed.round()}km/h'}',
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ],
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  Icon(_weatherIcon(day.code), color: scheme.primary, size: 23),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _weatherConditionJapanese(day.code),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  Text('LOW ${day.low.round()}° · HIGH ${day.high.round()}°'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '降水 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm${representative == null ? '' : ' · 風 ${representative.windSpeed.round()}km/h'}',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                summary.primary,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurface),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1049,19 +1201,10 @@ class _WeatherSummary extends StatelessWidget {
 }
 
 class _WeatherDetails extends StatelessWidget {
-  const _WeatherDetails({
-    required this.day,
-    required this.snapshot,
-    required this.hourlyVisible,
-    required this.hourlyAvailable,
-    required this.onToggleHourly,
-  });
+  const _WeatherDetails({required this.day, required this.snapshot});
 
   final WeatherDaily day;
   final WeatherSnapshot snapshot;
-  final bool hourlyVisible;
-  final bool hourlyAvailable;
-  final VoidCallback onToggleHourly;
 
   @override
   Widget build(BuildContext context) {
@@ -1077,13 +1220,6 @@ class _WeatherDetails extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '気象詳細',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              letterSpacing: 1.1,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
           const Padding(
             padding: EdgeInsets.only(top: 2),
             child: Text('カードをタップすると詳細を表示'),
@@ -1321,18 +1457,6 @@ class _WeatherDetails extends StatelessWidget {
               );
             },
           ),
-          if (hourlyAvailable)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onToggleHourly,
-                icon: Icon(
-                  hourlyVisible ? Icons.expand_less : Icons.expand_more,
-                  size: 16,
-                ),
-                label: Text(hourlyVisible ? '時間別予報を閉じる' : '時間別予報'),
-              ),
-            ),
         ],
       ),
     );
@@ -1900,50 +2024,45 @@ class _SunTelemetryModule extends StatelessWidget {
               ],
             ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '日の出・日の入り',
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 2,
-                      children: [
-                        Text(
-                          '日の出 ${_shortTime(sunrise)}',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        Text(
-                          '日の入り ${_shortTime(sunset)}',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'DAYLIGHT ${_daylightDuration(sunrise, sunset)}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: scheme.primary),
-                    ),
-                  ],
+              Row(
+                children: [
+                  Text(
+                    '日の出・日の入り',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const Spacer(),
+                  Text(
+                    'DAYLIGHT ${_daylightDuration(sunrise, sunset)}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: scheme.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                height: 70,
+                child: CustomPaint(
+                  painter: _SolarArcPainter(
+                    color: scheme.primary,
+                    sunrise: sunrise,
+                    sunset: sunset,
+                    progress: isToday
+                        ? weatherSolarProgress(sunrise, sunset)
+                        : null,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              CustomPaint(
-                size: const Size(116, 54),
-                painter: _SolarArcPainter(
-                  color: scheme.primary,
-                  progress: isToday
-                      ? weatherSolarProgress(sunrise, sunset)
-                      : null,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('日の出 ${_shortTime(sunrise)}'),
+                  Text('日の入り ${_shortTime(sunset)}'),
+                ],
               ),
             ],
           ),
@@ -2071,35 +2190,60 @@ class _PressureGaugePainter extends CustomPainter {
 }
 
 class _SolarArcPainter extends CustomPainter {
-  const _SolarArcPainter({required this.color, required this.progress});
+  const _SolarArcPainter({
+    required this.color,
+    required this.sunrise,
+    required this.sunset,
+    required this.progress,
+  });
   final Color color;
+  final String sunrise;
+  final String sunset;
   final double? progress;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final arc = Paint()
-      ..color = color.withValues(alpha: .42)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final bounds = Rect.fromLTWH(5, 7, size.width - 10, size.height * 1.55);
-    canvas.drawArc(bounds, math.pi, math.pi, false, arc);
+    final horizonY = size.height - 16;
+    final sunriseFraction = _solarDayFraction(sunrise) ?? .25;
+    final sunsetFraction = _solarDayFraction(sunset) ?? .75;
     final horizon = Paint()
-      ..color = color.withValues(alpha: .25)
+      ..color = color.withValues(alpha: .28)
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(4, size.height - 5),
-      Offset(size.width - 4, size.height - 5),
+      Offset(4, horizonY),
+      Offset(size.width - 4, horizonY),
       horizon,
     );
-    final horizonY = size.height - 5;
-    final start = Offset(6, horizonY);
-    final end = Offset(size.width - 6, horizonY);
+    for (final hour in [0, 6, 12, 18, 24]) {
+      final x = 4 + (size.width - 8) * (hour / 24);
+      canvas.drawLine(
+        Offset(x, horizonY - 3),
+        Offset(x, horizonY + 3),
+        horizon,
+      );
+      final label = TextPainter(
+        text: TextSpan(
+          text: hour == 24 ? '24' : hour.toString().padLeft(2, '0'),
+          style: TextStyle(color: color.withValues(alpha: .55), fontSize: 8),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(canvas, Offset(x - label.width / 2, horizonY + 5));
+    }
+    final arc = Paint()
+      ..color = color.withValues(alpha: .65)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final start = Offset(4 + (size.width - 8) * sunriseFraction, horizonY);
+    final end = Offset(4 + (size.width - 8) * sunsetFraction, horizonY);
+    final bounds = Rect.fromLTRB(start.dx, 3, end.dx, horizonY * 2 - 3);
+    canvas.drawArc(bounds, math.pi, math.pi, false, arc);
     canvas.drawCircle(start, 2, Paint()..color = color.withValues(alpha: .7));
     canvas.drawCircle(end, 2, Paint()..color = color.withValues(alpha: .7));
     if (progress != null) {
       final safe = progress!.clamp(0.0, 1.0);
       final x = start.dx + (end.dx - start.dx) * safe;
-      final y = horizonY - math.sin(math.pi * safe) * (size.height - 14);
+      final y = horizonY - math.sin(math.pi * safe) * (horizonY - 3);
       final point = Paint()..color = color;
       canvas.drawCircle(Offset(x, y), 3, point);
     }
@@ -2107,7 +2251,16 @@ class _SolarArcPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SolarArcPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.progress != progress;
+      oldDelegate.color != color ||
+      oldDelegate.sunrise != sunrise ||
+      oldDelegate.sunset != sunset ||
+      oldDelegate.progress != progress;
+}
+
+double? _solarDayFraction(String time) {
+  final parsed = DateTime.tryParse(time);
+  if (parsed == null) return null;
+  return (parsed.hour * 60 + parsed.minute) / (24 * 60);
 }
 
 class _WeatherHourlyTimeline extends StatelessWidget {
@@ -2118,33 +2271,161 @@ class _WeatherHourlyTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: .26),
+            border: Border.all(color: scheme.primary.withValues(alpha: .20)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: SingleChildScrollView(
+            key: ValueKey(
+              'weather-hourly-${values.isEmpty ? 'empty' : values.first.time.substring(0, 10)}',
+            ),
+            scrollDirection: Axis.horizontal,
+            child: _WeatherHourlySharedGrid(day: day, values: values),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherHourlySharedGrid extends StatelessWidget {
+  const _WeatherHourlySharedGrid({required this.day, required this.values});
+
+  final WeatherDaily day;
+  final List<WeatherHourly> values;
+
+  static const _columnWidth = 72.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final temperatures = values.map((value) => value.temperature).toList();
+    return SizedBox(
+      width: 46 + values.length * _columnWidth,
+      height: 194,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 46,
+            right: 0,
+            top: 47,
+            height: 33,
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _HourlyTemperatureTrendPainter(
+                  color: scheme.primary,
+                  values: temperatures,
+                  columnWidth: _columnWidth,
+                ),
+              ),
+            ),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _HourlyMetricLabels(),
+              for (var index = 0; index < values.length; index++)
+                _WeatherHourlyTimelineColumn(
+                  day: day,
+                  values: values,
+                  index: index,
+                  width: _columnWidth,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HourlyMetricLabels extends StatelessWidget {
+  const _HourlyMetricLabels();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 46,
+    child: Padding(
+      padding: const EdgeInsets.only(top: 9, left: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SizedBox(height: 23),
+          Text('天気'),
+          SizedBox(height: 17),
+          Text('気温'),
+          SizedBox(height: 21),
+          Text('降水'),
+          SizedBox(height: 17),
+          Text('湿度'),
+          SizedBox(height: 17),
+          Text('雨量'),
+          SizedBox(height: 17),
+          Text('風'),
+        ],
+      ),
+    ),
+  );
+}
+
+class _WeatherHourlyTimelineColumn extends StatelessWidget {
+  const _WeatherHourlyTimelineColumn({
+    required this.day,
+    required this.values,
+    required this.index,
+    required this.width,
+  });
+
+  final WeatherDaily day;
+  final List<WeatherHourly> values;
+  final int index;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = values[index];
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      key: ValueKey('weather-hourly-column-${value.time}'),
+      onTap: () => _showHourlyForecastDetail(context, day, values, index),
+      child: Container(
+        width: width,
+        height: 194,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: scheme.primary.withValues(alpha: .12)),
+          ),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '時間別予報',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                letterSpacing: 1.1,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              _hourJapanese(value.time),
+              style: Theme.of(context).textTheme.labelSmall,
             ),
-            const SizedBox(height: 4),
-            SingleChildScrollView(
-              key: ValueKey(
-                'weather-hourly-${values.isEmpty ? 'empty' : values.first.time.substring(0, 10)}',
-              ),
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var index = 0; index < values.length; index++)
-                    _WeatherHourlyCell(day: day, values: values, index: index),
-                ],
-              ),
+            const SizedBox(height: 6),
+            Icon(_weatherIcon(value.code), size: 17, color: scheme.primary),
+            const SizedBox(height: 7),
+            Text('${value.temperature.round()}°'),
+            const SizedBox(height: 12),
+            Text('${value.precipitationProbability}%'),
+            const SizedBox(height: 6),
+            Text('${value.humidity}%'),
+            const SizedBox(height: 6),
+            Text(
+              value.precipitation == 0
+                  ? '0mm'
+                  : '${value.precipitation.toStringAsFixed(1)}mm',
             ),
+            const SizedBox(height: 6),
+            Text('${value.windSpeed.round()}'),
           ],
         ),
       ),
@@ -2152,6 +2433,95 @@ class _WeatherHourlyTimeline extends StatelessWidget {
   }
 }
 
+class _HourlyTemperatureTrendPainter extends CustomPainter {
+  const _HourlyTemperatureTrendPainter({
+    required this.color,
+    required this.values,
+    required this.columnWidth,
+  });
+
+  final Color color;
+  final List<double> values;
+  final double columnWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+    final low = values.reduce(math.min);
+    final high = values.reduce(math.max);
+    final span = math.max(4, high - low);
+    final path = Path();
+    for (var index = 0; index < values.length; index++) {
+      final x = index * columnWidth + columnWidth / 2;
+      final y =
+          size.height - 4 - ((values[index] - low) / span) * (size.height - 10);
+      if (index == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withValues(alpha: .75)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3,
+    );
+    for (var index = 0; index < values.length; index++) {
+      final x = index * columnWidth + columnWidth / 2;
+      final y =
+          size.height - 4 - ((values[index] - low) / span) * (size.height - 10);
+      canvas.drawCircle(Offset(x, y), 2, Paint()..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HourlyTemperatureTrendPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.columnWidth != columnWidth ||
+      oldDelegate.values != values;
+}
+
+Future<void> _showHourlyForecastDetail(
+  BuildContext context,
+  WeatherDaily day,
+  List<WeatherHourly> values,
+  int index,
+) {
+  final value = values[index];
+  final summary = WeatherHourlyForecastSummaryEngine.summarize(
+    hourly: values,
+    index: index,
+  );
+  return _showWeatherExplanation(
+    context,
+    _WeatherExplanation(
+      title: _hourlyDetailTitle(day, value.time),
+      value:
+          '${_weatherConditionJapanese(value.code)} · ${value.temperature.round()}°',
+      body: '時間別予報は、その時刻の予報値です。',
+      forecastSummaryLabel: 'この時間の予報',
+      forecastSummary: summary.primary,
+      supportingData: [
+        '体感 ${value.apparentTemperature.round()}° · 降水 ${value.precipitationProbability}%${value.precipitation > 0 ? ' / ${value.precipitation.toStringAsFixed(1)}mm' : ''}',
+        '風 ${value.windSpeed.round()} km/h · 突風 ${value.windGust.round()} km/h${value.windDirection == null ? '' : ' · ${_windDirection(value.windDirection)}'}',
+        '湿度 ${value.humidity}% · 雲量 ${value.cloudCover}%',
+        if (value.dewPoint != null) '露点 ${value.dewPoint!.round()}°',
+        if (value.visibility != null)
+          '視程 ${_visibilityValue(value.visibility!)}',
+        if (value.surfacePressure != null)
+          '気圧 ${value.surfacePressure!.round()} hPa',
+        if (value.uvIndex != null) 'UV指数 ${value.uvIndex!.toStringAsFixed(0)}',
+        ...summary.supporting,
+      ],
+    ),
+  );
+}
+
+// Retained temporarily for source compatibility with older widget tests; the
+// production timeline above is the sole rendered hourly implementation.
+// ignore: unused_element
 class _WeatherHourlyCell extends StatelessWidget {
   const _WeatherHourlyCell({
     required this.day,
