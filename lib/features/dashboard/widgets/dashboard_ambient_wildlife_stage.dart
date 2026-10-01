@@ -155,7 +155,11 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// resulting rendered animal a further 0.80 without changing the lane width
   /// or crossing coordinates.
   static const double animalPresentationScale = .64;
-  static const double birdPresentationScale = 32 / 56;
+  static const double birdPresentationScale = 28 / 56;
+
+  /// Bird-only Dashboard optical lift. The canonical flight geometry and
+  /// shared Ambient lane remain untouched.
+  static const double birdPresentationAltitudeOffsetY = -6;
   static const double catPresentationOffsetY = -2;
 
   /// A deliberate Dashboard-only optical altitude adjustment. It is applied
@@ -216,6 +220,9 @@ class _DashboardAmbientWildlifeStageState
                         DashboardAmbientWildlifeStage.topAirspaceCrop,
                     birdPresentationScale:
                         DashboardAmbientWildlifeStage.birdPresentationScale,
+                    birdPresentationAltitudeOffsetY:
+                        DashboardAmbientWildlifeStage
+                            .birdPresentationAltitudeOffsetY,
                   ),
                 ),
               ),

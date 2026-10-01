@@ -213,8 +213,11 @@ abstract final class BirdV1ProductionFlight {
   static const cadence = BirdV1Cadence.cruise;
   static const transition = BirdV1Transition.overlap20;
   static const flightSpeed = BirdV1FlightSpeed.onePointFive;
-  static const normalSpatialSpacing = 42.0;
-  static const glitchSpatialSpacing = 30.0;
+
+  /// Spatial separation is the authority; launch time is derived from the
+  /// actual stage velocity so a flock keeps this clearance at every width.
+  static const normalSpatialSpacing = 50.0;
+  static const glitchSpatialSpacing = 38.0;
   static const instances = <BirdV1ProductionInstance>[
     BirdV1ProductionInstance(
       identifier: 0,
@@ -226,13 +229,13 @@ abstract final class BirdV1ProductionFlight {
       identifier: 1,
       phaseOffsetMs: 77,
       launchSpacingPx: normalSpatialSpacing,
-      formationY: -8,
+      formationY: -10,
     ),
     BirdV1ProductionInstance(
       identifier: 2,
       phaseOffsetMs: 154,
       launchSpacingPx: normalSpatialSpacing * 2,
-      formationY: 7,
+      formationY: 8,
     ),
   ];
   static const glitchInstances = <BirdV1ProductionInstance>[
@@ -246,31 +249,31 @@ abstract final class BirdV1ProductionFlight {
       identifier: 1,
       phaseOffsetMs: 47,
       launchSpacingPx: glitchSpatialSpacing,
-      formationY: -7,
+      formationY: -9,
     ),
     BirdV1ProductionInstance(
       identifier: 2,
       phaseOffsetMs: 94,
       launchSpacingPx: glitchSpatialSpacing * 2,
-      formationY: 5,
+      formationY: 6,
     ),
     BirdV1ProductionInstance(
       identifier: 3,
       phaseOffsetMs: 141,
       launchSpacingPx: glitchSpatialSpacing * 3,
-      formationY: -3,
+      formationY: -4,
     ),
     BirdV1ProductionInstance(
       identifier: 4,
       phaseOffsetMs: 188,
       launchSpacingPx: glitchSpatialSpacing * 4,
-      formationY: 11,
+      formationY: 10,
     ),
     BirdV1ProductionInstance(
       identifier: 5,
       phaseOffsetMs: 235,
       launchSpacingPx: glitchSpatialSpacing * 5,
-      formationY: -12,
+      formationY: -13,
     ),
     BirdV1ProductionInstance(
       identifier: 6,
@@ -282,7 +285,7 @@ abstract final class BirdV1ProductionFlight {
       identifier: 7,
       phaseOffsetMs: 329,
       launchSpacingPx: glitchSpatialSpacing * 7,
-      formationY: -8,
+      formationY: -10,
     ),
     BirdV1ProductionInstance(
       identifier: 8,
@@ -301,15 +304,28 @@ abstract final class BirdV1ProductionFlight {
   static const _bobAmplitude = 1.4;
   static const _flutterAmplitude =
       BirdV1FlightTuning.birdFlutterVerticalAmplitude;
+  static const _glitchVerticalMotionScale = .65;
   static const _minimumTopClearance =
-      baseTop - 12 - _bobAmplitude - _flutterAmplitude;
+      baseTop -
+      13 -
+      (_bobAmplitude + _flutterAmplitude) * _glitchVerticalMotionScale;
   static const _maximumBottom =
-      baseTop + 11 + renderedSize + _bobAmplitude + _flutterAmplitude;
+      baseTop +
+      10 +
+      renderedSize +
+      (_bobAmplitude + _flutterAmplitude) * _glitchVerticalMotionScale;
 
   static List<int> get frameSet => BirdV1SourceSet.cycle;
   static List<int> get holds => BirdV1FlightTuning.cruiseHoldsMs;
   static int get transitionMs => BirdV1FlightTuning.transitionMs(transition);
   static int get cycleDurationMs => BirdV1FlightTuning.cycleDurationMs(cadence);
+
+  static double verticalMotionScaleFor(List<BirdV1ProductionInstance> values) =>
+      switch (values.length) {
+        0 || 1 => 1,
+        2 || 3 => .75,
+        _ => .65,
+      };
   static double get minimumTopClearance => _minimumTopClearance;
   static double get maximumBottom => _maximumBottom;
   static double groundClearanceFor(double groundY) => groundY - maximumBottom;
@@ -318,6 +334,7 @@ abstract final class BirdV1ProductionFlight {
     required List<BirdV1ProductionInstance> values,
     required double presentationScale,
     required double presentationTopCrop,
+    double presentationAltitudeOffsetY = 0,
   }) {
     final minimumFormationY = values
         .map((value) => value.formationY)
@@ -325,18 +342,17 @@ abstract final class BirdV1ProductionFlight {
     final maximumFormationY = values
         .map((value) => value.formationY)
         .reduce(math.max);
+    final motionScale = verticalMotionScaleFor(values);
+    final verticalAmplitude = (_bobAmplitude + _flutterAmplitude) * motionScale;
     return (
       top:
           presentationTopCrop +
-          (baseTop + minimumFormationY - _bobAmplitude - _flutterAmplitude) *
-              presentationScale,
+          presentationAltitudeOffsetY +
+          (baseTop + minimumFormationY - verticalAmplitude) * presentationScale,
       bottom:
           presentationTopCrop +
-          (baseTop +
-                  maximumFormationY +
-                  renderedSize +
-                  _bobAmplitude +
-                  _flutterAmplitude) *
+          presentationAltitudeOffsetY +
+          (baseTop + maximumFormationY + renderedSize + verticalAmplitude) *
               presentationScale,
     );
   }
@@ -763,6 +779,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
     this.birdPresentationScale = 1,
+    this.birdPresentationAltitudeOffsetY = 0,
     super.key,
     this.onCompleted,
   });
@@ -785,6 +802,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   /// This mirrors the existing BAT crop mapping without changing the lane.
   final double birdPresentationTopCrop;
   final double birdPresentationScale;
+  final double birdPresentationAltitudeOffsetY;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -827,6 +845,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
     this.birdPresentationScale = 1,
+    this.birdPresentationAltitudeOffsetY = 0,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -843,6 +862,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double batPresentationAltitudeOffsetY;
   final double birdPresentationTopCrop;
   final double birdPresentationScale;
+  final double birdPresentationAltitudeOffsetY;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -958,6 +978,7 @@ class AmbientWildlifeV2ProductionStageState
     batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
     birdPresentationTopCrop: widget.birdPresentationTopCrop,
     birdPresentationScale: widget.birdPresentationScale,
+    birdPresentationAltitudeOffsetY: widget.birdPresentationAltitudeOffsetY,
     onCompleted: _complete,
   );
 }
@@ -1321,6 +1342,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                               presentationScale: widget.birdPresentationScale,
                               presentationTopCrop:
                                   widget.birdPresentationTopCrop,
+                              presentationAltitudeOffsetY:
+                                  widget.birdPresentationAltitudeOffsetY,
                             );
                           }
                           final eventDurationMs =
@@ -1470,6 +1493,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
     required this.instances,
     required this.presentationScale,
     required this.presentationTopCrop,
+    required this.presentationAltitudeOffsetY,
   });
 
   final int elapsedMs;
@@ -1477,6 +1501,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
   final List<BirdV1ProductionInstance> instances;
   final double presentationScale;
   final double presentationTopCrop;
+  final double presentationAltitudeOffsetY;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1499,6 +1524,9 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
               instance: instance,
               presentationScale: presentationScale,
               presentationTopCrop: presentationTopCrop,
+              presentationAltitudeOffsetY: presentationAltitudeOffsetY,
+              verticalMotionScale:
+                  BirdV1ProductionFlight.verticalMotionScaleFor(instances),
             ),
       ],
     ),
@@ -1514,6 +1542,8 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
     required this.instance,
     required this.presentationScale,
     required this.presentationTopCrop,
+    required this.presentationAltitudeOffsetY,
+    required this.verticalMotionScale,
   });
 
   final int elapsedMs;
@@ -1522,6 +1552,8 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
   final BirdV1ProductionInstance instance;
   final double presentationScale;
   final double presentationTopCrop;
+  final double presentationAltitudeOffsetY;
+  final double verticalMotionScale;
 
   @override
   Widget build(BuildContext context) {
@@ -1530,14 +1562,18 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
       elapsedMs: elapsedMs,
       instance: instance,
     );
-    final bob = BirdV1FlightTuning.bobForElapsed(
-      frame.motionElapsedMs,
-      BirdV1ProductionFlight.cadence,
-    );
-    final flutterY = BirdV1FlightTuning.flutterYForElapsed(
-      frame.motionElapsedMs,
-      BirdV1ProductionFlight.cadence,
-    );
+    final bob =
+        BirdV1FlightTuning.bobForElapsed(
+          frame.motionElapsedMs,
+          BirdV1ProductionFlight.cadence,
+        ) *
+        verticalMotionScale;
+    final flutterY =
+        BirdV1FlightTuning.flutterYForElapsed(
+          frame.motionElapsedMs,
+          BirdV1ProductionFlight.cadence,
+        ) *
+        verticalMotionScale;
     final flutterRotation = BirdV1FlightTuning.flutterRotationForElapsed(
       frame.motionElapsedMs,
       BirdV1ProductionFlight.cadence,
@@ -1561,6 +1597,7 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
       ),
       top:
           presentationTopCrop +
+          presentationAltitudeOffsetY +
           (BirdV1ProductionFlight.baseTop +
                   instance.formationY +
                   bob +
