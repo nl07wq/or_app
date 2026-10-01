@@ -213,86 +213,88 @@ abstract final class BirdV1ProductionFlight {
   static const cadence = BirdV1Cadence.cruise;
   static const transition = BirdV1Transition.overlap20;
   static const flightSpeed = BirdV1FlightSpeed.onePointFive;
+  static const normalSpatialSpacing = 42.0;
+  static const glitchSpatialSpacing = 30.0;
   static const instances = <BirdV1ProductionInstance>[
     BirdV1ProductionInstance(
       identifier: 0,
       phaseOffsetMs: 0,
-      startDelayMs: 0,
+      launchSpacingPx: 0,
       formationY: 0,
     ),
     BirdV1ProductionInstance(
       identifier: 1,
       phaseOffsetMs: 77,
-      startDelayMs: 105,
-      formationY: -7,
+      launchSpacingPx: normalSpatialSpacing,
+      formationY: -8,
     ),
     BirdV1ProductionInstance(
       identifier: 2,
       phaseOffsetMs: 154,
-      startDelayMs: 210,
-      formationY: 6,
+      launchSpacingPx: normalSpatialSpacing * 2,
+      formationY: 7,
     ),
   ];
   static const glitchInstances = <BirdV1ProductionInstance>[
     BirdV1ProductionInstance(
       identifier: 0,
       phaseOffsetMs: 0,
-      startDelayMs: 0,
+      launchSpacingPx: 0,
       formationY: 0,
     ),
     BirdV1ProductionInstance(
       identifier: 1,
       phaseOffsetMs: 47,
-      startDelayMs: 70,
-      formationY: -8,
+      launchSpacingPx: glitchSpatialSpacing,
+      formationY: -7,
     ),
     BirdV1ProductionInstance(
       identifier: 2,
       phaseOffsetMs: 94,
-      startDelayMs: 140,
-      formationY: 6,
+      launchSpacingPx: glitchSpatialSpacing * 2,
+      formationY: 5,
     ),
     BirdV1ProductionInstance(
       identifier: 3,
       phaseOffsetMs: 141,
-      startDelayMs: 210,
-      formationY: -4,
+      launchSpacingPx: glitchSpatialSpacing * 3,
+      formationY: -3,
     ),
     BirdV1ProductionInstance(
       identifier: 4,
       phaseOffsetMs: 188,
-      startDelayMs: 280,
-      formationY: 9,
+      launchSpacingPx: glitchSpatialSpacing * 4,
+      formationY: 11,
     ),
     BirdV1ProductionInstance(
       identifier: 5,
       phaseOffsetMs: 235,
-      startDelayMs: 350,
-      formationY: -11,
+      launchSpacingPx: glitchSpatialSpacing * 5,
+      formationY: -12,
     ),
     BirdV1ProductionInstance(
       identifier: 6,
       phaseOffsetMs: 282,
-      startDelayMs: 420,
-      formationY: 4,
+      launchSpacingPx: glitchSpatialSpacing * 6,
+      formationY: 3,
     ),
     BirdV1ProductionInstance(
       identifier: 7,
       phaseOffsetMs: 329,
-      startDelayMs: 490,
-      formationY: -2,
+      launchSpacingPx: glitchSpatialSpacing * 7,
+      formationY: -8,
     ),
     BirdV1ProductionInstance(
       identifier: 8,
       phaseOffsetMs: 376,
-      startDelayMs: 560,
-      formationY: 8,
+      launchSpacingPx: glitchSpatialSpacing * 8,
+      formationY: 9,
     ),
     BirdV1ProductionInstance(
       identifier: 9,
       phaseOffsetMs: 423,
-      startDelayMs: 630,
-      formationY: -6,
+      launchSpacingPx: glitchSpatialSpacing * 9,
+      formationY: -1,
     ),
   ];
 
@@ -300,9 +302,9 @@ abstract final class BirdV1ProductionFlight {
   static const _flutterAmplitude =
       BirdV1FlightTuning.birdFlutterVerticalAmplitude;
   static const _minimumTopClearance =
-      baseTop - 11 - _bobAmplitude - _flutterAmplitude;
+      baseTop - 12 - _bobAmplitude - _flutterAmplitude;
   static const _maximumBottom =
-      baseTop + 9 + renderedSize + _bobAmplitude + _flutterAmplitude;
+      baseTop + 11 + renderedSize + _bobAmplitude + _flutterAmplitude;
 
   static List<int> get frameSet => BirdV1SourceSet.cycle;
   static List<int> get holds => BirdV1FlightTuning.cruiseHoldsMs;
@@ -312,15 +314,62 @@ abstract final class BirdV1ProductionFlight {
   static double get maximumBottom => _maximumBottom;
   static double groundClearanceFor(double groundY) => groundY - maximumBottom;
 
-  static int eventDurationMs(List<BirdV1ProductionInstance> values) =>
+  static ({double top, double bottom}) visibleEnvelopeFor({
+    required List<BirdV1ProductionInstance> values,
+    required double presentationScale,
+    required double presentationTopCrop,
+  }) {
+    final minimumFormationY = values
+        .map((value) => value.formationY)
+        .reduce(math.min);
+    final maximumFormationY = values
+        .map((value) => value.formationY)
+        .reduce(math.max);
+    return (
+      top:
+          presentationTopCrop +
+          (baseTop + minimumFormationY - _bobAmplitude - _flutterAmplitude) *
+              presentationScale,
+      bottom:
+          presentationTopCrop +
+          (baseTop +
+                  maximumFormationY +
+                  renderedSize +
+                  _bobAmplitude +
+                  _flutterAmplitude) *
+              presentationScale,
+    );
+  }
+
+  static double crossingPixelsPerMs(double stageWidth) =>
+      (stageWidth + renderedSize + entryExitGap * 2) /
+      crossingDuration.inMilliseconds;
+
+  static int launchDelayFor({
+    required double stageWidth,
+    required BirdV1ProductionInstance instance,
+  }) => (instance.launchSpacingPx / crossingPixelsPerMs(stageWidth)).round();
+
+  static int eventDurationMs({
+    required double stageWidth,
+    required List<BirdV1ProductionInstance> values,
+  }) =>
       crossingDuration.inMilliseconds +
-      values.map((value) => value.startDelayMs).reduce(math.max);
+      values
+          .map(
+            (value) => launchDelayFor(stageWidth: stageWidth, instance: value),
+          )
+          .reduce(math.max);
 
   static double progressFor({
+    required double stageWidth,
     required int elapsedMs,
     required BirdV1ProductionInstance instance,
-  }) => ((elapsedMs - instance.startDelayMs) / crossingDuration.inMilliseconds)
-      .clamp(0, 1);
+  }) =>
+      ((elapsedMs -
+                  launchDelayFor(stageWidth: stageWidth, instance: instance)) /
+              crossingDuration.inMilliseconds)
+          .clamp(0, 1);
 
   static double leftFor({
     required double stageWidth,
@@ -334,9 +383,13 @@ abstract final class BirdV1ProductionFlight {
   }
 
   static bool isInstanceComplete({
+    required double stageWidth,
     required int elapsedMs,
     required BirdV1ProductionInstance instance,
-  }) => elapsedMs >= crossingDuration.inMilliseconds + instance.startDelayMs;
+  }) =>
+      elapsedMs >=
+      crossingDuration.inMilliseconds +
+          launchDelayFor(stageWidth: stageWidth, instance: instance);
 
   static bool hasFullyExited({
     required double stageWidth,
@@ -346,7 +399,11 @@ abstract final class BirdV1ProductionFlight {
   }) {
     final left = leftFor(
       stageWidth: stageWidth,
-      progress: progressFor(elapsedMs: elapsedMs, instance: instance),
+      progress: progressFor(
+        stageWidth: stageWidth,
+        elapsedMs: elapsedMs,
+        instance: instance,
+      ),
       leftToRight: leftToRight,
     );
     return leftToRight
@@ -355,11 +412,17 @@ abstract final class BirdV1ProductionFlight {
   }
 
   static BirdV1ProductionFrame frameFor({
+    required double stageWidth,
     required int elapsedMs,
     required BirdV1ProductionInstance instance,
   }) {
     final localElapsed =
-        math.max(0, elapsedMs - instance.startDelayMs) + instance.phaseOffsetMs;
+        math.max(
+          0,
+          elapsedMs -
+              launchDelayFor(stageWidth: stageWidth, instance: instance),
+        ) +
+        instance.phaseOffsetMs;
     var remaining = localElapsed % cycleDurationMs;
     for (var index = 0; index < holds.length; index++) {
       final hold = holds[index];
@@ -396,13 +459,13 @@ class BirdV1ProductionInstance {
   const BirdV1ProductionInstance({
     required this.identifier,
     required this.phaseOffsetMs,
-    required this.startDelayMs,
+    required this.launchSpacingPx,
     required this.formationY,
   });
 
   final int identifier;
   final int phaseOffsetMs;
-  final int startDelayMs;
+  final double launchSpacingPx;
   final double formationY;
 }
 
@@ -699,6 +762,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.batPresentationTopCrop = 0,
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
+    this.birdPresentationScale = 1,
     super.key,
     this.onCompleted,
   });
@@ -720,6 +784,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   /// Maps BIRD's canonical airspace into a vertically cropped Dashboard lane.
   /// This mirrors the existing BAT crop mapping without changing the lane.
   final double birdPresentationTopCrop;
+  final double birdPresentationScale;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -761,6 +826,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.batPresentationTopCrop = 0,
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
+    this.birdPresentationScale = 1,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -776,6 +842,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double batPresentationTopCrop;
   final double batPresentationAltitudeOffsetY;
   final double birdPresentationTopCrop;
+  final double birdPresentationScale;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -890,6 +957,7 @@ class AmbientWildlifeV2ProductionStageState
     batPresentationTopCrop: widget.batPresentationTopCrop,
     batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
     birdPresentationTopCrop: widget.birdPresentationTopCrop,
+    birdPresentationScale: widget.birdPresentationScale,
     onCompleted: _complete,
   );
 }
@@ -899,6 +967,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
   late final AnimationController _controller;
   double? _stageWidth;
   bool _waitingForFoxStageWidth = false;
+  bool _waitingForBirdStageWidth = false;
   Duration? _activeFoxDuration;
   bool _foxCompletionEmitted = false;
 
@@ -960,6 +1029,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       return;
     }
     if (plan.isBird) {
+      if (_stageWidth == null) {
+        _waitingForBirdStageWidth = true;
+        return;
+      }
       _controller.value = 0;
       _continueBird(_birdDuration);
       return;
@@ -1057,15 +1130,19 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       return BirdV1ProductionFlight.crossingDuration;
     }
     return Duration(
-      milliseconds: BirdV1ProductionFlight.eventDurationMs(instances),
+      milliseconds: BirdV1ProductionFlight.eventDurationMs(
+        stageWidth: _stageWidth ?? 0,
+        values: instances,
+      ),
     );
   }
 
   void _recordStageWidth(double width) {
     if (_stageWidth == width) return;
     _stageWidth = width;
-    if (!_waitingForFoxStageWidth) return;
+    if (!_waitingForFoxStageWidth && !_waitingForBirdStageWidth) return;
     _waitingForFoxStageWidth = false;
+    _waitingForBirdStageWidth = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _start();
     });
@@ -1241,8 +1318,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                               elapsedMs: elapsed,
                               leftToRight: plan.leftToRight,
                               instances: plan.birdInstances,
-                              presentationScale:
-                                  widget.speciesPresentationScale,
+                              presentationScale: widget.birdPresentationScale,
                               presentationTopCrop:
                                   widget.birdPresentationTopCrop,
                             );
@@ -1409,6 +1485,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
       children: [
         for (final instance in instances)
           if (!BirdV1ProductionFlight.isInstanceComplete(
+            stageWidth: constraints.maxWidth,
             elapsedMs: elapsedMs,
             instance: instance,
           ))
@@ -1449,6 +1526,7 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final frame = BirdV1ProductionFlight.frameFor(
+      stageWidth: stageWidth,
       elapsedMs: elapsedMs,
       instance: instance,
     );
@@ -1475,6 +1553,7 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
       left: BirdV1ProductionFlight.leftFor(
         stageWidth: stageWidth,
         progress: BirdV1ProductionFlight.progressFor(
+          stageWidth: stageWidth,
           elapsedMs: elapsedMs,
           instance: instance,
         ),

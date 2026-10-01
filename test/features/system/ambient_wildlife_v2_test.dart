@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
@@ -265,20 +266,25 @@ void main() {
       );
       expect(BirdV1ProductionFlight.flutterOn, isTrue);
       expect(BirdV1ProductionFlight.renderedSize, 56);
+      expect(BirdV1ProductionFlight.normalSpatialSpacing, 42);
+      expect(BirdV1ProductionFlight.glitchSpatialSpacing, 30);
       expect(
         BirdV1ProductionFlight.flightSpeed,
         BirdV1FlightSpeed.onePointFive,
       );
 
       final first = BirdV1ProductionFlight.frameFor(
+        stageWidth: 390,
         elapsedMs: 0,
         instance: BirdV1ProductionFlight.instances.first,
       );
       final second = BirdV1ProductionFlight.frameFor(
+        stageWidth: 390,
         elapsedMs: 63,
         instance: BirdV1ProductionFlight.instances.first,
       );
       final seam = BirdV1ProductionFlight.frameFor(
+        stageWidth: 390,
         elapsedMs: BirdV1ProductionFlight.cycleDurationMs,
         instance: BirdV1ProductionFlight.instances.first,
       );
@@ -321,6 +327,20 @@ void main() {
         glitch.birdInstances.map((instance) => instance.phaseOffsetMs).toSet(),
         hasLength(10),
       );
+      expect(
+        BirdV1ProductionFlight.launchDelayFor(
+          stageWidth: 390,
+          instance: two.birdInstances[1],
+        ),
+        136,
+      );
+      expect(
+        BirdV1ProductionFlight.launchDelayFor(
+          stageWidth: 390,
+          instance: glitch.birdInstances[1],
+        ),
+        97,
+      );
     },
   );
 
@@ -335,7 +355,10 @@ void main() {
             BirdV1ProductionFlight.instances,
             BirdV1ProductionFlight.glitchInstances,
           ]) {
-            final elapsed = BirdV1ProductionFlight.eventDurationMs(instances);
+            final elapsed = BirdV1ProductionFlight.eventDurationMs(
+              stageWidth: width,
+              values: instances,
+            );
             expect(
               instances.every(
                 (instance) => BirdV1ProductionFlight.hasFullyExited(
@@ -355,6 +378,56 @@ void main() {
       expect(BirdV1ProductionFlight.groundClearanceFor(99), greaterThan(0));
     },
   );
+
+  test('BIRD uses a bird-only 32px Dashboard presentation scale', () {
+    const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
+    expect(BirdV1ProductionFlight.renderedSize * scale, 32);
+
+    final single = BirdV1ProductionFlight.visibleEnvelopeFor(
+      values: BirdV1ProductionFlight.instances.take(1).toList(),
+      presentationScale: scale,
+      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+    );
+    final pair = BirdV1ProductionFlight.visibleEnvelopeFor(
+      values: BirdV1ProductionFlight.instances.take(2).toList(),
+      presentationScale: scale,
+      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+    );
+    final flock = BirdV1ProductionFlight.visibleEnvelopeFor(
+      values: BirdV1ProductionFlight.glitchInstances,
+      presentationScale: scale,
+      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+    );
+    expect(single.top, greaterThan(0));
+    expect(flock.top, greaterThan(0));
+    expect(
+      flock.bottom,
+      lessThan(
+        DashboardAmbientWildlifeStage.height -
+            DashboardAmbientWildlifeStage.groundInset,
+      ),
+    );
+    expect(pair.top, lessThan(single.top));
+    expect(flock.bottom, greaterThan(pair.bottom));
+  });
+
+  test('BIRD spatial launch spacing stays readable across stage widths', () {
+    for (final width in [320.0, 390.0, 900.0]) {
+      final pair = BirdV1ProductionFlight.instances.take(2).toList();
+      final delay = BirdV1ProductionFlight.launchDelayFor(
+        stageWidth: width,
+        instance: pair.last,
+      );
+      final velocity = BirdV1ProductionFlight.crossingPixelsPerMs(width);
+      expect(delay * velocity, closeTo(42, .35), reason: '$width pair');
+
+      final glitchDelay = BirdV1ProductionFlight.launchDelayFor(
+        stageWidth: width,
+        instance: BirdV1ProductionFlight.glitchInstances[1],
+      );
+      expect(glitchDelay * velocity, closeTo(30, .35), reason: '$width glitch');
+    }
+  });
 
   testWidgets('neutral species art keeps the shared environment visible', (
     tester,
