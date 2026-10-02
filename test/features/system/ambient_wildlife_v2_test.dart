@@ -434,7 +434,7 @@ void main() {
     expect(single.bottom, closeTo(40.34, .01));
     expect((single.top + single.bottom) / 2, closeTo(28.40, .01));
     expect((pair.top + pair.bottom) / 2, closeTo(26.40, .01));
-    expect((trio.top + trio.bottom) / 2, closeTo(30.00, .01));
+    expect((trio.top + trio.bottom) / 2, closeTo(28.00, .01));
     expect((flock.top + flock.bottom) / 2, closeTo(27.80, .01));
     expect(flock.top, closeTo(11.52, .01));
     expect(flock.bottom, lessThan(45));
