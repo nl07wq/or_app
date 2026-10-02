@@ -339,7 +339,6 @@ abstract final class BirdV1ProductionFlight {
     required List<BirdV1ProductionInstance> values,
     required double presentationScale,
     required double presentationTopCrop,
-    double presentationAltitudeOffsetY = 0,
   }) {
     final minimumFormationY = values
         .map((value) => value.formationY)
@@ -352,11 +351,9 @@ abstract final class BirdV1ProductionFlight {
     return (
       top:
           presentationTopCrop +
-          presentationAltitudeOffsetY +
           (baseTop + minimumFormationY - verticalAmplitude) * presentationScale,
       bottom:
           presentationTopCrop +
-          presentationAltitudeOffsetY +
           (baseTop + maximumFormationY + renderedSize + verticalAmplitude) *
               presentationScale,
     );
@@ -783,8 +780,6 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.batPresentationTopCrop = 0,
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
-    this.birdPresentationScale = 1,
-    this.birdPresentationAltitudeOffsetY = 0,
     super.key,
     this.onCompleted,
   });
@@ -806,8 +801,6 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   /// Maps BIRD's canonical airspace into a vertically cropped Dashboard lane.
   /// This mirrors the existing BAT crop mapping without changing the lane.
   final double birdPresentationTopCrop;
-  final double birdPresentationScale;
-  final double birdPresentationAltitudeOffsetY;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -849,8 +842,6 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.batPresentationTopCrop = 0,
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
-    this.birdPresentationScale = 1,
-    this.birdPresentationAltitudeOffsetY = 0,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -866,8 +857,6 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double batPresentationTopCrop;
   final double batPresentationAltitudeOffsetY;
   final double birdPresentationTopCrop;
-  final double birdPresentationScale;
-  final double birdPresentationAltitudeOffsetY;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -982,8 +971,6 @@ class AmbientWildlifeV2ProductionStageState
     batPresentationTopCrop: widget.batPresentationTopCrop,
     batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
     birdPresentationTopCrop: widget.birdPresentationTopCrop,
-    birdPresentationScale: widget.birdPresentationScale,
-    birdPresentationAltitudeOffsetY: widget.birdPresentationAltitudeOffsetY,
     onCompleted: _complete,
   );
 }
@@ -1372,11 +1359,9 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                               elapsedMs: elapsed,
                               leftToRight: plan.leftToRight,
                               instances: plan.birdInstances,
-                              presentationScale: widget.birdPresentationScale,
+                              presentationScale: widget.speciesPresentationScale,
                               presentationTopCrop:
                                   widget.birdPresentationTopCrop,
-                              presentationAltitudeOffsetY:
-                                  widget.birdPresentationAltitudeOffsetY,
                             );
                           }
                           final eventDurationMs =
@@ -1526,7 +1511,6 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
     required this.instances,
     required this.presentationScale,
     required this.presentationTopCrop,
-    required this.presentationAltitudeOffsetY,
   });
 
   final int elapsedMs;
@@ -1534,7 +1518,6 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
   final List<BirdV1ProductionInstance> instances;
   final double presentationScale;
   final double presentationTopCrop;
-  final double presentationAltitudeOffsetY;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1557,7 +1540,6 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
               instance: instance,
               presentationScale: presentationScale,
               presentationTopCrop: presentationTopCrop,
-              presentationAltitudeOffsetY: presentationAltitudeOffsetY,
               verticalMotionScale:
                   BirdV1ProductionFlight.verticalMotionScaleFor(instances),
             ),
@@ -1575,7 +1557,6 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
     required this.instance,
     required this.presentationScale,
     required this.presentationTopCrop,
-    required this.presentationAltitudeOffsetY,
     required this.verticalMotionScale,
   });
 
@@ -1585,7 +1566,6 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
   final BirdV1ProductionInstance instance;
   final double presentationScale;
   final double presentationTopCrop;
-  final double presentationAltitudeOffsetY;
   final double verticalMotionScale;
 
   @override
@@ -1630,7 +1610,6 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
       ),
       top:
           presentationTopCrop +
-          presentationAltitudeOffsetY +
           (BirdV1ProductionFlight.baseTop +
                   instance.formationY +
                   bob +
