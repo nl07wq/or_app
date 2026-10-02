@@ -211,9 +211,9 @@ abstract final class BirdV1ProductionFlight {
   static const crossingDuration = Duration(milliseconds: 1467);
   static const entryExitGap = 3.0;
   // With the -13px GLITCH10 formation member and scaled bob/flutter, this
-  // retains a 5.80px top clearance while placing the smaller bird's visible
-  // center higher in the canonical Ambient airspace.
-  static const baseTop = 20.0;
+  // retains a 3.80px top clearance while moving the single Bird visible
+  // center from Y=42 to Y=40 in the canonical Ambient airspace.
+  static const baseTop = 18.0;
   static const flutterOn = true;
   static const cadence = BirdV1Cadence.cruise;
   static const transition = BirdV1Transition.overlap20;

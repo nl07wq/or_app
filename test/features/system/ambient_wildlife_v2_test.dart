@@ -385,7 +385,7 @@ void main() {
       const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
       expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(17.6, .001));
       expect(BirdV1ProductionFlight.renderedSize, 44);
-      expect(BirdV1ProductionFlight.baseTop, 20);
+      expect(BirdV1ProductionFlight.baseTop, 18);
       expect(scale, .4);
       expect(
         DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
@@ -406,9 +406,19 @@ void main() {
             ),
           );
       for (final envelope in canonicalEnvelopes) {
-        expect(envelope.top, greaterThan(5));
+        expect(envelope.top, greaterThan(3));
         expect(envelope.bottom, lessThan(99));
       }
+
+      final canonicalSingle = BirdV1ProductionFlight.visibleEnvelopeFor(
+        values: BirdV1ProductionFlight.instances.take(1).toList(),
+        presentationScale: 1,
+        presentationTopCrop: 0,
+      );
+      expect(
+        (canonicalSingle.top + canonicalSingle.bottom) / 2,
+        closeTo(40, .01),
+      );
 
       final single = BirdV1ProductionFlight.visibleEnvelopeFor(
         values: BirdV1ProductionFlight.instances.take(1).toList(),
@@ -455,13 +465,13 @@ void main() {
             flock.bottom,
         greaterThan(35),
       );
-      expect(single.top, closeTo(17.26, .01));
-      expect(single.bottom, closeTo(36.34, .01));
-      expect((single.top + single.bottom) / 2, closeTo(26.80, .01));
-      expect((pair.top + pair.bottom) / 2, closeTo(24.80, .01));
-      expect((trio.top + trio.bottom) / 2, closeTo(26.40, .01));
-      expect((flock.top + flock.bottom) / 2, closeTo(26.20, .01));
-      expect(flock.top, closeTo(12.32, .01));
+      expect(single.top, closeTo(16.46, .01));
+      expect(single.bottom, closeTo(35.54, .01));
+      expect((single.top + single.bottom) / 2, closeTo(26.00, .01));
+      expect((pair.top + pair.bottom) / 2, closeTo(24.00, .01));
+      expect((trio.top + trio.bottom) / 2, closeTo(25.60, .01));
+      expect((flock.top + flock.bottom) / 2, closeTo(25.40, .01));
+      expect(flock.top, closeTo(11.52, .01));
       expect(flock.bottom, lessThan(45));
     },
   );
