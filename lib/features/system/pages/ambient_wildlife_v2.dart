@@ -204,15 +204,16 @@ class AmbientWildlifeV2EventPlan {
 /// consumes the sandbox's fixed source cels and tuning math without exposing
 /// any of its diagnostic controls to Ambient Wildlife.
 abstract final class BirdV1ProductionFlight {
-  static const renderedSize = 56.0;
+  // 44px preserves the six-cel wing read while creating enough canonical
+  // airspace for the highest frozen GLITCH10 formation member.
+  static const renderedSize = 44.0;
   static const stageHeight = BatV3ProductionFlight.stageHeight;
   static const crossingDuration = Duration(milliseconds: 1467);
   static const entryExitGap = 3.0;
-  // The highest frozen GLITCH10 formation member (-13px), including its
-  // scaled bob/flutter envelope, retains a 2.80px canonical top clearance.
-  // This is the highest shared base that does not make the rare flock read as
-  // top-clipped or alter its formation authority.
-  static const baseTop = 17.0;
+  // With the -13px GLITCH10 formation member and scaled bob/flutter, this
+  // retains a 5.80px top clearance while placing the smaller bird's visible
+  // center higher in the canonical Ambient airspace.
+  static const baseTop = 20.0;
   static const flutterOn = true;
   static const cadence = BirdV1Cadence.cruise;
   static const transition = BirdV1Transition.overlap20;
