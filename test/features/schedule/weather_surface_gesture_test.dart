@@ -34,6 +34,25 @@ void main() {
     );
   });
 
+  test('solar trajectory uses exact circular semicircle geometry', () {
+    final geometry = weatherSolarSemicircleGeometry(const Size(216, 124));
+    final sunrise = weatherSolarSemicirclePoint(geometry, 0);
+    final noon = weatherSolarSemicirclePoint(geometry, .5);
+    final sunset = weatherSolarSemicirclePoint(geometry, 1);
+
+    expect(geometry.radius, 108);
+    expect(sunrise.dy, closeTo(geometry.center.dy, .001));
+    expect(noon.dx, closeTo(geometry.center.dx, .001));
+    expect(noon.dy, closeTo(geometry.center.dy - geometry.radius, .001));
+    expect(sunset.dy, closeTo(geometry.center.dy, .001));
+    for (final point in [sunrise, noon, sunset]) {
+      expect(
+        (point - geometry.center).distance,
+        closeTo(geometry.radius, .001),
+      );
+    }
+  });
+
   Future<void> pumpSurface(
     WidgetTester tester, {
     required ValueChanged<int> onSwipe,

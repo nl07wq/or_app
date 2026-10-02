@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -674,11 +675,18 @@ class _WeatherHeader extends StatelessWidget {
                 children: [
                   Icon(Icons.cloud_outlined, color: scheme.primary, size: 17),
                   const SizedBox(width: 6),
+                  Text(
+                    '天気',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.primary,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
                   Expanded(
                     child: Text(
-                      location == null
-                          ? '天気 / 場所未設定'
-                          : '天気 / ${location!.displayName}',
+                      location?.displayName ?? '場所未設定',
+                      key: const ValueKey('weather-header-location'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(
@@ -957,60 +965,80 @@ class _WeatherForecastRow extends StatelessWidget {
               final railWidth = weatherTemperatureRailWidth(
                 constraints.maxWidth,
               );
-              return Row(
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 50,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(today ? '今日' : _weekdayJapanese(date.weekday)),
-                        Text(
-                          '${date.month}/${date.day}',
-                          style: Theme.of(context).textTheme.labelSmall,
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 50,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(today ? '今日' : _weekdayJapanese(date.weekday)),
+                            Text(
+                              '${date.month}/${date.day}',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    _weatherIcon(value.code),
-                    color: scheme.primary,
-                    size: 19,
-                  ),
-                  const SizedBox(width: 7),
-                  SizedBox(
-                    width: 32,
-                    child: Text(
-                      '${value.low.round()}°',
-                      textAlign: TextAlign.end,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  SizedBox(
-                    key: ValueKey('weather-temperature-rail-${value.date}'),
-                    width: railWidth,
-                    height: 18,
-                    child: CustomPaint(
-                      painter: _TemperatureRangePainter(
-                        color: scheme.primary,
-                        low: value.low,
-                        high: value.high,
-                        globalLow: globalLow,
-                        globalHigh: globalHigh,
                       ),
-                    ),
+                      Icon(
+                        _weatherIcon(value.code),
+                        color: scheme.primary,
+                        size: 19,
+                      ),
+                      const SizedBox(width: 7),
+                      SizedBox(
+                        width: 32,
+                        child: Text(
+                          '${value.low.round()}°',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      SizedBox(
+                        key: ValueKey('weather-temperature-rail-${value.date}'),
+                        width: railWidth,
+                        height: 18,
+                        child: CustomPaint(
+                          painter: _TemperatureRangePainter(
+                            color: scheme.primary,
+                            low: value.low,
+                            high: value.high,
+                            globalLow: globalLow,
+                            globalHigh: globalHigh,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      SizedBox(
+                        width: 34,
+                        child: Text('${value.high.round()}°'),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 40,
+                        child: Text(
+                          '${value.precipitationProbability}%',
+                          textAlign: TextAlign.end,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: scheme.secondary),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 9),
-                  SizedBox(width: 34, child: Text('${value.high.round()}°')),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 40,
+                  const SizedBox(height: 2),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 57),
                     child: Text(
-                      '${value.precipitationProbability}%',
-                      textAlign: TextAlign.end,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
+                      '${_weatherConditionJapanese(value.code)} · ${value.precipitation.toStringAsFixed(1)}mm',
+                      key: ValueKey('weather-forecast-secondary-${value.date}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurface.withValues(alpha: .68),
+                      ),
                     ),
                   ),
                 ],
@@ -2043,19 +2071,29 @@ class _SunTelemetryModule extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              SizedBox(
-                width: double.infinity,
-                height: 70,
-                child: CustomPaint(
-                  painter: _SolarArcPainter(
-                    color: scheme.primary,
-                    sunrise: sunrise,
-                    sunset: sunset,
-                    progress: isToday
-                        ? weatherSolarProgress(sunrise, sunset)
-                        : null,
-                  ),
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // The painter's canvas deliberately has a 2:1 drawing area,
+                  // so its daylight path remains circular rather than being
+                  // stretched to the wide Weather card.
+                  final arcWidth = math.min(constraints.maxWidth, 216.0);
+                  return Center(
+                    child: SizedBox(
+                      width: arcWidth,
+                      height: arcWidth / 2 + 16,
+                      child: CustomPaint(
+                        painter: _SolarArcPainter(
+                          color: scheme.primary,
+                          sunrise: sunrise,
+                          sunset: sunset,
+                          progress: isToday
+                              ? weatherSolarProgress(sunrise, sunset)
+                              : null,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2203,19 +2241,21 @@ class _SolarArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final horizonY = size.height - 16;
-    final sunriseFraction = _solarDayFraction(sunrise) ?? .25;
-    final sunsetFraction = _solarDayFraction(sunset) ?? .75;
+    final geometry = weatherSolarSemicircleGeometry(size);
+    final horizonY = geometry.center.dy;
     final horizon = Paint()
       ..color = color.withValues(alpha: .28)
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(4, horizonY),
-      Offset(size.width - 4, horizonY),
+      Offset(geometry.center.dx - geometry.radius, horizonY),
+      Offset(geometry.center.dx + geometry.radius, horizonY),
       horizon,
     );
     for (final hour in [0, 6, 12, 18, 24]) {
-      final x = 4 + (size.width - 8) * (hour / 24);
+      final x =
+          geometry.center.dx -
+          geometry.radius +
+          2 * geometry.radius * (hour / 24);
       canvas.drawLine(
         Offset(x, horizonY - 3),
         Offset(x, horizonY + 3),
@@ -2234,18 +2274,22 @@ class _SolarArcPainter extends CustomPainter {
       ..color = color.withValues(alpha: .65)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
-    final start = Offset(4 + (size.width - 8) * sunriseFraction, horizonY);
-    final end = Offset(4 + (size.width - 8) * sunsetFraction, horizonY);
-    final bounds = Rect.fromLTRB(start.dx, 3, end.dx, horizonY * 2 - 3);
+    final bounds = Rect.fromCircle(
+      center: geometry.center,
+      radius: geometry.radius,
+    );
     canvas.drawArc(bounds, math.pi, math.pi, false, arc);
+    final start = weatherSolarSemicirclePoint(geometry, 0);
+    final end = weatherSolarSemicirclePoint(geometry, 1);
     canvas.drawCircle(start, 2, Paint()..color = color.withValues(alpha: .7));
     canvas.drawCircle(end, 2, Paint()..color = color.withValues(alpha: .7));
     if (progress != null) {
-      final safe = progress!.clamp(0.0, 1.0);
-      final x = start.dx + (end.dx - start.dx) * safe;
-      final y = horizonY - math.sin(math.pi * safe) * (horizonY - 3);
       final point = Paint()..color = color;
-      canvas.drawCircle(Offset(x, y), 3, point);
+      canvas.drawCircle(
+        weatherSolarSemicirclePoint(geometry, progress!),
+        3,
+        point,
+      );
     }
   }
 
@@ -2257,10 +2301,36 @@ class _SolarArcPainter extends CustomPainter {
       oldDelegate.progress != progress;
 }
 
-double? _solarDayFraction(String time) {
-  final parsed = DateTime.tryParse(time);
-  if (parsed == null) return null;
-  return (parsed.hour * 60 + parsed.minute) / (24 * 60);
+class WeatherSolarSemicircleGeometry {
+  const WeatherSolarSemicircleGeometry({
+    required this.center,
+    required this.radius,
+  });
+
+  final Offset center;
+  final double radius;
+}
+
+/// Defines a true circular daylight trajectory inside a 2:1 painter canvas.
+WeatherSolarSemicircleGeometry weatherSolarSemicircleGeometry(Size size) {
+  final radius = math.min(size.width / 2, size.height - 16);
+  return WeatherSolarSemicircleGeometry(
+    center: Offset(size.width / 2, radius + 2),
+    radius: radius,
+  );
+}
+
+/// Maps daylight time progress to an exact point on the circular arc.
+Offset weatherSolarSemicirclePoint(
+  WeatherSolarSemicircleGeometry geometry,
+  double progress,
+) {
+  final safe = progress.clamp(0.0, 1.0);
+  final angle = math.pi - math.pi * safe;
+  return Offset(
+    geometry.center.dx + geometry.radius * math.cos(angle),
+    geometry.center.dy - geometry.radius * math.sin(angle),
+  );
 }
 
 class _WeatherHourlyTimeline extends StatelessWidget {
@@ -2287,6 +2357,11 @@ class _WeatherHourlyTimeline extends StatelessWidget {
               'weather-hourly-${values.isEmpty ? 'empty' : values.first.time.substring(0, 10)}',
             ),
             scrollDirection: Axis.horizontal,
+            // Keep direction resolution in Flutter's normal scroll gesture
+            // arena: horizontal drags belong here, while vertical drags are
+            // rejected and continue to the Calendar page ScrollView.
+            dragStartBehavior: DragStartBehavior.start,
+            physics: const ClampingScrollPhysics(),
             child: _WeatherHourlySharedGrid(day: day, values: values),
           ),
         ),
