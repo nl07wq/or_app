@@ -208,7 +208,11 @@ abstract final class BirdV1ProductionFlight {
   static const stageHeight = BatV3ProductionFlight.stageHeight;
   static const crossingDuration = Duration(milliseconds: 1467);
   static const entryExitGap = 3.0;
-  static const baseTop = 18.0;
+  // The highest frozen GLITCH10 formation member (-13px), including its
+  // scaled bob/flutter envelope, retains a 2.80px canonical top clearance.
+  // This is the highest shared base that does not make the rare flock read as
+  // top-clipped or alter its formation authority.
+  static const baseTop = 17.0;
   static const flutterOn = true;
   static const cadence = BirdV1Cadence.cruise;
   static const transition = BirdV1Transition.overlap20;

@@ -379,66 +379,92 @@ void main() {
     },
   );
 
-  test('BIRD keeps 22.4px size while rebasing its visible center upward', () {
-    const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
-    expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(22.4, .001));
-    expect(scale, .4);
-    expect(DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY, -17);
+  test(
+    'BIRD keeps its Dashboard presentation while lifting canonical airspace',
+    () {
+      const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
+      expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(22.4, .001));
+      expect(BirdV1ProductionFlight.renderedSize, 56);
+      expect(BirdV1ProductionFlight.baseTop, 17);
+      expect(scale, .4);
+      expect(
+        DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
+        -17,
+      );
 
-    final single = BirdV1ProductionFlight.visibleEnvelopeFor(
-      values: BirdV1ProductionFlight.instances.take(1).toList(),
-      presentationScale: scale,
-      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
-      presentationAltitudeOffsetY:
-          DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
-    );
-    final pair = BirdV1ProductionFlight.visibleEnvelopeFor(
-      values: BirdV1ProductionFlight.instances.take(2).toList(),
-      presentationScale: scale,
-      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
-      presentationAltitudeOffsetY:
-          DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
-    );
-    final flock = BirdV1ProductionFlight.visibleEnvelopeFor(
-      values: BirdV1ProductionFlight.glitchInstances,
-      presentationScale: scale,
-      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
-      presentationAltitudeOffsetY:
-          DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
-    );
-    final trio = BirdV1ProductionFlight.visibleEnvelopeFor(
-      values: BirdV1ProductionFlight.instances,
-      presentationScale: scale,
-      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
-      presentationAltitudeOffsetY:
-          DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
-    );
-    expect(single.top, greaterThan(0));
-    expect(flock.top, greaterThan(0));
-    expect(
-      flock.bottom,
-      lessThan(
+      final canonicalEnvelopes =
+          <List<BirdV1ProductionInstance>>[
+            BirdV1ProductionFlight.instances.take(1).toList(),
+            BirdV1ProductionFlight.instances.take(2).toList(),
+            BirdV1ProductionFlight.instances,
+            BirdV1ProductionFlight.glitchInstances,
+          ].map(
+            (instances) => BirdV1ProductionFlight.visibleEnvelopeFor(
+              values: instances,
+              presentationScale: 1,
+              presentationTopCrop: 0,
+            ),
+          );
+      for (final envelope in canonicalEnvelopes) {
+        expect(envelope.top, greaterThan(2));
+        expect(envelope.bottom, lessThan(99));
+      }
+
+      final single = BirdV1ProductionFlight.visibleEnvelopeFor(
+        values: BirdV1ProductionFlight.instances.take(1).toList(),
+        presentationScale: scale,
+        presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        presentationAltitudeOffsetY:
+            DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
+      );
+      final pair = BirdV1ProductionFlight.visibleEnvelopeFor(
+        values: BirdV1ProductionFlight.instances.take(2).toList(),
+        presentationScale: scale,
+        presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        presentationAltitudeOffsetY:
+            DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
+      );
+      final flock = BirdV1ProductionFlight.visibleEnvelopeFor(
+        values: BirdV1ProductionFlight.glitchInstances,
+        presentationScale: scale,
+        presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        presentationAltitudeOffsetY:
+            DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
+      );
+      final trio = BirdV1ProductionFlight.visibleEnvelopeFor(
+        values: BirdV1ProductionFlight.instances,
+        presentationScale: scale,
+        presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        presentationAltitudeOffsetY:
+            DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
+      );
+      expect(single.top, greaterThan(0));
+      expect(flock.top, greaterThan(0));
+      expect(
+        flock.bottom,
+        lessThan(
+          DashboardAmbientWildlifeStage.height -
+              DashboardAmbientWildlifeStage.groundInset,
+        ),
+      );
+      expect(pair.top, lessThan(single.top));
+      expect(flock.bottom, greaterThan(pair.bottom));
+      expect(
         DashboardAmbientWildlifeStage.height -
-            DashboardAmbientWildlifeStage.groundInset,
-      ),
-    );
-    expect(pair.top, lessThan(single.top));
-    expect(flock.bottom, greaterThan(pair.bottom));
-    expect(
-      DashboardAmbientWildlifeStage.height -
-          DashboardAmbientWildlifeStage.groundInset -
-          flock.bottom,
-      greaterThan(35),
-    );
-    expect(single.top, closeTo(16.46, .01));
-    expect(single.bottom, closeTo(40.34, .01));
-    expect((single.top + single.bottom) / 2, closeTo(28.40, .01));
-    expect((pair.top + pair.bottom) / 2, closeTo(26.40, .01));
-    expect((trio.top + trio.bottom) / 2, closeTo(28.00, .01));
-    expect((flock.top + flock.bottom) / 2, closeTo(27.80, .01));
-    expect(flock.top, closeTo(11.52, .01));
-    expect(flock.bottom, lessThan(45));
-  });
+            DashboardAmbientWildlifeStage.groundInset -
+            flock.bottom,
+        greaterThan(35),
+      );
+      expect(single.top, closeTo(16.06, .01));
+      expect(single.bottom, closeTo(39.94, .01));
+      expect((single.top + single.bottom) / 2, closeTo(28.00, .01));
+      expect((pair.top + pair.bottom) / 2, closeTo(26.00, .01));
+      expect((trio.top + trio.bottom) / 2, closeTo(27.60, .01));
+      expect((flock.top + flock.bottom) / 2, closeTo(27.40, .01));
+      expect(flock.top, closeTo(11.12, .01));
+      expect(flock.bottom, lessThan(45));
+    },
+  );
 
   test('BIRD spatial launch spacing stays readable across stage widths', () {
     for (final width in [320.0, 390.0, 900.0]) {
