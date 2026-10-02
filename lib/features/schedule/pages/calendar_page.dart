@@ -2339,8 +2339,9 @@ Offset weatherSolarDaylightPoint(
   const inset = 5.0;
   const horizonY = 31.0;
   // This is a compact daylight-progression curve, not solar altitude. The
-  // larger amplitude keeps the sunrise-to-sunset arc readable at 58px high.
-  const amplitude = 27.0;
+  // A restrained 30px amplitude keeps the compact curve legible without
+  // giving this temporal instrument more visual weight than pressure or wind.
+  const amplitude = 30.0;
   final startX = inset + (size.width - inset * 2) * sunriseFraction;
   final endX = inset + (size.width - inset * 2) * sunsetFraction;
   return Offset(
@@ -2393,16 +2394,20 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
   final List<WeatherHourly> values;
 
   static const _columnWidth = 72.0;
-  static const _height = 236.0;
+  static const _height = 230.0;
   static const _timeRowHeight = 25.0;
   static const _weatherRowHeight = 27.0;
-  static const _temperatureGraphRowHeight = 40.0;
+  static const _temperatureRowHeight = 58.0;
   static const _metricRowHeight = 24.0;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final temperatures = values.map((value) => value.temperature).toList();
+    final temperatureLow = temperatures.reduce(math.min).toDouble();
+    final temperatureSpan = math
+        .max(4.0, temperatures.reduce(math.max) - temperatureLow)
+        .toDouble();
     return SizedBox(
       width: 46 + values.length * _columnWidth,
       height: _height,
@@ -2412,13 +2417,15 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
             left: 46,
             right: 0,
             top: 8 + _timeRowHeight + _weatherRowHeight,
-            height: _temperatureGraphRowHeight,
+            height: _temperatureRowHeight,
             child: IgnorePointer(
               child: CustomPaint(
                 painter: _HourlyTemperatureTrendPainter(
                   color: scheme.primary,
                   values: temperatures,
                   columnWidth: _columnWidth,
+                  low: temperatureLow,
+                  span: temperatureSpan,
                 ),
               ),
             ),
@@ -2433,6 +2440,8 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
                   values: values,
                   index: index,
                   width: _columnWidth,
+                  temperatureLow: temperatureLow,
+                  temperatureSpan: temperatureSpan,
                 ),
             ],
           ),
@@ -2456,8 +2465,7 @@ class _HourlyMetricLabels extends StatelessWidget {
         children: const [
           SizedBox(height: _WeatherHourlySharedGrid._timeRowHeight),
           _HourlyLabelRow('天気', _WeatherHourlySharedGrid._weatherRowHeight),
-          SizedBox(height: _WeatherHourlySharedGrid._temperatureGraphRowHeight),
-          _HourlyLabelRow('気温', _WeatherHourlySharedGrid._metricRowHeight),
+          _HourlyLabelRow('気温', _WeatherHourlySharedGrid._temperatureRowHeight),
           _HourlyLabelRow('降水', _WeatherHourlySharedGrid._metricRowHeight),
           _HourlyLabelRow('湿度', _WeatherHourlySharedGrid._metricRowHeight),
           _HourlyLabelRow('雨量', _WeatherHourlySharedGrid._metricRowHeight),
@@ -2490,12 +2498,16 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
     required this.values,
     required this.index,
     required this.width,
+    required this.temperatureLow,
+    required this.temperatureSpan,
   });
 
   final WeatherDaily day;
   final List<WeatherHourly> values;
   final int index;
   final double width;
+  final double temperatureLow;
+  final double temperatureSpan;
 
   @override
   Widget build(BuildContext context) {
@@ -2530,12 +2542,10 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
                 color: scheme.primary,
               ),
             ),
-            const SizedBox(
-              height: _WeatherHourlySharedGrid._temperatureGraphRowHeight,
-            ),
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._metricRowHeight,
-              child: Text('${value.temperature.round()}°'),
+            _HourlyTemperatureValue(
+              value: value.temperature,
+              low: temperatureLow,
+              span: temperatureSpan,
             ),
             _HourlyValueRow(
               height: _WeatherHourlySharedGrid._metricRowHeight,
@@ -2577,28 +2587,77 @@ class _HourlyValueRow extends StatelessWidget {
   );
 }
 
+/// Keeps the numeric temperature and its painted trend point on one shared
+/// geometry. The value remains readable above its point instead of occupying a
+/// separate metric row below the graph.
+class _HourlyTemperatureValue extends StatelessWidget {
+  const _HourlyTemperatureValue({
+    required this.value,
+    required this.low,
+    required this.span,
+  });
+
+  final double value;
+  final double low;
+  final double span;
+
+  @override
+  Widget build(BuildContext context) {
+    final pointY = _HourlyTemperatureTrendPainter.pointY(
+      value: value,
+      low: low,
+      span: span,
+    );
+    return SizedBox(
+      height: _WeatherHourlySharedGrid._temperatureRowHeight,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: math.max(1.0, pointY - 18).toDouble(),
+            child: Text('${value.round()}°', textAlign: TextAlign.center),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HourlyTemperatureTrendPainter extends CustomPainter {
   const _HourlyTemperatureTrendPainter({
     required this.color,
     required this.values,
     required this.columnWidth,
+    required this.low,
+    required this.span,
   });
+
+  static const _pointTop = 20.0;
+  static const _pointBottom = 54.0;
 
   final Color color;
   final List<double> values;
   final double columnWidth;
+  final double low;
+  final double span;
+
+  static double pointY({
+    required double value,
+    required double low,
+    required double span,
+  }) =>
+      _pointBottom -
+      (((value - low) / span).clamp(0.0, 1.0) * (_pointBottom - _pointTop))
+          .toDouble();
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
-    final low = values.reduce(math.min);
-    final high = values.reduce(math.max);
-    final span = math.max(4, high - low);
     final path = Path();
     for (var index = 0; index < values.length; index++) {
       final x = index * columnWidth + columnWidth / 2;
-      final y =
-          size.height - 4 - ((values[index] - low) / span) * (size.height - 10);
+      final y = pointY(value: values[index], low: low, span: span);
       if (index == 0) {
         path.moveTo(x, y);
       } else {
@@ -2614,8 +2673,7 @@ class _HourlyTemperatureTrendPainter extends CustomPainter {
     );
     for (var index = 0; index < values.length; index++) {
       final x = index * columnWidth + columnWidth / 2;
-      final y =
-          size.height - 4 - ((values[index] - low) / span) * (size.height - 10);
+      final y = pointY(value: values[index], low: low, span: span);
       canvas.drawCircle(Offset(x, y), 2, Paint()..color = color);
     }
   }
@@ -2624,6 +2682,8 @@ class _HourlyTemperatureTrendPainter extends CustomPainter {
   bool shouldRepaint(covariant _HourlyTemperatureTrendPainter oldDelegate) =>
       oldDelegate.color != color ||
       oldDelegate.columnWidth != columnWidth ||
+      oldDelegate.low != low ||
+      oldDelegate.span != span ||
       oldDelegate.values != values;
 }
 
