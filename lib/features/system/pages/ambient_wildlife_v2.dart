@@ -996,6 +996,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
   bool _waitingForBirdStageWidth = false;
   Duration? _activeFoxDuration;
   bool _foxCompletionEmitted = false;
+  int? _preloadRequestId;
+  Future<void>? _preloadFuture;
 
   @override
   void initState() {
@@ -1040,6 +1042,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       _controller.stop();
       return;
     }
+    // Warm only the source cels that can be selected by this event. CAT is
+    // painter-only; FOX, BAT, and BIRD retain their current visible frame
+    // while a new cel resolves via gaplessPlayback in their renderers.
+    unawaited(_ensureFramesReady(plan));
     if (plan.isCat) {
       _controller.value = 0;
       _continueCat();
@@ -1070,6 +1076,28 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     );
     _controller.value = 0;
     _continueBat(duration);
+  }
+
+  Future<void> _ensureFramesReady(AmbientWildlifeV2EventPlan plan) {
+    final requestId = widget.requestId;
+    final existing = _preloadFuture;
+    if (_preloadRequestId == requestId && existing != null) return existing;
+    final assets = switch (plan.species) {
+      AmbientWildlifeV2Species.cat => const <String>[],
+      AmbientWildlifeV2Species.fox => [
+        for (final frame in AmbientWildlifeV2Fox.selectedFrames)
+          AmbientWildlifeV2Fox.assetForFrame(frame),
+      ],
+      AmbientWildlifeV2Species.bat => [
+        for (final pose in BatV3SourceSet.poses) pose.canonicalAsset,
+      ],
+      AmbientWildlifeV2Species.birds => BirdV1SourceSet.assets,
+    };
+    _preloadRequestId = requestId;
+    return _preloadFuture = Future.wait<void>([
+      for (final asset in assets)
+        precacheImage(AssetImage(asset), context).catchError((_) {}),
+    ]);
   }
 
   void _resume() {

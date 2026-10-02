@@ -246,6 +246,7 @@ class BirdV1Frame extends StatelessWidget {
               height: height,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
+              gaplessPlayback: true,
             ),
           ),
         ),

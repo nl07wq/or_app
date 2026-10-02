@@ -520,6 +520,7 @@ class _BatV3RegisteredSource extends StatelessWidget {
       width: BatV3SourceSet.canonicalCanvas.width,
       height: BatV3SourceSet.canonicalCanvas.height,
       fit: BoxFit.fill,
+      gaplessPlayback: true,
     ),
   );
 }
