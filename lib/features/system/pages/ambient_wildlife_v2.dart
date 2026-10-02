@@ -359,23 +359,42 @@ abstract final class BirdV1ProductionFlight {
     );
   }
 
-  static double crossingPixelsPerMs(double stageWidth) =>
-      (stageWidth + renderedSize + entryExitGap * 2) /
+  /// Maps canonical Bird formation geometry into the presentation coordinate
+  /// system. A compact Dashboard must reduce its body and its separation by
+  /// the same factor; the canonical Sandbox continues to use the default 1x.
+  static double crossingPixelsPerMs(
+    double stageWidth, {
+    double presentationScale = 1,
+  }) =>
+      (stageWidth + (renderedSize + entryExitGap * 2) * presentationScale) /
       crossingDuration.inMilliseconds;
 
   static int launchDelayFor({
     required double stageWidth,
     required BirdV1ProductionInstance instance,
-  }) => (instance.launchSpacingPx / crossingPixelsPerMs(stageWidth)).round();
+    double presentationScale = 1,
+  }) =>
+      (instance.launchSpacingPx *
+              presentationScale /
+              crossingPixelsPerMs(
+                stageWidth,
+                presentationScale: presentationScale,
+              ))
+          .round();
 
   static int eventDurationMs({
     required double stageWidth,
     required List<BirdV1ProductionInstance> values,
+    double presentationScale = 1,
   }) =>
       crossingDuration.inMilliseconds +
       values
           .map(
-            (value) => launchDelayFor(stageWidth: stageWidth, instance: value),
+            (value) => launchDelayFor(
+              stageWidth: stageWidth,
+              instance: value,
+              presentationScale: presentationScale,
+            ),
           )
           .reduce(math.max);
 
@@ -383,9 +402,14 @@ abstract final class BirdV1ProductionFlight {
     required double stageWidth,
     required int elapsedMs,
     required BirdV1ProductionInstance instance,
+    double presentationScale = 1,
   }) =>
       ((elapsedMs -
-                  launchDelayFor(stageWidth: stageWidth, instance: instance)) /
+                  launchDelayFor(
+                    stageWidth: stageWidth,
+                    instance: instance,
+                    presentationScale: presentationScale,
+                  )) /
               crossingDuration.inMilliseconds)
           .clamp(0, 1);
 
@@ -393,9 +417,10 @@ abstract final class BirdV1ProductionFlight {
     required double stageWidth,
     required double progress,
     required bool leftToRight,
+    double presentationScale = 1,
   }) {
-    const entry = -renderedSize - entryExitGap;
-    final exit = stageWidth + entryExitGap;
+    final entry = -(renderedSize + entryExitGap) * presentationScale;
+    final exit = stageWidth + entryExitGap * presentationScale;
     final left = entry + (exit - entry) * progress;
     return leftToRight ? left : entry + exit - left;
   }
@@ -404,16 +429,22 @@ abstract final class BirdV1ProductionFlight {
     required double stageWidth,
     required int elapsedMs,
     required BirdV1ProductionInstance instance,
+    double presentationScale = 1,
   }) =>
       elapsedMs >=
       crossingDuration.inMilliseconds +
-          launchDelayFor(stageWidth: stageWidth, instance: instance);
+          launchDelayFor(
+            stageWidth: stageWidth,
+            instance: instance,
+            presentationScale: presentationScale,
+          );
 
   static bool hasFullyExited({
     required double stageWidth,
     required int elapsedMs,
     required bool leftToRight,
     required BirdV1ProductionInstance instance,
+    double presentationScale = 1,
   }) {
     final left = leftFor(
       stageWidth: stageWidth,
@@ -421,24 +452,32 @@ abstract final class BirdV1ProductionFlight {
         stageWidth: stageWidth,
         elapsedMs: elapsedMs,
         instance: instance,
+        presentationScale: presentationScale,
       ),
       leftToRight: leftToRight,
+      presentationScale: presentationScale,
     );
     return leftToRight
-        ? left >= stageWidth + entryExitGap
-        : left + renderedSize <= -entryExitGap;
+        ? left >= stageWidth + entryExitGap * presentationScale
+        : left + renderedSize * presentationScale <=
+              -entryExitGap * presentationScale;
   }
 
   static BirdV1ProductionFrame frameFor({
     required double stageWidth,
     required int elapsedMs,
     required BirdV1ProductionInstance instance,
+    double presentationScale = 1,
   }) {
     final localElapsed =
         math.max(
           0,
           elapsedMs -
-              launchDelayFor(stageWidth: stageWidth, instance: instance),
+              launchDelayFor(
+                stageWidth: stageWidth,
+                instance: instance,
+                presentationScale: presentationScale,
+              ),
         ) +
         instance.phaseOffsetMs;
     var remaining = localElapsed % cycleDurationMs;
@@ -666,13 +705,20 @@ abstract final class AmbientWildlifeV2Fox {
     required double progress,
     required bool leftToRight,
     double trailingDistance = 0,
+    double presentationScale = 1,
   }) {
-    final relativeLeft = (_visibleBounds.left - _bodyOrigin.dx) * displayScale;
+    final relativeLeft =
+        (_visibleBounds.left - _bodyOrigin.dx) *
+        displayScale *
+        presentationScale;
     final relativeRight =
-        (_visibleBounds.right - _bodyOrigin.dx) * displayScale;
+        (_visibleBounds.right - _bodyOrigin.dx) *
+        displayScale *
+        presentationScale;
     final renderedLeft = leftToRight ? relativeLeft : -relativeRight;
     final renderedRight = leftToRight ? relativeRight : -relativeLeft;
-    const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
+    final safetyGap =
+        FoxRunV1ProductionGeometry.crossingSafetyGap * presentationScale;
     final leftExit = -safetyGap - renderedRight;
     final rightExit = stageWidth + safetyGap - renderedLeft;
     return leftToRight
@@ -685,16 +731,20 @@ abstract final class AmbientWildlifeV2Fox {
     required bool leftToRight,
     required int juvenileCount,
     Duration baseDuration = crossingDuration,
+    double presentationScale = 1,
   }) {
     if (juvenileCount == 0) return baseDuration;
     final baseDistance = _crossingDistance(
       stageWidth: stageWidth,
       leftToRight: leftToRight,
+      presentationScale: presentationScale,
     );
     final packDistance = _crossingDistance(
       stageWidth: stageWidth,
       leftToRight: leftToRight,
-      trailingDistance: juvenileCount * juvenileFollowerSpacing,
+      trailingDistance:
+          juvenileCount * juvenileFollowerSpacing * presentationScale,
+      presentationScale: presentationScale,
     );
     return Duration(
       microseconds: (baseDuration.inMicroseconds * packDistance / baseDistance)
@@ -710,15 +760,18 @@ abstract final class AmbientWildlifeV2Fox {
     required double progress,
     required bool leftToRight,
     required int juvenileCount,
+    double presentationScale = 1,
   }) {
     final isAdult = juvenileCount == 0;
     final bodyScale = isAdult ? 1.0 : juvenileBodyScale;
-    final trailingDistance = juvenileCount * juvenileFollowerSpacing;
+    final trailingDistance =
+        juvenileCount * juvenileFollowerSpacing * presentationScale;
     final leaderCenter = bodyCenterForProgress(
       stageWidth: stageWidth,
       progress: progress,
       leftToRight: leftToRight,
       trailingDistance: trailingDistance,
+      presentationScale: presentationScale,
     );
     final lastCenter =
         leaderCenter +
@@ -727,9 +780,10 @@ abstract final class AmbientWildlifeV2Fox {
       bodyCenterX: lastCenter,
       stageGroundY: 0,
       leftToRight: leftToRight,
-      bodyScale: bodyScale,
+      bodyScale: bodyScale * presentationScale,
     );
-    const safetyGap = FoxRunV1ProductionGeometry.crossingSafetyGap;
+    final safetyGap =
+        FoxRunV1ProductionGeometry.crossingSafetyGap * presentationScale;
     const numericalTolerance = .001;
     return leftToRight
         ? bounds.left >= stageWidth + safetyGap - numericalTolerance
@@ -740,18 +794,21 @@ abstract final class AmbientWildlifeV2Fox {
     required double stageWidth,
     required bool leftToRight,
     double trailingDistance = 0,
+    double presentationScale = 1,
   }) =>
       (bodyCenterForProgress(
                 stageWidth: stageWidth,
                 progress: 1,
                 leftToRight: leftToRight,
                 trailingDistance: trailingDistance,
+                presentationScale: presentationScale,
               ) -
               bodyCenterForProgress(
                 stageWidth: stageWidth,
                 progress: 0,
                 leftToRight: leftToRight,
                 trailingDistance: trailingDistance,
+                presentationScale: presentationScale,
               ))
           .abs();
 
@@ -1057,9 +1114,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       return;
     }
     final duration = Duration(
-      milliseconds:
-          BatV3ProductionFlight.fullSpeedDurationMs +
-          plan.batInstances.last.startDelayMs,
+      milliseconds: BatV3ProductionFlight.eventDurationMsFor(
+        instances: plan.batInstances,
+        presentationScale: widget.speciesPresentationScale,
+      ),
     );
     _controller.value = 0;
     _continueBat(duration);
@@ -1099,9 +1157,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     } else {
       _continueBat(
         Duration(
-          milliseconds:
-              BatV3ProductionFlight.fullSpeedDurationMs +
-              plan.batInstances.last.startDelayMs,
+          milliseconds: BatV3ProductionFlight.eventDurationMsFor(
+            instances: plan.batInstances,
+            presentationScale: widget.speciesPresentationScale,
+          ),
         ),
       );
     }
@@ -1138,6 +1197,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       leftToRight: widget.plan!.leftToRight,
       juvenileCount: spawn.juvenileCount,
       baseDuration: widget.foxCrossingDuration,
+      presentationScale: widget.speciesPresentationScale,
     );
     final remaining = (1 - _controller.value).clamp(0.0, 1.0);
     _controller.animateTo(
@@ -1162,6 +1222,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       leftToRight: widget.plan!.leftToRight,
       juvenileCount: spawn.juvenileCount,
       baseDuration: widget.foxCrossingDuration,
+      presentationScale: widget.speciesPresentationScale,
     );
   }
 
@@ -1174,6 +1235,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       milliseconds: BirdV1ProductionFlight.eventDurationMs(
         stageWidth: _stageWidth ?? 0,
         values: instances,
+        presentationScale: widget.speciesPresentationScale,
       ),
     );
   }
@@ -1203,6 +1265,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       progress: _controller.value,
       leftToRight: plan.leftToRight,
       juvenileCount: spawn.juvenileCount,
+      presentationScale: widget.speciesPresentationScale,
     );
   }
 
@@ -1219,6 +1282,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
         elapsedMs: elapsed,
         leftToRight: plan.leftToRight,
         instance: instance,
+        presentationScale: widget.speciesPresentationScale,
       ),
     );
   }
@@ -1359,7 +1423,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                               elapsedMs: elapsed,
                               leftToRight: plan.leftToRight,
                               instances: plan.birdInstances,
-                              presentationScale: widget.speciesPresentationScale,
+                              presentationScale:
+                                  widget.speciesPresentationScale,
                               presentationTopCrop:
                                   widget.birdPresentationTopCrop,
                             );
@@ -1386,6 +1451,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                         durationMs: BatV3ProductionFlight
                                             .fullSpeedDurationMs,
                                         instance: instance,
+                                        presentationScale:
+                                            widget.speciesPresentationScale,
                                       ),
                                 )
                                 .toList(growable: false),
@@ -1529,6 +1596,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
             stageWidth: constraints.maxWidth,
             elapsedMs: elapsedMs,
             instance: instance,
+            presentationScale: presentationScale,
           ))
             _AmbientWildlifeV2BirdCel(
               key: ValueKey(
@@ -1574,6 +1642,7 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
       stageWidth: stageWidth,
       elapsedMs: elapsedMs,
       instance: instance,
+      presentationScale: presentationScale,
     );
     final bob =
         BirdV1FlightTuning.bobForElapsed(
@@ -1605,8 +1674,10 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
           stageWidth: stageWidth,
           elapsedMs: elapsedMs,
           instance: instance,
+          presentationScale: presentationScale,
         ),
         leftToRight: leftToRight,
+        presentationScale: presentationScale,
       ),
       top:
           presentationTopCrop +
@@ -1670,7 +1741,10 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
         progress: progress,
         leftToRight: leftToRight,
         trailingDistance:
-            spawn.juvenileCount * AmbientWildlifeV2Fox.juvenileFollowerSpacing,
+            spawn.juvenileCount *
+            AmbientWildlifeV2Fox.juvenileFollowerSpacing *
+            presentationScale,
+        presentationScale: presentationScale,
       );
       final frame = AmbientWildlifeV2Fox.frameAtElapsed(elapsed);
       final bodyFlex = AmbientWildlifeV2Fox.bodyFlexAtElapsed(elapsed);
@@ -1695,6 +1769,7 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
                   bodyCenter +
                   (leftToRight ? -1 : 1) *
                       AmbientWildlifeV2Fox.juvenileFollowerSpacing *
+                      presentationScale *
                       (index + 1),
               stageGroundY: stageGroundY,
               leftToRight: leftToRight,

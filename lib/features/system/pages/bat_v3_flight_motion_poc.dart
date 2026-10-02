@@ -694,15 +694,34 @@ abstract final class BatV3ProductionFlight {
     required int elapsedMs,
     required int durationMs,
     required BatV3ProductionInstance instance,
-  }) => ((elapsedMs - instance.startDelayMs) / durationMs).clamp(0, 1);
+    double presentationScale = 1,
+  }) => ((elapsedMs - instance.startDelayMs * presentationScale) / durationMs)
+      .clamp(0, 1);
+
+  /// The Dashboard maps a canonical bat's body, entry margin, and staggered
+  /// formation into one presentation coordinate system. The default keeps the
+  /// Sandbox/canonical contract unchanged.
+  static int eventDurationMsFor({
+    required List<BatV3ProductionInstance> instances,
+    double presentationScale = 1,
+  }) =>
+      fullSpeedDurationMs +
+      (instances
+              .map((instance) => instance.startDelayMs * presentationScale)
+              .reduce(math.max))
+          .round();
 
   static double leftFor({
     required double stageWidth,
     required double progress,
     required bool leftToRight,
+    double presentationScale = 1,
   }) {
-    final entry = -visibleBatMaxX - entryExitGap;
-    final exit = stageWidth - visibleBatMinX + entryExitGap;
+    final entry = -(visibleBatMaxX + entryExitGap) * presentationScale;
+    final exit =
+        stageWidth -
+        visibleBatMinX * presentationScale +
+        entryExitGap * presentationScale;
     final fullRange = entry + (exit - entry) * progress;
     return leftToRight ? fullRange : entry + exit - fullRange;
   }
@@ -714,7 +733,8 @@ abstract final class BatV3ProductionFlight {
     required int elapsedMs,
     required int durationMs,
     required BatV3ProductionInstance instance,
-  }) => elapsedMs >= durationMs + instance.startDelayMs;
+    double presentationScale = 1,
+  }) => elapsedMs >= durationMs + instance.startDelayMs * presentationScale;
 
   static double flutterOffset({
     required int cycleIndex,
@@ -1158,8 +1178,10 @@ class BatV3ProductionStage extends StatelessWidget {
           elapsedMs: crossingElapsed,
           durationMs: crossingDuration,
           instance: instance,
+          presentationScale: presentationScale,
         ),
         leftToRight: leftToRight,
+        presentationScale: presentationScale,
       ),
       top:
           _presentationTop(

@@ -174,6 +174,34 @@ void main() {
     );
   });
 
+  test('Dashboard projects FOX pack geometry with the common body scale', () {
+    const width = 390.0;
+    const scale = DashboardAmbientWildlifeStage.animalPresentationScale;
+    final canonicalDistance = AmbientWildlifeV2Fox.juvenileFollowerSpacing;
+    final projectedDistance = canonicalDistance * scale;
+    final leader = AmbientWildlifeV2Fox.bodyCenterForProgress(
+      stageWidth: width,
+      progress: .5,
+      leftToRight: true,
+      trailingDistance: projectedDistance,
+      presentationScale: scale,
+    );
+
+    expect(scale, .64);
+    expect(projectedDistance, closeTo(canonicalDistance * .64, .001));
+    expect(
+      AmbientWildlifeV2Fox.lastActiveFoxHasFullyExited(
+        stageWidth: width,
+        progress: 1,
+        leftToRight: true,
+        juvenileCount: 2,
+        presentationScale: scale,
+      ),
+      isTrue,
+    );
+    expect(leader.isFinite, isTrue);
+  });
+
   test('every FOX pack reaches its last-active full-exit endpoint', () {
     for (final width in [320.0, 390.0, 900.0]) {
       for (final leftToRight in [true, false]) {
@@ -479,7 +507,85 @@ void main() {
         instance: BirdV1ProductionFlight.glitchInstances[1],
       );
       expect(glitchDelay * velocity, closeTo(38, .35), reason: '$width glitch');
+
+      const scale = DashboardAmbientWildlifeStage.animalPresentationScale;
+      final projectedDelay = BirdV1ProductionFlight.launchDelayFor(
+        stageWidth: width,
+        instance: pair.last,
+        presentationScale: scale,
+      );
+      final projectedVelocity = BirdV1ProductionFlight.crossingPixelsPerMs(
+        width,
+        presentationScale: scale,
+      );
+      expect(
+        projectedDelay * projectedVelocity,
+        closeTo(BirdV1ProductionFlight.normalSpatialSpacing * scale, .35),
+        reason: '$width Dashboard pair',
+      );
+
+      final projectedGlitchDelay = BirdV1ProductionFlight.launchDelayFor(
+        stageWidth: width,
+        instance: BirdV1ProductionFlight.glitchInstances[1],
+        presentationScale: scale,
+      );
+      expect(
+        projectedGlitchDelay * projectedVelocity,
+        closeTo(BirdV1ProductionFlight.glitchSpatialSpacing * scale, .35),
+        reason: '$width Dashboard GLITCH10',
+      );
+
+      for (final values in [
+        pair,
+        BirdV1ProductionFlight.instances,
+        BirdV1ProductionFlight.glitchInstances,
+      ]) {
+        final elapsed = BirdV1ProductionFlight.eventDurationMs(
+          stageWidth: width,
+          values: values,
+          presentationScale: scale,
+        );
+        expect(
+          values.every(
+            (instance) => BirdV1ProductionFlight.hasFullyExited(
+              stageWidth: width,
+              elapsedMs: elapsed,
+              leftToRight: true,
+              instance: instance,
+              presentationScale: scale,
+            ),
+          ),
+          isTrue,
+          reason: '$width Dashboard full-exit ${values.length}',
+        );
+      }
     }
+  });
+
+  test('Dashboard projects BAT formation launch spacing with body scale', () {
+    const scale = DashboardAmbientWildlifeStage.animalPresentationScale;
+    final trailing = BatV3ProductionFlight.instances[1];
+    final canonicalProgress = BatV3ProductionFlight.progressFor(
+      elapsedMs: 120,
+      durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
+      instance: trailing,
+    );
+    final projectedProgress = BatV3ProductionFlight.progressFor(
+      elapsedMs: 120,
+      durationMs: BatV3ProductionFlight.fullSpeedDurationMs,
+      instance: trailing,
+      presentationScale: scale,
+    );
+
+    expect(canonicalProgress, 0);
+    expect(projectedProgress, greaterThan(0));
+    expect(
+      BatV3ProductionFlight.eventDurationMsFor(
+        instances: BatV3ProductionFlight.instances,
+        presentationScale: scale,
+      ),
+      lessThan(BatV3ProductionFlight.fullSpeedDurationMs + 360),
+    );
   });
 
   test(
