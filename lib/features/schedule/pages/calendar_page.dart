@@ -908,6 +908,13 @@ class _WeatherForecastRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = DateTime.parse(value.date);
     final scheme = Theme.of(context).colorScheme;
+    final forecastSummary = WeatherForecastSummaryEngine.summarize(
+      day: value,
+      hourly: _hourlyForDay(snapshot, value),
+    );
+    final peakTiming = value.precipitation > 0
+        ? weatherForecastPeakPrecipitationTiming(forecastSummary)
+        : null;
     return Semantics(
       button: true,
       label: '${value.date}, ${_weatherConditionJapanese(value.code)}',
@@ -1043,6 +1050,26 @@ class _WeatherForecastRow extends StatelessWidget {
                                 ),
                           ),
                         ),
+                        if (peakTiming != null) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              '雨ピーク $peakTiming',
+                              key: ValueKey(
+                                'weather-forecast-peak-${value.date}',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: scheme.onSurface.withValues(
+                                      alpha: .56,
+                                    ),
+                                  ),
+                            ),
+                          ),
+                        ],
                         Icon(
                           Icons.chevron_right,
                           key: ValueKey(
@@ -1119,6 +1146,15 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 /// never opens a surface; a second, deliberate tap requests the daily detail.
 bool weatherForecastRowOpensDetail({required bool selected}) => selected;
 
+/// Reuses the existing forecast-intelligence output for the compact weekly
+/// daypart cue. It never derives a new precipitation claim from raw values.
+String? weatherForecastPeakPrecipitationTiming(WeatherForecastSummary summary) {
+  final timing = RegExp(
+    r'最大降水確率\s*\d+%（([^）]+)）',
+  ).firstMatch(summary.supporting.join(' '));
+  return timing?.group(1);
+}
+
 Future<void> _showDailyForecastDetail(
   BuildContext context,
   WeatherDaily day,
@@ -1140,41 +1176,33 @@ Future<void> _showDailyForecastDetail(
     _WeatherExplanation(
       title: '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}）',
       value:
-          '${_weatherConditionJapanese(day.code)} · LOW ${day.low.round()}° / HIGH ${day.high.round()}° · 降水確率 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm',
+          '${_weatherConditionJapanese(day.code)} · 最低気温 ${day.low.round()}° / 最高気温 ${day.high.round()}° · 降水確率 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm',
       body: '日次の予報値と、表示可能な時間別予報値をまとめています。',
       forecastSummary: summary.primary,
       supportingData: summary.supporting,
       detailSections: [
         _WeatherDetailSection(
-          title: '気温',
+          title: '気温・降水',
+          tonalStrength: .035,
           values: [
-            'LOW ${day.low.round()}° · HIGH ${day.high.round()}°',
+            '最低気温 ${day.low.round()}° · 最高気温 ${day.high.round()}°',
             if (forecast != null)
               '${observationLabel!}の体感 ${forecast.apparentTemperature.round()}°（気温 ${forecast.temperature.round()}°）',
-          ],
-        ),
-        _WeatherDetailSection(
-          title: '降水',
-          values: [
             '降水量 ${day.precipitation.toStringAsFixed(1)}mm · 最大降水確率 ${day.precipitationProbability}%',
           ],
         ),
         if (forecast != null)
           _WeatherDetailSection(
-            title: '風',
+            title: '風・湿度・露点',
+            tonalStrength: .022,
             values: [
               '$observationLabel · ${_windDirection(forecast.windDirection)}から ${forecast.windSpeed.round()}km/h · 突風 ${forecast.windGust.round()}km/h',
-            ],
-          ),
-        if (forecast != null)
-          _WeatherDetailSection(
-            title: '湿度・露点',
-            values: [
               '$observationLabel · 湿度 ${forecast.humidity}%${forecast.dewPoint == null ? '' : ' · 露点 ${forecast.dewPoint!.round()}°'}',
             ],
           ),
         _WeatherDetailSection(
           title: '観測指標',
+          tonalStrength: .035,
           values: [
             if (forecast?.visibility != null)
               '$observationLabel · 視程 ${_visibilityValue(forecast!.visibility!)}（${_visibilityCategoryJapanese(forecast.visibility!)}）',
@@ -1188,6 +1216,7 @@ Future<void> _showDailyForecastDetail(
         ),
         _WeatherDetailSection(
           title: '日の出・日の入り',
+          tonalStrength: .022,
           values: [
             '日の出 ${_shortTime(day.sunrise)} · 日の入り ${_shortTime(day.sunset)} · DAYLIGHT ${_daylightDuration(day.sunrise, day.sunset)}',
           ],
@@ -1273,7 +1302,7 @@ class _WeatherSummary extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
-                  Text('LOW ${day.low.round()}° · HIGH ${day.high.round()}°'),
+                  Text('最低 ${day.low.round()}° · 最高 ${day.high.round()}°'),
                 ],
               ),
               const SizedBox(height: 4),
@@ -1541,7 +1570,7 @@ class _WeatherDetails extends StatelessWidget {
                             title: '日の出・日の入り',
                             value:
                                 '日の出 ${_shortTime(day.sunrise)} / 日の入り ${_shortTime(day.sunset)}',
-                            body: '選択日の予想日の出・日の入り時刻です。arcは日中の時間帯を視覚的に示します。',
+                            body: '曲線は、日の出から日の入りまでの日中時間帯を示しています。',
                             forecastSummary:
                                 '日照可能時間は約 ${_daylightDuration(day.sunrise, day.sunset)} です。',
                             supportingData: daySummary.supporting,
@@ -1581,10 +1610,15 @@ class _WeatherExplanation {
 }
 
 class _WeatherDetailSection {
-  const _WeatherDetailSection({required this.title, required this.values});
+  const _WeatherDetailSection({
+    required this.title,
+    required this.values,
+    this.tonalStrength = .025,
+  });
 
   final String title;
   final List<String> values;
+  final double tonalStrength;
 }
 
 Future<void> _showWeatherExplanation(
@@ -1765,29 +1799,37 @@ class _WeatherDetailTelemetrySection extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            section.title,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.primary,
-              letterSpacing: .5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          for (final value in section.values)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                value,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurface.withValues(alpha: .9),
-                  height: 1.35,
-                ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: scheme.onSurface.withValues(alpha: section.tonalStrength),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              section.title,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.primary,
+                letterSpacing: .5,
               ),
             ),
-        ],
+            const SizedBox(height: 4),
+            for (final value in section.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: .9),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2516,6 +2558,8 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
 
   static const _columnWidth = 72.0;
   static const _height = 230.0;
+  static const _labelWidth = 46.0;
+  static const _verticalPadding = 8.0;
   static const _timeRowHeight = 25.0;
   static const _weatherRowHeight = 27.0;
   static const _temperatureRowHeight = 58.0;
@@ -2530,14 +2574,71 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
         .max(4.0, temperatures.reduce(math.max) - temperatureLow)
         .toDouble();
     return SizedBox(
-      width: 46 + values.length * _columnWidth,
+      width: _labelWidth + values.length * _columnWidth,
       height: _height,
       child: Stack(
         children: [
+          // The timeline is organized by weather metric. These faint bands
+          // intentionally span both the label and hour-value areas; individual
+          // hour columns remain transparent so this never becomes striping.
+          _HourlyRowBand(
+            top: _verticalPadding,
+            height: _timeRowHeight,
+            color: scheme.onSurface.withValues(alpha: .018),
+          ),
+          _HourlyRowBand(
+            top: _verticalPadding + _timeRowHeight,
+            height: _weatherRowHeight,
+            color: scheme.onSurface.withValues(alpha: .035),
+          ),
+          _HourlyRowBand(
+            top: _verticalPadding + _timeRowHeight + _weatherRowHeight,
+            height: _temperatureRowHeight,
+            color: scheme.primary.withValues(alpha: .045),
+          ),
+          _HourlyRowBand(
+            top:
+                _verticalPadding +
+                _timeRowHeight +
+                _weatherRowHeight +
+                _temperatureRowHeight,
+            height: _metricRowHeight,
+            color: scheme.onSurface.withValues(alpha: .035),
+          ),
+          _HourlyRowBand(
+            top:
+                _verticalPadding +
+                _timeRowHeight +
+                _weatherRowHeight +
+                _temperatureRowHeight +
+                _metricRowHeight,
+            height: _metricRowHeight,
+            color: scheme.onSurface.withValues(alpha: .018),
+          ),
+          _HourlyRowBand(
+            top:
+                _verticalPadding +
+                _timeRowHeight +
+                _weatherRowHeight +
+                _temperatureRowHeight +
+                _metricRowHeight * 2,
+            height: _metricRowHeight,
+            color: scheme.onSurface.withValues(alpha: .035),
+          ),
+          _HourlyRowBand(
+            top:
+                _verticalPadding +
+                _timeRowHeight +
+                _weatherRowHeight +
+                _temperatureRowHeight +
+                _metricRowHeight * 3,
+            height: _metricRowHeight,
+            color: scheme.onSurface.withValues(alpha: .018),
+          ),
           Positioned(
-            left: 46,
+            left: _labelWidth,
             right: 0,
-            top: 8 + _timeRowHeight + _weatherRowHeight,
+            top: _verticalPadding + _timeRowHeight + _weatherRowHeight,
             height: _temperatureRowHeight,
             child: IgnorePointer(
               child: CustomPaint(
@@ -2577,14 +2678,19 @@ class _HourlyMetricLabels extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 46,
+    width: _WeatherHourlySharedGrid._labelWidth,
     height: _WeatherHourlySharedGrid._height,
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(6, 8, 2, 8),
+      padding: const EdgeInsets.fromLTRB(
+        6,
+        _WeatherHourlySharedGrid._verticalPadding,
+        2,
+        _WeatherHourlySharedGrid._verticalPadding,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          SizedBox(height: _WeatherHourlySharedGrid._timeRowHeight),
+          _HourlyLabelRow('時間', _WeatherHourlySharedGrid._timeRowHeight),
           _HourlyLabelRow('天気', _WeatherHourlySharedGrid._weatherRowHeight),
           _HourlyLabelRow('気温', _WeatherHourlySharedGrid._temperatureRowHeight),
           _HourlyLabelRow('降水', _WeatherHourlySharedGrid._metricRowHeight),
@@ -2693,6 +2799,27 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HourlyRowBand extends StatelessWidget {
+  const _HourlyRowBand({
+    required this.top,
+    required this.height,
+    required this.color,
+  });
+
+  final double top;
+  final double height;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: 0,
+    right: 0,
+    top: top,
+    height: height,
+    child: IgnorePointer(child: ColoredBox(color: color)),
+  );
 }
 
 class _HourlyValueRow extends StatelessWidget {

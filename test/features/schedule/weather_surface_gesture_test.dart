@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
+import 'package:or_app/features/schedule/weather_forecast_summary.dart';
 
 void main() {
   test('temperature range rail reserves numeric telemetry clearance', () {
@@ -13,6 +14,22 @@ void main() {
   test('forecast row opens daily detail only on a deliberate second tap', () {
     expect(weatherForecastRowOpensDetail(selected: false), isFalse);
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
+  });
+
+  test('weekly peak cue only reuses the existing forecast summary output', () {
+    const summary = WeatherForecastSummary(
+      primary: '午後から雨の予報です。',
+      supporting: ['降水 1.7mm · 最大降水確率 96%（夕方）'],
+      strongestWindDaypart: null,
+    );
+    const noPrecipitationCue = WeatherForecastSummary(
+      primary: '曇り中心の予報です。',
+      supporting: ['午後は風が強まる予報です。'],
+      strongestWindDaypart: null,
+    );
+
+    expect(weatherForecastPeakPrecipitationTiming(summary), '夕方');
+    expect(weatherForecastPeakPrecipitationTiming(noPrecipitationCue), isNull);
   });
 
   test('solar progress is a daytime time marker only', () {
