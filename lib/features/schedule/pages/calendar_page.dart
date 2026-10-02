@@ -685,7 +685,7 @@ class _WeatherHeader extends StatelessWidget {
                   const SizedBox(width: 5),
                   Expanded(
                     child: Text(
-                      location?.displayName ?? '場所未設定',
+                      weatherHeaderLocationText(location?.displayName),
                       key: const ValueKey('weather-header-location'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -762,6 +762,14 @@ class _HeaderArrow extends StatelessWidget {
     icon: Icon(icon, size: 16),
     onPressed: onPressed,
   );
+}
+
+/// Header space belongs to the active city/area. Saved locations may carry a
+/// wider regional suffix for settings, but that suffix is intentionally not
+/// allowed to turn the primary name into a misleading partial truncation.
+String weatherHeaderLocationText(String? displayName) {
+  if (displayName == null || displayName.trim().isEmpty) return '場所未設定';
+  return displayName.split(RegExp(r'\s*/\s*|\s*,\s*')).first.trim();
 }
 
 class _WeatherMessage extends StatelessWidget {
@@ -2071,29 +2079,19 @@ class _SunTelemetryModule extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  // The painter's canvas deliberately has a 2:1 drawing area,
-                  // so its daylight path remains circular rather than being
-                  // stretched to the wide Weather card.
-                  final arcWidth = math.min(constraints.maxWidth, 216.0);
-                  return Center(
-                    child: SizedBox(
-                      width: arcWidth,
-                      height: arcWidth / 2 + 16,
-                      child: CustomPaint(
-                        painter: _SolarArcPainter(
-                          color: scheme.primary,
-                          sunrise: sunrise,
-                          sunset: sunset,
-                          progress: isToday
-                              ? weatherSolarProgress(sunrise, sunset)
-                              : null,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: CustomPaint(
+                  painter: _SolarArcPainter(
+                    color: scheme.primary,
+                    sunrise: sunrise,
+                    sunset: sunset,
+                    progress: isToday
+                        ? weatherSolarProgress(sunrise, sunset)
+                        : null,
+                  ),
+                ),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2241,21 +2239,21 @@ class _SolarArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final geometry = weatherSolarSemicircleGeometry(size);
-    final horizonY = geometry.center.dy;
+    final sunriseFraction = weatherSolarDayFraction(sunrise) ?? .25;
+    final sunsetFraction = weatherSolarDayFraction(sunset) ?? .75;
+    const horizontalInset = 5.0;
+    const horizonY = 31.0;
     final horizon = Paint()
       ..color = color.withValues(alpha: .28)
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(geometry.center.dx - geometry.radius, horizonY),
-      Offset(geometry.center.dx + geometry.radius, horizonY),
+      const Offset(horizontalInset, horizonY),
+      Offset(size.width - horizontalInset, horizonY),
       horizon,
     );
     for (final hour in [0, 6, 12, 18, 24]) {
       final x =
-          geometry.center.dx -
-          geometry.radius +
-          2 * geometry.radius * (hour / 24);
+          horizontalInset + (size.width - horizontalInset * 2) * (hour / 24);
       canvas.drawLine(
         Offset(x, horizonY - 3),
         Offset(x, horizonY + 3),
@@ -2270,23 +2268,44 @@ class _SolarArcPainter extends CustomPainter {
       )..layout();
       label.paint(canvas, Offset(x - label.width / 2, horizonY + 5));
     }
-    final arc = Paint()
+    final curve = Paint()
       ..color = color.withValues(alpha: .65)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
-    final bounds = Rect.fromCircle(
-      center: geometry.center,
-      radius: geometry.radius,
+    final start = weatherSolarDaylightPoint(
+      size,
+      sunriseFraction,
+      sunsetFraction,
+      0,
     );
-    canvas.drawArc(bounds, math.pi, math.pi, false, arc);
-    final start = weatherSolarSemicirclePoint(geometry, 0);
-    final end = weatherSolarSemicirclePoint(geometry, 1);
+    final end = weatherSolarDaylightPoint(
+      size,
+      sunriseFraction,
+      sunsetFraction,
+      1,
+    );
+    final path = Path()..moveTo(start.dx, start.dy);
+    for (var step = 1; step <= 24; step++) {
+      final point = weatherSolarDaylightPoint(
+        size,
+        sunriseFraction,
+        sunsetFraction,
+        step / 24,
+      );
+      path.lineTo(point.dx, point.dy);
+    }
+    canvas.drawPath(path, curve);
     canvas.drawCircle(start, 2, Paint()..color = color.withValues(alpha: .7));
     canvas.drawCircle(end, 2, Paint()..color = color.withValues(alpha: .7));
     if (progress != null) {
       final point = Paint()..color = color;
       canvas.drawCircle(
-        weatherSolarSemicirclePoint(geometry, progress!),
+        weatherSolarDaylightPoint(
+          size,
+          sunriseFraction,
+          sunsetFraction,
+          progress!,
+        ),
         3,
         point,
       );
@@ -2301,35 +2320,29 @@ class _SolarArcPainter extends CustomPainter {
       oldDelegate.progress != progress;
 }
 
-class WeatherSolarSemicircleGeometry {
-  const WeatherSolarSemicircleGeometry({
-    required this.center,
-    required this.radius,
-  });
-
-  final Offset center;
-  final double radius;
+double? weatherSolarDayFraction(String time) {
+  final parsed = DateTime.tryParse(time);
+  if (parsed == null) return null;
+  return (parsed.hour * 60 + parsed.minute) / (24 * 60);
 }
 
-/// Defines a true circular daylight trajectory inside a 2:1 painter canvas.
-WeatherSolarSemicircleGeometry weatherSolarSemicircleGeometry(Size size) {
-  final radius = math.min(size.width / 2, size.height - 16);
-  return WeatherSolarSemicircleGeometry(
-    center: Offset(size.width / 2, radius + 2),
-    radius: radius,
-  );
-}
-
-/// Maps daylight time progress to an exact point on the circular arc.
-Offset weatherSolarSemicirclePoint(
-  WeatherSolarSemicircleGeometry geometry,
+/// Maps daylight progress to the compact temporal curve. It is deliberately
+/// not a solar-altitude calculation: the X position remains real local time.
+Offset weatherSolarDaylightPoint(
+  Size size,
+  double sunriseFraction,
+  double sunsetFraction,
   double progress,
 ) {
   final safe = progress.clamp(0.0, 1.0);
-  final angle = math.pi - math.pi * safe;
+  const inset = 5.0;
+  const horizonY = 31.0;
+  const amplitude = 17.0;
+  final startX = inset + (size.width - inset * 2) * sunriseFraction;
+  final endX = inset + (size.width - inset * 2) * sunsetFraction;
   return Offset(
-    geometry.center.dx + geometry.radius * math.cos(angle),
-    geometry.center.dy - geometry.radius * math.sin(angle),
+    startX + (endX - startX) * safe,
+    horizonY - math.sin(math.pi * safe) * amplitude,
   );
 }
 
@@ -2377,6 +2390,7 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
   final List<WeatherHourly> values;
 
   static const _columnWidth = 72.0;
+  static const _height = 224.0;
 
   @override
   Widget build(BuildContext context) {
@@ -2384,14 +2398,14 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
     final temperatures = values.map((value) => value.temperature).toList();
     return SizedBox(
       width: 46 + values.length * _columnWidth,
-      height: 194,
+      height: _height,
       child: Stack(
         children: [
           Positioned(
             left: 46,
             right: 0,
-            top: 47,
-            height: 33,
+            top: 48,
+            height: 34,
             child: IgnorePointer(
               child: CustomPaint(
                 painter: _HourlyTemperatureTrendPainter(
@@ -2434,15 +2448,15 @@ class _HourlyMetricLabels extends StatelessWidget {
         children: const [
           SizedBox(height: 23),
           Text('天気'),
-          SizedBox(height: 17),
+          SizedBox(height: 49),
           Text('気温'),
-          SizedBox(height: 21),
+          SizedBox(height: 13),
           Text('降水'),
-          SizedBox(height: 17),
+          SizedBox(height: 8),
           Text('湿度'),
-          SizedBox(height: 17),
+          SizedBox(height: 8),
           Text('雨量'),
-          SizedBox(height: 17),
+          SizedBox(height: 8),
           Text('風'),
         ],
       ),
@@ -2472,7 +2486,7 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
       onTap: () => _showHourlyForecastDetail(context, day, values, index),
       child: Container(
         width: width,
-        height: 194,
+        height: _WeatherHourlySharedGrid._height,
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
           border: Border(
@@ -2485,21 +2499,23 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
               _hourJapanese(value.time),
               style: Theme.of(context).textTheme.labelSmall,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Icon(_weatherIcon(value.code), size: 17, color: scheme.primary),
-            const SizedBox(height: 7),
+            // Reserve a dedicated lane for the graph. Temperature text begins
+            // after that lane, so the data line cannot cross its numerals.
+            const SizedBox(height: 40),
             Text('${value.temperature.round()}°'),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text('${value.precipitationProbability}%'),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text('${value.humidity}%'),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               value.precipitation == 0
                   ? '0mm'
                   : '${value.precipitation.toStringAsFixed(1)}mm',
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text('${value.windSpeed.round()}'),
           ],
         ),

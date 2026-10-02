@@ -34,23 +34,39 @@ void main() {
     );
   });
 
-  test('solar trajectory uses exact circular semicircle geometry', () {
-    final geometry = weatherSolarSemicircleGeometry(const Size(216, 124));
-    final sunrise = weatherSolarSemicirclePoint(geometry, 0);
-    final noon = weatherSolarSemicirclePoint(geometry, .5);
-    final sunset = weatherSolarSemicirclePoint(geometry, 1);
+  test('solar trajectory is an actual-time daylight progression curve', () {
+    const size = Size(300, 58);
+    const sunriseFraction = .25;
+    const sunsetFraction = .75;
+    final sunrise = weatherSolarDaylightPoint(
+      size,
+      sunriseFraction,
+      sunsetFraction,
+      0,
+    );
+    final midpoint = weatherSolarDaylightPoint(
+      size,
+      sunriseFraction,
+      sunsetFraction,
+      .5,
+    );
+    final sunset = weatherSolarDaylightPoint(
+      size,
+      sunriseFraction,
+      sunsetFraction,
+      1,
+    );
 
-    expect(geometry.radius, 108);
-    expect(sunrise.dy, closeTo(geometry.center.dy, .001));
-    expect(noon.dx, closeTo(geometry.center.dx, .001));
-    expect(noon.dy, closeTo(geometry.center.dy - geometry.radius, .001));
-    expect(sunset.dy, closeTo(geometry.center.dy, .001));
-    for (final point in [sunrise, noon, sunset]) {
-      expect(
-        (point - geometry.center).distance,
-        closeTo(geometry.radius, .001),
-      );
-    }
+    expect(weatherSolarDayFraction('2026-10-02T06:00'), .25);
+    expect(sunrise.dy, closeTo(sunset.dy, .001));
+    expect(midpoint.dx, closeTo((sunrise.dx + sunset.dx) / 2, .001));
+    expect(midpoint.dy, lessThan(sunrise.dy));
+  });
+
+  test('header location keeps the city/area name primary', () {
+    expect(weatherHeaderLocationText('市原市 / 千葉県'), '市原市');
+    expect(weatherHeaderLocationText('千葉市, 千葉県'), '千葉市');
+    expect(weatherHeaderLocationText(null), '場所未設定');
   });
 
   Future<void> pumpSurface(
