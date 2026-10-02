@@ -164,7 +164,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// shared Ambient lane remain untouched.
   /// The smaller Bird uses its recovered airspace for a further optical lift.
   /// This is intentionally Bird-only and is applied after canonical mapping.
-  static const double birdPresentationAltitudeOffsetY = -11;
+  static const double birdPresentationAltitudeOffsetY = -17;
   static const double catPresentationOffsetY = -2;
 
   /// A deliberate Dashboard-only optical altitude adjustment. It is applied

@@ -379,11 +379,11 @@ void main() {
     },
   );
 
-  test('BIRD uses a bird-only 22.4px Dashboard scale and higher airspace', () {
+  test('BIRD keeps 22.4px size while rebasing its visible center upward', () {
     const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
     expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(22.4, .001));
     expect(scale, .4);
-    expect(DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY, -11);
+    expect(DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY, -17);
 
     final single = BirdV1ProductionFlight.visibleEnvelopeFor(
       values: BirdV1ProductionFlight.instances.take(1).toList(),
@@ -406,6 +406,13 @@ void main() {
       presentationAltitudeOffsetY:
           DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
     );
+    final trio = BirdV1ProductionFlight.visibleEnvelopeFor(
+      values: BirdV1ProductionFlight.instances,
+      presentationScale: scale,
+      presentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+      presentationAltitudeOffsetY:
+          DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
+    );
     expect(single.top, greaterThan(0));
     expect(flock.top, greaterThan(0));
     expect(
@@ -421,11 +428,16 @@ void main() {
       DashboardAmbientWildlifeStage.height -
           DashboardAmbientWildlifeStage.groundInset -
           flock.bottom,
-      greaterThan(29),
+      greaterThan(35),
     );
-    expect(single.top, closeTo(22.46, .01));
-    expect(flock.top, closeTo(17.52, .01));
-    expect(flock.bottom, lessThan(51));
+    expect(single.top, closeTo(16.46, .01));
+    expect(single.bottom, closeTo(40.34, .01));
+    expect((single.top + single.bottom) / 2, closeTo(28.40, .01));
+    expect((pair.top + pair.bottom) / 2, closeTo(28.40, .01));
+    expect((trio.top + trio.bottom) / 2, closeTo(30.00, .01));
+    expect((flock.top + flock.bottom) / 2, closeTo(27.80, .01));
+    expect(flock.top, closeTo(11.52, .01));
+    expect(flock.bottom, lessThan(45));
   });
 
   test('BIRD spatial launch spacing stays readable across stage widths', () {
