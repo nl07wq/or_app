@@ -265,7 +265,7 @@ void main() {
         const Duration(milliseconds: 1467),
       );
       expect(BirdV1ProductionFlight.flutterOn, isTrue);
-      expect(BirdV1ProductionFlight.renderedSize, 44);
+      expect(BirdV1ProductionFlight.renderedSize, 38);
       expect(BirdV1ProductionFlight.normalSpatialSpacing, 50);
       expect(BirdV1ProductionFlight.glitchSpatialSpacing, 38);
       expect(
@@ -332,14 +332,14 @@ void main() {
           stageWidth: 390,
           instance: two.birdInstances[1],
         ),
-        167,
+        169,
       );
       expect(
         BirdV1ProductionFlight.launchDelayFor(
           stageWidth: 390,
           instance: glitch.birdInstances[1],
         ),
-        127,
+        128,
       );
     },
   );
@@ -383,9 +383,9 @@ void main() {
     'BIRD keeps its Dashboard presentation while lifting canonical airspace',
     () {
       const scale = DashboardAmbientWildlifeStage.birdPresentationScale;
-      expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(17.6, .001));
-      expect(BirdV1ProductionFlight.renderedSize, 44);
-      expect(BirdV1ProductionFlight.baseTop, 18);
+      expect(BirdV1ProductionFlight.renderedSize * scale, closeTo(15.2, .001));
+      expect(BirdV1ProductionFlight.renderedSize, 38);
+      expect(BirdV1ProductionFlight.baseTop, 17.25);
       expect(scale, .4);
       expect(
         DashboardAmbientWildlifeStage.birdPresentationAltitudeOffsetY,
@@ -417,7 +417,7 @@ void main() {
       );
       expect(
         (canonicalSingle.top + canonicalSingle.bottom) / 2,
-        closeTo(40, .01),
+        closeTo(36.25, .01),
       );
 
       final single = BirdV1ProductionFlight.visibleEnvelopeFor(
@@ -465,13 +465,13 @@ void main() {
             flock.bottom,
         greaterThan(35),
       );
-      expect(single.top, closeTo(16.46, .01));
-      expect(single.bottom, closeTo(35.54, .01));
-      expect((single.top + single.bottom) / 2, closeTo(26.00, .01));
-      expect((pair.top + pair.bottom) / 2, closeTo(24.00, .01));
-      expect((trio.top + trio.bottom) / 2, closeTo(25.60, .01));
-      expect((flock.top + flock.bottom) / 2, closeTo(25.40, .01));
-      expect(flock.top, closeTo(11.52, .01));
+      expect(single.top, closeTo(16.16, .01));
+      expect(single.bottom, closeTo(32.84, .01));
+      expect((single.top + single.bottom) / 2, closeTo(24.50, .01));
+      expect((pair.top + pair.bottom) / 2, closeTo(22.50, .01));
+      expect((trio.top + trio.bottom) / 2, closeTo(24.10, .01));
+      expect((flock.top + flock.bottom) / 2, closeTo(23.90, .01));
+      expect(flock.top, closeTo(11.22, .01));
       expect(flock.bottom, lessThan(45));
     },
   );
