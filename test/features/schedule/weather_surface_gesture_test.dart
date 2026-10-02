@@ -59,8 +59,9 @@ void main() {
 
     expect(weatherSolarDayFraction('2026-10-02T06:00'), .25);
     expect(sunrise.dy, closeTo(sunset.dy, .001));
+    expect(sunrise.dy, closeTo(31, .001));
     expect(midpoint.dx, closeTo((sunrise.dx + sunset.dx) / 2, .001));
-    expect(midpoint.dy, lessThan(sunrise.dy));
+    expect(midpoint.dy, closeTo(4, .001));
   });
 
   test('header location keeps the city/area name primary', () {

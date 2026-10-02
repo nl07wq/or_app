@@ -1324,7 +1324,7 @@ class _WeatherDetails extends StatelessWidget {
                                 body: '湿度は空気中の水分量の割合です。露点は空気中の水蒸気が結露し始める温度です。',
                                 forecastSummary: forecast == null
                                     ? daySummary.primary
-                                    : 'この日の代表値は湿度 ${forecast.humidity}%、露点 ${forecast.dewPoint?.round() ?? '--'}° の予報です。',
+                                    : 'この日の湿度は ${forecast.humidity}%、露点は ${forecast.dewPoint?.round() ?? '--'}° の予報です。',
                                 supportingData: daySummary.supporting,
                               ),
                             ),
@@ -1350,7 +1350,8 @@ class _WeatherDetails extends StatelessWidget {
                                 value:
                                     '${day.precipitation.toStringAsFixed(1)} mm / ${day.precipitationProbability}%',
                                 body: 'mmは予想される降水量、%はその日の降水確率を示します。',
-                                forecastSummary: daySummary.primary,
+                                forecastSummary:
+                                    'この日の降水量は ${day.precipitation.toStringAsFixed(1)}mm、最大降水確率は ${day.precipitationProbability}% の予報です。',
                                 supportingData: daySummary.supporting,
                               ),
                             ),
@@ -1378,7 +1379,7 @@ class _WeatherDetails extends StatelessWidget {
                                 body: '水平方向にどの程度遠くまで見通せるかを示します。',
                                 forecastSummary: forecast?.visibility == null
                                     ? daySummary.primary
-                                    : 'この日の代表的な視程は${_visibilityCategoryJapanese(forecast!.visibility!)}です。',
+                                    : 'この日の視程は ${_visibilityValue(forecast!.visibility!)}で、見通しは ${_visibilityCategoryJapanese(forecast.visibility!)}の予報です。',
                                 supportingData: daySummary.supporting,
                               ),
                             ),
@@ -1401,7 +1402,7 @@ class _WeatherDetails extends StatelessWidget {
                                 body: '紫外線の強さを表す指数です。値が高いほど紫外線が強くなります。',
                                 forecastSummary: uvValue == null
                                     ? daySummary.primary
-                                    : 'この日のUV指数の最大値は ${uvValue.toStringAsFixed(0)}（${_uvCategoryJapanese(uvValue)}）の予報です。',
+                                    : 'この日のUV指数は ${uvValue.toStringAsFixed(0)}（${_uvCategoryJapanese(uvValue)}）の予報です。',
                                 supportingData: daySummary.supporting,
                               ),
                             ),
@@ -1425,7 +1426,7 @@ class _WeatherDetails extends StatelessWidget {
                                 body: '空全体のうち雲に覆われている割合の目安です。',
                                 forecastSummary: forecast == null
                                     ? daySummary.primary
-                                    : 'この日の代表的な雲量は ${forecast.cloudCover}% の予報です。',
+                                    : 'この日の雲量は ${forecast.cloudCover}% の予報です。',
                                 supportingData: daySummary.supporting,
                               ),
                             ),
@@ -1445,7 +1446,7 @@ class _WeatherDetails extends StatelessWidget {
                             body: 'この地点付近の地表面気圧の予報値です。',
                             forecastSummary: forecast?.surfacePressure == null
                                 ? daySummary.primary
-                                : 'この日の代表的な地表面気圧は ${forecast!.surfacePressure!.round()} hPa の予報です。',
+                                : 'この日の地表面気圧は ${forecast!.surfacePressure!.round()} hPa の予報です。',
                             supportingData: daySummary.supporting,
                           ),
                         ),
@@ -2337,7 +2338,9 @@ Offset weatherSolarDaylightPoint(
   final safe = progress.clamp(0.0, 1.0);
   const inset = 5.0;
   const horizonY = 31.0;
-  const amplitude = 17.0;
+  // This is a compact daylight-progression curve, not solar altitude. The
+  // larger amplitude keeps the sunrise-to-sunset arc readable at 58px high.
+  const amplitude = 27.0;
   final startX = inset + (size.width - inset * 2) * sunriseFraction;
   final endX = inset + (size.width - inset * 2) * sunsetFraction;
   return Offset(
@@ -2390,7 +2393,11 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
   final List<WeatherHourly> values;
 
   static const _columnWidth = 72.0;
-  static const _height = 224.0;
+  static const _height = 236.0;
+  static const _timeRowHeight = 25.0;
+  static const _weatherRowHeight = 27.0;
+  static const _temperatureGraphRowHeight = 40.0;
+  static const _metricRowHeight = 24.0;
 
   @override
   Widget build(BuildContext context) {
@@ -2404,8 +2411,8 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
           Positioned(
             left: 46,
             right: 0,
-            top: 48,
-            height: 34,
+            top: 8 + _timeRowHeight + _weatherRowHeight,
+            height: _temperatureGraphRowHeight,
             child: IgnorePointer(
               child: CustomPaint(
                 painter: _HourlyTemperatureTrendPainter(
@@ -2441,25 +2448,38 @@ class _HourlyMetricLabels extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 46,
+    height: _WeatherHourlySharedGrid._height,
     child: Padding(
-      padding: const EdgeInsets.only(top: 9, left: 6),
+      padding: const EdgeInsets.fromLTRB(6, 8, 2, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          SizedBox(height: 23),
-          Text('天気'),
-          SizedBox(height: 49),
-          Text('気温'),
-          SizedBox(height: 13),
-          Text('降水'),
-          SizedBox(height: 8),
-          Text('湿度'),
-          SizedBox(height: 8),
-          Text('雨量'),
-          SizedBox(height: 8),
-          Text('風'),
+          SizedBox(height: _WeatherHourlySharedGrid._timeRowHeight),
+          _HourlyLabelRow('天気', _WeatherHourlySharedGrid._weatherRowHeight),
+          SizedBox(height: _WeatherHourlySharedGrid._temperatureGraphRowHeight),
+          _HourlyLabelRow('気温', _WeatherHourlySharedGrid._metricRowHeight),
+          _HourlyLabelRow('降水', _WeatherHourlySharedGrid._metricRowHeight),
+          _HourlyLabelRow('湿度', _WeatherHourlySharedGrid._metricRowHeight),
+          _HourlyLabelRow('雨量', _WeatherHourlySharedGrid._metricRowHeight),
+          _HourlyLabelRow('風速', _WeatherHourlySharedGrid._metricRowHeight),
         ],
       ),
+    ),
+  );
+}
+
+class _HourlyLabelRow extends StatelessWidget {
+  const _HourlyLabelRow(this.label, this.height);
+
+  final String label;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(label, style: Theme.of(context).textTheme.bodySmall),
     ),
   );
 }
@@ -2495,33 +2515,66 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(
-              _hourJapanese(value.time),
-              style: Theme.of(context).textTheme.labelSmall,
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._timeRowHeight,
+              child: Text(
+                _hourJapanese(value.time),
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
             ),
-            const SizedBox(height: 4),
-            Icon(_weatherIcon(value.code), size: 17, color: scheme.primary),
-            // Reserve a dedicated lane for the graph. Temperature text begins
-            // after that lane, so the data line cannot cross its numerals.
-            const SizedBox(height: 40),
-            Text('${value.temperature.round()}°'),
-            const SizedBox(height: 8),
-            Text('${value.precipitationProbability}%'),
-            const SizedBox(height: 8),
-            Text('${value.humidity}%'),
-            const SizedBox(height: 8),
-            Text(
-              value.precipitation == 0
-                  ? '0mm'
-                  : '${value.precipitation.toStringAsFixed(1)}mm',
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._weatherRowHeight,
+              child: Icon(
+                _weatherIcon(value.code),
+                size: 17,
+                color: scheme.primary,
+              ),
             ),
-            const SizedBox(height: 8),
-            Text('${value.windSpeed.round()}'),
+            const SizedBox(
+              height: _WeatherHourlySharedGrid._temperatureGraphRowHeight,
+            ),
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._metricRowHeight,
+              child: Text('${value.temperature.round()}°'),
+            ),
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._metricRowHeight,
+              child: Text('${value.precipitationProbability}%'),
+            ),
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._metricRowHeight,
+              child: Text('${value.humidity}%'),
+            ),
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._metricRowHeight,
+              child: Text(
+                value.precipitation == 0
+                    ? '0mm'
+                    : '${value.precipitation.toStringAsFixed(1)}mm',
+              ),
+            ),
+            _HourlyValueRow(
+              height: _WeatherHourlySharedGrid._metricRowHeight,
+              child: Text('${value.windSpeed.round()}km/h'),
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _HourlyValueRow extends StatelessWidget {
+  const _HourlyValueRow({required this.height, required this.child});
+
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    child: Center(child: child),
+  );
 }
 
 class _HourlyTemperatureTrendPainter extends CustomPainter {
@@ -2728,15 +2781,8 @@ WeatherHourly? _representativeHourly(List<WeatherHourly> values) {
   return _firstHourly(values);
 }
 
-String _feelsLikeSummary(WeatherHourly forecast) {
-  final difference = forecast.apparentTemperature - forecast.temperature;
-  if (difference.abs() <= 1) {
-    return '実気温 ${forecast.temperature.round()}° とほぼ同程度に感じる予報です。';
-  }
-  return difference > 0
-      ? '実気温より ${difference.round()}° 高く感じる予報です。'
-      : '実気温より ${difference.abs().round()}° 低く感じる予報です。';
-}
+String _feelsLikeSummary(WeatherHourly forecast) =>
+    'この日の体感温度は ${forecast.apparentTemperature.round()}°の予報です。';
 
 String _windForecastSummary(WeatherForecastSummary summary) {
   for (final item in summary.supporting) {
