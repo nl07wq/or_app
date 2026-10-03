@@ -987,9 +987,10 @@ class _WeatherForecastRow extends StatelessWidget {
                               Text(
                                 '${date.month}/${date.day}',
                                 textAlign: weatherForecastDateTextAlignment,
-                                style: Theme.of(context).textTheme.labelSmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
                                       height: .9,
+                                      fontWeight: FontWeight.w600,
                                       color: scheme.onSurface.withValues(
                                         alpha: .72,
                                       ),
@@ -1088,10 +1089,8 @@ class _WeatherForecastRow extends StatelessWidget {
                         const SizedBox(height: 3),
                         Row(
                           children: [
-                            const Text('降水'),
-                            const SizedBox(width: 5),
                             Icon(
-                              Icons.water_drop_outlined,
+                              Icons.umbrella_outlined,
                               size: 14,
                               color: scheme.secondary,
                             ),
@@ -1219,8 +1218,8 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 /// a weather column. Each is centered internally, but they intentionally do
 /// not share one all-content center axis.
 const weatherForecastLowHighPairAlignment = MainAxisAlignment.center;
-const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
-const weatherForecastDateTextAlignment = TextAlign.center;
+const weatherForecastDateBlockAlignment = CrossAxisAlignment.start;
+const weatherForecastDateTextAlignment = TextAlign.start;
 const weatherForecastWeatherBlockAlignment = CrossAxisAlignment.center;
 const weatherForecastWeatherTextAlignment = TextAlign.center;
 const weatherForecastUsesSplitLeftBlocks = true;
@@ -1283,6 +1282,14 @@ double weatherProbabilityMeterFillFraction(double fraction) {
 /// Humidity uses the same exact-fill rule as precipitation probability.
 double weatherHumidityMeterFillFraction(double fraction) =>
     fraction.clamp(0.0, 1.0).toDouble();
+
+/// Resolves the rendered left-to-right fill width without altering the formal
+/// percentage. Keeping this as a pixel value avoids a zero-width flex child
+/// masking the low-percentage fill on compact detail layouts.
+double weatherDetailMeterFillWidth({
+  required double trackWidth,
+  required double fraction,
+}) => trackWidth * fraction.clamp(0.0, 1.0).toDouble();
 
 /// A row owns both its date selection and its visual rail. A different date
 /// never opens a surface; a second, deliberate tap requests the daily detail.
@@ -2261,20 +2268,19 @@ class _WeatherTemperatureRail extends StatelessWidget {
         final highFraction = scale?.highFraction ?? 1.0;
         final dayRangeWidth = math.max(0.0, highFraction - lowFraction);
         const endpointLabelWidth = 68.0;
-        final lowLabelLeft = (width * lowFraction)
+        var lowLabelLeft = (width * lowFraction - (endpointLabelWidth / 2))
             .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
             .toDouble();
-        final unconstrainedHighLabelLeft =
-            width * highFraction - endpointLabelWidth;
-        final highLabelLeft = unconstrainedHighLabelLeft
-            .clamp(
-              math.min(
-                width - endpointLabelWidth,
-                lowLabelLeft + endpointLabelWidth + 4,
-              ),
-              math.max(0.0, width - endpointLabelWidth),
-            )
+        var highLabelLeft = (width * highFraction - (endpointLabelWidth / 2))
+            .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
             .toDouble();
+        if (highLabelLeft < lowLabelLeft + endpointLabelWidth + 4) {
+          lowLabelLeft = 0;
+          highLabelLeft = math
+              .max(endpointLabelWidth + 4, width - endpointLabelWidth)
+              .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
+              .toDouble();
+        }
         final markerLeft = markerFraction == null
             ? 0.0
             : ((width - 8) * markerFraction)
@@ -2475,8 +2481,8 @@ class _WeatherProbabilityReadout extends StatelessWidget {
               fraction: weatherProbabilityMeterFillFraction(
                 metric?.meterFraction ?? 0,
               ),
-              color: Theme.of(context).colorScheme.secondary,
-              height: 4,
+              color: Theme.of(context).colorScheme.primary,
+              height: 6,
             ),
           ),
         ],
@@ -2650,7 +2656,7 @@ class _WeatherDetailMeter extends StatelessWidget {
   const _WeatherDetailMeter({
     required this.fraction,
     required this.color,
-    this.height = 3,
+    this.height = 6,
   });
 
   final double fraction;
@@ -2660,41 +2666,51 @@ class _WeatherDetailMeter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
-    final fillColor = Color.lerp(color, const Color(0xFF45D9FF), .52)!;
+    final fillColor = Color.lerp(color, const Color(0xFF45D9FF), .72)!;
     return LayoutBuilder(
-      builder: (context, constraints) => ClipRRect(
-        borderRadius: BorderRadius.circular(height / 2),
-        child: SizedBox(
-          height: height,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF08141B).withValues(alpha: .88),
-                  border: Border.all(color: fillColor.withValues(alpha: .32)),
+      builder: (context, constraints) {
+        final fillWidth = weatherDetailMeterFillWidth(
+          trackWidth: constraints.maxWidth,
+          fraction: safeFraction,
+        );
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(height / 2),
+          child: SizedBox(
+            height: height,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF07131D),
+                    border: Border.all(color: fillColor.withValues(alpha: .42)),
+                  ),
                 ),
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: safeFraction,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          fillColor.withValues(alpha: 1),
-                          fillColor.withValues(alpha: .82),
+                if (fillWidth > 0)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: fillWidth,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [fillColor, fillColor.withValues(alpha: .84)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: fillColor.withValues(alpha: .32),
+                            blurRadius: 4,
+                          ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

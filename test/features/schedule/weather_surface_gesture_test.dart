@@ -16,11 +16,11 @@ void main() {
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
   });
 
-  test('weekly forecast separates centered date and weather identities', () {
+  test('weekly forecast separates date and weather identities', () {
     expect(weatherForecastUsesSplitLeftBlocks, isTrue);
     expect(weatherForecastLowHighPairAlignment, MainAxisAlignment.center);
-    expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
-    expect(weatherForecastDateTextAlignment, TextAlign.center);
+    expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.start);
+    expect(weatherForecastDateTextAlignment, TextAlign.start);
     expect(weatherForecastWeatherBlockAlignment, CrossAxisAlignment.center);
     expect(weatherForecastWeatherTextAlignment, TextAlign.center);
   });
@@ -82,6 +82,13 @@ void main() {
     expect(weatherHumidityMeterFillFraction(.56), .56);
     expect(weatherHumidityMeterFillFraction(.73), .73);
     expect(weatherHumidityMeterFillFraction(1), 1);
+  });
+
+  test('detail meters render an explicit left-origin fill width', () {
+    expect(weatherDetailMeterFillWidth(trackWidth: 200, fraction: 0), 0);
+    expect(weatherDetailMeterFillWidth(trackWidth: 200, fraction: .18), 36);
+    expect(weatherDetailMeterFillWidth(trackWidth: 200, fraction: .52), 104);
+    expect(weatherDetailMeterFillWidth(trackWidth: 200, fraction: 1), 200);
   });
 
   test('meter fractions remain safely bounded', () {
