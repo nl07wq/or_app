@@ -58,7 +58,57 @@ void main() {
       CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
     );
     expect(CatRunProductionEventPolicy.normalFollowerTriggerProgress, .15);
-    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .05);
+    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .025);
+  });
+
+  test('CAT GLITCH applies controlled, symmetric visible overlap', () {
+    const stageWidth = 390.0;
+    const dashboardCatUnit =
+        CatRunV23Travel.catUnit *
+        DashboardAmbientWildlifeStage.animalPresentationScale;
+
+    for (final direction in CatRunV23Direction.values) {
+      double visibleGap(double spacing) => CatRunV23Travel.visibleFollowerGap(
+        stageWidth: stageWidth,
+        eventProgress: .60,
+        followerTriggerProgress: spacing,
+        catUnit: dashboardCatUnit,
+        direction: direction,
+      );
+
+      final baseline = visibleGap(.05);
+      final candidate03 = visibleGap(.03);
+      final selected = visibleGap(
+        CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+      );
+      final candidate02 = visibleGap(.02);
+
+      // Negative means silhouette overlap. The controlled GLITCH procession
+      // deliberately becomes denser while retaining its ordered direction.
+      expect(baseline, lessThan(0));
+      expect(candidate03, lessThan(baseline));
+      expect(selected, lessThan(candidate03));
+      expect(candidate02, lessThan(selected));
+      expect(selected.abs() / baseline.abs(), closeTo(2.787, .03));
+    }
+
+    final leftToRight = CatRunV23Travel.visibleFollowerGap(
+      stageWidth: stageWidth,
+      eventProgress: .60,
+      followerTriggerProgress:
+          CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+      catUnit: dashboardCatUnit,
+      direction: CatRunV23Direction.leftToRight,
+    );
+    final rightToLeft = CatRunV23Travel.visibleFollowerGap(
+      stageWidth: stageWidth,
+      eventProgress: .60,
+      followerTriggerProgress:
+          CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+      catUnit: dashboardCatUnit,
+      direction: CatRunV23Direction.rightToLeft,
+    );
+    expect(leftToRight, closeTo(rightToLeft, .000001));
   });
 
   test('CAT GLITCH projection ignores Dashboard normal spacing', () {
@@ -74,7 +124,7 @@ void main() {
           isGlitch: true,
           normalFollowerSpacingMultiplier: normalMultiplier,
         ),
-        closeTo(.55, .000001),
+        closeTo(.575, .000001),
       );
     }
     expect(
@@ -89,7 +139,7 @@ void main() {
     );
   });
 
-  test('CAT smooth anchor correction is bounded and transition-continuous', () {
+  test('CAT SMOOTH uses a stronger bounded 40ms anchor handoff', () {
     final offsets = <Offset>[
       for (
         var millisecond = 0;
@@ -104,13 +154,25 @@ void main() {
     expect(
       offsets
           .map((offset) => offset.distance)
-          .every((offset) => offset <= .008),
+          .every(
+            (offset) =>
+                offset <= CatRunV23Travel.maximumSmoothVisualAnchorOffset,
+          ),
+      isTrue,
+    );
+    expect(
+      CatRunV23Travel.smoothAnchorBlendDuration,
+      const Duration(milliseconds: 40),
+    );
+    expect(
+      offsets.map((offset) => offset.distance).any((offset) => offset > .008),
       isTrue,
     );
     expect(offsets.toSet().length, greaterThan(1));
     for (var index = 1; index < offsets.length; index++) {
-      expect((offsets[index] - offsets[index - 1]).distance, lessThan(.004));
+      expect((offsets[index] - offsets[index - 1]).distance, lessThan(.008));
     }
+    expect(CatRunV23Travel.crossingDuration, CatRunV24Travel.crossingDuration);
   });
 
   test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {

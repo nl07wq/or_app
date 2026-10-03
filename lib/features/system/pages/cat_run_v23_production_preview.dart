@@ -78,8 +78,9 @@ class CatRunV23Travel {
       final frameEnd = frameStart + duration;
       if (cycleElapsed < frameEnd) {
         final local = cycleElapsed - frameStart;
+        final halfBlendMicroseconds = _smoothAnchorBlendMicroseconds ~/ 2;
         final current = _smoothVisualAnchorOffsets[index];
-        if (local < _smoothAnchorBlendMicroseconds) {
+        if (local < halfBlendMicroseconds) {
           final previous =
               _smoothVisualAnchorOffsets[(index -
                       1 +
@@ -89,19 +90,18 @@ class CatRunV23Travel {
             previous,
             current,
             _smoothStep(
-              (local + _smoothAnchorBlendMicroseconds) /
-                  (_smoothAnchorBlendMicroseconds * 2),
+              (halfBlendMicroseconds + local) / _smoothAnchorBlendMicroseconds,
             ),
           )!;
         }
-        if (local > duration - _smoothAnchorBlendMicroseconds) {
+        if (local > duration - halfBlendMicroseconds) {
           return Offset.lerp(
             current,
             _smoothVisualAnchorOffsets[(index + 1) %
                 _smoothVisualAnchorOffsets.length],
             _smoothStep(
-              (local - (duration - _smoothAnchorBlendMicroseconds)) /
-                  (_smoothAnchorBlendMicroseconds * 2),
+              (local - (duration - halfBlendMicroseconds)) /
+                  _smoothAnchorBlendMicroseconds,
             ),
           )!;
         }
@@ -112,8 +112,72 @@ class CatRunV23Travel {
     return _smoothVisualAnchorOffsets.first;
   }
 
-  static const _smoothAnchorBlendMicroseconds = 12000;
-  static const _maximumSmoothVisualAnchorOffset = .008;
+  /// A 40ms presentation-only handoff is long enough to bridge the visible
+  /// pose-centre discontinuity, without changing the CAT's crossing timeline.
+  static const smoothAnchorBlendDuration = Duration(milliseconds: 40);
+  static const maximumSmoothVisualAnchorOffset = .018;
+  static const _smoothAnchorBlendMicroseconds = 40000;
+  static const _maximumSmoothVisualAnchorOffset =
+      maximumSmoothVisualAnchorOffset;
+
+  /// Returns the production-presentation visible bounds for a single CAT at a
+  /// given progress. The result is intentionally based on the registered
+  /// silhouette path, rather than canvas spacing or an asset rectangle.
+  static Rect visibleBoundsAt({
+    required double stageWidth,
+    required double progress,
+    required double catUnit,
+    required CatRunV23Direction direction,
+  }) {
+    final points = registeredPointsAt(progress);
+    final localBounds = (Path()..addPolygon(points, true)).getBounds();
+    final travelX = CatRunV24Travel.horizontalPosition(
+      stageWidth: stageWidth,
+      progress: progress,
+    );
+    if (direction == CatRunV23Direction.leftToRight) {
+      return Rect.fromLTRB(
+        travelX + localBounds.left * catUnit,
+        localBounds.top * catUnit,
+        travelX + localBounds.right * catUnit,
+        localBounds.bottom * catUnit,
+      );
+    }
+    final originX = stageWidth - travelX;
+    return Rect.fromLTRB(
+      originX - localBounds.right * catUnit,
+      localBounds.top * catUnit,
+      originX - localBounds.left * catUnit,
+      localBounds.bottom * catUnit,
+    );
+  }
+
+  /// Measures the empty visible space between a leading CAT and its immediate
+  /// follower after stage scale and direction have been applied. A negative
+  /// result denotes silhouette overlap.
+  static double visibleFollowerGap({
+    required double stageWidth,
+    required double eventProgress,
+    required double followerTriggerProgress,
+    required double catUnit,
+    required CatRunV23Direction direction,
+  }) {
+    final leader = visibleBoundsAt(
+      stageWidth: stageWidth,
+      progress: eventProgress,
+      catUnit: catUnit,
+      direction: direction,
+    );
+    final follower = visibleBoundsAt(
+      stageWidth: stageWidth,
+      progress: eventProgress - followerTriggerProgress,
+      catUnit: catUnit,
+      direction: direction,
+    );
+    return direction == CatRunV23Direction.leftToRight
+        ? leader.left - follower.right
+        : follower.left - leader.right;
+  }
 
   static final _smoothVisualAnchorOffsets = () {
     final centers = catRunV2HighTraces
@@ -176,7 +240,7 @@ class CatRunProductionEventPolicy {
 
   /// A dense rare-event procession. This is deliberately independent from
   /// normal-chain spacing so CAT ×1/×2/×3 presentation remains unchanged.
-  static const glitchFollowerTriggerProgress = .05;
+  static const glitchFollowerTriggerProgress = .025;
 
   static bool isGlitchRoll(int roll) {
     if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
