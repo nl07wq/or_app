@@ -1087,34 +1087,66 @@ class _WeatherForecastRow extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.umbrella_outlined,
-                              size: 14,
-                              color: scheme.secondary,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${value.precipitationProbability}%',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: scheme.secondary),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              '${value.precipitation.toStringAsFixed(1)}mm',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                            const SizedBox(width: 2),
-                            Icon(
-                              Icons.chevron_right,
-                              key: ValueKey(
-                                'weather-forecast-detail-${value.date}',
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.umbrella_outlined,
+                                size: 14,
+                                color: scheme.secondary,
                               ),
-                              size: 15,
-                              color: scheme.primary.withValues(alpha: .48),
-                            ),
-                          ],
+                              const SizedBox(width: 3),
+                              Text(
+                                '${value.precipitationProbability}%',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: scheme.secondary),
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                '${value.precipitation.toStringAsFixed(1)}mm',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                              const SizedBox(width: 7),
+                              Tooltip(
+                                message: '最大風速',
+                                child: Row(
+                                  key: ValueKey(
+                                    'weather-forecast-wind-${value.date}',
+                                  ),
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.air,
+                                      size: 14,
+                                      color: scheme.primary,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      weatherDailyMaxWindLabel(
+                                        value.windSpeedMax,
+                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(color: scheme.primary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(
+                                Icons.chevron_right,
+                                key: ValueKey(
+                                  'weather-forecast-detail-${value.date}',
+                                ),
+                                size: 15,
+                                color: scheme.primary.withValues(alpha: .48),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -1128,6 +1160,10 @@ class _WeatherForecastRow extends StatelessWidget {
     );
   }
 }
+
+String weatherDailyMaxWindLabel(double? windSpeedMax) => windSpeedMax == null
+    ? '--'
+    : '${windSpeedMax.round()}km/h';
 
 class _TemperatureRangePainter extends CustomPainter {
   const _TemperatureRangePainter({

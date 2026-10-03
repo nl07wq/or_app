@@ -259,6 +259,7 @@ void main() {
       expect(result.snapshot?.daily, hasLength(7));
       expect(result.snapshot?.hourly.first.time, '2026-09-30T00:00');
       expect(result.snapshot?.daily.first.uvIndexMax, 3);
+      expect(result.snapshot?.daily.first.windSpeedMax, 14);
       expect(result.snapshot?.hourly.first.dewPoint, 11);
       expect(result.snapshot?.hourly.first.windDirection, 25);
       expect(result.snapshot?.hourly.first.surfacePressure, 1012);
@@ -267,8 +268,35 @@ void main() {
       expect(client.urls.single, contains('timezone=Asia%2FTokyo'));
       expect(client.urls.single, contains('dew_point_2m'));
       expect(client.urls.single, contains('uv_index_max'));
+      expect(client.urls.single, contains('wind_speed_10m_max'));
+      expect(client.urls, hasLength(1));
     },
   );
+
+  test(
+    'preserves formal daily wind through cache serialization and reload',
+    () async {
+      final store = WeatherStore();
+      final snapshot = _snapshot(location, DateTime.utc(2026, 9, 30, 1));
+
+      await store.saveCache(snapshot);
+      final restored = await store.loadCache(location);
+
+      expect(restored?.daily.first.windSpeedMax, 14);
+      expect(
+        WeatherSnapshot.decode(snapshot.encode()).daily.first.windSpeedMax,
+        14,
+      );
+    },
+  );
+
+  test('safely decodes legacy daily cache data without a wind field', () {
+    final day = _snapshot(location, DateTime.utc(2026, 9, 30, 1)).daily.first;
+    final legacy = Map<String, Object?>.from(day.toJson())
+      ..remove('windSpeedMax');
+
+    expect(WeatherDaily.fromJson(legacy).windSpeedMax, isNull);
+  });
 
   test('does not reuse cache for a different weather location', () async {
     final store = WeatherStore();
@@ -373,6 +401,7 @@ WeatherSnapshot _snapshot(WeatherLocation location, DateTime fetchedAt) =>
           precipitation: 0,
           sunrise: '2026-10-01T05:30',
           sunset: '2026-10-01T17:00',
+          windSpeedMax: 14,
         ),
       ),
       hourly: const [],
@@ -397,6 +426,7 @@ String _forecastResponse() => jsonEncode({
     'sunrise': List.filled(7, '2026-09-30T05:30'),
     'sunset': List.filled(7, '2026-09-30T17:00'),
     'uv_index_max': List.filled(7, 3),
+    'wind_speed_10m_max': List.filled(7, 14),
   },
   'hourly': {
     'time': ['2026-09-30T00:00'],

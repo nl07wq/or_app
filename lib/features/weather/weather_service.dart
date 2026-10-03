@@ -299,6 +299,7 @@ class WeatherService {
         'sunrise',
         'sunset',
         'uv_index_max',
+        'wind_speed_10m_max',
       ].join(','),
       'hourly': [
         'temperature_2m',
@@ -329,6 +330,10 @@ class WeatherService {
 
   List<WeatherDaily> _daily(Map<String, Object?> data) {
     final dates = _values<String>(data, 'time');
+    final dailyWindSpeedMax = _optionalValues<num>(
+      data,
+      'wind_speed_10m_max',
+    );
     return List.generate(
       dates.length,
       (index) => WeatherDaily(
@@ -347,6 +352,10 @@ class WeatherService {
         sunrise: _values<String>(data, 'sunrise')[index],
         sunset: _values<String>(data, 'sunset')[index],
         uvIndexMax: _values<num>(data, 'uv_index_max')[index].toDouble(),
+        windSpeedMax: dailyWindSpeedMax != null &&
+                index < dailyWindSpeedMax.length
+            ? dailyWindSpeedMax[index].toDouble()
+            : null,
       ),
       growable: false,
     );
@@ -391,6 +400,11 @@ class WeatherService {
 
   List<T> _values<T>(Map<String, Object?> data, String key) =>
       (data[key] as List).cast<T>();
+
+  List<T>? _optionalValues<T>(Map<String, Object?> data, String key) {
+    final value = data[key];
+    return value is List ? value.cast<T>() : null;
+  }
 }
 
 class _GeocodingCandidate {

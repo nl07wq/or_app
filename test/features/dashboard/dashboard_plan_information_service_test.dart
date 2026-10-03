@@ -240,6 +240,15 @@ void main() {
     expect(find.text('日曜日'), findsOneWidget);
     final sunday = tester.widget<Text>(find.text('日曜日'));
     expect(sunday.style?.color, AppColors.danger);
+    expect(tester.widget<Text>(find.text('4')).style?.fontSize, 32);
+    final empty = tester.widget<Text>(find.text('予定はありません'));
+    expect(
+      empty.style?.fontSize,
+      Theme.of(
+        tester.element(find.text('予定はありません')),
+      ).textTheme.bodyMedium?.fontSize,
+    );
+    expect(empty.style?.fontWeight, FontWeight.w400);
     await tester.tap(find.byKey(const ValueKey('dashboard-schedule')));
     expect(openedDate, '2026-10-04');
 

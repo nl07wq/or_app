@@ -1012,7 +1012,7 @@ class _DashboardScheduleDateIdentity extends StatelessWidget {
             date?.day.toString() ?? '–',
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
               color: weekdayColor,
-              fontSize: 40,
+              fontSize: 32,
               fontWeight: FontWeight.w600,
               height: 1,
             ),
@@ -1041,7 +1041,12 @@ class _DashboardScheduleEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-    child: Text('予定はありません', style: Theme.of(context).textTheme.bodyLarge),
+    child: Text(
+      '予定はありません',
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w400,
+      ),
+    ),
   );
 }
 

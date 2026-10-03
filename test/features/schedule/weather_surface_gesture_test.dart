@@ -25,6 +25,11 @@ void main() {
     expect(weatherForecastWeatherTextAlignment, TextAlign.center);
   });
 
+  test('weekly compact telemetry formats only the formal daily maximum wind', () {
+    expect(weatherDailyMaxWindLabel(14), '14km/h');
+    expect(weatherDailyMaxWindLabel(null), '--');
+  });
+
   test('daily-detail temperature rail keeps LOW and HIGH as its base', () {
     final normal = weatherTemperatureDetailScale(
       low: 17,

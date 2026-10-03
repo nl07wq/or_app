@@ -122,6 +122,7 @@ class WeatherDaily {
     required this.sunrise,
     required this.sunset,
     this.uvIndexMax,
+    this.windSpeedMax,
   });
   final String date;
   final int code;
@@ -132,9 +133,11 @@ class WeatherDaily {
   final String sunrise;
   final String sunset;
   final double? uvIndexMax;
+  final double? windSpeedMax;
   Map<String, Object> toJson() {
     final optional = <String, Object>{};
     if (uvIndexMax != null) optional['uvIndexMax'] = uvIndexMax!;
+    if (windSpeedMax != null) optional['windSpeedMax'] = windSpeedMax!;
     return {
       'date': date,
       'code': code,
@@ -158,6 +161,7 @@ class WeatherDaily {
     sunrise: json['sunrise'] as String,
     sunset: json['sunset'] as String,
     uvIndexMax: (json['uvIndexMax'] as num?)?.toDouble(),
+    windSpeedMax: (json['windSpeedMax'] as num?)?.toDouble(),
   );
 }
 
@@ -250,7 +254,7 @@ class WeatherSnapshot {
   final List<WeatherHourly> hourly;
   String encode() => jsonEncode({
     'provider': 'open-meteo',
-    'cacheVersion': 2,
+    'cacheVersion': 3,
     'location': location.toJson(),
     'fetchedAt': fetchedAt.toUtc().toIso8601String(),
     'daily': daily.map((v) => v.toJson()).toList(),
