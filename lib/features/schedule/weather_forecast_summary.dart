@@ -188,7 +188,7 @@ abstract final class WeatherForecastSummaryEngine {
         '${strongestWind.daypart.label}は風が強まり、最大突風 ${strongestWind.maxWindGust.round()}km/h の予報です。',
       );
     } else if (day.high - day.low >= 9) {
-      supporting.add('日中と朝晩の気温差は約 ${(day.high - day.low).round()}° の予報です。');
+      supporting.add('日中と朝晩の気温差は約 ${(day.high - day.low).round()}℃ の予報です。');
     }
 
     return WeatherForecastSummary(

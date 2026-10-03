@@ -927,7 +927,7 @@ class _WeatherForecastRow extends StatelessWidget {
         child: Container(
           key: ValueKey('weather-forecast-row-${value.date}'),
           margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+          padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
           decoration: BoxDecoration(
             color: selected ? scheme.surface.withValues(alpha: .30) : null,
             border: Border.all(
@@ -1000,22 +1000,31 @@ class _WeatherForecastRow extends StatelessWidget {
                             ),
                             const SizedBox(width: 7),
                             Text(
-                              '${value.high.round()}°',
-                              style: Theme.of(context).textTheme.titleLarge
+                              _weatherConditionJapanese(value.code),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1,
+                                    color: scheme.onSurface.withValues(
+                                      alpha: .72,
+                                    ),
                                   ),
                             ),
                           ],
                         ),
-                        Text(
-                          '${value.low.round()}° / ${value.high.round()}°',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: scheme.onSurface.withValues(alpha: .68),
-                              ),
+                        const SizedBox(height: 1),
+                        Row(
+                          children: [
+                            _WeeklyTemperatureValue(
+                              label: '低',
+                              value: '${value.low.round()}℃',
+                            ),
+                            const SizedBox(width: 9),
+                            _WeeklyTemperatureValue(
+                              label: '高',
+                              value: '${value.high.round()}℃',
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1028,7 +1037,7 @@ class _WeatherForecastRow extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              '${value.low.round()}°',
+                              '${value.low.round()}℃',
                               style: Theme.of(context).textTheme.labelSmall,
                             ),
                             const SizedBox(width: 6),
@@ -1052,7 +1061,7 @@ class _WeatherForecastRow extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${value.high.round()}°',
+                              '${value.high.round()}℃',
                               style: Theme.of(context).textTheme.labelSmall,
                             ),
                           ],
@@ -1060,24 +1069,8 @@ class _WeatherForecastRow extends StatelessWidget {
                         const SizedBox(height: 3),
                         Row(
                           children: [
-                            Expanded(
-                              child: Text(
-                                _weatherConditionJapanese(value.code),
-                                key: ValueKey(
-                                  'weather-forecast-secondary-${value.date}',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      fontSize: 14,
-                                      color: scheme.onSurface.withValues(
-                                        alpha: .72,
-                                      ),
-                                    ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
+                            const Text('降水'),
+                            const SizedBox(width: 5),
                             Icon(
                               Icons.water_drop_outlined,
                               size: 14,
@@ -1089,7 +1082,7 @@ class _WeatherForecastRow extends StatelessWidget {
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: scheme.secondary),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 10),
                             Text(
                               '${value.precipitation.toStringAsFixed(1)}mm',
                               style: Theme.of(context).textTheme.labelSmall,
@@ -1163,6 +1156,38 @@ class _TemperatureRangePainter extends CustomPainter {
       oldDelegate.globalHigh != globalHigh;
 }
 
+class _WeeklyTemperatureValue extends StatelessWidget {
+  const _WeeklyTemperatureValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            height: 1,
+          ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontSize: 10,
+            color: scheme.onSurface.withValues(alpha: .58),
+            height: 1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Keeps the temperature rail within its own logical column. The 208px
 /// reservation covers day/icon, low/high values, precipitation, and explicit
 /// gaps so the painter cannot draw beneath numeric telemetry.
@@ -1204,11 +1229,11 @@ Future<void> _showDailyForecastDetail(
   return _showWeatherExplanation(
     context,
     _WeatherExplanation(
-      title: '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}）',
+      title:
+          '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}） · ${_weatherConditionJapanese(day.code)}',
       headerIcon: _weatherIcon(day.code),
       prominentHeaderIcon: true,
-      value:
-          '${_weatherConditionJapanese(day.code)} · 最低気温 ${day.low.round()}° / 最高気温 ${day.high.round()}° · 降水確率 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm',
+      value: '--',
       body: '日次の予報値と、表示可能な時間別予報値をまとめています。',
       forecastSummary: summary.primary,
       supportingData: summary.supporting,
@@ -1218,14 +1243,14 @@ Future<void> _showDailyForecastDetail(
           visualKind: _WeatherDetailVisualKind.temperature,
           tonalStrength: .035,
           metrics: [
-            _WeatherDetailMetric(label: '最低気温', value: '${day.low.round()}°'),
-            _WeatherDetailMetric(label: '最高気温', value: '${day.high.round()}°'),
+            _WeatherDetailMetric(label: '最低気温', value: '${day.low.round()}℃'),
+            _WeatherDetailMetric(label: '最高気温', value: '${day.high.round()}℃'),
             if (forecast != null)
               _WeatherDetailMetric(
                 label: '体感温度',
-                value: '${forecast.apparentTemperature.round()}°',
+                value: '${forecast.apparentTemperature.round()}℃',
                 context:
-                    '$observationLabel（気温 ${forecast.temperature.round()}°）',
+                    '$observationLabel（気温 ${forecast.temperature.round()}℃）',
               ),
           ],
         ),
@@ -1274,7 +1299,7 @@ Future<void> _showDailyForecastDetail(
               if (forecast.dewPoint != null)
                 _WeatherDetailMetric(
                   label: '露点',
-                  value: '${forecast.dewPoint!.round()}°',
+                  value: '${forecast.dewPoint!.round()}℃',
                 ),
             ],
           ),
@@ -1300,12 +1325,14 @@ Future<void> _showDailyForecastDetail(
               _WeatherDetailMetric(
                 label: '雲量',
                 value: '${forecast.cloudCover}%',
+                context: _cloudCoverCategoryJapanese(forecast.cloudCover),
                 meterFraction: forecast.cloudCover / 100,
               ),
             if (forecast?.surfacePressure != null)
               _WeatherDetailMetric(
                 label: '気圧',
                 value: '${forecast!.surfacePressure!.round()}hPa',
+                context: _pressureCategoryJapanese(forecast.surfacePressure!),
               ),
           ],
         ),
@@ -1403,7 +1430,7 @@ class _WeatherSummary extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
-                  Text('最低 ${day.low.round()}° · 最高 ${day.high.round()}°'),
+                  Text('最低 ${day.low.round()}℃ · 最高 ${day.high.round()}℃'),
                 ],
               ),
               const SizedBox(height: 4),
@@ -1468,10 +1495,10 @@ class _WeatherDetails extends StatelessWidget {
                             label: '体感温度',
                             value: forecast == null
                                 ? '--'
-                                : '${forecast.apparentTemperature.round()}°',
+                                : '${forecast.apparentTemperature.round()}℃',
                             detail: forecast == null
                                 ? '--'
-                                : '気温 ${forecast.temperature.round()}°',
+                                : '気温 ${forecast.temperature.round()}℃',
                             icon: Icons.thermostat_outlined,
                             microHud: _MicroHudKind.feelsLike,
                             instrumentValue: forecast == null
@@ -1484,7 +1511,7 @@ class _WeatherDetails extends StatelessWidget {
                                 title: '体感温度',
                                 value: forecast == null
                                     ? '--'
-                                    : '体感 ${forecast.apparentTemperature.round()}° / 気温 ${forecast.temperature.round()}°',
+                                    : '体感 ${forecast.apparentTemperature.round()}℃ / 気温 ${forecast.temperature.round()}℃',
                                 body: '気温だけでなく、湿度や風などを考慮した体感上の温度です。',
                                 forecastSummary: forecast == null
                                     ? daySummary.primary
@@ -1500,7 +1527,7 @@ class _WeatherDetails extends StatelessWidget {
                                 : '${forecast.humidity}%',
                             detail: forecast?.dewPoint == null
                                 ? '露点 --'
-                                : '露点 ${forecast!.dewPoint!.round()}°',
+                                : '露点 ${forecast!.dewPoint!.round()}℃',
                             icon: Icons.water_drop_outlined,
                             microHud: _MicroHudKind.humidity,
                             instrumentValue: forecast?.humidity.toDouble(),
@@ -1510,11 +1537,11 @@ class _WeatherDetails extends StatelessWidget {
                                 title: '湿度・露点',
                                 value: forecast == null
                                     ? '--'
-                                    : '湿度 ${forecast.humidity}% / 露点 ${forecast.dewPoint?.round() ?? '--'}°',
+                                    : '湿度 ${forecast.humidity}% / 露点 ${forecast.dewPoint?.round() ?? '--'}℃',
                                 body: '湿度は空気中の水分量の割合です。露点は空気中の水蒸気が結露し始める温度です。',
                                 forecastSummary: forecast == null
                                     ? daySummary.primary
-                                    : 'この日の湿度は ${forecast.humidity}%、露点は ${forecast.dewPoint?.round() ?? '--'}° の予報です。',
+                                    : 'この日の湿度は ${forecast.humidity}%、露点は ${forecast.dewPoint?.round() ?? '--'}℃ の予報です。',
                                 supportingData: daySummary.supporting,
                               ),
                             ),
@@ -1816,8 +1843,8 @@ Future<void> _showWeatherExplanation(
                       Row(
                         children: [
                           Container(
-                            width: explanation.prominentHeaderIcon ? 34 : 24,
-                            height: explanation.prominentHeaderIcon ? 34 : 24,
+                            width: explanation.prominentHeaderIcon ? 42 : 24,
+                            height: explanation.prominentHeaderIcon ? 42 : 24,
                             alignment: Alignment.center,
                             decoration: explanation.prominentHeaderIcon
                                 ? BoxDecoration(
@@ -1830,14 +1857,16 @@ Future<void> _showWeatherExplanation(
                             child: Icon(
                               explanation.headerIcon,
                               color: scheme.primary,
-                              size: explanation.prominentHeaderIcon ? 22 : 18,
+                              size: explanation.prominentHeaderIcon ? 28 : 18,
                             ),
                           ),
                           const SizedBox(width: 7),
                           Expanded(
                             child: Text(
                               explanation.title,
-                              style: Theme.of(context).textTheme.titleMedium,
+                              style: explanation.prominentHeaderIcon
+                                  ? Theme.of(context).textTheme.titleLarge
+                                  : Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
                           IconButton(
@@ -2048,18 +2077,6 @@ class _WeatherTemperatureBlock extends StatelessWidget {
             _WeatherDetailValue(label: '最高', metric: high, alignEnd: true),
           ],
         ),
-        if (apparent != null) ...[
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.center,
-            child: Text(
-              '● 体感 ${apparent!.value}',
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(color: scheme.primary),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -2091,25 +2108,47 @@ class _WeatherTemperatureRail extends StatelessWidget {
         : null;
     return LayoutBuilder(
       builder: (context, constraints) => SizedBox(
-        height: 16,
+        height: apparent == null ? 16 : 29,
         child: Stack(
-          alignment: Alignment.center,
+          clipBehavior: Clip.none,
           children: [
-            _WeatherDetailMeter(fraction: 1, color: color, height: 5),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 5,
+              child: _WeatherDetailMeter(fraction: 1, color: color, height: 5),
+            ),
             if (markerFraction != null)
               Positioned(
-                left: (constraints.maxWidth - 8) * markerFraction,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.surface,
-                      width: 1.5,
+                left: ((constraints.maxWidth - 8) * markerFraction)
+                    .clamp(0.0, constraints.maxWidth - 8)
+                    .toDouble(),
+                top: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.surface,
+                          width: 1.5,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '体感 ${apparent!.value}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontSize: 10,
+                        height: 1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -2172,6 +2211,14 @@ class _WeatherProbabilityReadout extends StatelessWidget {
               height: 4,
             ),
           ),
+        ],
+      ),
+      const SizedBox(height: 2),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('0%', style: Theme.of(context).textTheme.labelSmall),
+          Text('100%', style: Theme.of(context).textTheme.labelSmall),
         ],
       ),
       if (metric?.context case final metricContext?)
@@ -3471,7 +3518,7 @@ class _HourlyTemperatureValue extends StatelessWidget {
             left: 0,
             right: 0,
             top: math.max(1.0, pointY - 18).toDouble(),
-            child: Text('${value.round()}°', textAlign: TextAlign.center),
+            child: Text('${value.round()}℃', textAlign: TextAlign.center),
           ),
         ],
       ),
@@ -3558,15 +3605,15 @@ Future<void> _showHourlyForecastDetail(
     _WeatherExplanation(
       title: _hourlyDetailTitle(day, value.time),
       value:
-          '${_weatherConditionJapanese(value.code)} · ${value.temperature.round()}°',
+          '${_weatherConditionJapanese(value.code)} · ${value.temperature.round()}℃',
       body: '時間別予報は、その時刻の予報値です。',
       forecastSummaryLabel: 'この時間の予報',
       forecastSummary: summary.primary,
       supportingData: [
-        '体感 ${value.apparentTemperature.round()}° · 降水 ${value.precipitationProbability}%${value.precipitation > 0 ? ' / ${value.precipitation.toStringAsFixed(1)}mm' : ''}',
+        '体感 ${value.apparentTemperature.round()}℃ · 降水 ${value.precipitationProbability}%${value.precipitation > 0 ? ' / ${value.precipitation.toStringAsFixed(1)}mm' : ''}',
         '風 ${value.windSpeed.round()} km/h · 突風 ${value.windGust.round()} km/h${value.windDirection == null ? '' : ' · ${_windDirection(value.windDirection)}'}',
         '湿度 ${value.humidity}% · 雲量 ${value.cloudCover}%',
-        if (value.dewPoint != null) '露点 ${value.dewPoint!.round()}°',
+        if (value.dewPoint != null) '露点 ${value.dewPoint!.round()}℃',
         if (value.visibility != null)
           '視程 ${_visibilityValue(value.visibility!)}',
         if (value.surfacePressure != null)
@@ -3608,15 +3655,15 @@ class _WeatherHourlyCell extends StatelessWidget {
           _WeatherExplanation(
             title: _hourlyDetailTitle(day, value.time),
             value:
-                '${_weatherConditionJapanese(value.code)} · ${value.temperature.round()}°',
+                '${_weatherConditionJapanese(value.code)} · ${value.temperature.round()}℃',
             body: '時間別予報は、その時刻の予報値です。',
             forecastSummaryLabel: 'この時間の予報',
             forecastSummary: summary.primary,
             supportingData: [
-              '体感 ${value.apparentTemperature.round()}° · 降水 ${value.precipitationProbability}%${value.precipitation > 0 ? ' / ${value.precipitation.toStringAsFixed(1)}mm' : ''}',
+              '体感 ${value.apparentTemperature.round()}℃ · 降水 ${value.precipitationProbability}%${value.precipitation > 0 ? ' / ${value.precipitation.toStringAsFixed(1)}mm' : ''}',
               '風 ${value.windSpeed.round()} km/h · 突風 ${value.windGust.round()} km/h${value.windDirection == null ? '' : ' · ${_windDirection(value.windDirection)}'}',
               '湿度 ${value.humidity}% · 雲量 ${value.cloudCover}%',
-              if (value.dewPoint != null) '露点 ${value.dewPoint!.round()}°',
+              if (value.dewPoint != null) '露点 ${value.dewPoint!.round()}℃',
               if (value.visibility != null)
                 '視程 ${_visibilityValue(value.visibility!)}',
               if (value.surfacePressure != null)
@@ -3649,12 +3696,12 @@ class _WeatherHourlyCell extends StatelessWidget {
             Icon(_weatherIcon(value.code), size: 24, color: scheme.primary),
             const SizedBox(height: 5),
             Text(
-              '${value.temperature.round()}°',
+              '${value.temperature.round()}℃',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 3),
             Text(
-              '体感 ${value.apparentTemperature.round()}°',
+              '体感 ${value.apparentTemperature.round()}℃',
               style: Theme.of(context).textTheme.labelSmall,
             ),
             Text(
@@ -3697,7 +3744,7 @@ WeatherHourly? _representativeHourly(List<WeatherHourly> values) {
 }
 
 String _feelsLikeSummary(WeatherHourly forecast) =>
-    'この日の体感温度は ${forecast.apparentTemperature.round()}°の予報です。';
+    'この日の体感温度は ${forecast.apparentTemperature.round()}℃の予報です。';
 
 String _windForecastSummary(WeatherForecastSummary summary) {
   for (final item in summary.supporting) {
@@ -3766,6 +3813,21 @@ String _uvCategoryJapanese(double value) => switch (value) {
   <= 7 => '高い',
   <= 10 => '非常に高い',
   _ => '極端に高い',
+};
+
+/// Short, deterministic UI classifications. These describe only the displayed
+/// numeric reading; they do not introduce a new weather interpretation.
+String _cloudCoverCategoryJapanese(int value) => switch (value) {
+  <= 25 => '少ない',
+  <= 50 => 'やや少ない',
+  <= 75 => '多い',
+  _ => '非常に多い',
+};
+
+String _pressureCategoryJapanese(double value) => switch (value) {
+  < 1005 => '低め',
+  > 1020 => '高め',
+  _ => '標準',
 };
 
 class _OpenMeteoAttribution extends StatelessWidget {
