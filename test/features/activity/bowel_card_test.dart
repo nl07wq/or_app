@@ -234,6 +234,47 @@ void main() {
     expect(find.byType(BowelCard), findsNothing);
   });
 
+  testWidgets(
+    'Measured steps arrows clamp at zero and quick steps use two rows',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityEntryPage(
+            initialData: ActivityData(date: DateTime(2026, 7, 25)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.bySemanticsLabel('Decrease measured steps by 1'));
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        '0',
+      );
+
+      await tester.tap(find.bySemanticsLabel('Increase measured steps by 1'));
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        '1',
+      );
+
+      for (final value in [10, 50, 100, 500, 1000, 2500, 5000, 7500, 10000]) {
+        expect(
+          find.byKey(ValueKey('activity-quick-steps-$value')),
+          findsOneWidget,
+        );
+      }
+      await tester.tap(find.byKey(const ValueKey('activity-quick-steps-10')));
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        '11',
+      );
+    },
+  );
+
   test('unconfirmed and no bowel movement remain distinct internally', () {
     const unconfirmed = BowelMovementRecord.unconfirmed();
     const none = BowelMovementRecord.none();

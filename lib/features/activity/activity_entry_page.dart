@@ -492,6 +492,17 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() {});
   }
 
+  void _adjustMeasuredSteps(int delta) {
+    final current = _measuredSteps ?? 0;
+    final text = (current + delta).clamp(0, 1 << 31).toString();
+    _measuredStepsController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _measuredStepsFocusNode.requestFocus();
+    setState(() {});
+  }
+
   void _addDigestiveEvent() {
     setState(() {
       _digestiveEvents = [..._digestiveEvents, _createDigestiveEvent()];
@@ -690,12 +701,13 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 onTap: _isFormal ? null : _pickDate,
               ),
               AppSpacing.gapMD,
-              OperationTextField(
+              _MeasuredStepsField(
                 controller: _measuredStepsController,
                 focusNode: _measuredStepsFocusNode,
-                label: 'Measured steps',
-                keyboardType: TextInputType.number,
+                enabled: !_isBusy,
                 onChanged: (_) => setState(() {}),
+                onIncrement: () => _adjustMeasuredSteps(1),
+                onDecrement: () => _adjustMeasuredSteps(-1),
               ),
               AppSpacing.gapMD,
               OperationTextField(
@@ -714,17 +726,20 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               AppSpacing.gapMD,
               _OfficialStepsDisplay(officialSteps: officialSteps),
               AppSpacing.gapMD,
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [500, 1000, 2000, 5000]
-                    .map(
-                      (value) => OutlinedButton(
-                        onPressed: _isBusy ? null : () => _addQuickSteps(value),
-                        child: Text('+$value'),
-                      ),
-                    )
-                    .toList(),
+              Column(
+                children: [
+                  _QuickStepRow(
+                    values: const [10, 50, 100, 500, 1000],
+                    enabled: !_isBusy,
+                    onPressed: _addQuickSteps,
+                  ),
+                  const SizedBox(height: 8),
+                  _QuickStepRow(
+                    values: const [2500, 5000, 7500, 10000],
+                    enabled: !_isBusy,
+                    onPressed: _addQuickSteps,
+                  ),
+                ],
               ),
               AppSpacing.gapLG,
               if (_usesDigestiveEvents)
@@ -901,6 +916,124 @@ class _LoadError extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MeasuredStepsField extends StatelessWidget {
+  const _MeasuredStepsField({
+    required this.controller,
+    required this.focusNode,
+    required this.enabled,
+    required this.onChanged,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      OperationTextField(
+        controller: controller,
+        focusNode: focusNode,
+        label: 'Measured steps',
+        keyboardType: TextInputType.number,
+        onChanged: onChanged,
+      ),
+      Positioned(
+        top: 4,
+        right: 4,
+        bottom: 4,
+        child: SizedBox(
+          width: 40,
+          child: Column(
+            children: [
+              Expanded(
+                child: _MeasuredStepAdjustButton(
+                  label: 'Increase measured steps by 1',
+                  symbol: '▲',
+                  onPressed: enabled ? onIncrement : null,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Expanded(
+                child: _MeasuredStepAdjustButton(
+                  label: 'Decrease measured steps by 1',
+                  symbol: '▼',
+                  onPressed: enabled ? onDecrement : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _MeasuredStepAdjustButton extends StatelessWidget {
+  const _MeasuredStepAdjustButton({
+    required this.label,
+    required this.symbol,
+    required this.onPressed,
+  });
+
+  final String label;
+  final String symbol;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: label,
+    button: true,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        minimumSize: Size.zero,
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(symbol, style: Theme.of(context).textTheme.labelSmall),
+    ),
+  );
+}
+
+class _QuickStepRow extends StatelessWidget {
+  const _QuickStepRow({
+    required this.values,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final List<int> values;
+  final bool enabled;
+  final ValueChanged<int> onPressed;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      for (var index = 0; index < values.length; index++) ...[
+        if (index > 0) const SizedBox(width: 6),
+        Expanded(
+          child: OutlinedButton(
+            key: ValueKey('activity-quick-steps-${values[index]}'),
+            onPressed: enabled ? () => onPressed(values[index]) : null,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: FittedBox(child: Text('+${values[index]}')),
+          ),
+        ),
+      ],
+    ],
+  );
 }
 
 class _ReadOnlyStepDisplay extends StatelessWidget {
