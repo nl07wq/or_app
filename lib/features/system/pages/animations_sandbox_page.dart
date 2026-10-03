@@ -452,6 +452,11 @@ class _AmbientWildlifeSandboxSectionState
   var _paused = false;
   var _requestId = 0;
   var _visualGroundLineOffset = 0.0;
+  var _dashboardPreviewSpecies = AmbientWildlifeV2Species.cat;
+  var _dashboardPreviewRandom = false;
+  var _dashboardPreviewVariant = AmbientWildlifeV2ForcedVariant.one;
+  AmbientWildlifeV2EventPlan? _dashboardPreviewPlan;
+  var _dashboardPreviewRequestId = 0;
 
   int _next(int max) => _random.nextInt(max);
 
@@ -533,6 +538,22 @@ class _AmbientWildlifeSandboxSectionState
         _plan = null;
         _randomSpecies = false;
       }
+    });
+  }
+
+  void _playDashboardPreview() {
+    final species = _dashboardPreviewRandom
+        ? AmbientWildlifeV2Registry.availableSpecies[_next(
+            AmbientWildlifeV2Registry.availableSpecies.length,
+          )]
+        : _dashboardPreviewSpecies;
+    setState(() {
+      _dashboardPreviewPlan = AmbientWildlifeV2EventPlan.forced(
+        species: species,
+        variant: _dashboardPreviewVariant,
+        leftToRight: _leftToRight,
+      );
+      _dashboardPreviewRequestId++;
     });
   }
 
@@ -746,6 +767,87 @@ class _AmbientWildlifeSandboxSectionState
                     ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
                     : 'CURRENT: ${_neutral ? _selectedSpecies.name.toUpperCase() : (_randomSpecies ? 'RANDOM' : _selectedSpecies.name.toUpperCase())} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
                 key: const ValueKey('ambient-wildlife-preview-state'),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        AppSpacing.gapXL,
+        const SectionHeader(
+          icon: Icons.dashboard_outlined,
+          title: 'DASHBOARD PREVIEW',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DashboardAmbientWildlifeProductionPreviewStage(
+                plan: _dashboardPreviewPlan,
+                requestId: _dashboardPreviewRequestId,
+              ),
+              AppSpacing.gapMD,
+              const Text('SPECIES'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final species
+                      in AmbientWildlifeV2Registry.availableSpecies)
+                    ChoiceChip(
+                      key: ValueKey('dashboard-preview-${species.name}'),
+                      label: Text(species.name.toUpperCase()),
+                      selected:
+                          !_dashboardPreviewRandom &&
+                          _dashboardPreviewSpecies == species,
+                      onSelected: (_) => setState(() {
+                        _dashboardPreviewSpecies = species;
+                        _dashboardPreviewRandom = false;
+                      }),
+                    ),
+                  ChoiceChip(
+                    key: const ValueKey('dashboard-preview-random'),
+                    label: const Text('RANDOM'),
+                    selected: _dashboardPreviewRandom,
+                    onSelected: (_) =>
+                        setState(() => _dashboardPreviewRandom = true),
+                  ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              const Text('COUNT'),
+              AppSpacing.gapSM,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final variant in AmbientWildlifeV2ForcedVariant.values)
+                    ChoiceChip(
+                      key: ValueKey('dashboard-preview-${variant.name}'),
+                      label: Text(switch (variant) {
+                        AmbientWildlifeV2ForcedVariant.one => '×1',
+                        AmbientWildlifeV2ForcedVariant.two => '×2',
+                        AmbientWildlifeV2ForcedVariant.three => '×3',
+                        AmbientWildlifeV2ForcedVariant.glitch10 => 'GLITCH10',
+                      }),
+                      selected: _dashboardPreviewVariant == variant,
+                      onSelected: (_) =>
+                          setState(() => _dashboardPreviewVariant = variant),
+                    ),
+                ],
+              ),
+              AppSpacing.gapMD,
+              _SandboxActionButton(
+                key: const ValueKey('dashboard-preview-play'),
+                text: _dashboardPreviewPlan == null ? 'PLAY' : 'REPLAY',
+                icon: Icons.play_arrow,
+                onPressed: reducedMotion ? null : _playDashboardPreview,
+              ),
+              AppSpacing.gapSM,
+              Text(
+                'PRODUCTION PATH · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
+                key: const ValueKey('dashboard-preview-readout'),
                 textAlign: TextAlign.center,
               ),
             ],

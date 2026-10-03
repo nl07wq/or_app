@@ -155,6 +155,10 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   /// resulting rendered animal a further 0.80 without changing the lane width
   /// or crossing coordinates.
   static const double animalPresentationScale = .64;
+  static const double birdPresentationScaleMultiplier = 1.075;
+  static const double birdTravelSpeedMultiplier = .90;
+  static const double catFollowerSpacingMultiplier = .88;
+  static const double foxFollowerSpacingMultiplier = 1.08;
 
   static const double catPresentationOffsetY = -2;
 
@@ -188,41 +192,104 @@ class _DashboardAmbientWildlifeStageState
             key: const ValueKey('dashboard-ambient-wildlife-stage'),
             height: DashboardAmbientWildlifeStage.height,
             width: double.infinity,
-            child: ClipRect(
-              key: const ValueKey('dashboard-ambient-wildlife-clip'),
-              child: ColoredBox(
-                color: AmbientWildlifeV2Stage.environmentBackground,
-                child: OverflowBox(
-                  alignment: Alignment.bottomCenter,
-                  minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-                  maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-                  child: AmbientWildlifeV2ProductionStage(
-                    key: widget.productionStageKey,
-                    nextInt: widget.nextInt,
-                    minimumInterval: widget.minimumInterval,
-                    maximumInterval: widget.maximumInterval,
-                    speciesPresentationScale:
-                        DashboardAmbientWildlifeStage.animalPresentationScale,
-                    catPresentationOffsetY:
-                        DashboardAmbientWildlifeStage.catPresentationOffsetY,
-                    batPresentationVerticalAnchor:
-                        AirbornePresentationVerticalAnchor.canonicalAirspace,
-                    batPresentationTopCrop:
-                        DashboardAmbientWildlifeStage.topAirspaceCrop,
-                    batPresentationAltitudeOffsetY:
-                        DashboardAmbientWildlifeStage
-                            .batPresentationAltitudeOffsetY,
-                    birdPresentationTopCrop:
-                        DashboardAmbientWildlifeStage.topAirspaceCrop,
-                  ),
-                ),
-              ),
+            child: _DashboardAmbientWildlifeProductionViewport(
+              stageKey: widget.productionStageKey,
+              nextInt: widget.nextInt,
+              minimumInterval: widget.minimumInterval,
+              maximumInterval: widget.maximumInterval,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Explicit production-path preview for the Animation Sandbox.  It shares
+/// the exact Dashboard crop, lane and presentation configuration rather than
+/// recreating its geometry in a diagnostic painter.
+class DashboardAmbientWildlifeProductionPreviewStage extends StatelessWidget {
+  const DashboardAmbientWildlifeProductionPreviewStage({
+    super.key,
+    required this.plan,
+    required this.requestId,
+  });
+
+  final AmbientWildlifeV2EventPlan? plan;
+  final int requestId;
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: SizedBox(
+      key: const ValueKey('dashboard-ambient-wildlife-production-preview'),
+      height: DashboardAmbientWildlifeStage.height,
+      width: double.infinity,
+      child: _DashboardAmbientWildlifeProductionViewport(
+        forcedPlan: plan,
+        forcedRequestId: requestId,
+        minimumInterval: Duration.zero,
+        maximumInterval: Duration.zero,
+      ),
+    ),
+  );
+}
+
+class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
+  const _DashboardAmbientWildlifeProductionViewport({
+    this.stageKey,
+    this.nextInt,
+    this.minimumInterval = const Duration(seconds: 45),
+    this.maximumInterval = const Duration(seconds: 150),
+    this.forcedPlan,
+    this.forcedRequestId = 0,
+  });
+
+  final GlobalKey<AmbientWildlifeV2ProductionStageState>? stageKey;
+  final int Function(int max)? nextInt;
+  final Duration minimumInterval;
+  final Duration maximumInterval;
+  final AmbientWildlifeV2EventPlan? forcedPlan;
+  final int forcedRequestId;
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    key: const ValueKey('dashboard-ambient-wildlife-clip'),
+    child: ColoredBox(
+      color: AmbientWildlifeV2Stage.environmentBackground,
+      child: OverflowBox(
+        alignment: Alignment.bottomCenter,
+        minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+        maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+        child: AmbientWildlifeV2ProductionStage(
+          key: stageKey,
+          nextInt: nextInt,
+          minimumInterval: minimumInterval,
+          maximumInterval: maximumInterval,
+          forcedPlan: forcedPlan,
+          forcedRequestId: forcedRequestId,
+          speciesPresentationScale:
+              DashboardAmbientWildlifeStage.animalPresentationScale,
+          birdPresentationScaleMultiplier:
+              DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier,
+          birdTravelSpeedMultiplier:
+              DashboardAmbientWildlifeStage.birdTravelSpeedMultiplier,
+          catFollowerSpacingMultiplier:
+              DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
+          foxFollowerSpacingMultiplier:
+              DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
+          catPresentationOffsetY:
+              DashboardAmbientWildlifeStage.catPresentationOffsetY,
+          batPresentationVerticalAnchor:
+              AirbornePresentationVerticalAnchor.canonicalAirspace,
+          batPresentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+          batPresentationAltitudeOffsetY:
+              DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
+          birdPresentationTopCrop:
+              DashboardAmbientWildlifeStage.topAirspaceCrop,
+        ),
+      ),
+    ),
+  );
 }
 
 /// Explicit-event diagnostic lane for the Animations Sandbox. It deliberately

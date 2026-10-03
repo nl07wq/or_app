@@ -14,6 +14,11 @@ import 'fox_run_v1_section.dart';
 
 enum AmbientWildlifeV2Species { cat, bat, fox, birds }
 
+/// Explicit production variants used only by the Dashboard preview.  They
+/// select from the same production formations; they do not create preview
+/// geometry.
+enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
+
 @immutable
 class AmbientWildlifeV2SpeciesDefinition {
   const AmbientWildlifeV2SpeciesDefinition({
@@ -115,6 +120,108 @@ class AmbientWildlifeV2EventPlan {
       ),
     };
   }
+
+  /// A deterministic entry point for production-surface inspection. Random
+  /// Dashboard scheduling continues to call [resolve]; this is intentionally
+  /// opt-in so production probabilities remain untouched.
+  static AmbientWildlifeV2EventPlan forced({
+    required AmbientWildlifeV2Species species,
+    required AmbientWildlifeV2ForcedVariant variant,
+    required bool leftToRight,
+  }) {
+    final direction = leftToRight
+        ? CatRunV23Direction.leftToRight
+        : CatRunV23Direction.rightToLeft;
+    final count = switch (variant) {
+      AmbientWildlifeV2ForcedVariant.one => 1,
+      AmbientWildlifeV2ForcedVariant.two => 2,
+      AmbientWildlifeV2ForcedVariant.three => 3,
+      AmbientWildlifeV2ForcedVariant.glitch10 => 10,
+    };
+    return switch (species) {
+      AmbientWildlifeV2Species.cat => AmbientWildlifeV2EventPlan._(
+        species: species,
+        leftToRight: leftToRight,
+        isGlitch: variant == AmbientWildlifeV2ForcedVariant.glitch10,
+        catPlan: variant == AmbientWildlifeV2ForcedVariant.glitch10
+            ? CatRunProductionEventPlan.forceGlitch(
+                random: math.Random(0),
+                direction: direction,
+              )
+            : CatRunProductionEventPlan.forceCount(
+                random: math.Random(0),
+                direction: direction,
+                count: count,
+              ),
+        catExecutor: null,
+        batInstances: const [],
+        birdInstances: const [],
+        foxSpawn: null,
+      )._withExecutor(),
+      AmbientWildlifeV2Species.bat => AmbientWildlifeV2EventPlan._(
+        species: species,
+        leftToRight: leftToRight,
+        isGlitch: variant == AmbientWildlifeV2ForcedVariant.glitch10,
+        catPlan: null,
+        catExecutor: null,
+        batInstances: variant == AmbientWildlifeV2ForcedVariant.glitch10
+            ? BatV3ProductionFlight.glitchInstances
+            : BatV3ProductionFlight.instances
+                  .take(count)
+                  .toList(growable: false),
+        birdInstances: const [],
+        foxSpawn: null,
+      ),
+      AmbientWildlifeV2Species.fox => AmbientWildlifeV2EventPlan._(
+        species: species,
+        leftToRight: leftToRight,
+        isGlitch: variant == AmbientWildlifeV2ForcedVariant.glitch10,
+        catPlan: null,
+        catExecutor: null,
+        batInstances: const [],
+        birdInstances: const [],
+        foxSpawn: AmbientWildlifeV2FoxSpawn(
+          pattern: FoxRunV1Pattern.fox,
+          pack: switch (variant) {
+            AmbientWildlifeV2ForcedVariant.one => AmbientWildlifeV2FoxPack.one,
+            AmbientWildlifeV2ForcedVariant.two => AmbientWildlifeV2FoxPack.two,
+            AmbientWildlifeV2ForcedVariant.three =>
+              AmbientWildlifeV2FoxPack.three,
+            AmbientWildlifeV2ForcedVariant.glitch10 =>
+              AmbientWildlifeV2FoxPack.gricthTen,
+          },
+        ),
+      ),
+      AmbientWildlifeV2Species.birds => AmbientWildlifeV2EventPlan._(
+        species: species,
+        leftToRight: leftToRight,
+        isGlitch: variant == AmbientWildlifeV2ForcedVariant.glitch10,
+        catPlan: null,
+        catExecutor: null,
+        batInstances: const [],
+        birdInstances: variant == AmbientWildlifeV2ForcedVariant.glitch10
+            ? BirdV1ProductionFlight.glitchInstances
+            : BirdV1ProductionFlight.instances
+                  .take(count)
+                  .toList(growable: false),
+        foxSpawn: null,
+      ),
+    };
+  }
+
+  AmbientWildlifeV2EventPlan _withExecutor() => AmbientWildlifeV2EventPlan._(
+    species: species,
+    leftToRight: leftToRight,
+    isGlitch: isGlitch,
+    catPlan: catPlan,
+    catExecutor: CatRunProductionEventExecutor(
+      plan: catPlan!,
+      random: math.Random(0),
+    ),
+    batInstances: batInstances,
+    birdInstances: birdInstances,
+    foxSpawn: foxSpawn,
+  );
 
   static AmbientWildlifeV2EventPlan _catPlan({
     required bool leftToRight,
@@ -837,6 +944,10 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.batPresentationTopCrop = 0,
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
+    this.birdPresentationScaleMultiplier = 1,
+    this.birdTravelSpeedMultiplier = 1,
+    this.catFollowerSpacingMultiplier = 1,
+    this.foxFollowerSpacingMultiplier = 1,
     super.key,
     this.onCompleted,
   });
@@ -858,6 +969,10 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   /// Maps BIRD's canonical airspace into a vertically cropped Dashboard lane.
   /// This mirrors the existing BAT crop mapping without changing the lane.
   final double birdPresentationTopCrop;
+  final double birdPresentationScaleMultiplier;
+  final double birdTravelSpeedMultiplier;
+  final double catFollowerSpacingMultiplier;
+  final double foxFollowerSpacingMultiplier;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -899,6 +1014,12 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.batPresentationTopCrop = 0,
     this.batPresentationAltitudeOffsetY = 0,
     this.birdPresentationTopCrop = 0,
+    this.birdPresentationScaleMultiplier = 1,
+    this.birdTravelSpeedMultiplier = 1,
+    this.catFollowerSpacingMultiplier = 1,
+    this.foxFollowerSpacingMultiplier = 1,
+    this.forcedPlan,
+    this.forcedRequestId = 0,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -914,6 +1035,12 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double batPresentationTopCrop;
   final double batPresentationAltitudeOffsetY;
   final double birdPresentationTopCrop;
+  final double birdPresentationScaleMultiplier;
+  final double birdTravelSpeedMultiplier;
+  final double catFollowerSpacingMultiplier;
+  final double foxFollowerSpacingMultiplier;
+  final AmbientWildlifeV2EventPlan? forcedPlan;
+  final int forcedRequestId;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -935,6 +1062,13 @@ class AmbientWildlifeV2ProductionStageState
   int _next(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
 
   @override
+  void initState() {
+    super.initState();
+    _plan = widget.forcedPlan;
+    _requestId = widget.forcedPlan == null ? 0 : widget.forcedRequestId;
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
@@ -945,13 +1079,33 @@ class AmbientWildlifeV2ProductionStageState
         _plan = null;
       }
       _manualSequenceQueued = false;
-    } else {
+    } else if (widget.forcedPlan == null) {
       _schedule();
     }
   }
 
+  @override
+  void didUpdateWidget(covariant AmbientWildlifeV2ProductionStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.forcedRequestId != widget.forcedRequestId ||
+        oldWidget.forcedPlan != widget.forcedPlan) {
+      _timer?.cancel();
+      _timer = null;
+      _manualSequenceQueued = false;
+      setState(() {
+        _plan = widget.forcedPlan;
+        _requestId = widget.forcedRequestId;
+      });
+    }
+  }
+
   void _schedule() {
-    if (!mounted || _reducedMotion || _plan != null || _timer != null) return;
+    if (!mounted ||
+        _reducedMotion ||
+        widget.forcedPlan != null ||
+        _plan != null ||
+        _timer != null)
+      return;
     final minimum = widget.minimumInterval.inMilliseconds;
     final maximum = widget.maximumInterval.inMilliseconds;
     final delta = maximum - minimum;
@@ -968,7 +1122,7 @@ class AmbientWildlifeV2ProductionStageState
   /// Starts a V2 plan immediately when idle. While a crossing is active this
   /// records exactly one follow-up request, preserving the active plan.
   bool triggerManualSequence() {
-    if (!mounted || _reducedMotion) return false;
+    if (!mounted || _reducedMotion || widget.forcedPlan != null) return false;
     _timer?.cancel();
     _timer = null;
     if (_plan != null) {
@@ -981,7 +1135,11 @@ class AmbientWildlifeV2ProductionStageState
   }
 
   void _startSequence() {
-    if (!mounted || _reducedMotion || _plan != null) return;
+    if (!mounted ||
+        _reducedMotion ||
+        widget.forcedPlan != null ||
+        _plan != null)
+      return;
     final species =
         AmbientWildlifeV2Registry.availableSpecies[_next(
           AmbientWildlifeV2Registry.availableSpecies.length,
@@ -999,6 +1157,7 @@ class AmbientWildlifeV2ProductionStageState
   void _complete() {
     if (!mounted || _plan == null) return;
     setState(() => _plan = null);
+    if (widget.forcedPlan != null) return;
     if (_manualSequenceQueued) {
       _manualSequenceQueued = false;
       _startSequence();
@@ -1028,6 +1187,10 @@ class AmbientWildlifeV2ProductionStageState
     batPresentationTopCrop: widget.batPresentationTopCrop,
     batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
     birdPresentationTopCrop: widget.birdPresentationTopCrop,
+    birdPresentationScaleMultiplier: widget.birdPresentationScaleMultiplier,
+    birdTravelSpeedMultiplier: widget.birdTravelSpeedMultiplier,
+    catFollowerSpacingMultiplier: widget.catFollowerSpacingMultiplier,
+    foxFollowerSpacingMultiplier: widget.foxFollowerSpacingMultiplier,
     onCompleted: _complete,
   );
 }
@@ -1226,7 +1389,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     );
   }
 
-  Duration get _birdDuration {
+  Duration get _birdMotionDuration {
     final instances = widget.plan?.birdInstances;
     if (instances == null || instances.isEmpty) {
       return BirdV1ProductionFlight.crossingDuration;
@@ -1239,6 +1402,12 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
       ),
     );
   }
+
+  Duration get _birdDuration => Duration(
+    microseconds:
+        (_birdMotionDuration.inMicroseconds / widget.birdTravelSpeedMultiplier)
+            .round(),
+  );
 
   void _recordStageWidth(double width) {
     if (_stageWidth == width) return;
@@ -1275,7 +1444,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
     if (plan == null || width == null || plan.birdInstances.isEmpty) {
       return false;
     }
-    final elapsed = (_birdDuration.inMilliseconds * _controller.value).round();
+    final elapsed = (_birdMotionDuration.inMilliseconds * _controller.value)
+        .round();
     return plan.birdInstances.every(
       (instance) => BirdV1ProductionFlight.hasFullyExited(
         stageWidth: width,
@@ -1384,7 +1554,11 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                       CatRunV23Crossing(
                                         progress:
                                             _controller.value -
-                                            crossing.startedAtProgress,
+                                            crossing.startedAtProgress *
+                                                (plan.isGlitch
+                                                    ? 1
+                                                    : widget
+                                                          .catFollowerSpacingMultiplier),
                                         direction: catPlan.direction,
                                         coatVariant: crossing.coatVariant,
                                       ),
@@ -1412,11 +1586,13 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                               spawn: plan.foxSpawn!,
                               presentationScale:
                                   widget.speciesPresentationScale,
+                              followerSpacingMultiplier:
+                                  widget.foxFollowerSpacingMultiplier,
                             );
                           }
                           if (plan.isBird) {
                             final elapsed =
-                                (_birdDuration.inMilliseconds *
+                                (_birdMotionDuration.inMilliseconds *
                                         _controller.value)
                                     .round();
                             return _AmbientWildlifeV2BirdMotion(
@@ -1427,6 +1603,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                   widget.speciesPresentationScale,
                               presentationTopCrop:
                                   widget.birdPresentationTopCrop,
+                              bodyScaleMultiplier:
+                                  widget.birdPresentationScaleMultiplier,
                             );
                           }
                           final eventDurationMs =
@@ -1578,6 +1756,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
     required this.instances,
     required this.presentationScale,
     required this.presentationTopCrop,
+    required this.bodyScaleMultiplier,
   });
 
   final int elapsedMs;
@@ -1585,6 +1764,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
   final List<BirdV1ProductionInstance> instances;
   final double presentationScale;
   final double presentationTopCrop;
+  final double bodyScaleMultiplier;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1608,6 +1788,7 @@ class _AmbientWildlifeV2BirdMotion extends StatelessWidget {
               instance: instance,
               presentationScale: presentationScale,
               presentationTopCrop: presentationTopCrop,
+              bodyScaleMultiplier: bodyScaleMultiplier,
               verticalMotionScale:
                   BirdV1ProductionFlight.verticalMotionScaleFor(instances),
             ),
@@ -1626,6 +1807,7 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
     required this.presentationScale,
     required this.presentationTopCrop,
     required this.verticalMotionScale,
+    required this.bodyScaleMultiplier,
   });
 
   final int elapsedMs;
@@ -1635,6 +1817,7 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
   final double presentationScale;
   final double presentationTopCrop;
   final double verticalMotionScale;
+  final double bodyScaleMultiplier;
 
   @override
   Widget build(BuildContext context) {
@@ -1666,7 +1849,10 @@ class _AmbientWildlifeV2BirdCel extends StatelessWidget {
       BirdV1ProductionFlight.transition,
       transitionElapsed,
     );
-    final size = BirdV1ProductionFlight.renderedSize * presentationScale;
+    final size =
+        BirdV1ProductionFlight.renderedSize *
+        presentationScale *
+        bodyScaleMultiplier;
     return Positioned(
       left: BirdV1ProductionFlight.leftFor(
         stageWidth: stageWidth,
@@ -1722,6 +1908,7 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
     required this.leftToRight,
     required this.spawn,
     required this.presentationScale,
+    required this.followerSpacingMultiplier,
   });
 
   final double progress;
@@ -1729,6 +1916,7 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
   final bool leftToRight;
   final AmbientWildlifeV2FoxSpawn spawn;
   final double presentationScale;
+  final double followerSpacingMultiplier;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1743,7 +1931,10 @@ class _AmbientWildlifeV2FoxMotion extends StatelessWidget {
         trailingDistance:
             spawn.juvenileCount *
             AmbientWildlifeV2Fox.juvenileFollowerSpacing *
-            presentationScale,
+            presentationScale *
+            (spawn.pack == AmbientWildlifeV2FoxPack.gricthTen
+                ? 1
+                : followerSpacingMultiplier),
         presentationScale: presentationScale,
       );
       final frame = AmbientWildlifeV2Fox.frameAtElapsed(elapsed);

@@ -13,6 +13,30 @@ import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
 import 'package:or_app/features/system/pages/fox_run_v1_section.dart';
 
 void main() {
+  test('forced production plans use the existing supported formations', () {
+    for (final species in AmbientWildlifeV2Registry.availableSpecies) {
+      final two = AmbientWildlifeV2EventPlan.forced(
+        species: species,
+        variant: AmbientWildlifeV2ForcedVariant.two,
+        leftToRight: true,
+      );
+      final glitch = AmbientWildlifeV2EventPlan.forced(
+        species: species,
+        variant: AmbientWildlifeV2ForcedVariant.glitch10,
+        leftToRight: false,
+      );
+      expect(two.leftToRight, isTrue);
+      expect(glitch.leftToRight, isFalse);
+      expect(glitch.isGlitch, isTrue);
+      expect(switch (species) {
+        AmbientWildlifeV2Species.cat => two.catPlan!.crossings.length,
+        AmbientWildlifeV2Species.bat => two.batInstances.length,
+        AmbientWildlifeV2Species.fox => two.foxSpawn!.juvenileCount + 1,
+        AmbientWildlifeV2Species.birds => two.birdInstances.length,
+      }, 2);
+    }
+  });
+
   test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,

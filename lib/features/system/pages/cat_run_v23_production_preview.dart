@@ -239,6 +239,28 @@ class CatRunProductionEventPlan {
     allowsRecursiveContinuation: false,
   );
 
+  /// Uses the normal production follower spacing while allowing production
+  /// consumers to inspect a specific supported chain count.
+  factory CatRunProductionEventPlan.forceCount({
+    required math.Random random,
+    required CatRunV23Direction direction,
+    required int count,
+  }) {
+    if (count < 1 || count > 3) {
+      throw ArgumentError.value(count, 'count', 'Must be from 1 through 3.');
+    }
+    return CatRunProductionEventPlan._withCrossings(
+      source: CatRunProductionEventSource.sandbox,
+      eventRoll: null,
+      isGlitch: false,
+      direction: direction,
+      random: random,
+      count: count,
+      spacing: CatRunProductionEventPolicy.normalFollowerTriggerProgress,
+      allowsRecursiveContinuation: false,
+    );
+  }
+
   /// This is intentionally the same 10-crossing GLITCH executor used after
   /// the production 5% event roll; only the source/roll are forced.
   factory CatRunProductionEventPlan.forceGlitch({
