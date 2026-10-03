@@ -14,7 +14,7 @@ void main() {
     );
     expect(
       ambientWildlifeV2CatMotionCurve(AmbientWildlifeV2CatMotionProfile.smooth),
-      Curves.easeInOutCubic,
+      Curves.linear,
     );
     expect(
       ambientWildlifeV2CatMotionCurve(AmbientWildlifeV2CatMotionProfile.cruise),

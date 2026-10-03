@@ -28,7 +28,10 @@ Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
-  AmbientWildlifeV2CatMotionProfile.smooth => Curves.easeInOutCubic,
+  // There is no independent CAT micro-motion signal to smooth yet. Keeping
+  // travel linear protects the accepted crossing duration if an older caller
+  // still supplies this inspection-only value.
+  AmbientWildlifeV2CatMotionProfile.smooth => Curves.linear,
   AmbientWildlifeV2CatMotionProfile.cruise => Curves.linear,
 };
 
@@ -1036,6 +1039,8 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
     this.forcedPlan,
     this.forcedRequestId = 0,
+    this.paused = false,
+    this.onCompleted,
   });
 
   static const height = BatV3ProductionFlight.stageHeight;
@@ -1058,6 +1063,8 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
+  final bool paused;
+  final VoidCallback? onCompleted;
 
   @override
   AmbientWildlifeV2ProductionStageState createState() =>
@@ -1174,13 +1181,13 @@ class AmbientWildlifeV2ProductionStageState
   void _complete() {
     if (!mounted || _plan == null) return;
     setState(() => _plan = null);
-    if (widget.forcedPlan != null) return;
-    if (_manualSequenceQueued) {
+    if (widget.forcedPlan == null && _manualSequenceQueued) {
       _manualSequenceQueued = false;
       _startSequence();
-    } else {
+    } else if (widget.forcedPlan == null) {
       _schedule();
     }
+    widget.onCompleted?.call();
   }
 
   @override
@@ -1195,7 +1202,7 @@ class AmbientWildlifeV2ProductionStageState
     requestId: _requestId,
     neutral: false,
     neutralSpecies: AmbientWildlifeV2Species.fox,
-    paused: false,
+    paused: widget.paused,
     leftToRight: _plan?.leftToRight ?? true,
     foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
     speciesPresentationScale: widget.speciesPresentationScale,

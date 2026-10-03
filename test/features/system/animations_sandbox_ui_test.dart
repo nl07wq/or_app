@@ -109,29 +109,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Dashboard Preview and Ambient Wildlife V2 lead the sandbox', (
+  testWidgets('Sandbox preserves the requested top-level hierarchy', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.physicalSize = const Size(390, 10000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
 
-    expect(
-      tester
-          .getTopLeft(
-            find.byKey(const ValueKey('dashboard-preview-disclosure')),
-          )
-          .dy,
-      lessThan(
-        tester
-            .getTopLeft(
-              find.byKey(const ValueKey('ambient-wildlife-v2-disclosure')),
-            )
-            .dy,
-      ),
-    );
+    final bootY = tester.getTopLeft(find.text('BOOT SEQUENCE')).dy;
+    final pixelY = tester.getTopLeft(find.text('PIXEL LAB')).dy;
+    final dashboardY = tester
+        .getTopLeft(find.byKey(const ValueKey('dashboard-preview-disclosure')))
+        .dy;
+    final v2Y = tester
+        .getTopLeft(
+          find.byKey(const ValueKey('ambient-wildlife-v2-disclosure')),
+        )
+        .dy;
+    expect(bootY, lessThan(pixelY));
+    expect(pixelY, lessThan(dashboardY));
+    expect(dashboardY, lessThan(v2Y));
     expect(
       find.byKey(const ValueKey('dashboard-preview-section')),
       findsOneWidget,
@@ -140,16 +139,9 @@ void main() {
       find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('ambient-wildlife-v1-section')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
-      findsNothing,
-    );
-    expect(find.text('AMBIENT WILDLIFE'), findsNothing);
+    expect(find.text('AMBIENT WILDLIFE'), findsOneWidget);
     expect(find.text('AMBIENT WILDLIFE V2'), findsOneWidget);
+    expect(find.text('OTHER ANIMATION SANDBOX'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
@@ -288,26 +280,60 @@ void main() {
       ),
       findsOneWidget,
     );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
+      300,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-section')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('animal-category-cat')),
+      300,
+    );
+    expect(find.byKey(const ValueKey('animal-category-cat')), findsOneWidget);
   });
 
-  testWidgets('Dashboard Preview keeps CAT motion profile through replay', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-    final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
-    expect(productionStage, findsOneWidget);
-    expect(
-      tester
-          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
-          .catMotionProfile,
-      AmbientWildlifeV2CatMotionProfile.current,
-    );
-    for (final profile in [
-      AmbientWildlifeV2CatMotionProfile.smooth,
-      AmbientWildlifeV2CatMotionProfile.cruise,
-    ]) {
+  testWidgets(
+    'Dashboard Preview preserves CAT cruise and disables unsafe smooth',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+      expect(productionStage, findsOneWidget);
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+            .catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.current,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('dashboard-preview-cat-motion-smooth')),
+            )
+            .onSelected,
+        isNull,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-cruise')),
+        300,
+      );
       await tester.tap(
-        find.byKey(ValueKey('dashboard-preview-cat-motion-${profile.name}')),
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-cruise')),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-play')),
+        300,
       );
       await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
       await tester.pump();
@@ -315,16 +341,85 @@ void main() {
         tester
             .widget<AmbientWildlifeV2ProductionStage>(productionStage)
             .catMotionProfile,
-        profile,
+        AmbientWildlifeV2CatMotionProfile.cruise,
       );
-    }
-    await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
-    await tester.pump();
-    expect(
-      find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
-      findsNothing,
-    );
-  });
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-bat')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'Dashboard Preview repeats, pauses, resumes, and restarts in place',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final stage = find.byType(AmbientWildlifeV2ProductionStage);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-birds')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-birds')));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-glitch10')),
+        300,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-glitch10')),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-play')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+      var production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+      expect(production.forcedPlan!.birdInstances, hasLength(10));
+      expect(production.paused, isFalse);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-pause')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-pause')));
+      await tester.pump();
+      production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(production.paused, isTrue);
+      expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-play')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+      expect(
+        tester.widget<AmbientWildlifeV2ProductionStage>(stage).paused,
+        isFalse,
+      );
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-restart')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-restart')));
+      await tester.pump();
+      production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+      expect(production.forcedPlan!.birdInstances, hasLength(10));
+    },
+  );
 
   testWidgets('wildlife RANDOM only selects available species during motion', (
     tester,

@@ -119,30 +119,166 @@ class AnimationsSandboxPage extends StatelessWidget {
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [
+        const _BootSequenceSandboxSection(),
+        AppSpacing.gapXL,
+        _PixelLabSandboxSection(pixelLabAssetLoader: pixelLabAssetLoader),
+        AppSpacing.gapXL,
         const _DashboardAmbientWildlifePreviewSection(),
         AppSpacing.gapXL,
         const _AmbientWildlifeSandboxSection(),
         AppSpacing.gapXL,
-        _OtherAnimationsSandboxSections(
-          pixelLabAssetLoader: pixelLabAssetLoader,
-        ),
+        const _AmbientWildlifeV1Section(),
+        AppSpacing.gapXL,
+        const _AnimalSandboxSections(),
       ],
     ),
   );
 }
 
-class _OtherAnimationsSandboxSections extends StatefulWidget {
-  const _OtherAnimationsSandboxSections({this.pixelLabAssetLoader});
+class _BootSequenceSandboxSection extends StatelessWidget {
+  const _BootSequenceSandboxSection();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(
+        icon: Icons.rocket_launch_outlined,
+        title: 'BOOT SEQUENCE',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('起動演出の構成と再生操作を確認します。'),
+            AppSpacing.gapMD,
+            _SandboxActionButton(
+              key: const ValueKey('open-boot-sequence-preview'),
+              text: 'OPEN BOOT SEQUENCE',
+              icon: Icons.play_circle_outline,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.bootSequencePreview),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _PixelLabSandboxSection extends StatelessWidget {
+  const _PixelLabSandboxSection({this.pixelLabAssetLoader});
 
   final PixelLabAssetLoader? pixelLabAssetLoader;
 
   @override
-  State<_OtherAnimationsSandboxSections> createState() =>
-      _OtherAnimationsSandboxSectionsState();
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(icon: Icons.grid_on_outlined, title: 'PIXEL LAB'),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('AssetのPixelation、表示サイズ、背景、色変換をPreviewします。'),
+            AppSpacing.gapMD,
+            _SandboxActionButton(
+              key: const ValueKey('open-pixel-lab'),
+              text: 'OPEN PIXEL LAB',
+              icon: Icons.grid_on_outlined,
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PixelLabPage(assetLoader: pixelLabAssetLoader),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
-class _OtherAnimationsSandboxSectionsState
-    extends State<_OtherAnimationsSandboxSections> {
+class _AnimalSandboxSections extends StatelessWidget {
+  const _AnimalSandboxSections();
+
+  @override
+  Widget build(BuildContext context) => const Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _AnimalSandboxCategory(
+        title: 'CAT',
+        icon: Icons.pets_outlined,
+        child: Column(
+          children: [
+            CatRunV2PocSection(),
+            SizedBox(height: 20),
+            CatRunV23ProductionPreview(),
+          ],
+        ),
+      ),
+      SizedBox(height: 20),
+      _AnimalSandboxCategory(
+        title: 'BAT',
+        icon: Icons.nightlight_outlined,
+        child: Column(
+          children: [
+            BatV3FlightMotionPoc(),
+            SizedBox(height: 20),
+            BatV3ProductionPreview(),
+          ],
+        ),
+      ),
+      SizedBox(height: 20),
+      _AnimalSandboxCategory(
+        title: 'FOX',
+        icon: Icons.pets_outlined,
+        child: Column(
+          children: [
+            FoxRunV1Section(),
+            SizedBox(height: 20),
+            FoxRearLegGeometryLab(),
+            SizedBox(height: 20),
+            FoxPatternPreview(),
+          ],
+        ),
+      ),
+      SizedBox(height: 20),
+      _AnimalSandboxCategory(
+        title: 'BIRD',
+        icon: Icons.flight_outlined,
+        child: Column(
+          children: [
+            BirdV1Sandbox(),
+            SizedBox(height: 20),
+            BirdV1ProductionPreview(),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _AnimalSandboxCategory extends StatefulWidget {
+  const _AnimalSandboxCategory({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  State<_AnimalSandboxCategory> createState() => _AnimalSandboxCategoryState();
+}
+
+class _AnimalSandboxCategoryState extends State<_AnimalSandboxCategory> {
   var _expanded = false;
 
   @override
@@ -150,91 +286,24 @@ class _OtherAnimationsSandboxSectionsState
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       OperationCard(
-        key: const ValueKey('other-animation-sandbox-disclosure'),
+        key: ValueKey('animal-category-${widget.title.toLowerCase()}'),
         child: InkWell(
-          key: const ValueKey('other-animation-sandbox-toggle'),
+          key: ValueKey('animal-category-${widget.title.toLowerCase()}-toggle'),
           onTap: () => setState(() => _expanded = !_expanded),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
-                const Icon(Icons.widgets_outlined),
+                Icon(widget.icon),
                 const SizedBox(width: 12),
-                const Expanded(child: Text('OTHER ANIMATION SANDBOX')),
+                Expanded(child: Text(widget.title)),
                 Icon(_expanded ? Icons.expand_less : Icons.expand_more),
               ],
             ),
           ),
         ),
       ),
-      if (_expanded) ...[
-        AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.rocket_launch_outlined,
-          title: 'BOOT SEQUENCE',
-        ),
-        AppSpacing.gapSM,
-        OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('起動演出の構成と再生操作を確認します。'),
-              AppSpacing.gapMD,
-              _SandboxActionButton(
-                key: const ValueKey('open-boot-sequence-preview'),
-                text: 'OPEN BOOT SEQUENCE',
-                icon: Icons.play_circle_outline,
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.bootSequencePreview),
-              ),
-            ],
-          ),
-        ),
-        AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.grid_on_outlined, title: 'PIXEL LAB'),
-        AppSpacing.gapSM,
-        OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('AssetのPixelation、表示サイズ、背景、色変換をPreviewします。'),
-              AppSpacing.gapMD,
-              _SandboxActionButton(
-                key: const ValueKey('open-pixel-lab'),
-                text: 'OPEN PIXEL LAB',
-                icon: Icons.grid_on_outlined,
-                onPressed: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PixelLabPage(assetLoader: widget.pixelLabAssetLoader),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        AppSpacing.gapXL,
-        const _AmbientWildlifeV1Section(),
-        AppSpacing.gapXL,
-        const BatV3FlightMotionPoc(),
-        AppSpacing.gapXL,
-        const BatV3ProductionPreview(),
-        AppSpacing.gapXL,
-        const BirdV1Sandbox(),
-        AppSpacing.gapXL,
-        const BirdV1ProductionPreview(),
-        AppSpacing.gapXL,
-        const CatRunV2PocSection(),
-        AppSpacing.gapXL,
-        const CatRunV23ProductionPreview(),
-        AppSpacing.gapXL,
-        const FoxRunV1Section(),
-        AppSpacing.gapXL,
-        const FoxRearLegGeometryLab(),
-        AppSpacing.gapXL,
-        const FoxPatternPreview(),
-      ],
+      if (_expanded) ...[AppSpacing.gapSM, widget.child],
     ],
   );
 }
@@ -496,13 +565,37 @@ class _DashboardAmbientWildlifePreviewSectionState
   var _variant = AmbientWildlifeV2ForcedVariant.one;
   var _motionProfile = AmbientWildlifeV2CatMotionProfile.current;
   var _requestId = 0;
+  var _playing = false;
+  var _paused = false;
 
   void _selectSpecies(AmbientWildlifeV2Species species) => setState(() {
     _species = species;
     _randomSpecies = false;
   });
 
-  void _play() => setState(() => _requestId++);
+  void _playOrResume() => setState(() {
+    if (_paused) {
+      _paused = false;
+      return;
+    }
+    _playing = true;
+    _requestId++;
+  });
+
+  void _pause() => setState(() => _paused = true);
+
+  void _restart() => setState(() {
+    _playing = true;
+    _paused = false;
+    _requestId++;
+  });
+
+  void _onCompleted() {
+    if (!_playing || _paused || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _playing && !_paused) setState(() => _requestId++);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -543,6 +636,8 @@ class _DashboardAmbientWildlifePreviewSectionState
                   variant: _variant,
                   leftToRight: true,
                   catMotionProfile: _motionProfile,
+                  paused: !_playing || _paused,
+                  onCompleted: _onCompleted,
                 ),
                 AppSpacing.gapMD,
                 const Text('SPECIES'),
@@ -602,10 +697,17 @@ class _DashboardAmbientWildlifePreviewSectionState
                           key: ValueKey(
                             'dashboard-preview-cat-motion-${profile.name}',
                           ),
-                          label: Text(profile.name.toUpperCase()),
+                          label: Text(
+                            profile == AmbientWildlifeV2CatMotionProfile.smooth
+                                ? 'SMOOTH (N/A)'
+                                : profile.name.toUpperCase(),
+                          ),
                           selected: _motionProfile == profile,
-                          onSelected: (_) =>
-                              setState(() => _motionProfile = profile),
+                          onSelected:
+                              profile ==
+                                  AmbientWildlifeV2CatMotionProfile.smooth
+                              ? null
+                              : (_) => setState(() => _motionProfile = profile),
                         ),
                     ],
                   ),
@@ -613,9 +715,25 @@ class _DashboardAmbientWildlifePreviewSectionState
                 AppSpacing.gapMD,
                 _SandboxActionButton(
                   key: const ValueKey('dashboard-preview-play'),
-                  text: _requestId == 0 ? 'PLAY' : 'REPLAY',
-                  icon: Icons.play_arrow,
-                  onPressed: reducedMotion ? null : _play,
+                  text: _paused ? 'RESUME' : 'PLAY / REPEAT',
+                  icon: _paused ? Icons.play_arrow : Icons.repeat,
+                  onPressed: reducedMotion ? null : _playOrResume,
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('dashboard-preview-pause'),
+                  text: 'PAUSE',
+                  icon: Icons.pause,
+                  onPressed: reducedMotion || !_playing || _paused
+                      ? null
+                      : _pause,
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('dashboard-preview-restart'),
+                  text: 'RESTART',
+                  icon: Icons.restart_alt,
+                  onPressed: reducedMotion ? null : _restart,
                 ),
                 AppSpacing.gapSM,
                 Text(

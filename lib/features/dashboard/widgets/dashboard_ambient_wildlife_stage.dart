@@ -221,6 +221,8 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
     required this.leftToRight,
     this.forcedSpecies,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.paused = false,
+    this.onCompleted,
     this.nextInt,
   });
 
@@ -232,6 +234,8 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
   /// the Dashboard random picker.
   final AmbientWildlifeV2Species? forcedSpecies;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final bool paused;
+  final VoidCallback? onCompleted;
   final int Function(int max)? nextInt;
 
   @override
@@ -286,6 +290,8 @@ class _DashboardAmbientWildlifeProductionPreviewStageState
         minimumInterval: Duration.zero,
         maximumInterval: Duration.zero,
         catMotionProfile: widget.catMotionProfile,
+        paused: widget.paused,
+        onCompleted: widget.onCompleted,
       ),
     ),
   );
@@ -300,6 +306,8 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
     this.forcedPlan,
     this.forcedRequestId = 0,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.paused = false,
+    this.onCompleted,
   });
 
   final GlobalKey<AmbientWildlifeV2ProductionStageState>? stageKey;
@@ -309,6 +317,8 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final bool paused;
+  final VoidCallback? onCompleted;
 
   @override
   Widget build(BuildContext context) => ClipRect(
@@ -337,6 +347,8 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
           foxFollowerSpacingMultiplier:
               DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
           catMotionProfile: catMotionProfile,
+          paused: paused,
+          onCompleted: onCompleted,
           catPresentationOffsetY:
               DashboardAmbientWildlifeStage.catPresentationOffsetY,
           batPresentationVerticalAnchor:
