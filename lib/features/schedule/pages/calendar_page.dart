@@ -908,13 +908,6 @@ class _WeatherForecastRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = DateTime.parse(value.date);
     final scheme = Theme.of(context).colorScheme;
-    final forecastSummary = WeatherForecastSummaryEngine.summarize(
-      day: value,
-      hourly: _hourlyForDay(snapshot, value),
-    );
-    final peakTiming = value.precipitation > 0
-        ? weatherForecastPeakPrecipitationTiming(forecastSummary)
-        : null;
     return Semantics(
       button: true,
       label: '${value.date}, ${_weatherConditionJapanese(value.code)}',
@@ -964,133 +957,116 @@ class _WeatherForecastRow extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Numeric columns reserve their own space. The rail is capped
-              // rather than consuming the high-temperature/precipitation area.
               final railWidth = weatherTemperatureRailWidth(
-                constraints.maxWidth,
+                constraints.maxWidth * .68,
               );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 50,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(today ? '今日' : _weekdayJapanese(date.weekday)),
+                        Text(
+                          '${date.month}/${date.day}',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                        const SizedBox(height: 3),
+                        Icon(
+                          _weatherIcon(value.code),
+                          color: scheme.primary,
+                          size: 27,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${value.high.round()}°',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          '最高 ${value.high.round()}° / 最低 ${value.low.round()}°',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 7,
+                    child: Column(
+                      children: [
+                        Row(
                           children: [
-                            Text(today ? '今日' : _weekdayJapanese(date.weekday)),
                             Text(
-                              '${date.month}/${date.day}',
+                              '最低 ${value.low.round()}°',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: SizedBox(
+                                key: ValueKey(
+                                  'weather-temperature-rail-${value.date}',
+                                ),
+                                width: railWidth,
+                                height: 18,
+                                child: CustomPaint(
+                                  painter: _TemperatureRangePainter(
+                                    color: scheme.primary,
+                                    low: value.low,
+                                    high: value.high,
+                                    globalLow: globalLow,
+                                    globalHigh: globalHigh,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '最高 ${value.high.round()}°',
                               style: Theme.of(context).textTheme.labelSmall,
                             ),
                           ],
                         ),
-                      ),
-                      Icon(
-                        _weatherIcon(value.code),
-                        color: scheme.primary,
-                        size: 19,
-                      ),
-                      const SizedBox(width: 7),
-                      SizedBox(
-                        width: 32,
-                        child: Text(
-                          '${value.low.round()}°',
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      SizedBox(
-                        key: ValueKey('weather-temperature-rail-${value.date}'),
-                        width: railWidth,
-                        height: 18,
-                        child: CustomPaint(
-                          painter: _TemperatureRangePainter(
-                            color: scheme.primary,
-                            low: value.low,
-                            high: value.high,
-                            globalLow: globalLow,
-                            globalHigh: globalHigh,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      SizedBox(
-                        width: 34,
-                        child: Text('${value.high.round()}°'),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 40,
-                        child: Text(
-                          '${value.precipitationProbability}%',
-                          textAlign: TextAlign.end,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: scheme.secondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 57),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _weatherConditionJapanese(value.code),
-                            key: ValueKey(
-                              'weather-forecast-secondary-${value.date}',
+                        const SizedBox(height: 7),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _weatherConditionJapanese(value.code),
+                                key: ValueKey(
+                                  'weather-forecast-secondary-${value.date}',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: scheme.onSurface.withValues(
+                                        alpha: .72,
+                                      ),
+                                    ),
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: scheme.onSurface.withValues(
-                                    alpha: .68,
-                                  ),
-                                ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 52,
-                          child: Text(
-                            '${value.precipitation.toStringAsFixed(1)}mm',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: scheme.onSurface.withValues(
-                                    alpha: .68,
-                                  ),
-                                ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            peakTiming == null ? '' : '雨ピーク $peakTiming',
-                            key: ValueKey(
-                              'weather-forecast-peak-${value.date}',
+                            Text(
+                              '☔ ${value.precipitationProbability}%',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: scheme.secondary),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.end,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: scheme.onSurface.withValues(
-                                    alpha: .56,
-                                  ),
-                                ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right,
-                          key: ValueKey(
-                            'weather-forecast-detail-${value.date}',
-                          ),
-                          size: 15,
-                          color: scheme.primary.withValues(alpha: .48),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${value.precipitation.toStringAsFixed(1)}mm',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(width: 2),
+                            Icon(
+                              Icons.chevron_right,
+                              key: ValueKey(
+                                'weather-forecast-detail-${value.date}',
+                              ),
+                              size: 15,
+                              color: scheme.primary.withValues(alpha: .48),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1931,33 +1907,41 @@ class _WeatherDetailMetricValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          metric.label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: scheme.onSurface.withValues(alpha: .64),
-          ),
-        ),
-        const SizedBox(height: 1),
-        Text(
-          metric.value,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: scheme.onSurface,
-            height: 1.15,
-          ),
-        ),
-        if (metric.context case final metricContext?)
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: .30),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: scheme.primary.withValues(alpha: .12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            metricContext,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            metric.label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.onSurface.withValues(alpha: .58),
+              color: scheme.onSurface.withValues(alpha: .64),
             ),
           ),
-      ],
+          const SizedBox(height: 1),
+          Text(
+            metric.value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: scheme.onSurface,
+              height: 1.15,
+            ),
+          ),
+          if (metric.context case final metricContext?)
+            Text(
+              metricContext,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurface.withValues(alpha: .58),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -2684,9 +2668,10 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
   final List<WeatherHourly> values;
 
   static const _columnWidth = 72.0;
-  static const _height = 206.0;
+  static const _height = 210.0;
   static const _labelWidth = 46.0;
-  static const _verticalPadding = 0.0;
+  // Natural panel inset, not an eighth visual band.
+  static const _verticalPadding = 2.0;
   static const _timeRowHeight = 25.0;
   static const _weatherRowHeight = 27.0;
   static const _temperatureRowHeight = 58.0;
@@ -2721,7 +2706,7 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
           _HourlyRowBand(
             top: _verticalPadding + _timeRowHeight + _weatherRowHeight,
             height: _temperatureRowHeight,
-            color: scheme.primary.withValues(alpha: .045),
+            color: scheme.onSurface.withValues(alpha: .018),
           ),
           _HourlyRowBand(
             top:
@@ -2879,49 +2864,55 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
             left: BorderSide(color: scheme.primary.withValues(alpha: .12)),
           ),
         ),
-        child: Column(
-          children: [
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._timeRowHeight,
-              child: Text(
-                _hourJapanese(value.time),
-                style: Theme.of(context).textTheme.labelSmall,
+        child: Padding(
+          // Keep the two-pixel panel inset outside all seven metric bands.
+          padding: const EdgeInsets.symmetric(
+            vertical: _WeatherHourlySharedGrid._verticalPadding,
+          ),
+          child: Column(
+            children: [
+              _HourlyValueRow(
+                height: _WeatherHourlySharedGrid._timeRowHeight,
+                child: Text(
+                  _hourJapanese(value.time),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
-            ),
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._weatherRowHeight,
-              child: Icon(
-                _weatherIcon(value.code),
-                size: 17,
-                color: scheme.primary,
+              _HourlyValueRow(
+                height: _WeatherHourlySharedGrid._weatherRowHeight,
+                child: Icon(
+                  _weatherIcon(value.code),
+                  size: 17,
+                  color: scheme.primary,
+                ),
               ),
-            ),
-            _HourlyTemperatureValue(
-              value: value.temperature,
-              low: temperatureLow,
-              span: temperatureSpan,
-            ),
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._metricRowHeight,
-              child: Text('${value.precipitationProbability}%'),
-            ),
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._metricRowHeight,
-              child: Text('${value.humidity}%'),
-            ),
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._metricRowHeight,
-              child: Text(
-                value.precipitation == 0
-                    ? '0mm'
-                    : '${value.precipitation.toStringAsFixed(1)}mm',
+              _HourlyTemperatureValue(
+                value: value.temperature,
+                low: temperatureLow,
+                span: temperatureSpan,
               ),
-            ),
-            _HourlyValueRow(
-              height: _WeatherHourlySharedGrid._metricRowHeight,
-              child: Text('${value.windSpeed.round()}km/h'),
-            ),
-          ],
+              _HourlyValueRow(
+                height: _WeatherHourlySharedGrid._metricRowHeight,
+                child: Text('${value.precipitationProbability}%'),
+              ),
+              _HourlyValueRow(
+                height: _WeatherHourlySharedGrid._metricRowHeight,
+                child: Text('${value.humidity}%'),
+              ),
+              _HourlyValueRow(
+                height: _WeatherHourlySharedGrid._metricRowHeight,
+                child: Text(
+                  value.precipitation == 0
+                      ? '0mm'
+                      : '${value.precipitation.toStringAsFixed(1)}mm',
+                ),
+              ),
+              _HourlyValueRow(
+                height: _WeatherHourlySharedGrid._metricRowHeight,
+                child: Text('${value.windSpeed.round()}km/h'),
+              ),
+            ],
+          ),
         ),
       ),
     );
