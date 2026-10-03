@@ -559,7 +559,7 @@ class _DashboardAmbientWildlifePreviewSection extends StatefulWidget {
 
 class _DashboardAmbientWildlifePreviewSectionState
     extends State<_DashboardAmbientWildlifePreviewSection> {
-  static const _catGlitchSpacingPresets = <double>[.06, .075, .09, .10, .12];
+  static const _catGlitchSpacingPresets = <double>[.075, .09, .10];
 
   static String _catGlitchSpacingPresetKey(double spacing) =>
       spacing == .10 ? 'base' : spacing.toString().replaceFirst('0.', '');
@@ -716,7 +716,9 @@ class _DashboardAmbientWildlifePreviewSectionState
                           key: ValueKey(
                             'dashboard-preview-cat-motion-${profile.name}',
                           ),
-                          label: Text(profile.name.toUpperCase()),
+                          label: Text(
+                            ambientWildlifeV2CatMotionProfileLabel(profile),
+                          ),
                           selected: _motionProfile == profile,
                           onSelected: (_) =>
                               setState(() => _motionProfile = profile),
@@ -771,7 +773,7 @@ class _DashboardAmbientWildlifePreviewSectionState
                 ),
                 AppSpacing.gapSM,
                 Text(
-                  'PRODUCTION PATH · CAT ${isCat ? _motionProfile.name.toUpperCase() : 'CURRENT'}${isCatGlitch ? ' · GLITCH ${_catGlitchSpacing.toStringAsFixed(3)}' : ''} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
+                  'PRODUCTION PATH · CAT ${isCat ? ambientWildlifeV2CatMotionProfileLabel(_motionProfile) : 'CURRENT'}${isCatGlitch ? ' · GLITCH ${_catGlitchSpacing.toStringAsFixed(3)}' : ''} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
                   key: const ValueKey('dashboard-preview-readout'),
                   textAlign: TextAlign.center,
                 ),

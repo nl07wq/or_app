@@ -17,10 +17,12 @@ class CatRunV23SmoothTuning {
   const CatRunV23SmoothTuning({
     required this.blendDuration,
     required this.maximumVisualAnchorOffset,
+    required this.maximumVerticalAnchorOffset,
   });
 
   final Duration blendDuration;
   final double maximumVisualAnchorOffset;
+  final double maximumVerticalAnchorOffset;
 }
 
 /// Presentation-only travel model for V2.2's frozen registered HIGH frames.
@@ -76,7 +78,7 @@ class CatRunV23Travel {
   /// profile. It never changes crossing progress, frame order, or timing.
   static Offset smoothVisualAnchorOffsetAt(
     double progress, {
-    CatRunV23SmoothTuning tuning = mediumSmoothTuning,
+    CatRunV23SmoothTuning tuning = smoothATuning,
   }) {
     final cycleDuration = CatRunV28Timing.cycleDuration.inMicroseconds;
     final elapsed =
@@ -103,7 +105,7 @@ class CatRunV23Travel {
         final blendMicroseconds = halfBlendMicroseconds * 2;
         final current = _boundedSmoothAnchorOffset(
           _rawSmoothVisualAnchorOffsets[index],
-          tuning.maximumVisualAnchorOffset,
+          tuning,
         );
         if (blendMicroseconds == 0) return current;
         if (local < halfBlendMicroseconds) {
@@ -112,7 +114,7 @@ class CatRunV23Travel {
                     1 +
                     _rawSmoothVisualAnchorOffsets.length) %
                 _rawSmoothVisualAnchorOffsets.length],
-            tuning.maximumVisualAnchorOffset,
+            tuning,
           );
           return Offset.lerp(
             previous,
@@ -124,7 +126,7 @@ class CatRunV23Travel {
           final next = _boundedSmoothAnchorOffset(
             _rawSmoothVisualAnchorOffsets[(index + 1) %
                 _rawSmoothVisualAnchorOffsets.length],
-            tuning.maximumVisualAnchorOffset,
+            tuning,
           );
           return Offset.lerp(
             current,
@@ -140,25 +142,23 @@ class CatRunV23Travel {
     }
     return _boundedSmoothAnchorOffset(
       _rawSmoothVisualAnchorOffsets.first,
-      tuning.maximumVisualAnchorOffset,
+      tuning,
     );
   }
 
-  static const lightSmoothTuning = CatRunV23SmoothTuning(
-    blendDuration: Duration(milliseconds: 28),
-    maximumVisualAnchorOffset: .006,
+  /// The clear, moderate Preview comparison. It normalizes visible frame
+  /// centers and vertical body movement without changing travel timing.
+  static const smoothATuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 80),
+    maximumVisualAnchorOffset: .030,
+    maximumVerticalAnchorOffset: .024,
   );
-  static const mediumSmoothTuning = CatRunV23SmoothTuning(
-    blendDuration: Duration(milliseconds: 48),
-    maximumVisualAnchorOffset: .012,
-  );
-  static const strongSmoothTuning = CatRunV23SmoothTuning(
-    blendDuration: Duration(milliseconds: 68),
-    maximumVisualAnchorOffset: .018,
-  );
-  static const maxSmoothTuning = CatRunV23SmoothTuning(
-    blendDuration: Duration(milliseconds: 96),
-    maximumVisualAnchorOffset: .024,
+
+  /// A deliberately strong Preview-only upper bound for visual comparison.
+  static const smoothBTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 150),
+    maximumVisualAnchorOffset: .045,
+    maximumVerticalAnchorOffset: .040,
   );
 
   /// Returns the production-presentation visible bounds for a single CAT at a
@@ -243,9 +243,22 @@ class CatRunV23Travel {
     );
   }();
 
-  static Offset _boundedSmoothAnchorOffset(Offset raw, double maximum) {
-    if (raw.distance <= maximum) return raw;
-    return raw / raw.distance * maximum;
+  /// Bounds horizontal and vertical correction separately. The dedicated Y
+  /// cap keeps pose-to-pose body height continuous without allowing a CAT to
+  /// float away from its registered ground contact.
+  static Offset _boundedSmoothAnchorOffset(
+    Offset raw,
+    CatRunV23SmoothTuning tuning,
+  ) {
+    final horizontal = raw.dx.clamp(
+      -tuning.maximumVisualAnchorOffset,
+      tuning.maximumVisualAnchorOffset,
+    );
+    final vertical = raw.dy.clamp(
+      -tuning.maximumVerticalAnchorOffset,
+      tuning.maximumVerticalAnchorOffset,
+    );
+    return Offset(horizontal, vertical);
   }
 
   static double _smoothStep(double value) {

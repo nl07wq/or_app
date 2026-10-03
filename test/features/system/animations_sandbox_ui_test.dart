@@ -300,57 +300,58 @@ void main() {
     expect(find.byKey(const ValueKey('animal-category-cat')), findsOneWidget);
   });
 
-  testWidgets(
-    'Dashboard Preview exposes CAT CURRENT and S1 through S4 without CRUISE',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 10000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-      final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
-      expect(productionStage, findsOneWidget);
+  testWidgets('Dashboard Preview exposes CAT CURRENT, SMOOTH A, and SMOOTH B', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+    expect(productionStage, findsOneWidget);
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.current,
+    );
+    for (final profile in [
+      AmbientWildlifeV2CatMotionProfile.smoothA,
+      AmbientWildlifeV2CatMotionProfile.smoothB,
+    ]) {
+      final control = find.byKey(
+        ValueKey('dashboard-preview-cat-motion-${profile.name}'),
+      );
+      await tester.scrollUntilVisible(control, 300);
+      await tester.tap(control);
+      await tester.pump();
       expect(
         tester
             .widget<AmbientWildlifeV2ProductionStage>(productionStage)
             .catMotionProfile,
-        AmbientWildlifeV2CatMotionProfile.current,
+        profile,
       );
-      for (final profile in [
-        AmbientWildlifeV2CatMotionProfile.s1,
-        AmbientWildlifeV2CatMotionProfile.s2,
-        AmbientWildlifeV2CatMotionProfile.s3,
-        AmbientWildlifeV2CatMotionProfile.s4,
-      ]) {
-        final control = find.byKey(
-          ValueKey('dashboard-preview-cat-motion-${profile.name}'),
-        );
-        await tester.scrollUntilVisible(control, 300);
-        await tester.tap(control);
-        await tester.pump();
-        expect(
-          tester
-              .widget<AmbientWildlifeV2ProductionStage>(productionStage)
-              .catMotionProfile,
-          profile,
-        );
-      }
-      expect(
-        find.byKey(const ValueKey('dashboard-preview-cat-motion-cruise')),
-        findsNothing,
-      );
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('dashboard-preview-bat')),
-        300,
-      );
-      await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
-        findsNothing,
-      );
-    },
-  );
+    }
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-motion-s1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-motion-s4')),
+      findsNothing,
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-preview-bat')),
+      300,
+    );
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
+      findsNothing,
+    );
+  });
 
   testWidgets(
     'Dashboard Preview repeats, pauses, resumes, and restarts in place',
@@ -418,7 +419,7 @@ void main() {
   );
 
   testWidgets(
-    'Dashboard Preview preserves CAT S3 GLITCH spacing through playback controls',
+    'Dashboard Preview preserves CAT SMOOTH B GLITCH spacing through playback controls',
     (tester) async {
       tester.view.physicalSize = const Size(390, 10000);
       tester.view.devicePixelRatio = 1;
@@ -429,7 +430,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('dashboard-preview-cat')));
       await tester.tap(
-        find.byKey(const ValueKey('dashboard-preview-cat-motion-s3')),
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-smoothB')),
       );
       await tester.tap(
         find.byKey(const ValueKey('dashboard-preview-glitch10')),
@@ -449,7 +450,7 @@ void main() {
           tester.widget<AmbientWildlifeV2ProductionStage>(stage);
       expect(
         production().catMotionProfile,
-        AmbientWildlifeV2CatMotionProfile.s3,
+        AmbientWildlifeV2CatMotionProfile.smoothB,
       );
       expect(production().forcedPlan!.catPlan!.crossings, hasLength(10));
       expect(
@@ -467,7 +468,7 @@ void main() {
       await tester.pump();
       expect(
         production().catMotionProfile,
-        AmbientWildlifeV2CatMotionProfile.s3,
+        AmbientWildlifeV2CatMotionProfile.smoothB,
       );
       expect(
         production().forcedPlan!.catPlan!.crossings[1].startedAtProgress,
@@ -488,16 +489,19 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('dashboard-preview-cat')));
     await tester.tap(find.byKey(const ValueKey('dashboard-preview-glitch10')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-glitch-spacing-06')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-glitch-spacing-12')),
+      findsNothing,
+    );
     AmbientWildlifeV2ProductionStage production() =>
         tester.widget<AmbientWildlifeV2ProductionStage>(stage);
 
-    for (final preset in const [
-      ('06', .06),
-      ('075', .075),
-      ('09', .09),
-      ('base', .10),
-      ('12', .12),
-    ]) {
+    for (final preset in const [('075', .075), ('09', .09), ('base', .10)]) {
       final control = find.byKey(
         ValueKey('dashboard-preview-cat-glitch-spacing-${preset.$1}'),
       );

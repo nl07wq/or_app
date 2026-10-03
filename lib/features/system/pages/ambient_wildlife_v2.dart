@@ -19,33 +19,34 @@ enum AmbientWildlifeV2Species { cat, bat, fox, birds }
 /// geometry.
 enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
 
-/// Optional inspection profiles for Dashboard Preview. Dashboard production
-/// keeps [current] unless a future acceptance task explicitly adopts another
-/// profile.
 /// Dashboard Preview comparison profiles. Production keeps [current] until a
 /// separate acceptance task deliberately adopts one of the smooth candidates.
-enum AmbientWildlifeV2CatMotionProfile { current, s1, s2, s3, s4 }
+enum AmbientWildlifeV2CatMotionProfile { current, smoothA, smoothB }
 
 Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
-  AmbientWildlifeV2CatMotionProfile.s1 ||
-  AmbientWildlifeV2CatMotionProfile.s2 ||
-  AmbientWildlifeV2CatMotionProfile.s3 ||
-  AmbientWildlifeV2CatMotionProfile.s4 => Curves.linear,
+  AmbientWildlifeV2CatMotionProfile.smoothA ||
+  AmbientWildlifeV2CatMotionProfile.smoothB => Curves.linear,
 };
 
-/// S1 through S4 vary presentation continuity only. They never alter the
+/// Preview smooth candidates vary presentation continuity only. They never alter the
 /// production crossing duration, speed, frame order, or travel curve.
 CatRunV23SmoothTuning? ambientWildlifeV2CatSmoothTuning(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => null,
-  AmbientWildlifeV2CatMotionProfile.s1 => CatRunV23Travel.lightSmoothTuning,
-  AmbientWildlifeV2CatMotionProfile.s2 => CatRunV23Travel.mediumSmoothTuning,
-  AmbientWildlifeV2CatMotionProfile.s3 => CatRunV23Travel.strongSmoothTuning,
-  AmbientWildlifeV2CatMotionProfile.s4 => CatRunV23Travel.maxSmoothTuning,
+  AmbientWildlifeV2CatMotionProfile.smoothA => CatRunV23Travel.smoothATuning,
+  AmbientWildlifeV2CatMotionProfile.smoothB => CatRunV23Travel.smoothBTuning,
+};
+
+String ambientWildlifeV2CatMotionProfileLabel(
+  AmbientWildlifeV2CatMotionProfile profile,
+) => switch (profile) {
+  AmbientWildlifeV2CatMotionProfile.current => 'CURRENT',
+  AmbientWildlifeV2CatMotionProfile.smoothA => 'SMOOTH A',
+  AmbientWildlifeV2CatMotionProfile.smoothB => 'SMOOTH B',
 };
 
 /// GLITCH has a fixed production spacing authority. Dashboard presentation

@@ -62,7 +62,7 @@ void main() {
   });
 
   test('CAT GLITCH Preview presets override only forced GLITCH plans', () {
-    const presets = [.06, .075, .09, .10, .12];
+    const presets = [.075, .09, .10];
     for (final preset in presets) {
       for (final leftToRight in [true, false]) {
         final preview = AmbientWildlifeV2EventPlan.forced(
@@ -80,7 +80,7 @@ void main() {
       species: AmbientWildlifeV2Species.cat,
       variant: AmbientWildlifeV2ForcedVariant.three,
       leftToRight: true,
-      catGlitchSpacingOverride: .12,
+      catGlitchSpacingOverride: .09,
     );
     expect(
       normal.catPlan!.crossings[1].startedAtProgress,
@@ -167,12 +167,10 @@ void main() {
     );
   });
 
-  test('CAT Preview SMOOTH levels vary only presentation continuity', () {
+  test('CAT Preview uses two clear SMOOTH comparison candidates', () {
     const profiles = [
-      AmbientWildlifeV2CatMotionProfile.s1,
-      AmbientWildlifeV2CatMotionProfile.s2,
-      AmbientWildlifeV2CatMotionProfile.s3,
-      AmbientWildlifeV2CatMotionProfile.s4,
+      AmbientWildlifeV2CatMotionProfile.smoothA,
+      AmbientWildlifeV2CatMotionProfile.smoothB,
     ];
     final tunings = [
       for (final profile in profiles)
@@ -180,16 +178,16 @@ void main() {
     ];
 
     expect(tunings.map((tuning) => tuning.blendDuration.inMilliseconds), const [
-      28,
-      48,
-      68,
-      96,
+      80,
+      150,
     ]);
     expect(tunings.map((tuning) => tuning.maximumVisualAnchorOffset), const [
-      .006,
-      .012,
-      .018,
+      .030,
+      .045,
+    ]);
+    expect(tunings.map((tuning) => tuning.maximumVerticalAnchorOffset), const [
       .024,
+      .040,
     ]);
     for (final tuning in tunings) {
       final offsets = <Offset>[
@@ -204,11 +202,11 @@ void main() {
           ),
       ];
       expect(
-        offsets
-            .map((offset) => offset.distance)
-            .every(
-              (offset) => offset <= tuning.maximumVisualAnchorOffset + .000001,
-            ),
+        offsets.every(
+          (offset) =>
+              offset.dx.abs() <= tuning.maximumVisualAnchorOffset + .000001 &&
+              offset.dy.abs() <= tuning.maximumVerticalAnchorOffset + .000001,
+        ),
         isTrue,
       );
       expect(offsets.toSet().length, greaterThan(1));
