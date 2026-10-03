@@ -290,6 +290,7 @@ class WeatherService {
       'longitude': location.longitude.toString(),
       'timezone': location.timezone,
       'forecast_days': '7',
+      'past_days': '1',
       'daily': [
         'weather_code',
         'temperature_2m_max',
@@ -330,10 +331,7 @@ class WeatherService {
 
   List<WeatherDaily> _daily(Map<String, Object?> data) {
     final dates = _values<String>(data, 'time');
-    final dailyWindSpeedMax = _optionalValues<num>(
-      data,
-      'wind_speed_10m_max',
-    );
+    final dailyWindSpeedMax = _optionalValues<num>(data, 'wind_speed_10m_max');
     return List.generate(
       dates.length,
       (index) => WeatherDaily(
@@ -352,8 +350,8 @@ class WeatherService {
         sunrise: _values<String>(data, 'sunrise')[index],
         sunset: _values<String>(data, 'sunset')[index],
         uvIndexMax: _values<num>(data, 'uv_index_max')[index].toDouble(),
-        windSpeedMax: dailyWindSpeedMax != null &&
-                index < dailyWindSpeedMax.length
+        windSpeedMax:
+            dailyWindSpeedMax != null && index < dailyWindSpeedMax.length
             ? dailyWindSpeedMax[index].toDouble()
             : null,
       ),

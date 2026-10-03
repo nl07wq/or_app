@@ -131,9 +131,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _shiftWeatherDate(int direction) {
-    final days =
-        _weatherSnapshot?.daily.take(7).toList(growable: false) ??
-        const <WeatherDaily>[];
+    final days = _weatherSnapshot?.daily ?? const <WeatherDaily>[];
     final index = days.indexWhere((day) => day.date == _selectedKey);
     if (index < 0) return;
     final next = (index + direction).clamp(0, days.length - 1);
@@ -573,7 +571,7 @@ class _CalendarWeatherHud extends StatelessWidget {
                     ),
                     if (sevenDayExpanded)
                       _WeatherForecastList(
-                        values: snapshot!.daily.take(7).toList(growable: false),
+                        values: snapshot!.daily,
                         snapshot: snapshot!,
                         selectedDate: selectedDate,
                         onSelectDate: onSelectDate,
@@ -874,6 +872,10 @@ class _WeatherForecastList extends StatelessWidget {
                 snapshot: snapshot,
                 selected: value.date == selectedDate,
                 today: _sameDay(DateTime.parse(value.date), today),
+                yesterday: _sameDay(
+                  DateTime.parse(value.date),
+                  today.subtract(const Duration(days: 1)),
+                ),
                 globalLow: globalLow,
                 globalHigh: globalHigh,
                 onTap: () => onSelectDate(value.date),
@@ -891,6 +893,7 @@ class _WeatherForecastRow extends StatelessWidget {
     required this.snapshot,
     required this.selected,
     required this.today,
+    required this.yesterday,
     required this.globalLow,
     required this.globalHigh,
     required this.onTap,
@@ -900,6 +903,7 @@ class _WeatherForecastRow extends StatelessWidget {
   final WeatherSnapshot snapshot;
   final bool selected;
   final bool today;
+  final bool yesterday;
   final double globalLow;
   final double globalHigh;
   final VoidCallback onTap;
@@ -969,34 +973,47 @@ class _WeatherForecastRow extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        SizedBox(
-                          key: ValueKey('weather-forecast-date-${value.date}'),
-                          width: 34,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment:
-                                weatherForecastDateBlockAlignment,
-                            children: [
-                              Text(
-                                today ? '今日' : _weekdayJapanese(date.weekday),
-                                textAlign: weatherForecastDateTextAlignment,
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.labelMedium?.copyWith(height: .9),
-                              ),
-                              Text(
-                                '${date.month}/${date.day}',
-                                textAlign: weatherForecastDateTextAlignment,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      height: .9,
-                                      fontWeight: FontWeight.w600,
-                                      color: scheme.onSurface.withValues(
-                                        alpha: .72,
+                        Transform.translate(
+                          offset: const Offset(
+                            0,
+                            weatherForecastDateVerticalOffset,
+                          ),
+                          child: SizedBox(
+                            key: ValueKey(
+                              'weather-forecast-date-${value.date}',
+                            ),
+                            width: 34,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment:
+                                  weatherForecastDateBlockAlignment,
+                              children: [
+                                Text(
+                                  weatherForecastDateLabel(
+                                    date,
+                                    today: today,
+                                    yesterday: yesterday,
+                                  ),
+                                  textAlign: weatherForecastDateTextAlignment,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.labelMedium?.copyWith(height: .9),
+                                ),
+                                Text(
+                                  '${date.month}/${date.day}',
+                                  textAlign: weatherForecastDateTextAlignment,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        fontSize: weatherForecastDateFontSize,
+                                        height: .9,
+                                        fontWeight: FontWeight.w600,
+                                        color: scheme.onSurface.withValues(
+                                          alpha: .72,
+                                        ),
                                       ),
-                                    ),
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 3),
@@ -1161,9 +1178,8 @@ class _WeatherForecastRow extends StatelessWidget {
   }
 }
 
-String weatherDailyMaxWindLabel(double? windSpeedMax) => windSpeedMax == null
-    ? '--'
-    : '${windSpeedMax.round()}km/h';
+String weatherDailyMaxWindLabel(double? windSpeedMax) =>
+    windSpeedMax == null ? '--' : '${windSpeedMax.round()}km/h';
 
 class _TemperatureRangePainter extends CustomPainter {
   const _TemperatureRangePainter({
@@ -1254,11 +1270,23 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 /// a weather column. Each is centered internally, but they intentionally do
 /// not share one all-content center axis.
 const weatherForecastLowHighPairAlignment = MainAxisAlignment.center;
-const weatherForecastDateBlockAlignment = CrossAxisAlignment.start;
-const weatherForecastDateTextAlignment = TextAlign.start;
+const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
+const weatherForecastDateTextAlignment = TextAlign.center;
+const weatherForecastDateVerticalOffset = -9.0;
+const weatherForecastDateFontSize = 14.0;
 const weatherForecastWeatherBlockAlignment = CrossAxisAlignment.center;
 const weatherForecastWeatherTextAlignment = TextAlign.center;
 const weatherForecastUsesSplitLeftBlocks = true;
+
+String weatherForecastDateLabel(
+  DateTime date, {
+  required bool today,
+  required bool yesterday,
+}) => today
+    ? '今日'
+    : yesterday
+    ? '昨日'
+    : _weekdayJapanese(date.weekday);
 
 /// Describes the daily LOW→HIGH rail and only the extension needed for a
 /// displayed apparent temperature outside that formal daily range.
@@ -1564,8 +1592,14 @@ class _WeatherSummary extends StatelessWidget {
       date,
       DateTime.now().add(const Duration(days: 1)),
     );
+    final yesterday = _sameDay(
+      date,
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
     final label = isToday
         ? '今日'
+        : yesterday
+        ? '昨日'
         : tomorrow
         ? '明日'
         : '${date.month}/${date.day}（${_weekdayJapanese(date.weekday)}）';

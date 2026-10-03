@@ -224,7 +224,7 @@ void main() {
 
     expect(result.isCached, isTrue);
     expect(result.isStale, isFalse);
-    expect(result.snapshot?.daily, hasLength(7));
+    expect(result.snapshot?.daily, hasLength(8));
   });
 
   test('uses stale matching cache after a forecast failure', () async {
@@ -245,7 +245,7 @@ void main() {
   });
 
   test(
-    'fetches seven daily and hourly values in the saved location timezone',
+    'fetches yesterday plus seven forecast days in the saved location timezone',
     () async {
       final client = _FakeClient(response: _forecastResponse());
       final service = WeatherService(
@@ -256,8 +256,10 @@ void main() {
 
       final result = await service.load(location);
 
-      expect(result.snapshot?.daily, hasLength(7));
-      expect(result.snapshot?.hourly.first.time, '2026-09-30T00:00');
+      expect(result.snapshot?.daily, hasLength(8));
+      expect(result.snapshot?.daily.first.date, '2026-09-29');
+      expect(result.snapshot?.hourly.first.time, '2026-09-29T00:00');
+      expect(result.snapshot?.hourly[1].time, '2026-09-30T00:00');
       expect(result.snapshot?.daily.first.uvIndexMax, 3);
       expect(result.snapshot?.daily.first.windSpeedMax, 14);
       expect(result.snapshot?.hourly.first.dewPoint, 11);
@@ -269,6 +271,7 @@ void main() {
       expect(client.urls.single, contains('dew_point_2m'));
       expect(client.urls.single, contains('uv_index_max'));
       expect(client.urls.single, contains('wind_speed_10m_max'));
+      expect(client.urls.single, contains('past_days=1'));
       expect(client.urls, hasLength(1));
     },
   );
@@ -283,6 +286,8 @@ void main() {
       final restored = await store.loadCache(location);
 
       expect(restored?.daily.first.windSpeedMax, 14);
+      expect(restored?.daily.first.date, '2026-09-29');
+      expect(restored?.hourly.first.time, '2026-09-29T00:00');
       expect(
         WeatherSnapshot.decode(snapshot.encode()).daily.first.windSpeedMax,
         14,
@@ -391,9 +396,13 @@ WeatherSnapshot _snapshot(WeatherLocation location, DateTime fetchedAt) =>
       location: location,
       fetchedAt: fetchedAt,
       daily: List.generate(
-        7,
+        8,
         (index) => WeatherDaily(
-          date: '2026-10-${(index + 1).toString().padLeft(2, '0')}',
+          date: DateTime(
+            2026,
+            9,
+            29,
+          ).add(Duration(days: index)).toIso8601String().split('T').first,
           code: 0,
           high: 20,
           low: 10,
@@ -404,12 +413,26 @@ WeatherSnapshot _snapshot(WeatherLocation location, DateTime fetchedAt) =>
           windSpeedMax: 14,
         ),
       ),
-      hourly: const [],
+      hourly: const [
+        WeatherHourly(
+          time: '2026-09-29T00:00',
+          temperature: 16,
+          apparentTemperature: 15,
+          humidity: 75,
+          precipitationProbability: 10,
+          precipitation: 0,
+          code: 0,
+          cloudCover: 15,
+          windSpeed: 8,
+          windGust: 13,
+        ),
+      ],
     );
 
 String _forecastResponse() => jsonEncode({
   'daily': {
     'time': [
+      '2026-09-29',
       '2026-09-30',
       '2026-10-01',
       '2026-10-02',
@@ -418,31 +441,31 @@ String _forecastResponse() => jsonEncode({
       '2026-10-05',
       '2026-10-06',
     ],
-    'weather_code': List.filled(7, 0),
-    'temperature_2m_max': List.filled(7, 20),
-    'temperature_2m_min': List.filled(7, 10),
-    'precipitation_probability_max': List.filled(7, 10),
-    'precipitation_sum': List.filled(7, 0),
-    'sunrise': List.filled(7, '2026-09-30T05:30'),
-    'sunset': List.filled(7, '2026-09-30T17:00'),
-    'uv_index_max': List.filled(7, 3),
-    'wind_speed_10m_max': List.filled(7, 14),
+    'weather_code': List.filled(8, 0),
+    'temperature_2m_max': List.filled(8, 20),
+    'temperature_2m_min': List.filled(8, 10),
+    'precipitation_probability_max': List.filled(8, 10),
+    'precipitation_sum': List.filled(8, 0),
+    'sunrise': List.filled(8, '2026-09-30T05:30'),
+    'sunset': List.filled(8, '2026-09-30T17:00'),
+    'uv_index_max': List.filled(8, 3),
+    'wind_speed_10m_max': List.filled(8, 14),
   },
   'hourly': {
-    'time': ['2026-09-30T00:00'],
-    'temperature_2m': [16],
-    'apparent_temperature': [15],
-    'relative_humidity_2m': [75],
-    'precipitation_probability': [10],
-    'precipitation': [0],
-    'weather_code': [0],
-    'cloud_cover': [15],
-    'wind_speed_10m': [8],
-    'wind_gusts_10m': [13],
-    'dew_point_2m': [11],
-    'wind_direction_10m': [25],
-    'surface_pressure': [1012],
-    'visibility': [24000],
-    'uv_index': [1],
+    'time': ['2026-09-29T00:00', '2026-09-30T00:00'],
+    'temperature_2m': [16, 16],
+    'apparent_temperature': [15, 15],
+    'relative_humidity_2m': [75, 75],
+    'precipitation_probability': [10, 10],
+    'precipitation': [0, 0],
+    'weather_code': [0, 0],
+    'cloud_cover': [15, 15],
+    'wind_speed_10m': [8, 8],
+    'wind_gusts_10m': [13, 13],
+    'dew_point_2m': [11, 11],
+    'wind_direction_10m': [25, 25],
+    'surface_pressure': [1012, 1012],
+    'visibility': [24000, 24000],
+    'uv_index': [1, 1],
   },
 });

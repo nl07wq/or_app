@@ -910,7 +910,6 @@ class DashboardScheduleCard extends StatelessWidget {
         .take(_visibleRowLimit)
         .toList(growable: false);
     final hiddenCount = entries.length - visibleEntries.length;
-    final operationDate = DateTime.tryParse(information?.operationDate ?? '');
     return OperationCard(
       key: const ValueKey('dashboard-schedule'),
       selectable: true,
@@ -923,49 +922,39 @@ class DashboardScheduleCard extends StatelessWidget {
         children: [
           const _DashboardScheduleHeader(),
           AppSpacing.gapSM,
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DashboardScheduleDateIdentity(date: operationDate),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: loading
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                        child: Text('予定を確認しています…'),
-                      )
-                    : entries.isEmpty
-                    ? const _DashboardScheduleEmptyState()
-                    : Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < visibleEntries.length;
-                            index++
-                          ) ...[
-                            if (index > 0) const Divider(height: 1),
-                            _DashboardScheduleRow(
-                              entry: visibleEntries[index],
-                              onTap: () => onOpenDate(
-                                visibleEntries[index].record.localDate,
-                              ),
-                            ),
-                          ],
-                          if (hiddenCount > 0)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                key: const ValueKey('dashboard-schedule-more'),
-                                onPressed: () =>
-                                    onOpenDate(information!.operationDate),
-                                child: Text('他$hiddenCount件'),
-                              ),
-                            ),
-                        ],
+          loading
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  child: Text('予定を確認しています…'),
+                )
+              : entries.isEmpty
+              ? const _DashboardScheduleEmptyState()
+              : Column(
+                  children: [
+                    for (
+                      var index = 0;
+                      index < visibleEntries.length;
+                      index++
+                    ) ...[
+                      if (index > 0) const Divider(height: 1),
+                      _DashboardScheduleRow(
+                        entry: visibleEntries[index],
+                        onTap: () =>
+                            onOpenDate(visibleEntries[index].record.localDate),
                       ),
-              ),
-            ],
-          ),
+                    ],
+                    if (hiddenCount > 0)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          key: const ValueKey('dashboard-schedule-more'),
+                          onPressed: () =>
+                              onOpenDate(information!.operationDate),
+                          child: Text('他$hiddenCount件'),
+                        ),
+                      ),
+                  ],
+                ),
         ],
       ),
     );
@@ -989,52 +978,6 @@ class _DashboardScheduleHeader extends StatelessWidget {
   );
 }
 
-class _DashboardScheduleDateIdentity extends StatelessWidget {
-  const _DashboardScheduleDateIdentity({required this.date});
-
-  final DateTime? date;
-
-  @override
-  Widget build(BuildContext context) {
-    final weekdayColor = _weekdayColor(context, date);
-    return SizedBox(
-      width: 76,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            _weekdayLabel(date),
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: weekdayColor),
-          ),
-          Text(
-            date?.day.toString() ?? '–',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              color: weekdayColor,
-              fontSize: 32,
-              fontWeight: FontWeight.w600,
-              height: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Color _weekdayColor(BuildContext context, DateTime? date) {
-    if (date?.weekday == DateTime.saturday) return AppColors.primary;
-    if (date?.weekday == DateTime.sunday) return AppColors.danger;
-    return Theme.of(context).colorScheme.primary;
-  }
-
-  static String _weekdayLabel(DateTime? date) {
-    const labels = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日', '日曜日'];
-    if (date == null) return '今日';
-    return labels[date.weekday - 1];
-  }
-}
-
 class _DashboardScheduleEmptyState extends StatelessWidget {
   const _DashboardScheduleEmptyState();
 
@@ -1043,9 +986,9 @@ class _DashboardScheduleEmptyState extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
     child: Text(
       '予定はありません',
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        fontWeight: FontWeight.w400,
-      ),
+      style: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
     ),
   );
 }

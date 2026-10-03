@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/services/dashboard_plan_information_service.dart';
 import 'package:or_app/features/schedule/models/schedule_record.dart';
@@ -215,7 +214,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
-  testWidgets('uses a date-centric Japanese empty state and weekend accents', (
+  testWidgets('uses a Japanese empty state without a date identity', (
     tester,
   ) async {
     String? openedDate;
@@ -237,10 +236,8 @@ void main() {
     await pump('2026-10-04');
     expect(find.text('SCHEDULE'), findsOneWidget);
     expect(find.text('予定はありません'), findsOneWidget);
-    expect(find.text('日曜日'), findsOneWidget);
-    final sunday = tester.widget<Text>(find.text('日曜日'));
-    expect(sunday.style?.color, AppColors.danger);
-    expect(tester.widget<Text>(find.text('4')).style?.fontSize, 32);
+    expect(find.text('日曜日'), findsNothing);
+    expect(find.text('4'), findsNothing);
     final empty = tester.widget<Text>(find.text('予定はありません'));
     expect(
       empty.style?.fontSize,
@@ -251,11 +248,6 @@ void main() {
     expect(empty.style?.fontWeight, FontWeight.w400);
     await tester.tap(find.byKey(const ValueKey('dashboard-schedule')));
     expect(openedDate, '2026-10-04');
-
-    await pump('2026-10-03');
-    expect(find.text('土曜日'), findsOneWidget);
-    final saturday = tester.widget<Text>(find.text('土曜日'));
-    expect(saturday.style?.color, AppColors.primary);
   });
 }
 

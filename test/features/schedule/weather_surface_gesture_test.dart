@@ -19,16 +19,32 @@ void main() {
   test('weekly forecast separates date and weather identities', () {
     expect(weatherForecastUsesSplitLeftBlocks, isTrue);
     expect(weatherForecastLowHighPairAlignment, MainAxisAlignment.center);
-    expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.start);
-    expect(weatherForecastDateTextAlignment, TextAlign.start);
+    expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
+    expect(weatherForecastDateTextAlignment, TextAlign.center);
+    expect(weatherForecastDateVerticalOffset, lessThan(0));
+    expect(weatherForecastDateFontSize, 14);
     expect(weatherForecastWeatherBlockAlignment, CrossAxisAlignment.center);
     expect(weatherForecastWeatherTextAlignment, TextAlign.center);
   });
 
-  test('weekly compact telemetry formats only the formal daily maximum wind', () {
-    expect(weatherDailyMaxWindLabel(14), '14km/h');
-    expect(weatherDailyMaxWindLabel(null), '--');
+  test('weekly forecast gives yesterday its own date identity', () {
+    expect(
+      weatherForecastDateLabel(
+        DateTime(2026, 10, 3),
+        today: false,
+        yesterday: true,
+      ),
+      '昨日',
+    );
   });
+
+  test(
+    'weekly compact telemetry formats only the formal daily maximum wind',
+    () {
+      expect(weatherDailyMaxWindLabel(14), '14km/h');
+      expect(weatherDailyMaxWindLabel(null), '--');
+    },
+  );
 
   test('daily-detail temperature rail keeps LOW and HIGH as its base', () {
     final normal = weatherTemperatureDetailScale(

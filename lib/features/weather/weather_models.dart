@@ -254,7 +254,7 @@ class WeatherSnapshot {
   final List<WeatherHourly> hourly;
   String encode() => jsonEncode({
     'provider': 'open-meteo',
-    'cacheVersion': 3,
+    'cacheVersion': 4,
     'location': location.toJson(),
     'fetchedAt': fetchedAt.toUtc().toIso8601String(),
     'daily': daily.map((v) => v.toJson()).toList(),

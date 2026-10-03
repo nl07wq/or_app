@@ -7,7 +7,7 @@ import 'weather_models.dart';
 class WeatherStore {
   static const _legacyLocationKey = 'weather.location.v1';
   static const _locationsKey = 'weather.locations.v2';
-  static const _cachePrefix = 'weather.cache.v3.';
+  static const _cachePrefix = 'weather.cache.v4.';
 
   Future<WeatherLocationPreferences> loadLocations() async {
     final prefs = await SharedPreferences.getInstance();
