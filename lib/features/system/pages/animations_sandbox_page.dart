@@ -697,17 +697,10 @@ class _DashboardAmbientWildlifePreviewSectionState
                           key: ValueKey(
                             'dashboard-preview-cat-motion-${profile.name}',
                           ),
-                          label: Text(
-                            profile == AmbientWildlifeV2CatMotionProfile.smooth
-                                ? 'SMOOTH (N/A)'
-                                : profile.name.toUpperCase(),
-                          ),
+                          label: Text(profile.name.toUpperCase()),
                           selected: _motionProfile == profile,
-                          onSelected:
-                              profile ==
-                                  AmbientWildlifeV2CatMotionProfile.smooth
-                              ? null
-                              : (_) => setState(() => _motionProfile = profile),
+                          onSelected: (_) =>
+                              setState(() => _motionProfile = profile),
                         ),
                     ],
                   ),

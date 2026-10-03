@@ -55,6 +55,95 @@ class CatRunV23Travel {
 
   static List<Offset> registeredPointsAt(double progress) =>
       CatRunV24Travel.pointsAt(progress);
+
+  /// Keeps the CAT silhouette's visual centre stable across direct pose
+  /// swaps. Registration already preserves the anatomical torso/ground
+  /// anchors; this small, bounded presentation correction removes only the
+  /// remaining outer-contour shift visible in Dashboard Preview's SMOOTH
+  /// profile. It never changes crossing progress, frame order, or timing.
+  static Offset smoothVisualAnchorOffsetAt(double progress) {
+    final cycleDuration = CatRunV28Timing.cycleDuration.inMicroseconds;
+    final elapsed =
+        (crossingDuration.inMicroseconds *
+                progress.clamp(0.0, .999999).toDouble())
+            .round();
+    final cycleElapsed = elapsed % cycleDuration;
+    var frameStart = 0;
+    for (
+      var index = 0;
+      index < CatRunV28Timing.frameDurations.length;
+      index++
+    ) {
+      final duration = CatRunV28Timing.frameDurations[index].inMicroseconds;
+      final frameEnd = frameStart + duration;
+      if (cycleElapsed < frameEnd) {
+        final local = cycleElapsed - frameStart;
+        final current = _smoothVisualAnchorOffsets[index];
+        if (local < _smoothAnchorBlendMicroseconds) {
+          final previous =
+              _smoothVisualAnchorOffsets[(index -
+                      1 +
+                      _smoothVisualAnchorOffsets.length) %
+                  _smoothVisualAnchorOffsets.length];
+          return Offset.lerp(
+            previous,
+            current,
+            _smoothStep(
+              (local + _smoothAnchorBlendMicroseconds) /
+                  (_smoothAnchorBlendMicroseconds * 2),
+            ),
+          )!;
+        }
+        if (local > duration - _smoothAnchorBlendMicroseconds) {
+          return Offset.lerp(
+            current,
+            _smoothVisualAnchorOffsets[(index + 1) %
+                _smoothVisualAnchorOffsets.length],
+            _smoothStep(
+              (local - (duration - _smoothAnchorBlendMicroseconds)) /
+                  (_smoothAnchorBlendMicroseconds * 2),
+            ),
+          )!;
+        }
+        return current;
+      }
+      frameStart = frameEnd;
+    }
+    return _smoothVisualAnchorOffsets.first;
+  }
+
+  static const _smoothAnchorBlendMicroseconds = 12000;
+  static const _maximumSmoothVisualAnchorOffset = .008;
+
+  static final _smoothVisualAnchorOffsets = () {
+    final centers = catRunV2HighTraces
+        .map((trace) {
+          final path = Path()
+            ..addPolygon(CatRunV24ScaleAudit.correctedPoints(trace), true);
+          return path.getBounds().center;
+        })
+        .toList(growable: false);
+    final meanCenter = Offset(
+      centers.map((center) => center.dx).reduce((a, b) => a + b) /
+          centers.length,
+      centers.map((center) => center.dy).reduce((a, b) => a + b) /
+          centers.length,
+    );
+    return List<Offset>.unmodifiable(
+      centers
+          .map((center) {
+            final raw = meanCenter - center;
+            if (raw.distance <= _maximumSmoothVisualAnchorOffset) return raw;
+            return raw / raw.distance * _maximumSmoothVisualAnchorOffset;
+          })
+          .toList(growable: false),
+    );
+  }();
+
+  static double _smoothStep(double value) {
+    final t = value.clamp(0.0, 1.0).toDouble();
+    return t * t * (3 - (2 * t));
+  }
 }
 
 /// One complete, frozen-vector CAT crossing. The dashboard may paint multiple
@@ -578,6 +667,7 @@ class CatRunV23StagePainter extends CustomPainter {
     this.catUnit = CatRunV23Travel.catUnit,
     this.showGroundLine = false,
     this.paintBackground = true,
+    this.smoothPoseAnchors = false,
     this.neutralFrame02 = false,
     this.groundInset = 5,
     this.groundLineColor = const Color(0xFF383838),
@@ -590,6 +680,11 @@ class CatRunV23StagePainter extends CustomPainter {
   final double catUnit;
   final bool showGroundLine;
   final bool paintBackground;
+
+  /// Preview-only visual continuity mode. CURRENT and CRUISE retain the
+  /// direct registered pose anchors; SMOOTH applies the bounded offset from
+  /// [CatRunV23Travel] without changing the travel timeline.
+  final bool smoothPoseAnchors;
 
   /// Renders the production canonical Frame 02 at the stage centre without
   /// consuming crossing progress. Used only by Ambient Wildlife neutral mode.
@@ -678,6 +773,9 @@ class CatRunV23StagePainter extends CustomPainter {
     );
     final groundY =
         size.height - 5 - CatRunV2Registration.virtualGround * catUnit;
+    final smoothAnchorOffset = smoothPoseAnchors
+        ? CatRunV23Travel.smoothVisualAnchorOffsetAt(crossing.progress)
+        : Offset.zero;
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
@@ -688,6 +786,7 @@ class CatRunV23StagePainter extends CustomPainter {
       canvas.translate(size.width - travelX, groundY);
       canvas.scale(-catUnit, catUnit);
     }
+    canvas.translate(smoothAnchorOffset.dx, smoothAnchorOffset.dy);
     canvas.drawPath(
       path,
       Paint()
@@ -712,6 +811,7 @@ class CatRunV23StagePainter extends CustomPainter {
       oldDelegate.catUnit != catUnit ||
       oldDelegate.showGroundLine != showGroundLine ||
       oldDelegate.paintBackground != paintBackground ||
+      oldDelegate.smoothPoseAnchors != smoothPoseAnchors ||
       oldDelegate.neutralFrame02 != neutralFrame02 ||
       oldDelegate.groundInset != groundInset ||
       oldDelegate.groundLineColor != groundLineColor;

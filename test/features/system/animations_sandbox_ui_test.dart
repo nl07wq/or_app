@@ -301,7 +301,7 @@ void main() {
   });
 
   testWidgets(
-    'Dashboard Preview preserves CAT cruise and disables unsafe smooth',
+    'Dashboard Preview selects real CAT smooth and preserves cruise',
     (tester) async {
       tester.view.physicalSize = const Size(390, 10000);
       tester.view.devicePixelRatio = 1;
@@ -316,13 +316,15 @@ void main() {
             .catMotionProfile,
         AmbientWildlifeV2CatMotionProfile.current,
       );
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-smooth')),
+      );
+      await tester.pump();
       expect(
         tester
-            .widget<ChoiceChip>(
-              find.byKey(const ValueKey('dashboard-preview-cat-motion-smooth')),
-            )
-            .onSelected,
-        isNull,
+            .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+            .catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.smooth,
       );
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('dashboard-preview-cat-motion-cruise')),
@@ -418,6 +420,57 @@ void main() {
       production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
       expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
       expect(production.forcedPlan!.birdInstances, hasLength(10));
+    },
+  );
+
+  testWidgets(
+    'Dashboard Preview preserves CAT smooth GLITCH through playback controls',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final stage = find.byType(AmbientWildlifeV2ProductionStage);
+
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-cat')));
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-smooth')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-glitch10')),
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+
+      AmbientWildlifeV2ProductionStage production() =>
+          tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(
+        production().catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.smooth,
+      );
+      expect(production().forcedPlan!.catPlan!.crossings, hasLength(10));
+      expect(
+        production().forcedPlan!.catPlan!.crossings[1].startedAtProgress,
+        CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-pause')));
+      await tester.pump();
+      expect(production().paused, isTrue);
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+      expect(production().paused, isFalse);
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-restart')));
+      await tester.pump();
+      expect(
+        production().catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.smooth,
+      );
+      expect(
+        production().forcedPlan!.catPlan!.crossings[1].startedAtProgress,
+        CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+      );
     },
   );
 

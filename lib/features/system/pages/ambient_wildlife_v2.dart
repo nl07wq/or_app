@@ -28,12 +28,23 @@ Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
-  // There is no independent CAT micro-motion signal to smooth yet. Keeping
-  // travel linear protects the accepted crossing duration if an older caller
-  // still supplies this inspection-only value.
+  // SMOOTH preserves the production crossing timeline. Its bounded visual
+  // anchor correction is applied by the CAT presentation painter.
   AmbientWildlifeV2CatMotionProfile.smooth => Curves.linear,
   AmbientWildlifeV2CatMotionProfile.cruise => Curves.linear,
 };
+
+/// GLITCH has a fixed production spacing authority. Dashboard presentation
+/// may compact normal CAT chains, but must never derive a GLITCH offset from
+/// that normal-only multiplier.
+double ambientWildlifeV2CatCrossingProgress({
+  required double eventProgress,
+  required double startedAtProgress,
+  required bool isGlitch,
+  required double normalFollowerSpacingMultiplier,
+}) =>
+    eventProgress -
+    startedAtProgress * (isGlitch ? 1 : normalFollowerSpacingMultiplier);
 
 @immutable
 class AmbientWildlifeV2SpeciesDefinition {
@@ -1578,12 +1589,15 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                         in plan.catExecutor!.crossings)
                                       CatRunV23Crossing(
                                         progress:
-                                            _controller.value -
-                                            crossing.startedAtProgress *
-                                                (plan.isGlitch
-                                                    ? 1
-                                                    : widget
-                                                          .catFollowerSpacingMultiplier),
+                                            ambientWildlifeV2CatCrossingProgress(
+                                              eventProgress: _controller.value,
+                                              startedAtProgress: crossing
+                                                  .startedAtProgress,
+                                              isGlitch: plan.isGlitch,
+                                              normalFollowerSpacingMultiplier:
+                                                  widget
+                                                      .catFollowerSpacingMultiplier,
+                                            ),
                                         direction: catPlan.direction,
                                         coatVariant: crossing.coatVariant,
                                       ),
@@ -1593,6 +1607,9 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                       widget.speciesPresentationScale,
                                   showGroundLine: false,
                                   paintBackground: false,
+                                  smoothPoseAnchors:
+                                      widget.catMotionProfile ==
+                                      AmbientWildlifeV2CatMotionProfile.smooth,
                                 ),
                               ),
                             );

@@ -61,6 +61,58 @@ void main() {
     expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .05);
   });
 
+  test('CAT GLITCH projection ignores Dashboard normal spacing', () {
+    const eventProgress = .60;
+    const glitchSpacing =
+        CatRunProductionEventPolicy.glitchFollowerTriggerProgress;
+
+    for (final normalMultiplier in [.5, .88, 1.5]) {
+      expect(
+        ambientWildlifeV2CatCrossingProgress(
+          eventProgress: eventProgress,
+          startedAtProgress: glitchSpacing,
+          isGlitch: true,
+          normalFollowerSpacingMultiplier: normalMultiplier,
+        ),
+        closeTo(.55, .000001),
+      );
+    }
+    expect(
+      ambientWildlifeV2CatCrossingProgress(
+        eventProgress: eventProgress,
+        startedAtProgress:
+            CatRunProductionEventPolicy.normalFollowerTriggerProgress,
+        isGlitch: false,
+        normalFollowerSpacingMultiplier: 2 / 3,
+      ),
+      closeTo(.50, .000001),
+    );
+  });
+
+  test('CAT smooth anchor correction is bounded and transition-continuous', () {
+    final offsets = <Offset>[
+      for (
+        var millisecond = 0;
+        millisecond < CatRunV23Travel.crossingDuration.inMilliseconds;
+        millisecond += 2
+      )
+        CatRunV23Travel.smoothVisualAnchorOffsetAt(
+          millisecond / CatRunV23Travel.crossingDuration.inMilliseconds,
+        ),
+    ];
+
+    expect(
+      offsets
+          .map((offset) => offset.distance)
+          .every((offset) => offset <= .008),
+      isTrue,
+    );
+    expect(offsets.toSet().length, greaterThan(1));
+    for (var index = 1; index < offsets.length; index++) {
+      expect((offsets[index] - offsets[index - 1]).distance, lessThan(.004));
+    }
+  });
+
   test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,
