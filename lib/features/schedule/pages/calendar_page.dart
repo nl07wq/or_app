@@ -967,52 +967,45 @@ class _WeatherForecastRow extends StatelessWidget {
                     key: ValueKey('weather-forecast-left-${value.date}'),
                     width: 106,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: weatherForecastLeftBlockAlignment,
                       children: [
-                        Row(
-                          children: [
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment:
-                                  weatherForecastDateBlockAlignment,
-                              children: [
-                                Text(
-                                  today ? '今日' : _weekdayJapanese(date.weekday),
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.titleSmall,
-                                ),
-                                Text(
-                                  '${date.month}/${date.day}',
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: scheme.onSurface.withValues(
-                                          alpha: .72,
-                                        ),
-                                      ),
-                                ),
-                              ],
-                            ),
-                            const Spacer(),
-                            Icon(
-                              _weatherIcon(value.code),
-                              color: scheme.primary,
-                              size: 32,
-                            ),
-                          ],
+                        Text(
+                          today ? '今日' : _weekdayJapanese(date.weekday),
+                          textAlign: weatherForecastLeftTextAlignment,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelMedium?.copyWith(height: .9),
                         ),
-                        const SizedBox(height: 1),
+                        Text(
+                          '${date.month}/${date.day}',
+                          textAlign: weatherForecastLeftTextAlignment,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                height: .9,
+                                color: scheme.onSurface.withValues(alpha: .72),
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Icon(
+                          _weatherIcon(value.code),
+                          color: scheme.primary,
+                          size: 28,
+                        ),
                         Text(
                           _weatherConditionJapanese(value.code),
+                          textAlign: weatherForecastLeftTextAlignment,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
+                          style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
+                                height: .95,
                                 color: scheme.onSurface.withValues(alpha: .72),
                               ),
                         ),
                         const SizedBox(height: 1),
                         Row(
+                          mainAxisAlignment:
+                              weatherForecastLowHighPairAlignment,
                           children: [
                             _WeeklyTemperatureValue(
                               label: '低',
@@ -1165,10 +1158,11 @@ class _WeeklyTemperatureValue extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
           value,
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w600,
             height: 1,
@@ -1176,6 +1170,7 @@ class _WeeklyTemperatureValue extends StatelessWidget {
         ),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             fontSize: 10,
             color: scheme.onSurface.withValues(alpha: .58),
@@ -1193,22 +1188,30 @@ class _WeeklyTemperatureValue extends StatelessWidget {
 double weatherTemperatureRailWidth(double rowWidth) =>
     (rowWidth - 208).clamp(44.0, 250.0).toDouble();
 
-/// Weekday and date form one centered identity block, independently of the
-/// icon, condition, and low/high telemetry that surround it.
+/// The weekly left column uses one center axis: date identity, weather icon,
+/// condition, and the low/high pair read as one compact daily portrait.
+const weatherForecastLeftBlockAlignment = CrossAxisAlignment.center;
+const weatherForecastLeftTextAlignment = TextAlign.center;
+const weatherForecastLowHighPairAlignment = MainAxisAlignment.center;
+
+/// Retained as the date-specific authority for callers and tests.
 const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
 
-/// Adds scale safety around every daily-detail temperature that is displayed.
-/// The apparent-temperature marker therefore cannot be pinned to either
-/// endpoint when it is outside, or equal to, the daily low/high range.
+/// Describes the daily LOW→HIGH rail and only the extension needed for a
+/// displayed apparent temperature outside that formal daily range.
 class WeatherTemperatureDetailScale {
   const WeatherTemperatureDetailScale({
     required this.minimum,
     required this.maximum,
+    required this.lowFraction,
+    required this.highFraction,
     required this.apparentFraction,
   });
 
   final double minimum;
   final double maximum;
+  final double lowFraction;
+  final double highFraction;
   final double? apparentFraction;
 }
 
@@ -1216,29 +1219,42 @@ WeatherTemperatureDetailScale? weatherTemperatureDetailScale({
   required double? low,
   required double? high,
   required double? apparent,
-  double margin = 10,
 }) {
   if (low == null || high == null) return null;
-  final values = [low, high, ?apparent];
-  final minimum = values.reduce(math.min) - margin;
-  final maximum = values.reduce(math.max) + margin;
+  final dailyLow = math.min(low, high);
+  final dailyHigh = math.max(low, high);
+  final minimum = apparent == null ? dailyLow : math.min(dailyLow, apparent);
+  final maximum = apparent == null ? dailyHigh : math.max(dailyHigh, apparent);
   final span = maximum - minimum;
+  if (span <= 0) {
+    return WeatherTemperatureDetailScale(
+      minimum: minimum,
+      maximum: maximum,
+      lowFraction: 0,
+      highFraction: 1,
+      apparentFraction: apparent == null ? null : .5,
+    );
+  }
   return WeatherTemperatureDetailScale(
     minimum: minimum,
     maximum: maximum,
+    lowFraction: ((dailyLow - minimum) / span).clamp(0.0, 1.0).toDouble(),
+    highFraction: ((dailyHigh - minimum) / span).clamp(0.0, 1.0).toDouble(),
     apparentFraction: apparent == null || span <= 0
         ? null
         : ((apparent - minimum) / span).clamp(0.0, 1.0).toDouble(),
   );
 }
 
-/// Keeps non-zero probability legible in a compact meter while preserving zero
-/// as an empty track. The textual percentage remains the exact authority.
+/// Uses the formal percentage exactly. Non-zero visibility is supplied by the
+/// meter's leading edge rather than inflating a low probability's fill width.
 double weatherProbabilityMeterFillFraction(double fraction) {
-  final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
-  if (safeFraction == 0) return 0;
-  return math.max(.04, safeFraction);
+  return fraction.clamp(0.0, 1.0).toDouble();
 }
+
+/// Humidity uses the same exact-fill rule as precipitation probability.
+double weatherHumidityMeterFillFraction(double fraction) =>
+    fraction.clamp(0.0, 1.0).toDouble();
 
 /// A row owns both its date selection and its visual rail. A different date
 /// never opens a surface; a second, deliberate tap requests the daily detail.
@@ -2226,56 +2242,85 @@ class _WeatherTemperatureRail extends StatelessWidget {
     );
     final markerFraction = scale?.apparentFraction;
     return LayoutBuilder(
-      builder: (context, constraints) => SizedBox(
-        height: apparent == null ? 16 : 32,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 5,
-              child: _WeatherDetailMeter(fraction: 1, color: color, height: 5),
-            ),
-            if (markerFraction != null)
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final lowFraction = scale?.lowFraction ?? 0.0;
+        final highFraction = scale?.highFraction ?? 1.0;
+        final dayRangeWidth = math.max(0.0, highFraction - lowFraction);
+        final markerLeft = markerFraction == null
+            ? 0.0
+            : ((width - 8) * markerFraction)
+                  .clamp(0.0, math.max(0.0, width - 8))
+                  .toDouble();
+        const apparentLabelWidth = 64.0;
+        final apparentLabelLeft = markerFraction == null
+            ? 0.0
+            : ((width - apparentLabelWidth) * markerFraction)
+                  .clamp(0.0, math.max(0.0, width - apparentLabelWidth))
+                  .toDouble();
+        return SizedBox(
+          height: apparent == null ? 16 : 34,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
               Positioned(
-                left: ((constraints.maxWidth - 8) * markerFraction)
-                    .clamp(0.0, constraints.maxWidth - 8)
-                    .toDouble(),
-                top: 3,
+                left: 0,
+                right: 0,
+                top: 5,
+                child: _WeatherDetailMeter(
+                  fraction: 1,
+                  color: color,
+                  height: 4,
+                ),
+              ),
+              Positioned(
+                left: width * lowFraction,
+                top: 4,
+                width: width * dayRangeWidth,
                 child: Container(
-                  width: 8,
-                  height: 8,
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.surface,
-                      width: 1.5,
+                    color: color.withValues(alpha: .92),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              if (markerFraction != null)
+                Positioned(
+                  left: markerLeft,
+                  top: 3,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.surface,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            if (markerFraction != null)
-              Positioned(
-                left: ((constraints.maxWidth - 56) * markerFraction)
-                    .clamp(0.0, math.max(0.0, constraints.maxWidth - 56))
-                    .toDouble(),
-                top: 15,
-                width: math.min(56.0, constraints.maxWidth),
-                child: Text(
-                  '体感 ${apparent!.value}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: color,
-                    fontSize: 10,
-                    height: 1,
+              if (markerFraction != null)
+                Positioned(
+                  left: apparentLabelLeft,
+                  top: 17,
+                  width: math.min(apparentLabelWidth, width),
+                  child: Text(
+                    '体感 ${apparent!.value}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontSize: 10,
+                      height: 1,
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -2368,10 +2413,11 @@ class _WeatherProbabilityReadout extends StatelessWidget {
           const SizedBox(width: 7),
           Expanded(
             child: _WeatherDetailMeter(
-              fraction: metric?.meterFraction ?? 0,
+              fraction: weatherProbabilityMeterFillFraction(
+                metric?.meterFraction ?? 0,
+              ),
               color: Theme.of(context).colorScheme.secondary,
               height: 4,
-              enforceMinimumVisibleFill: true,
             ),
           ),
         ],
@@ -2437,7 +2483,9 @@ class _WeatherWindHumidityBlock extends StatelessWidget {
               humidity ?? const _WeatherDetailMetric(label: '湿度', value: '--'),
           second:
               dewPoint ?? const _WeatherDetailMetric(label: '露点', value: '--'),
-          meter: humidity?.meterFraction,
+          meter: humidity == null
+              ? null
+              : weatherHumidityMeterFillFraction(humidity!.meterFraction ?? 0),
         ),
       ),
     ],
@@ -2551,49 +2599,69 @@ class _WeatherDetailMeter extends StatelessWidget {
     required this.fraction,
     required this.color,
     this.height = 3,
-    this.enforceMinimumVisibleFill = false,
   });
 
   final double fraction;
   final Color color;
   final double height;
-  final bool enforceMinimumVisibleFill;
 
   @override
   Widget build(BuildContext context) {
-    final safeFraction = enforceMinimumVisibleFill
-        ? weatherProbabilityMeterFillFraction(fraction)
-        : fraction.clamp(0.0, 1.0).toDouble();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: SizedBox(
-        height: height,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: .18),
-                border: Border.all(color: color.withValues(alpha: .34)),
+    final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
+    final fillColor = Color.lerp(color, const Color(0xFF45D9FF), .35)!;
+    return LayoutBuilder(
+      builder: (context, constraints) => ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .10),
+                  border: Border.all(color: fillColor.withValues(alpha: .48)),
+                ),
               ),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: safeFraction,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        color.withValues(alpha: .92),
-                        color.withValues(alpha: .64),
-                      ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: safeFraction,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          fillColor.withValues(alpha: 1),
+                          fillColor.withValues(alpha: .74),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+              if (safeFraction > 0)
+                Positioned(
+                  left: (constraints.maxWidth * safeFraction - height)
+                      .clamp(0.0, math.max(0.0, constraints.maxWidth - height))
+                      .toDouble(),
+                  top: 0,
+                  child: Container(
+                    width: height,
+                    height: height,
+                    decoration: BoxDecoration(
+                      color: fillColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: fillColor.withValues(alpha: .55),
+                          blurRadius: 3,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

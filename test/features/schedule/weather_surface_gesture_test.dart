@@ -16,44 +16,77 @@ void main() {
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
   });
 
-  test('weekly forecast date block uses its own centered alignment', () {
+  test('weekly forecast left block uses one centered visual axis', () {
+    expect(weatherForecastLeftBlockAlignment, CrossAxisAlignment.center);
+    expect(weatherForecastLeftTextAlignment, TextAlign.center);
+    expect(weatherForecastLowHighPairAlignment, MainAxisAlignment.center);
     expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
   });
 
-  test('daily-detail temperature scale reserves marker clearance', () {
+  test('daily-detail temperature rail keeps LOW and HIGH as its base', () {
     final normal = weatherTemperatureDetailScale(
-      low: 18,
+      low: 17,
       high: 23,
-      apparent: 22,
+      apparent: 20,
     )!;
-    expect(normal.minimum, 8);
-    expect(normal.maximum, 33);
-    expect(normal.apparentFraction, closeTo(.56, .001));
+    expect(normal.minimum, 17);
+    expect(normal.maximum, 23);
+    expect(normal.lowFraction, 0);
+    expect(normal.highFraction, 1);
+    expect(normal.apparentFraction, closeTo(.5, .001));
+
+    final atHigh = weatherTemperatureDetailScale(
+      low: 17,
+      high: 23,
+      apparent: 23,
+    )!;
+    expect(atHigh.lowFraction, 0);
+    expect(atHigh.highFraction, 1);
+    expect(atHigh.apparentFraction, 1);
 
     final belowRange = weatherTemperatureDetailScale(
-      low: 18,
+      low: 17,
       high: 23,
-      apparent: 10,
+      apparent: 14,
     )!;
-    expect(belowRange.minimum, 0);
-    expect(belowRange.apparentFraction, greaterThan(0));
+    expect(belowRange.minimum, 14);
+    expect(belowRange.maximum, 23);
+    expect(belowRange.apparentFraction, 0);
+    expect(belowRange.lowFraction, closeTo(1 / 3, .001));
+    expect(belowRange.highFraction, 1);
 
     final aboveRange = weatherTemperatureDetailScale(
-      low: 18,
+      low: 17,
       high: 23,
-      apparent: 35,
+      apparent: 26,
     )!;
-    expect(aboveRange.maximum, 45);
-    expect(aboveRange.apparentFraction, lessThan(1));
+    expect(aboveRange.minimum, 17);
+    expect(aboveRange.maximum, 26);
+    expect(aboveRange.lowFraction, 0);
+    expect(aboveRange.highFraction, closeTo(2 / 3, .001));
+    expect(aboveRange.apparentFraction, 1);
   });
 
-  test('precipitation probability meter has visible, bounded fill', () {
+  test('precipitation probability meter preserves exact fill ratios', () {
     expect(weatherProbabilityMeterFillFraction(0), 0);
-    expect(weatherProbabilityMeterFillFraction(.01), .04);
+    expect(weatherProbabilityMeterFillFraction(.06), .06);
+    expect(weatherProbabilityMeterFillFraction(.29), .29);
+    expect(weatherProbabilityMeterFillFraction(.73), .73);
+    expect(weatherProbabilityMeterFillFraction(1), 1);
+  });
+
+  test('humidity meter preserves exact fill ratios', () {
+    expect(weatherHumidityMeterFillFraction(0), 0);
+    expect(weatherHumidityMeterFillFraction(.56), .56);
+    expect(weatherHumidityMeterFillFraction(.73), .73);
+    expect(weatherHumidityMeterFillFraction(1), 1);
+  });
+
+  test('meter fractions remain safely bounded', () {
+    expect(weatherProbabilityMeterFillFraction(-1), 0);
+    expect(weatherProbabilityMeterFillFraction(2), 1);
     expect(weatherProbabilityMeterFillFraction(.06), .06);
     expect(weatherProbabilityMeterFillFraction(.14), .14);
-    expect(weatherProbabilityMeterFillFraction(.5), .5);
-    expect(weatherProbabilityMeterFillFraction(1), 1);
   });
 
   test(
