@@ -569,6 +569,7 @@ class _DashboardAmbientWildlifePreviewSectionState
   var _randomSpecies = false;
   var _variant = AmbientWildlifeV2ForcedVariant.one;
   var _motionProfile = AmbientWildlifeV2CatMotionProfile.current;
+  var _catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync;
   var _catGlitchSpacing = .10;
   var _requestId = 0;
   var _playing = false;
@@ -652,6 +653,7 @@ class _DashboardAmbientWildlifePreviewSectionState
                   variant: _variant,
                   leftToRight: true,
                   catMotionProfile: _motionProfile,
+                  catPosePhaseMode: _catPosePhaseMode,
                   catGlitchSpacingOverride: isCatGlitch
                       ? _catGlitchSpacing
                       : null,
@@ -725,6 +727,28 @@ class _DashboardAmbientWildlifePreviewSectionState
                         ),
                     ],
                   ),
+                  AppSpacing.gapMD,
+                  const Text('PHASE MODE'),
+                  AppSpacing.gapSM,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final mode
+                          in AmbientWildlifeV2CatPosePhaseMode.values)
+                        ChoiceChip(
+                          key: ValueKey(
+                            'dashboard-preview-cat-phase-${mode.name}',
+                          ),
+                          label: Text(
+                            ambientWildlifeV2CatPosePhaseModeLabel(mode),
+                          ),
+                          selected: _catPosePhaseMode == mode,
+                          onSelected: (_) =>
+                              setState(() => _catPosePhaseMode = mode),
+                        ),
+                    ],
+                  ),
                 ],
                 if (isCatGlitch) ...[
                   AppSpacing.gapMD,
@@ -773,7 +797,7 @@ class _DashboardAmbientWildlifePreviewSectionState
                 ),
                 AppSpacing.gapSM,
                 Text(
-                  'PRODUCTION PATH · CAT ${isCat ? ambientWildlifeV2CatMotionProfileLabel(_motionProfile) : 'CURRENT'}${isCatGlitch ? ' · GLITCH ${_catGlitchSpacing.toStringAsFixed(3)}' : ''} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
+                  'PRODUCTION PATH · CAT ${isCat ? ambientWildlifeV2CatMotionProfileLabel(_motionProfile) : 'CURRENT'}${isCat ? ' · PHASE ${ambientWildlifeV2CatPosePhaseModeLabel(_catPosePhaseMode)}' : ''}${isCatGlitch ? ' · GLITCH ${_catGlitchSpacing.toStringAsFixed(3)}' : ''} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
                   key: const ValueKey('dashboard-preview-readout'),
                   textAlign: TextAlign.center,
                 ),

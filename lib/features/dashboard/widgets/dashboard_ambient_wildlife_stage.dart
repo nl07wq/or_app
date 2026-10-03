@@ -220,6 +220,7 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
     required this.leftToRight,
     this.forcedSpecies,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
     this.catGlitchSpacingOverride,
     this.paused = false,
     this.onCompleted,
@@ -234,6 +235,7 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
   /// the Dashboard random picker.
   final AmbientWildlifeV2Species? forcedSpecies;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
 
   /// A Sandbox-only CAT GLITCH comparison value. Null preserves the shared
   /// production policy exactly.
@@ -295,6 +297,7 @@ class _DashboardAmbientWildlifeProductionPreviewStageState
         minimumInterval: Duration.zero,
         maximumInterval: Duration.zero,
         catMotionProfile: widget.catMotionProfile,
+        catPosePhaseMode: widget.catPosePhaseMode,
         paused: widget.paused,
         onCompleted: widget.onCompleted,
       ),
@@ -311,6 +314,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
     this.forcedPlan,
     this.forcedRequestId = 0,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
     this.paused = false,
     this.onCompleted,
   });
@@ -322,6 +326,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
   final bool paused;
   final VoidCallback? onCompleted;
 
@@ -352,6 +357,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
           foxFollowerSpacingMultiplier:
               DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
           catMotionProfile: catMotionProfile,
+          catPosePhaseMode: catPosePhaseMode,
           paused: paused,
           onCompleted: onCompleted,
           catPresentationOffsetY:

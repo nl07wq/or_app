@@ -167,81 +167,151 @@ void main() {
     );
   });
 
-  test('CAT Preview uses progressively stronger SMOOTH comparison candidates', () {
-    const profiles = [
-      AmbientWildlifeV2CatMotionProfile.smoothB,
-      AmbientWildlifeV2CatMotionProfile.smoothC,
-      AmbientWildlifeV2CatMotionProfile.smoothMax,
-    ];
-    final tunings = [
-      for (final profile in profiles)
-        ambientWildlifeV2CatSmoothTuning(profile)!,
-    ];
-
-    expect(tunings.map((tuning) => tuning.blendDuration.inMilliseconds), const [
-      150,
-      210,
-      250,
-    ]);
-    expect(tunings.map((tuning) => tuning.maximumVisualAnchorOffset), const [
-      .045,
-      .060,
-      .070,
-    ]);
-    expect(tunings.map((tuning) => tuning.maximumVerticalAnchorOffset), const [
-      .040,
-      .050,
-      .060,
-    ]);
-    for (final tuning in tunings) {
-      final offsets = <Offset>[
-        for (
-          var millisecond = 0;
-          millisecond < CatRunV23Travel.crossingDuration.inMilliseconds;
-          millisecond += 2
-        )
-          CatRunV23Travel.smoothVisualAnchorOffsetAt(
-            millisecond / CatRunV23Travel.crossingDuration.inMilliseconds,
-            tuning: tuning,
-          ),
-      ];
+  test(
+    'CAT Preview distributes pose phases without changing travel authority',
+    () {
       expect(
-        offsets.every(
-          (offset) =>
-              offset.dx.abs() <= tuning.maximumVisualAnchorOffset + .000001 &&
-              offset.dy.abs() <= tuning.maximumVerticalAnchorOffset + .000001,
+        ambientWildlifeV2CatPosePhaseOffsets(
+          count: 1,
+          mode: AmbientWildlifeV2CatPosePhaseMode.sync,
         ),
-        isTrue,
+        const [0.0],
       );
-      expect(offsets.toSet().length, greaterThan(1));
-    }
-    expect(
-      tunings[1].maximumVisualAnchorOffset,
-      greaterThan(tunings[0].maximumVisualAnchorOffset),
-    );
-    expect(
-      tunings[2].maximumVisualAnchorOffset,
-      greaterThan(tunings[1].maximumVisualAnchorOffset),
-    );
-    expect(
-      tunings[1].maximumVerticalAnchorOffset,
-      greaterThan(tunings[0].maximumVerticalAnchorOffset),
-    );
-    expect(
-      tunings[2].maximumVerticalAnchorOffset,
-      greaterThan(tunings[1].maximumVerticalAnchorOffset),
-    );
-    for (final profile in AmbientWildlifeV2CatMotionProfile.values) {
-      expect(ambientWildlifeV2CatMotionCurve(profile), Curves.linear);
-    }
-    expect(
-      ambientWildlifeV2CatSmoothTuning(
-        AmbientWildlifeV2CatMotionProfile.current,
-      ),
-      isNull,
-    );
-    expect(CatRunV23Travel.crossingDuration, CatRunV24Travel.crossingDuration);
-  });
+      expect(
+        ambientWildlifeV2CatPosePhaseOffsets(
+          count: 1,
+          mode: AmbientWildlifeV2CatPosePhaseMode.desync,
+        ),
+        const [0.0],
+      );
+      expect(
+        ambientWildlifeV2CatPosePhaseOffsets(
+          count: 2,
+          mode: AmbientWildlifeV2CatPosePhaseMode.desync,
+        ),
+        const [0.0, 0.5],
+      );
+      expect(
+        ambientWildlifeV2CatPosePhaseOffsets(
+          count: 3,
+          mode: AmbientWildlifeV2CatPosePhaseMode.desync,
+        ),
+        const [0.0, 1 / 3, 2 / 3],
+      );
+      expect(
+        ambientWildlifeV2CatPosePhaseOffsets(
+          count: 10,
+          mode: AmbientWildlifeV2CatPosePhaseMode.desync,
+        ),
+        const [0.0, .1, .2, .3, .4, .5, .6, .7, .8, .9],
+      );
+
+      const travelProgress = .42;
+      final syncPoseProgress = CatRunV23Travel.poseProgressForPhaseOffset(
+        travelProgress: travelProgress,
+        phaseOffset: 0,
+      );
+      expect(
+        syncPoseProgress,
+        inInclusiveRange(
+          0,
+          CatRunV28Timing.cycleDuration.inMicroseconds /
+              CatRunV23Travel.crossingDuration.inMicroseconds,
+        ),
+      );
+      expect(
+        CatRunV23Travel.poseProgressForPhaseOffset(
+          travelProgress: travelProgress,
+          phaseOffset: .5,
+        ),
+        isNot(syncPoseProgress),
+      );
+      expect(
+        CatRunV23Travel.crossingDuration,
+        CatRunV24Travel.crossingDuration,
+      );
+    },
+  );
+
+  test(
+    'CAT Preview uses progressively stronger SMOOTH comparison candidates',
+    () {
+      const profiles = [
+        AmbientWildlifeV2CatMotionProfile.smoothB,
+        AmbientWildlifeV2CatMotionProfile.smoothC,
+        AmbientWildlifeV2CatMotionProfile.smoothMax,
+      ];
+      final tunings = [
+        for (final profile in profiles)
+          ambientWildlifeV2CatSmoothTuning(profile)!,
+      ];
+
+      expect(
+        tunings.map((tuning) => tuning.blendDuration.inMilliseconds),
+        const [150, 210, 250],
+      );
+      expect(tunings.map((tuning) => tuning.maximumVisualAnchorOffset), const [
+        .045,
+        .060,
+        .070,
+      ]);
+      expect(
+        tunings.map((tuning) => tuning.maximumVerticalAnchorOffset),
+        const [.040, .050, .060],
+      );
+      for (final tuning in tunings) {
+        final offsets = <Offset>[
+          for (
+            var millisecond = 0;
+            millisecond < CatRunV23Travel.crossingDuration.inMilliseconds;
+            millisecond += 2
+          )
+            CatRunV23Travel.smoothVisualAnchorOffsetAt(
+              millisecond / CatRunV23Travel.crossingDuration.inMilliseconds,
+              tuning: tuning,
+            ),
+        ];
+        expect(
+          offsets.every(
+            (offset) =>
+                offset.dx.abs() <= tuning.maximumVisualAnchorOffset + .000001 &&
+                offset.dy.abs() <= tuning.maximumVerticalAnchorOffset + .000001,
+          ),
+          isTrue,
+        );
+        expect(offsets.toSet().length, greaterThan(1));
+      }
+      expect(
+        tunings[1].maximumVisualAnchorOffset,
+        greaterThan(tunings[0].maximumVisualAnchorOffset),
+      );
+      expect(
+        tunings[2].maximumVisualAnchorOffset,
+        greaterThan(tunings[1].maximumVisualAnchorOffset),
+      );
+      expect(
+        tunings[1].maximumVerticalAnchorOffset,
+        greaterThan(tunings[0].maximumVerticalAnchorOffset),
+      );
+      expect(
+        tunings[2].maximumVerticalAnchorOffset,
+        greaterThan(tunings[1].maximumVerticalAnchorOffset),
+      );
+      for (final profile in AmbientWildlifeV2CatMotionProfile.values) {
+        expect(ambientWildlifeV2CatMotionCurve(profile), Curves.linear);
+      }
+      expect(
+        ambientWildlifeV2CatSmoothTuning(
+          AmbientWildlifeV2CatMotionProfile.current,
+        ),
+        isNull,
+      );
+      expect(
+        CatRunV23Travel.crossingDuration,
+        CatRunV24Travel.crossingDuration,
+      );
+    },
+  );
 
   test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [

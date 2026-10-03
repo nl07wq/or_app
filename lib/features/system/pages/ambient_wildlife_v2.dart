@@ -23,6 +23,28 @@ enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
 /// separate acceptance task deliberately adopts one of the smooth candidates.
 enum AmbientWildlifeV2CatMotionProfile { current, smoothB, smoothC, smoothMax }
 
+/// Preview-only pose timing. This remains independent from CAT travel progress
+/// so it cannot change production spacing, launch timing, or crossing speed.
+enum AmbientWildlifeV2CatPosePhaseMode { sync, desync }
+
+List<double> ambientWildlifeV2CatPosePhaseOffsets({
+  required int count,
+  required AmbientWildlifeV2CatPosePhaseMode mode,
+}) {
+  if (count < 1) return const [];
+  return List<double>.unmodifiable([
+    for (var index = 0; index < count; index++)
+      mode == AmbientWildlifeV2CatPosePhaseMode.sync ? 0.0 : index / count,
+  ]);
+}
+
+String ambientWildlifeV2CatPosePhaseModeLabel(
+  AmbientWildlifeV2CatPosePhaseMode mode,
+) => switch (mode) {
+  AmbientWildlifeV2CatPosePhaseMode.sync => 'SYNC',
+  AmbientWildlifeV2CatPosePhaseMode.desync => 'DESYNC',
+};
+
 Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
@@ -997,6 +1019,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.catFollowerSpacingMultiplier = 1,
     this.foxFollowerSpacingMultiplier = 1,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
     super.key,
     this.onCompleted,
   });
@@ -1023,6 +1046,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final double catFollowerSpacingMultiplier;
   final double foxFollowerSpacingMultiplier;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -1069,6 +1093,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.catFollowerSpacingMultiplier = 1,
     this.foxFollowerSpacingMultiplier = 1,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
     this.forcedPlan,
     this.forcedRequestId = 0,
     this.paused = false,
@@ -1093,6 +1118,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double catFollowerSpacingMultiplier;
   final double foxFollowerSpacingMultiplier;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
   final bool paused;
@@ -1248,6 +1274,7 @@ class AmbientWildlifeV2ProductionStageState
     catFollowerSpacingMultiplier: widget.catFollowerSpacingMultiplier,
     foxFollowerSpacingMultiplier: widget.foxFollowerSpacingMultiplier,
     catMotionProfile: widget.catMotionProfile,
+    catPosePhaseMode: widget.catPosePhaseMode,
     onCompleted: _complete,
   );
 }
@@ -1594,6 +1621,12 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                           }
                           if (plan.isCat) {
                             final catPlan = plan.catPlan!;
+                            final crossings = plan.catExecutor!.crossings;
+                            final phaseOffsets =
+                                ambientWildlifeV2CatPosePhaseOffsets(
+                                  count: crossings.length,
+                                  mode: widget.catPosePhaseMode,
+                                );
                             return Transform.translate(
                               offset: Offset(0, widget.catPresentationOffsetY),
                               child: CustomPaint(
@@ -1606,21 +1639,27 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                   coatVariant:
                                       catPlan.crossings.first.coatVariant,
                                   crossings: [
-                                    for (final crossing
-                                        in plan.catExecutor!.crossings)
+                                    for (
+                                      var index = 0;
+                                      index < crossings.length;
+                                      index++
+                                    )
                                       CatRunV23Crossing(
                                         progress:
                                             ambientWildlifeV2CatCrossingProgress(
                                               eventProgress: _controller.value,
                                               startedAtProgress:
-                                                  crossing.startedAtProgress,
+                                                  crossings[index]
+                                                      .startedAtProgress,
                                               isGlitch: plan.isGlitch,
                                               normalFollowerSpacingMultiplier:
                                                   widget
                                                       .catFollowerSpacingMultiplier,
                                             ),
                                         direction: catPlan.direction,
-                                        coatVariant: crossing.coatVariant,
+                                        coatVariant:
+                                            crossings[index].coatVariant,
+                                        posePhaseOffset: phaseOffsets[index],
                                       ),
                                   ],
                                   catUnit:

@@ -354,6 +354,66 @@ void main() {
     );
   });
 
+  testWidgets('Dashboard Preview applies and preserves CAT pose phase mode', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catPosePhaseMode,
+      AmbientWildlifeV2CatPosePhaseMode.sync,
+    );
+    final desync = find.byKey(
+      const ValueKey('dashboard-preview-cat-phase-desync'),
+    );
+    await tester.scrollUntilVisible(desync, 300);
+    await tester.tap(desync);
+    await tester.pump();
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catPosePhaseMode,
+      AmbientWildlifeV2CatPosePhaseMode.desync,
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-preview-play')),
+      300,
+    );
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-pause')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-restart')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catPosePhaseMode,
+      AmbientWildlifeV2CatPosePhaseMode.desync,
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-preview-bat')),
+      300,
+    );
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-phase-sync')),
+      findsNothing,
+    );
+  });
+
   testWidgets(
     'Dashboard Preview repeats, pauses, resumes, and restarts in place',
     (tester) async {

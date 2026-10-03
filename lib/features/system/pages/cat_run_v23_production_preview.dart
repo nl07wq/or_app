@@ -68,6 +68,24 @@ class CatRunV23Travel {
     return CatRunV2Registration.frameAtCycleProgress(cycleProgress);
   }
 
+  /// Resolves a cycle-only pose offset without changing the crossing's travel
+  /// progress. The returned value stays within one pose cycle so callers can
+  /// safely use it for frame/anchor selection only.
+  static double poseProgressForPhaseOffset({
+    required double travelProgress,
+    required double phaseOffset,
+  }) {
+    final cycles =
+        (travelProgress *
+            crossingDuration.inMicroseconds /
+            CatRunV28Timing.cycleDuration.inMicroseconds) +
+        phaseOffset;
+    final wrappedCycles = cycles - cycles.floorToDouble();
+    return wrappedCycles *
+        CatRunV28Timing.cycleDuration.inMicroseconds /
+        crossingDuration.inMicroseconds;
+  }
+
   static List<Offset> registeredPointsAt(double progress) =>
       CatRunV24Travel.pointsAt(progress);
 
@@ -284,11 +302,13 @@ class CatRunV23Crossing {
     required this.progress,
     required this.direction,
     required this.coatVariant,
+    this.posePhaseOffset = 0,
   });
 
   final double progress;
   final CatRunV23Direction direction;
   final CatRunCoatVariant coatVariant;
+  final double posePhaseOffset;
 }
 
 /// Frozen production event policy shared by the Dashboard scheduler and the
@@ -896,9 +916,13 @@ class CatRunV23StagePainter extends CustomPainter {
   }
 
   void _paintCrossing(Canvas canvas, Size size, CatRunV23Crossing crossing) {
-    final frame = CatRunV24Travel.frameAtTravelProgress(crossing.progress);
+    final poseProgress = CatRunV23Travel.poseProgressForPhaseOffset(
+      travelProgress: crossing.progress,
+      phaseOffset: crossing.posePhaseOffset,
+    );
+    final frame = CatRunV24Travel.frameAtTravelProgress(poseProgress);
     final trace = catRunV2HighTraces[frame];
-    final points = CatRunV24Travel.pointsAt(crossing.progress);
+    final points = CatRunV24Travel.pointsAt(poseProgress);
     final path = Path()..addPolygon(points, true);
     final travelX = CatRunV24Travel.horizontalPosition(
       stageWidth: size.width,
@@ -909,7 +933,7 @@ class CatRunV23StagePainter extends CustomPainter {
     final smoothAnchorOffset = smoothTuning == null
         ? Offset.zero
         : CatRunV23Travel.smoothVisualAnchorOffsetAt(
-            crossing.progress,
+            poseProgress,
             tuning: smoothTuning!,
           );
 
