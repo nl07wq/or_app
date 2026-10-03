@@ -928,6 +928,9 @@ class _WeatherForecastRow extends StatelessWidget {
           }
           _showDailyForecastDetail(context, value, snapshot);
         },
+        // Detail peek deliberately bypasses selection. This lets a user read
+        // another day without moving the Selected Day or Calendar authority.
+        onLongPress: () => _showDailyForecastDetail(context, value, snapshot),
         child: Container(
           key: ValueKey('weather-forecast-row-${value.date}'),
           margin: const EdgeInsets.symmetric(vertical: 2),
@@ -1036,7 +1039,7 @@ class _WeatherForecastRow extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            '${_weatherConditionJapanese(value.code)} · ${value.precipitation.toStringAsFixed(1)}mm',
+                            _weatherConditionJapanese(value.code),
                             key: ValueKey(
                               'weather-forecast-secondary-${value.date}',
                             ),
@@ -1050,26 +1053,37 @@ class _WeatherForecastRow extends StatelessWidget {
                                 ),
                           ),
                         ),
-                        if (peakTiming != null) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '雨ピーク $peakTiming',
-                              key: ValueKey(
-                                'weather-forecast-peak-${value.date}',
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.end,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: scheme.onSurface.withValues(
-                                      alpha: .56,
-                                    ),
+                        SizedBox(
+                          width: 52,
+                          child: Text(
+                            '${value.precipitation.toStringAsFixed(1)}mm',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: scheme.onSurface.withValues(
+                                    alpha: .68,
                                   ),
-                            ),
+                                ),
                           ),
-                        ],
+                        ),
+                        Expanded(
+                          child: Text(
+                            peakTiming == null ? '' : '雨ピーク $peakTiming',
+                            key: ValueKey(
+                              'weather-forecast-peak-${value.date}',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: scheme.onSurface.withValues(
+                                    alpha: .56,
+                                  ),
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
                         Icon(
                           Icons.chevron_right,
                           key: ValueKey(
@@ -1171,6 +1185,9 @@ Future<void> _showDailyForecastDetail(
       ? null
       : '${DateTime.parse(forecast.time).hour}時の予報';
   final uvValue = day.uvIndexMax ?? forecast?.uvIndex;
+  final peakTiming = day.precipitation > 0
+      ? weatherForecastPeakPrecipitationTiming(summary)
+      : null;
   return _showWeatherExplanation(
     context,
     _WeatherExplanation(
@@ -1184,44 +1201,94 @@ Future<void> _showDailyForecastDetail(
         _WeatherDetailSection(
           title: '気温・降水',
           tonalStrength: .035,
-          values: [
-            '最低気温 ${day.low.round()}° · 最高気温 ${day.high.round()}°',
+          metrics: [
+            _WeatherDetailMetric(label: '最低気温', value: '${day.low.round()}°'),
+            _WeatherDetailMetric(label: '最高気温', value: '${day.high.round()}°'),
             if (forecast != null)
-              '${observationLabel!}の体感 ${forecast.apparentTemperature.round()}°（気温 ${forecast.temperature.round()}°）',
-            '降水量 ${day.precipitation.toStringAsFixed(1)}mm · 最大降水確率 ${day.precipitationProbability}%',
+              _WeatherDetailMetric(
+                label: '体感温度',
+                value: '${forecast.apparentTemperature.round()}°',
+                context:
+                    '$observationLabel（気温 ${forecast.temperature.round()}°）',
+              ),
+            _WeatherDetailMetric(
+              label: '降水量',
+              value: '${day.precipitation.toStringAsFixed(1)}mm',
+            ),
+            _WeatherDetailMetric(
+              label: '最大降水確率',
+              value: '${day.precipitationProbability}%',
+              context: peakTiming,
+            ),
           ],
         ),
         if (forecast != null)
           _WeatherDetailSection(
             title: '風・湿度・露点',
             tonalStrength: .022,
-            values: [
-              '$observationLabel · ${_windDirection(forecast.windDirection)}から ${forecast.windSpeed.round()}km/h · 突風 ${forecast.windGust.round()}km/h',
-              '$observationLabel · 湿度 ${forecast.humidity}%${forecast.dewPoint == null ? '' : ' · 露点 ${forecast.dewPoint!.round()}°'}',
+            metrics: [
+              _WeatherDetailMetric(
+                label: '風向',
+                value: _windDirection(forecast.windDirection),
+                context: observationLabel,
+              ),
+              _WeatherDetailMetric(
+                label: '風速',
+                value: '${forecast.windSpeed.round()}km/h',
+              ),
+              _WeatherDetailMetric(
+                label: '突風',
+                value: '${forecast.windGust.round()}km/h',
+              ),
+              _WeatherDetailMetric(label: '湿度', value: '${forecast.humidity}%'),
+              if (forecast.dewPoint != null)
+                _WeatherDetailMetric(
+                  label: '露点',
+                  value: '${forecast.dewPoint!.round()}°',
+                ),
             ],
           ),
         _WeatherDetailSection(
           title: '観測指標',
           tonalStrength: .035,
-          values: [
+          metrics: [
             if (forecast?.visibility != null)
-              '$observationLabel · 視程 ${_visibilityValue(forecast!.visibility!)}（${_visibilityCategoryJapanese(forecast.visibility!)}）',
+              _WeatherDetailMetric(
+                label: '視程',
+                value: _visibilityValue(forecast!.visibility!),
+                context: _visibilityCategoryJapanese(forecast.visibility!),
+              ),
             if (uvValue != null)
-              'UV指数 ${uvValue.toStringAsFixed(0)}（${_uvCategoryJapanese(uvValue)}）',
+              _WeatherDetailMetric(
+                label: 'UV指数',
+                value: uvValue.toStringAsFixed(0),
+                context: _uvCategoryJapanese(uvValue),
+              ),
             if (forecast != null)
-              '$observationLabel · 雲量 ${forecast.cloudCover}%',
+              _WeatherDetailMetric(
+                label: '雲量',
+                value: '${forecast.cloudCover}%',
+              ),
             if (forecast?.surfacePressure != null)
-              '$observationLabel · 気圧 ${forecast!.surfacePressure!.round()}hPa',
+              _WeatherDetailMetric(
+                label: '気圧',
+                value: '${forecast!.surfacePressure!.round()}hPa',
+              ),
           ],
         ),
         _WeatherDetailSection(
           title: '日の出・日の入り',
           tonalStrength: .022,
-          values: [
-            '日の出 ${_shortTime(day.sunrise)} · 日の入り ${_shortTime(day.sunset)} · DAYLIGHT ${_daylightDuration(day.sunrise, day.sunset)}',
+          metrics: [
+            _WeatherDetailMetric(label: '日の出', value: _shortTime(day.sunrise)),
+            _WeatherDetailMetric(label: '日の入り', value: _shortTime(day.sunset)),
+            _WeatherDetailMetric(
+              label: 'DAYLIGHT',
+              value: _daylightDuration(day.sunrise, day.sunset),
+            ),
           ],
         ),
-      ].where((section) => section.values.isNotEmpty).toList(growable: false),
+      ].where((section) => section.metrics.isNotEmpty).toList(growable: false),
     ),
   );
 }
@@ -1612,13 +1679,25 @@ class _WeatherExplanation {
 class _WeatherDetailSection {
   const _WeatherDetailSection({
     required this.title,
-    required this.values,
+    required this.metrics,
     this.tonalStrength = .025,
   });
 
   final String title;
-  final List<String> values;
+  final List<_WeatherDetailMetric> metrics;
   final double tonalStrength;
+}
+
+class _WeatherDetailMetric {
+  const _WeatherDetailMetric({
+    required this.label,
+    required this.value,
+    this.context,
+  });
+
+  final String label;
+  final String value;
+  final String? context;
 }
 
 Future<void> _showWeatherExplanation(
@@ -1817,20 +1896,68 @@ class _WeatherDetailTelemetrySection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            for (final value in section.values)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurface.withValues(alpha: .9),
-                    height: 1.35,
-                  ),
-                ),
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 330;
+                const gap = 8.0;
+                final itemWidth = twoColumns
+                    ? (constraints.maxWidth - gap) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: 7,
+                  children: [
+                    for (final metric in section.metrics)
+                      SizedBox(
+                        width: itemWidth,
+                        child: _WeatherDetailMetricValue(metric: metric),
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _WeatherDetailMetricValue extends StatelessWidget {
+  const _WeatherDetailMetricValue({required this.metric});
+
+  final _WeatherDetailMetric metric;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          metric.label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: .64),
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          metric.value,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: scheme.onSurface,
+            height: 1.15,
+          ),
+        ),
+        if (metric.context case final metricContext?)
+          Text(
+            metricContext,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.onSurface.withValues(alpha: .58),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -2557,9 +2684,9 @@ class _WeatherHourlySharedGrid extends StatelessWidget {
   final List<WeatherHourly> values;
 
   static const _columnWidth = 72.0;
-  static const _height = 230.0;
+  static const _height = 206.0;
   static const _labelWidth = 46.0;
-  static const _verticalPadding = 8.0;
+  static const _verticalPadding = 0.0;
   static const _timeRowHeight = 25.0;
   static const _weatherRowHeight = 27.0;
   static const _temperatureRowHeight = 58.0;
@@ -2746,7 +2873,7 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
       child: Container(
         width: width,
         height: _WeatherHourlySharedGrid._height,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
           border: Border(
             left: BorderSide(color: scheme.primary.withValues(alpha: .12)),
