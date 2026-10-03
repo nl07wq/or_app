@@ -21,14 +21,15 @@ enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
 
 /// Dashboard Preview comparison profiles. Production keeps [current] until a
 /// separate acceptance task deliberately adopts one of the smooth candidates.
-enum AmbientWildlifeV2CatMotionProfile { current, smoothA, smoothB }
+enum AmbientWildlifeV2CatMotionProfile { current, smoothB, smoothC, smoothMax }
 
 Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
-  AmbientWildlifeV2CatMotionProfile.smoothA ||
-  AmbientWildlifeV2CatMotionProfile.smoothB => Curves.linear,
+  AmbientWildlifeV2CatMotionProfile.smoothB ||
+  AmbientWildlifeV2CatMotionProfile.smoothC ||
+  AmbientWildlifeV2CatMotionProfile.smoothMax => Curves.linear,
 };
 
 /// Preview smooth candidates vary presentation continuity only. They never alter the
@@ -37,16 +38,19 @@ CatRunV23SmoothTuning? ambientWildlifeV2CatSmoothTuning(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => null,
-  AmbientWildlifeV2CatMotionProfile.smoothA => CatRunV23Travel.smoothATuning,
   AmbientWildlifeV2CatMotionProfile.smoothB => CatRunV23Travel.smoothBTuning,
+  AmbientWildlifeV2CatMotionProfile.smoothC => CatRunV23Travel.smoothCTuning,
+  AmbientWildlifeV2CatMotionProfile.smoothMax =>
+    CatRunV23Travel.smoothMaxTuning,
 };
 
 String ambientWildlifeV2CatMotionProfileLabel(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => 'CURRENT',
-  AmbientWildlifeV2CatMotionProfile.smoothA => 'SMOOTH A',
   AmbientWildlifeV2CatMotionProfile.smoothB => 'SMOOTH B',
+  AmbientWildlifeV2CatMotionProfile.smoothC => 'SMOOTH C',
+  AmbientWildlifeV2CatMotionProfile.smoothMax => 'SMOOTH MAX',
 };
 
 /// GLITCH has a fixed production spacing authority. Dashboard presentation

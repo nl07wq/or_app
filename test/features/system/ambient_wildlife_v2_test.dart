@@ -167,10 +167,11 @@ void main() {
     );
   });
 
-  test('CAT Preview uses two clear SMOOTH comparison candidates', () {
+  test('CAT Preview uses progressively stronger SMOOTH comparison candidates', () {
     const profiles = [
-      AmbientWildlifeV2CatMotionProfile.smoothA,
       AmbientWildlifeV2CatMotionProfile.smoothB,
+      AmbientWildlifeV2CatMotionProfile.smoothC,
+      AmbientWildlifeV2CatMotionProfile.smoothMax,
     ];
     final tunings = [
       for (final profile in profiles)
@@ -178,16 +179,19 @@ void main() {
     ];
 
     expect(tunings.map((tuning) => tuning.blendDuration.inMilliseconds), const [
-      80,
       150,
+      210,
+      250,
     ]);
     expect(tunings.map((tuning) => tuning.maximumVisualAnchorOffset), const [
-      .030,
       .045,
+      .060,
+      .070,
     ]);
     expect(tunings.map((tuning) => tuning.maximumVerticalAnchorOffset), const [
-      .024,
       .040,
+      .050,
+      .060,
     ]);
     for (final tuning in tunings) {
       final offsets = <Offset>[
@@ -211,6 +215,22 @@ void main() {
       );
       expect(offsets.toSet().length, greaterThan(1));
     }
+    expect(
+      tunings[1].maximumVisualAnchorOffset,
+      greaterThan(tunings[0].maximumVisualAnchorOffset),
+    );
+    expect(
+      tunings[2].maximumVisualAnchorOffset,
+      greaterThan(tunings[1].maximumVisualAnchorOffset),
+    );
+    expect(
+      tunings[1].maximumVerticalAnchorOffset,
+      greaterThan(tunings[0].maximumVerticalAnchorOffset),
+    );
+    expect(
+      tunings[2].maximumVerticalAnchorOffset,
+      greaterThan(tunings[1].maximumVerticalAnchorOffset),
+    );
     for (final profile in AmbientWildlifeV2CatMotionProfile.values) {
       expect(ambientWildlifeV2CatMotionCurve(profile), Curves.linear);
     }

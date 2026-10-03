@@ -78,7 +78,7 @@ class CatRunV23Travel {
   /// profile. It never changes crossing progress, frame order, or timing.
   static Offset smoothVisualAnchorOffsetAt(
     double progress, {
-    CatRunV23SmoothTuning tuning = smoothATuning,
+    CatRunV23SmoothTuning tuning = smoothBTuning,
   }) {
     final cycleDuration = CatRunV28Timing.cycleDuration.inMicroseconds;
     final elapsed =
@@ -146,19 +146,28 @@ class CatRunV23Travel {
     );
   }
 
-  /// The clear, moderate Preview comparison. It normalizes visible frame
+  /// The retained Preview comparison baseline. It normalizes visible frame
   /// centers and vertical body movement without changing travel timing.
-  static const smoothATuning = CatRunV23SmoothTuning(
-    blendDuration: Duration(milliseconds: 80),
-    maximumVisualAnchorOffset: .030,
-    maximumVerticalAnchorOffset: .024,
-  );
-
-  /// A deliberately strong Preview-only upper bound for visual comparison.
   static const smoothBTuning = CatRunV23SmoothTuning(
     blendDuration: Duration(milliseconds: 150),
     maximumVisualAnchorOffset: .045,
     maximumVerticalAnchorOffset: .040,
+  );
+
+  /// A stronger Preview-only comparison that leaves the horizontal crossing
+  /// linear while allowing more of each pose's measured center correction.
+  static const smoothCTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 210),
+    maximumVisualAnchorOffset: .060,
+    maximumVerticalAnchorOffset: .050,
+  );
+
+  /// The deliberately strongest safe Preview-only comparison. It is not a
+  /// production default and still only translates the presentation layer.
+  static const smoothMaxTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 250),
+    maximumVisualAnchorOffset: .070,
+    maximumVerticalAnchorOffset: .060,
   );
 
   /// Returns the production-presentation visible bounds for a single CAT at a

@@ -300,7 +300,7 @@ void main() {
     expect(find.byKey(const ValueKey('animal-category-cat')), findsOneWidget);
   });
 
-  testWidgets('Dashboard Preview exposes CAT CURRENT, SMOOTH A, and SMOOTH B', (
+  testWidgets('Dashboard Preview exposes CAT CURRENT, SMOOTH B, C, and MAX', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 10000);
@@ -317,8 +317,9 @@ void main() {
       AmbientWildlifeV2CatMotionProfile.current,
     );
     for (final profile in [
-      AmbientWildlifeV2CatMotionProfile.smoothA,
       AmbientWildlifeV2CatMotionProfile.smoothB,
+      AmbientWildlifeV2CatMotionProfile.smoothC,
+      AmbientWildlifeV2CatMotionProfile.smoothMax,
     ]) {
       final control = find.byKey(
         ValueKey('dashboard-preview-cat-motion-${profile.name}'),
