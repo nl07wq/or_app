@@ -5,6 +5,32 @@ import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_sta
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 
 void main() {
+  testWidgets('production preview keeps forced species and variant on replay', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: DashboardAmbientWildlifeProductionPreviewStage(
+              requestId: 1,
+              forcedSpecies: AmbientWildlifeV2Species.birds,
+              variant: AmbientWildlifeV2ForcedVariant.glitch10,
+              leftToRight: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final stage = tester.widget<AmbientWildlifeV2ProductionStage>(
+      find.byType(AmbientWildlifeV2ProductionStage),
+    );
+    expect(stage.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+    expect(stage.forcedPlan!.birdInstances, hasLength(10));
+  });
+
   Widget subject({
     DateTime Function()? now,
     int Function(int max)? nextInt,

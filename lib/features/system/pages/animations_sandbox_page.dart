@@ -455,7 +455,6 @@ class _AmbientWildlifeSandboxSectionState
   var _dashboardPreviewSpecies = AmbientWildlifeV2Species.cat;
   var _dashboardPreviewRandom = false;
   var _dashboardPreviewVariant = AmbientWildlifeV2ForcedVariant.one;
-  AmbientWildlifeV2EventPlan? _dashboardPreviewPlan;
   var _dashboardPreviewRequestId = 0;
 
   int _next(int max) => _random.nextInt(max);
@@ -542,17 +541,7 @@ class _AmbientWildlifeSandboxSectionState
   }
 
   void _playDashboardPreview() {
-    final species = _dashboardPreviewRandom
-        ? AmbientWildlifeV2Registry.availableSpecies[_next(
-            AmbientWildlifeV2Registry.availableSpecies.length,
-          )]
-        : _dashboardPreviewSpecies;
     setState(() {
-      _dashboardPreviewPlan = AmbientWildlifeV2EventPlan.forced(
-        species: species,
-        variant: _dashboardPreviewVariant,
-        leftToRight: _leftToRight,
-      );
       _dashboardPreviewRequestId++;
     });
   }
@@ -783,8 +772,12 @@ class _AmbientWildlifeSandboxSectionState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               DashboardAmbientWildlifeProductionPreviewStage(
-                plan: _dashboardPreviewPlan,
                 requestId: _dashboardPreviewRequestId,
+                forcedSpecies: _dashboardPreviewRandom
+                    ? null
+                    : _dashboardPreviewSpecies,
+                variant: _dashboardPreviewVariant,
+                leftToRight: _leftToRight,
               ),
               AppSpacing.gapMD,
               const Text('SPECIES'),
@@ -840,7 +833,7 @@ class _AmbientWildlifeSandboxSectionState
               AppSpacing.gapMD,
               _SandboxActionButton(
                 key: const ValueKey('dashboard-preview-play'),
-                text: _dashboardPreviewPlan == null ? 'PLAY' : 'REPLAY',
+                text: _dashboardPreviewRequestId == 0 ? 'PLAY' : 'REPLAY',
                 icon: Icons.play_arrow,
                 onPressed: reducedMotion ? null : _playDashboardPreview,
               ),

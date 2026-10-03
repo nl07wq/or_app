@@ -208,15 +208,64 @@ class _DashboardAmbientWildlifeStageState
 /// Explicit production-path preview for the Animation Sandbox.  It shares
 /// the exact Dashboard crop, lane and presentation configuration rather than
 /// recreating its geometry in a diagnostic painter.
-class DashboardAmbientWildlifeProductionPreviewStage extends StatelessWidget {
+class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
   const DashboardAmbientWildlifeProductionPreviewStage({
     super.key,
-    required this.plan,
     required this.requestId,
+    required this.variant,
+    required this.leftToRight,
+    this.forcedSpecies,
+    this.nextInt,
   });
 
-  final AmbientWildlifeV2EventPlan? plan;
   final int requestId;
+  final AmbientWildlifeV2ForcedVariant variant;
+  final bool leftToRight;
+
+  /// Null is the only random-species mode. A non-null value always wins over
+  /// the Dashboard random picker.
+  final AmbientWildlifeV2Species? forcedSpecies;
+  final int Function(int max)? nextInt;
+
+  @override
+  State<DashboardAmbientWildlifeProductionPreviewStage> createState() =>
+      _DashboardAmbientWildlifeProductionPreviewStageState();
+}
+
+class _DashboardAmbientWildlifeProductionPreviewStageState
+    extends State<DashboardAmbientWildlifeProductionPreviewStage> {
+  late AmbientWildlifeV2EventPlan _plan;
+
+  @override
+  void initState() {
+    super.initState();
+    _plan = _resolvePlan();
+  }
+
+  int _next(int max) => widget.nextInt?.call(max) ?? math.Random().nextInt(max);
+
+  AmbientWildlifeV2EventPlan _resolvePlan() {
+    final species =
+        widget.forcedSpecies ??
+        AmbientWildlifeV2Registry.availableSpecies[_next(
+          AmbientWildlifeV2Registry.availableSpecies.length,
+        )];
+    return AmbientWildlifeV2EventPlan.forced(
+      species: species,
+      variant: widget.variant,
+      leftToRight: widget.leftToRight,
+    );
+  }
+
+  @override
+  void didUpdateWidget(
+    covariant DashboardAmbientWildlifeProductionPreviewStage oldWidget,
+  ) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.requestId != widget.requestId) {
+      _plan = _resolvePlan();
+    }
+  }
 
   @override
   Widget build(BuildContext context) => RepaintBoundary(
@@ -225,8 +274,8 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatelessWidget {
       height: DashboardAmbientWildlifeStage.height,
       width: double.infinity,
       child: _DashboardAmbientWildlifeProductionViewport(
-        forcedPlan: plan,
-        forcedRequestId: requestId,
+        forcedPlan: _plan,
+        forcedRequestId: widget.requestId,
         minimumInterval: Duration.zero,
         maximumInterval: Duration.zero,
       ),
