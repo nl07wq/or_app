@@ -1,7 +1,11 @@
 import '../../schedule/models/schedule_record.dart';
 import '../../schedule/repository/schedule_repository.dart';
 
-enum DashboardPlanInformationGroup { overdueReminder, todayTimed, todayUntimed }
+enum DashboardPlanInformationGroup {
+  todaySchedule,
+  todayReminder,
+  overdueReminder,
+}
 
 class DashboardPlanInformationEntry {
   const DashboardPlanInformationEntry({
@@ -61,15 +65,11 @@ class DashboardPlanInformationService {
       if (record.localDate.compareTo(operationDate) < 0) {
         return DashboardPlanInformationGroup.overdueReminder;
       }
-      return _isTimed(record)
-          ? DashboardPlanInformationGroup.todayTimed
-          : DashboardPlanInformationGroup.todayUntimed;
+      return DashboardPlanInformationGroup.todayReminder;
     }
 
     if (record.localDate != operationDate) return null;
-    return _isTimed(record)
-        ? DashboardPlanInformationGroup.todayTimed
-        : DashboardPlanInformationGroup.todayUntimed;
+    return DashboardPlanInformationGroup.todaySchedule;
   }
 
   int _compareEntries(
@@ -101,9 +101,6 @@ class DashboardPlanInformationService {
     final title = first.record.title.compareTo(second.record.title);
     return title != 0 ? title : first.record.id.compareTo(second.record.id);
   }
-
-  bool _isTimed(ScheduleRecord record) =>
-      !record.allDay && record.startTime != null;
 
   int _allDayRank(ScheduleRecord record) => record.allDay ? 0 : 1;
 }

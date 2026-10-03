@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/services/dashboard_plan_information_service.dart';
 import 'package:or_app/features/schedule/models/schedule_record.dart';
@@ -52,13 +53,13 @@ void main() {
     ).loadFor('2026-10-01');
 
     expect(result.entries.map((entry) => entry.record.id), [
+      'today-timed',
+      'today-all-day',
+      'today-reminder',
       'past-timed-reminder',
       'past-untimed-reminder',
-      'today-timed',
-      'today-reminder',
-      'today-all-day',
     ]);
-    expect(result.entries.take(2).every((entry) => entry.isOverdue), isTrue);
+    expect(result.entries.skip(3).every((entry) => entry.isOverdue), isTrue);
   });
 
   test(
@@ -94,12 +95,12 @@ void main() {
       ).loadFor('2026-10-01');
 
       expect(result.entries.map((entry) => entry.record.id), [
-        'overdue-oldest',
-        'overdue-late',
-        'timed-early-reminder',
         'timed-late',
         'all-day',
+        'timed-early-reminder',
         'untimed-reminder',
+        'overdue-oldest',
+        'overdue-late',
       ]);
     },
   );
@@ -170,17 +171,17 @@ void main() {
         _entry(
           'morning',
           '2026-10-01',
-          DashboardPlanInformationGroup.todayTimed,
+          DashboardPlanInformationGroup.todaySchedule,
         ),
         _entry(
           'evening',
           '2026-10-01',
-          DashboardPlanInformationGroup.todayTimed,
+          DashboardPlanInformationGroup.todaySchedule,
         ),
         _entry(
           'all-day',
           '2026-10-01',
-          DashboardPlanInformationGroup.todayUntimed,
+          DashboardPlanInformationGroup.todaySchedule,
         ),
       ],
     );
@@ -191,7 +192,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: DashboardPlanInformationCard(
+            body: DashboardScheduleCard(
               information: information,
               loading: false,
               onOpenDate: (value) => openedDate = value,
@@ -200,19 +201,52 @@ void main() {
         ),
       );
 
-      expect(find.text('overdue'), findsOneWidget);
       expect(find.text('morning'), findsOneWidget);
       expect(find.text('evening'), findsOneWidget);
       expect(find.text('all-day'), findsNothing);
-      expect(find.text('+1 MORE'), findsOneWidget);
+      expect(find.text('他1件'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.tap(
-        find.byKey(const ValueKey('dashboard-plan-information-entry-overdue')),
+        find.byKey(const ValueKey('dashboard-schedule-entry-morning')),
       );
-      expect(openedDate, '2026-09-30');
+      expect(openedDate, '2026-10-01');
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('uses a date-centric Japanese empty state and weekend accents', (
+    tester,
+  ) async {
+    String? openedDate;
+    Future<void> pump(String operationDate) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DashboardScheduleCard(
+            information: DashboardPlanInformation(
+              operationDate: operationDate,
+              entries: const [],
+            ),
+            loading: false,
+            onOpenDate: (value) => openedDate = value,
+          ),
+        ),
+      ),
+    );
+
+    await pump('2026-10-04');
+    expect(find.text('SCHEDULE'), findsOneWidget);
+    expect(find.text('予定はありません'), findsOneWidget);
+    expect(find.text('日曜日'), findsOneWidget);
+    final sunday = tester.widget<Text>(find.text('日曜日'));
+    expect(sunday.style?.color, AppColors.danger);
+    await tester.tap(find.byKey(const ValueKey('dashboard-schedule')));
+    expect(openedDate, '2026-10-04');
+
+    await pump('2026-10-03');
+    expect(find.text('土曜日'), findsOneWidget);
+    final saturday = tester.widget<Text>(find.text('土曜日'));
+    expect(saturday.style?.color, AppColors.primary);
   });
 }
 
@@ -224,7 +258,9 @@ DashboardPlanInformationEntry _entry(
   record: _record(
     id,
     date,
-    kind: group == DashboardPlanInformationGroup.overdueReminder
+    kind:
+        group == DashboardPlanInformationGroup.todayReminder ||
+            group == DashboardPlanInformationGroup.overdueReminder
         ? ScheduleEntryKind.reminder
         : ScheduleEntryKind.schedule,
   ),

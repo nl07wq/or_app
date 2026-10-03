@@ -20,10 +20,6 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_lamp.dart';
 import '../system/widgets/system_menu_button.dart';
-import '../system/models/information_notice.dart';
-import '../system/services/information_notice_service.dart';
-import '../system/widgets/dashboard_information_strip.dart';
-import '../system/widgets/information_detail_sheet.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
@@ -546,9 +542,6 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late Future<OperationLocalDate> _operationDateFuture;
-  late final InformationNoticeService _informationService =
-      InformationNoticeService();
-  late Future<List<InformationNotice>> _informationNoticesFuture;
   late Future<DashboardPlanInformation> _planInformationFuture;
   late final FinalizeDateTransition? _dashboardFinalizeTransition;
   int _operationDateTransitionToken = 0;
@@ -568,10 +561,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _operationDateFuture = finalizeTransition == null
         ? const OperationDateService().current()
         : Future.value(finalizeTransition.fromDate);
-    _informationNoticesFuture = _informationService.activeNotices();
     _planInformationFuture = _loadPlanInformation();
-    informationNoticeRevision.addListener(_refreshInformation);
-    morningBriefRevisionNotifier.addListener(_refreshInformation);
     schedulePlanRevisionNotifier.addListener(_refreshPlanInformation);
     _scrollController.addListener(_scheduleWildlifeMeasurement);
     if (finalizeTransition != null) {
@@ -583,19 +573,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
-    informationNoticeRevision.removeListener(_refreshInformation);
-    morningBriefRevisionNotifier.removeListener(_refreshInformation);
     schedulePlanRevisionNotifier.removeListener(_refreshPlanInformation);
     _scrollController.removeListener(_scheduleWildlifeMeasurement);
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _refreshInformation() {
-    if (!mounted) return;
-    setState(() {
-      _informationNoticesFuture = _informationService.activeNotices();
-    });
   }
 
   Future<DashboardPlanInformation> _loadPlanInformation() async {
@@ -729,7 +710,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                               >(
                                                 future: _planInformationFuture,
                                                 builder: (context, snapshot) =>
-                                                    DashboardPlanInformationCard(
+                                                    DashboardScheduleCard(
                                                       information:
                                                           snapshot.data,
                                                       loading:
@@ -740,31 +721,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       onOpenDate:
                                                           _openCalendarForDate,
                                                     ),
-                                              ),
-                                              FutureBuilder<
-                                                List<InformationNotice>
-                                              >(
-                                                future:
-                                                    _informationNoticesFuture,
-                                                builder: (context, snapshot) {
-                                                  final notices =
-                                                      snapshot.data ?? const [];
-                                                  if (notices.isEmpty) {
-                                                    return const SizedBox.shrink();
-                                                  }
-                                                  return Column(
-                                                    children: [
-                                                      AppSpacing.gapSM,
-                                                      DashboardInformationStrip(
-                                                        notices: notices,
-                                                        onTap: () =>
-                                                            _showInformation(
-                                                              notices,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  );
-                                                },
                                               ),
                                               AppSpacing.gapLG,
                                               ValueListenableBuilder<int>(
@@ -813,7 +769,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                               SizedBox(
                                                 key: _wildlifeNaturalSlotKey,
                                                 height:
-                                                    DashboardAmbientWildlifeStage.height,
+                                                    DashboardAmbientWildlifeStage
+                                                        .height,
                                               ),
                                             ],
                                           ),
@@ -889,23 +846,6 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (_) => _QuickWaterSheet(dashboardContext: context),
     );
   }
-
-  Future<void> _showInformation(List<InformationNotice> notices) async {
-    final result = await showModalBottomSheet<InformationDetailResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => InformationDetailSheet(
-        notices: notices,
-        onRead: _informationService.markRead,
-        onDismiss: _informationService.dismiss,
-      ),
-    );
-    if (!mounted) return;
-    _refreshInformation();
-    if (result == InformationDetailResult.systemMonitoring) {
-      await Navigator.of(context).pushNamed(AppRoutes.systemMonitoring);
-    }
-  }
 }
 
 class _OperationDateCard extends StatelessWidget {
@@ -948,8 +888,8 @@ class _OperationDateCard extends StatelessWidget {
   );
 }
 
-class DashboardPlanInformationCard extends StatelessWidget {
-  const DashboardPlanInformationCard({
+class DashboardScheduleCard extends StatelessWidget {
+  const DashboardScheduleCard({
     super.key,
     required this.information,
     required this.loading,
@@ -970,91 +910,143 @@ class DashboardPlanInformationCard extends StatelessWidget {
         .take(_visibleRowLimit)
         .toList(growable: false);
     final hiddenCount = entries.length - visibleEntries.length;
+    final operationDate = DateTime.tryParse(information?.operationDate ?? '');
     return OperationCard(
-      key: const ValueKey('dashboard-plan-information'),
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      key: const ValueKey('dashboard-schedule'),
+      selectable: true,
+      onTap: information == null
+          ? null
+          : () => onOpenDate(information!.operationDate),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: _DashboardPlanInformationHeader(),
+          const _DashboardScheduleHeader(),
+          AppSpacing.gapSM,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DashboardScheduleDateIdentity(date: operationDate),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: loading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                        child: Text('予定を確認しています…'),
+                      )
+                    : entries.isEmpty
+                    ? const _DashboardScheduleEmptyState()
+                    : Column(
+                        children: [
+                          for (
+                            var index = 0;
+                            index < visibleEntries.length;
+                            index++
+                          ) ...[
+                            if (index > 0) const Divider(height: 1),
+                            _DashboardScheduleRow(
+                              entry: visibleEntries[index],
+                              onTap: () => onOpenDate(
+                                visibleEntries[index].record.localDate,
+                              ),
+                            ),
+                          ],
+                          if (hiddenCount > 0)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                key: const ValueKey('dashboard-schedule-more'),
+                                onPressed: () =>
+                                    onOpenDate(information!.operationDate),
+                                child: Text('他$hiddenCount件'),
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
+            ],
           ),
-          AppSpacing.gapXS,
-          if (loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              child: Text('SYNCING PLAN...'),
-            )
-          else if (entries.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              child: Text('NO SCHEDULE / REMINDERS'),
-            )
-          else ...[
-            for (var index = 0; index < visibleEntries.length; index++) ...[
-              if (index > 0)
-                const Divider(
-                  height: 1,
-                  indent: AppSpacing.md,
-                  endIndent: AppSpacing.md,
-                ),
-              _DashboardPlanInformationRow(
-                entry: visibleEntries[index],
-                onTap: () => onOpenDate(visibleEntries[index].record.localDate),
-              ),
-            ],
-            if (hiddenCount > 0) ...[
-              const Divider(
-                height: 1,
-                indent: AppSpacing.md,
-                endIndent: AppSpacing.md,
-              ),
-              Semantics(
-                button: true,
-                label: '$hiddenCount more Calendar entries',
-                child: TextButton(
-                  key: const ValueKey('dashboard-plan-information-more'),
-                  onPressed: () => onOpenDate(information!.operationDate),
-                  child: Text('+$hiddenCount MORE'),
-                ),
-              ),
-            ],
-          ],
         ],
       ),
     );
   }
 }
 
-class _DashboardPlanInformationHeader extends StatelessWidget {
-  const _DashboardPlanInformationHeader();
+class _DashboardScheduleHeader extends StatelessWidget {
+  const _DashboardScheduleHeader();
 
   @override
   Widget build(BuildContext context) => Row(
     children: [
       Icon(
-        Icons.info_outline,
+        Icons.calendar_today_outlined,
         color: Theme.of(context).colorScheme.primary,
-        semanticLabel: 'INFORMATION',
+        semanticLabel: 'SCHEDULE',
       ),
       AppSpacing.gapSM,
-      Text('INFORMATION', style: Theme.of(context).textTheme.labelLarge),
+      Text('SCHEDULE', style: Theme.of(context).textTheme.labelLarge),
     ],
   );
 }
 
-class _DashboardPlanInformationRow extends StatelessWidget {
-  const _DashboardPlanInformationRow({
-    required this.entry,
-    required this.onTap,
-  });
+class _DashboardScheduleDateIdentity extends StatelessWidget {
+  const _DashboardScheduleDateIdentity({required this.date});
+
+  final DateTime? date;
+
+  @override
+  Widget build(BuildContext context) {
+    final weekdayColor = _weekdayColor(context, date);
+    return SizedBox(
+      width: 76,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            _weekdayLabel(date),
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: weekdayColor),
+          ),
+          Text(
+            date?.day.toString() ?? '–',
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+              color: weekdayColor,
+              fontSize: 40,
+              fontWeight: FontWeight.w600,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color _weekdayColor(BuildContext context, DateTime? date) {
+    if (date?.weekday == DateTime.saturday) return AppColors.primary;
+    if (date?.weekday == DateTime.sunday) return AppColors.danger;
+    return Theme.of(context).colorScheme.primary;
+  }
+
+  static String _weekdayLabel(DateTime? date) {
+    const labels = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日', '日曜日'];
+    if (date == null) return '今日';
+    return labels[date.weekday - 1];
+  }
+}
+
+class _DashboardScheduleEmptyState extends StatelessWidget {
+  const _DashboardScheduleEmptyState();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+    child: Text('予定はありません', style: Theme.of(context).textTheme.bodyLarge),
+  );
+}
+
+class _DashboardScheduleRow extends StatelessWidget {
+  const _DashboardScheduleRow({required this.entry, required this.onTap});
 
   final DashboardPlanInformationEntry entry;
   final VoidCallback onTap;
@@ -1068,7 +1060,7 @@ class _DashboardPlanInformationRow extends StatelessWidget {
       button: true,
       label: '${_timeLabel(record)} ${record.title} ${_detailLabel(entry)}',
       child: InkWell(
-        key: ValueKey('dashboard-plan-information-entry-${record.id}'),
+        key: ValueKey('dashboard-schedule-entry-${record.id}'),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -1079,7 +1071,7 @@ class _DashboardPlanInformationRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 66,
+                width: 48,
                 child: Text(
                   _timeLabel(record),
                   style: Theme.of(
@@ -1091,24 +1083,31 @@ class _DashboardPlanInformationRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (entry.isOverdue)
-                      Text(
-                        'OVERDUE',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelSmall?.copyWith(color: accent),
-                      ),
                     Text(
                       record.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
-                    Text(
-                      _detailLabel(entry),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    Row(
+                      children: [
+                        Icon(
+                          record.kind == ScheduleEntryKind.reminder
+                              ? Icons.notifications_none
+                              : Icons.event_note_outlined,
+                          size: 14,
+                          color: accent,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: Text(
+                            _detailLabel(entry),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1123,8 +1122,8 @@ class _DashboardPlanInformationRow extends StatelessWidget {
   }
 
   String _timeLabel(ScheduleRecord record) {
-    if (record.allDay) return 'ALL DAY';
-    return record.startTime ?? 'UNTIMED';
+    if (record.allDay) return '終日';
+    return record.startTime ?? '時刻未定';
   }
 
   String _detailLabel(DashboardPlanInformationEntry entry) {
@@ -1132,16 +1131,16 @@ class _DashboardPlanInformationRow extends StatelessWidget {
     if (entry.isOverdue) {
       final date =
           '${record.localDate.substring(5, 7)}/${record.localDate.substring(8, 10)}';
-      final time = record.allDay ? 'ALL DAY' : record.startTime ?? 'UNTIMED';
-      return 'REMINDER · $date $time';
+      final time = record.allDay ? '終日' : record.startTime ?? '時刻未定';
+      return '未完了のリマインダー · $date $time';
     }
-    if (record.kind == ScheduleEntryKind.reminder) return 'REMINDER';
+    if (record.kind == ScheduleEntryKind.reminder) return 'リマインダー';
     final timing = record.startTime == null
         ? null
         : record.endTime == null
         ? record.startTime
         : '${record.startTime}–${record.endTime}';
-    return ['SCHEDULE', record.type.name.toUpperCase(), ?timing].join(' · ');
+    return ['予定', ?timing].join(' · ');
   }
 }
 
@@ -3190,11 +3189,7 @@ class _DashboardAmbientManualTrigger extends StatelessWidget {
         child: IconButton(
           tooltip: 'Run ambient wildlife',
           onPressed: onPressed,
-          icon: Icon(
-            Symbols.pets,
-            color: const Color(0xC738BDF8),
-            size: 20,
-          ),
+          icon: Icon(Symbols.pets, color: const Color(0xC738BDF8), size: 20),
         ),
       ),
     ),
