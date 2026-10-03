@@ -5,6 +5,23 @@ import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_sta
 import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
 
 void main() {
+  test('CAT motion profiles keep CURRENT as the production default', () {
+    expect(
+      ambientWildlifeV2CatMotionCurve(
+        AmbientWildlifeV2CatMotionProfile.current,
+      ),
+      Curves.linear,
+    );
+    expect(
+      ambientWildlifeV2CatMotionCurve(AmbientWildlifeV2CatMotionProfile.smooth),
+      Curves.easeInOutCubic,
+    );
+    expect(
+      ambientWildlifeV2CatMotionCurve(AmbientWildlifeV2CatMotionProfile.cruise),
+      Curves.linear,
+    );
+  });
+
   testWidgets('production preview keeps forced species and variant on replay', (
     tester,
   ) async {

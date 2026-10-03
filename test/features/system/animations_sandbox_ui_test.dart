@@ -109,7 +109,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('AMBIENT WILDLIFE V1 and V2 remain separate surfaces', (
+  testWidgets('Dashboard Preview and Ambient Wildlife V2 lead the sandbox', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 1800);
@@ -118,8 +118,27 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
 
-    await tester.ensureVisible(
+    expect(
+      tester
+          .getTopLeft(
+            find.byKey(const ValueKey('dashboard-preview-disclosure')),
+          )
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey('ambient-wildlife-v2-disclosure')),
+            )
+            .dy,
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-section')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+      findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('ambient-wildlife-v1-section')),
@@ -127,12 +146,15 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('AMBIENT WILDLIFE'), findsOneWidget);
+    expect(find.text('AMBIENT WILDLIFE'), findsNothing);
     expect(find.text('AMBIENT WILDLIFE V2'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+      ),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('wildlife-preview-cat')), findsOneWidget);
@@ -173,7 +195,10 @@ void main() {
       'CURRENT: CAT / MOTION / L → R',
     );
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      ),
       findsOneWidget,
     );
     for (final offset in [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]) {
@@ -183,19 +208,13 @@ void main() {
       );
     }
 
-    final v1Toggle = find.byKey(const ValueKey('ambient-wildlife-v1-toggle'));
-    await tester.ensureVisible(v1Toggle);
-    await tester.tap(v1Toggle);
-    await tester.pump();
-    expect(
-      find.byKey(const ValueKey('ambient-wildlife-v1-section')),
-      findsOneWidget,
-    );
-
     await tester.tap(find.byKey(const ValueKey('wildlife-v2-play-restart')));
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+      ),
       findsOneWidget,
     );
     expect(
@@ -216,7 +235,10 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      ),
       findsOneWidget,
     );
     expect(
@@ -260,8 +282,47 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('Dashboard Preview keeps CAT motion profile through replay', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+    expect(productionStage, findsOneWidget);
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.current,
+    );
+    for (final profile in [
+      AmbientWildlifeV2CatMotionProfile.smooth,
+      AmbientWildlifeV2CatMotionProfile.cruise,
+    ]) {
+      await tester.tap(
+        find.byKey(ValueKey('dashboard-preview-cat-motion-${profile.name}')),
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+            .catMotionProfile,
+        profile,
+      );
+    }
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
+      findsNothing,
     );
   });
 

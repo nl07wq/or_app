@@ -61,7 +61,7 @@ void main() {
     expect(DashboardCatRunStage.glitchProbability, .05);
     expect(DashboardCatRunStage.normalEventProbability, .95);
     expect(DashboardCatRunStage.glitchCatCount, 10);
-    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .10);
+    expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .05);
     expect(
       DashboardCatRunStage.eventKindForRoll(0),
       DashboardCatEventKind.glitch,
@@ -527,8 +527,9 @@ void main() {
       expect(
         DashboardCatRunStage.chainFollowerTriggerProgress *
             DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
-        closeTo(DashboardCatRunStage.glitchFollowerTriggerProgress, .000001),
+        closeTo(.10, .000001),
       );
+      expect(DashboardCatRunStage.glitchFollowerTriggerProgress, .05);
       expect(DashboardAmbientWildlifeStage.topAirspaceCrop, 27);
       expect(
         tester

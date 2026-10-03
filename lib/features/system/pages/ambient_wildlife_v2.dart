@@ -19,6 +19,19 @@ enum AmbientWildlifeV2Species { cat, bat, fox, birds }
 /// geometry.
 enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
 
+/// Optional inspection profiles for Dashboard Preview. Dashboard production
+/// keeps [current] unless a future acceptance task explicitly adopts another
+/// profile.
+enum AmbientWildlifeV2CatMotionProfile { current, smooth, cruise }
+
+Curve ambientWildlifeV2CatMotionCurve(
+  AmbientWildlifeV2CatMotionProfile profile,
+) => switch (profile) {
+  AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
+  AmbientWildlifeV2CatMotionProfile.smooth => Curves.easeInOutCubic,
+  AmbientWildlifeV2CatMotionProfile.cruise => Curves.linear,
+};
+
 @immutable
 class AmbientWildlifeV2SpeciesDefinition {
   const AmbientWildlifeV2SpeciesDefinition({
@@ -948,6 +961,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.birdTravelSpeedMultiplier = 1,
     this.catFollowerSpacingMultiplier = 1,
     this.foxFollowerSpacingMultiplier = 1,
+    this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
     super.key,
     this.onCompleted,
   });
@@ -973,6 +987,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final double birdTravelSpeedMultiplier;
   final double catFollowerSpacingMultiplier;
   final double foxFollowerSpacingMultiplier;
+  final AmbientWildlifeV2CatMotionProfile catMotionProfile;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -1018,6 +1033,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.birdTravelSpeedMultiplier = 1,
     this.catFollowerSpacingMultiplier = 1,
     this.foxFollowerSpacingMultiplier = 1,
+    this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
     this.forcedPlan,
     this.forcedRequestId = 0,
   });
@@ -1039,6 +1055,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double birdTravelSpeedMultiplier;
   final double catFollowerSpacingMultiplier;
   final double foxFollowerSpacingMultiplier;
+  final AmbientWildlifeV2CatMotionProfile catMotionProfile;
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
 
@@ -1191,6 +1208,7 @@ class AmbientWildlifeV2ProductionStageState
     birdTravelSpeedMultiplier: widget.birdTravelSpeedMultiplier,
     catFollowerSpacingMultiplier: widget.catFollowerSpacingMultiplier,
     foxFollowerSpacingMultiplier: widget.foxFollowerSpacingMultiplier,
+    catMotionProfile: widget.catMotionProfile,
     onCompleted: _complete,
   );
 }
@@ -1471,7 +1489,7 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
             (CatRunV23Travel.crossingDuration.inMicroseconds * remaining)
                 .round(),
       ),
-      curve: Curves.linear,
+      curve: ambientWildlifeV2CatMotionCurve(widget.catMotionProfile),
     );
   }
 

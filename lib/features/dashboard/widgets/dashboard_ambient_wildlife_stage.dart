@@ -220,6 +220,7 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
     required this.variant,
     required this.leftToRight,
     this.forcedSpecies,
+    this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
     this.nextInt,
   });
 
@@ -230,6 +231,7 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
   /// Null is the only random-species mode. A non-null value always wins over
   /// the Dashboard random picker.
   final AmbientWildlifeV2Species? forcedSpecies;
+  final AmbientWildlifeV2CatMotionProfile catMotionProfile;
   final int Function(int max)? nextInt;
 
   @override
@@ -283,6 +285,7 @@ class _DashboardAmbientWildlifeProductionPreviewStageState
         forcedRequestId: widget.requestId,
         minimumInterval: Duration.zero,
         maximumInterval: Duration.zero,
+        catMotionProfile: widget.catMotionProfile,
       ),
     ),
   );
@@ -296,6 +299,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
     this.maximumInterval = const Duration(seconds: 150),
     this.forcedPlan,
     this.forcedRequestId = 0,
+    this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
   });
 
   final GlobalKey<AmbientWildlifeV2ProductionStageState>? stageKey;
@@ -304,6 +308,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
   final Duration maximumInterval;
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
+  final AmbientWildlifeV2CatMotionProfile catMotionProfile;
 
   @override
   Widget build(BuildContext context) => ClipRect(
@@ -331,6 +336,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
               DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
           foxFollowerSpacingMultiplier:
               DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
+          catMotionProfile: catMotionProfile,
           catPresentationOffsetY:
               DashboardAmbientWildlifeStage.catPresentationOffsetY,
           batPresentationVerticalAnchor:

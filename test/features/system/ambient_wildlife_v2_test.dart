@@ -37,6 +37,30 @@ void main() {
     }
   });
 
+  test('CAT GLITCH uses dense spacing without changing normal CAT spacing', () {
+    final normal = AmbientWildlifeV2EventPlan.forced(
+      species: AmbientWildlifeV2Species.cat,
+      variant: AmbientWildlifeV2ForcedVariant.three,
+      leftToRight: true,
+    );
+    final glitch = AmbientWildlifeV2EventPlan.forced(
+      species: AmbientWildlifeV2Species.cat,
+      variant: AmbientWildlifeV2ForcedVariant.glitch10,
+      leftToRight: true,
+    );
+
+    expect(
+      normal.catPlan!.crossings[1].startedAtProgress,
+      CatRunProductionEventPolicy.normalFollowerTriggerProgress,
+    );
+    expect(
+      glitch.catPlan!.crossings[1].startedAtProgress,
+      CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+    );
+    expect(CatRunProductionEventPolicy.normalFollowerTriggerProgress, .15);
+    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .05);
+  });
+
   test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,
