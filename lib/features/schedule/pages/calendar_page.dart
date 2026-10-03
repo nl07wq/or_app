@@ -1198,6 +1198,53 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 /// never opens a surface; a second, deliberate tap requests the daily detail.
 bool weatherForecastRowOpensDetail({required bool selected}) => selected;
 
+/// The daily weather code is the formal Open-Meteo authority for the kind and
+/// intensity of precipitation. This intentionally does not infer either value
+/// from daily totals or hourly samples.
+class WeatherPrecipitationDescriptor {
+  const WeatherPrecipitationDescriptor({
+    required this.type,
+    required this.intensity,
+  });
+
+  final String type;
+  final String intensity;
+}
+
+WeatherPrecipitationDescriptor weatherPrecipitationDescriptorForCode(
+  int? weatherCode,
+) => switch (weatherCode) {
+  51 => const WeatherPrecipitationDescriptor(type: '霧雨', intensity: '弱'),
+  53 => const WeatherPrecipitationDescriptor(type: '霧雨', intensity: '中'),
+  55 => const WeatherPrecipitationDescriptor(type: '霧雨', intensity: '強'),
+  56 => const WeatherPrecipitationDescriptor(type: '凍る霧雨', intensity: '弱'),
+  57 => const WeatherPrecipitationDescriptor(type: '凍る霧雨', intensity: '強'),
+  61 => const WeatherPrecipitationDescriptor(type: '雨', intensity: '弱'),
+  63 => const WeatherPrecipitationDescriptor(type: '雨', intensity: '中'),
+  65 => const WeatherPrecipitationDescriptor(type: '雨', intensity: '強'),
+  66 => const WeatherPrecipitationDescriptor(type: '凍雨', intensity: '弱'),
+  67 => const WeatherPrecipitationDescriptor(type: '凍雨', intensity: '強'),
+  71 => const WeatherPrecipitationDescriptor(type: '雪', intensity: '弱'),
+  73 => const WeatherPrecipitationDescriptor(type: '雪', intensity: '中'),
+  75 => const WeatherPrecipitationDescriptor(type: '雪', intensity: '強'),
+  77 => const WeatherPrecipitationDescriptor(type: '雪粒', intensity: '--'),
+  80 => const WeatherPrecipitationDescriptor(type: 'にわか雨', intensity: '弱'),
+  81 => const WeatherPrecipitationDescriptor(type: 'にわか雨', intensity: '中'),
+  82 => const WeatherPrecipitationDescriptor(type: 'にわか雨', intensity: '激しい'),
+  85 => const WeatherPrecipitationDescriptor(type: 'にわか雪', intensity: '弱'),
+  86 => const WeatherPrecipitationDescriptor(type: 'にわか雪', intensity: '強'),
+  95 => const WeatherPrecipitationDescriptor(type: '雷雨', intensity: '弱〜中'),
+  96 => const WeatherPrecipitationDescriptor(type: '雹を伴う雷雨', intensity: '弱'),
+  99 => const WeatherPrecipitationDescriptor(type: '雹を伴う雷雨', intensity: '強'),
+  0 ||
+  1 ||
+  2 ||
+  3 ||
+  45 ||
+  48 => const WeatherPrecipitationDescriptor(type: '降水なし', intensity: '--'),
+  _ => const WeatherPrecipitationDescriptor(type: '--', intensity: '--'),
+};
+
 /// Reuses the existing forecast-intelligence output for the compact weekly
 /// daypart cue. It never derives a new precipitation claim from raw values.
 String? weatherForecastPeakPrecipitationTiming(WeatherForecastSummary summary) {
@@ -1223,14 +1270,15 @@ Future<void> _showDailyForecastDetail(
       ? null
       : '${DateTime.parse(forecast.time).hour}時の予報';
   final uvValue = day.uvIndexMax ?? forecast?.uvIndex;
+  final precipitation = weatherPrecipitationDescriptorForCode(day.code);
   final peakTiming = day.precipitation > 0
       ? weatherForecastPeakPrecipitationTiming(summary)
       : null;
   return _showWeatherExplanation(
     context,
     _WeatherExplanation(
-      title:
-          '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}） · ${_weatherConditionJapanese(day.code)}',
+      title: '${date.month}月${date.day}日（${_weekdayJapanese(date.weekday)}）',
+      headerSubtitle: _weatherConditionJapanese(day.code),
       headerIcon: _weatherIcon(day.code),
       prominentHeaderIcon: true,
       value: '--',
@@ -1259,6 +1307,8 @@ Future<void> _showDailyForecastDetail(
           visualKind: _WeatherDetailVisualKind.precipitation,
           tonalStrength: .022,
           metrics: [
+            _WeatherDetailMetric(label: '種類', value: precipitation.type),
+            _WeatherDetailMetric(label: '強さ', value: precipitation.intensity),
             _WeatherDetailMetric(
               label: '降水量',
               value: '${day.precipitation.toStringAsFixed(1)}mm',
@@ -1724,6 +1774,7 @@ class _WeatherExplanation {
     required this.body,
     this.headerIcon = Icons.info_outline,
     this.prominentHeaderIcon = false,
+    this.headerSubtitle,
     this.forecastSummary,
     this.forecastSummaryLabel = '選択日の予報',
     this.supportingData = const [],
@@ -1735,6 +1786,7 @@ class _WeatherExplanation {
   final String body;
   final IconData headerIcon;
   final bool prominentHeaderIcon;
+  final String? headerSubtitle;
   final String? forecastSummary;
   final String forecastSummaryLabel;
   final List<String> supportingData;
@@ -1843,8 +1895,8 @@ Future<void> _showWeatherExplanation(
                       Row(
                         children: [
                           Container(
-                            width: explanation.prominentHeaderIcon ? 42 : 24,
-                            height: explanation.prominentHeaderIcon ? 42 : 24,
+                            width: explanation.prominentHeaderIcon ? 48 : 24,
+                            height: explanation.prominentHeaderIcon ? 48 : 24,
                             alignment: Alignment.center,
                             decoration: explanation.prominentHeaderIcon
                                 ? BoxDecoration(
@@ -1857,16 +1909,35 @@ Future<void> _showWeatherExplanation(
                             child: Icon(
                               explanation.headerIcon,
                               color: scheme.primary,
-                              size: explanation.prominentHeaderIcon ? 28 : 18,
+                              size: explanation.prominentHeaderIcon ? 32 : 18,
                             ),
                           ),
                           const SizedBox(width: 7),
                           Expanded(
-                            child: Text(
-                              explanation.title,
-                              style: explanation.prominentHeaderIcon
-                                  ? Theme.of(context).textTheme.titleLarge
-                                  : Theme.of(context).textTheme.titleMedium,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  explanation.title,
+                                  style: explanation.headerSubtitle != null
+                                      ? Theme.of(context).textTheme.titleMedium
+                                      : explanation.prominentHeaderIcon
+                                      ? Theme.of(context).textTheme.titleLarge
+                                      : Theme.of(context).textTheme.titleMedium,
+                                ),
+                                if (explanation.headerSubtitle
+                                    case final subtitle?)
+                                  Text(
+                                    subtitle,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: scheme.onSurface.withValues(
+                                            alpha: .76,
+                                          ),
+                                        ),
+                                  ),
+                              ],
                             ),
                           ),
                           IconButton(
@@ -2023,6 +2094,8 @@ class _WeatherDetailGraphicBlock extends StatelessWidget {
         );
       case _WeatherDetailVisualKind.precipitation:
         return _WeatherPrecipitationBlock(
+          type: _metric('種類'),
+          intensity: _metric('強さ'),
           amount: _metric('降水量'),
           probability: _metric('最大降水確率'),
         );
@@ -2167,23 +2240,63 @@ double? _weatherNumericValue(String? value) {
 
 class _WeatherPrecipitationBlock extends StatelessWidget {
   const _WeatherPrecipitationBlock({
+    required this.type,
+    required this.intensity,
     required this.amount,
     required this.probability,
   });
 
+  final _WeatherDetailMetric? type;
+  final _WeatherDetailMetric? intensity;
   final _WeatherDetailMetric? amount;
   final _WeatherDetailMetric? probability;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: _WeatherDetailValue(label: '降水量', metric: amount),
-      ),
-      const SizedBox(width: 12),
-      Expanded(flex: 2, child: _WeatherProbabilityReadout(metric: probability)),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final classification = Row(
+      children: [
+        Expanded(
+          child: _WeatherDetailValue(label: '種類', metric: type),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _WeatherDetailValue(label: '強さ', metric: intensity),
+        ),
+      ],
+    );
+    final amountValue = _WeatherDetailValue(label: '降水量', metric: amount);
+    final probabilityReadout = _WeatherProbabilityReadout(metric: probability);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 340) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(flex: 2, child: classification),
+                  const SizedBox(width: 12),
+                  Expanded(child: amountValue),
+                ],
+              ),
+              const SizedBox(height: 10),
+              probabilityReadout,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 2, child: classification),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: probabilityReadout),
+            const SizedBox(width: 12),
+            Expanded(child: amountValue),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _WeatherProbabilityReadout extends StatelessWidget {

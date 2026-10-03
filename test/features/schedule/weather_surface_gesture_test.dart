@@ -16,6 +16,40 @@ void main() {
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
   });
 
+  test(
+    'daily precipitation type and intensity use WMO weather-code semantics',
+    () {
+      void expectDescriptor(int? code, String type, String intensity) {
+        final descriptor = weatherPrecipitationDescriptorForCode(code);
+        expect(descriptor.type, type, reason: 'weather code $code');
+        expect(descriptor.intensity, intensity, reason: 'weather code $code');
+      }
+
+      expectDescriptor(51, '霧雨', '弱');
+      expectDescriptor(53, '霧雨', '中');
+      expectDescriptor(55, '霧雨', '強');
+      expectDescriptor(61, '雨', '弱');
+      expectDescriptor(63, '雨', '中');
+      expectDescriptor(65, '雨', '強');
+      expectDescriptor(80, 'にわか雨', '弱');
+      expectDescriptor(81, 'にわか雨', '中');
+      expectDescriptor(82, 'にわか雨', '激しい');
+      expectDescriptor(75, '雪', '強');
+      expectDescriptor(95, '雷雨', '弱〜中');
+      expectDescriptor(99, '雹を伴う雷雨', '強');
+    },
+  );
+
+  test(
+    'daily precipitation descriptor safely handles dry, null, and unknown codes',
+    () {
+      expect(weatherPrecipitationDescriptorForCode(0).type, '降水なし');
+      expect(weatherPrecipitationDescriptorForCode(0).intensity, '--');
+      expect(weatherPrecipitationDescriptorForCode(null).type, '--');
+      expect(weatherPrecipitationDescriptorForCode(null).intensity, '--');
+    },
+  );
+
   test('weekly peak cue only reuses the existing forecast summary output', () {
     const summary = WeatherForecastSummary(
       primary: '午後から雨の予報です。',
