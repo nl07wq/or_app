@@ -235,7 +235,7 @@ void main() {
   });
 
   testWidgets(
-    'Measured steps arrows clamp at zero and quick steps use two rows',
+    'Measured steps Food stepper clamps at zero without focusing the field',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -246,18 +246,44 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.bySemanticsLabel('Decrease measured steps by 1'));
-      await tester.pump();
-      expect(
-        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
-        '0',
+      final measuredStepsField = find.byType(TextField).first;
+      final decrement = find.byKey(
+        const ValueKey('activity-measured-steps-decrement'),
+      );
+      final increment = find.byKey(
+        const ValueKey('activity-measured-steps-increment'),
       );
 
-      await tester.tap(find.bySemanticsLabel('Increase measured steps by 1'));
+      FocusManager.instance.primaryFocus?.unfocus();
       await tester.pump();
       expect(
-        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        tester.widget<TextField>(measuredStepsField).focusNode!.hasFocus,
+        isFalse,
+      );
+
+      await tester.tap(decrement);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(measuredStepsField).controller!.text,
+        '0',
+      );
+      expect(
+        tester.widget<TextField>(measuredStepsField).focusNode!.hasFocus,
+        isFalse,
+      );
+
+      final incrementRect = tester.getRect(increment);
+      await tester.tapAt(
+        Offset(incrementRect.left + 3, incrementRect.center.dy),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(measuredStepsField).controller!.text,
         '1',
+      );
+      expect(
+        tester.widget<TextField>(measuredStepsField).focusNode!.hasFocus,
+        isFalse,
       );
 
       for (final value in [10, 50, 100, 500, 1000, 2500, 5000, 7500, 10000]) {
@@ -269,7 +295,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('activity-quick-steps-10')));
       await tester.pump();
       expect(
-        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        tester.widget<TextField>(measuredStepsField).controller!.text,
         '11',
       );
     },

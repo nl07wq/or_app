@@ -15,6 +15,7 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
+import '../food/widgets/food_input_fields.dart';
 import '../repositories/app_repository_container.dart';
 import '../operation_date/services/operation_date_service.dart';
 import 'models/activity_draft.dart';
@@ -499,7 +500,6 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
     );
-    _measuredStepsFocusNode.requestFocus();
     setState(() {});
   }
 
@@ -936,70 +936,32 @@ class _MeasuredStepsField extends StatelessWidget {
   final VoidCallback onDecrement;
 
   @override
-  Widget build(BuildContext context) => Stack(
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
     children: [
-      OperationTextField(
-        controller: controller,
-        focusNode: focusNode,
-        label: 'Measured steps',
-        keyboardType: TextInputType.number,
-        onChanged: onChanged,
+      Expanded(
+        child: OperationTextField(
+          controller: controller,
+          focusNode: focusNode,
+          label: 'Measured steps',
+          keyboardType: TextInputType.number,
+          onChanged: onChanged,
+        ),
       ),
-      Positioned(
-        top: 4,
-        right: 4,
-        bottom: 4,
-        child: SizedBox(
-          width: 40,
-          child: Column(
-            children: [
-              Expanded(
-                child: _MeasuredStepAdjustButton(
-                  label: 'Increase measured steps by 1',
-                  symbol: '▲',
-                  onPressed: enabled ? onIncrement : null,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Expanded(
-                child: _MeasuredStepAdjustButton(
-                  label: 'Decrease measured steps by 1',
-                  symbol: '▼',
-                  onPressed: enabled ? onDecrement : null,
-                ),
-              ),
-            ],
-          ),
+      const SizedBox(width: AppSpacing.xs),
+      SizedBox(
+        height: 56,
+        child: FoodNumericStepper(
+          fillParent: true,
+          incrementKey: const ValueKey('activity-measured-steps-increment'),
+          incrementTooltip: 'Increase measured steps by 1',
+          onIncrement: enabled ? onIncrement : null,
+          decrementKey: const ValueKey('activity-measured-steps-decrement'),
+          decrementTooltip: 'Decrease measured steps by 1',
+          onDecrement: enabled ? onDecrement : null,
         ),
       ),
     ],
-  );
-}
-
-class _MeasuredStepAdjustButton extends StatelessWidget {
-  const _MeasuredStepAdjustButton({
-    required this.label,
-    required this.symbol,
-    required this.onPressed,
-  });
-
-  final String label;
-  final String symbol;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    label: label,
-    button: true,
-    child: OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        minimumSize: Size.zero,
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Text(symbol, style: Theme.of(context).textTheme.labelSmall),
-    ),
   );
 }
 
