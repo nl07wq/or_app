@@ -16,11 +16,13 @@ void main() {
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
   });
 
-  test('weekly forecast left block uses one centered visual axis', () {
-    expect(weatherForecastLeftBlockAlignment, CrossAxisAlignment.center);
-    expect(weatherForecastLeftTextAlignment, TextAlign.center);
+  test('weekly forecast separates centered date and weather identities', () {
+    expect(weatherForecastUsesSplitLeftBlocks, isTrue);
     expect(weatherForecastLowHighPairAlignment, MainAxisAlignment.center);
     expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
+    expect(weatherForecastDateTextAlignment, TextAlign.center);
+    expect(weatherForecastWeatherBlockAlignment, CrossAxisAlignment.center);
+    expect(weatherForecastWeatherTextAlignment, TextAlign.center);
   });
 
   test('daily-detail temperature rail keeps LOW and HIGH as its base', () {

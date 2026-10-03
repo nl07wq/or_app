@@ -965,58 +965,85 @@ class _WeatherForecastRow extends StatelessWidget {
                 children: [
                   SizedBox(
                     key: ValueKey('weather-forecast-left-${value.date}'),
-                    width: 106,
-                    child: Column(
-                      crossAxisAlignment: weatherForecastLeftBlockAlignment,
+                    width: 118,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          today ? '今日' : _weekdayJapanese(date.weekday),
-                          textAlign: weatherForecastLeftTextAlignment,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.labelMedium?.copyWith(height: .9),
-                        ),
-                        Text(
-                          '${date.month}/${date.day}',
-                          textAlign: weatherForecastLeftTextAlignment,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                height: .9,
-                                color: scheme.onSurface.withValues(alpha: .72),
+                        SizedBox(
+                          key: ValueKey('weather-forecast-date-${value.date}'),
+                          width: 34,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment:
+                                weatherForecastDateBlockAlignment,
+                            children: [
+                              Text(
+                                today ? '今日' : _weekdayJapanese(date.weekday),
+                                textAlign: weatherForecastDateTextAlignment,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.labelMedium?.copyWith(height: .9),
                               ),
-                        ),
-                        const SizedBox(height: 2),
-                        Icon(
-                          _weatherIcon(value.code),
-                          color: scheme.primary,
-                          size: 28,
-                        ),
-                        Text(
-                          _weatherConditionJapanese(value.code),
-                          textAlign: weatherForecastLeftTextAlignment,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                height: .95,
-                                color: scheme.onSurface.withValues(alpha: .72),
+                              Text(
+                                '${date.month}/${date.day}',
+                                textAlign: weatherForecastDateTextAlignment,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      height: .9,
+                                      color: scheme.onSurface.withValues(
+                                        alpha: .72,
+                                      ),
+                                    ),
                               ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 1),
-                        Row(
-                          mainAxisAlignment:
-                              weatherForecastLowHighPairAlignment,
-                          children: [
-                            _WeeklyTemperatureValue(
-                              label: '低',
-                              value: '${value.low.round()}℃',
-                            ),
-                            const SizedBox(width: 9),
-                            _WeeklyTemperatureValue(
-                              label: '高',
-                              value: '${value.high.round()}℃',
-                            ),
-                          ],
+                        const SizedBox(width: 3),
+                        Expanded(
+                          key: ValueKey(
+                            'weather-forecast-weather-${value.date}',
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment:
+                                weatherForecastWeatherBlockAlignment,
+                            children: [
+                              Icon(
+                                _weatherIcon(value.code),
+                                color: scheme.primary,
+                                size: 28,
+                              ),
+                              Text(
+                                _weatherConditionJapanese(value.code),
+                                textAlign: weatherForecastWeatherTextAlignment,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      height: .95,
+                                      color: scheme.onSurface.withValues(
+                                        alpha: .72,
+                                      ),
+                                    ),
+                              ),
+                              const SizedBox(height: 1),
+                              Row(
+                                mainAxisAlignment:
+                                    weatherForecastLowHighPairAlignment,
+                                children: [
+                                  _WeeklyTemperatureValue(
+                                    label: '低',
+                                    value: '${value.low.round()}℃',
+                                  ),
+                                  const SizedBox(width: 7),
+                                  _WeeklyTemperatureValue(
+                                    label: '高',
+                                    value: '${value.high.round()}℃',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -1188,14 +1215,15 @@ class _WeeklyTemperatureValue extends StatelessWidget {
 double weatherTemperatureRailWidth(double rowWidth) =>
     (rowWidth - 208).clamp(44.0, 250.0).toDouble();
 
-/// The weekly left column uses one center axis: date identity, weather icon,
-/// condition, and the low/high pair read as one compact daily portrait.
-const weatherForecastLeftBlockAlignment = CrossAxisAlignment.center;
-const weatherForecastLeftTextAlignment = TextAlign.center;
+/// Weekly rows have separate horizontal identities: a compact date column and
+/// a weather column. Each is centered internally, but they intentionally do
+/// not share one all-content center axis.
 const weatherForecastLowHighPairAlignment = MainAxisAlignment.center;
-
-/// Retained as the date-specific authority for callers and tests.
 const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
+const weatherForecastDateTextAlignment = TextAlign.center;
+const weatherForecastWeatherBlockAlignment = CrossAxisAlignment.center;
+const weatherForecastWeatherTextAlignment = TextAlign.center;
+const weatherForecastUsesSplitLeftBlocks = true;
 
 /// Describes the daily LOW→HIGH rail and only the extension needed for a
 /// displayed apparent temperature outside that formal daily range.
@@ -2193,26 +2221,11 @@ class _WeatherTemperatureBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            _WeatherDetailValue(label: '最低', metric: low),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _WeatherTemperatureRail(
-                low: low,
-                high: high,
-                apparent: apparent,
-                color: scheme.primary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            _WeatherDetailValue(label: '最高', metric: high, alignEnd: true),
-          ],
-        ),
-      ],
+    return _WeatherTemperatureRail(
+      low: low,
+      high: high,
+      apparent: apparent,
+      color: scheme.primary,
     );
   }
 }
@@ -2247,6 +2260,21 @@ class _WeatherTemperatureRail extends StatelessWidget {
         final lowFraction = scale?.lowFraction ?? 0.0;
         final highFraction = scale?.highFraction ?? 1.0;
         final dayRangeWidth = math.max(0.0, highFraction - lowFraction);
+        const endpointLabelWidth = 68.0;
+        final lowLabelLeft = (width * lowFraction)
+            .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
+            .toDouble();
+        final unconstrainedHighLabelLeft =
+            width * highFraction - endpointLabelWidth;
+        final highLabelLeft = unconstrainedHighLabelLeft
+            .clamp(
+              math.min(
+                width - endpointLabelWidth,
+                lowLabelLeft + endpointLabelWidth + 4,
+              ),
+              math.max(0.0, width - endpointLabelWidth),
+            )
+            .toDouble();
         final markerLeft = markerFraction == null
             ? 0.0
             : ((width - 8) * markerFraction)
@@ -2259,23 +2287,54 @@ class _WeatherTemperatureRail extends StatelessWidget {
                   .clamp(0.0, math.max(0.0, width - apparentLabelWidth))
                   .toDouble();
         return SizedBox(
-          height: apparent == null ? 16 : 34,
+          height: apparent == null ? 28 : 50,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
+              if (low != null)
+                Positioned(
+                  left: lowLabelLeft,
+                  top: 0,
+                  width: math.min(endpointLabelWidth, width),
+                  child: Text(
+                    '最低 ${low!.value}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(height: 1),
+                  ),
+                ),
+              if (high != null)
+                Positioned(
+                  left: highLabelLeft,
+                  top: 0,
+                  width: math.min(endpointLabelWidth, width),
+                  child: Text(
+                    '最高 ${high!.value}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(height: 1),
+                  ),
+                ),
               Positioned(
                 left: 0,
                 right: 0,
-                top: 5,
-                child: _WeatherDetailMeter(
-                  fraction: 1,
-                  color: color,
+                top: 19,
+                child: Container(
                   height: 4,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .18),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
               Positioned(
                 left: width * lowFraction,
-                top: 4,
+                top: 18,
                 width: width * dayRangeWidth,
                 child: Container(
                   height: 6,
@@ -2288,7 +2347,7 @@ class _WeatherTemperatureRail extends StatelessWidget {
               if (markerFraction != null)
                 Positioned(
                   left: markerLeft,
-                  top: 3,
+                  top: 17,
                   child: Container(
                     width: 8,
                     height: 8,
@@ -2305,7 +2364,7 @@ class _WeatherTemperatureRail extends StatelessWidget {
               if (markerFraction != null)
                 Positioned(
                   left: apparentLabelLeft,
-                  top: 17,
+                  top: 32,
                   width: math.min(apparentLabelWidth, width),
                   child: Text(
                     '体感 ${apparent!.value}',
@@ -2562,21 +2621,14 @@ class _WeatherDetailStack extends StatelessWidget {
 }
 
 class _WeatherDetailValue extends StatelessWidget {
-  const _WeatherDetailValue({
-    required this.label,
-    required this.metric,
-    this.alignEnd = false,
-  });
+  const _WeatherDetailValue({required this.label, required this.metric});
 
   final String label;
   final _WeatherDetailMetric? metric;
-  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: alignEnd
-        ? CrossAxisAlignment.end
-        : CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(label, style: Theme.of(context).textTheme.labelSmall),
       Text(
@@ -2608,7 +2660,7 @@ class _WeatherDetailMeter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
-    final fillColor = Color.lerp(color, const Color(0xFF45D9FF), .35)!;
+    final fillColor = Color.lerp(color, const Color(0xFF45D9FF), .52)!;
     return LayoutBuilder(
       builder: (context, constraints) => ClipRRect(
         borderRadius: BorderRadius.circular(height / 2),
@@ -2619,8 +2671,8 @@ class _WeatherDetailMeter extends StatelessWidget {
             children: [
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: .10),
-                  border: Border.all(color: fillColor.withValues(alpha: .48)),
+                  color: const Color(0xFF08141B).withValues(alpha: .88),
+                  border: Border.all(color: fillColor.withValues(alpha: .32)),
                 ),
               ),
               Align(
@@ -2632,34 +2684,13 @@ class _WeatherDetailMeter extends StatelessWidget {
                       gradient: LinearGradient(
                         colors: [
                           fillColor.withValues(alpha: 1),
-                          fillColor.withValues(alpha: .74),
+                          fillColor.withValues(alpha: .82),
                         ],
                       ),
                     ),
                   ),
                 ),
               ),
-              if (safeFraction > 0)
-                Positioned(
-                  left: (constraints.maxWidth * safeFraction - height)
-                      .clamp(0.0, math.max(0.0, constraints.maxWidth - height))
-                      .toDouble(),
-                  top: 0,
-                  child: Container(
-                    width: height,
-                    height: height,
-                    decoration: BoxDecoration(
-                      color: fillColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: fillColor.withValues(alpha: .55),
-                          blurRadius: 3,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
