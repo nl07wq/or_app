@@ -157,7 +157,12 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   static const double animalPresentationScale = .64;
   static const double birdPresentationScaleMultiplier = 1.075;
   static const double birdTravelSpeedMultiplier = .90;
-  static const double catFollowerSpacingMultiplier = .88;
+
+  /// Normal CAT chains begin at .15 global progress intervals, while the
+  /// accepted GLITCH reference uses .10. Applying this Dashboard-only factor
+  /// makes normal ×2/×3 visible spacing match that GLITCH density without
+  /// changing either canonical plan.
+  static const double catFollowerSpacingMultiplier = 2 / 3;
   static const double foxFollowerSpacingMultiplier = 1.08;
 
   static const double catPresentationOffsetY = -2;

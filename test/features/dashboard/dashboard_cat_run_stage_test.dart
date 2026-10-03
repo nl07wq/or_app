@@ -520,6 +520,15 @@ void main() {
       expect(DashboardAmbientWildlifeStage.height, 85);
       expect(DashboardAmbientWildlifeStage.canonicalHeight, 112);
       expect(DashboardAmbientWildlifeStage.animalPresentationScale, .64);
+      expect(
+        DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
+        closeTo(2 / 3, .000001),
+      );
+      expect(
+        DashboardCatRunStage.chainFollowerTriggerProgress *
+            DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
+        closeTo(DashboardCatRunStage.glitchFollowerTriggerProgress, .000001),
+      );
       expect(DashboardAmbientWildlifeStage.topAirspaceCrop, 27);
       expect(
         tester
@@ -528,6 +537,14 @@ void main() {
             )
             .speciesPresentationScale,
         DashboardAmbientWildlifeStage.animalPresentationScale,
+      );
+      expect(
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(
+              find.byType(AmbientWildlifeV2ProductionStage),
+            )
+            .catFollowerSpacingMultiplier,
+        DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
       );
       expect(
         tester
