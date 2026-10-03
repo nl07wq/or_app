@@ -559,11 +559,17 @@ class _DashboardAmbientWildlifePreviewSection extends StatefulWidget {
 
 class _DashboardAmbientWildlifePreviewSectionState
     extends State<_DashboardAmbientWildlifePreviewSection> {
+  static const _catGlitchSpacingPresets = <double>[.06, .075, .09, .10, .12];
+
+  static String _catGlitchSpacingPresetKey(double spacing) =>
+      spacing == .10 ? 'base' : spacing.toString().replaceFirst('0.', '');
+
   var _expanded = true;
   var _species = AmbientWildlifeV2Species.cat;
   var _randomSpecies = false;
   var _variant = AmbientWildlifeV2ForcedVariant.one;
   var _motionProfile = AmbientWildlifeV2CatMotionProfile.current;
+  var _catGlitchSpacing = .10;
   var _requestId = 0;
   var _playing = false;
   var _paused = false;
@@ -571,6 +577,14 @@ class _DashboardAmbientWildlifePreviewSectionState
   void _selectSpecies(AmbientWildlifeV2Species species) => setState(() {
     _species = species;
     _randomSpecies = false;
+  });
+
+  void _selectCatGlitchSpacing(double spacing) => setState(() {
+    _catGlitchSpacing = spacing;
+    // A changed forced plan is the explicit, production-path restart for the
+    // new comparison value. PLAY/REPEAT remains active and all selections are
+    // retained.
+    _requestId++;
   });
 
   void _playOrResume() => setState(() {
@@ -602,6 +616,8 @@ class _DashboardAmbientWildlifePreviewSectionState
     final reducedMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final isCat = !_randomSpecies && _species == AmbientWildlifeV2Species.cat;
+    final isCatGlitch =
+        isCat && _variant == AmbientWildlifeV2ForcedVariant.glitch10;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -636,6 +652,9 @@ class _DashboardAmbientWildlifePreviewSectionState
                   variant: _variant,
                   leftToRight: true,
                   catMotionProfile: _motionProfile,
+                  catGlitchSpacingOverride: isCatGlitch
+                      ? _catGlitchSpacing
+                      : null,
                   paused: !_playing || _paused,
                   onCompleted: _onCompleted,
                 ),
@@ -705,6 +724,28 @@ class _DashboardAmbientWildlifePreviewSectionState
                     ],
                   ),
                 ],
+                if (isCatGlitch) ...[
+                  AppSpacing.gapMD,
+                  const Text('GLITCH SPACING'),
+                  AppSpacing.gapSM,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final spacing in _catGlitchSpacingPresets)
+                        ChoiceChip(
+                          key: ValueKey(
+                            'dashboard-preview-cat-glitch-spacing-${_catGlitchSpacingPresetKey(spacing)}',
+                          ),
+                          label: Text(
+                            spacing == .10 ? '.10 BASE' : spacing.toString(),
+                          ),
+                          selected: _catGlitchSpacing == spacing,
+                          onSelected: (_) => _selectCatGlitchSpacing(spacing),
+                        ),
+                    ],
+                  ),
+                ],
                 AppSpacing.gapMD,
                 _SandboxActionButton(
                   key: const ValueKey('dashboard-preview-play'),
@@ -730,7 +771,7 @@ class _DashboardAmbientWildlifePreviewSectionState
                 ),
                 AppSpacing.gapSM,
                 Text(
-                  'PRODUCTION PATH · CAT ${isCat ? _motionProfile.name.toUpperCase() : 'CURRENT'} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
+                  'PRODUCTION PATH · CAT ${isCat ? _motionProfile.name.toUpperCase() : 'CURRENT'}${isCatGlitch ? ' · GLITCH ${_catGlitchSpacing.toStringAsFixed(3)}' : ''} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
                   key: const ValueKey('dashboard-preview-readout'),
                   textAlign: TextAlign.center,
                 ),

@@ -10,6 +10,19 @@ import 'cat_run_v2_trace_data.dart';
 import 'cat_run_coat_patterns.dart';
 import 'cat_run_v24_presentation.dart';
 
+/// Preview-only presentation tuning. It never changes the CAT's travel
+/// progress, duration, source frames, or production geometry.
+@immutable
+class CatRunV23SmoothTuning {
+  const CatRunV23SmoothTuning({
+    required this.blendDuration,
+    required this.maximumVisualAnchorOffset,
+  });
+
+  final Duration blendDuration;
+  final double maximumVisualAnchorOffset;
+}
+
 /// Presentation-only travel model for V2.2's frozen registered HIGH frames.
 /// It does not alter source geometry, registration, contact metadata, or timing.
 class CatRunV23Travel {
@@ -61,7 +74,10 @@ class CatRunV23Travel {
   /// anchors; this small, bounded presentation correction removes only the
   /// remaining outer-contour shift visible in Dashboard Preview's SMOOTH
   /// profile. It never changes crossing progress, frame order, or timing.
-  static Offset smoothVisualAnchorOffsetAt(double progress) {
+  static Offset smoothVisualAnchorOffsetAt(
+    double progress, {
+    CatRunV23SmoothTuning tuning = mediumSmoothTuning,
+  }) {
     final cycleDuration = CatRunV28Timing.cycleDuration.inMicroseconds;
     final elapsed =
         (crossingDuration.inMicroseconds *
@@ -78,30 +94,43 @@ class CatRunV23Travel {
       final frameEnd = frameStart + duration;
       if (cycleElapsed < frameEnd) {
         final local = cycleElapsed - frameStart;
-        final halfBlendMicroseconds = _smoothAnchorBlendMicroseconds ~/ 2;
-        final current = _smoothVisualAnchorOffsets[index];
+        final requestedHalfBlendMicroseconds =
+            tuning.blendDuration.inMicroseconds ~/ 2;
+        final halfBlendMicroseconds = math.min(
+          requestedHalfBlendMicroseconds,
+          duration ~/ 2,
+        );
+        final blendMicroseconds = halfBlendMicroseconds * 2;
+        final current = _boundedSmoothAnchorOffset(
+          _rawSmoothVisualAnchorOffsets[index],
+          tuning.maximumVisualAnchorOffset,
+        );
+        if (blendMicroseconds == 0) return current;
         if (local < halfBlendMicroseconds) {
-          final previous =
-              _smoothVisualAnchorOffsets[(index -
-                      1 +
-                      _smoothVisualAnchorOffsets.length) %
-                  _smoothVisualAnchorOffsets.length];
+          final previous = _boundedSmoothAnchorOffset(
+            _rawSmoothVisualAnchorOffsets[(index -
+                    1 +
+                    _rawSmoothVisualAnchorOffsets.length) %
+                _rawSmoothVisualAnchorOffsets.length],
+            tuning.maximumVisualAnchorOffset,
+          );
           return Offset.lerp(
             previous,
             current,
-            _smoothStep(
-              (halfBlendMicroseconds + local) / _smoothAnchorBlendMicroseconds,
-            ),
+            _smoothStep((halfBlendMicroseconds + local) / blendMicroseconds),
           )!;
         }
         if (local > duration - halfBlendMicroseconds) {
+          final next = _boundedSmoothAnchorOffset(
+            _rawSmoothVisualAnchorOffsets[(index + 1) %
+                _rawSmoothVisualAnchorOffsets.length],
+            tuning.maximumVisualAnchorOffset,
+          );
           return Offset.lerp(
             current,
-            _smoothVisualAnchorOffsets[(index + 1) %
-                _smoothVisualAnchorOffsets.length],
+            next,
             _smoothStep(
-              (local - (duration - halfBlendMicroseconds)) /
-                  _smoothAnchorBlendMicroseconds,
+              (local - (duration - halfBlendMicroseconds)) / blendMicroseconds,
             ),
           )!;
         }
@@ -109,16 +138,28 @@ class CatRunV23Travel {
       }
       frameStart = frameEnd;
     }
-    return _smoothVisualAnchorOffsets.first;
+    return _boundedSmoothAnchorOffset(
+      _rawSmoothVisualAnchorOffsets.first,
+      tuning.maximumVisualAnchorOffset,
+    );
   }
 
-  /// A 40ms presentation-only handoff is long enough to bridge the visible
-  /// pose-centre discontinuity, without changing the CAT's crossing timeline.
-  static const smoothAnchorBlendDuration = Duration(milliseconds: 40);
-  static const maximumSmoothVisualAnchorOffset = .018;
-  static const _smoothAnchorBlendMicroseconds = 40000;
-  static const _maximumSmoothVisualAnchorOffset =
-      maximumSmoothVisualAnchorOffset;
+  static const lightSmoothTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 28),
+    maximumVisualAnchorOffset: .006,
+  );
+  static const mediumSmoothTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 48),
+    maximumVisualAnchorOffset: .012,
+  );
+  static const strongSmoothTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 68),
+    maximumVisualAnchorOffset: .018,
+  );
+  static const maxSmoothTuning = CatRunV23SmoothTuning(
+    blendDuration: Duration(milliseconds: 96),
+    maximumVisualAnchorOffset: .024,
+  );
 
   /// Returns the production-presentation visible bounds for a single CAT at a
   /// given progress. The result is intentionally based on the registered
@@ -179,7 +220,7 @@ class CatRunV23Travel {
         : follower.left - leader.right;
   }
 
-  static final _smoothVisualAnchorOffsets = () {
+  static final _rawSmoothVisualAnchorOffsets = () {
     final centers = catRunV2HighTraces
         .map((trace) {
           final path = Path()
@@ -196,13 +237,16 @@ class CatRunV23Travel {
     return List<Offset>.unmodifiable(
       centers
           .map((center) {
-            final raw = meanCenter - center;
-            if (raw.distance <= _maximumSmoothVisualAnchorOffset) return raw;
-            return raw / raw.distance * _maximumSmoothVisualAnchorOffset;
+            return meanCenter - center;
           })
           .toList(growable: false),
     );
   }();
+
+  static Offset _boundedSmoothAnchorOffset(Offset raw, double maximum) {
+    if (raw.distance <= maximum) return raw;
+    return raw / raw.distance * maximum;
+  }
 
   static double _smoothStep(double value) {
     final t = value.clamp(0.0, 1.0).toDouble();
@@ -422,6 +466,7 @@ class CatRunProductionEventPlan {
   factory CatRunProductionEventPlan.forceGlitch({
     required math.Random random,
     required CatRunV23Direction direction,
+    double? spacingOverride,
   }) => CatRunProductionEventPlan._withCrossings(
     source: CatRunProductionEventSource.sandbox,
     eventRoll: null,
@@ -429,7 +474,9 @@ class CatRunProductionEventPlan {
     direction: direction,
     random: random,
     count: CatRunProductionEventPolicy.glitchCatCount,
-    spacing: CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+    spacing:
+        spacingOverride ??
+        CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
     allowsRecursiveContinuation: false,
   );
 
@@ -731,7 +778,7 @@ class CatRunV23StagePainter extends CustomPainter {
     this.catUnit = CatRunV23Travel.catUnit,
     this.showGroundLine = false,
     this.paintBackground = true,
-    this.smoothPoseAnchors = false,
+    this.smoothTuning,
     this.neutralFrame02 = false,
     this.groundInset = 5,
     this.groundLineColor = const Color(0xFF383838),
@@ -745,10 +792,10 @@ class CatRunV23StagePainter extends CustomPainter {
   final bool showGroundLine;
   final bool paintBackground;
 
-  /// Preview-only visual continuity mode. CURRENT and CRUISE retain the
-  /// direct registered pose anchors; SMOOTH applies the bounded offset from
-  /// [CatRunV23Travel] without changing the travel timeline.
-  final bool smoothPoseAnchors;
+  /// Preview-only visual continuity mode. A null value retains direct
+  /// registered anchors; a tuning applies bounded presentation correction
+  /// without changing the travel timeline.
+  final CatRunV23SmoothTuning? smoothTuning;
 
   /// Renders the production canonical Frame 02 at the stage centre without
   /// consuming crossing progress. Used only by Ambient Wildlife neutral mode.
@@ -837,9 +884,12 @@ class CatRunV23StagePainter extends CustomPainter {
     );
     final groundY =
         size.height - 5 - CatRunV2Registration.virtualGround * catUnit;
-    final smoothAnchorOffset = smoothPoseAnchors
-        ? CatRunV23Travel.smoothVisualAnchorOffsetAt(crossing.progress)
-        : Offset.zero;
+    final smoothAnchorOffset = smoothTuning == null
+        ? Offset.zero
+        : CatRunV23Travel.smoothVisualAnchorOffsetAt(
+            crossing.progress,
+            tuning: smoothTuning!,
+          );
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
@@ -875,7 +925,7 @@ class CatRunV23StagePainter extends CustomPainter {
       oldDelegate.catUnit != catUnit ||
       oldDelegate.showGroundLine != showGroundLine ||
       oldDelegate.paintBackground != paintBackground ||
-      oldDelegate.smoothPoseAnchors != smoothPoseAnchors ||
+      oldDelegate.smoothTuning != smoothTuning ||
       oldDelegate.neutralFrame02 != neutralFrame02 ||
       oldDelegate.groundInset != groundInset ||
       oldDelegate.groundLineColor != groundLineColor;

@@ -159,8 +159,8 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   static const double birdTravelSpeedMultiplier = .90;
 
   /// Normal CAT chains begin at .15 global progress intervals and Dashboard
-  /// compacts only that normal spacing to .10. GLITCH retains its independent,
-  /// canonical .05 spacing authority inside the production event policy.
+  /// compacts only that normal spacing to .10. GLITCH retains its independent
+  /// production spacing authority inside the CAT event policy.
   static const double catFollowerSpacingMultiplier = 2 / 3;
   static const double foxFollowerSpacingMultiplier = 1.08;
 
@@ -220,6 +220,7 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
     required this.leftToRight,
     this.forcedSpecies,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catGlitchSpacingOverride,
     this.paused = false,
     this.onCompleted,
     this.nextInt,
@@ -233,6 +234,10 @@ class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
   /// the Dashboard random picker.
   final AmbientWildlifeV2Species? forcedSpecies;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+
+  /// A Sandbox-only CAT GLITCH comparison value. Null preserves the shared
+  /// production policy exactly.
+  final double? catGlitchSpacingOverride;
   final bool paused;
   final VoidCallback? onCompleted;
   final int Function(int max)? nextInt;
@@ -264,6 +269,7 @@ class _DashboardAmbientWildlifeProductionPreviewStageState
       species: species,
       variant: widget.variant,
       leftToRight: widget.leftToRight,
+      catGlitchSpacingOverride: widget.catGlitchSpacingOverride,
     );
   }
 

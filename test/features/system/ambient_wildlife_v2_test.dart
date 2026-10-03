@@ -61,6 +61,34 @@ void main() {
     expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .025);
   });
 
+  test('CAT GLITCH Preview presets override only forced GLITCH plans', () {
+    const presets = [.06, .075, .09, .10, .12];
+    for (final preset in presets) {
+      for (final leftToRight in [true, false]) {
+        final preview = AmbientWildlifeV2EventPlan.forced(
+          species: AmbientWildlifeV2Species.cat,
+          variant: AmbientWildlifeV2ForcedVariant.glitch10,
+          leftToRight: leftToRight,
+          catGlitchSpacingOverride: preset,
+        );
+        expect(preview.catPlan!.crossings, hasLength(10));
+        expect(preview.catPlan!.crossings[1].startedAtProgress, preset);
+      }
+    }
+
+    final normal = AmbientWildlifeV2EventPlan.forced(
+      species: AmbientWildlifeV2Species.cat,
+      variant: AmbientWildlifeV2ForcedVariant.three,
+      leftToRight: true,
+      catGlitchSpacingOverride: .12,
+    );
+    expect(
+      normal.catPlan!.crossings[1].startedAtProgress,
+      CatRunProductionEventPolicy.normalFollowerTriggerProgress,
+    );
+    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .025);
+  });
+
   test('CAT GLITCH applies controlled, symmetric visible overlap', () {
     const stageWidth = 390.0;
     const dashboardCatUnit =
@@ -139,39 +167,61 @@ void main() {
     );
   });
 
-  test('CAT SMOOTH uses a stronger bounded 40ms anchor handoff', () {
-    final offsets = <Offset>[
-      for (
-        var millisecond = 0;
-        millisecond < CatRunV23Travel.crossingDuration.inMilliseconds;
-        millisecond += 2
-      )
-        CatRunV23Travel.smoothVisualAnchorOffsetAt(
-          millisecond / CatRunV23Travel.crossingDuration.inMilliseconds,
-        ),
+  test('CAT Preview SMOOTH levels vary only presentation continuity', () {
+    const profiles = [
+      AmbientWildlifeV2CatMotionProfile.s1,
+      AmbientWildlifeV2CatMotionProfile.s2,
+      AmbientWildlifeV2CatMotionProfile.s3,
+      AmbientWildlifeV2CatMotionProfile.s4,
+    ];
+    final tunings = [
+      for (final profile in profiles)
+        ambientWildlifeV2CatSmoothTuning(profile)!,
     ];
 
-    expect(
-      offsets
-          .map((offset) => offset.distance)
-          .every(
-            (offset) =>
-                offset <= CatRunV23Travel.maximumSmoothVisualAnchorOffset,
+    expect(tunings.map((tuning) => tuning.blendDuration.inMilliseconds), const [
+      28,
+      48,
+      68,
+      96,
+    ]);
+    expect(tunings.map((tuning) => tuning.maximumVisualAnchorOffset), const [
+      .006,
+      .012,
+      .018,
+      .024,
+    ]);
+    for (final tuning in tunings) {
+      final offsets = <Offset>[
+        for (
+          var millisecond = 0;
+          millisecond < CatRunV23Travel.crossingDuration.inMilliseconds;
+          millisecond += 2
+        )
+          CatRunV23Travel.smoothVisualAnchorOffsetAt(
+            millisecond / CatRunV23Travel.crossingDuration.inMilliseconds,
+            tuning: tuning,
           ),
-      isTrue,
-    );
-    expect(
-      CatRunV23Travel.smoothAnchorBlendDuration,
-      const Duration(milliseconds: 40),
-    );
-    expect(
-      offsets.map((offset) => offset.distance).any((offset) => offset > .008),
-      isTrue,
-    );
-    expect(offsets.toSet().length, greaterThan(1));
-    for (var index = 1; index < offsets.length; index++) {
-      expect((offsets[index] - offsets[index - 1]).distance, lessThan(.008));
+      ];
+      expect(
+        offsets
+            .map((offset) => offset.distance)
+            .every(
+              (offset) => offset <= tuning.maximumVisualAnchorOffset + .000001,
+            ),
+        isTrue,
+      );
+      expect(offsets.toSet().length, greaterThan(1));
     }
+    for (final profile in AmbientWildlifeV2CatMotionProfile.values) {
+      expect(ambientWildlifeV2CatMotionCurve(profile), Curves.linear);
+    }
+    expect(
+      ambientWildlifeV2CatSmoothTuning(
+        AmbientWildlifeV2CatMotionProfile.current,
+      ),
+      isNull,
+    );
     expect(CatRunV23Travel.crossingDuration, CatRunV24Travel.crossingDuration);
   });
 

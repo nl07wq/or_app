@@ -22,16 +22,30 @@ enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
 /// Optional inspection profiles for Dashboard Preview. Dashboard production
 /// keeps [current] unless a future acceptance task explicitly adopts another
 /// profile.
-enum AmbientWildlifeV2CatMotionProfile { current, smooth, cruise }
+/// Dashboard Preview comparison profiles. Production keeps [current] until a
+/// separate acceptance task deliberately adopts one of the smooth candidates.
+enum AmbientWildlifeV2CatMotionProfile { current, s1, s2, s3, s4 }
 
 Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile profile,
 ) => switch (profile) {
   AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
-  // SMOOTH preserves the production crossing timeline. Its bounded visual
-  // anchor correction is applied by the CAT presentation painter.
-  AmbientWildlifeV2CatMotionProfile.smooth => Curves.linear,
-  AmbientWildlifeV2CatMotionProfile.cruise => Curves.linear,
+  AmbientWildlifeV2CatMotionProfile.s1 ||
+  AmbientWildlifeV2CatMotionProfile.s2 ||
+  AmbientWildlifeV2CatMotionProfile.s3 ||
+  AmbientWildlifeV2CatMotionProfile.s4 => Curves.linear,
+};
+
+/// S1 through S4 vary presentation continuity only. They never alter the
+/// production crossing duration, speed, frame order, or travel curve.
+CatRunV23SmoothTuning? ambientWildlifeV2CatSmoothTuning(
+  AmbientWildlifeV2CatMotionProfile profile,
+) => switch (profile) {
+  AmbientWildlifeV2CatMotionProfile.current => null,
+  AmbientWildlifeV2CatMotionProfile.s1 => CatRunV23Travel.lightSmoothTuning,
+  AmbientWildlifeV2CatMotionProfile.s2 => CatRunV23Travel.mediumSmoothTuning,
+  AmbientWildlifeV2CatMotionProfile.s3 => CatRunV23Travel.strongSmoothTuning,
+  AmbientWildlifeV2CatMotionProfile.s4 => CatRunV23Travel.maxSmoothTuning,
 };
 
 /// GLITCH has a fixed production spacing authority. Dashboard presentation
@@ -155,6 +169,7 @@ class AmbientWildlifeV2EventPlan {
     required AmbientWildlifeV2Species species,
     required AmbientWildlifeV2ForcedVariant variant,
     required bool leftToRight,
+    double? catGlitchSpacingOverride,
   }) {
     final direction = leftToRight
         ? CatRunV23Direction.leftToRight
@@ -174,6 +189,7 @@ class AmbientWildlifeV2EventPlan {
             ? CatRunProductionEventPlan.forceGlitch(
                 random: math.Random(0),
                 direction: direction,
+                spacingOverride: catGlitchSpacingOverride,
               )
             : CatRunProductionEventPlan.forceCount(
                 random: math.Random(0),
@@ -1591,8 +1607,8 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                         progress:
                                             ambientWildlifeV2CatCrossingProgress(
                                               eventProgress: _controller.value,
-                                              startedAtProgress: crossing
-                                                  .startedAtProgress,
+                                              startedAtProgress:
+                                                  crossing.startedAtProgress,
                                               isGlitch: plan.isGlitch,
                                               normalFollowerSpacingMultiplier:
                                                   widget
@@ -1607,9 +1623,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                       widget.speciesPresentationScale,
                                   showGroundLine: false,
                                   paintBackground: false,
-                                  smoothPoseAnchors:
-                                      widget.catMotionProfile ==
-                                      AmbientWildlifeV2CatMotionProfile.smooth,
+                                  smoothTuning:
+                                      ambientWildlifeV2CatSmoothTuning(
+                                        widget.catMotionProfile,
+                                      ),
                                 ),
                               ),
                             );
