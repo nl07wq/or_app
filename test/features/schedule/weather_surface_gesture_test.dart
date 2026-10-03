@@ -16,25 +16,6 @@ void main() {
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
   });
 
-  test('daily detail telemetry uses adaptive horizontal density', () {
-    expect(
-      weatherDetailTelemetryColumns(availableWidth: 280, metricCount: 5),
-      1,
-    );
-    expect(
-      weatherDetailTelemetryColumns(availableWidth: 338, metricCount: 5),
-      2,
-    );
-    expect(
-      weatherDetailTelemetryColumns(availableWidth: 520, metricCount: 5),
-      3,
-    );
-    expect(
-      weatherDetailTelemetryColumns(availableWidth: 520, metricCount: 1),
-      1,
-    );
-  });
-
   test('weekly peak cue only reuses the existing forecast summary output', () {
     const summary = WeatherForecastSummary(
       primary: '午後から雨の予報です。',

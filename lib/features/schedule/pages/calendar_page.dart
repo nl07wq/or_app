@@ -927,7 +927,7 @@ class _WeatherForecastRow extends StatelessWidget {
         child: Container(
           key: ValueKey('weather-forecast-row-${value.date}'),
           margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           decoration: BoxDecoration(
             color: selected ? scheme.surface.withValues(alpha: .30) : null,
             border: Border.all(
@@ -963,37 +963,52 @@ class _WeatherForecastRow extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(
-                    flex: 3,
+                  SizedBox(
+                    key: ValueKey('weather-forecast-left-${value.date}'),
+                    width: 106,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          today ? '今日' : _weekdayJapanese(date.weekday),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        Text(
-                          '${date.month}/${date.day}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: scheme.onSurface.withValues(alpha: .72),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                today ? '今日' : _weekdayJapanese(date.weekday),
+                                style: Theme.of(context).textTheme.titleSmall,
                               ),
+                            ),
+                            Icon(
+                              _weatherIcon(value.code),
+                              color: scheme.primary,
+                              size: 32,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Icon(
-                          _weatherIcon(value.code),
-                          color: scheme.primary,
-                          size: 36,
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '${value.high.round()}°',
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w600,
-                                height: 1,
-                              ),
+                        const SizedBox(height: 1),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '${date.month}/${date.day}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: scheme.onSurface.withValues(
+                                      alpha: .72,
+                                    ),
+                                  ),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              '${value.high.round()}°',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1,
+                                  ),
+                            ),
+                          ],
                         ),
                         Text(
                           '${value.low.round()}° / ${value.high.round()}°',
@@ -1005,9 +1020,9 @@ class _WeatherForecastRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
-                    flex: 7,
+                    key: ValueKey('weather-forecast-right-${value.date}'),
                     child: Column(
                       children: [
                         Row(
@@ -1042,7 +1057,7 @@ class _WeatherForecastRow extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 3),
                         Row(
                           children: [
                             Expanded(
@@ -1199,7 +1214,8 @@ Future<void> _showDailyForecastDetail(
       supportingData: summary.supporting,
       detailSections: [
         _WeatherDetailSection(
-          title: '気温・降水',
+          title: '気温',
+          visualKind: _WeatherDetailVisualKind.temperature,
           tonalStrength: .035,
           metrics: [
             _WeatherDetailMetric(label: '最低気温', value: '${day.low.round()}°'),
@@ -1211,6 +1227,13 @@ Future<void> _showDailyForecastDetail(
                 context:
                     '$observationLabel（気温 ${forecast.temperature.round()}°）',
               ),
+          ],
+        ),
+        _WeatherDetailSection(
+          title: '降水',
+          visualKind: _WeatherDetailVisualKind.precipitation,
+          tonalStrength: .022,
+          metrics: [
             _WeatherDetailMetric(
               label: '降水量',
               value: '${day.precipitation.toStringAsFixed(1)}mm',
@@ -1226,6 +1249,7 @@ Future<void> _showDailyForecastDetail(
         if (forecast != null)
           _WeatherDetailSection(
             title: '風・湿度・露点',
+            visualKind: _WeatherDetailVisualKind.windHumidity,
             tonalStrength: .022,
             metrics: [
               _WeatherDetailMetric(
@@ -1256,6 +1280,7 @@ Future<void> _showDailyForecastDetail(
           ),
         _WeatherDetailSection(
           title: '観測指標',
+          visualKind: _WeatherDetailVisualKind.observation,
           tonalStrength: .035,
           metrics: [
             if (forecast?.visibility != null)
@@ -1286,8 +1311,8 @@ Future<void> _showDailyForecastDetail(
         ),
         _WeatherDetailSection(
           title: '日の出・日の入り',
+          visualKind: _WeatherDetailVisualKind.daylight,
           tonalStrength: .022,
-          daylightTimeline: true,
           metrics: [
             _WeatherDetailMetric(label: '日の出', value: _shortTime(day.sunrise)),
             _WeatherDetailMetric(label: '日の入り', value: _shortTime(day.sunset)),
@@ -1694,13 +1719,22 @@ class _WeatherDetailSection {
     required this.title,
     required this.metrics,
     this.tonalStrength = .025,
-    this.daylightTimeline = false,
+    this.visualKind = _WeatherDetailVisualKind.standard,
   });
 
   final String title;
   final List<_WeatherDetailMetric> metrics;
   final double tonalStrength;
-  final bool daylightTimeline;
+  final _WeatherDetailVisualKind visualKind;
+}
+
+enum _WeatherDetailVisualKind {
+  standard,
+  temperature,
+  precipitation,
+  windHumidity,
+  observation,
+  daylight,
 }
 
 class _WeatherDetailMetric {
@@ -1717,17 +1751,6 @@ class _WeatherDetailMetric {
   final String? context;
   final double? meterFraction;
   final IconData? icon;
-}
-
-/// Chooses an adaptive telemetry density without making a narrow detail sheet
-/// horizontally scroll. At 390px, the sheet has room for two value-first
-/// tiles; wider sheets use three compact tiles before the modal max width.
-int weatherDetailTelemetryColumns({
-  required double availableWidth,
-  required int metricCount,
-}) {
-  if (metricCount <= 1 || availableWidth < 300) return 1;
-  return math.min(availableWidth >= 500 ? 3 : 2, metricCount);
 }
 
 Future<void> _showWeatherExplanation(
@@ -1922,6 +1945,7 @@ class _WeatherDetailTelemetrySection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Container(
+        key: ValueKey('weather-detail-${section.visualKind.name}-block'),
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
         decoration: BoxDecoration(
@@ -1939,45 +1963,154 @@ class _WeatherDetailTelemetrySection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            if (section.daylightTimeline)
-              _WeatherDaylightTimeline(metrics: section.metrics)
-            else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  const gap = 8.0;
-                  final columns = weatherDetailTelemetryColumns(
-                    availableWidth: constraints.maxWidth,
-                    metricCount: section.metrics.length,
-                  );
-                  final itemWidth = columns == 1
-                      ? constraints.maxWidth
-                      : (constraints.maxWidth - ((columns - 1) * gap)) /
-                            columns;
-                  return Wrap(
-                    spacing: gap,
-                    runSpacing: 7,
-                    children: [
-                      for (
-                        var index = 0;
-                        index < section.metrics.length;
-                        index++
-                      )
-                        SizedBox(
-                          // Do not strand one narrow value tile on the left.
-                          // The final partial row becomes a full-width readout.
-                          width:
-                              index == section.metrics.length - 1 &&
-                                  index % columns == 0 &&
-                                  columns > 1
-                              ? constraints.maxWidth
-                              : itemWidth,
-                          child: _WeatherDetailMetricValue(
-                            metric: section.metrics[index],
-                          ),
-                        ),
-                    ],
-                  );
-                },
+            _WeatherDetailGraphicBlock(section: section),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherDetailGraphicBlock extends StatelessWidget {
+  const _WeatherDetailGraphicBlock({required this.section});
+
+  final _WeatherDetailSection section;
+
+  _WeatherDetailMetric? _metric(String label) {
+    for (final metric in section.metrics) {
+      if (metric.label == label) return metric;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (section.visualKind) {
+      case _WeatherDetailVisualKind.temperature:
+        return _WeatherTemperatureBlock(
+          low: _metric('最低気温'),
+          high: _metric('最高気温'),
+          apparent: _metric('体感温度'),
+        );
+      case _WeatherDetailVisualKind.precipitation:
+        return _WeatherPrecipitationBlock(
+          amount: _metric('降水量'),
+          probability: _metric('最大降水確率'),
+        );
+      case _WeatherDetailVisualKind.windHumidity:
+        return _WeatherWindHumidityBlock(
+          direction: _metric('風向'),
+          speed: _metric('風速'),
+          gust: _metric('突風'),
+          humidity: _metric('湿度'),
+          dewPoint: _metric('露点'),
+        );
+      case _WeatherDetailVisualKind.observation:
+        return _WeatherObservationStrip(metrics: section.metrics);
+      case _WeatherDetailVisualKind.daylight:
+        return _WeatherDaylightTimeline(metrics: section.metrics);
+      case _WeatherDetailVisualKind.standard:
+        return _WeatherDetailMetricStrip(metrics: section.metrics);
+    }
+  }
+}
+
+class _WeatherTemperatureBlock extends StatelessWidget {
+  const _WeatherTemperatureBlock({
+    required this.low,
+    required this.high,
+    required this.apparent,
+  });
+
+  final _WeatherDetailMetric? low;
+  final _WeatherDetailMetric? high;
+  final _WeatherDetailMetric? apparent;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            _WeatherDetailValue(label: '最低', metric: low),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _WeatherTemperatureRail(
+                low: low,
+                high: high,
+                apparent: apparent,
+                color: scheme.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            _WeatherDetailValue(label: '最高', metric: high, alignEnd: true),
+          ],
+        ),
+        if (apparent != null) ...[
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.center,
+            child: Text(
+              '● 体感 ${apparent!.value}',
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: scheme.primary),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _WeatherTemperatureRail extends StatelessWidget {
+  const _WeatherTemperatureRail({
+    required this.low,
+    required this.high,
+    required this.apparent,
+    required this.color,
+  });
+
+  final _WeatherDetailMetric? low;
+  final _WeatherDetailMetric? high;
+  final _WeatherDetailMetric? apparent;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final lowValue = _weatherNumericValue(low?.value);
+    final highValue = _weatherNumericValue(high?.value);
+    final apparentValue = _weatherNumericValue(apparent?.value);
+    final range = highValue != null && lowValue != null
+        ? highValue - lowValue
+        : null;
+    final markerFraction = range != null && range > 0 && apparentValue != null
+        ? ((apparentValue - lowValue!) / range).clamp(0.0, 1.0).toDouble()
+        : null;
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        height: 16,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            _WeatherDetailMeter(fraction: 1, color: color, height: 5),
+            if (markerFraction != null)
+              Positioned(
+                left: (constraints.maxWidth - 8) * markerFraction,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.surface,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -1986,74 +2119,233 @@ class _WeatherDetailTelemetrySection extends StatelessWidget {
   }
 }
 
-class _WeatherDetailMetricValue extends StatelessWidget {
-  const _WeatherDetailMetricValue({required this.metric});
+double? _weatherNumericValue(String? value) {
+  if (value == null) return null;
+  return double.tryParse(
+    RegExp(r'-?\d+(?:\.\d+)?').firstMatch(value)?.group(0) ?? '',
+  );
+}
 
-  final _WeatherDetailMetric metric;
+class _WeatherPrecipitationBlock extends StatelessWidget {
+  const _WeatherPrecipitationBlock({
+    required this.amount,
+    required this.probability,
+  });
+
+  final _WeatherDetailMetric? amount;
+  final _WeatherDetailMetric? probability;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .30),
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: scheme.primary.withValues(alpha: .12)),
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: _WeatherDetailValue(label: '降水量', metric: amount),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      const SizedBox(width: 12),
+      Expanded(flex: 2, child: _WeatherProbabilityReadout(metric: probability)),
+    ],
+  );
+}
+
+class _WeatherProbabilityReadout extends StatelessWidget {
+  const _WeatherProbabilityReadout({required this.metric});
+
+  final _WeatherDetailMetric? metric;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('降水確率', style: Theme.of(context).textTheme.labelSmall),
+      const SizedBox(height: 2),
+      Row(
         children: [
-          Row(
-            children: [
-              if (metric.icon case final icon?) ...[
-                Icon(
-                  icon,
-                  size: 13,
-                  color: scheme.primary.withValues(alpha: .8),
-                ),
-                const SizedBox(width: 3),
-              ],
-              Text(
-                metric.label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurface.withValues(alpha: .64),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 1),
           Text(
-            metric.value,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: scheme.onSurface,
-              height: 1.15,
+            metric?.value ?? '--',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: _WeatherDetailMeter(
+              fraction: metric?.meterFraction ?? 0,
+              color: Theme.of(context).colorScheme.secondary,
+              height: 4,
             ),
           ),
-          if (metric.context case final metricContext?)
-            Text(
-              metricContext,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: .58),
-              ),
-            ),
-          if (metric.meterFraction case final meterFraction?) ...[
-            const SizedBox(height: 5),
-            _WeatherDetailMeter(fraction: meterFraction, color: scheme.primary),
-          ],
         ],
       ),
-    );
-  }
+      if (metric?.context case final metricContext?)
+        Text(metricContext, style: Theme.of(context).textTheme.labelSmall),
+    ],
+  );
+}
+
+class _WeatherWindHumidityBlock extends StatelessWidget {
+  const _WeatherWindHumidityBlock({
+    required this.direction,
+    required this.speed,
+    required this.gust,
+    required this.humidity,
+    required this.dewPoint,
+  });
+
+  final _WeatherDetailMetric? direction;
+  final _WeatherDetailMetric? speed;
+  final _WeatherDetailMetric? gust;
+  final _WeatherDetailMetric? humidity;
+  final _WeatherDetailMetric? dewPoint;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        child: Row(
+          children: [
+            Icon(
+              Icons.explore_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: _WeatherDetailValue(label: '風向', metric: direction),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _WeatherDetailStack(
+          first: _WeatherDetailMetric(label: '風速', value: speed?.value ?? '--'),
+          second: _WeatherDetailMetric(label: '突風', value: gust?.value ?? '--'),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _WeatherDetailStack(
+          first:
+              humidity ?? const _WeatherDetailMetric(label: '湿度', value: '--'),
+          second:
+              dewPoint ?? const _WeatherDetailMetric(label: '露点', value: '--'),
+          meter: humidity?.meterFraction,
+        ),
+      ),
+    ],
+  );
+}
+
+class _WeatherObservationStrip extends StatelessWidget {
+  const _WeatherObservationStrip({required this.metrics});
+
+  final List<_WeatherDetailMetric> metrics;
+
+  @override
+  Widget build(BuildContext context) =>
+      _WeatherDetailMetricStrip(metrics: metrics, preferFourAcross: true);
+}
+
+class _WeatherDetailMetricStrip extends StatelessWidget {
+  const _WeatherDetailMetricStrip({
+    required this.metrics,
+    this.preferFourAcross = false,
+  });
+
+  final List<_WeatherDetailMetric> metrics;
+  final bool preferFourAcross;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = constraints.maxWidth < 300
+          ? math.min(2, metrics.length)
+          : math.min(preferFourAcross ? 4 : 3, metrics.length);
+      return Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          for (final metric in metrics)
+            SizedBox(
+              width: (constraints.maxWidth - ((columns - 1) * 8)) / columns,
+              child: _WeatherDetailValue(label: metric.label, metric: metric),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _WeatherDetailStack extends StatelessWidget {
+  const _WeatherDetailStack({
+    required this.first,
+    required this.second,
+    this.meter,
+  });
+
+  final _WeatherDetailMetric first;
+  final _WeatherDetailMetric second;
+  final double? meter;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _WeatherDetailValue(label: first.label, metric: first),
+      if (meter != null) ...[
+        const SizedBox(height: 3),
+        _WeatherDetailMeter(
+          fraction: meter!,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ],
+      const SizedBox(height: 4),
+      _WeatherDetailValue(label: second.label, metric: second),
+    ],
+  );
+}
+
+class _WeatherDetailValue extends StatelessWidget {
+  const _WeatherDetailValue({
+    required this.label,
+    required this.metric,
+    this.alignEnd = false,
+  });
+
+  final String label;
+  final _WeatherDetailMetric? metric;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: alignEnd
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.labelSmall),
+      Text(
+        metric?.value ?? '--',
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      if (metric?.context case final metricContext?)
+        Text(
+          metricContext,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+    ],
+  );
 }
 
 class _WeatherDetailMeter extends StatelessWidget {
-  const _WeatherDetailMeter({required this.fraction, required this.color});
+  const _WeatherDetailMeter({
+    required this.fraction,
+    required this.color,
+    this.height = 3,
+  });
 
   final double fraction;
   final Color color;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -2061,7 +2353,7 @@ class _WeatherDetailMeter extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: SizedBox(
-        height: 3,
+        height: height,
         child: Stack(
           fit: StackFit.expand,
           children: [
