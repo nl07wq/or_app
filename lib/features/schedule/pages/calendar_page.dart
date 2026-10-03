@@ -971,12 +971,29 @@ class _WeatherForecastRow extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Expanded(
-                              child: Text(
-                                today ? '今日' : _weekdayJapanese(date.weekday),
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment:
+                                  weatherForecastDateBlockAlignment,
+                              children: [
+                                Text(
+                                  today ? '今日' : _weekdayJapanese(date.weekday),
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                Text(
+                                  '${date.month}/${date.day}',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: scheme.onSurface.withValues(
+                                          alpha: .72,
+                                        ),
+                                      ),
+                                ),
+                              ],
                             ),
+                            const Spacer(),
                             Icon(
                               _weatherIcon(value.code),
                               color: scheme.primary,
@@ -985,32 +1002,14 @@ class _WeatherForecastRow extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 1),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              '${date.month}/${date.day}',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: scheme.onSurface.withValues(
-                                      alpha: .72,
-                                    ),
-                                  ),
-                            ),
-                            const SizedBox(width: 7),
-                            Text(
-                              _weatherConditionJapanese(value.code),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: scheme.onSurface.withValues(
-                                      alpha: .72,
-                                    ),
-                                  ),
-                            ),
-                          ],
+                        Text(
+                          _weatherConditionJapanese(value.code),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: scheme.onSurface.withValues(alpha: .72),
+                              ),
                         ),
                         const SizedBox(height: 1),
                         Row(
@@ -1193,6 +1192,53 @@ class _WeeklyTemperatureValue extends StatelessWidget {
 /// gaps so the painter cannot draw beneath numeric telemetry.
 double weatherTemperatureRailWidth(double rowWidth) =>
     (rowWidth - 208).clamp(44.0, 250.0).toDouble();
+
+/// Weekday and date form one centered identity block, independently of the
+/// icon, condition, and low/high telemetry that surround it.
+const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
+
+/// Adds scale safety around every daily-detail temperature that is displayed.
+/// The apparent-temperature marker therefore cannot be pinned to either
+/// endpoint when it is outside, or equal to, the daily low/high range.
+class WeatherTemperatureDetailScale {
+  const WeatherTemperatureDetailScale({
+    required this.minimum,
+    required this.maximum,
+    required this.apparentFraction,
+  });
+
+  final double minimum;
+  final double maximum;
+  final double? apparentFraction;
+}
+
+WeatherTemperatureDetailScale? weatherTemperatureDetailScale({
+  required double? low,
+  required double? high,
+  required double? apparent,
+  double margin = 10,
+}) {
+  if (low == null || high == null) return null;
+  final values = [low, high, ?apparent];
+  final minimum = values.reduce(math.min) - margin;
+  final maximum = values.reduce(math.max) + margin;
+  final span = maximum - minimum;
+  return WeatherTemperatureDetailScale(
+    minimum: minimum,
+    maximum: maximum,
+    apparentFraction: apparent == null || span <= 0
+        ? null
+        : ((apparent - minimum) / span).clamp(0.0, 1.0).toDouble(),
+  );
+}
+
+/// Keeps non-zero probability legible in a compact meter while preserving zero
+/// as an empty track. The textual percentage remains the exact authority.
+double weatherProbabilityMeterFillFraction(double fraction) {
+  final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
+  if (safeFraction == 0) return 0;
+  return math.max(.04, safeFraction);
+}
 
 /// A row owns both its date selection and its visual rail. A different date
 /// never opens a surface; a second, deliberate tap requests the daily detail.
@@ -2173,15 +2219,15 @@ class _WeatherTemperatureRail extends StatelessWidget {
     final lowValue = _weatherNumericValue(low?.value);
     final highValue = _weatherNumericValue(high?.value);
     final apparentValue = _weatherNumericValue(apparent?.value);
-    final range = highValue != null && lowValue != null
-        ? highValue - lowValue
-        : null;
-    final markerFraction = range != null && range > 0 && apparentValue != null
-        ? ((apparentValue - lowValue!) / range).clamp(0.0, 1.0).toDouble()
-        : null;
+    final scale = weatherTemperatureDetailScale(
+      low: lowValue,
+      high: highValue,
+      apparent: apparentValue,
+    );
+    final markerFraction = scale?.apparentFraction;
     return LayoutBuilder(
       builder: (context, constraints) => SizedBox(
-        height: apparent == null ? 16 : 29,
+        height: apparent == null ? 16 : 32,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -2197,31 +2243,34 @@ class _WeatherTemperatureRail extends StatelessWidget {
                     .clamp(0.0, constraints.maxWidth - 8)
                     .toDouble(),
                 top: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.surface,
-                          width: 1.5,
-                        ),
-                      ),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.surface,
+                      width: 1.5,
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '体感 ${apparent!.value}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: color,
-                        fontSize: 10,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+              ),
+            if (markerFraction != null)
+              Positioned(
+                left: ((constraints.maxWidth - 56) * markerFraction)
+                    .clamp(0.0, math.max(0.0, constraints.maxWidth - 56))
+                    .toDouble(),
+                top: 15,
+                width: math.min(56.0, constraints.maxWidth),
+                child: Text(
+                  '体感 ${apparent!.value}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontSize: 10,
+                    height: 1,
+                  ),
                 ),
               ),
           ],
@@ -2322,6 +2371,7 @@ class _WeatherProbabilityReadout extends StatelessWidget {
               fraction: metric?.meterFraction ?? 0,
               color: Theme.of(context).colorScheme.secondary,
               height: 4,
+              enforceMinimumVisibleFill: true,
             ),
           ),
         ],
@@ -2501,15 +2551,19 @@ class _WeatherDetailMeter extends StatelessWidget {
     required this.fraction,
     required this.color,
     this.height = 3,
+    this.enforceMinimumVisibleFill = false,
   });
 
   final double fraction;
   final Color color;
   final double height;
+  final bool enforceMinimumVisibleFill;
 
   @override
   Widget build(BuildContext context) {
-    final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
+    final safeFraction = enforceMinimumVisibleFill
+        ? weatherProbabilityMeterFillFraction(fraction)
+        : fraction.clamp(0.0, 1.0).toDouble();
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: SizedBox(
@@ -2517,12 +2571,26 @@ class _WeatherDetailMeter extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(color: color.withValues(alpha: .14)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .18),
+                border: Border.all(color: color.withValues(alpha: .34)),
+              ),
+            ),
             Align(
               alignment: Alignment.centerLeft,
               child: FractionallySizedBox(
                 widthFactor: safeFraction,
-                child: ColoredBox(color: color.withValues(alpha: .72)),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withValues(alpha: .92),
+                        color.withValues(alpha: .64),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

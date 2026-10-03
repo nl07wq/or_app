@@ -16,6 +16,46 @@ void main() {
     expect(weatherForecastRowOpensDetail(selected: true), isTrue);
   });
 
+  test('weekly forecast date block uses its own centered alignment', () {
+    expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
+  });
+
+  test('daily-detail temperature scale reserves marker clearance', () {
+    final normal = weatherTemperatureDetailScale(
+      low: 18,
+      high: 23,
+      apparent: 22,
+    )!;
+    expect(normal.minimum, 8);
+    expect(normal.maximum, 33);
+    expect(normal.apparentFraction, closeTo(.56, .001));
+
+    final belowRange = weatherTemperatureDetailScale(
+      low: 18,
+      high: 23,
+      apparent: 10,
+    )!;
+    expect(belowRange.minimum, 0);
+    expect(belowRange.apparentFraction, greaterThan(0));
+
+    final aboveRange = weatherTemperatureDetailScale(
+      low: 18,
+      high: 23,
+      apparent: 35,
+    )!;
+    expect(aboveRange.maximum, 45);
+    expect(aboveRange.apparentFraction, lessThan(1));
+  });
+
+  test('precipitation probability meter has visible, bounded fill', () {
+    expect(weatherProbabilityMeterFillFraction(0), 0);
+    expect(weatherProbabilityMeterFillFraction(.01), .04);
+    expect(weatherProbabilityMeterFillFraction(.06), .06);
+    expect(weatherProbabilityMeterFillFraction(.14), .14);
+    expect(weatherProbabilityMeterFillFraction(.5), .5);
+    expect(weatherProbabilityMeterFillFraction(1), 1);
+  });
+
   test(
     'daily precipitation type and intensity use WMO weather-code semantics',
     () {
