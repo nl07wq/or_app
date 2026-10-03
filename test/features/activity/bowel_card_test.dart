@@ -301,6 +301,41 @@ void main() {
     },
   );
 
+  testWidgets('Measured steps stepper and quick adds fit common widths', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const quickStepValues = [10, 50, 100, 500, 1000, 2500, 5000, 7500, 10000];
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityEntryPage(
+            initialData: ActivityData(date: DateTime(2026, 7, 25)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('activity-measured-steps-increment')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('activity-measured-steps-decrement')),
+        findsOneWidget,
+      );
+      for (final value in quickStepValues) {
+        expect(
+          find.byKey(ValueKey('activity-quick-steps-$value')),
+          findsOneWidget,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   test('unconfirmed and no bowel movement remain distinct internally', () {
     const unconfirmed = BowelMovementRecord.unconfirmed();
     const none = BowelMovementRecord.none();
