@@ -58,7 +58,29 @@ void main() {
       CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
     );
     expect(CatRunProductionEventPolicy.normalFollowerTriggerProgress, .15);
-    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .025);
+    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .09);
+  });
+
+  test('production CAT keeps CURRENT motion and Preview .09 parity', () {
+    final production = AmbientWildlifeV2EventPlan.forced(
+      species: AmbientWildlifeV2Species.cat,
+      variant: AmbientWildlifeV2ForcedVariant.glitch10,
+      leftToRight: true,
+    );
+    final preview = AmbientWildlifeV2EventPlan.forced(
+      species: AmbientWildlifeV2Species.cat,
+      variant: AmbientWildlifeV2ForcedVariant.glitch10,
+      leftToRight: true,
+      catGlitchSpacingOverride: .09,
+    );
+    expect(
+      production.catPlan!.crossings[1].startedAtProgress,
+      preview.catPlan!.crossings[1].startedAtProgress,
+    );
+    expect(
+      const AmbientWildlifeV2ProductionStage().catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.current,
+    );
   });
 
   test('CAT GLITCH Preview presets override only forced GLITCH plans', () {
@@ -86,58 +108,60 @@ void main() {
       normal.catPlan!.crossings[1].startedAtProgress,
       CatRunProductionEventPolicy.normalFollowerTriggerProgress,
     );
-    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .025);
+    expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .09);
   });
 
-  test('CAT GLITCH applies controlled, symmetric visible overlap', () {
-    const stageWidth = 390.0;
-    const dashboardCatUnit =
-        CatRunV23Travel.catUnit *
-        DashboardAmbientWildlifeStage.animalPresentationScale;
+  test(
+    'CAT GLITCH production spacing matches the selected Preview geometry',
+    () {
+      const stageWidth = 390.0;
+      const dashboardCatUnit =
+          CatRunV23Travel.catUnit *
+          DashboardAmbientWildlifeStage.animalPresentationScale;
 
-    for (final direction in CatRunV23Direction.values) {
-      double visibleGap(double spacing) => CatRunV23Travel.visibleFollowerGap(
+      for (final direction in CatRunV23Direction.values) {
+        double visibleGap(double spacing) => CatRunV23Travel.visibleFollowerGap(
+          stageWidth: stageWidth,
+          eventProgress: .60,
+          followerTriggerProgress: spacing,
+          catUnit: dashboardCatUnit,
+          direction: direction,
+        );
+
+        final baseline = visibleGap(.05);
+        final candidate03 = visibleGap(.03);
+        final selected = visibleGap(
+          CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+        );
+        final candidate02 = visibleGap(.02);
+
+        // Negative means silhouette overlap. The controlled GLITCH procession
+        // deliberately becomes denser while retaining its ordered direction.
+        expect(baseline, lessThan(0));
+        expect(candidate03, lessThan(baseline));
+        expect(selected, greaterThan(baseline));
+        expect(candidate02, lessThan(selected));
+      }
+
+      final leftToRight = CatRunV23Travel.visibleFollowerGap(
         stageWidth: stageWidth,
         eventProgress: .60,
-        followerTriggerProgress: spacing,
+        followerTriggerProgress:
+            CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
         catUnit: dashboardCatUnit,
-        direction: direction,
+        direction: CatRunV23Direction.leftToRight,
       );
-
-      final baseline = visibleGap(.05);
-      final candidate03 = visibleGap(.03);
-      final selected = visibleGap(
-        CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+      final rightToLeft = CatRunV23Travel.visibleFollowerGap(
+        stageWidth: stageWidth,
+        eventProgress: .60,
+        followerTriggerProgress:
+            CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
+        catUnit: dashboardCatUnit,
+        direction: CatRunV23Direction.rightToLeft,
       );
-      final candidate02 = visibleGap(.02);
-
-      // Negative means silhouette overlap. The controlled GLITCH procession
-      // deliberately becomes denser while retaining its ordered direction.
-      expect(baseline, lessThan(0));
-      expect(candidate03, lessThan(baseline));
-      expect(selected, lessThan(candidate03));
-      expect(candidate02, lessThan(selected));
-      expect(selected.abs() / baseline.abs(), closeTo(2.787, .03));
-    }
-
-    final leftToRight = CatRunV23Travel.visibleFollowerGap(
-      stageWidth: stageWidth,
-      eventProgress: .60,
-      followerTriggerProgress:
-          CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
-      catUnit: dashboardCatUnit,
-      direction: CatRunV23Direction.leftToRight,
-    );
-    final rightToLeft = CatRunV23Travel.visibleFollowerGap(
-      stageWidth: stageWidth,
-      eventProgress: .60,
-      followerTriggerProgress:
-          CatRunProductionEventPolicy.glitchFollowerTriggerProgress,
-      catUnit: dashboardCatUnit,
-      direction: CatRunV23Direction.rightToLeft,
-    );
-    expect(leftToRight, closeTo(rightToLeft, .000001));
-  });
+      expect(leftToRight, closeTo(rightToLeft, .000001));
+    },
+  );
 
   test('CAT GLITCH projection ignores Dashboard normal spacing', () {
     const eventProgress = .60;
@@ -152,7 +176,7 @@ void main() {
           isGlitch: true,
           normalFollowerSpacingMultiplier: normalMultiplier,
         ),
-        closeTo(.575, .000001),
+        closeTo(.51, .000001),
       );
     }
     expect(

@@ -458,7 +458,7 @@ class CatRunProductionEventPolicy {
 
   /// A dense rare-event procession. This is deliberately independent from
   /// normal-chain spacing so CAT ×1/×2/×3 presentation remains unchanged.
-  static const glitchFollowerTriggerProgress = .025;
+  static const glitchFollowerTriggerProgress = .09;
 
   static bool isGlitchRoll(int roll) {
     if (roll < 0 || roll >= 20) throw ArgumentError.value(roll, 'roll');
