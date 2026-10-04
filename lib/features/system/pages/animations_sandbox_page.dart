@@ -123,6 +123,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         AppSpacing.gapXL,
         _PixelLabSandboxSection(pixelLabAssetLoader: pixelLabAssetLoader),
         AppSpacing.gapXL,
+        const _WeatherSymbolSandboxSection(),
+        AppSpacing.gapXL,
         const _DashboardAmbientWildlifePreviewSection(),
         AppSpacing.gapXL,
         const _AmbientWildlifeSandboxSection(),
@@ -201,6 +203,205 @@ class _PixelLabSandboxSection extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// Comparison-only catalog for deciding how shower conditions should read at
+/// production sizes. It deliberately does not feed a selection back into the
+/// Weather UI or its condition mapping.
+class _WeatherSymbolSandboxSection extends StatelessWidget {
+  const _WeatherSymbolSandboxSection();
+
+  static const _candidates = <_WeatherSymbolCandidateData>[
+    _WeatherSymbolCandidateData(
+      keyName: 'material-showers',
+      label: 'MATERIAL · SHOWERS',
+      note: '既存の単体候補',
+      symbol: _WeatherSymbolCandidate.materialShowers,
+    ),
+    _WeatherSymbolCandidateData(
+      keyName: 'cloud-base',
+      label: 'MATERIAL · CLOUD',
+      note: 'Cloud base',
+      symbol: _WeatherSymbolCandidate.cloudBase,
+    ),
+    _WeatherSymbolCandidateData(
+      keyName: 'cloud-umbrella',
+      label: 'CLOUD + UMBRELLA',
+      note: 'Composite shower A',
+      symbol: _WeatherSymbolCandidate.cloudUmbrella,
+    ),
+    _WeatherSymbolCandidateData(
+      keyName: 'cloud-drops',
+      label: 'CLOUD + DROPS',
+      note: 'Composite shower B',
+      symbol: _WeatherSymbolCandidate.cloudDrops,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: const ValueKey('weather-symbol-sandbox-section'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.cloud_outlined,
+          title: 'WEATHER SYMBOL SANDBOX',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Material SymbolとCloudベースのShower表現を比較します。',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              AppSpacing.gapMD,
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final candidate in _candidates)
+                    _WeatherSymbolCandidateCard(
+                      key: ValueKey(
+                        'weather-symbol-candidate-${candidate.keyName}',
+                      ),
+                      candidate: candidate,
+                      accent: scheme.primary,
+                      muted: scheme.onSurfaceVariant,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _WeatherSymbolCandidate {
+  materialShowers,
+  cloudBase,
+  cloudUmbrella,
+  cloudDrops,
+}
+
+class _WeatherSymbolCandidateData {
+  const _WeatherSymbolCandidateData({
+    required this.keyName,
+    required this.label,
+    required this.note,
+    required this.symbol,
+  });
+
+  final String keyName;
+  final String label;
+  final String note;
+  final _WeatherSymbolCandidate symbol;
+}
+
+class _WeatherSymbolCandidateCard extends StatelessWidget {
+  const _WeatherSymbolCandidateCard({
+    super.key,
+    required this.candidate,
+    required this.accent,
+    required this.muted,
+  });
+
+  final _WeatherSymbolCandidateData candidate;
+  final Color accent;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 156,
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: .28),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: SizedBox(
+              key: ValueKey('weather-symbol-preview-${candidate.keyName}'),
+              width: 72,
+              height: 64,
+              child: _WeatherSymbolPreview(
+                symbol: candidate.symbol,
+                accent: accent,
+                muted: muted,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(candidate.label, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 2),
+          Text(candidate.note, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    ),
+  );
+}
+
+class _WeatherSymbolPreview extends StatelessWidget {
+  const _WeatherSymbolPreview({
+    required this.symbol,
+    required this.accent,
+    required this.muted,
+  });
+
+  final _WeatherSymbolCandidate symbol;
+  final Color accent;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) => switch (symbol) {
+    _WeatherSymbolCandidate.materialShowers => Center(
+      child: Icon(Icons.umbrella_outlined, color: accent, size: 42),
+    ),
+    _WeatherSymbolCandidate.cloudBase => Center(
+      child: Icon(Icons.cloud_outlined, color: muted, size: 48),
+    ),
+    _WeatherSymbolCandidate.cloudUmbrella => Stack(
+      key: const ValueKey('weather-symbol-composite-cloud-umbrella'),
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.cloud_outlined, color: muted, size: 48),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Icon(Icons.umbrella_outlined, color: accent, size: 27),
+        ),
+      ],
+    ),
+    _WeatherSymbolCandidate.cloudDrops => Stack(
+      key: const ValueKey('weather-symbol-composite-cloud-drops'),
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.cloud_outlined, color: muted, size: 48),
+        Positioned(
+          left: 20,
+          bottom: 0,
+          child: Icon(Icons.water_drop_outlined, color: accent, size: 18),
+        ),
+        Positioned(
+          right: 16,
+          bottom: 4,
+          child: Icon(Icons.water_drop_outlined, color: accent, size: 15),
+        ),
+      ],
+    ),
+  };
 }
 
 class _AnimalSandboxSections extends StatelessWidget {

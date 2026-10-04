@@ -109,6 +109,69 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'WEATHER SYMBOL SANDBOX shows single and composite shower candidates',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+
+      expect(
+        find.byKey(const ValueKey('weather-symbol-sandbox-section')),
+        findsOneWidget,
+      );
+      for (final candidate in [
+        'material-showers',
+        'cloud-base',
+        'cloud-umbrella',
+        'cloud-drops',
+      ]) {
+        expect(
+          find.byKey(ValueKey('weather-symbol-candidate-$candidate')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(ValueKey('weather-symbol-preview-$candidate')),
+          findsOneWidget,
+        );
+      }
+      expect(
+        find.byKey(const ValueKey('weather-symbol-composite-cloud-umbrella')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('weather-symbol-composite-cloud-drops')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('WEATHER SYMBOL SANDBOX remains visible at target widths', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 1600);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('weather-symbol-sandbox-section')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('weather-symbol-composite-cloud-umbrella')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('Sandbox preserves the requested top-level hierarchy', (
     tester,
   ) async {
