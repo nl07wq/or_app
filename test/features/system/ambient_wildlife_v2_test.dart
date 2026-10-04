@@ -313,6 +313,84 @@ void main() {
     },
   );
 
+  test(
+    'CAT pose audit records shape changes and Preview-only blend windows',
+    () {
+      final geometry = CatRunV23Travel.poseGeometryAudit;
+
+      expect(geometry, hasLength(CatRunV28Timing.frameDurations.length));
+      expect(
+        geometry.map((frame) => frame.duration),
+        CatRunV28Timing.frameDurations,
+      );
+      expect(geometry.every((frame) => frame.visibleBounds.width > 0), isTrue);
+      expect(geometry.every((frame) => frame.visibleBounds.height > 0), isTrue);
+      expect(
+        geometry.map((frame) => frame.visibleCenter).toSet().length,
+        greaterThan(1),
+      );
+      expect(
+        geometry.map((frame) => frame.visibleBounds.size).toSet().length,
+        greaterThan(1),
+      );
+
+      expect(
+        CatRunV23Travel.poseBlendATuning.transitionDuration,
+        const Duration(milliseconds: 25),
+      );
+      expect(
+        CatRunV23Travel.poseBlendBTuning.transitionDuration,
+        const Duration(milliseconds: 50),
+      );
+      expect(
+        CatRunV23Travel.poseBlendBTuning.transitionDuration,
+        greaterThan(CatRunV23Travel.poseBlendATuning.transitionDuration),
+      );
+      expect(
+        CatRunV23Travel.poseBlendStateAt(
+          .00001,
+          tuning: CatRunV23Travel.poseBlendATuning,
+        ),
+        isNotNull,
+      );
+      expect(
+        CatRunV23Travel.poseBlendStateAt(
+          .02,
+          tuning: CatRunV23Travel.poseBlendATuning,
+        ),
+        isNull,
+      );
+      expect(
+        ambientWildlifeV2CatPoseBlendTuning(
+          AmbientWildlifeV2CatMotionProfile.poseBlendA,
+        ),
+        CatRunV23Travel.poseBlendATuning,
+      );
+      expect(
+        ambientWildlifeV2CatPoseBlendTuning(
+          AmbientWildlifeV2CatMotionProfile.poseBlendB,
+        ),
+        CatRunV23Travel.poseBlendBTuning,
+      );
+      expect(
+        ambientWildlifeV2CatSmoothTuning(
+          AmbientWildlifeV2CatMotionProfile.poseBlendA,
+        ),
+        isNull,
+      );
+      for (final profile in [
+        AmbientWildlifeV2CatMotionProfile.poseBlendA,
+        AmbientWildlifeV2CatMotionProfile.poseBlendB,
+      ]) {
+        expect(ambientWildlifeV2CatMotionCurve(profile), Curves.linear);
+      }
+      expect(
+        CatRunV23Travel.crossingDuration,
+        CatRunV24Travel.crossingDuration,
+      );
+    },
+  );
+
   test('V2 registry exposes CAT, BAT, FOX, and BIRD to RANDOM', () {
     expect(AmbientWildlifeV2Registry.availableSpecies, const [
       AmbientWildlifeV2Species.cat,

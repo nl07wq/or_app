@@ -300,59 +300,62 @@ void main() {
     expect(find.byKey(const ValueKey('animal-category-cat')), findsOneWidget);
   });
 
-  testWidgets('Dashboard Preview exposes CAT CURRENT, SMOOTH B, C, and MAX', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 10000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-    final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
-    expect(productionStage, findsOneWidget);
-    expect(
-      tester
-          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
-          .catMotionProfile,
-      AmbientWildlifeV2CatMotionProfile.current,
-    );
-    for (final profile in [
-      AmbientWildlifeV2CatMotionProfile.smoothB,
-      AmbientWildlifeV2CatMotionProfile.smoothC,
-      AmbientWildlifeV2CatMotionProfile.smoothMax,
-    ]) {
-      final control = find.byKey(
-        ValueKey('dashboard-preview-cat-motion-${profile.name}'),
-      );
-      await tester.scrollUntilVisible(control, 300);
-      await tester.tap(control);
-      await tester.pump();
+  testWidgets(
+    'Dashboard Preview exposes CAT smooth and pose-blend comparisons',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+      expect(productionStage, findsOneWidget);
       expect(
         tester
             .widget<AmbientWildlifeV2ProductionStage>(productionStage)
             .catMotionProfile,
-        profile,
+        AmbientWildlifeV2CatMotionProfile.current,
       );
-    }
-    expect(
-      find.byKey(const ValueKey('dashboard-preview-cat-motion-s1')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const ValueKey('dashboard-preview-cat-motion-s4')),
-      findsNothing,
-    );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('dashboard-preview-bat')),
-      300,
-    );
-    await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
-    await tester.pump();
-    expect(
-      find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
-      findsNothing,
-    );
-  });
+      for (final profile in [
+        AmbientWildlifeV2CatMotionProfile.smoothB,
+        AmbientWildlifeV2CatMotionProfile.smoothC,
+        AmbientWildlifeV2CatMotionProfile.smoothMax,
+        AmbientWildlifeV2CatMotionProfile.poseBlendA,
+        AmbientWildlifeV2CatMotionProfile.poseBlendB,
+      ]) {
+        final control = find.byKey(
+          ValueKey('dashboard-preview-cat-motion-${profile.name}'),
+        );
+        await tester.scrollUntilVisible(control, 300);
+        await tester.tap(control);
+        await tester.pump();
+        expect(
+          tester
+              .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+              .catMotionProfile,
+          profile,
+        );
+      }
+      expect(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-s1')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-s4')),
+        findsNothing,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-bat')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('Dashboard Preview applies and preserves CAT pose phase mode', (
     tester,
@@ -383,6 +386,19 @@ void main() {
       AmbientWildlifeV2CatPosePhaseMode.desync,
     );
 
+    final poseBlendB = find.byKey(
+      const ValueKey('dashboard-preview-cat-motion-poseBlendB'),
+    );
+    await tester.scrollUntilVisible(poseBlendB, 300);
+    await tester.tap(poseBlendB);
+    await tester.pump();
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.poseBlendB,
+    );
+
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('dashboard-preview-play')),
       300,
@@ -400,6 +416,12 @@ void main() {
           .widget<AmbientWildlifeV2ProductionStage>(productionStage)
           .catPosePhaseMode,
       AmbientWildlifeV2CatPosePhaseMode.desync,
+    );
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.poseBlendB,
     );
 
     await tester.scrollUntilVisible(

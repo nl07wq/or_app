@@ -21,7 +21,14 @@ enum AmbientWildlifeV2ForcedVariant { one, two, three, glitch10 }
 
 /// Dashboard Preview comparison profiles. Production keeps [current] until a
 /// separate acceptance task deliberately adopts one of the smooth candidates.
-enum AmbientWildlifeV2CatMotionProfile { current, smoothB, smoothC, smoothMax }
+enum AmbientWildlifeV2CatMotionProfile {
+  current,
+  smoothB,
+  smoothC,
+  smoothMax,
+  poseBlendA,
+  poseBlendB,
+}
 
 /// Preview-only pose timing. This remains independent from CAT travel progress
 /// so it cannot change production spacing, launch timing, or crossing speed.
@@ -51,7 +58,9 @@ Curve ambientWildlifeV2CatMotionCurve(
   AmbientWildlifeV2CatMotionProfile.current => Curves.linear,
   AmbientWildlifeV2CatMotionProfile.smoothB ||
   AmbientWildlifeV2CatMotionProfile.smoothC ||
-  AmbientWildlifeV2CatMotionProfile.smoothMax => Curves.linear,
+  AmbientWildlifeV2CatMotionProfile.smoothMax ||
+  AmbientWildlifeV2CatMotionProfile.poseBlendA ||
+  AmbientWildlifeV2CatMotionProfile.poseBlendB => Curves.linear,
 };
 
 /// Preview smooth candidates vary presentation continuity only. They never alter the
@@ -64,6 +73,20 @@ CatRunV23SmoothTuning? ambientWildlifeV2CatSmoothTuning(
   AmbientWildlifeV2CatMotionProfile.smoothC => CatRunV23Travel.smoothCTuning,
   AmbientWildlifeV2CatMotionProfile.smoothMax =>
     CatRunV23Travel.smoothMaxTuning,
+  AmbientWildlifeV2CatMotionProfile.poseBlendA ||
+  AmbientWildlifeV2CatMotionProfile.poseBlendB => null,
+};
+
+/// Pose blending is a Preview-only rendering experiment; production keeps a
+/// direct pose swap by passing null for [AmbientWildlifeV2CatMotionProfile.current].
+CatRunV23PoseBlendTuning? ambientWildlifeV2CatPoseBlendTuning(
+  AmbientWildlifeV2CatMotionProfile profile,
+) => switch (profile) {
+  AmbientWildlifeV2CatMotionProfile.poseBlendA =>
+    CatRunV23Travel.poseBlendATuning,
+  AmbientWildlifeV2CatMotionProfile.poseBlendB =>
+    CatRunV23Travel.poseBlendBTuning,
+  _ => null,
 };
 
 String ambientWildlifeV2CatMotionProfileLabel(
@@ -73,6 +96,8 @@ String ambientWildlifeV2CatMotionProfileLabel(
   AmbientWildlifeV2CatMotionProfile.smoothB => 'SMOOTH B',
   AmbientWildlifeV2CatMotionProfile.smoothC => 'SMOOTH C',
   AmbientWildlifeV2CatMotionProfile.smoothMax => 'SMOOTH MAX',
+  AmbientWildlifeV2CatMotionProfile.poseBlendA => 'POSE BLEND A',
+  AmbientWildlifeV2CatMotionProfile.poseBlendB => 'POSE BLEND B',
 };
 
 /// GLITCH has a fixed production spacing authority. Dashboard presentation
@@ -1669,6 +1694,10 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
                                   paintBackground: false,
                                   smoothTuning:
                                       ambientWildlifeV2CatSmoothTuning(
+                                        widget.catMotionProfile,
+                                      ),
+                                  poseBlendTuning:
+                                      ambientWildlifeV2CatPoseBlendTuning(
                                         widget.catMotionProfile,
                                       ),
                                 ),

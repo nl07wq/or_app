@@ -25,6 +25,49 @@ class CatRunV23SmoothTuning {
   final double maximumVerticalAnchorOffset;
 }
 
+/// Preview-only overlap window for comparing direct CAT pose swaps with a
+/// short, ground-registered transition. It does not change travel progress,
+/// duration, source frame order, or canonical geometry.
+@immutable
+class CatRunV23PoseBlendTuning {
+  const CatRunV23PoseBlendTuning({required this.transitionDuration});
+
+  final Duration transitionDuration;
+}
+
+/// Measured presentation geometry for one frozen CAT pose. This is kept next
+/// to the production renderer so the comparison profiles are audited against
+/// the same corrected paths that Dashboard paints.
+@immutable
+class CatRunV23PoseGeometry {
+  const CatRunV23PoseGeometry({
+    required this.frame,
+    required this.duration,
+    required this.visibleBounds,
+    required this.visibleCenter,
+    required this.groundContactY,
+  });
+
+  final int frame;
+  final Duration duration;
+  final Rect visibleBounds;
+  final Offset visibleCenter;
+  final double groundContactY;
+}
+
+@immutable
+class CatRunV23PoseBlendState {
+  const CatRunV23PoseBlendState({
+    required this.outgoingFrame,
+    required this.incomingFrame,
+    required this.incomingOpacity,
+  });
+
+  final int outgoingFrame;
+  final int incomingFrame;
+  final double incomingOpacity;
+}
+
 /// Presentation-only travel model for V2.2's frozen registered HIGH frames.
 /// It does not alter source geometry, registration, contact metadata, or timing.
 class CatRunV23Travel {
@@ -187,6 +230,95 @@ class CatRunV23Travel {
     maximumVisualAnchorOffset: .070,
     maximumVerticalAnchorOffset: .060,
   );
+
+  /// The two Preview-only candidates are deliberately short: they soften the
+  /// direct 25–30ms pose swaps without changing the CAT's crossing clock.
+  static const poseBlendATuning = CatRunV23PoseBlendTuning(
+    transitionDuration: Duration(milliseconds: 25),
+  );
+
+  static const poseBlendBTuning = CatRunV23PoseBlendTuning(
+    transitionDuration: Duration(milliseconds: 50),
+  );
+
+  /// Frame geometry audit for the corrected production paths. The varied
+  /// bounds/centres confirm that a translation-only correction cannot remove
+  /// the underlying head, torso, paw, and silhouette shape transition.
+  static List<CatRunV23PoseGeometry> get poseGeometryAudit =>
+      List<CatRunV23PoseGeometry>.unmodifiable([
+        for (var frame = 0; frame < catRunV2HighTraces.length; frame++)
+          () {
+            final path = Path()
+              ..addPolygon(
+                CatRunV24ScaleAudit.correctedPoints(catRunV2HighTraces[frame]),
+                true,
+              );
+            final bounds = path.getBounds();
+            return CatRunV23PoseGeometry(
+              frame: frame,
+              duration: CatRunV28Timing.frameDurations[frame],
+              visibleBounds: bounds,
+              visibleCenter: bounds.center,
+              groundContactY: CatRunV2Registration.virtualGround,
+            );
+          }(),
+      ]);
+
+  /// Returns a short outgoing/incoming overlap immediately after each frame
+  /// boundary. Outside that window the production incoming pose is painted
+  /// directly, preserving the frozen cadence and order.
+  static CatRunV23PoseBlendState? poseBlendStateAt(
+    double progress, {
+    required CatRunV23PoseBlendTuning tuning,
+  }) {
+    final cycleDuration = CatRunV28Timing.cycleDuration.inMicroseconds;
+    final elapsed =
+        (crossingDuration.inMicroseconds * progress.clamp(0.0, .999999))
+            .round();
+    final cycleElapsed = elapsed % cycleDuration;
+    var frameStart = 0;
+    for (
+      var frame = 0;
+      frame < CatRunV28Timing.frameDurations.length;
+      frame++
+    ) {
+      final frameDuration =
+          CatRunV28Timing.frameDurations[frame].inMicroseconds;
+      final frameEnd = frameStart + frameDuration;
+      if (cycleElapsed < frameEnd) {
+        final localElapsed = cycleElapsed - frameStart;
+        final blendMicroseconds = math.min(
+          tuning.transitionDuration.inMicroseconds,
+          frameDuration,
+        );
+        if (localElapsed >= blendMicroseconds || blendMicroseconds == 0) {
+          return null;
+        }
+        return CatRunV23PoseBlendState(
+          outgoingFrame:
+              (frame - 1 + CatRunV28Timing.frameDurations.length) %
+              CatRunV28Timing.frameDurations.length,
+          incomingFrame: frame,
+          incomingOpacity: localElapsed / blendMicroseconds,
+        );
+      }
+      frameStart = frameEnd;
+    }
+    return null;
+  }
+
+  static double poseProgressForFrame(int frame) {
+    final frameDurations = CatRunV28Timing.frameDurations;
+    final elapsed =
+        frameDurations
+            .take(frame)
+            .fold<int>(
+              0,
+              (total, duration) => total + duration.inMicroseconds,
+            ) +
+        (frameDurations[frame].inMicroseconds ~/ 2);
+    return elapsed / crossingDuration.inMicroseconds;
+  }
 
   /// Returns the production-presentation visible bounds for a single CAT at a
   /// given progress. The result is intentionally based on the registered
@@ -821,6 +953,7 @@ class CatRunV23StagePainter extends CustomPainter {
     this.showGroundLine = false,
     this.paintBackground = true,
     this.smoothTuning,
+    this.poseBlendTuning,
     this.neutralFrame02 = false,
     this.groundInset = 5,
     this.groundLineColor = const Color(0xFF383838),
@@ -838,6 +971,10 @@ class CatRunV23StagePainter extends CustomPainter {
   /// registered anchors; a tuning applies bounded presentation correction
   /// without changing the travel timeline.
   final CatRunV23SmoothTuning? smoothTuning;
+
+  /// Preview-only frame overlap comparison. A null value retains the direct
+  /// production pose swap used by Dashboard.
+  final CatRunV23PoseBlendTuning? poseBlendTuning;
 
   /// Renders the production canonical Frame 02 at the stage centre without
   /// consuming crossing progress. Used only by Ambient Wildlife neutral mode.
@@ -920,10 +1057,6 @@ class CatRunV23StagePainter extends CustomPainter {
       travelProgress: crossing.progress,
       phaseOffset: crossing.posePhaseOffset,
     );
-    final frame = CatRunV24Travel.frameAtTravelProgress(poseProgress);
-    final trace = catRunV2HighTraces[frame];
-    final points = CatRunV24Travel.pointsAt(poseProgress);
-    final path = Path()..addPolygon(points, true);
     final travelX = CatRunV24Travel.horizontalPosition(
       stageWidth: size.width,
       progress: crossing.progress,
@@ -947,6 +1080,55 @@ class CatRunV23StagePainter extends CustomPainter {
       canvas.scale(-catUnit, catUnit);
     }
     canvas.translate(smoothAnchorOffset.dx, smoothAnchorOffset.dy);
+    final blend = poseBlendTuning == null
+        ? null
+        : CatRunV23Travel.poseBlendStateAt(
+            poseProgress,
+            tuning: poseBlendTuning!,
+          );
+    if (blend == null) {
+      _paintPose(
+        canvas,
+        frame: CatRunV24Travel.frameAtTravelProgress(poseProgress),
+        poseProgress: poseProgress,
+        variant: crossing.coatVariant,
+      );
+    } else {
+      _paintPose(
+        canvas,
+        frame: blend.outgoingFrame,
+        poseProgress: CatRunV23Travel.poseProgressForFrame(blend.outgoingFrame),
+        variant: crossing.coatVariant,
+        opacity: 1 - blend.incomingOpacity,
+      );
+      _paintPose(
+        canvas,
+        frame: blend.incomingFrame,
+        poseProgress: CatRunV23Travel.poseProgressForFrame(blend.incomingFrame),
+        variant: crossing.coatVariant,
+        opacity: blend.incomingOpacity,
+      );
+    }
+    canvas.restore();
+  }
+
+  void _paintPose(
+    Canvas canvas, {
+    required int frame,
+    required double poseProgress,
+    required CatRunCoatVariant variant,
+    double opacity = 1,
+  }) {
+    if (opacity <= 0) return;
+    final trace = catRunV2HighTraces[frame];
+    final path = Path()
+      ..addPolygon(CatRunV24Travel.pointsAt(poseProgress), true);
+    if (opacity < 1) {
+      canvas.saveLayer(
+        null,
+        Paint()..color = Colors.white.withValues(alpha: opacity),
+      );
+    }
     canvas.drawPath(
       path,
       Paint()
@@ -957,9 +1139,9 @@ class CatRunV23StagePainter extends CustomPainter {
       canvas: canvas,
       silhouette: path,
       trace: trace,
-      variant: crossing.coatVariant,
+      variant: variant,
     );
-    canvas.restore();
+    if (opacity < 1) canvas.restore();
   }
 
   @override
@@ -972,6 +1154,7 @@ class CatRunV23StagePainter extends CustomPainter {
       oldDelegate.showGroundLine != showGroundLine ||
       oldDelegate.paintBackground != paintBackground ||
       oldDelegate.smoothTuning != smoothTuning ||
+      oldDelegate.poseBlendTuning != poseBlendTuning ||
       oldDelegate.neutralFrame02 != neutralFrame02 ||
       oldDelegate.groundInset != groundInset ||
       oldDelegate.groundLineColor != groundLineColor;
