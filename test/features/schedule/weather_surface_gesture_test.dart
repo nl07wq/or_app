@@ -49,15 +49,23 @@ void main() {
   });
 
   test('month grid reserves fixed anchors independently of entry metadata', () {
-    expect(calendarMonthGridDateTopAnchor, 6);
+    expect(calendarMonthGridDateTopAnchor, 4);
     expect(calendarMonthGridMetadataHeight, 16);
+    expect(calendarMonthGridMetadataBottomInset, 5);
     expect(calendarMonthGridWeekendColorOpacity, .60);
-    expect(calendarMonthGridWeekRowBandOpacity, .025);
+    expect(calendarMonthGridWeekRowBandOpacity, .020);
+    expect(calendarMonthGridSelectedFillOpacity, .18);
+    expect(calendarMonthGridUsesSelectedOutline, isFalse);
+    expect(calendarMonthGridUsesTodayOutline, isFalse);
     expect(calendarMonthGridUsesVerticalColumnBands, isFalse);
     expect(calendarMonthGridUsesHorizontalWeekSeparators, isFalse);
     expect(
       calendarMonthGridWeekRowBandColor(ThemeData.dark().colorScheme),
-      ThemeData.dark().colorScheme.onSurface.withValues(alpha: .025),
+      ThemeData.dark().colorScheme.onSurface.withValues(alpha: .020),
+    );
+    expect(
+      calendarMonthGridSelectedFillColor(ThemeData.dark().colorScheme),
+      ThemeData.dark().colorScheme.primary.withValues(alpha: .18),
     );
     for (var row = 0; row < 6; row++) {
       expect(calendarMonthGridWeekRowIsSubtle(row), row.isEven);

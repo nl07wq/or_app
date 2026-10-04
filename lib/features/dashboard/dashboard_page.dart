@@ -923,39 +923,57 @@ class DashboardScheduleCard extends StatelessWidget {
         children: [
           const _DashboardScheduleHeader(),
           AppSpacing.gapSM,
-          loading
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  child: Text('予定を確認しています…'),
-                )
-              : entries.isEmpty
-              ? const _DashboardScheduleEmptyState()
-              : Column(
-                  children: [
-                    for (
-                      var index = 0;
-                      index < visibleEntries.length;
-                      index++
-                    ) ...[
-                      if (index > 0) const Divider(height: 1),
-                      _DashboardScheduleRow(
-                        entry: visibleEntries[index],
-                        onTap: () =>
-                            onOpenDate(visibleEntries[index].record.localDate),
-                      ),
-                    ],
-                    if (hiddenCount > 0)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          key: const ValueKey('dashboard-schedule-more'),
-                          onPressed: () =>
-                              onOpenDate(information!.operationDate),
-                          child: Text('他$hiddenCount件'),
+          Container(
+            key: const ValueKey('dashboard-schedule-hud'),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: .26),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .20),
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: loading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                    child: Center(child: Text('予定を確認しています…')),
+                  )
+                : entries.isEmpty
+                ? const _DashboardScheduleEmptyState()
+                : Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < visibleEntries.length;
+                        index++
+                      )
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: index == 0 ? AppSpacing.xs : AppSpacing.sm,
+                          ),
+                          child: _DashboardScheduleRow(
+                            entry: visibleEntries[index],
+                            onTap: () => onOpenDate(
+                              visibleEntries[index].record.localDate,
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
+                      if (hiddenCount > 0)
+                        Center(
+                          child: TextButton(
+                            key: const ValueKey('dashboard-schedule-more'),
+                            onPressed: () =>
+                                onOpenDate(information!.operationDate),
+                            child: Text('他$hiddenCount件'),
+                          ),
+                        ),
+                      const SizedBox(height: AppSpacing.xs),
+                    ],
+                  ),
+          ),
         ],
       ),
     );
@@ -967,6 +985,7 @@ class _DashboardScheduleHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Icon(
         Icons.calendar_today_outlined,
@@ -985,11 +1004,13 @@ class _DashboardScheduleEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-    child: Text(
-      '予定はありません',
-      style: Theme.of(
-        context,
-      ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+    child: Center(
+      child: Text(
+        '予定はありません',
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+      ),
     ),
   );
 }
@@ -1008,62 +1029,68 @@ class _DashboardScheduleRow extends StatelessWidget {
     return Semantics(
       button: true,
       label: '${_timeLabel(record)} ${record.title} ${_detailLabel(entry)}',
-      child: InkWell(
-        key: ValueKey('dashboard-schedule-entry-${record.id}'),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 48,
-                child: Text(
-                  _timeLabel(record),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelMedium?.copyWith(color: accent),
-                ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: InkWell(
+            key: ValueKey('dashboard-schedule-entry-${record.id}'),
+            onTap: onTap,
+            child: Container(
+              key: ValueKey('dashboard-schedule-entry-hud-${record.id}'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      record.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyLarge,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      _timeLabel(record),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(color: accent),
                     ),
-                    Row(
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          record.kind == ScheduleEntryKind.reminder
-                              ? Icons.notifications_none
-                              : Icons.event_note_outlined,
-                          size: 14,
-                          color: accent,
+                        Text(
+                          record.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: Text(
-                            _detailLabel(entry),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                        Row(
+                          children: [
+                            Icon(
+                              record.kind == ScheduleEntryKind.reminder
+                                  ? Icons.notifications_none
+                                  : Icons.event_note_outlined,
+                              size: 14,
+                              color: accent,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Text(
+                                _detailLabel(entry),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Icon(Icons.chevron_right, size: 20),
+                ],
               ),
-              const SizedBox(width: AppSpacing.xs),
-              const Icon(Icons.chevron_right, size: 20),
-            ],
+            ),
           ),
         ),
       ),

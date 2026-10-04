@@ -4683,15 +4683,32 @@ class _TimelineEntryState extends State<_TimelineEntry> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(record.title),
-                    Text(
-                      '${record.type.name.toUpperCase()}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
-                      style: Theme.of(context).textTheme.bodySmall,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surface.withValues(alpha: .26),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: .20),
                     ),
-                  ],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(record.title),
+                      Text(
+                        '${record.type.name.toUpperCase()}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               if (widget.onReminderToggle != null)
@@ -4711,17 +4728,25 @@ class _TimelineEntryState extends State<_TimelineEntry> {
   }
 }
 
-const calendarMonthGridDateTopAnchor = 6.0;
+const calendarMonthGridDateTopAnchor = 4.0;
 const calendarMonthGridMetadataHeight = 16.0;
+const calendarMonthGridMetadataBottomInset = 5.0;
 const calendarMonthGridWeekendColorOpacity = .60;
-const calendarMonthGridWeekRowBandOpacity = .025;
+const calendarMonthGridWeekRowBandOpacity = .020;
+const calendarMonthGridSelectedFillOpacity = .18;
+const calendarMonthGridUsesSelectedOutline = false;
+const calendarMonthGridUsesTodayOutline = false;
 const calendarMonthGridUsesVerticalColumnBands = false;
 const calendarMonthGridUsesHorizontalWeekSeparators = false;
 
 bool calendarMonthGridWeekRowIsSubtle(int row) => row.isEven;
 
-Color calendarMonthGridWeekRowBandColor(ColorScheme colorScheme) =>
-    colorScheme.onSurface.withValues(alpha: calendarMonthGridWeekRowBandOpacity);
+Color calendarMonthGridWeekRowBandColor(ColorScheme colorScheme) => colorScheme
+    .onSurface
+    .withValues(alpha: calendarMonthGridWeekRowBandOpacity);
+
+Color calendarMonthGridSelectedFillColor(ColorScheme colorScheme) =>
+    colorScheme.primary.withValues(alpha: calendarMonthGridSelectedFillOpacity);
 
 Color? calendarMonthGridWeekdayColor(int column) {
   if (column == 0) {
@@ -4895,17 +4920,14 @@ class _MonthGridState extends State<_MonthGrid> {
                   ),
                   itemBuilder: (context, index) {
                     final hasDate = index >= offset && index < offset + days;
-                    final weekRowBand = calendarMonthGridWeekRowIsSubtle(
-                          index ~/ 7,
-                        )
+                    final weekRowBand =
+                        calendarMonthGridWeekRowIsSubtle(index ~/ 7)
                         ? calendarMonthGridWeekRowBandColor(
                             Theme.of(context).colorScheme,
                           )
                         : Colors.transparent;
                     if (!hasDate) {
-                      return Container(
-                        color: weekRowBand,
-                      );
+                      return Container(color: weekRowBand);
                     }
                     final date = DateTime(
                       widget.month.year,
@@ -4933,9 +4955,7 @@ class _MonthGridState extends State<_MonthGrid> {
                       holidayMatch: holidayMatch,
                     );
                     return Container(
-                      decoration: BoxDecoration(
-                        color: weekRowBand,
-                      ),
+                      decoration: BoxDecoration(color: weekRowBand),
                       child: InkWell(
                         onTap: () => widget.onSelect(date),
                         child: Container(
@@ -4943,18 +4963,9 @@ class _MonthGridState extends State<_MonthGrid> {
                           margin: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
-                            border: isSelected
-                                ? Border.all(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                  )
-                                : isToday
-                                ? Border.all(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondary
-                                        .withValues(alpha: .7),
+                            color: isSelected
+                                ? calendarMonthGridSelectedFillColor(
+                                    Theme.of(context).colorScheme,
                                   )
                                 : null,
                           ),
@@ -4982,6 +4993,9 @@ class _MonthGridState extends State<_MonthGrid> {
                                         padding: const EdgeInsets.only(left: 2),
                                         child: Icon(
                                           Icons.circle,
+                                          key: ValueKey(
+                                            'calendar-day-today-dot-${_key(date)}',
+                                          ),
                                           size: 4,
                                           color: Theme.of(
                                             context,
@@ -5005,7 +5019,9 @@ class _MonthGridState extends State<_MonthGrid> {
                                         ),
                                       ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(
+                                height: calendarMonthGridMetadataBottomInset,
+                              ),
                             ],
                           ),
                         ),

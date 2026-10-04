@@ -205,6 +205,23 @@ void main() {
       expect(find.text('all-day'), findsNothing);
       expect(find.text('他1件'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      final cardCenter = tester
+          .getCenter(find.byKey(const ValueKey('dashboard-schedule')))
+          .dx;
+      for (final id in ['overdue', 'morning', 'evening']) {
+        expect(
+          tester
+              .getCenter(
+                find.byKey(ValueKey('dashboard-schedule-entry-hud-$id')),
+              )
+              .dx,
+          closeTo(cardCenter, .1),
+        );
+      }
+      final hud = tester.widget<Container>(
+        find.byKey(const ValueKey('dashboard-schedule-hud')),
+      );
+      expect((hud.decoration! as BoxDecoration).border, isNotNull);
 
       await tester.tap(
         find.byKey(const ValueKey('dashboard-schedule-entry-morning')),
@@ -246,6 +263,13 @@ void main() {
       ).textTheme.bodyMedium?.fontSize,
     );
     expect(empty.style?.fontWeight, FontWeight.w400);
+    expect(
+      tester.getCenter(find.text('予定はありません')).dx,
+      closeTo(
+        tester.getCenter(find.byKey(const ValueKey('dashboard-schedule'))).dx,
+        .1,
+      ),
+    );
     await tester.tap(find.byKey(const ValueKey('dashboard-schedule')));
     expect(openedDate, '2026-10-04');
   });
