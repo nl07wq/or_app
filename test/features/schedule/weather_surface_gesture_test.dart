@@ -178,6 +178,28 @@ void main() {
     },
   );
 
+  test('precipitation intensity telemetry only restates WMO intensity labels', () {
+    expect(weatherPrecipitationIntensitySegments('弱'), 1);
+    expect(weatherPrecipitationIntensitySegments('中'), 2);
+    expect(weatherPrecipitationIntensitySegments('強'), 3);
+    expect(weatherPrecipitationIntensitySegments('激しい'), 4);
+    expect(weatherPrecipitationIntensitySegments('弱〜中'), 2);
+    expect(weatherPrecipitationIntensitySegments('--'), 0);
+    expect(weatherPrecipitationIntensitySegments(null), 0);
+
+    expect(weatherPrecipitationSymbolForType('雨'), Icons.umbrella_outlined);
+    expect(weatherPrecipitationSymbolForType('にわか雨'), Icons.umbrella_outlined);
+    expect(weatherPrecipitationSymbolForType('雪'), Icons.ac_unit);
+    expect(weatherPrecipitationSymbolForType('雷雨'), Icons.thunderstorm_outlined);
+    expect(weatherPrecipitationSymbolForType(null), Icons.help_outline);
+  });
+
+  test('precipitation telemetry keeps four columns at 390 and collapses at 320', () {
+    expect(weatherPrecipitationUsesCompactGrid(256), isTrue);
+    expect(weatherPrecipitationUsesCompactGrid(326), isFalse);
+    expect(weatherPrecipitationUsesCompactGrid(800), isFalse);
+  });
+
   test('weekly peak cue only reuses the existing forecast summary output', () {
     const summary = WeatherForecastSummary(
       primary: '午後から雨の予報です。',

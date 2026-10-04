@@ -1436,6 +1436,32 @@ WeatherPrecipitationDescriptor weatherPrecipitationDescriptorForCode(
   _ => const WeatherPrecipitationDescriptor(type: '--', intensity: '--'),
 };
 
+/// Reuses the Weather surface's existing Material Symbol families without
+/// changing the production condition-to-symbol authority. The type supplied
+/// here is already the WMO weather-code descriptor above.
+IconData weatherPrecipitationSymbolForType(String? type) => switch (type) {
+  '雪' || 'にわか雪' || '雪粒' => Icons.ac_unit,
+  '雷雨' || '雹を伴う雷雨' => Icons.thunderstorm_outlined,
+  '降水なし' => Icons.cloud_outlined,
+  '--' || null => Icons.help_outline,
+  _ => Icons.umbrella_outlined,
+};
+
+/// Intensity is a visual restatement of the formal WMO label only. It never
+/// derives a level from probability, precipitation amount, or hourly values.
+int weatherPrecipitationIntensitySegments(String? intensity) => switch (intensity) {
+  '弱' => 1,
+  '中' || '弱〜中' => 2,
+  '強' => 3,
+  '激しい' => 4,
+  _ => 0,
+};
+
+/// The four-axis telemetry stays on one line at its primary 390px surface and
+/// safely becomes a 2×2 grid only for narrow available content widths.
+bool weatherPrecipitationUsesCompactGrid(double availableWidth) =>
+    availableWidth < 300;
+
 /// Reuses the existing forecast-intelligence output for the compact weekly
 /// daypart cue. It never derives a new precipitation claim from raw values.
 String? weatherForecastPeakPrecipitationTiming(WeatherForecastSummary summary) {
@@ -2512,45 +2538,49 @@ class _WeatherPrecipitationBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final classification = Row(
-      children: [
-        Expanded(
-          child: _WeatherDetailValue(label: '種類', metric: type),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _WeatherDetailValue(label: '強さ', metric: intensity),
-        ),
-      ],
+    final typeReadout = _WeatherPrecipitationTypeReadout(metric: type);
+    final intensityReadout = _WeatherPrecipitationIntensityReadout(
+      metric: intensity,
     );
-    final amountValue = _WeatherDetailValue(label: '降水量', metric: amount);
-    final probabilityReadout = _WeatherProbabilityReadout(metric: probability);
+    final probabilityReadout = _WeatherCompactProbabilityReadout(
+      metric: probability,
+    );
+    final amountReadout = _WeatherPrecipitationAmountReadout(metric: amount);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 340) {
+        if (weatherPrecipitationUsesCompactGrid(constraints.maxWidth)) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  Expanded(flex: 2, child: classification),
-                  const SizedBox(width: 12),
-                  Expanded(child: amountValue),
+                  Expanded(child: typeReadout),
+                  const SizedBox(width: 10),
+                  Expanded(child: intensityReadout),
                 ],
               ),
               const SizedBox(height: 10),
-              probabilityReadout,
+              Row(
+                children: [
+                  Expanded(child: probabilityReadout),
+                  const SizedBox(width: 10),
+                  Expanded(child: amountReadout),
+                ],
+              ),
             ],
           );
         }
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 2, child: classification),
-            const SizedBox(width: 12),
-            Expanded(flex: 3, child: probabilityReadout),
-            const SizedBox(width: 12),
-            Expanded(child: amountValue),
+            Expanded(flex: 5, child: typeReadout),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: intensityReadout),
+            const SizedBox(width: 8),
+            Expanded(flex: 4, child: probabilityReadout),
+            const SizedBox(width: 8),
+            Expanded(flex: 4, child: amountReadout),
           ],
         );
       },
@@ -2558,45 +2588,153 @@ class _WeatherPrecipitationBlock extends StatelessWidget {
   }
 }
 
-class _WeatherProbabilityReadout extends StatelessWidget {
-  const _WeatherProbabilityReadout({required this.metric});
+class _WeatherPrecipitationTypeReadout extends StatelessWidget {
+  const _WeatherPrecipitationTypeReadout({required this.metric});
 
   final _WeatherDetailMetric? metric;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('降水確率', style: Theme.of(context).textTheme.labelSmall),
-      const SizedBox(height: 2),
-      Row(
+  Widget build(BuildContext context) => _WeatherPrecipitationTelemetryValue(
+    label: '種類',
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          weatherPrecipitationSymbolForType(metric?.value),
+          size: 18,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            metric?.value ?? '--',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _WeatherPrecipitationIntensityReadout extends StatelessWidget {
+  const _WeatherPrecipitationIntensityReadout({required this.metric});
+
+  final _WeatherDetailMetric? metric;
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = weatherPrecipitationIntensitySegments(metric?.value);
+    final segmentCount = segments == 4 ? 4 : 3;
+    final scheme = Theme.of(context).colorScheme;
+    return _WeatherPrecipitationTelemetryValue(
+      label: '強さ',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < segmentCount; index++) ...[
+                Container(
+                  width: 8,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: index < segments
+                        ? scheme.primary
+                        : scheme.onSurface.withValues(alpha: .18),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+                if (index < segmentCount - 1) const SizedBox(width: 2),
+              ],
+            ],
+          ),
+          const SizedBox(height: 3),
           Text(
             metric?.value ?? '--',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: _WeatherDetailMeter(
-              fraction: weatherProbabilityMeterFillFraction(
-                metric?.meterFraction ?? 0,
-              ),
-              color: Theme.of(context).colorScheme.primary,
-              height: 6,
-            ),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
-      const SizedBox(height: 2),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('0%', style: Theme.of(context).textTheme.labelSmall),
-          Text('100%', style: Theme.of(context).textTheme.labelSmall),
+    );
+  }
+}
+
+class _WeatherCompactProbabilityReadout extends StatelessWidget {
+  const _WeatherCompactProbabilityReadout({required this.metric});
+
+  final _WeatherDetailMetric? metric;
+
+  @override
+  Widget build(BuildContext context) => _WeatherPrecipitationTelemetryValue(
+    label: '確率',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          metric?.value ?? '--',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 4),
+        _WeatherDetailMeter(
+          fraction: weatherProbabilityMeterFillFraction(
+            metric?.meterFraction ?? 0,
+          ),
+          color: Theme.of(context).colorScheme.primary,
+          height: 5,
+        ),
+        if (metric?.context case final metricContext?) ...[
+          const SizedBox(height: 3),
+          Text(
+            metricContext,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
         ],
-      ),
-      if (metric?.context case final metricContext?)
-        Text(metricContext, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    ),
+  );
+}
+
+class _WeatherPrecipitationAmountReadout extends StatelessWidget {
+  const _WeatherPrecipitationAmountReadout({required this.metric});
+
+  final _WeatherDetailMetric? metric;
+
+  @override
+  Widget build(BuildContext context) => _WeatherPrecipitationTelemetryValue(
+    label: '量',
+    child: Text(
+      metric?.value ?? '--',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleSmall,
+    ),
+  );
+}
+
+class _WeatherPrecipitationTelemetryValue extends StatelessWidget {
+  const _WeatherPrecipitationTelemetryValue({
+    required this.label,
+    required this.child,
+  });
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.labelSmall),
+      const SizedBox(height: 5),
+      child,
     ],
   );
 }
