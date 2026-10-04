@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/food_item.dart';
 import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/meal_type.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_entry_sources.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
+import 'package:or_app/features/food/models/recipe_models_v2.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
 
@@ -764,6 +767,123 @@ void main() {
     expect(find.byKey(const ValueKey('food-meal-item-editor')), findsOneWidget);
   });
 
+  testWidgets(
+    'recipe item edit uses its saved composition and preserves sibling instances',
+    (tester) async {
+      final timestamp = DateTime.utc(2026, 10, 4);
+      final standard = _recipeFixture(timestamp, riceGrams: 120);
+      final savedFirst = _recipeFixture(timestamp, riceGrams: 100);
+      final savedSecond = _recipeFixture(timestamp, riceGrams: 90);
+      final initialMeal = MealData(
+        date: '2026-10-04',
+        mealType: MealType.breakfast.name,
+        memo: '',
+        id: 'recipe-meal',
+        items: [
+          _recipeMealItem(savedFirst),
+          _recipeMealItem(savedSecond),
+        ],
+      );
+      final initialSources = FoodEntrySources(
+        catalogSources: const [null, null],
+        recipeSources: [standard, standard],
+        recipeInstanceSnapshots: [savedFirst, savedSecond],
+        quantityUnits: const [FoodQuantityUnit.serving, FoodQuantityUnit.serving],
+        recipeReferenceIds: [standard.recipeId, standard.recipeId],
+        mealItemIds: const ['recipe-item-a', 'recipe-item-b'],
+      );
+      MealData? savedMeal;
+      FoodEntrySources? savedSources;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                initialMeal: initialMeal,
+                initialSources: initialSources,
+                onSave: (_) async => true,
+                onSaveWithSources: (meal, sources) async {
+                  savedMeal = meal;
+                  savedSources = sources;
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final firstRecipeItem = find.byKey(const ValueKey('meal-item-name-0'));
+      await tester.ensureVisible(firstRecipeItem);
+      await tester.tap(firstRecipeItem);
+      await tester.pumpAndSettle();
+      expect(find.text('RECIPE CONFIRM / ADJUST'), findsOneWidget);
+      final riceAmount = find.byKey(
+        const ValueKey('meal-item-recipe-ingredient-input-0'),
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(of: riceAmount, matching: find.byType(TextField)),
+            )
+            .controller!
+            .text,
+        '100',
+      );
+
+      await tester.enterText(riceAmount, '80');
+      await tester.pump();
+      expect(find.textContaining('80kcal'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(firstRecipeItem);
+      await tester.tap(firstRecipeItem);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(of: riceAmount, matching: find.byType(TextField)),
+            )
+            .controller!
+            .text,
+        '100',
+      );
+      await tester.enterText(riceAmount, '80');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('UPDATE MEAL'));
+      await tester.tap(find.text('UPDATE MEAL'));
+      await tester.pumpAndSettle();
+
+      expect(savedMeal, isNotNull);
+      expect(savedMeal!.items.first.totalCalories, 80);
+      expect(savedMeal!.items[1].totalCalories, 90);
+      expect(savedSources, isNotNull);
+      expect(
+        savedSources!
+            .recipeInstanceSnapshots
+            .first!
+            .ingredients
+            .single
+            .quantity
+            .value,
+        80,
+      );
+      expect(
+        savedSources!
+            .recipeInstanceSnapshots[1]!
+            .ingredients
+            .single
+            .quantity
+            .value,
+        90,
+      );
+      expect(standard.ingredients.single.quantity.value, 120);
+    },
+  );
+
   testWidgets('water disables meal type and hides database modes', (
     tester,
   ) async {
@@ -988,3 +1108,55 @@ String _modeLabel(String mode) => switch (mode) {
   'databaseMeal' => 'MEAL',
   _ => throw ArgumentError.value(mode, 'mode'),
 };
+
+FoodRecipeDefinition _recipeFixture(DateTime timestamp, {required double riceGrams}) {
+  final provenance = FoodDataProvenance(
+    sourceType: FoodProvenanceSourceType.userInput,
+    capturedAt: timestamp,
+  );
+  final ingredient = RecipeIngredientV2(
+    ingredientId: '00000000-0000-4000-8000-000000000701',
+    nameSnapshot: 'White rice',
+    quantity: FoodQuantityDefinition(
+      value: riceGrams,
+      unit: FoodQuantityUnit.gram,
+    ),
+    nutritionSnapshot: NutritionSnapshot(
+      calories: riceGrams,
+      protein: riceGrams / 20,
+      fat: riceGrams / 100,
+      carbohydrate: riceGrams / 5,
+    ),
+    nutritionStatus: NutritionStatus.declared,
+    provenanceSnapshot: provenance,
+    sortOrder: 0,
+  );
+  return FoodRecipeDefinition(
+    recipeId: '00000000-0000-4000-8000-000000000700',
+    name: 'Rice recipe',
+    ingredients: [ingredient],
+    yieldQuantity: FoodQuantityDefinition(
+      value: 1,
+      unit: FoodQuantityUnit.serving,
+    ),
+    servingCount: 1,
+    nutrition: ingredient.nutritionSnapshot,
+    nutritionStatus: NutritionStatus.calculated,
+    provenance: provenance,
+    isArchived: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
+}
+
+FoodItem _recipeMealItem(FoodRecipeDefinition recipe) => FoodItem(
+  name: recipe.name,
+  calories: recipe.nutrition.calories!,
+  protein: recipe.nutrition.protein!,
+  fat: recipe.nutrition.fat!,
+  carbohydrate: recipe.nutrition.carbohydrate!,
+  amount: 1,
+  baseAmount: 1,
+  baseUnit: FoodBaseUnit.g,
+  amountMode: FoodAmountMode.baseMultiplier,
+);

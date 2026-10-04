@@ -151,6 +151,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final _mealItemUsedAmountController = TextEditingController();
   final _mealItemQuantityController = TextEditingController();
   final List<TextEditingController> _recipeIngredientControllers = [];
+  final List<TextEditingController> _mealItemRecipeIngredientControllers =
+      [];
 
   MealType mealType = MealType.breakfast;
 
@@ -177,6 +179,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   int? _mealItemEditingIndex;
   String? _mealItemEditError;
+  List<_RecipeIngredientDraft> _mealItemRecipeIngredients = const [];
   bool isWaterEntry = false;
   String? inputError;
   FoodQuantityUnit baseUnit = FoodQuantityUnit.gram;
@@ -304,6 +307,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _mealItemUsedAmountController.dispose();
     _mealItemQuantityController.dispose();
     for (final controller in _recipeIngredientControllers) {
+      controller.dispose();
+    }
+    for (final controller in _mealItemRecipeIngredientControllers) {
       controller.dispose();
     }
     super.dispose();
@@ -647,7 +653,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
   void _openMealItemEditor(int index) {
     if (_mealItemEditingIndex != null || index >= items.length) return;
     final item = items[index];
-    final isRecipe = _recipeSources[index] != null;
+    final recipeInstance =
+        _recipeInstanceSnapshots[index] ?? _recipeSources[index];
+    final isRecipe = recipeInstance != null;
+    final isLegacyRecipe = !isRecipe && _recipeReferenceIds[index] != null;
+    if (isLegacyRecipe) {
+      setState(() {
+        _mealItemEditingIndex = index;
+        _mealItemEditError =
+            'THIS LEGACY RECIPE ITEM DOES NOT RETAIN A SAFE EDITABLE COMPOSITION.';
+      });
+      return;
+    }
     if (!isRecipe && !item.hasMeasuredAmount) {
       setState(() {
         _mealItemEditingIndex = index;
@@ -673,6 +690,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       _mealItemEditingIndex = index;
       _mealItemEditError = null;
+      if (recipeInstance != null) {
+        _setMealItemRecipeDraft(recipeInstance);
+      }
       if (usedAmount != null) {
         _setMealItemEditText(_mealItemUsedAmountController, usedAmount);
       }
@@ -726,7 +746,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _mealItemQuantityController.text,
     ).value;
     if (quantity == null) return null;
-    if (_recipeSources[index] != null) {
+    if (_recipeInstanceSnapshots[index] != null || _recipeSources[index] != null) {
       return item.copyWith(
         amount: quantity,
         amountMode: FoodAmountMode.baseMultiplier,
@@ -763,6 +783,34 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _saveMealItemEdit() {
     final index = _mealItemEditingIndex;
+    final recipeSource =
+        index == null
+        ? null
+        : _recipeInstanceSnapshots[index] ?? _recipeSources[index];
+    if (index != null && recipeSource != null) {
+      try {
+        final instance = _recipeInstanceFromDrafts(
+          recipeSource,
+          _mealItemRecipeIngredients,
+        );
+        final edited = _databaseRecipeItem(instance, items[index].multiplier);
+        if (edited == null) {
+          throw const FormatException('RECIPE NUTRITION IS INCOMPLETE');
+        }
+        setState(() {
+          items[index] = edited;
+          _recipeInstanceSnapshots[index] = instance;
+          _clearMealItemRecipeDraft();
+          _mealItemEditingIndex = null;
+          _mealItemEditError = null;
+          _mealItemUsedAmountController.clear();
+          _mealItemQuantityController.clear();
+        });
+      } on FormatException catch (error) {
+        setState(() => _mealItemEditError = error.message);
+      }
+      return;
+    }
     final edited = _editedMealItem();
     if (index == null || edited == null) {
       setState(() => _mealItemEditError = 'ENTER A VALID POSITIVE VALUE.');
@@ -787,10 +835,60 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _cancelMealItemEdit() {
+    _clearMealItemRecipeDraft();
     _mealItemEditingIndex = null;
     _mealItemEditError = null;
     _mealItemUsedAmountController.clear();
     _mealItemQuantityController.clear();
+  }
+
+  void _setMealItemRecipeDraft(FoodRecipeDefinition instance) {
+    _clearMealItemRecipeDraft();
+    final drafts = instance.ingredients
+        .map(
+          (ingredient) =>
+              _RecipeIngredientDraft(ingredient, ingredient.quantity.value),
+        )
+        .toList(growable: false);
+    _mealItemRecipeIngredients = drafts;
+    _mealItemRecipeIngredientControllers.addAll(
+      drafts.map(
+        (draft) => TextEditingController(text: _formatAmount(draft.quantity)),
+      ),
+    );
+  }
+
+  void _clearMealItemRecipeDraft() {
+    for (final controller in _mealItemRecipeIngredientControllers) {
+      controller.dispose();
+    }
+    _mealItemRecipeIngredientControllers.clear();
+    _mealItemRecipeIngredients = const [];
+  }
+
+  void _changeMealItemRecipeIngredient(int index, String raw) {
+    final value = double.tryParse(raw.trim());
+    if (value == null || !value.isFinite || value <= 0) {
+      setState(() => _mealItemEditError = 'ENTER A VALID INGREDIENT AMOUNT.');
+      return;
+    }
+    setState(() {
+      final next = List<_RecipeIngredientDraft>.from(
+        _mealItemRecipeIngredients,
+      );
+      next[index] = _RecipeIngredientDraft(next[index].source, value);
+      _mealItemRecipeIngredients = next;
+      _mealItemEditError = null;
+    });
+  }
+
+  void _adjustMealItemRecipeIngredient(int index, double delta) {
+    final controller = _mealItemRecipeIngredientControllers[index];
+    final current = double.tryParse(controller.text.trim()) ?? 0;
+    final next = current + delta;
+    if (next <= 0) return;
+    controller.text = _formatAmount(next);
+    _changeMealItemRecipeIngredient(index, controller.text);
   }
 
   void updateQuantity(int index, int change) {
@@ -1143,8 +1241,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
   }
 
-  FoodRecipeDefinition _recipeInstance(FoodRecipeDefinition source) {
-    final ingredients = _pendingRecipeIngredients
+  FoodRecipeDefinition _recipeInstance(FoodRecipeDefinition source) =>
+      _recipeInstanceFromDrafts(source, _pendingRecipeIngredients);
+
+  FoodRecipeDefinition _recipeInstanceFromDrafts(
+    FoodRecipeDefinition source,
+    List<_RecipeIngredientDraft> drafts,
+  ) {
+    final ingredients = drafts
         .map(_recipeIngredientInstance)
         .toList(growable: false);
     return FoodRecipeDefinition(
@@ -2186,33 +2290,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
             AppSpacing.gapSM,
             Text(recipe.name, style: Theme.of(context).textTheme.titleMedium),
             AppSpacing.gapSM,
-            for (
-              var index = 0;
-              index < _pendingRecipeIngredients.length;
-              index++
-            ) ...[
-              Text(_pendingRecipeIngredients[index].source.nameSnapshot),
-              FoodNumericStepperRow(
-                key: ValueKey('food-recipe-ingredient-$index'),
-                inputKey: ValueKey('food-recipe-ingredient-input-$index'),
-                controller: _recipeIngredientControllers[index],
-                label: FoodNutritionFormatter.quantityUnit(
-                  _pendingRecipeIngredients[index].source.quantity.unit,
-                ),
-                onChanged: (value) => _changeRecipeIngredient(index, value),
-                incrementKey: ValueKey(
-                  'food-recipe-ingredient-increment-$index',
-                ),
-                incrementTooltip: 'Increase ingredient amount',
-                onIncrement: () => _adjustRecipeIngredient(index, 1),
-                decrementKey: ValueKey(
-                  'food-recipe-ingredient-decrement-$index',
-                ),
-                decrementTooltip: 'Decrease ingredient amount',
-                onDecrement: () => _adjustRecipeIngredient(index, -1),
-              ),
-              AppSpacing.gapSM,
-            ],
+            _recipeIngredientAdjustmentList(
+              ingredients: _pendingRecipeIngredients,
+              controllers: _recipeIngredientControllers,
+              keyPrefix: 'food-recipe',
+              onChanged: _changeRecipeIngredient,
+              onAdjust: _adjustRecipeIngredient,
+            ),
             Text(
               '${FoodNutritionFormatter.calories(nutrition.calories ?? 0)}kcal'
               '  P ${FoodNutritionFormatter.macro(nutrition.protein ?? 0)}g'
@@ -2374,10 +2458,42 @@ class _FoodInputFormState extends State<FoodInputForm> {
     ),
   );
 
+  Widget _recipeIngredientAdjustmentList({
+    required List<_RecipeIngredientDraft> ingredients,
+    required List<TextEditingController> controllers,
+    required String keyPrefix,
+    required void Function(int index, String raw) onChanged,
+    required void Function(int index, double delta) onAdjust,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var index = 0; index < ingredients.length; index++) ...[
+        Text(ingredients[index].source.nameSnapshot),
+        FoodNumericStepperRow(
+          key: ValueKey('$keyPrefix-ingredient-$index'),
+          inputKey: ValueKey('$keyPrefix-ingredient-input-$index'),
+          controller: controllers[index],
+          label: FoodNutritionFormatter.quantityUnit(
+            ingredients[index].source.quantity.unit,
+          ),
+          onChanged: (value) => onChanged(index, value),
+          incrementKey: ValueKey('$keyPrefix-ingredient-increment-$index'),
+          incrementTooltip: 'Increase ingredient amount',
+          onIncrement: () => onAdjust(index, 1),
+          decrementKey: ValueKey('$keyPrefix-ingredient-decrement-$index'),
+          decrementTooltip: 'Decrease ingredient amount',
+          onDecrement: () => onAdjust(index, -1),
+        ),
+        AppSpacing.gapSM,
+      ],
+    ],
+  );
+
   Widget _mealItemEditor() {
     final index = _mealItemEditingIndex!;
     final item = items[index];
-    final recipe = _recipeSources[index];
+    final recipe =
+        _recipeInstanceSnapshots[index] ?? _recipeSources[index];
     final catalog = _catalogSources[index];
     final editable = recipe != null || item.hasMeasuredAmount;
     final isRecipe = recipe != null;
@@ -2388,7 +2504,14 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final quantity = _FoodNumericTextValue.parse(
       _mealItemQuantityController.text,
     ).value;
-    final candidate = editable ? _editedMealItem() : null;
+    final candidate = !editable
+        ? null
+        : isRecipe
+        ? _databaseRecipeItem(
+            _recipeInstanceFromDrafts(recipe, _mealItemRecipeIngredients),
+            item.multiplier,
+          )
+        : _editedMealItem();
     return OperationCard(
       key: const ValueKey('food-meal-item-editor'),
       child: Column(
@@ -2416,20 +2539,17 @@ class _FoodInputFormState extends State<FoodInputForm> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             )
           else if (isRecipe) ...[
-            FoodNumericStepperRow(
-              key: const ValueKey('meal-item-serving-stepper'),
-              inputKey: const ValueKey('meal-item-serving-input'),
-              controller: _mealItemQuantityController,
-              label: 'SERVINGS',
-              onChanged: _changeMealItemQuantity,
-              incrementKey: const ValueKey('meal-item-serving-increment'),
-              incrementTooltip: 'Increase servings',
-              onIncrement: () =>
-                  _adjustMealItemValue(usedAmount: false, delta: 1),
-              decrementKey: const ValueKey('meal-item-serving-decrement'),
-              decrementTooltip: 'Decrease servings',
-              onDecrement: () =>
-                  _adjustMealItemValue(usedAmount: false, delta: -1),
+            const SectionHeader(
+              icon: Icons.tune_outlined,
+              title: 'RECIPE CONFIRM / ADJUST',
+            ),
+            AppSpacing.gapSM,
+            _recipeIngredientAdjustmentList(
+              ingredients: _mealItemRecipeIngredients,
+              controllers: _mealItemRecipeIngredientControllers,
+              keyPrefix: 'meal-item-recipe',
+              onChanged: _changeMealItemRecipeIngredient,
+              onAdjust: _adjustMealItemRecipeIngredient,
             ),
           ] else ...[
             FoodNumericStepperRow(
