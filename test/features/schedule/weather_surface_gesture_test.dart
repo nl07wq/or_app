@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/schedule/weather_forecast_summary.dart';
+import 'package:or_app/features/weather/weather_models.dart';
 
 void main() {
   test('temperature range rail reserves numeric telemetry clearance', () {
@@ -21,7 +22,7 @@ void main() {
     expect(weatherForecastLowHighPairAlignment, MainAxisAlignment.center);
     expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
     expect(weatherForecastDateTextAlignment, TextAlign.center);
-    expect(weatherForecastDateVerticalOffset, lessThan(0));
+    expect(weatherForecastDateVerticalOffset, -14);
     expect(weatherForecastDateFontSize, 14);
     expect(weatherForecastWeatherBlockAlignment, CrossAxisAlignment.center);
     expect(weatherForecastWeatherTextAlignment, TextAlign.center);
@@ -37,6 +38,30 @@ void main() {
       '昨日',
     );
   });
+
+  test(
+    'retains recent-past selection while weekly values stay today plus six',
+    () {
+      final snapshot = _recentPastSnapshot();
+
+      for (final offset in [-1, -7, -31]) {
+        final date = DateTime(2026, 10, 4).add(Duration(days: offset));
+        final dateText = _dateText(date);
+        final selected = weatherDailyForDate(snapshot, dateText);
+        expect(selected, isNotNull, reason: 'daily $offset');
+        expect(weatherHourlyForDay(snapshot, selected!), isNotEmpty);
+      }
+      expect(weatherDailyForDate(snapshot, '2026-09-02'), isNull);
+
+      final forecast = weatherSevenDayForecastValues(
+        snapshot.daily,
+        today: DateTime(2026, 10, 4),
+      );
+      expect(forecast, hasLength(7));
+      expect(forecast.first.date, '2026-10-04');
+      expect(forecast.last.date, '2026-10-10');
+    },
+  );
 
   test(
     'weekly compact telemetry formats only the formal daily maximum wind',
@@ -304,3 +329,52 @@ void main() {
     expect(directions, isEmpty);
   });
 }
+
+WeatherSnapshot _recentPastSnapshot() {
+  const location = WeatherLocation(
+    displayName: 'Tokyo',
+    latitude: 35.68,
+    longitude: 139.76,
+    timezone: 'Asia/Tokyo',
+  );
+  final dates = List.generate(
+    38,
+    (index) => DateTime(2026, 9, 3).add(Duration(days: index)),
+  );
+  return WeatherSnapshot(
+    location: location,
+    fetchedAt: DateTime.utc(2026, 10, 4),
+    daily: dates
+        .map(
+          (date) => WeatherDaily(
+            date: _dateText(date),
+            code: 0,
+            high: 23,
+            low: 17,
+            precipitationProbability: 18,
+            precipitation: 0,
+            sunrise: '${_dateText(date)}T05:30',
+            sunset: '${_dateText(date)}T17:00',
+          ),
+        )
+        .toList(growable: false),
+    hourly: dates
+        .map(
+          (date) => WeatherHourly(
+            time: '${_dateText(date)}T12:00',
+            temperature: 20,
+            apparentTemperature: 20,
+            humidity: 60,
+            precipitationProbability: 18,
+            precipitation: 0,
+            code: 0,
+            cloudCover: 20,
+            windSpeed: 8,
+            windGust: 12,
+          ),
+        )
+        .toList(growable: false),
+  );
+}
+
+String _dateText(DateTime value) => value.toIso8601String().split('T').first;

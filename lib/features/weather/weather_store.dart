@@ -7,7 +7,9 @@ import 'weather_models.dart';
 class WeatherStore {
   static const _legacyLocationKey = 'weather.location.v1';
   static const _locationsKey = 'weather.locations.v2';
-  static const _cachePrefix = 'weather.cache.v4.';
+  // Past weather is now retained for 31 days. A new namespace prevents a
+  // shorter v4 snapshot from being treated as a complete recent-past record.
+  static const _cachePrefix = 'weather.cache.v5.';
 
   Future<WeatherLocationPreferences> loadLocations() async {
     final prefs = await SharedPreferences.getInstance();

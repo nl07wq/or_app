@@ -478,15 +478,13 @@ class _CalendarWeatherHud extends StatelessWidget {
   Widget build(BuildContext context) {
     final location = preferences.activeLocation;
     final scheme = Theme.of(context).colorScheme;
-    final matchingDays = snapshot?.daily
-        .where((day) => day.date == selectedDate)
-        .toList(growable: false);
-    final selected = matchingDays == null || matchingDays.isEmpty
+    final weatherSnapshot = snapshot;
+    final selected = weatherSnapshot == null
         ? null
-        : matchingDays.first;
+        : weatherDailyForDate(weatherSnapshot, selectedDate);
     final hourly = selected == null
         ? const <WeatherHourly>[]
-        : _hourlyForDay(snapshot!, selected);
+        : weatherHourlyForDay(weatherSnapshot!, selected);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
@@ -571,7 +569,10 @@ class _CalendarWeatherHud extends StatelessWidget {
                     ),
                     if (sevenDayExpanded)
                       _WeatherForecastList(
-                        values: snapshot!.daily,
+                        values: weatherSevenDayForecastValues(
+                          snapshot!.daily,
+                          today: DateTime.now(),
+                        ),
                         snapshot: snapshot!,
                         selectedDate: selectedDate,
                         onSelectDate: onSelectDate,
@@ -1272,7 +1273,10 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 const weatherForecastLowHighPairAlignment = MainAxisAlignment.center;
 const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
 const weatherForecastDateTextAlignment = TextAlign.center;
-const weatherForecastDateVerticalOffset = -9.0;
+// LEFT-A is an identity block, not a vertically centered peer of the weather
+// block. Its upward offset preserves the compact row while anchoring weekday
+// and date at the row's top edge.
+const weatherForecastDateVerticalOffset = -14.0;
 const weatherForecastDateFontSize = 14.0;
 const weatherForecastWeatherBlockAlignment = CrossAxisAlignment.center;
 const weatherForecastWeatherTextAlignment = TextAlign.center;
@@ -1355,6 +1359,32 @@ double weatherDetailMeterFillWidth({
   required double fraction,
 }) => trackWidth * fraction.clamp(0.0, 1.0).toDouble();
 
+/// Retains every formal daily entry in the snapshot for selected-date
+/// surfaces, including the 31-day recent-past window.
+WeatherDaily? weatherDailyForDate(WeatherSnapshot snapshot, String date) {
+  for (final day in snapshot.daily) {
+    if (day.date == date) return day;
+  }
+  return null;
+}
+
+/// The weekly comparison surface is deliberately independent from the recent
+/// past: it always starts today and exposes exactly the next seven daily
+/// entries supplied by the forecast authority.
+List<WeatherDaily> weatherSevenDayForecastValues(
+  List<WeatherDaily> values, {
+  required DateTime today,
+}) {
+  final start = DateTime(today.year, today.month, today.day);
+  return values
+      .where((value) {
+        final date = DateTime.tryParse(value.date);
+        return date != null && !date.isBefore(start);
+      })
+      .take(7)
+      .toList(growable: false);
+}
+
 /// A row owns both its date selection and its visual rail. A different date
 /// never opens a surface; a second, deliberate tap requests the daily detail.
 bool weatherForecastRowOpensDetail({required bool selected}) => selected;
@@ -1421,7 +1451,7 @@ Future<void> _showDailyForecastDetail(
   WeatherSnapshot snapshot,
 ) {
   final date = DateTime.parse(day.date);
-  final hourly = _hourlyForDay(snapshot, day);
+  final hourly = weatherHourlyForDay(snapshot, day);
   final forecast = _representativeHourly(hourly);
   final summary = WeatherForecastSummaryEngine.summarize(
     day: day,
@@ -1580,7 +1610,7 @@ class _WeatherSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hourly = _hourlyForDay(snapshot, day);
+    final hourly = weatherHourlyForDay(snapshot, day);
     final representative = _representativeHourly(hourly);
     final summary = WeatherForecastSummaryEngine.summarize(
       day: day,
@@ -1678,7 +1708,7 @@ class _WeatherDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hourly = _hourlyForDay(snapshot, day);
+    final hourly = weatherHourlyForDay(snapshot, day);
     final forecast = _representativeHourly(hourly);
     final daySummary = WeatherForecastSummaryEngine.summarize(
       day: day,
@@ -2736,7 +2766,9 @@ class _WeatherDetailMeter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeFraction = fraction.clamp(0.0, 1.0).toDouble();
-    final fillColor = Color.lerp(color, const Color(0xFF45D9FF), .72)!;
+    // The detail meters share the existing Weather primary blue. Do not blend
+    // in a separate cyan family: only the formal fill ratio should vary.
+    final fillColor = color;
     return LayoutBuilder(
       builder: (context, constraints) {
         final fillWidth = weatherDetailMeterFillWidth(
@@ -4085,10 +4117,12 @@ class _WeatherHourlyCell extends StatelessWidget {
   }
 }
 
-List<WeatherHourly> _hourlyForDay(WeatherSnapshot snapshot, WeatherDaily day) =>
-    snapshot.hourly
-        .where((value) => value.time.startsWith('${day.date}T'))
-        .toList(growable: false);
+List<WeatherHourly> weatherHourlyForDay(
+  WeatherSnapshot snapshot,
+  WeatherDaily day,
+) => snapshot.hourly
+    .where((value) => value.time.startsWith('${day.date}T'))
+    .toList(growable: false);
 
 String _hourlyDetailTitle(WeatherDaily day, String time) {
   final parsed = DateTime.tryParse(time);

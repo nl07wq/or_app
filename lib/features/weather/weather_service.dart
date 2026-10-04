@@ -290,7 +290,7 @@ class WeatherService {
       'longitude': location.longitude.toString(),
       'timezone': location.timezone,
       'forecast_days': '7',
-      'past_days': '1',
+      'past_days': '31',
       'daily': [
         'weather_code',
         'temperature_2m_max',
