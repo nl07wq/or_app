@@ -238,6 +238,14 @@ void main() {
           18,
         );
         expect(
+          tester
+              .widget<Icon>(
+                find.byKey(ValueKey('dashboard-schedule-anchor-$id')),
+              )
+              .icon,
+          Icons.circle_outlined,
+        );
+        expect(
           find.byKey(ValueKey('dashboard-schedule-rail-$id')),
           findsOneWidget,
         );

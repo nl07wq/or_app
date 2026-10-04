@@ -17,6 +17,7 @@ typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
 
 const reminderHudCompletionUsesOuterPolygon = false;
 const reminderCompletionVisibleDiameter = 14.0;
+const reminderCompletionIconSize = 16.0;
 const reminderCompletionTouchTarget = 48.0;
 const reminderCircuitRailIsStatic = true;
 const reminderCircuitRailWidth = 2.0;
@@ -434,31 +435,41 @@ class _ReminderHudTabs extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     key: const ValueKey('reminder-hud-tabs'),
     margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-    child: TabBar(
-      controller: controller,
-      isScrollable: false,
-      indicatorSize: TabBarIndicatorSize.tab,
-      indicator: ShapeDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
-        shape: const BeveledRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(4)),
-        ),
-      ),
-      indicatorPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-      dividerColor: Colors.transparent,
-      labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.1,
-      ),
-      unselectedLabelStyle: Theme.of(
-        context,
-      ).textTheme.labelMedium?.copyWith(letterSpacing: .7),
-      tabs: const [
-        Tab(text: 'TODAY'),
-        Tab(text: 'ALL'),
-        Tab(text: 'RECURRING'),
-        Tab(text: 'COMPLETED'),
-      ],
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 360;
+        final fontSize = compact ? 9.3 : 10.5;
+        final letterSpacing = compact ? .05 : .28;
+        return TabBar(
+          controller: controller,
+          isScrollable: false,
+          indicatorSize: TabBarIndicatorSize.tab,
+          indicator: ShapeDecoration(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
+            shape: const BeveledRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+            ),
+          ),
+          indicatorPadding: const EdgeInsets.symmetric(
+            vertical: 4,
+            horizontal: 1,
+          ),
+          dividerColor: Colors.transparent,
+          labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w700,
+            letterSpacing: letterSpacing,
+          ),
+          unselectedLabelStyle: Theme.of(context).textTheme.labelMedium
+              ?.copyWith(fontSize: fontSize, letterSpacing: letterSpacing),
+          tabs: const [
+            Tab(text: 'TODAY'),
+            Tab(text: 'ALL'),
+            Tab(text: 'RECURRING'),
+            Tab(text: 'COMPLETED'),
+          ],
+        );
+      },
     ),
   );
 }
@@ -607,6 +618,7 @@ class _ReminderOccurrenceRow extends StatelessWidget {
                         summary:
                             '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
                         note: value.definition.note,
+                        completed: completed,
                       ),
                     ],
                   ),
@@ -639,7 +651,7 @@ class _ReminderCircuitNode extends StatelessWidget {
       context,
     ).colorScheme.primary.withValues(alpha: .28);
     const nodeTop = 12.0;
-    final ringRadius = reminderCompletionVisibleDiameter / 2;
+    final ringRadius = reminderCompletionIconSize / 2;
     final nodeCenter = nodeTop + reminderCompletionTouchTarget / 2;
     return SizedBox(
       key: ValueKey('reminder-circuit-node-$id'),
@@ -702,33 +714,17 @@ class _HudCompletionControl extends StatelessWidget {
           onTap: onPressed,
           customBorder: const CircleBorder(),
           child: Center(
-            child: Container(
-              key: const ValueKey('reminder-completion-single-ring'),
-              width: reminderCompletionVisibleDiameter,
-              height: reminderCompletionVisibleDiameter,
-              decoration: BoxDecoration(
-                color: completed ? accent.withValues(alpha: .16) : null,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: accent.withValues(alpha: completed ? .88 : .54),
-                  width: completed ? 1.5 : 1,
-                ),
-                boxShadow: completed
-                    ? [
-                        BoxShadow(
-                          color: accent.withValues(alpha: .16),
-                          blurRadius: 7,
-                        ),
-                      ]
-                    : null,
+            child: Icon(
+              key: ValueKey(
+                completed
+                    ? 'reminder-completion-check-circle'
+                    : 'reminder-completion-circle',
               ),
-              child: Icon(
-                completed ? Icons.check : null,
-                size: 18,
-                color: completed
-                    ? accent
-                    : colorScheme.onSurface.withValues(alpha: .64),
-              ),
+              completed ? Icons.check_circle : Icons.circle_outlined,
+              size: reminderCompletionIconSize,
+              color: completed
+                  ? accent
+                  : colorScheme.onSurface.withValues(alpha: .64),
             ),
           ),
         ),
@@ -838,10 +834,6 @@ class _DefinitionList extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => onEdit(value),
-                ),
               ],
             ),
           ),
@@ -857,15 +849,30 @@ class _DefinitionList extends StatelessWidget {
 }
 
 class _ReminderSubtitle extends StatelessWidget {
-  const _ReminderSubtitle({required this.summary, this.note});
+  const _ReminderSubtitle({
+    required this.summary,
+    this.note,
+    this.completed = false,
+  });
   final String summary;
   final String? note;
+  final bool completed;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(summary),
+      Text(
+        summary,
+        style: completed
+            ? Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: .65),
+                decoration: TextDecoration.lineThrough,
+              )
+            : null,
+      ),
       if (note != null && note!.trim().isNotEmpty)
         Text(
           note!,
@@ -875,6 +882,7 @@ class _ReminderSubtitle extends StatelessWidget {
             color: Theme.of(
               context,
             ).colorScheme.onSurface.withValues(alpha: .65),
+            decoration: completed ? TextDecoration.lineThrough : null,
           ),
         ),
     ],

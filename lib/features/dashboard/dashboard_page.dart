@@ -1050,7 +1050,7 @@ class _DashboardScheduleRow extends StatelessWidget {
                     children: [
                       Icon(
                         key: ValueKey('dashboard-schedule-anchor-${record.id}'),
-                        Icons.circle,
+                        Icons.circle_outlined,
                         size: 18,
                         color: entry.isOverdue
                             ? accent

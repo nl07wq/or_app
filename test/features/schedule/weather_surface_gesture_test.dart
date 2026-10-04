@@ -233,7 +233,15 @@ void main() {
       topologyTraces.where(
         (trace) => trace.kind == HolographicCircuitTopologyKind.parallel,
       ),
-      hasLength(2),
+      hasLength(6),
+    );
+    expect(
+      topologyTraces.where(
+        (trace) =>
+            trace.kind == HolographicCircuitTopologyKind.branch &&
+            trace.terminalNode,
+      ),
+      hasLength(1),
     );
     expect(
       holographicCircuitRoutes
@@ -442,6 +450,7 @@ void main() {
       ),
     );
     expect(anchor.size, calendarTimelineScheduleAnchorSize);
+    expect(anchor.icon, Icons.circle_outlined);
     expect(
       find.byKey(const ValueKey('calendar-timeline-rail-open-timeline-entry')),
       findsOneWidget,

@@ -61,6 +61,11 @@ void main() {
         (await container.reminders.findStates()).single.status,
         ReminderOccurrenceStatus.completed,
       );
+      expect(
+        find.byKey(const ValueKey('reminder-completion-check-circle')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
 
       await tester.tap(find.text('COMPLETED'));
       await tester.pumpAndSettle();
@@ -143,6 +148,9 @@ void main() {
         MaterialApp(home: RemindersPage(key: ValueKey('hud-$width'))),
       );
       await tester.pumpAndSettle();
+      for (final label in ['TODAY', 'ALL', 'RECURRING', 'COMPLETED']) {
+        expect(find.text(label), findsOneWidget);
+      }
       expect(
         find.byKey(const ValueKey('holographic-ambient-background')),
         findsOneWidget,
@@ -188,13 +196,18 @@ void main() {
     final lastId = 'last-node@$today';
     expect(reminderHudCompletionUsesOuterPolygon, isFalse);
     expect(reminderCompletionVisibleDiameter, 14);
+    expect(reminderCompletionIconSize, 16);
     expect(reminderCompletionTouchTarget, 48);
     expect(reminderCircuitRailIsStatic, isTrue);
     expect(reminderCircuitRailWidth, 2);
-    expect(find.byIcon(Icons.circle_outlined), findsNothing);
+    expect(find.byIcon(Icons.circle_outlined), findsNWidgets(2));
     expect(
-      find.byKey(const ValueKey('reminder-completion-single-ring')),
+      find.byKey(const ValueKey('reminder-completion-circle')),
       findsNWidgets(2),
+    );
+    expect(
+      find.byKey(const ValueKey('reminder-completion-check-circle')),
+      findsNothing,
     );
     expect(
       tester.getSize(find.byKey(ValueKey('reminder-toggle-$firstId'))),
@@ -431,6 +444,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final row = find.byKey(const ValueKey('recurring-row-daily'));
+      expect(find.byIcon(Icons.edit_outlined), findsNothing);
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(find.text('REMINDERを編集'), findsOneWidget);

@@ -4657,7 +4657,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                           ? (record.completed
                                 ? Icons.check_circle
                                 : Icons.notifications_none)
-                          : Icons.circle,
+                          : Icons.circle_outlined,
                       color: record.kind == ScheduleEntryKind.reminder
                           ? null
                           : colorScheme.onSurface.withValues(alpha: .94),
