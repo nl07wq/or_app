@@ -929,18 +929,6 @@ class DashboardScheduleCard extends StatelessWidget {
               color: Theme.of(
                 context,
               ).colorScheme.surface.withValues(alpha: .20),
-              border: Border(
-                top: BorderSide(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: .28),
-                ),
-                bottom: BorderSide(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: .18),
-                ),
-              ),
             ),
             child: loading
                 ? const Padding(
@@ -1060,28 +1048,23 @@ class _DashboardScheduleRow extends StatelessWidget {
                   ),
                   Column(
                     children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        margin: const EdgeInsets.only(top: 5),
-                        decoration: BoxDecoration(
-                          color: accent,
-                          shape: BoxShape.circle,
-                        ),
+                      Icon(
+                        key: ValueKey('dashboard-schedule-anchor-${record.id}'),
+                        Icons.circle,
+                        size: 18,
+                        color: entry.isOverdue
+                            ? accent
+                            : colorScheme.onSurface.withValues(alpha: .94),
                       ),
                       Container(
+                        key: ValueKey('dashboard-schedule-rail-${record.id}'),
                         width: 1,
-                        height: 24,
+                        height: 38,
                         color: accent.withValues(alpha: .38),
                       ),
                     ],
                   ),
-                  Container(
-                    width: 10,
-                    height: 1,
-                    margin: const EdgeInsets.only(top: 8),
-                    color: accent.withValues(alpha: .42),
-                  ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

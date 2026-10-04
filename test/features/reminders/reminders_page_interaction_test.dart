@@ -187,10 +187,10 @@ void main() {
     final firstId = 'first-node@$today';
     final lastId = 'last-node@$today';
     expect(reminderHudCompletionUsesOuterPolygon, isFalse);
-    expect(reminderCompletionVisibleDiameter, 20);
+    expect(reminderCompletionVisibleDiameter, 14);
     expect(reminderCompletionTouchTarget, 48);
     expect(reminderCircuitRailIsStatic, isTrue);
-    expect(reminderCircuitRailWidth, 1.5);
+    expect(reminderCircuitRailWidth, 2);
     expect(find.byIcon(Icons.circle_outlined), findsNothing);
     expect(
       find.byKey(const ValueKey('reminder-completion-single-ring')),

@@ -14,6 +14,22 @@ const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
 const holographicCircuitAfterglowDuration = Duration(seconds: 15);
 const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
 const holographicCircuitMaximumConcurrentSignals = 2;
+const holographicCircuitAmbientNodeDiameter = 5.8;
+
+enum HolographicCircuitTopologyKind { branch, parallel }
+
+@immutable
+class HolographicCircuitTopologyTrace {
+  const HolographicCircuitTopologyTrace({
+    required this.kind,
+    required this.activationPointIndex,
+    required this.points,
+  });
+
+  final HolographicCircuitTopologyKind kind;
+  final int activationPointIndex;
+  final List<Offset> points;
+}
 
 @immutable
 class HolographicCircuitScheduledPhase {
@@ -117,11 +133,13 @@ class HolographicCircuitRoute {
   const HolographicCircuitRoute({
     required this.points,
     this.nodePointIndexes = const [],
+    this.topologyTraces = const [],
     this.terminalNode = false,
   });
 
   final List<Offset> points;
   final List<int> nodePointIndexes;
+  final List<HolographicCircuitTopologyTrace> topologyTraces;
   final bool terminalNode;
 
   int get segmentCount => points.length - 1;
@@ -250,17 +268,40 @@ class _AmbientGeometryPainter extends CustomPainter {
           }
           var distance = 0.0;
           final nodeDistances = <double>[];
+          final pointDistances = <double>[0];
           for (var index = 1; index < scaledPoints.length; index++) {
             distance +=
                 (scaledPoints[index] - scaledPoints[index - 1]).distance;
+            pointDistances.add(distance);
             if (route.nodePointIndexes.contains(index)) {
               nodeDistances.add(distance);
             }
           }
+          final topologyTraces = route.topologyTraces
+              .map((trace) {
+                final tracePoints = trace.points
+                    .map(
+                      (point) =>
+                          Offset(point.dx * size.width, point.dy * size.height),
+                    )
+                    .toList(growable: false);
+                final tracePath = Path()
+                  ..moveTo(tracePoints.first.dx, tracePoints.first.dy);
+                for (final point in tracePoints.skip(1)) {
+                  tracePath.lineTo(point.dx, point.dy);
+                }
+                return _ResolvedCircuitTopologyTrace(
+                  trace,
+                  tracePath.computeMetrics().first,
+                  pointDistances[trace.activationPointIndex],
+                );
+              })
+              .toList(growable: false);
           return _ResolvedCircuitRoute(
             route,
             path.computeMetrics().first,
             nodeDistances,
+            topologyTraces,
           );
         })
         .toList(growable: false);
@@ -275,11 +316,13 @@ class _AmbientGeometryPainter extends CustomPainter {
     final phases = _phasesFor(routes, elapsed);
     for (final phase in phases) {
       _paintAfterglow(canvas, phase);
+      _paintTopologyAfterglow(canvas, phase);
       _paintRouteNodes(canvas, phase);
     }
     for (final phase in phases) {
       if (phase.isPropagating) {
         _paintSignal(canvas, phase);
+        _paintTopologySignals(canvas, phase);
       } else if (phase.isTerminalNode) {
         _paintTerminalNode(canvas, phase);
       }
@@ -311,7 +354,22 @@ class _AmbientGeometryPainter extends CustomPainter {
           .toList(growable: false);
 
   void _paintAfterglow(Canvas canvas, _CircuitPhase phase) {
-    final metric = phase.route.metric;
+    _paintMetricAfterglow(canvas, phase.route.metric, phase.elapsedSeconds);
+  }
+
+  void _paintTopologyAfterglow(Canvas canvas, _CircuitPhase phase) {
+    for (final trace in phase.route.topologyTraces) {
+      final traceElapsed = phase.elapsedSeconds - trace.activationSeconds;
+      if (traceElapsed < 0) continue;
+      _paintMetricAfterglow(canvas, trace.metric, traceElapsed);
+    }
+  }
+
+  void _paintMetricAfterglow(
+    Canvas canvas,
+    PathMetric metric,
+    double elapsedSeconds,
+  ) {
     final fadeSeconds =
         holographicCircuitAfterglowDuration.inMilliseconds / 1000;
     final chunkCount = math
@@ -325,7 +383,7 @@ class _AmbientGeometryPainter extends CustomPainter {
       final start = metric.length * index / chunkCount;
       final end = metric.length * (index + 1) / chunkCount;
       final energizedAt = end / holographicCircuitSignalPixelsPerSecond;
-      final age = phase.elapsedSeconds - energizedAt;
+      final age = elapsedSeconds - energizedAt;
       if (age < 0 || age > fadeSeconds) continue;
       final fade = 1 - age / fadeSeconds;
       paint.color = color.withValues(alpha: .20 * fade);
@@ -334,12 +392,27 @@ class _AmbientGeometryPainter extends CustomPainter {
   }
 
   void _paintSignal(Canvas canvas, _CircuitPhase phase) {
-    final metric = phase.route.metric;
-    final head = phase.elapsedSeconds * holographicCircuitSignalPixelsPerSecond;
+    _paintMetricSignal(canvas, phase.route.metric, phase.elapsedSeconds);
+  }
+
+  void _paintTopologySignals(Canvas canvas, _CircuitPhase phase) {
+    for (final trace in phase.route.topologyTraces) {
+      final traceElapsed = phase.elapsedSeconds - trace.activationSeconds;
+      if (traceElapsed < 0) continue;
+      _paintMetricSignal(canvas, trace.metric, traceElapsed);
+    }
+  }
+
+  void _paintMetricSignal(
+    Canvas canvas,
+    PathMetric metric,
+    double elapsedSeconds,
+  ) {
+    final head = elapsedSeconds * holographicCircuitSignalPixelsPerSecond;
     final segmentLength = math.min(metric.length * .085, 72.0).toDouble();
     final start = math.max(0.0, head - segmentLength).toDouble();
     final end = math.min(metric.length, head).toDouble();
-    final visibility = math.min(1.0, phase.elapsedSeconds / .12);
+    final visibility = math.min(1.0, elapsedSeconds / .12);
     if (end <= start || visibility <= 0) return;
     final segment = metric.extractPath(start, end);
     final halo = Paint()
@@ -381,8 +454,12 @@ class _AmbientGeometryPainter extends CustomPainter {
         ..color = color.withValues(alpha: .48 * intensity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.1;
-      canvas.drawCircle(position, 4.8, halo);
-      canvas.drawCircle(position, 2.35, ring);
+      canvas.drawCircle(position, 5.8, halo);
+      canvas.drawCircle(
+        position,
+        holographicCircuitAmbientNodeDiameter / 2,
+        ring,
+      );
     }
     if (!phase.route.definition.terminalNode ||
         phase.elapsedSeconds < phase.travelSeconds) {
@@ -403,8 +480,12 @@ class _AmbientGeometryPainter extends CustomPainter {
       ..color = color.withValues(alpha: .42 * intensity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1;
-    canvas.drawCircle(position, 4.8, halo);
-    canvas.drawCircle(position, 2.35, ring);
+    canvas.drawCircle(position, 5.8, halo);
+    canvas.drawCircle(
+      position,
+      holographicCircuitAmbientNodeDiameter / 2,
+      ring,
+    );
   }
 
   void _paintTerminalNode(Canvas canvas, _CircuitPhase phase) {
@@ -423,7 +504,7 @@ class _AmbientGeometryPainter extends CustomPainter {
       ..color = color.withValues(alpha: .88 * intensity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
-    final radius = 2.35 + intensity * .45;
+    final radius = holographicCircuitAmbientNodeDiameter / 2 + intensity * .45;
     canvas.drawCircle(position, radius + 5, halo);
     canvas.drawCircle(position, radius, ring);
   }
@@ -489,11 +570,32 @@ class _ScanlinePainter extends CustomPainter {
 }
 
 class _ResolvedCircuitRoute {
-  const _ResolvedCircuitRoute(this.definition, this.metric, this.nodeDistances);
+  const _ResolvedCircuitRoute(
+    this.definition,
+    this.metric,
+    this.nodeDistances,
+    this.topologyTraces,
+  );
 
   final HolographicCircuitRoute definition;
   final PathMetric metric;
   final List<double> nodeDistances;
+  final List<_ResolvedCircuitTopologyTrace> topologyTraces;
+}
+
+class _ResolvedCircuitTopologyTrace {
+  const _ResolvedCircuitTopologyTrace(
+    this.definition,
+    this.metric,
+    this.activationDistance,
+  );
+
+  final HolographicCircuitTopologyTrace definition;
+  final PathMetric metric;
+  final double activationDistance;
+
+  double get activationSeconds =>
+      activationDistance / holographicCircuitSignalPixelsPerSecond;
 }
 
 class _CircuitPhase {
@@ -520,6 +622,29 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
   HolographicCircuitRoute(
     terminalNode: true,
     nodePointIndexes: [3, 6],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.branch,
+        activationPointIndex: 3,
+        points: [
+          Offset(.35, .22),
+          Offset(.47, .10),
+          Offset(.66, .10),
+          Offset(.76, .20),
+        ],
+      ),
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.parallel,
+        activationPointIndex: 4,
+        points: [
+          Offset(.35, .36),
+          Offset(.39, .40),
+          Offset(.50, .40),
+          Offset(.61, .29),
+          Offset(.57, .27),
+        ],
+      ),
+    ],
     points: [
       Offset(-.16, .13),
       Offset(.12, .13),
@@ -569,6 +694,29 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
   ),
   HolographicCircuitRoute(
     nodePointIndexes: [2, 5, 8],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.branch,
+        activationPointIndex: 5,
+        points: [
+          Offset(.37, .48),
+          Offset(.49, .48),
+          Offset(.60, .58),
+          Offset(.74, .58),
+        ],
+      ),
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.parallel,
+        activationPointIndex: 5,
+        points: [
+          Offset(.37, .48),
+          Offset(.41, .51),
+          Offset(.53, .39),
+          Offset(.65, .39),
+          Offset(.61, .36),
+        ],
+      ),
+    ],
     points: [
       Offset(-.12, .86),
       Offset(.12, .86),
@@ -585,6 +733,18 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
   HolographicCircuitRoute(
     terminalNode: true,
     nodePointIndexes: [3, 7, 10],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.branch,
+        activationPointIndex: 7,
+        points: [
+          Offset(.35, .77),
+          Offset(.24, .67),
+          Offset(.12, .67),
+          Offset(.04, .75),
+        ],
+      ),
+    ],
     points: [
       Offset(.94, 1.12),
       Offset(.94, .89),

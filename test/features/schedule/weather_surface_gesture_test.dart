@@ -184,6 +184,7 @@ void main() {
     expect(holographicCircuitMinimumRouteSegments, 8);
     expect(holographicCircuitMaximumRouteSegments, 14);
     expect(holographicCircuitSignalPixelsPerSecond, 340);
+    expect(holographicCircuitAmbientNodeDiameter, 5.8);
     expect(holographicCircuitInitialDelay, const Duration(milliseconds: 750));
     expect(holographicCircuitIdleDuration, const Duration(milliseconds: 1750));
     expect(holographicCircuitAfterglowDuration, const Duration(seconds: 15));
@@ -216,6 +217,53 @@ void main() {
     expect(
       holographicCircuitRoutes.every(
         (route) => route.nodePointIndexes.isNotEmpty,
+      ),
+      isTrue,
+    );
+    final topologyTraces = holographicCircuitRoutes
+        .expand((route) => route.topologyTraces)
+        .toList(growable: false);
+    expect(
+      topologyTraces.where(
+        (trace) => trace.kind == HolographicCircuitTopologyKind.branch,
+      ),
+      hasLength(3),
+    );
+    expect(
+      topologyTraces.where(
+        (trace) => trace.kind == HolographicCircuitTopologyKind.parallel,
+      ),
+      hasLength(2),
+    );
+    expect(
+      holographicCircuitRoutes
+          .where(
+            (route) => route.topologyTraces.any(
+              (trace) => trace.kind == HolographicCircuitTopologyKind.branch,
+            ),
+          )
+          .every(
+            (route) => route.topologyTraces
+                .where(
+                  (trace) =>
+                      trace.kind == HolographicCircuitTopologyKind.branch,
+                )
+                .every(
+                  (trace) => route.nodePointIndexes.contains(
+                    trace.activationPointIndex,
+                  ),
+                ),
+          ),
+      isTrue,
+    );
+    expect(
+      holographicCircuitRoutes.every(
+        (route) => route.topologyTraces.every(
+          (trace) =>
+              trace.activationPointIndex > 0 &&
+              trace.activationPointIndex < route.points.length &&
+              trace.points.length >= 3,
+        ),
       ),
       isTrue,
     );

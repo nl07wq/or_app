@@ -223,7 +223,39 @@ void main() {
       final hud = tester.widget<Container>(
         find.byKey(const ValueKey('dashboard-schedule-hud')),
       );
-      expect((hud.decoration! as BoxDecoration).border, isNotNull);
+      expect((hud.decoration! as BoxDecoration).border, isNull);
+      for (final id in ['overdue', 'morning', 'evening']) {
+        expect(
+          find.byKey(ValueKey('dashboard-schedule-anchor-$id')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<Icon>(
+                find.byKey(ValueKey('dashboard-schedule-anchor-$id')),
+              )
+              .size,
+          18,
+        );
+        expect(
+          find.byKey(ValueKey('dashboard-schedule-rail-$id')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(ValueKey('dashboard-schedule-anchor-connector-$id')),
+          findsNothing,
+        );
+      }
+      expect(
+        tester.getCenter(find.text('morning')).dx,
+        greaterThan(
+          tester
+              .getCenter(
+                find.byKey(const ValueKey('dashboard-schedule-anchor-morning')),
+              )
+              .dx,
+        ),
+      );
 
       await tester.tap(
         find.byKey(const ValueKey('dashboard-schedule-entry-morning')),

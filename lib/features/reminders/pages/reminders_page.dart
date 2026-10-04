@@ -16,10 +16,10 @@ typedef _OccurrenceAction = Future<void> Function(ReminderOccurrence value);
 typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
 
 const reminderHudCompletionUsesOuterPolygon = false;
-const reminderCompletionVisibleDiameter = 20.0;
+const reminderCompletionVisibleDiameter = 14.0;
 const reminderCompletionTouchTarget = 48.0;
 const reminderCircuitRailIsStatic = true;
-const reminderCircuitRailWidth = 1.5;
+const reminderCircuitRailWidth = 2.0;
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
@@ -518,7 +518,11 @@ class _OccurrenceList extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
-              margin: const EdgeInsets.only(left: 24),
+              margin: EdgeInsets.only(
+                left:
+                    (reminderCompletionTouchTarget - reminderCircuitRailWidth) /
+                    2,
+              ),
               width: reminderCircuitRailWidth,
               height: 1,
               color: Theme.of(
