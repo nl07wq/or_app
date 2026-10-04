@@ -247,6 +247,8 @@ void main() {
       expect(find.text('アポイント'), findsOneWidget);
       expect(find.text('トレーニング'), findsOneWidget);
       expect(find.text('リマインダー'), findsOneWidget);
+      expect(find.byIcon(Icons.notifications_none), findsOneWidget);
+      expect(find.byIcon(Icons.diamond_outlined), findsNothing);
       expect(find.text('その他'), findsOneWidget);
       expect(find.text('ALL DAY'), findsNothing);
       expect(find.text('OTHER'), findsNothing);

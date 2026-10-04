@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
@@ -29,6 +28,8 @@ class _RemindersPageState extends State<RemindersPage>
   List<ReminderOccurrence> _all = const [];
   List<ReminderOccurrence> _completed = const [];
   List<ReminderDefinition> _recurring = const [];
+  final Map<int, Map<String, ReminderOccurrence>> _retainedCompletedByTab =
+      <int, Map<String, ReminderOccurrence>>{};
   bool _loading = true;
 
   ReminderOccurrenceService get _occurrences =>
@@ -37,13 +38,21 @@ class _RemindersPageState extends State<RemindersPage>
   @override
   void initState() {
     super.initState();
+    _tabs.addListener(_clearTransientCompleteRetention);
     _load();
   }
 
   @override
   void dispose() {
+    _tabs.removeListener(_clearTransientCompleteRetention);
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _clearTransientCompleteRetention() {
+    if (_retainedCompletedByTab.isEmpty) return;
+    _retainedCompletedByTab.clear();
+    _load();
   }
 
   Future<void> _load() async {
@@ -63,8 +72,8 @@ class _RemindersPageState extends State<RemindersPage>
     final completed = await _occurrences.completed();
     if (!mounted) return;
     setState(() {
-      _today = todayPending;
-      _all = allCompact;
+      _today = _withTransientRetained(todayPending, 0);
+      _all = _withTransientRetained(allCompact, 1);
       _completed = completed;
       _recurring = definitions
           .where((value) => _isCurrentRecurringDefinition(value, today))
@@ -73,11 +82,38 @@ class _RemindersPageState extends State<RemindersPage>
     });
   }
 
-  Future<void> _toggle(ReminderOccurrence value) async {
+  List<ReminderOccurrence> _withTransientRetained(
+    List<ReminderOccurrence> values,
+    int tabIndex,
+  ) {
+    final retained = _retainedCompletedByTab[tabIndex];
+    if (retained == null || retained.isEmpty) return values;
+    final byId = <String, ReminderOccurrence>{
+      for (final value in values) value.id: value,
+      ...retained,
+    };
+    return byId.values.toList()
+      ..sort((first, second) => first.localDate.compareTo(second.localDate));
+  }
+
+  Future<void> _toggle(ReminderOccurrence value, {int? retentionTab}) async {
     if (value.status == ReminderOccurrenceStatus.completed) {
       await _occurrences.restore(value);
+      if (retentionTab != null) {
+        _retainedCompletedByTab[retentionTab]?.remove(value.id);
+      }
     } else {
       await _occurrences.complete(value, DateTime.now());
+      if (retentionTab != null) {
+        _retainedCompletedByTab.putIfAbsent(
+          retentionTab,
+          () => <String, ReminderOccurrence>{},
+        )[value.id] = ReminderOccurrence(
+          definition: value.definition,
+          localDate: value.localDate,
+          status: ReminderOccurrenceStatus.completed,
+        );
+      }
     }
     notifySchedulePlanChanged();
     await _load();
@@ -250,56 +286,102 @@ class _RemindersPageState extends State<RemindersPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('REMINDERS'),
-      bottom: TabBar(
-        controller: _tabs,
-        isScrollable: true,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 10),
-        tabs: const [
-          Tab(text: 'TODAY'),
-          Tab(text: 'ALL'),
-          Tab(text: 'RECURRING'),
-          Tab(text: 'COMPLETED'),
+      title: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('REMINDERS'),
+          Text('TASK CONTROL // OCCURRENCE STATUS'),
         ],
       ),
     ),
     floatingActionButton: FloatingActionButton(
       onPressed: _create,
+      tooltip: 'REMINDERを追加',
+      shape: const BeveledRectangleBorder(),
       child: const Icon(Icons.add),
     ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : TabBarView(
-            controller: _tabs,
-            children: [
-              _OccurrenceList(
-                values: _today,
-                empty: '今日のREMINDERはありません',
-                onToggle: _toggle,
-                onEdit: _edit,
-                onDelete: _deleteOccurrence,
-              ),
-              _OccurrenceList(
-                values: _all,
-                empty: '今後のREMINDERはありません',
-                onToggle: _toggle,
-                onEdit: _edit,
-                onDelete: _deleteOccurrence,
-              ),
-              _DefinitionList(
-                values: _recurring,
-                onEdit: _edit,
-                onDelete: _deleteDefinitionFuture,
-              ),
-              _OccurrenceList(
-                values: _completed,
-                empty: '完了済みREMINDERはありません',
-                onToggle: _toggle,
-                onEdit: _edit,
-                onDelete: _deleteOccurrence,
-              ),
-            ],
-          ),
+    body: Column(
+      children: [
+        _ReminderHudTabs(controller: _tabs),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(
+                  controller: _tabs,
+                  children: [
+                    _OccurrenceList(
+                      values: _today,
+                      empty: '今日のREMINDERはありません',
+                      onToggle: (value) => _toggle(value, retentionTab: 0),
+                      onEdit: _edit,
+                      onDelete: _deleteOccurrence,
+                    ),
+                    _OccurrenceList(
+                      values: _all,
+                      empty: '今後のREMINDERはありません',
+                      onToggle: (value) => _toggle(value, retentionTab: 1),
+                      onEdit: _edit,
+                      onDelete: _deleteOccurrence,
+                    ),
+                    _DefinitionList(
+                      values: _recurring,
+                      onEdit: _edit,
+                      onDelete: _deleteDefinitionFuture,
+                    ),
+                    _OccurrenceList(
+                      values: _completed,
+                      empty: '完了済みREMINDERはありません',
+                      onToggle: _toggle,
+                      onEdit: _edit,
+                      onDelete: _deleteOccurrence,
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ReminderHudTabs extends StatelessWidget {
+  const _ReminderHudTabs({required this.controller});
+  final TabController controller;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('reminder-hud-tabs'),
+    margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+    decoration: BoxDecoration(
+      border: Border(
+        top: BorderSide(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: .42),
+        ),
+        bottom: BorderSide(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: .28),
+        ),
+      ),
+    ),
+    child: TabBar(
+      controller: controller,
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+      indicatorSize: TabBarIndicatorSize.label,
+      indicatorColor: Theme.of(context).colorScheme.primary,
+      labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.1,
+      ),
+      unselectedLabelStyle: Theme.of(
+        context,
+      ).textTheme.labelMedium?.copyWith(letterSpacing: .7),
+      tabs: const [
+        Tab(text: 'TODAY'),
+        Tab(text: 'ALL'),
+        Tab(text: 'RECURRING'),
+        Tab(text: 'COMPLETED'),
+      ],
+    ),
   );
 }
 
@@ -317,60 +399,122 @@ class _OccurrenceList extends StatelessWidget {
   final _DefinitionAction onEdit;
   final _OccurrenceAction onDelete;
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: AppSpacing.cardPadding,
-    children: values.isEmpty
-        ? [
-            Padding(
-              padding: const EdgeInsets.only(top: 32),
-              child: Center(child: Text(empty)),
-            ),
-          ]
-        : values
-              .map(
-                (value) => Dismissible(
-                  key: ValueKey('reminder-${value.id}'),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) async {
-                    await onDelete(value);
-                    return false;
-                  },
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    color: Theme.of(context).colorScheme.error,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete_outline),
+  Widget build(BuildContext context) => ListView.separated(
+    key: const ValueKey('reminder-occurrence-hud-list'),
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
+    itemCount: values.isEmpty ? 1 : values.length,
+    itemBuilder: (context, index) {
+      if (values.isEmpty) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 32),
+          child: Center(child: Text(empty)),
+        );
+      }
+      final value = values[index];
+      return Dismissible(
+        key: ValueKey('reminder-${value.id}'),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (_) async {
+          await onDelete(value);
+          return false;
+        },
+        background: Container(
+          alignment: Alignment.centerRight,
+          color: Theme.of(context).colorScheme.error,
+          padding: const EdgeInsets.only(right: 20),
+          child: const Icon(Icons.delete_outline),
+        ),
+        child: _ReminderOccurrenceRow(
+          value: value,
+          onToggle: () => onToggle(value),
+          onEdit: () => onEdit(value.definition),
+        ),
+      );
+    },
+    separatorBuilder: (_, _) => Container(
+      height: 1,
+      margin: const EdgeInsets.only(left: 52),
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: .18),
+    ),
+  );
+}
+
+class _ReminderOccurrenceRow extends StatelessWidget {
+  const _ReminderOccurrenceRow({
+    required this.value,
+    required this.onToggle,
+    required this.onEdit,
+  });
+  final ReminderOccurrence value;
+  final VoidCallback onToggle;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = value.status == ReminderOccurrenceStatus.completed;
+    final colorScheme = Theme.of(context).colorScheme;
+    final secondary = colorScheme.onSurface.withValues(alpha: .65);
+    return Semantics(
+      label: '${value.definition.title} ${completed ? '完了' : '未完了'}',
+      child: InkWell(
+        key: ValueKey('reminder-row-${value.id}'),
+        onTap: onEdit,
+        onLongPress: onEdit,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                label: completed ? '未完了に戻す' : '完了にする',
+                button: true,
+                child: IconButton(
+                  key: ValueKey('reminder-toggle-${value.id}'),
+                  onPressed: onToggle,
+                  icon: Icon(
+                    completed
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: completed ? colorScheme.primary : secondary,
                   ),
-                  child: ListTile(
-                    key: ValueKey('reminder-row-${value.id}'),
-                    onTap: () => onEdit(value.definition),
-                    onLongPress: () => onEdit(value.definition),
-                    leading: Semantics(
-                      label: value.status == ReminderOccurrenceStatus.completed
-                          ? '未完了に戻す'
-                          : '完了にする',
-                      button: true,
-                      child: IconButton(
-                        key: ValueKey('reminder-toggle-${value.id}'),
-                        onPressed: () => onToggle(value),
-                        icon: Icon(
-                          value.status == ReminderOccurrenceStatus.completed
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
-                        ),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 42,
+                margin: const EdgeInsets.only(top: 8, right: 10),
+                color: colorScheme.primary.withValues(alpha: .38),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value.definition.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: completed ? secondary : null,
+                        decoration: completed
+                            ? TextDecoration.lineThrough
+                            : null,
                       ),
                     ),
-                    title: Text(value.definition.title),
-                    subtitle: _ReminderSubtitle(
+                    _ReminderSubtitle(
                       summary:
                           '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
                       note: value.definition.note,
                     ),
-                  ),
+                  ],
                 ),
-              )
-              .toList(),
-  );
+              ),
+              Icon(Icons.more_horiz, size: 18, color: secondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _DefinitionList extends StatelessWidget {
@@ -383,47 +527,83 @@ class _DefinitionList extends StatelessWidget {
   final _DefinitionAction onEdit;
   final _DefinitionAction onDelete;
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: AppSpacing.cardPadding,
-    children: values.isEmpty
-        ? const [
-            Padding(
-              padding: EdgeInsets.only(top: 32),
-              child: Center(child: Text('繰り返しREMINDERはありません')),
-            ),
-          ]
-        : values
-              .map(
-                (value) => Dismissible(
-                  key: ValueKey('recurring-${value.id}'),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) async {
-                    await onDelete(value);
-                    return false;
-                  },
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    color: Theme.of(context).colorScheme.error,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete_outline),
-                  ),
-                  child: ListTile(
-                    key: ValueKey('recurring-row-${value.id}'),
-                    onTap: () => onEdit(value),
-                    onLongPress: () => onEdit(value),
-                    title: Text(value.title),
-                    subtitle: _ReminderSubtitle(
-                      summary: _recurrenceSummary(value),
-                      note: value.note,
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      onPressed: () => onEdit(value),
-                    ),
+  Widget build(BuildContext context) => ListView.separated(
+    key: const ValueKey('reminder-definition-hud-list'),
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
+    itemCount: values.isEmpty ? 1 : values.length,
+    itemBuilder: (context, index) {
+      if (values.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.only(top: 32),
+          child: Center(child: Text('繰り返しREMINDERはありません')),
+        );
+      }
+      final value = values[index];
+      return Dismissible(
+        key: ValueKey('recurring-${value.id}'),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (_) async {
+          await onDelete(value);
+          return false;
+        },
+        background: Container(
+          alignment: Alignment.centerRight,
+          color: Theme.of(context).colorScheme.error,
+          padding: const EdgeInsets.only(right: 20),
+          child: const Icon(Icons.delete_outline),
+        ),
+        child: InkWell(
+          key: ValueKey('recurring-row-${value.id}'),
+          onTap: () => onEdit(value),
+          onLongPress: () => onEdit(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 2, right: 12),
+                  child: Icon(Icons.notifications_none),
+                ),
+                Container(
+                  width: 1,
+                  height: 42,
+                  margin: const EdgeInsets.only(right: 10),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .38),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      _ReminderSubtitle(
+                        summary: _recurrenceSummary(value),
+                        note: value.note,
+                      ),
+                    ],
                   ),
                 ),
-              )
-              .toList(),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => onEdit(value),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+    separatorBuilder: (_, _) => Container(
+      height: 1,
+      margin: const EdgeInsets.only(left: 52),
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: .18),
+    ),
   );
 }
 

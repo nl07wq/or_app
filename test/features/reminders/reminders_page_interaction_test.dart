@@ -56,7 +56,7 @@ void main() {
       await tester.tap(find.byKey(ValueKey('reminder-toggle-$occurrenceId')));
       await tester.pumpAndSettle();
       expect(find.text('REMINDERを編集'), findsNothing);
-      expect(find.text('Single'), findsNothing);
+      expect(find.text('Single'), findsOneWidget);
       expect(
         (await container.reminders.findStates()).single.status,
         ReminderOccurrenceStatus.completed,
@@ -70,6 +70,85 @@ void main() {
       expect(await container.reminders.findStates(), isEmpty);
     },
   );
+
+  testWidgets('complete remains undoable only in its current list context', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    await container.reminders.saveDefinition(
+      _definition(id: 'transient', title: 'Transient', startDate: today),
+    );
+    await _pumpPage(tester);
+
+    final toggle = find.byKey(ValueKey('reminder-toggle-transient@$today'));
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(find.text('Transient'), findsOneWidget);
+    expect(
+      (await container.reminders.findStates()).single.status,
+      ReminderOccurrenceStatus.completed,
+    );
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(await container.reminders.findStates(), isEmpty);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ALL'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('TODAY'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transient'), findsNothing);
+    await tester.tap(find.text('COMPLETED'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transient'), findsOneWidget);
+  });
+
+  testWidgets('ALL keeps its own newly-completed occurrence undoable', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    await container.reminders.saveDefinition(
+      _definition(
+        id: 'all-transient',
+        title: 'All transient',
+        startDate: today,
+      ),
+    );
+    await _pumpPage(tester);
+    await tester.tap(find.text('ALL'));
+    await tester.pumpAndSettle();
+
+    final toggle = find.byKey(ValueKey('reminder-toggle-all-transient@$today'));
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(find.text('All transient'), findsOneWidget);
+    expect(
+      (await container.reminders.findStates()).single.status,
+      ReminderOccurrenceStatus.completed,
+    );
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(await container.reminders.findStates(), isEmpty);
+  });
+
+  testWidgets('Reminder HUD remains responsive at supported widths', (
+    tester,
+  ) async {
+    for (final width in <double>[320, 390, 900]) {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      await tester.pumpWidget(
+        MaterialApp(home: RemindersPage(key: ValueKey('hud-$width'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('reminder-hud-tabs')), findsOneWidget);
+      expect(find.byType(ListTile), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
 
   testWidgets(
     'single swipe requires confirmation and removes definition and states',
