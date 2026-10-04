@@ -7,10 +7,10 @@ import 'package:flutter/material.dart';
 const holographicCircuitRouteCount = 8;
 const holographicCircuitMinimumRouteSegments = 8;
 const holographicCircuitMaximumRouteSegments = 14;
-const holographicCircuitSignalPixelsPerSecond = 190.0;
+const holographicCircuitSignalPixelsPerSecond = 260.0;
 const holographicCircuitIdleDuration = Duration(seconds: 4);
 const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
-const holographicCircuitAfterglowDuration = Duration(seconds: 5);
+const holographicCircuitAfterglowDuration = Duration(seconds: 10);
 const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
 const holographicCircuitMaximumConcurrentSignals = 2;
 
@@ -258,7 +258,7 @@ class _AmbientGeometryPainter extends CustomPainter {
       final age = phase.elapsedSeconds - energizedAt;
       if (age < 0 || age > fadeSeconds) continue;
       final fade = 1 - age / fadeSeconds;
-      paint.color = color.withValues(alpha: .18 * fade * fade);
+      paint.color = color.withValues(alpha: .20 * fade);
       canvas.drawPath(metric.extractPath(start, end), paint);
     }
   }
@@ -299,7 +299,7 @@ class _AmbientGeometryPainter extends CustomPainter {
           phase.elapsedSeconds -
           distance / holographicCircuitSignalPixelsPerSecond;
       if (age < 0 || age > fadeSeconds) continue;
-      final intensity = math.pow(1 - age / fadeSeconds, 1.5).toDouble();
+      final intensity = math.pow(1 - age / fadeSeconds, 1.15).toDouble();
       final position = phase.route.metric
           .getTangentForOffset(distance)
           ?.position;
@@ -322,7 +322,7 @@ class _AmbientGeometryPainter extends CustomPainter {
     }
     final age = phase.elapsedSeconds - phase.travelSeconds;
     if (age > fadeSeconds) return;
-    final intensity = math.pow(1 - age / fadeSeconds, 1.6).toDouble();
+    final intensity = math.pow(1 - age / fadeSeconds, 1.2).toDouble();
     final position = phase.route.metric
         .getTangentForOffset(phase.route.metric.length)
         ?.position;

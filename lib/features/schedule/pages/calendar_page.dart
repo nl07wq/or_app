@@ -4739,7 +4739,6 @@ class _CalendarFloatingSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: padding,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -4794,7 +4793,11 @@ class _CalendarFloatingSurface extends StatelessWidget {
         fit: StackFit.passthrough,
         children: [
           const Positioned.fill(child: HolographicScanlineOverlay()),
-          child,
+          Padding(
+            key: const ValueKey('calendar-floating-surface-content-padding'),
+            padding: padding,
+            child: child,
+          ),
         ],
       ),
     );

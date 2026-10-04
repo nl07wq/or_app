@@ -121,6 +121,19 @@ void main() {
         find.byKey(const ValueKey('holographic-scanline-overlay')),
         findsNWidgets(2),
       );
+      final monthSurface = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('calendar-month-grid-hud')),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect(monthSurface.padding, isNull);
+      expect(
+        find.byKey(const ValueKey('calendar-floating-surface-content-padding')),
+        findsNWidgets(2),
+      );
       final todayCell = find.byKey(ValueKey('calendar-day-$todayKey'));
       expect(todayCell, findsOneWidget);
       expect(
@@ -154,9 +167,9 @@ void main() {
     expect(holographicCircuitRouteCount, 8);
     expect(holographicCircuitMinimumRouteSegments, 8);
     expect(holographicCircuitMaximumRouteSegments, 14);
-    expect(holographicCircuitSignalPixelsPerSecond, 190);
+    expect(holographicCircuitSignalPixelsPerSecond, 260);
     expect(holographicCircuitIdleDuration, const Duration(seconds: 4));
-    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 5));
+    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 10));
     expect(
       holographicCircuitTerminalNodeDuration,
       const Duration(milliseconds: 420),
