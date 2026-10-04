@@ -15,6 +15,7 @@ import '../../operation_date/services/japanese_holiday_reference_service.dart';
 import '../../reminders/models/reminder_occurrence.dart';
 import '../../reminders/services/legacy_reminder_migration_service.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
+import '../widgets/shared_time_picker.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
@@ -5204,16 +5205,15 @@ class _TimeControlState extends State<_TimeControl> {
           Expanded(
             child: InkWell(
               onTap: () async {
-                final result = await showModalBottomSheet<String>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  barrierColor: Colors.black.withValues(alpha: .76),
-                  builder: (_) => _ClockDial(initial: widget.controller.text),
+                final result = await showSharedTimePicker(
+                  context,
+                  initialTime: timeOfDayFromClock(
+                    widget.controller.text,
+                    fallback: const TimeOfDay(hour: 9, minute: 0),
+                  ),
                 );
                 if (result != null) {
-                  widget.controller.text = result;
+                  widget.controller.text = clockFromTimeOfDay(result);
                   setState(() {});
                 }
               },

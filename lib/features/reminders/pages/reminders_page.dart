@@ -4,6 +4,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
+import '../../schedule/widgets/shared_time_picker.dart';
 import '../models/reminder_definition.dart';
 import '../models/reminder_occurrence.dart';
 import '../services/legacy_reminder_migration_service.dart';
@@ -164,6 +165,8 @@ class _RemindersPageState extends State<RemindersPage>
       title: const Text('REMINDERS'),
       bottom: TabBar(
         controller: _tabs,
+        isScrollable: true,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 10),
         tabs: const [
           Tab(text: 'TODAY'),
           Tab(text: 'ALL'),
@@ -183,19 +186,22 @@ class _RemindersPageState extends State<RemindersPage>
             children: [
               _OccurrenceList(
                 values: _today,
-                empty: '今日のReminderはありません',
+                empty: '今日のREMINDERはありません',
                 onToggle: _toggle,
+                onEdit: _edit,
               ),
               _OccurrenceList(
                 values: _all,
-                empty: '今後のReminderはありません',
+                empty: '今後のREMINDERはありません',
                 onToggle: _toggle,
+                onEdit: _edit,
               ),
               _DefinitionList(values: _recurring, onEdit: _edit),
               _OccurrenceList(
                 values: _completed,
-                empty: '完了済みReminderはありません',
+                empty: '完了済みREMINDERはありません',
                 onToggle: _toggle,
+                onEdit: _edit,
               ),
             ],
           ),
@@ -207,10 +213,12 @@ class _OccurrenceList extends StatelessWidget {
     required this.values,
     required this.empty,
     required this.onToggle,
+    required this.onEdit,
   });
   final List<ReminderOccurrence> values;
   final String empty;
   final ValueChanged<ReminderOccurrence> onToggle;
+  final ValueChanged<ReminderDefinition> onEdit;
   @override
   Widget build(BuildContext context) => ListView(
     padding: AppSpacing.cardPadding,
@@ -224,6 +232,7 @@ class _OccurrenceList extends StatelessWidget {
         : values
               .map(
                 (value) => ListTile(
+                  onTap: () => onEdit(value.definition),
                   leading: Icon(
                     value.status == ReminderOccurrenceStatus.completed
                         ? Icons.check_circle
@@ -258,14 +267,14 @@ class _DefinitionList extends StatelessWidget {
         ? const [
             Padding(
               padding: EdgeInsets.only(top: 32),
-              child: Center(child: Text('繰り返しReminderはありません')),
+              child: Center(child: Text('繰り返しREMINDERはありません')),
             ),
           ]
         : values
               .map(
                 (value) => ListTile(
                   title: Text(value.title),
-                  subtitle: Text(value.recurrence.name.toUpperCase()),
+                  subtitle: Text(_recurrenceLabel(value.recurrence)),
                   trailing: IconButton(
                     icon: const Icon(Icons.edit_outlined),
                     onPressed: () => onEdit(value),
@@ -290,6 +299,10 @@ class _ReminderEditorState extends State<_ReminderEditor> {
   TimeOfDay _time = const TimeOfDay(hour: 9, minute: 0);
   bool _timed = false;
   ReminderRecurrence _recurrence = ReminderRecurrence.none;
+  DateTime? _end;
+  final Set<int> _weekdays = <int>{};
+  final Set<int> _monthDays = <int>{};
+  String? _error;
   @override
   void initState() {
     super.initState();
@@ -299,14 +312,13 @@ class _ReminderEditorState extends State<_ReminderEditor> {
     _note.text = initial.note ?? '';
     _date = DateTime.parse(initial.startDate);
     _timed = !initial.allDay;
-    final parts = initial.time?.split(':');
-    if (parts?.length == 2) {
-      _time = TimeOfDay(
-        hour: int.tryParse(parts![0]) ?? 9,
-        minute: int.tryParse(parts[1]) ?? 0,
-      );
-    }
+    _time = timeOfDayFromClock(initial.time);
     _recurrence = initial.recurrence;
+    _end = initial.recurrenceEnd == null
+        ? null
+        : DateTime.tryParse(initial.recurrenceEnd!);
+    _weekdays.addAll(initial.weekdays);
+    _monthDays.addAll(initial.monthDays);
   }
 
   @override
@@ -314,6 +326,68 @@ class _ReminderEditorState extends State<_ReminderEditor> {
     _title.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  void _save() {
+    final title = _title.text.trim();
+    final weekdays = _effectiveWeekdays;
+    final monthDays = _effectiveMonthDays;
+    if (title.isEmpty) {
+      setState(() => _error = 'タイトルを入力してください。');
+      return;
+    }
+    if (_end != null && DateUtils.dateOnly(_end!).isBefore(_date)) {
+      setState(() => _error = '終了日は開始日以降にしてください。');
+      return;
+    }
+    if (_recurrence == ReminderRecurrence.customWeekdays &&
+        weekdays.isEmpty) {
+      setState(() => _error = '曜日を1つ以上選択してください。');
+      return;
+    }
+    if (_recurrence == ReminderRecurrence.customMonthDays &&
+        monthDays.isEmpty) {
+      setState(() => _error = '日付を1つ以上選択してください。');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _ReminderDraft(
+        title: title,
+        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+        date: _date,
+        timed: _timed,
+        time: _time,
+        recurrence: _recurrence,
+        end: _end,
+        weekdays: weekdays,
+        monthDays: monthDays,
+      ),
+    );
+  }
+
+  List<int> get _effectiveWeekdays => switch (_recurrence) {
+    ReminderRecurrence.weekly || ReminderRecurrence.biweekly =>
+      _weekdays.isEmpty ? [_date.weekday] : _weekdays.toList()..sort(),
+    ReminderRecurrence.customWeekdays => _weekdays.toList()..sort(),
+    _ => const [],
+  };
+
+  List<int> get _effectiveMonthDays => switch (_recurrence) {
+    ReminderRecurrence.monthly =>
+      _monthDays.isEmpty ? [_date.day] : _monthDays.toList()..sort(),
+    ReminderRecurrence.customMonthDays => _monthDays.toList()..sort(),
+    _ => const [],
+  };
+
+  Future<void> _pickDate({required bool end}) async {
+    final value = await showDatePicker(
+      context: context,
+      firstDate: _date,
+      lastDate: DateTime(2100),
+      initialDate: end ? (_end ?? _date) : _date,
+    );
+    if (value != null) setState(() => end ? _end = value : _date = value);
   }
 
   @override
@@ -324,78 +398,138 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       20,
       MediaQuery.viewInsetsOf(context).bottom + 20,
     ),
-    child: Wrap(
-      children: [
-        const Text('REMINDER'),
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+        Text(widget.initial == null ? 'REMINDER' : 'REMINDERを編集'),
         TextField(
           controller: _title,
-          decoration: const InputDecoration(labelText: 'TITLE'),
+          decoration: const InputDecoration(labelText: 'タイトル'),
+          onChanged: (_) => setState(() => _error = null),
         ),
         TextField(
           controller: _note,
-          decoration: const InputDecoration(labelText: 'NOTE'),
+          decoration: const InputDecoration(labelText: 'メモ'),
         ),
         ListTile(
-          title: Text('DATE  ${_date.year}/${_date.month}/${_date.day}'),
-          onTap: () async {
-            final value = await showDatePicker(
-              context: context,
-              firstDate: DateTime(2000),
-              lastDate: DateTime(2100),
-              initialDate: _date,
-            );
-            if (value != null) setState(() => _date = value);
-          },
+          title: Text('日付  ${_date.year}/${_date.month}/${_date.day}'),
+          onTap: () => _pickDate(end: false),
         ),
         SwitchListTile(
-          title: const Text('TIME'),
+          title: const Text('時刻'),
           value: _timed,
           onChanged: (value) => setState(() => _timed = value),
         ),
         if (_timed)
           ListTile(
-            title: Text('TIME  ${_time.format(context)}'),
+            title: Text('時刻  ${_time.format(context)}'),
             onTap: () async {
-              final value = await showTimePicker(
-                context: context,
-                initialTime: _time,
-              );
+              final value = await showSharedTimePicker(context, initialTime: _time);
               if (value != null) setState(() => _time = value);
             },
           ),
         DropdownButtonFormField<ReminderRecurrence>(
-          value: _recurrence,
-          decoration: const InputDecoration(labelText: 'RECURRENCE'),
+          initialValue: _recurrence,
+          decoration: const InputDecoration(labelText: '繰り返し'),
           items: ReminderRecurrence.values
               .map(
                 (value) =>
-                    DropdownMenuItem(value: value, child: Text(value.name)),
+                    DropdownMenuItem(value: value, child: Text(_recurrenceLabel(value))),
               )
               .toList(),
-          onChanged: (value) => setState(() => _recurrence = value!),
+          onChanged: (value) => setState(() {
+            _recurrence = value!;
+            _error = null;
+          }),
         ),
+        if (_recurrence != ReminderRecurrence.none) ...[
+          const SizedBox(height: 12),
+          Text('繰り返しの設定', style: Theme.of(context).textTheme.titleSmall),
+          _recurrenceSettings(),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('終了日を指定する'),
+            value: _end != null,
+            onChanged: (value) => setState(() => _end = value ? _date : null),
+          ),
+          if (_end != null)
+            ListTile(
+              title: Text('繰り返しの終了  ${_end!.year}/${_end!.month}/${_end!.day}'),
+              onTap: () => _pickDate(end: true),
+            ),
+        ],
+        if (_error != null)
+          Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         const SizedBox(height: 12),
         OperationButton(
-          text: 'SAVE REMINDER',
+          text: '保存',
           icon: Icons.check,
-          onPressed: _title.text.trim().isEmpty
-              ? null
-              : () => Navigator.pop(
-                  context,
-                  _ReminderDraft(
-                    title: _title.text.trim(),
-                    note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-                    date: _date,
-                    timed: _timed,
-                    time: _time,
-                    recurrence: _recurrence,
-                  ),
-                ),
+          onPressed: _save,
           role: OperationActionRole.primary,
         ),
       ],
+      ),
     ),
   );
+
+  Widget _recurrenceSettings() {
+    final weekdayRule = _recurrence == ReminderRecurrence.weekly ||
+        _recurrence == ReminderRecurrence.biweekly ||
+        _recurrence == ReminderRecurrence.customWeekdays;
+    final monthRule = _recurrence == ReminderRecurrence.monthly ||
+        _recurrence == ReminderRecurrence.customMonthDays;
+    if (weekdayRule) {
+      return Wrap(
+        spacing: 6,
+        children: List.generate(7, (index) {
+          final day = index + 1;
+          final selected = (_weekdays.isEmpty &&
+                  _recurrence != ReminderRecurrence.customWeekdays
+              ? _date.weekday == day
+              : _weekdays.contains(day));
+          return FilterChip(
+            label: Text(_weekdayLabel(day)),
+            selected: selected,
+            onSelected: (value) => setState(() {
+              if (value) {
+                _weekdays.add(day);
+              } else {
+                _weekdays.remove(day);
+              }
+              _error = null;
+            }),
+          );
+        }),
+      );
+    }
+    if (monthRule) {
+      return Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: List.generate(31, (index) {
+          final day = index + 1;
+          final selected = (_monthDays.isEmpty &&
+                  _recurrence != ReminderRecurrence.customMonthDays
+              ? _date.day == day
+              : _monthDays.contains(day));
+          return FilterChip(
+            label: Text('$day'),
+            selected: selected,
+            onSelected: (value) => setState(() {
+              if (value) {
+                _monthDays.add(day);
+              } else {
+                _monthDays.remove(day);
+              }
+              _error = null;
+            }),
+          );
+        }),
+      );
+    }
+    return Text(_recurrenceDescription(_recurrence, _date));
+  }
 }
 
 class _ReminderDraft {
@@ -425,3 +559,27 @@ String _dateKey(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 String _timeKey(TimeOfDay value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+String _recurrenceLabel(ReminderRecurrence value) => switch (value) {
+  ReminderRecurrence.none => 'なし',
+  ReminderRecurrence.daily => '毎日',
+  ReminderRecurrence.weekdays => '平日',
+  ReminderRecurrence.weekends => '週末',
+  ReminderRecurrence.weekly => '毎週',
+  ReminderRecurrence.biweekly => '隔週',
+  ReminderRecurrence.monthly => '毎月',
+  ReminderRecurrence.yearly => '毎年',
+  ReminderRecurrence.customWeekdays => '曜日指定',
+  ReminderRecurrence.customMonthDays => '日付指定',
+};
+
+String _weekdayLabel(int day) => const ['月', '火', '水', '木', '金', '土', '日'][day - 1];
+
+String _recurrenceDescription(ReminderRecurrence recurrence, DateTime date) =>
+    switch (recurrence) {
+      ReminderRecurrence.daily => '開始日から毎日',
+      ReminderRecurrence.weekdays => '月〜金',
+      ReminderRecurrence.weekends => '土・日',
+      ReminderRecurrence.yearly => '毎年 ${date.month}月${date.day}日',
+      _ => '',
+    };
