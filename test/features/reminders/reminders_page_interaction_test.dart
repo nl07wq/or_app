@@ -147,6 +147,10 @@ void main() {
         find.byKey(const ValueKey('holographic-ambient-background')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('holographic-scanline-overlay')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('reminder-hud-tabs')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('reminder-floating-list-surface')),

@@ -4740,6 +4740,7 @@ class _CalendarFloatingSurface extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: padding,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -4789,7 +4790,13 @@ class _CalendarFloatingSurface extends StatelessWidget {
           bottomRight: Radius.circular(16),
         ),
       ),
-      child: child,
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          const Positioned.fill(child: HolographicScanlineOverlay()),
+          child,
+        ],
+      ),
     );
   }
 }

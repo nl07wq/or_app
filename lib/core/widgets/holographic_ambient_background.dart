@@ -3,13 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-const holographicAmbientDriftPeriod = Duration(seconds: 240);
-const holographicAmbientTravelPeriod = Duration(seconds: 26);
+const holographicCircuitRouteCount = 5;
+const holographicCircuitSignalDuration = Duration(seconds: 16);
+const holographicCircuitIdleDuration = Duration(seconds: 5);
 const holographicAmbientUpdateCadence = Duration(milliseconds: 120);
 
-/// A single, non-interactive background layer for the Calendar and Reminder
-/// display planes. Its sparse geometry is intentionally independent from the
-/// foreground layout so it remains a spatial depth cue rather than a grid.
+/// A single, non-interactive circuit-signal layer behind the Calendar and
+/// Reminder display planes. Routes are intentionally never drawn at rest.
 class HolographicAmbientBackground extends StatefulWidget {
   const HolographicAmbientBackground({super.key});
 
@@ -83,88 +83,52 @@ class _AmbientGeometryPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final elapsed = seconds.value;
-    final drift =
-        (elapsed % holographicAmbientDriftPeriod.inSeconds) /
-        holographicAmbientDriftPeriod.inSeconds;
-    final wave = drift * math.pi * 2;
-    final driftX = motionEnabled ? math.sin(wave) * size.width * .035 : 0.0;
-    final driftY = motionEnabled ? math.cos(wave) * size.height * .018 : 0.0;
-    canvas.save();
-    canvas.translate(driftX, driftY);
-
-    final halo = Paint()
-      ..color = color.withValues(alpha: .12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-    final glow = Paint()
-      ..color = color.withValues(alpha: .24)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-    final core = Paint()
-      ..color = color.withValues(alpha: .56)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.05;
-
-    final first = Path()
-      ..moveTo(-size.width * .18, size.height * .18)
-      ..lineTo(size.width * .16, size.height * .08)
-      ..lineTo(size.width * .42, size.height * .30)
-      ..lineTo(size.width * 1.12, size.height * .14);
-    final second = Path()
-      ..moveTo(size.width * .72, -size.height * .12)
-      ..lineTo(size.width * .57, size.height * .26)
-      ..lineTo(size.width * .86, size.height * .48)
-      ..lineTo(size.width * 1.16, size.height * .42);
-    final third = Path()
-      ..moveTo(-size.width * .12, size.height * .74)
-      ..lineTo(size.width * .24, size.height * .62)
-      ..lineTo(size.width * .47, size.height * .88)
-      ..lineTo(size.width * .78, size.height * 1.08);
-    final fourth = Path()
-      ..moveTo(size.width * .24, size.height * 1.10)
-      ..lineTo(size.width * .50, size.height * .72)
-      ..lineTo(size.width * 1.14, size.height * .82);
-
-    final paths = [first, second, third, fourth];
-    for (final path in paths) {
-      canvas.drawPath(path, halo);
-      canvas.drawPath(path, glow);
-      canvas.drawPath(path, core);
-    }
-    if (motionEnabled) {
-      _paintTravelingLight(canvas, paths, elapsed);
-    }
-    final junction = Paint()..color = color.withValues(alpha: .52);
-    canvas.drawCircle(
-      Offset(size.width * .42, size.height * .30),
-      1.4,
-      junction,
-    );
-    canvas.drawCircle(
-      Offset(size.width * .57, size.height * .26),
-      1.2,
-      junction,
-    );
-    canvas.drawCircle(
-      Offset(size.width * .24, size.height * .62),
-      1.2,
-      junction,
-    );
-    canvas.restore();
+    if (!motionEnabled) return;
+    _paintCircuitSignal(canvas, _routes(size), elapsed);
   }
 
-  void _paintTravelingLight(Canvas canvas, List<Path> paths, double elapsed) {
-    final cycle = elapsed / holographicAmbientTravelPeriod.inSeconds;
+  List<Path> _routes(Size size) => [
+    Path()
+      ..moveTo(-size.width * .14, size.height * .16)
+      ..lineTo(size.width * .24, size.height * .16)
+      ..lineTo(size.width * .39, size.height * .34)
+      ..lineTo(size.width * .87, size.height * .34),
+    Path()
+      ..moveTo(size.width * .10, size.height * 1.10)
+      ..lineTo(size.width * .10, size.height * .66)
+      ..lineTo(size.width * .31, size.height * .51)
+      ..lineTo(size.width * .72, size.height * .51),
+    Path()
+      ..moveTo(size.width * 1.12, size.height * .13)
+      ..lineTo(size.width * .68, size.height * .13)
+      ..lineTo(size.width * .55, size.height * .38)
+      ..lineTo(size.width * .18, size.height * .38),
+    Path()
+      ..moveTo(-size.width * .10, size.height * .82)
+      ..lineTo(size.width * .29, size.height * .82)
+      ..lineTo(size.width * .44, size.height * .65)
+      ..lineTo(size.width * .44, size.height * .24),
+    Path()
+      ..moveTo(size.width * .92, size.height * 1.10)
+      ..lineTo(size.width * .92, size.height * .72)
+      ..lineTo(size.width * .68, size.height * .59)
+      ..lineTo(size.width * .68, -size.height * .08),
+  ];
+
+  void _paintCircuitSignal(Canvas canvas, List<Path> paths, double elapsed) {
+    final cycleDuration =
+        holographicCircuitSignalDuration.inSeconds +
+        holographicCircuitIdleDuration.inSeconds;
+    final cycle = elapsed / cycleDuration;
     final pathIndex = cycle.floor() % paths.length;
     final progress =
-        (elapsed % holographicAmbientTravelPeriod.inSeconds) /
-        holographicAmbientTravelPeriod.inSeconds;
+        (elapsed % cycleDuration) / holographicCircuitSignalDuration.inSeconds;
+    if (progress >= 1) return;
     final metric = paths[pathIndex].computeMetrics().first;
-    final segmentLength = math.min(metric.length * .12, 110.0);
-    final start = progress * metric.length;
-    final end = math.min(metric.length, start + segmentLength);
+    final segmentLength = math.min(metric.length * .085, 78.0).toDouble();
+    final head = progress * (metric.length + segmentLength);
+    final start = math.max(0.0, head - segmentLength).toDouble();
+    final end = math.min(metric.length, head).toDouble();
     final visibility = math.sin(progress * math.pi);
     if (end <= start || visibility <= 0) return;
     final segment = metric.extractPath(start, end);
@@ -190,4 +154,40 @@ class _AmbientGeometryPainter extends CustomPainter {
   @override
   bool shouldRepaint(_AmbientGeometryPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.motionEnabled != motionEnabled;
+}
+
+/// Static display texture for the large holographic surfaces only.
+class HolographicScanlineOverlay extends StatelessWidget {
+  const HolographicScanlineOverlay({super.key});
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: RepaintBoundary(
+      child: CustomPaint(
+        key: const ValueKey('holographic-scanline-overlay'),
+        painter: _ScanlinePainter(Theme.of(context).colorScheme.primary),
+        child: const SizedBox.expand(),
+      ),
+    ),
+  );
+}
+
+class _ScanlinePainter extends CustomPainter {
+  const _ScanlinePainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: .035)
+      ..strokeWidth = 1;
+    for (var y = 2.0; y < size.height; y += 4) {
+      canvas.drawLine(Offset.zero + Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ScanlinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

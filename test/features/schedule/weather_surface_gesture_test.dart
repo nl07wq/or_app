@@ -117,6 +117,10 @@ void main() {
         find.byKey(const ValueKey('holographic-ambient-background')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('holographic-scanline-overlay')),
+        findsNWidgets(2),
+      );
       final todayCell = find.byKey(ValueKey('calendar-day-$todayKey'));
       expect(todayCell, findsOneWidget);
       expect(
@@ -147,8 +151,9 @@ void main() {
   testWidgets('ambient geometry stays visible and static with reduced motion', (
     tester,
   ) async {
-    expect(holographicAmbientDriftPeriod, const Duration(seconds: 240));
-    expect(holographicAmbientTravelPeriod, const Duration(seconds: 26));
+    expect(holographicCircuitRouteCount, 5);
+    expect(holographicCircuitSignalDuration, const Duration(seconds: 16));
+    expect(holographicCircuitIdleDuration, const Duration(seconds: 5));
     expect(holographicAmbientUpdateCadence, const Duration(milliseconds: 120));
     await tester.pumpWidget(
       const MaterialApp(
@@ -172,6 +177,21 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: HolographicScanlineOverlay())),
+    );
+    expect(
+      find.byKey(const ValueKey('holographic-scanline-overlay')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(HolographicScanlineOverlay),
+        matching: find.byType(IgnorePointer),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('timeline keeps entries in its open HUD structure', (

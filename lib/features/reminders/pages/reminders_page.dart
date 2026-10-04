@@ -361,6 +361,7 @@ class _ReminderFloatingSurface extends StatelessWidget {
     return Container(
       key: const ValueKey('reminder-floating-list-surface'),
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -410,7 +411,13 @@ class _ReminderFloatingSurface extends StatelessWidget {
           bottomRight: Radius.circular(16),
         ),
       ),
-      child: child,
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          const Positioned.fill(child: HolographicScanlineOverlay()),
+          child,
+        ],
+      ),
     );
   }
 }
