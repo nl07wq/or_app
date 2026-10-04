@@ -152,10 +152,32 @@ void main() {
     tester,
   ) async {
     expect(holographicCircuitRouteCount, 8);
-    expect(holographicCircuitMinimumRouteSegments, 5);
-    expect(holographicCircuitSignalDuration, const Duration(seconds: 9));
+    expect(holographicCircuitMinimumRouteSegments, 8);
+    expect(holographicCircuitMaximumRouteSegments, 14);
+    expect(holographicCircuitSignalPixelsPerSecond, 112);
     expect(holographicCircuitIdleDuration, const Duration(seconds: 4));
+    expect(
+      holographicCircuitAfterglowDuration,
+      const Duration(milliseconds: 1600),
+    );
+    expect(
+      holographicCircuitTerminalNodeDuration,
+      const Duration(milliseconds: 420),
+    );
     expect(holographicAmbientUpdateCadence, const Duration(milliseconds: 50));
+    expect(holographicCircuitRoutes, hasLength(holographicCircuitRouteCount));
+    expect(
+      holographicCircuitRoutes.every(
+        (route) =>
+            route.segmentCount >= holographicCircuitMinimumRouteSegments &&
+            route.segmentCount <= holographicCircuitMaximumRouteSegments,
+      ),
+      isTrue,
+    );
+    expect(
+      holographicCircuitRoutes.where((route) => route.terminalNode),
+      hasLength(3),
+    );
     await tester.pumpWidget(
       const MaterialApp(
         home: MediaQuery(
