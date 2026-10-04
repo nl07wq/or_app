@@ -208,6 +208,13 @@ void main() {
       final cardCenter = tester
           .getCenter(find.byKey(const ValueKey('dashboard-schedule')))
           .dx;
+      final headerRow = tester.widget<Row>(
+        find
+            .ancestor(of: find.text('SCHEDULE'), matching: find.byType(Row))
+            .first,
+      );
+      expect(headerRow.mainAxisAlignment, MainAxisAlignment.start);
+      expect(tester.getCenter(find.text('SCHEDULE')).dx, lessThan(cardCenter));
       for (final id in ['overdue', 'morning', 'evening']) {
         expect(
           tester

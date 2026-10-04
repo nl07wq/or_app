@@ -985,7 +985,6 @@ class _DashboardScheduleHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Icon(
         Icons.calendar_today_outlined,
