@@ -4822,7 +4822,7 @@ class _MonthGridState extends State<_MonthGrid> {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'スケジュール │ リマインダー',
+                'SCHEDULE │ REMINDER',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   letterSpacing: 1.1,
                   color: Theme.of(

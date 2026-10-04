@@ -361,8 +361,10 @@ class _OccurrenceList extends StatelessWidget {
                       ),
                     ),
                     title: Text(value.definition.title),
-                    subtitle: Text(
-                      '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
+                    subtitle: _ReminderSubtitle(
+                      summary:
+                          '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
+                      note: value.definition.note,
                     ),
                   ),
                 ),
@@ -410,7 +412,10 @@ class _DefinitionList extends StatelessWidget {
                     onTap: () => onEdit(value),
                     onLongPress: () => onEdit(value),
                     title: Text(value.title),
-                    subtitle: Text(_recurrenceSummary(value)),
+                    subtitle: _ReminderSubtitle(
+                      summary: _recurrenceSummary(value),
+                      note: value.note,
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.edit_outlined),
                       onPressed: () => onEdit(value),
@@ -419,6 +424,31 @@ class _DefinitionList extends StatelessWidget {
                 ),
               )
               .toList(),
+  );
+}
+
+class _ReminderSubtitle extends StatelessWidget {
+  const _ReminderSubtitle({required this.summary, this.note});
+  final String summary;
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(summary),
+      if (note != null && note!.trim().isNotEmpty)
+        Text(
+          note!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: .65),
+          ),
+        ),
+    ],
   );
 }
 
@@ -703,9 +733,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         _recurrence == ReminderRecurrence.weekly ||
         _recurrence == ReminderRecurrence.biweekly ||
         _recurrence == ReminderRecurrence.customWeekdays;
-    final monthRule =
-        _recurrence == ReminderRecurrence.monthly ||
-        _recurrence == ReminderRecurrence.customMonthDays;
+    final monthRule = _recurrence == ReminderRecurrence.customMonthDays;
     if (weekdayRule) {
       return Wrap(
         spacing: 6,
@@ -922,7 +950,14 @@ String _recurrenceSummary(ReminderDefinition definition) {
     ].join('・');
     return details.isEmpty ? label : '$label  $details';
   }
-  return label;
+  final start = DateTime.parse(definition.startDate);
+  return switch (definition.recurrence) {
+    ReminderRecurrence.weekly => '$label  ${_weekdayLabel(start.weekday)}曜日',
+    ReminderRecurrence.biweekly => '$label  ${_weekdayLabel(start.weekday)}曜日',
+    ReminderRecurrence.monthly => '$label  ${start.day}日',
+    ReminderRecurrence.yearly => '$label  ${start.month}月${start.day}日',
+    _ => label,
+  };
 }
 
 String _weekdayLabel(int day) =>

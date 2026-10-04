@@ -372,6 +372,55 @@ void main() {
     expect(saved.monthEnd, isTrue);
   });
 
+  testWidgets(
+    'monthly stays anchored to its start day without month-slot controls',
+    (tester) async {
+      await _pumpPage(tester);
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Monthly');
+      await tester.tap(find.text('なし'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('毎月').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('月末'), findsNothing);
+      await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('RECURRING'));
+      await tester.pumpAndSettle();
+      expect(find.text('毎月  ${DateTime.now().day}日'), findsOneWidget);
+    },
+  );
+
+  testWidgets('recurring and occurrence lists show one-line note previews', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    const note = 'This is a deliberately long reminder note preview.';
+    await container.reminders.saveDefinition(
+      _definition(
+        id: 'noted',
+        title: 'Noted',
+        startDate: today,
+        recurrence: ReminderRecurrence.daily,
+        note: note,
+      ),
+    );
+    await _pumpPage(tester);
+
+    final occurrenceNote = tester.widget<Text>(find.text(note));
+    expect(occurrenceNote.maxLines, 1);
+    expect(occurrenceNote.overflow, TextOverflow.ellipsis);
+
+    await tester.tap(find.text('RECURRING'));
+    await tester.pumpAndSettle();
+    final recurringNote = tester.widget<Text>(find.text(note));
+    expect(recurringNote.maxLines, 1);
+    expect(recurringNote.overflow, TextOverflow.ellipsis);
+    expect(find.text('毎日'), findsOneWidget);
+  });
+
   testWidgets('full-screen editor guards dirty header and system exits', (
     tester,
   ) async {
@@ -449,11 +498,13 @@ ReminderDefinition _definition({
   String title = 'Single',
   required String startDate,
   ReminderRecurrence recurrence = ReminderRecurrence.none,
+  String? note,
 }) {
   final now = DateTime.now().toUtc();
   return ReminderDefinition(
     id: id,
     title: title,
+    note: note,
     startDate: startDate,
     allDay: true,
     recurrence: recurrence,

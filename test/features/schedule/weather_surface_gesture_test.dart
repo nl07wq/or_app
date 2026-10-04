@@ -177,6 +177,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('calendar retains its English HUD telemetry legend', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: CalendarPage()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SCHEDULE │ REMINDER'), findsOneWidget);
+    expect(find.text('スケジュール │ リマインダー'), findsNothing);
+  });
+
   testWidgets(
     'Calendar shows Japanese operation labels and reminder identity',
     (tester) async {
