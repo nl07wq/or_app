@@ -416,14 +416,13 @@ class _CalendarPageState extends State<CalendarPage> {
                                       ),
                                     ),
                                   AppSpacing.gapMD,
-                                  OperationButton(
-                                    text: '予定を追加',
-                                    icon: Icons.add,
-                                    onPressed: () {
-                                      _collapseWeatherForCalendarAction();
-                                      _openEditor();
-                                    },
-                                    role: OperationActionRole.primary,
+                                  Center(
+                                    child: _CalendarTimelineAddControl(
+                                      onPressed: () {
+                                        _collapseWeatherForCalendarAction();
+                                        _openEditor();
+                                      },
+                                    ),
                                   ),
                                 ],
                               ),
@@ -4646,31 +4645,36 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                   ),
                 ),
               ),
-              Column(
-                children: [
-                  Icon(
-                    key: record.kind == ScheduleEntryKind.reminder
-                        ? ValueKey('calendar-reminder-bell-${record.id}')
-                        : null,
-                    record.kind == ScheduleEntryKind.reminder
-                        ? (record.completed
-                              ? Icons.check_circle
-                              : Icons.notifications_none)
-                        : Icons.circle,
-                    size: 14,
-                  ),
-                  Container(
-                    width: 1,
-                    height: 38,
-                    color: colorScheme.primary.withValues(alpha: .42),
-                  ),
-                ],
+              SizedBox(
+                width: calendarTimelineRailColumnWidth,
+                child: Column(
+                  children: [
+                    Icon(
+                      key: record.kind == ScheduleEntryKind.reminder
+                          ? ValueKey('calendar-reminder-bell-${record.id}')
+                          : ValueKey('calendar-timeline-anchor-${record.id}'),
+                      record.kind == ScheduleEntryKind.reminder
+                          ? (record.completed
+                                ? Icons.check_circle
+                                : Icons.notifications_none)
+                          : Icons.circle,
+                      color: record.kind == ScheduleEntryKind.reminder
+                          ? null
+                          : colorScheme.onSurface.withValues(alpha: .94),
+                      size: record.kind == ScheduleEntryKind.reminder
+                          ? 16
+                          : calendarTimelineScheduleAnchorSize,
+                    ),
+                    Container(
+                      key: ValueKey('calendar-timeline-rail-${record.id}'),
+                      width: 1,
+                      height: 38,
+                      color: colorScheme.primary.withValues(alpha: .42),
+                    ),
+                  ],
+                ),
               ),
-              Container(
-                width: 10,
-                height: 1,
-                color: colorScheme.primary.withValues(alpha: .42),
-              ),
+              const SizedBox(width: calendarTimelineContentGap),
               Expanded(
                 child: Container(
                   key: ValueKey('calendar-timeline-content-${record.id}'),
@@ -4724,6 +4728,86 @@ const calendarMonthGridUsesOverallHudSurface = true;
 const calendarMonthGridUsesLocalMonthControlFrame = false;
 const calendarMonthGridTelemetryDividerOpacity = .24;
 const calendarTimelineUsesIndividualEntryCards = false;
+const calendarTimelineUsesHorizontalAnchorConnector = false;
+const calendarTimelineScheduleAnchorSize = 18.0;
+const calendarTimelineRailColumnWidth = 18.0;
+const calendarTimelineContentGap = 6.0;
+
+class _CalendarTimelineAddControl extends StatelessWidget {
+  const _CalendarTimelineAddControl({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: '予定を追加',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        scheme.primary.withValues(alpha: .15),
+                        scheme.surfaceContainerHigh.withValues(alpha: .12),
+                        scheme.surface.withValues(alpha: .08),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned.fill(
+                child: HolographicScanlineOverlay(
+                  key: ValueKey('calendar-timeline-add-scanlines'),
+                  lineSpacing: 3,
+                  opacity: .014,
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('calendar-timeline-add-control'),
+                  onTap: onPressed,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 11,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, size: 18, color: scheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          '予定を追加',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _CalendarFloatingSurface extends StatelessWidget {
   const _CalendarFloatingSurface({

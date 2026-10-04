@@ -79,6 +79,10 @@ void main() {
     expect(calendarMonthGridUsesLocalMonthControlFrame, isFalse);
     expect(calendarMonthGridTelemetryDividerOpacity, .24);
     expect(calendarTimelineUsesIndividualEntryCards, isFalse);
+    expect(calendarTimelineUsesHorizontalAnchorConnector, isFalse);
+    expect(calendarTimelineScheduleAnchorSize, 18);
+    expect(calendarTimelineRailColumnWidth, 18);
+    expect(calendarTimelineContentGap, 6);
     expect(
       calendarMonthGridWeekRowBandColor(ThemeData.dark().colorScheme),
       ThemeData.dark().colorScheme.onSurface.withValues(alpha: .020),
@@ -117,10 +121,22 @@ void main() {
         find.byKey(const ValueKey('holographic-ambient-background')),
         findsOneWidget,
       );
+      final mainSurfaceScanlines = tester
+          .widgetList<HolographicScanlineOverlay>(
+            find.byType(HolographicScanlineOverlay),
+          )
+          .where((overlay) => overlay.opacity == .018)
+          .toList(growable: false);
+      expect(mainSurfaceScanlines, hasLength(2));
       expect(
-        find.byKey(const ValueKey('holographic-scanline-overlay')),
-        findsNWidgets(2),
+        mainSurfaceScanlines.every((overlay) => overlay.lineSpacing == 3),
+        isTrue,
       );
+      final addScanlines = tester.widget<HolographicScanlineOverlay>(
+        find.byKey(const ValueKey('calendar-timeline-add-scanlines')),
+      );
+      expect(addScanlines.lineSpacing, 3);
+      expect(addScanlines.opacity, .014);
       final monthSurface = tester.widget<Container>(
         find
             .descendant(
@@ -167,9 +183,9 @@ void main() {
     expect(holographicCircuitRouteCount, 8);
     expect(holographicCircuitMinimumRouteSegments, 8);
     expect(holographicCircuitMaximumRouteSegments, 14);
-    expect(holographicCircuitSignalPixelsPerSecond, 260);
+    expect(holographicCircuitSignalPixelsPerSecond, 340);
     expect(holographicCircuitIdleDuration, const Duration(seconds: 4));
-    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 10));
+    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 15));
     expect(
       holographicCircuitTerminalNodeDuration,
       const Duration(milliseconds: 420),
@@ -295,6 +311,29 @@ void main() {
     expect(
       find.byKey(const ValueKey('calendar-timeline-floating-surface')),
       findsOneWidget,
+    );
+    final anchor = tester.widget<Icon>(
+      find.byKey(
+        const ValueKey('calendar-timeline-anchor-open-timeline-entry'),
+      ),
+    );
+    expect(anchor.size, calendarTimelineScheduleAnchorSize);
+    expect(
+      find.byKey(const ValueKey('calendar-timeline-rail-open-timeline-entry')),
+      findsOneWidget,
+    );
+    final add = find.byKey(const ValueKey('calendar-timeline-add-control'));
+    expect(add, findsOneWidget);
+    expect(tester.getSize(add).height, greaterThanOrEqualTo(44));
+    expect(
+      tester.getSize(add).width,
+      lessThan(
+        tester
+            .getSize(
+              find.byKey(const ValueKey('calendar-timeline-floating-surface')),
+            )
+            .width,
+      ),
     );
     expect(tester.takeException(), isNull);
   });

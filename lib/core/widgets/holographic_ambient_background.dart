@@ -7,10 +7,10 @@ import 'package:flutter/material.dart';
 const holographicCircuitRouteCount = 8;
 const holographicCircuitMinimumRouteSegments = 8;
 const holographicCircuitMaximumRouteSegments = 14;
-const holographicCircuitSignalPixelsPerSecond = 260.0;
+const holographicCircuitSignalPixelsPerSecond = 340.0;
 const holographicCircuitIdleDuration = Duration(seconds: 4);
 const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
-const holographicCircuitAfterglowDuration = Duration(seconds: 10);
+const holographicCircuitAfterglowDuration = Duration(seconds: 15);
 const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
 const holographicCircuitMaximumConcurrentSignals = 2;
 
@@ -363,14 +363,25 @@ class _AmbientGeometryPainter extends CustomPainter {
 
 /// Static display texture for the large holographic surfaces only.
 class HolographicScanlineOverlay extends StatelessWidget {
-  const HolographicScanlineOverlay({super.key});
+  const HolographicScanlineOverlay({
+    super.key,
+    this.lineSpacing = 3,
+    this.opacity = .018,
+  });
+
+  final double lineSpacing;
+  final double opacity;
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
     child: RepaintBoundary(
       child: CustomPaint(
         key: const ValueKey('holographic-scanline-overlay'),
-        painter: _ScanlinePainter(Theme.of(context).colorScheme.primary),
+        painter: _ScanlinePainter(
+          Theme.of(context).colorScheme.primary,
+          lineSpacing: lineSpacing,
+          opacity: opacity,
+        ),
         child: const SizedBox.expand(),
       ),
     ),
@@ -378,23 +389,31 @@ class HolographicScanlineOverlay extends StatelessWidget {
 }
 
 class _ScanlinePainter extends CustomPainter {
-  const _ScanlinePainter(this.color);
+  const _ScanlinePainter(
+    this.color, {
+    required this.lineSpacing,
+    required this.opacity,
+  });
 
   final Color color;
+  final double lineSpacing;
+  final double opacity;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withValues(alpha: .018)
+      ..color = color.withValues(alpha: opacity)
       ..strokeWidth = 1;
-    for (var y = 1.5; y < size.height; y += 3) {
+    for (var y = lineSpacing / 2; y < size.height; y += lineSpacing) {
       canvas.drawLine(Offset.zero + Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
   @override
   bool shouldRepaint(_ScanlinePainter oldDelegate) =>
-      oldDelegate.color != color;
+      oldDelegate.color != color ||
+      oldDelegate.lineSpacing != lineSpacing ||
+      oldDelegate.opacity != opacity;
 }
 
 class _ResolvedCircuitRoute {
