@@ -158,7 +158,7 @@ void main() {
       );
       final selectedDecoration =
           tester.widget<Container>(todayCell).decoration! as ShapeDecoration;
-      expect(selectedDecoration.shape, isA<BeveledRectangleBorder>());
+      expect(selectedDecoration.shape, isA<RoundedRectangleBorder>());
 
       await tester.tap(find.byKey(ValueKey('calendar-day-$tomorrowKey')));
       await tester.pumpAndSettle();
@@ -171,7 +171,7 @@ void main() {
                   .decoration!
               as ShapeDecoration;
       expect(todayDecoration, isNull);
-      expect(tomorrowDecoration.shape, isA<BeveledRectangleBorder>());
+      expect(tomorrowDecoration.shape, isA<RoundedRectangleBorder>());
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -184,7 +184,8 @@ void main() {
     expect(holographicCircuitMinimumRouteSegments, 8);
     expect(holographicCircuitMaximumRouteSegments, 14);
     expect(holographicCircuitSignalPixelsPerSecond, 340);
-    expect(holographicCircuitIdleDuration, const Duration(seconds: 4));
+    expect(holographicCircuitInitialDelay, const Duration(milliseconds: 750));
+    expect(holographicCircuitIdleDuration, const Duration(milliseconds: 1750));
     expect(holographicCircuitAfterglowDuration, const Duration(seconds: 15));
     expect(
       holographicCircuitTerminalNodeDuration,

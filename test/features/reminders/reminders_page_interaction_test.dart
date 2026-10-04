@@ -172,6 +172,57 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
+  testWidgets('Reminder occurrences form a static single-ring circuit rail', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    await container.reminders.saveDefinition(
+      _definition(id: 'first-node', title: 'First node', startDate: today),
+    );
+    await container.reminders.saveDefinition(
+      _definition(id: 'last-node', title: 'Last node', startDate: today),
+    );
+    await _pumpPage(tester);
+
+    final firstId = 'first-node@$today';
+    final lastId = 'last-node@$today';
+    expect(reminderHudCompletionUsesOuterPolygon, isFalse);
+    expect(reminderCompletionVisibleDiameter, 24);
+    expect(reminderCompletionTouchTarget, 48);
+    expect(reminderCircuitRailIsStatic, isTrue);
+    expect(reminderCircuitRailWidth, 1);
+    expect(find.byIcon(Icons.circle_outlined), findsNothing);
+    expect(
+      find.byKey(const ValueKey('reminder-completion-single-ring')),
+      findsNWidgets(2),
+    );
+    expect(
+      tester.getSize(find.byKey(ValueKey('reminder-toggle-$firstId'))),
+      const Size(48, 48),
+    );
+    expect(
+      find.byKey(ValueKey('reminder-circuit-rail-top-$firstId')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(ValueKey('reminder-circuit-rail-bottom-$firstId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey('reminder-circuit-rail-top-$lastId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey('reminder-circuit-rail-bottom-$lastId')),
+      findsNothing,
+    );
+    final add = tester.widget<Material>(
+      find.byKey(const ValueKey('reminder-add-control')),
+    );
+    expect(add.shape, isA<RoundedRectangleBorder>());
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'single swipe requires confirmation and removes definition and states',
     (tester) async {

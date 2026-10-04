@@ -16,6 +16,10 @@ typedef _OccurrenceAction = Future<void> Function(ReminderOccurrence value);
 typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
 
 const reminderHudCompletionUsesOuterPolygon = false;
+const reminderCompletionVisibleDiameter = 24.0;
+const reminderCompletionTouchTarget = 48.0;
+const reminderCircuitRailIsStatic = true;
+const reminderCircuitRailWidth = 1.0;
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
@@ -500,15 +504,40 @@ class _OccurrenceList extends StatelessWidget {
         ),
         child: _ReminderOccurrenceRow(
           value: value,
+          isFirst: index == 0,
+          isLast: index == values.length - 1,
           onToggle: () => onToggle(value),
           onEdit: () => onEdit(value.definition),
         ),
       );
     },
-    separatorBuilder: (_, _) => Container(
+    separatorBuilder: (_, _) => SizedBox(
       height: 1,
-      margin: const EdgeInsets.only(left: 52),
-      color: Theme.of(context).colorScheme.primary.withValues(alpha: .18),
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              margin: const EdgeInsets.only(left: 24),
+              width: reminderCircuitRailWidth,
+              height: 1,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .28),
+            ),
+          ),
+          Positioned(
+            left: 52,
+            right: 0,
+            child: Container(
+              height: 1,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .10),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -516,10 +545,14 @@ class _OccurrenceList extends StatelessWidget {
 class _ReminderOccurrenceRow extends StatelessWidget {
   const _ReminderOccurrenceRow({
     required this.value,
+    required this.isFirst,
+    required this.isLast,
     required this.onToggle,
     required this.onEdit,
   });
   final ReminderOccurrence value;
+  final bool isFirst;
+  final bool isLast;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
 
@@ -534,43 +567,109 @@ class _ReminderOccurrenceRow extends StatelessWidget {
         key: ValueKey('reminder-row-${value.id}'),
         onTap: onEdit,
         onLongPress: onEdit,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        child: IntrinsicHeight(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _HudCompletionControl(
-                key: ValueKey('reminder-toggle-${value.id}'),
-                completed: completed,
-                onPressed: onToggle,
+              _ReminderCircuitNode(
+                id: value.id,
+                isFirst: isFirst,
+                isLast: isLast,
+                child: _HudCompletionControl(
+                  key: ValueKey('reminder-toggle-${value.id}'),
+                  completed: completed,
+                  onPressed: onToggle,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      value.definition.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: completed ? secondary : null,
-                        decoration: completed
-                            ? TextDecoration.lineThrough
-                            : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value.definition.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: completed ? secondary : null,
+                          decoration: completed
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
                       ),
-                    ),
-                    _ReminderSubtitle(
-                      summary:
-                          '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
-                      note: value.definition.note,
-                    ),
-                  ],
+                      _ReminderSubtitle(
+                        summary:
+                            '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
+                        note: value.definition.note,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReminderCircuitNode extends StatelessWidget {
+  const _ReminderCircuitNode({
+    required this.id,
+    required this.isFirst,
+    required this.isLast,
+    required this.child,
+  });
+
+  final String id;
+  final bool isFirst;
+  final bool isLast;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final railColor = Theme.of(
+      context,
+    ).colorScheme.primary.withValues(alpha: .28);
+    const nodeTop = 12.0;
+    final ringRadius = reminderCompletionVisibleDiameter / 2;
+    final nodeCenter = nodeTop + reminderCompletionTouchTarget / 2;
+    return SizedBox(
+      key: ValueKey('reminder-circuit-node-$id'),
+      width: reminderCompletionTouchTarget,
+      child: Stack(
+        children: [
+          if (!isFirst)
+            Positioned(
+              top: 0,
+              left:
+                  (reminderCompletionTouchTarget - reminderCircuitRailWidth) /
+                  2,
+              width: reminderCircuitRailWidth,
+              height: nodeCenter - ringRadius,
+              child: Container(
+                key: ValueKey('reminder-circuit-rail-top-$id'),
+                color: railColor,
+              ),
+            ),
+          if (!isLast)
+            Positioned(
+              top: nodeCenter + ringRadius,
+              bottom: 0,
+              left:
+                  (reminderCompletionTouchTarget - reminderCircuitRailWidth) /
+                  2,
+              width: reminderCircuitRailWidth,
+              child: Container(
+                key: ValueKey('reminder-circuit-rail-bottom-$id'),
+                color: railColor,
+              ),
+            ),
+          Positioned(top: nodeTop, left: 0, child: child),
+        ],
       ),
     );
   }
@@ -593,15 +692,16 @@ class _HudCompletionControl extends StatelessWidget {
       label: completed ? '未完了に戻す' : '完了にする',
       button: true,
       child: SizedBox(
-        width: 48,
-        height: 48,
+        width: reminderCompletionTouchTarget,
+        height: reminderCompletionTouchTarget,
         child: InkWell(
           onTap: onPressed,
           customBorder: const CircleBorder(),
           child: Center(
             child: Container(
-              width: 28,
-              height: 28,
+              key: const ValueKey('reminder-completion-single-ring'),
+              width: reminderCompletionVisibleDiameter,
+              height: reminderCompletionVisibleDiameter,
               decoration: BoxDecoration(
                 color: completed ? accent.withValues(alpha: .16) : null,
                 shape: BoxShape.circle,
@@ -619,8 +719,8 @@ class _HudCompletionControl extends StatelessWidget {
                     : null,
               ),
               child: Icon(
-                completed ? Icons.check : Icons.circle_outlined,
-                size: completed ? 18 : 12,
+                completed ? Icons.check : null,
+                size: 18,
                 color: completed
                     ? accent
                     : colorScheme.onSurface.withValues(alpha: .64),
@@ -640,8 +740,8 @@ class _HudAddControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    const shape = BeveledRectangleBorder(
-      borderRadius: BorderRadius.all(Radius.circular(8)),
+    const shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(12)),
     );
     return Semantics(
       button: true,
@@ -653,9 +753,7 @@ class _HudAddControl extends StatelessWidget {
           color: colorScheme.primary.withValues(alpha: .18),
           elevation: 4,
           shadowColor: colorScheme.primary.withValues(alpha: .28),
-          shape: shape.copyWith(
-            side: BorderSide(color: colorScheme.primary.withValues(alpha: .78)),
-          ),
+          shape: shape,
           child: SizedBox(
             width: 56,
             height: 56,

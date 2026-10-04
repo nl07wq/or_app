@@ -4758,9 +4758,9 @@ class _CalendarTimelineAddControl extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        scheme.primary.withValues(alpha: .15),
-                        scheme.surfaceContainerHigh.withValues(alpha: .12),
-                        scheme.surface.withValues(alpha: .08),
+                        scheme.primary.withValues(alpha: .12),
+                        scheme.surfaceContainerHigh.withValues(alpha: .14),
+                        scheme.primary.withValues(alpha: .10),
                       ],
                     ),
                   ),
@@ -5155,7 +5155,7 @@ class _MonthGridState extends State<_MonthGrid> {
                                     color: calendarMonthGridSelectedFillColor(
                                       Theme.of(context).colorScheme,
                                     ),
-                                    shape: BeveledRectangleBorder(
+                                    shape: RoundedRectangleBorder(
                                       borderRadius: const BorderRadius.all(
                                         Radius.circular(5),
                                       ),

@@ -8,7 +8,8 @@ const holographicCircuitRouteCount = 8;
 const holographicCircuitMinimumRouteSegments = 8;
 const holographicCircuitMaximumRouteSegments = 14;
 const holographicCircuitSignalPixelsPerSecond = 340.0;
-const holographicCircuitIdleDuration = Duration(seconds: 4);
+const holographicCircuitInitialDelay = Duration(milliseconds: 750);
+const holographicCircuitIdleDuration = Duration(milliseconds: 1750);
 const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
 const holographicCircuitAfterglowDuration = Duration(seconds: 15);
 const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
@@ -58,6 +59,7 @@ class _HolographicAmbientBackgroundState
     extends State<HolographicAmbientBackground> {
   Timer? _driftTimer;
   final _seconds = ValueNotifier<double>(0);
+  final _clock = Stopwatch();
   bool _motionEnabled = false;
 
   @override
@@ -72,19 +74,25 @@ class _HolographicAmbientBackgroundState
     _driftTimer?.cancel();
     _driftTimer = null;
     _motionEnabled = motionEnabled;
-    _setSeconds();
+    _clock
+      ..stop()
+      ..reset();
+    _seconds.value = 0;
     if (!motionEnabled) return;
+    _clock.start();
+    _setSeconds();
     _driftTimer = Timer.periodic(holographicAmbientUpdateCadence, (_) {
       if (mounted) _setSeconds();
     });
   }
 
   void _setSeconds() => _seconds.value =
-      DateTime.now().microsecondsSinceEpoch / Duration.microsecondsPerSecond;
+      _clock.elapsedMicroseconds / Duration.microsecondsPerSecond;
 
   @override
   void dispose() {
     _driftTimer?.cancel();
+    _clock.stop();
     _seconds.dispose();
     super.dispose();
   }
@@ -185,6 +193,10 @@ class _AmbientGeometryPainter extends CustomPainter {
     List<_ResolvedCircuitRoute> routes,
     double elapsed,
   ) {
+    final initialDelaySeconds =
+        holographicCircuitInitialDelay.inMilliseconds / 1000;
+    if (elapsed < initialDelaySeconds) return const [];
+    elapsed -= initialDelaySeconds;
     final idleSeconds = holographicCircuitIdleDuration.inMilliseconds / 1000;
     final nodeSeconds =
         holographicCircuitTerminalNodeDuration.inMilliseconds / 1000;
