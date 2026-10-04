@@ -51,8 +51,8 @@ ScheduleRecord _projectReminder(ReminderOccurrence occurrence) =>
 
 String _scheduleTypeLabel(ScheduleType value) => switch (value) {
   ScheduleType.work => '勤務',
-  ScheduleType.personal => '個人',
-  ScheduleType.appointment => '予定',
+  ScheduleType.personal => 'プライベート',
+  ScheduleType.appointment => 'アポイント',
   ScheduleType.training => 'トレーニング',
   ScheduleType.other => 'その他',
 };

@@ -194,6 +194,24 @@ void main() {
           updatedAt: timestamp,
         ),
       );
+      for (final entry in [
+        (id: 'work-entry', type: ScheduleType.work),
+        (id: 'personal-entry', type: ScheduleType.personal),
+        (id: 'appointment-entry', type: ScheduleType.appointment),
+        (id: 'training-entry', type: ScheduleType.training),
+      ]) {
+        await AppRepositoryRegistry.container.schedules.save(
+          ScheduleRecord(
+            id: entry.id,
+            localDate: key,
+            type: entry.type,
+            title: entry.id,
+            allDay: true,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          ),
+        );
+      }
       await AppRepositoryRegistry.container.reminders.saveDefinition(
         ReminderDefinition(
           id: 'reminder-entry',
@@ -213,7 +231,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('今日の予定'), findsOneWidget);
-      expect(find.text('終日'), findsNWidgets(2));
+      expect(find.text('終日'), findsNWidgets(6));
+      expect(find.text('勤務'), findsOneWidget);
+      expect(find.text('プライベート'), findsOneWidget);
+      expect(find.text('アポイント'), findsOneWidget);
+      expect(find.text('トレーニング'), findsOneWidget);
       expect(find.text('リマインダー'), findsOneWidget);
       expect(find.text('その他'), findsOneWidget);
       expect(find.text('ALL DAY'), findsNothing);
