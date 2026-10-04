@@ -201,63 +201,89 @@ void main() {
   });
 
   test(
-    'daily precipitation type and intensity use WMO weather-code semantics',
+    'daily precipitation telemetry derives variable WMO intensity stages',
     () {
-      void expectDescriptor(int? code, String type, String intensity) {
+      void expectDescriptor(
+        int code,
+        String type,
+        String intensity,
+        int activeSegments,
+        int totalSegments,
+      ) {
         final descriptor = weatherPrecipitationDescriptorForCode(code);
         expect(descriptor.type, type, reason: 'weather code $code');
         expect(descriptor.intensity, intensity, reason: 'weather code $code');
+        expect(
+          descriptor.activeSegments,
+          activeSegments,
+          reason: 'weather code $code active segments',
+        );
+        expect(
+          descriptor.totalSegments,
+          totalSegments,
+          reason: 'weather code $code total segments',
+        );
       }
 
-      expectDescriptor(51, '霧雨', '弱');
-      expectDescriptor(53, '霧雨', '中');
-      expectDescriptor(55, '霧雨', '強');
-      expectDescriptor(61, '雨', '弱');
-      expectDescriptor(63, '雨', '中');
-      expectDescriptor(65, '雨', '強');
-      expectDescriptor(80, 'にわか雨', '弱');
-      expectDescriptor(81, 'にわか雨', '中');
-      expectDescriptor(82, 'にわか雨', '激しい');
-      expectDescriptor(75, '雪', '強');
-      expectDescriptor(95, '雷雨', '弱〜中');
-      expectDescriptor(99, '雹を伴う雷雨', '強');
+      // WMO families with three formal intensity stages.
+      expectDescriptor(51, '霧雨', '弱', 1, 3);
+      expectDescriptor(53, '霧雨', '中', 2, 3);
+      expectDescriptor(55, '霧雨', '強', 3, 3);
+      expectDescriptor(61, '雨', '弱', 1, 3);
+      expectDescriptor(63, '雨', '中', 2, 3);
+      expectDescriptor(65, '雨', '強', 3, 3);
+      expectDescriptor(80, 'にわか雨', '弱', 1, 3);
+      expectDescriptor(81, 'にわか雨', '中', 2, 3);
+      expectDescriptor(82, 'にわか雨', '強', 3, 3);
+
+      // WMO freezing-drizzle is a two-stage family: strong is 2/2, never 2/3.
+      expectDescriptor(56, '凍る霧雨', '弱', 1, 2);
+      expectDescriptor(57, '凍る霧雨', '強', 2, 2);
     },
   );
 
   test(
     'daily precipitation descriptor safely handles dry, null, and unknown codes',
     () {
-      expect(weatherPrecipitationDescriptorForCode(0).type, '降水なし');
-      expect(weatherPrecipitationDescriptorForCode(0).intensity, '--');
-      expect(weatherPrecipitationDescriptorForCode(null).type, '--');
-      expect(weatherPrecipitationDescriptorForCode(null).intensity, '--');
+      final dry = weatherPrecipitationDescriptorForCode(0);
+      expect(dry.type, '-');
+      expect(dry.intensity, '-');
+      expect(dry.hasType, isFalse);
+      expect(dry.hasComparableIntensity, isFalse);
+
+      final missing = weatherPrecipitationDescriptorForCode(null);
+      expect(missing.type, '--');
+      expect(missing.intensity, '--');
+
+      // Snow grains and thunderstorm/hail variants are not a formal
+      // weak-to-strong series, so their variant is retained without segments.
+      for (final code in [77, 95, 96, 99]) {
+        expect(
+          weatherPrecipitationDescriptorForCode(code).hasComparableIntensity,
+          isFalse,
+          reason: 'weather code $code',
+        );
+      }
     },
   );
 
-  test(
-    'precipitation intensity telemetry only restates WMO intensity labels',
-    () {
-      expect(weatherPrecipitationIntensitySegments('弱'), 1);
-      expect(weatherPrecipitationIntensitySegments('中'), 2);
-      expect(weatherPrecipitationIntensitySegments('強'), 3);
-      expect(weatherPrecipitationIntensitySegments('激しい'), 4);
-      expect(weatherPrecipitationIntensitySegments('弱〜中'), 2);
-      expect(weatherPrecipitationIntensitySegments('--'), 0);
-      expect(weatherPrecipitationIntensitySegments(null), 0);
+  test('precipitation symbols retain the production mapping', () {
+    expect(weatherPrecipitationIntensitySegments('弱'), 1);
+    expect(weatherPrecipitationIntensitySegments('中'), 2);
+    expect(weatherPrecipitationIntensitySegments('強'), 3);
+    expect(weatherPrecipitationIntensitySegments('--'), 0);
+    expect(weatherPrecipitationIntensitySegments(null), 0);
 
-      expect(weatherPrecipitationSymbolForType('雨'), Icons.umbrella_outlined);
-      expect(
-        weatherPrecipitationSymbolForType('にわか雨'),
-        Icons.umbrella_outlined,
-      );
-      expect(weatherPrecipitationSymbolForType('雪'), Icons.ac_unit);
-      expect(
-        weatherPrecipitationSymbolForType('雷雨'),
-        Icons.thunderstorm_outlined,
-      );
-      expect(weatherPrecipitationSymbolForType(null), Icons.help_outline);
-    },
-  );
+    expect(weatherPrecipitationSymbolForType('雨'), Icons.umbrella_outlined);
+    expect(weatherPrecipitationSymbolForType('にわか雨'), Icons.umbrella_outlined);
+    expect(weatherPrecipitationSymbolForType('雪'), Icons.ac_unit);
+    expect(
+      weatherPrecipitationSymbolForType('雷雨'),
+      Icons.thunderstorm_outlined,
+    );
+    expect(weatherPrecipitationSymbolForType('-'), isNull);
+    expect(weatherPrecipitationSymbolForType(null), isNull);
+  });
 
   test(
     'precipitation telemetry keeps four columns at 390 and collapses at 320',
