@@ -4799,25 +4799,10 @@ class _MonthGridState extends State<_MonthGrid> {
             bottom: BorderSide(
               color: colorScheme.primary.withValues(alpha: .20),
             ),
-            left: BorderSide(color: colorScheme.primary.withValues(alpha: .18)),
-            right: BorderSide(
-              color: colorScheme.primary.withValues(alpha: .18),
-            ),
           ),
         ),
         child: Column(
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'CALENDAR // DATE MATRIX',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colorScheme.primary.withValues(alpha: .74),
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
             Row(
               children: [
                 IconButton(
@@ -4896,144 +4881,128 @@ class _MonthGridState extends State<_MonthGrid> {
                 final holidayData = holidaySnapshot.data?.snapshot;
                 final totalCells = ((offset + days + 6) ~/ 7) * 7;
                 return LayoutBuilder(
-                  builder: (context, constraints) => Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        left: BorderSide(
-                          color: colorScheme.primary.withValues(alpha: .16),
-                        ),
-                        right: BorderSide(
-                          color: colorScheme.primary.withValues(alpha: .16),
-                        ),
+                  builder: (context, constraints) => GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: totalCells,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      mainAxisExtent: calendarMonthGridMainAxisExtent(
+                        constraints.maxWidth / 7,
                       ),
                     ),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: totalCells,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 7,
-                        mainAxisExtent: calendarMonthGridMainAxisExtent(
-                          constraints.maxWidth / 7,
-                        ),
-                      ),
-                      itemBuilder: (context, index) {
-                        final hasDate =
-                            index >= offset && index < offset + days;
-                        final weekRowBand =
-                            calendarMonthGridWeekRowIsSubtle(index ~/ 7)
-                            ? calendarMonthGridWeekRowBandColor(
-                                Theme.of(context).colorScheme,
-                              )
-                            : Colors.transparent;
-                        if (!hasDate) {
-                          return Container(color: weekRowBand);
-                        }
-                        final date = DateTime(
-                          widget.month.year,
-                          widget.month.month,
-                          index - offset + 1,
-                        );
-                        final schedules = widget.byDate[_key(date)] ?? const [];
-                        final scheduleCount = schedules
-                            .where(
-                              (value) =>
-                                  value.kind == ScheduleEntryKind.schedule,
+                    itemBuilder: (context, index) {
+                      final hasDate = index >= offset && index < offset + days;
+                      final weekRowBand =
+                          calendarMonthGridWeekRowIsSubtle(index ~/ 7)
+                          ? calendarMonthGridWeekRowBandColor(
+                              Theme.of(context).colorScheme,
                             )
-                            .length;
-                        final reminderCount = schedules
-                            .where(
-                              (value) =>
-                                  value.kind == ScheduleEntryKind.reminder,
-                            )
-                            .length;
-                        final isToday = _sameDay(date, DateTime.now());
-                        final isSelected = _sameDay(date, widget.selected);
-                        final holidayMatch =
-                            holidayData?.classify(_key(date)) ??
-                            _holidayService.classifyCached(_key(date));
-                        final dateColor = calendarMonthGridDateColor(
-                          date: date,
-                          holidayMatch: holidayMatch,
-                        );
-                        return Container(
-                          decoration: BoxDecoration(color: weekRowBand),
-                          child: InkWell(
-                            onTap: () => widget.onSelect(date),
-                            child: Container(
-                              key: ValueKey('calendar-day-${_key(date)}'),
-                              margin: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(6),
-                                color: isSelected
-                                    ? calendarMonthGridSelectedFillColor(
-                                        Theme.of(context).colorScheme,
-                                      )
-                                    : null,
-                              ),
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: calendarMonthGridDateTopAnchor,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '${date.day}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
-                                                color: dateColor,
-                                                fontWeight: FontWeight.w700,
-                                              ),
+                          : Colors.transparent;
+                      if (!hasDate) {
+                        return Container(color: weekRowBand);
+                      }
+                      final date = DateTime(
+                        widget.month.year,
+                        widget.month.month,
+                        index - offset + 1,
+                      );
+                      final schedules = widget.byDate[_key(date)] ?? const [];
+                      final scheduleCount = schedules
+                          .where(
+                            (value) => value.kind == ScheduleEntryKind.schedule,
+                          )
+                          .length;
+                      final reminderCount = schedules
+                          .where(
+                            (value) => value.kind == ScheduleEntryKind.reminder,
+                          )
+                          .length;
+                      final isToday = _sameDay(date, DateTime.now());
+                      final isSelected = _sameDay(date, widget.selected);
+                      final holidayMatch =
+                          holidayData?.classify(_key(date)) ??
+                          _holidayService.classifyCached(_key(date));
+                      final dateColor = calendarMonthGridDateColor(
+                        date: date,
+                        holidayMatch: holidayMatch,
+                      );
+                      return Container(
+                        decoration: BoxDecoration(color: weekRowBand),
+                        child: InkWell(
+                          onTap: () => widget.onSelect(date),
+                          child: Container(
+                            key: ValueKey('calendar-day-${_key(date)}'),
+                            margin: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              color: isSelected
+                                  ? calendarMonthGridSelectedFillColor(
+                                      Theme.of(context).colorScheme,
+                                    )
+                                  : null,
+                            ),
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: calendarMonthGridDateTopAnchor,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${date.day}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: dateColor,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      if (isToday)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 2,
+                                          ),
+                                          child: Icon(
+                                            Icons.circle,
+                                            key: ValueKey(
+                                              'calendar-day-today-dot-${_key(date)}',
+                                            ),
+                                            size: 4,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.secondary,
+                                          ),
                                         ),
-                                        if (isToday)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 2,
-                                            ),
-                                            child: Icon(
-                                              Icons.circle,
-                                              key: ValueKey(
-                                                'calendar-day-today-dot-${_key(date)}',
-                                              ),
-                                              size: 4,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.secondary,
-                                            ),
+                                    ],
+                                  ),
+                                ),
+                                const Spacer(),
+                                SizedBox(
+                                  height: calendarMonthGridMetadataHeight,
+                                  child: schedules.isEmpty
+                                      ? null
+                                      : Center(
+                                          child: Text(
+                                            '${scheduleCount == 0 ? '–' : scheduleCount}│${reminderCount == 0 ? '–' : reminderCount}',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.labelSmall,
                                           ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  SizedBox(
-                                    height: calendarMonthGridMetadataHeight,
-                                    child: schedules.isEmpty
-                                        ? null
-                                        : Center(
-                                            child: Text(
-                                              '${scheduleCount == 0 ? '–' : scheduleCount}│${reminderCount == 0 ? '–' : reminderCount}',
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.labelSmall,
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(
-                                    height:
-                                        calendarMonthGridMetadataBottomInset,
-                                  ),
-                                ],
-                              ),
+                                        ),
+                                ),
+                                const SizedBox(
+                                  height: calendarMonthGridMetadataBottomInset,
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
                 );
               },

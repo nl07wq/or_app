@@ -185,6 +185,7 @@ void main() {
 
     expect(find.text('SCHEDULE │ REMINDER'), findsOneWidget);
     expect(find.text('スケジュール │ リマインダー'), findsNothing);
+    expect(find.text('CALENDAR // DATE MATRIX'), findsNothing);
   });
 
   testWidgets(

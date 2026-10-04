@@ -285,15 +285,7 @@ class _RemindersPageState extends State<RemindersPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('REMINDERS'),
-          Text('TASK CONTROL // OCCURRENCE STATUS'),
-        ],
-      ),
-    ),
+    appBar: AppBar(title: const Text('REMINDERS')),
     floatingActionButton: FloatingActionButton(
       onPressed: _create,
       tooltip: 'REMINDERを追加',
@@ -367,7 +359,13 @@ class _ReminderHudTabs extends StatelessWidget {
       tabAlignment: TabAlignment.start,
       labelPadding: const EdgeInsets.symmetric(horizontal: 12),
       indicatorSize: TabBarIndicatorSize.label,
-      indicatorColor: Theme.of(context).colorScheme.primary,
+      indicator: ShapeDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: .16),
+        shape: const BeveledRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(3)),
+        ),
+      ),
+      indicatorPadding: const EdgeInsets.symmetric(vertical: 5),
       labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
         fontWeight: FontWeight.w700,
         letterSpacing: 1.1,
@@ -479,12 +477,7 @@ class _ReminderOccurrenceRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                width: 1,
-                height: 42,
-                margin: const EdgeInsets.only(top: 8, right: 10),
-                color: colorScheme.primary.withValues(alpha: .38),
-              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -508,7 +501,6 @@ class _ReminderOccurrenceRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.more_horiz, size: 18, color: secondary),
             ],
           ),
         ),
@@ -565,14 +557,7 @@ class _DefinitionList extends StatelessWidget {
                   padding: EdgeInsets.only(top: 2, right: 12),
                   child: Icon(Icons.notifications_none),
                 ),
-                Container(
-                  width: 1,
-                  height: 42,
-                  margin: const EdgeInsets.only(right: 10),
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: .38),
-                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

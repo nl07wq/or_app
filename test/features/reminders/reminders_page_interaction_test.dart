@@ -145,6 +145,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('reminder-hud-tabs')), findsOneWidget);
       expect(find.byType(ListTile), findsNothing);
+      expect(find.text('TASK CONTROL // OCCURRENCE STATUS'), findsNothing);
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
