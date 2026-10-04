@@ -4691,7 +4691,11 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                   ),
                 ],
               ),
-              const SizedBox(width: 10),
+              Container(
+                width: 10,
+                height: 1,
+                color: colorScheme.primary.withValues(alpha: .42),
+              ),
               Expanded(
                 child: Container(
                   key: ValueKey('calendar-timeline-content-${record.id}'),

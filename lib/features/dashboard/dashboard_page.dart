@@ -928,13 +928,19 @@ class DashboardScheduleCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Theme.of(
                 context,
-              ).colorScheme.surface.withValues(alpha: .26),
-              border: Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: .20),
+              ).colorScheme.surface.withValues(alpha: .20),
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .28),
+                ),
+                bottom: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .18),
+                ),
               ),
-              borderRadius: BorderRadius.circular(8),
             ),
             child: loading
                 ? const Padding(
@@ -1051,6 +1057,30 @@ class _DashboardScheduleRow extends StatelessWidget {
                         context,
                       ).textTheme.labelMedium?.copyWith(color: accent),
                     ),
+                  ),
+                  Column(
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        margin: const EdgeInsets.only(top: 5),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 24,
+                        color: accent.withValues(alpha: .38),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    width: 10,
+                    height: 1,
+                    margin: const EdgeInsets.only(top: 8),
+                    color: accent.withValues(alpha: .42),
                   ),
                   Expanded(
                     child: Column(
