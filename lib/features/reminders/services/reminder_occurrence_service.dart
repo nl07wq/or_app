@@ -29,6 +29,7 @@ class ReminderOccurrenceService {
         if (!_isActiveFor(definition, date)) continue;
         final state = byId['${definition.id}@$date'];
         final status = state?.status ?? ReminderOccurrenceStatus.pending;
+        if (status == ReminderOccurrenceStatus.skipped) continue;
         if (!includeCompleted && status != ReminderOccurrenceStatus.pending) {
           continue;
         }
@@ -82,6 +83,17 @@ class ReminderOccurrenceService {
 
   Future<void> restore(ReminderOccurrence occurrence) =>
       _repository.deleteState(occurrence.id);
+
+  Future<void> skip(ReminderOccurrence occurrence, DateTime now) =>
+      _repository.saveState(
+        ReminderOccurrenceState(
+          id: occurrence.id,
+          definitionId: occurrence.definition.id,
+          localDate: occurrence.localDate,
+          status: ReminderOccurrenceStatus.skipped,
+          updatedAt: now.toUtc(),
+        ),
+      );
 
   int _compare(ReminderOccurrence a, ReminderOccurrence b) {
     final date = a.localDate.compareTo(b.localDate);
