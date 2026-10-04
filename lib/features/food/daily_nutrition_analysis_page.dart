@@ -122,7 +122,7 @@ class _DailyNutritionAnalysisPageState
             AppSpacing.gapMD,
             _MealContributionCard(meals: meals),
             AppSpacing.gapMD,
-            _FoodContributionCard(meals: meals),
+            _FoodContributionCard(meals: meals, dailyNutrition: nutrition),
             AppSpacing.gapMD,
             _AssessmentCard(summary: data.summary, targets: data.targets),
             AppSpacing.gapMD,
@@ -742,14 +742,15 @@ class _MealTypeBadge extends StatelessWidget {
 }
 
 class _FoodContributionCard extends StatelessWidget {
-  const _FoodContributionCard({required this.meals});
+  const _FoodContributionCard({
+    required this.meals,
+    required this.dailyNutrition,
+  });
   final List<FoodUnifiedReadModel> meals;
+  final FoodNutritionAggregate dailyNutrition;
   @override
   Widget build(BuildContext context) {
-    final items = [
-      for (final meal in meals)
-        for (final item in meal.items) (item: item, mealType: meal.mealType),
-    ];
+    final entries = dailyNutritionContributorEntries(meals);
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -766,7 +767,11 @@ class _FoodContributionCard extends StatelessWidget {
               for (final metric in _metrics)
                 SizedBox(
                   width: 165,
-                  child: _RankedFoods(metric: metric, items: items),
+                  child: _RankedFoods(
+                    metric: metric,
+                    entries: entries,
+                    dailyTotal: metric.selectDaily(dailyNutrition),
+                  ),
                 ),
             ],
           ),
@@ -777,39 +782,88 @@ class _FoodContributionCard extends StatelessWidget {
 }
 
 class _RankedFoods extends StatelessWidget {
-  const _RankedFoods({required this.metric, required this.items});
+  const _RankedFoods({
+    required this.metric,
+    required this.entries,
+    required this.dailyTotal,
+  });
   final _Metric metric;
-  final List<({FoodUnifiedItemReadModel item, String mealType})> items;
+  final List<DailyNutritionContributorEntry> entries;
+  final double? dailyTotal;
   @override
   Widget build(BuildContext context) {
-    final totals = <String, double>{};
-    final sources = <String, String>{};
-    for (final entry in items) {
-      final value = metric.select(entry.item.nutrition);
-      if (value != null) {
-        totals[entry.item.displayName] =
-            (totals[entry.item.displayName] ?? 0) + value;
-        sources.putIfAbsent(entry.item.displayName, () => entry.mealType);
-      }
-    }
-    final ranked = totals.entries.toList()
-      ..sort(
-        (a, b) => b.value == a.value
-            ? a.key.compareTo(b.key)
-            : b.value.compareTo(a.value),
-      );
-    final total = totals.values.fold<double>(0, (sum, value) => sum + value);
-    final top = ranked.isEmpty ? null : ranked.first;
+    final top = dailyNutritionTopContributor(entries, metric.select);
+    final value = top == null ? null : metric.select(top.item.nutrition);
     return NutritionContributorCard(
       metric: metric.visualMetric,
-      foodName: top?.key ?? '—',
-      value: top?.value,
+      foodName: top?.item.displayName ?? '—',
+      value: value,
       unit: metric.unit,
-      sharePercent: top == null ? null : _percent(top.value, total),
-      mealType: top == null ? null : sources[top.key],
+      sharePercent: value == null
+          ? null
+          : dailyNutritionContributorSharePercent(value, dailyTotal ?? 0),
+      mealType: top?.mealType,
     );
   }
 }
+
+/// A ranking candidate is one persisted Food entry inside one Meal record.
+/// Names, catalog references, and recipes intentionally do not collapse these
+/// entries: a separate recorded entry remains a separate daily contribution.
+class DailyNutritionContributorEntry {
+  const DailyNutritionContributorEntry({
+    required this.item,
+    required this.mealType,
+    required this.recordOrder,
+  });
+
+  final FoodUnifiedItemReadModel item;
+  final String mealType;
+  final int recordOrder;
+}
+
+List<DailyNutritionContributorEntry> dailyNutritionContributorEntries(
+  Iterable<FoodUnifiedReadModel> meals,
+) {
+  final entries = <DailyNutritionContributorEntry>[];
+  var recordOrder = 0;
+  for (final meal in meals) {
+    for (final item in meal.items) {
+      entries.add(
+        DailyNutritionContributorEntry(
+          item: item,
+          mealType: meal.mealType,
+          recordOrder: recordOrder++,
+        ),
+      );
+    }
+  }
+  return entries;
+}
+
+DailyNutritionContributorEntry? dailyNutritionTopContributor(
+  Iterable<DailyNutritionContributorEntry> entries,
+  double? Function(NutritionSnapshot) select,
+) {
+  final ranked =
+      entries
+          .where((entry) => select(entry.item.nutrition) != null)
+          .toList(growable: false)
+        ..sort((a, b) {
+          final aValue = select(a.item.nutrition)!;
+          final bValue = select(b.item.nutrition)!;
+          final valueOrder = bValue.compareTo(aValue);
+          return valueOrder != 0
+              ? valueOrder
+              : a.recordOrder.compareTo(b.recordOrder);
+        });
+  return ranked.isEmpty ? null : ranked.first;
+}
+
+/// Contributor shares use the selected entry only over the established daily
+/// aggregate; sibling entries with the same name never enter the numerator.
+int dailyNutritionContributorSharePercent(double value, double dailyTotal) =>
+    _percent(value, dailyTotal);
 
 class _AssessmentCard extends StatelessWidget {
   const _AssessmentCard({this.summary, this.targets});
@@ -992,10 +1046,17 @@ void _showAssessmentDetail(
 }
 
 class _Metric {
-  const _Metric(this.label, this.unit, this.select, this.visualMetric);
+  const _Metric(
+    this.label,
+    this.unit,
+    this.select,
+    this.selectDaily,
+    this.visualMetric,
+  );
   final String label;
   final String unit;
   final double? Function(NutritionSnapshot) select;
+  final double? Function(FoodNutritionAggregate) selectDaily;
   final NutritionVisualMetric visualMetric;
 }
 
@@ -1024,10 +1085,28 @@ double? _mealCarbohydrate(FoodNutritionAggregate value) =>
     _known(value.carbohydrate);
 
 const _metrics = [
-  _Metric('TOP CALORIE', 'kcal', _calories, NutritionVisualMetric.calories),
-  _Metric('TOP PROTEIN', 'g', _protein, NutritionVisualMetric.protein),
-  _Metric('TOP FAT', 'g', _fat, NutritionVisualMetric.fat),
-  _Metric('TOP CARB', 'g', _carb, NutritionVisualMetric.carbohydrate),
+  _Metric(
+    'TOP CALORIE',
+    'kcal',
+    _calories,
+    _mealCalories,
+    NutritionVisualMetric.calories,
+  ),
+  _Metric(
+    'TOP PROTEIN',
+    'g',
+    _protein,
+    _mealProtein,
+    NutritionVisualMetric.protein,
+  ),
+  _Metric('TOP FAT', 'g', _fat, _mealFat, NutritionVisualMetric.fat),
+  _Metric(
+    'TOP CARB',
+    'g',
+    _carb,
+    _mealCarbohydrate,
+    NutritionVisualMetric.carbohydrate,
+  ),
 ];
 double? _calories(NutritionSnapshot value) => value.calories;
 double? _protein(NutritionSnapshot value) => value.protein;
