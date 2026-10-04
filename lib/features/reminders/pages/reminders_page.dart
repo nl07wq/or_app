@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
@@ -289,52 +290,59 @@ class _RemindersPageState extends State<RemindersPage>
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('REMINDERS')),
     floatingActionButton: _HudAddControl(onPressed: _create),
-    body: Column(
+    body: Stack(
       children: [
-        Expanded(
-          child: _ReminderFloatingSurface(
-            child: Column(
-              children: [
-                _ReminderHudTabs(controller: _tabs),
-                Expanded(
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : TabBarView(
-                          controller: _tabs,
-                          children: [
-                            _OccurrenceList(
-                              values: _today,
-                              empty: '今日のREMINDERはありません',
-                              onToggle: (value) =>
-                                  _toggle(value, retentionTab: 0),
-                              onEdit: _edit,
-                              onDelete: _deleteOccurrence,
-                            ),
-                            _OccurrenceList(
-                              values: _all,
-                              empty: '今後のREMINDERはありません',
-                              onToggle: (value) =>
-                                  _toggle(value, retentionTab: 1),
-                              onEdit: _edit,
-                              onDelete: _deleteOccurrence,
-                            ),
-                            _DefinitionList(
-                              values: _recurring,
-                              onEdit: _edit,
-                              onDelete: _deleteDefinitionFuture,
-                            ),
-                            _OccurrenceList(
-                              values: _completed,
-                              empty: '完了済みREMINDERはありません',
-                              onToggle: _toggle,
-                              onEdit: _edit,
-                              onDelete: _deleteOccurrence,
-                            ),
-                          ],
-                        ),
+        const Positioned.fill(child: HolographicAmbientBackground()),
+        Positioned.fill(
+          child: Column(
+            children: [
+              Expanded(
+                child: _ReminderFloatingSurface(
+                  child: Column(
+                    children: [
+                      _ReminderHudTabs(controller: _tabs),
+                      Expanded(
+                        child: _loading
+                            ? const Center(child: CircularProgressIndicator())
+                            : TabBarView(
+                                controller: _tabs,
+                                children: [
+                                  _OccurrenceList(
+                                    values: _today,
+                                    empty: '今日のREMINDERはありません',
+                                    onToggle: (value) =>
+                                        _toggle(value, retentionTab: 0),
+                                    onEdit: _edit,
+                                    onDelete: _deleteOccurrence,
+                                  ),
+                                  _OccurrenceList(
+                                    values: _all,
+                                    empty: '今後のREMINDERはありません',
+                                    onToggle: (value) =>
+                                        _toggle(value, retentionTab: 1),
+                                    onEdit: _edit,
+                                    onDelete: _deleteOccurrence,
+                                  ),
+                                  _DefinitionList(
+                                    values: _recurring,
+                                    onEdit: _edit,
+                                    onDelete: _deleteDefinitionFuture,
+                                  ),
+                                  _OccurrenceList(
+                                    values: _completed,
+                                    empty: '完了済みREMINDERはありません',
+                                    onToggle: _toggle,
+                                    onEdit: _edit,
+                                    onDelete: _deleteOccurrence,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],
@@ -358,9 +366,10 @@ class _ReminderFloatingSurface extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            scheme.surfaceContainerHigh.withValues(alpha: .42),
-            scheme.surface.withValues(alpha: .20),
-            scheme.surfaceContainerLow.withValues(alpha: .34),
+            scheme.primary.withValues(alpha: .055),
+            scheme.surfaceContainerHigh.withValues(alpha: .32),
+            scheme.surface.withValues(alpha: .13),
+            scheme.surfaceContainerLow.withValues(alpha: .26),
           ],
         ),
         borderRadius: const BorderRadius.only(
@@ -371,14 +380,14 @@ class _ReminderFloatingSurface extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .30),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: .38),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
           ),
           BoxShadow(
-            color: scheme.primary.withValues(alpha: .055),
-            blurRadius: 15,
-            offset: const Offset(0, 2),
+            color: scheme.primary.withValues(alpha: .07),
+            blurRadius: 24,
+            offset: const Offset(0, 5),
           ),
         ],
       ),

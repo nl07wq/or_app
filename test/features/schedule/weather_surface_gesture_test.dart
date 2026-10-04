@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/widgets/holographic_ambient_background.dart';
 import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
 import 'package:or_app/features/reminders/models/reminder_definition.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
@@ -112,6 +113,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(
+        find.byKey(const ValueKey('holographic-ambient-background')),
+        findsOneWidget,
+      );
       final todayCell = find.byKey(ValueKey('calendar-day-$todayKey'));
       expect(todayCell, findsOneWidget);
       expect(
@@ -137,6 +142,33 @@ void main() {
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('ambient geometry stays visible and static with reduced motion', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(body: HolographicAmbientBackground()),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('holographic-ambient-background')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(HolographicAmbientBackground),
+        matching: find.byType(IgnorePointer),
+      ),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('timeline keeps entries in its open HUD structure', (

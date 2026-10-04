@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/navigation/app_routes.dart';
+import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
@@ -257,153 +258,175 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       ],
     ),
-    body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: AppSpacing.cardPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _CalendarWeatherHud(
-                  preferences: _weatherPreferences,
-                  snapshot: _weatherSnapshot,
-                  selectedDate: _selectedKey,
-                  loading: _weatherLoading,
-                  stale: _weatherStale,
-                  error: _weatherError,
-                  refreshing: _weatherRefreshing,
-                  expanded: _weatherExpanded,
-                  hourlyExpanded: _weatherHourlyExpanded,
-                  detailsExpanded: _weatherDetailsExpanded,
-                  sevenDayExpanded: _weatherSevenDayExpanded,
-                  onSettings: _openWeatherSettings,
-                  onRefresh: () => _loadWeather(forceRefresh: true),
-                  onSelectDate: _selectWeatherDate,
-                  onSwipeDate: _shiftWeatherDate,
-                  onSwipeLocation: _switchWeatherLocation,
-                  onToggleDisclosure: _toggleWeatherDisclosure,
-                  onToggleHourly: () => setState(
-                    () => _weatherHourlyExpanded = !_weatherHourlyExpanded,
-                  ),
-                  onToggleDetails: () => setState(
-                    () => _weatherDetailsExpanded = !_weatherDetailsExpanded,
-                  ),
-                  onToggleSevenDay: () => setState(
-                    () => _weatherSevenDayExpanded = !_weatherSevenDayExpanded,
-                  ),
-                ),
-                GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: _collapseWeatherForCalendarAction,
+    body: Stack(
+      children: [
+        const Positioned.fill(child: HolographicAmbientBackground()),
+        Positioned.fill(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      AppSpacing.gapLG,
-                      _MonthGrid(
-                        month: _month,
-                        selected: _selected,
-                        byDate: _byDate,
-                        onPrevious: () {
-                          _collapseWeatherForCalendarAction();
-                          setState(
-                            () => _month = DateTime(
-                              _month.year,
-                              _month.month - 1,
-                            ),
-                          );
-                          _load();
-                        },
-                        onNext: () {
-                          _collapseWeatherForCalendarAction();
-                          setState(
-                            () => _month = DateTime(
-                              _month.year,
-                              _month.month + 1,
-                            ),
-                          );
-                          _load();
-                        },
-                        onToday: () {
-                          _collapseWeatherForCalendarAction();
-                          final now = _dateOnly(DateTime.now());
-                          setState(() {
-                            _selected = now;
-                            _month = DateTime(now.year, now.month);
-                          });
-                          _load();
-                        },
-                        onSelect: (date) {
-                          _collapseWeatherForCalendarAction();
-                          setState(() => _selected = date);
-                        },
-                      ),
-                      AppSpacing.gapLG,
-                      _CalendarFloatingSurface(
-                        key: const ValueKey(
-                          'calendar-timeline-floating-surface',
+                      _CalendarWeatherHud(
+                        preferences: _weatherPreferences,
+                        snapshot: _weatherSnapshot,
+                        selectedDate: _selectedKey,
+                        loading: _weatherLoading,
+                        stale: _weatherStale,
+                        error: _weatherError,
+                        refreshing: _weatherRefreshing,
+                        expanded: _weatherExpanded,
+                        hourlyExpanded: _weatherHourlyExpanded,
+                        detailsExpanded: _weatherDetailsExpanded,
+                        sevenDayExpanded: _weatherSevenDayExpanded,
+                        onSettings: _openWeatherSettings,
+                        onRefresh: () => _loadWeather(forceRefresh: true),
+                        onSelectDate: _selectWeatherDate,
+                        onSwipeDate: _shiftWeatherDate,
+                        onSwipeLocation: _switchWeatherLocation,
+                        onToggleDisclosure: _toggleWeatherDisclosure,
+                        onToggleHourly: () => setState(
+                          () =>
+                              _weatherHourlyExpanded = !_weatherHourlyExpanded,
                         ),
-                        padding: const EdgeInsets.all(12),
+                        onToggleDetails: () => setState(
+                          () => _weatherDetailsExpanded =
+                              !_weatherDetailsExpanded,
+                        ),
+                        onToggleSevenDay: () => setState(
+                          () => _weatherSevenDayExpanded =
+                              !_weatherSevenDayExpanded,
+                        ),
+                      ),
+                      GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: _collapseWeatherForCalendarAction,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            SectionHeader(
-                              icon: Icons.timeline,
-                              title:
-                                  DateUtils.isSameDay(_selected, DateTime.now())
-                                  ? '今日の予定'
-                                  : '選択日の予定',
-                            ),
-                            Text(
-                              '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            AppSpacing.gapSM,
-                            if (_selectedSchedules.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: Text(
-                                  '予定はありません',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            for (final record in _selectedSchedules)
-                              Dismissible(
-                                key: ValueKey('schedule-entry-${record.id}'),
-                                direction: DismissDirection.endToStart,
-                                background: const _TimelineDeleteBackground(),
-                                confirmDismiss: (_) => _confirmDelete(record),
-                                onDismissed: (_) => _deleteRecord(record),
-                                child: _TimelineEntry(
-                                  record: record,
-                                  onTap: () {
-                                    _collapseWeatherForCalendarAction();
-                                    if (_projectedReminders.containsKey(
-                                      record.id,
-                                    )) {
-                                      Navigator.of(
-                                        context,
-                                      ).pushNamed(AppRoutes.reminders);
-                                      return;
-                                    }
-                                    _openEditor(record);
-                                  },
-                                  onReminderToggle:
-                                      record.kind == ScheduleEntryKind.reminder
-                                      ? () => _toggleReminder(record)
-                                      : null,
-                                  onMove: (minutes) =>
-                                      _moveTimed(record, minutes),
-                                ),
-                              ),
-                            AppSpacing.gapMD,
-                            OperationButton(
-                              text: '予定を追加',
-                              icon: Icons.add,
-                              onPressed: () {
+                            AppSpacing.gapLG,
+                            _MonthGrid(
+                              month: _month,
+                              selected: _selected,
+                              byDate: _byDate,
+                              onPrevious: () {
                                 _collapseWeatherForCalendarAction();
-                                _openEditor();
+                                setState(
+                                  () => _month = DateTime(
+                                    _month.year,
+                                    _month.month - 1,
+                                  ),
+                                );
+                                _load();
                               },
-                              role: OperationActionRole.primary,
+                              onNext: () {
+                                _collapseWeatherForCalendarAction();
+                                setState(
+                                  () => _month = DateTime(
+                                    _month.year,
+                                    _month.month + 1,
+                                  ),
+                                );
+                                _load();
+                              },
+                              onToday: () {
+                                _collapseWeatherForCalendarAction();
+                                final now = _dateOnly(DateTime.now());
+                                setState(() {
+                                  _selected = now;
+                                  _month = DateTime(now.year, now.month);
+                                });
+                                _load();
+                              },
+                              onSelect: (date) {
+                                _collapseWeatherForCalendarAction();
+                                setState(() => _selected = date);
+                              },
+                            ),
+                            AppSpacing.gapLG,
+                            _CalendarFloatingSurface(
+                              key: const ValueKey(
+                                'calendar-timeline-floating-surface',
+                              ),
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SectionHeader(
+                                    icon: Icons.timeline,
+                                    title:
+                                        DateUtils.isSameDay(
+                                          _selected,
+                                          DateTime.now(),
+                                        )
+                                        ? '今日の予定'
+                                        : '選択日の予定',
+                                  ),
+                                  Text(
+                                    '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  AppSpacing.gapSM,
+                                  if (_selectedSchedules.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 24,
+                                      ),
+                                      child: Text(
+                                        '予定はありません',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  for (final record in _selectedSchedules)
+                                    Dismissible(
+                                      key: ValueKey(
+                                        'schedule-entry-${record.id}',
+                                      ),
+                                      direction: DismissDirection.endToStart,
+                                      background:
+                                          const _TimelineDeleteBackground(),
+                                      confirmDismiss: (_) =>
+                                          _confirmDelete(record),
+                                      onDismissed: (_) => _deleteRecord(record),
+                                      child: _TimelineEntry(
+                                        record: record,
+                                        onTap: () {
+                                          _collapseWeatherForCalendarAction();
+                                          if (_projectedReminders.containsKey(
+                                            record.id,
+                                          )) {
+                                            Navigator.of(
+                                              context,
+                                            ).pushNamed(AppRoutes.reminders);
+                                            return;
+                                          }
+                                          _openEditor(record);
+                                        },
+                                        onReminderToggle:
+                                            record.kind ==
+                                                ScheduleEntryKind.reminder
+                                            ? () => _toggleReminder(record)
+                                            : null,
+                                        onMove: (minutes) =>
+                                            _moveTimed(record, minutes),
+                                      ),
+                                    ),
+                                  AppSpacing.gapMD,
+                                  OperationButton(
+                                    text: '予定を追加',
+                                    icon: Icons.add,
+                                    onPressed: () {
+                                      _collapseWeatherForCalendarAction();
+                                      _openEditor();
+                                    },
+                                    role: OperationActionRole.primary,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -411,9 +434,9 @@ class _CalendarPageState extends State<CalendarPage> {
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
+        ),
+      ],
+    ),
   );
 
   Future<void> _toggleReminder(ScheduleRecord record) async {
@@ -4722,9 +4745,10 @@ class _CalendarFloatingSurface extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            scheme.surfaceContainerHigh.withValues(alpha: .44),
-            scheme.surface.withValues(alpha: .20),
-            scheme.surfaceContainerLow.withValues(alpha: .34),
+            scheme.primary.withValues(alpha: .055),
+            scheme.surfaceContainerHigh.withValues(alpha: .34),
+            scheme.surface.withValues(alpha: .13),
+            scheme.surfaceContainerLow.withValues(alpha: .27),
           ],
         ),
         borderRadius: const BorderRadius.only(
@@ -4735,14 +4759,14 @@ class _CalendarFloatingSurface extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .30),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: .38),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
           ),
           BoxShadow(
-            color: scheme.primary.withValues(alpha: .055),
-            blurRadius: 15,
-            offset: const Offset(0, 2),
+            color: scheme.primary.withValues(alpha: .07),
+            blurRadius: 24,
+            offset: const Offset(0, 5),
           ),
         ],
       ),

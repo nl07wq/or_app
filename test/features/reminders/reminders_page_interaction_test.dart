@@ -143,6 +143,10 @@ void main() {
         MaterialApp(home: RemindersPage(key: ValueKey('hud-$width'))),
       );
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('holographic-ambient-background')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('reminder-hud-tabs')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('reminder-floating-list-surface')),
