@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
+import 'package:or_app/features/reminders/models/reminder_definition.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/models/schedule_record.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
@@ -175,6 +176,51 @@ void main() {
     expect(tester.widget<Container>(content).decoration, isNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Calendar shows Japanese operation labels and reminder identity',
+    (tester) async {
+      final today = DateUtils.dateOnly(DateTime.now());
+      final key = _dateText(today);
+      final timestamp = DateTime.utc(2026, 10, 4);
+      await AppRepositoryRegistry.container.schedules.save(
+        ScheduleRecord(
+          id: 'other-entry',
+          localDate: key,
+          type: ScheduleType.other,
+          title: 'Other entry',
+          allDay: true,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
+      );
+      await AppRepositoryRegistry.container.reminders.saveDefinition(
+        ReminderDefinition(
+          id: 'reminder-entry',
+          title: 'Reminder entry',
+          startDate: key,
+          allDay: true,
+          recurrence: ReminderRecurrence.none,
+          active: true,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: CalendarPage(initialDate: today)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('今日の予定'), findsOneWidget);
+      expect(find.text('終日'), findsNWidgets(2));
+      expect(find.text('リマインダー'), findsOneWidget);
+      expect(find.text('その他'), findsOneWidget);
+      expect(find.text('ALL DAY'), findsNothing);
+      expect(find.text('OTHER'), findsNothing);
+      expect(find.text('予定を追加'), findsOneWidget);
+    },
+  );
 
   test('temperature range rail reserves numeric telemetry clearance', () {
     expect(weatherTemperatureRailWidth(296), 88);

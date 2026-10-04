@@ -49,6 +49,14 @@ ScheduleRecord _projectReminder(ReminderOccurrence occurrence) =>
       updatedAt: occurrence.definition.updatedAt,
     );
 
+String _scheduleTypeLabel(ScheduleType value) => switch (value) {
+  ScheduleType.work => '勤務',
+  ScheduleType.personal => '個人',
+  ScheduleType.appointment => '予定',
+  ScheduleType.training => 'トレーニング',
+  ScheduleType.other => 'その他',
+};
+
 class _CalendarPageState extends State<CalendarPage> {
   late DateTime _selected = _dateOnly(widget.initialDate ?? DateTime.now());
   late DateTime _month = DateTime(_selected.year, _selected.month);
@@ -332,7 +340,9 @@ class _CalendarPageState extends State<CalendarPage> {
                       AppSpacing.gapLG,
                       SectionHeader(
                         icon: Icons.timeline,
-                        title: "TODAY'S TIMELINE",
+                        title: DateUtils.isSameDay(_selected, DateTime.now())
+                            ? '今日の予定'
+                            : '選択日の予定',
                       ),
                       Text(
                         '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
@@ -342,10 +352,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       if (_selectedSchedules.isEmpty)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Text(
-                            'NO PLANNED ENTRIES',
-                            textAlign: TextAlign.center,
-                          ),
+                          child: Text('予定はありません', textAlign: TextAlign.center),
                         ),
                       for (final record in _selectedSchedules)
                         Dismissible(
@@ -375,7 +382,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         ),
                       AppSpacing.gapMD,
                       OperationButton(
-                        text: 'ADD ENTRY',
+                        text: '予定を追加',
                         icon: Icons.add,
                         onPressed: () {
                           _collapseWeatherForCalendarAction();
@@ -4660,7 +4667,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
               SizedBox(
                 width: 56,
                 child: Text(
-                  record.allDay ? 'ALL DAY' : record.startTime ?? 'UNTIMED',
+                  record.allDay ? '終日' : record.startTime ?? '未設定',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: colorScheme.primary.withValues(alpha: .82),
                     letterSpacing: .4,
@@ -4698,7 +4705,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                         ),
                       ),
                       Text(
-                        '${record.type.name.toUpperCase()}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
+                        '${record.kind == ScheduleEntryKind.reminder ? 'リマインダー' : _scheduleTypeLabel(record.type)}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.primary.withValues(alpha: .72),
                         ),
@@ -4876,11 +4883,11 @@ class _MonthGridState extends State<_MonthGrid> {
                 ),
               ],
             ),
-            TextButton(onPressed: widget.onToday, child: const Text('TODAY')),
+            TextButton(onPressed: widget.onToday, child: const Text('今日')),
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'SCHEDULE │ REMINDER',
+                'スケジュール │ リマインダー',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   letterSpacing: 1.1,
                   color: Theme.of(
@@ -5116,7 +5123,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.record == null ? 'NEW ENTRY' : 'EDIT ENTRY'),
+      title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
       actions: [IconButton(icon: const Icon(Icons.check), onPressed: _save)],
     ),
     body: SafeArea(
@@ -5131,13 +5138,13 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                   .map(
                     (value) => DropdownMenuItem(
                       value: value,
-                      child: Text(value.name.toUpperCase()),
+                      child: Text(_scheduleTypeLabel(value)),
                     ),
                   )
                   .toList(),
               onChanged: (value) => setState(() => _type = value!),
             ),
-            OperationTextField(controller: _title, label: 'TITLE'),
+            OperationTextField(controller: _title, label: 'タイトル'),
             TextButton(
               onPressed: () async {
                 final picked = await showDatePicker(
@@ -5148,24 +5155,22 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                 );
                 if (picked != null) setState(() => _date = picked);
               },
-              child: Text('DATE ${_key(_date)}'),
+              child: Text('日付 ${_key(_date)}'),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('ALL DAY'),
+              title: const Text('終日'),
               value: _allDay,
               onChanged: (value) => setState(() => _allDay = value),
             ),
-            if (!_allDay)
-              _TimeControl(label: 'START', controller: _start),
-            if (!_allDay)
-              _TimeControl(label: 'END', controller: _end),
+            if (!_allDay) _TimeControl(label: '開始', controller: _start),
+            if (!_allDay) _TimeControl(label: '終了', controller: _end),
             if (_type == ScheduleType.work && !_allDay)
-              _DurationControl(label: 'BREAK', controller: _break),
-            OperationTextField(controller: _memo, label: 'MEMO', maxLines: 3),
+              _DurationControl(label: '休憩', controller: _break),
+            OperationTextField(controller: _memo, label: 'メモ', maxLines: 3),
             AppSpacing.gapLG,
             OperationButton(
-              text: 'SAVE ENTRY',
+              text: '保存',
               icon: Icons.check,
               role: OperationActionRole.primary,
               onPressed: _save,
@@ -5260,7 +5265,7 @@ class _TimeControlState extends State<_TimeControl> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 child: Text(
                   widget.controller.text.isEmpty
-                      ? 'NOT SET'
+                      ? '未設定'
                       : widget.controller.text,
                   textAlign: TextAlign.center,
                 ),

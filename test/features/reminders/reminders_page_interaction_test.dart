@@ -371,6 +371,67 @@ void main() {
     expect(saved.monthDays, [1, 15]);
     expect(saved.monthEnd, isTrue);
   });
+
+  testWidgets('full-screen editor guards dirty header and system exits', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    await _pumpPage(tester);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    expect(find.text('REMINDERを追加'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    expect(find.text('変更内容が保存されていません。破棄しますか？'), findsNothing);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Discarded');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('変更内容が保存されていません。破棄しますか？'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '編集を続ける'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discarded'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '破棄する'));
+    await tester.pumpAndSettle();
+    expect(await container.reminders.findDefinitions(), isEmpty);
+
+    await container.reminders.saveDefinition(
+      _definition(id: 'edit', title: 'Original', startDate: today),
+    );
+    await tester.pumpWidget(
+      const MaterialApp(home: RemindersPage(key: ValueKey('editor-updated'))),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Original'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Changed');
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '破棄する'));
+    await tester.pumpAndSettle();
+    expect(
+      (await container.reminders.findDefinitions()).single.title,
+      'Original',
+    );
+
+    await tester.tap(find.text('Original'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Saved');
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+    expect(
+      (await container.reminders.findDefinitions())
+          .where((value) => value.active)
+          .single
+          .title,
+      'Saved',
+    );
+  });
 }
 
 Future<void> _pumpPage(WidgetTester tester) async {
