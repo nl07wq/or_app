@@ -1468,54 +1468,151 @@ class WeatherPrecipitationDescriptor {
   const WeatherPrecipitationDescriptor({
     required this.type,
     required this.intensity,
+    this.activeSegments = 0,
+    this.totalSegments = 0,
   });
 
   final String type;
   final String intensity;
+  final int activeSegments;
+  final int totalSegments;
+
+  bool get hasType => type != '-' && type != '--';
+  bool get hasComparableIntensity =>
+      activeSegments > 0 && totalSegments >= activeSegments;
 }
 
 WeatherPrecipitationDescriptor weatherPrecipitationDescriptorForCode(
   int? weatherCode,
 ) => switch (weatherCode) {
-  51 => const WeatherPrecipitationDescriptor(type: '霧雨', intensity: '弱'),
-  53 => const WeatherPrecipitationDescriptor(type: '霧雨', intensity: '中'),
-  55 => const WeatherPrecipitationDescriptor(type: '霧雨', intensity: '強'),
-  56 => const WeatherPrecipitationDescriptor(type: '凍る霧雨', intensity: '弱'),
-  57 => const WeatherPrecipitationDescriptor(type: '凍る霧雨', intensity: '強'),
-  61 => const WeatherPrecipitationDescriptor(type: '雨', intensity: '弱'),
-  63 => const WeatherPrecipitationDescriptor(type: '雨', intensity: '中'),
-  65 => const WeatherPrecipitationDescriptor(type: '雨', intensity: '強'),
-  66 => const WeatherPrecipitationDescriptor(type: '凍雨', intensity: '弱'),
-  67 => const WeatherPrecipitationDescriptor(type: '凍雨', intensity: '強'),
-  71 => const WeatherPrecipitationDescriptor(type: '雪', intensity: '弱'),
-  73 => const WeatherPrecipitationDescriptor(type: '雪', intensity: '中'),
-  75 => const WeatherPrecipitationDescriptor(type: '雪', intensity: '強'),
+  51 => const WeatherPrecipitationDescriptor(
+    type: '霧雨',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 3,
+  ),
+  53 => const WeatherPrecipitationDescriptor(
+    type: '霧雨',
+    intensity: '中',
+    activeSegments: 2,
+    totalSegments: 3,
+  ),
+  55 => const WeatherPrecipitationDescriptor(
+    type: '霧雨',
+    intensity: '強',
+    activeSegments: 3,
+    totalSegments: 3,
+  ),
+  56 => const WeatherPrecipitationDescriptor(
+    type: '凍る霧雨',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 2,
+  ),
+  57 => const WeatherPrecipitationDescriptor(
+    type: '凍る霧雨',
+    intensity: '強',
+    activeSegments: 2,
+    totalSegments: 2,
+  ),
+  61 => const WeatherPrecipitationDescriptor(
+    type: '雨',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 3,
+  ),
+  63 => const WeatherPrecipitationDescriptor(
+    type: '雨',
+    intensity: '中',
+    activeSegments: 2,
+    totalSegments: 3,
+  ),
+  65 => const WeatherPrecipitationDescriptor(
+    type: '雨',
+    intensity: '強',
+    activeSegments: 3,
+    totalSegments: 3,
+  ),
+  66 => const WeatherPrecipitationDescriptor(
+    type: '凍雨',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 2,
+  ),
+  67 => const WeatherPrecipitationDescriptor(
+    type: '凍雨',
+    intensity: '強',
+    activeSegments: 2,
+    totalSegments: 2,
+  ),
+  71 => const WeatherPrecipitationDescriptor(
+    type: '雪',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 3,
+  ),
+  73 => const WeatherPrecipitationDescriptor(
+    type: '雪',
+    intensity: '中',
+    activeSegments: 2,
+    totalSegments: 3,
+  ),
+  75 => const WeatherPrecipitationDescriptor(
+    type: '雪',
+    intensity: '強',
+    activeSegments: 3,
+    totalSegments: 3,
+  ),
   77 => const WeatherPrecipitationDescriptor(type: '雪粒', intensity: '--'),
-  80 => const WeatherPrecipitationDescriptor(type: 'にわか雨', intensity: '弱'),
-  81 => const WeatherPrecipitationDescriptor(type: 'にわか雨', intensity: '中'),
-  82 => const WeatherPrecipitationDescriptor(type: 'にわか雨', intensity: '激しい'),
-  85 => const WeatherPrecipitationDescriptor(type: 'にわか雪', intensity: '弱'),
-  86 => const WeatherPrecipitationDescriptor(type: 'にわか雪', intensity: '強'),
-  95 => const WeatherPrecipitationDescriptor(type: '雷雨', intensity: '弱〜中'),
-  96 => const WeatherPrecipitationDescriptor(type: '雹を伴う雷雨', intensity: '弱'),
-  99 => const WeatherPrecipitationDescriptor(type: '雹を伴う雷雨', intensity: '強'),
+  80 => const WeatherPrecipitationDescriptor(
+    type: 'にわか雨',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 3,
+  ),
+  81 => const WeatherPrecipitationDescriptor(
+    type: 'にわか雨',
+    intensity: '中',
+    activeSegments: 2,
+    totalSegments: 3,
+  ),
+  82 => const WeatherPrecipitationDescriptor(
+    type: 'にわか雨',
+    intensity: '強',
+    activeSegments: 3,
+    totalSegments: 3,
+  ),
+  85 => const WeatherPrecipitationDescriptor(
+    type: 'にわか雪',
+    intensity: '弱',
+    activeSegments: 1,
+    totalSegments: 2,
+  ),
+  86 => const WeatherPrecipitationDescriptor(
+    type: 'にわか雪',
+    intensity: '強',
+    activeSegments: 2,
+    totalSegments: 2,
+  ),
+  95 => const WeatherPrecipitationDescriptor(type: '雷雨', intensity: '-'),
+  96 => const WeatherPrecipitationDescriptor(type: '雹を伴う雷雨', intensity: '-'),
+  99 => const WeatherPrecipitationDescriptor(type: '雹を伴う雷雨', intensity: '-'),
   0 ||
   1 ||
   2 ||
   3 ||
   45 ||
-  48 => const WeatherPrecipitationDescriptor(type: '降水なし', intensity: '--'),
+  48 => const WeatherPrecipitationDescriptor(type: '-', intensity: '-'),
   _ => const WeatherPrecipitationDescriptor(type: '--', intensity: '--'),
 };
 
 /// Reuses the Weather surface's existing Material Symbol families without
 /// changing the production condition-to-symbol authority. The type supplied
 /// here is already the WMO weather-code descriptor above.
-IconData weatherPrecipitationSymbolForType(String? type) => switch (type) {
+IconData? weatherPrecipitationSymbolForType(String? type) => switch (type) {
   '雪' || 'にわか雪' || '雪粒' => Icons.ac_unit,
   '雷雨' || '雹を伴う雷雨' => Icons.thunderstorm_outlined,
-  '降水なし' => Icons.cloud_outlined,
-  '--' || null => Icons.help_outline,
+  '-' || '--' || null => null,
   _ => Icons.umbrella_outlined,
 };
 
@@ -1524,9 +1621,8 @@ IconData weatherPrecipitationSymbolForType(String? type) => switch (type) {
 int weatherPrecipitationIntensitySegments(String? intensity) =>
     switch (intensity) {
       '弱' => 1,
-      '中' || '弱〜中' => 2,
+      '中' => 2,
       '強' => 3,
-      '激しい' => 4,
       _ => 0,
     };
 
@@ -1597,8 +1693,16 @@ Future<void> _showDailyForecastDetail(
           visualKind: _WeatherDetailVisualKind.precipitation,
           tonalStrength: .022,
           metrics: [
-            _WeatherDetailMetric(label: '種類', value: precipitation.type),
-            _WeatherDetailMetric(label: '強さ', value: precipitation.intensity),
+            _WeatherDetailMetric(
+              label: '種類',
+              value: precipitation.type,
+              precipitationDescriptor: precipitation,
+            ),
+            _WeatherDetailMetric(
+              label: '強さ',
+              value: precipitation.intensity,
+              precipitationDescriptor: precipitation,
+            ),
             _WeatherDetailMetric(
               label: '降水量',
               value: '${day.precipitation.toStringAsFixed(1)}mm',
@@ -2137,6 +2241,7 @@ class _WeatherDetailMetric {
     this.context,
     this.meterFraction,
     this.icon,
+    this.precipitationDescriptor,
   });
 
   final String label;
@@ -2144,6 +2249,7 @@ class _WeatherDetailMetric {
   final String? context;
   final double? meterFraction;
   final IconData? icon;
+  final WeatherPrecipitationDescriptor? precipitationDescriptor;
 }
 
 Future<void> _showWeatherExplanation(
@@ -2685,28 +2791,34 @@ class _WeatherPrecipitationTypeReadout extends StatelessWidget {
   final _WeatherDetailMetric? metric;
 
   @override
-  Widget build(BuildContext context) => _WeatherPrecipitationTelemetryValue(
-    label: '種類',
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          weatherPrecipitationSymbolForType(metric?.value),
-          size: 18,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            metric?.value ?? '--',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final descriptor = metric?.precipitationDescriptor;
+    final type = descriptor?.type ?? metric?.value ?? '--';
+    final symbol = weatherPrecipitationSymbolForType(type);
+    return _WeatherPrecipitationTelemetryValue(
+      label: '種類',
+      child: symbol == null
+          ? Text(type, style: Theme.of(context).textTheme.titleSmall)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  symbol,
+                  size: 25,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  type,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+    );
+  }
 }
 
 class _WeatherPrecipitationIntensityReadout extends StatelessWidget {
@@ -2716,40 +2828,48 @@ class _WeatherPrecipitationIntensityReadout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final segments = weatherPrecipitationIntensitySegments(metric?.value);
-    final segmentCount = segments == 4 ? 4 : 3;
+    final descriptor = metric?.precipitationDescriptor;
+    final segments =
+        descriptor?.activeSegments ??
+        weatherPrecipitationIntensitySegments(metric?.value);
+    final segmentCount = descriptor?.totalSegments ?? 0;
     final scheme = Theme.of(context).colorScheme;
     return _WeatherPrecipitationTelemetryValue(
       label: '強さ',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < segmentCount; index++) ...[
-                Container(
-                  width: 8,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: index < segments
-                        ? scheme.primary
-                        : scheme.onSurface.withValues(alpha: .18),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
+      child: segments == 0 || segmentCount == 0
+          ? Text(
+              metric?.value ?? '--',
+              style: Theme.of(context).textTheme.titleSmall,
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var index = 0; index < segmentCount; index++) ...[
+                      Container(
+                        width: 9,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: index < segments
+                              ? scheme.primary
+                              : scheme.onSurface.withValues(alpha: .18),
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                      if (index < segmentCount - 1) const SizedBox(width: 2),
+                    ],
+                  ],
                 ),
-                if (index < segmentCount - 1) const SizedBox(width: 2),
+                const SizedBox(height: 3),
+                Text(
+                  descriptor?.intensity ?? metric?.value ?? '--',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            metric?.value ?? '--',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
+            ),
     );
   }
 }
@@ -4592,12 +4712,24 @@ class _TimelineEntryState extends State<_TimelineEntry> {
 
 const calendarMonthGridDateTopAnchor = 6.0;
 const calendarMonthGridMetadataHeight = 16.0;
-const calendarMonthGridColumnBandOpacity = .025;
-const calendarMonthGridWeekSeparatorOpacity = .09;
+const calendarMonthGridWeekendColorOpacity = .78;
+const calendarMonthGridWeekRowBandOpacity = .035;
+const calendarMonthGridUsesVerticalColumnBands = false;
+const calendarMonthGridUsesHorizontalWeekSeparators = false;
+
+bool calendarMonthGridWeekRowIsSubtle(int row) => row.isEven;
 
 Color? calendarMonthGridWeekdayColor(int column) {
-  if (column == 0) return AppColors.danger;
-  if (column == 6) return AppColors.primary;
+  if (column == 0) {
+    return AppColors.danger.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
+  }
+  if (column == 6) {
+    return AppColors.primary.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
+  }
   return null;
 }
 
@@ -4607,9 +4739,15 @@ Color? calendarMonthGridDateColor({
 }) {
   if (holidayMatch == JapaneseHolidayMatch.holiday ||
       date.weekday == DateTime.sunday) {
-    return AppColors.danger;
+    return AppColors.danger.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
   }
-  if (date.weekday == DateTime.saturday) return AppColors.primary;
+  if (date.weekday == DateTime.saturday) {
+    return AppColors.primary.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
+  }
   return null;
 }
 
@@ -4752,32 +4890,17 @@ class _MonthGridState extends State<_MonthGrid> {
                     crossAxisCount: 7,
                   ),
                   itemBuilder: (context, index) {
-                    final column = index % 7;
                     final hasDate = index >= offset && index < offset + days;
-                    final columnBand = column.isEven
-                        ? Theme.of(context).colorScheme.onSurface.withValues(
-                            alpha: calendarMonthGridColumnBandOpacity,
+                    final weekRowBand = calendarMonthGridWeekRowIsSubtle(
+                          index ~/ 7,
+                        )
+                        ? Theme.of(context).colorScheme.surface.withValues(
+                            alpha: calendarMonthGridWeekRowBandOpacity,
                           )
                         : Colors.transparent;
-                    final isLastWeek = index >= totalCells - 7;
                     if (!hasDate) {
                       return Container(
-                        decoration: BoxDecoration(
-                          color: columnBand,
-                          border: isLastWeek
-                              ? null
-                              : Border(
-                                  bottom: BorderSide(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(
-                                          alpha:
-                                              calendarMonthGridWeekSeparatorOpacity,
-                                        ),
-                                  ),
-                                ),
-                        ),
+                        color: weekRowBand,
                       );
                     }
                     final date = DateTime(
@@ -4807,18 +4930,7 @@ class _MonthGridState extends State<_MonthGrid> {
                     );
                     return Container(
                       decoration: BoxDecoration(
-                        color: columnBand,
-                        border: isLastWeek
-                            ? null
-                            : Border(
-                                bottom: BorderSide(
-                                  color: Theme.of(context).colorScheme.onSurface
-                                      .withValues(
-                                        alpha:
-                                            calendarMonthGridWeekSeparatorOpacity,
-                                      ),
-                                ),
-                              ),
+                        color: weekRowBand,
                       ),
                       child: InkWell(
                         onTap: () => widget.onSelect(date),
