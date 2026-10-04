@@ -2,11 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/schedule/weather_forecast_summary.dart';
 import 'package:or_app/features/weather/weather_models.dart';
 
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
+
 void main() {
+  setUp(() {
+    AppRepositoryRegistry.install(
+      AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
+    );
+  });
+
+  tearDown(AppRepositoryRegistry.resetForTesting);
+
   test('month grid retains the Operation Date weekend and holiday colors', () {
     expect(
       calendarMonthGridWeekdayColor(0),
@@ -57,6 +68,8 @@ void main() {
     expect(calendarMonthGridSelectedFillOpacity, .18);
     expect(calendarMonthGridUsesSelectedOutline, isFalse);
     expect(calendarMonthGridUsesTodayOutline, isFalse);
+    expect(calendarMonthGridMainAxisExtent(33.7), 50);
+    expect(calendarMonthGridMainAxisExtent(64), 64);
     expect(calendarMonthGridUsesVerticalColumnBands, isFalse);
     expect(calendarMonthGridUsesHorizontalWeekSeparators, isFalse);
     expect(
@@ -70,6 +83,59 @@ void main() {
     for (var row = 0; row < 6; row++) {
       expect(calendarMonthGridWeekRowIsSubtle(row), row.isEven);
     }
+  });
+
+  testWidgets('month grid keeps dot-only Today and selected fill responsive', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final selectedTomorrow = today.add(const Duration(days: 1));
+    final todayKey = _dateText(today);
+    final tomorrowKey = _dateText(selectedTomorrow);
+
+    for (final width in <double>[320, 390, 900]) {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CalendarPage(key: ValueKey(width), initialDate: today),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final todayCell = find.byKey(ValueKey('calendar-day-$todayKey'));
+      expect(todayCell, findsOneWidget);
+      expect(
+        find.byKey(ValueKey('calendar-day-today-dot-$todayKey')),
+        findsOneWidget,
+      );
+      final selectedDecoration =
+          tester.widget<Container>(todayCell).decoration! as BoxDecoration;
+      expect(selectedDecoration.border, isNull);
+      expect(
+        selectedDecoration.color,
+        calendarMonthGridSelectedFillColor(
+          Theme.of(tester.element(todayCell)).colorScheme,
+        ),
+      );
+
+      await tester.tap(find.byKey(ValueKey('calendar-day-$tomorrowKey')));
+      await tester.pumpAndSettle();
+      final todayDecoration =
+          tester.widget<Container>(todayCell).decoration! as BoxDecoration;
+      final tomorrowDecoration =
+          tester
+                  .widget<Container>(
+                    find.byKey(ValueKey('calendar-day-$tomorrowKey')),
+                  )
+                  .decoration!
+              as BoxDecoration;
+      expect(todayDecoration.border, isNull);
+      expect(todayDecoration.color, isNull);
+      expect(tomorrowDecoration.border, isNull);
+      expect(tomorrowDecoration.color, isNotNull);
+      expect(tester.takeException(), isNull);
+    }
+    addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
   test('temperature range rail reserves numeric telemetry clearance', () {
