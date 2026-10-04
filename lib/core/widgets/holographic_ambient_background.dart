@@ -3,10 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-const holographicCircuitRouteCount = 5;
-const holographicCircuitSignalDuration = Duration(seconds: 16);
-const holographicCircuitIdleDuration = Duration(seconds: 5);
-const holographicAmbientUpdateCadence = Duration(milliseconds: 120);
+const holographicCircuitRouteCount = 8;
+const holographicCircuitMinimumRouteSegments = 5;
+const holographicCircuitSignalDuration = Duration(seconds: 9);
+const holographicCircuitIdleDuration = Duration(seconds: 4);
+const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
 
 /// A single, non-interactive circuit-signal layer behind the Calendar and
 /// Reminder display planes. Routes are intentionally never drawn at rest.
@@ -87,33 +88,22 @@ class _AmbientGeometryPainter extends CustomPainter {
     _paintCircuitSignal(canvas, _routes(size), elapsed);
   }
 
-  List<Path> _routes(Size size) => [
-    Path()
-      ..moveTo(-size.width * .14, size.height * .16)
-      ..lineTo(size.width * .24, size.height * .16)
-      ..lineTo(size.width * .39, size.height * .34)
-      ..lineTo(size.width * .87, size.height * .34),
-    Path()
-      ..moveTo(size.width * .10, size.height * 1.10)
-      ..lineTo(size.width * .10, size.height * .66)
-      ..lineTo(size.width * .31, size.height * .51)
-      ..lineTo(size.width * .72, size.height * .51),
-    Path()
-      ..moveTo(size.width * 1.12, size.height * .13)
-      ..lineTo(size.width * .68, size.height * .13)
-      ..lineTo(size.width * .55, size.height * .38)
-      ..lineTo(size.width * .18, size.height * .38),
-    Path()
-      ..moveTo(-size.width * .10, size.height * .82)
-      ..lineTo(size.width * .29, size.height * .82)
-      ..lineTo(size.width * .44, size.height * .65)
-      ..lineTo(size.width * .44, size.height * .24),
-    Path()
-      ..moveTo(size.width * .92, size.height * 1.10)
-      ..lineTo(size.width * .92, size.height * .72)
-      ..lineTo(size.width * .68, size.height * .59)
-      ..lineTo(size.width * .68, -size.height * .08),
-  ];
+  List<Path> _routes(Size size) => _routeCoordinates
+      .map(
+        (points) => Path()
+          ..moveTo(points.first.dx * size.width, points.first.dy * size.height)
+          ..addPolygon(
+            points
+                .skip(1)
+                .map(
+                  (point) =>
+                      Offset(point.dx * size.width, point.dy * size.height),
+                )
+                .toList(growable: false),
+            false,
+          ),
+      )
+      .toList(growable: false);
 
   void _paintCircuitSignal(Canvas canvas, List<Path> paths, double elapsed) {
     final cycleDuration =
@@ -125,8 +115,8 @@ class _AmbientGeometryPainter extends CustomPainter {
         (elapsed % cycleDuration) / holographicCircuitSignalDuration.inSeconds;
     if (progress >= 1) return;
     final metric = paths[pathIndex].computeMetrics().first;
-    final segmentLength = math.min(metric.length * .085, 78.0).toDouble();
-    final head = progress * (metric.length + segmentLength);
+    final segmentLength = math.min(metric.length * .09, 76.0).toDouble();
+    final head = _travelProgress(progress) * (metric.length + segmentLength);
     final start = math.max(0.0, head - segmentLength).toDouble();
     final end = math.min(metric.length, head).toDouble();
     final visibility = math.sin(progress * math.pi);
@@ -149,6 +139,12 @@ class _AmbientGeometryPainter extends CustomPainter {
     canvas.drawPath(segment, halo);
     canvas.drawPath(segment, glow);
     canvas.drawPath(segment, core);
+  }
+
+  double _travelProgress(double progress) {
+    final eased = Curves.easeInOutCubic.transform(progress);
+    final modulation = math.sin(progress * math.pi * 3) * .018;
+    return (eased + modulation).clamp(0.0, 1.0).toDouble();
   }
 
   @override
@@ -180,9 +176,9 @@ class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withValues(alpha: .035)
+      ..color = color.withValues(alpha: .022)
       ..strokeWidth = 1;
-    for (var y = 2.0; y < size.height; y += 4) {
+    for (var y = 2.5; y < size.height; y += 5) {
       canvas.drawLine(Offset.zero + Offset(0, y), Offset(size.width, y), paint);
     }
   }
@@ -191,3 +187,70 @@ class _ScanlinePainter extends CustomPainter {
   bool shouldRepaint(_ScanlinePainter oldDelegate) =>
       oldDelegate.color != color;
 }
+
+const _routeCoordinates = <List<Offset>>[
+  [
+    Offset(-.16, .13),
+    Offset(.18, .13),
+    Offset(.27, .25),
+    Offset(.51, .25),
+    Offset(.65, .12),
+    Offset(1.10, .12),
+  ],
+  [
+    Offset(.08, 1.12),
+    Offset(.08, .77),
+    Offset(.21, .64),
+    Offset(.42, .64),
+    Offset(.56, .47),
+    Offset(.92, .47),
+  ],
+  [
+    Offset(1.14, .20),
+    Offset(.82, .20),
+    Offset(.72, .33),
+    Offset(.72, .52),
+    Offset(.46, .52),
+    Offset(-.10, .52),
+  ],
+  [
+    Offset(-.12, .85),
+    Offset(.19, .85),
+    Offset(.33, .71),
+    Offset(.33, .46),
+    Offset(.51, .34),
+    Offset(.88, .34),
+  ],
+  [
+    Offset(.94, 1.12),
+    Offset(.94, .74),
+    Offset(.75, .63),
+    Offset(.55, .63),
+    Offset(.43, .79),
+    Offset(.18, .79),
+  ],
+  [
+    Offset(-.10, .34),
+    Offset(.16, .34),
+    Offset(.29, .47),
+    Offset(.29, .68),
+    Offset(.48, .80),
+    Offset(.76, 1.12),
+  ],
+  [
+    Offset(.76, -.10),
+    Offset(.76, .18),
+    Offset(.58, .30),
+    Offset(.41, .30),
+    Offset(.28, .47),
+    Offset(.28, .76),
+  ],
+  [
+    Offset(1.12, .92),
+    Offset(.81, .92),
+    Offset(.68, .78),
+    Offset(.50, .78),
+    Offset(.38, .94),
+    Offset(.02, .94),
+  ],
+];

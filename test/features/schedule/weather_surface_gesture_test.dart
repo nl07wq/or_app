@@ -151,10 +151,11 @@ void main() {
   testWidgets('ambient geometry stays visible and static with reduced motion', (
     tester,
   ) async {
-    expect(holographicCircuitRouteCount, 5);
-    expect(holographicCircuitSignalDuration, const Duration(seconds: 16));
-    expect(holographicCircuitIdleDuration, const Duration(seconds: 5));
-    expect(holographicAmbientUpdateCadence, const Duration(milliseconds: 120));
+    expect(holographicCircuitRouteCount, 8);
+    expect(holographicCircuitMinimumRouteSegments, 5);
+    expect(holographicCircuitSignalDuration, const Duration(seconds: 9));
+    expect(holographicCircuitIdleDuration, const Duration(seconds: 4));
+    expect(holographicAmbientUpdateCadence, const Duration(milliseconds: 50));
     await tester.pumpWidget(
       const MaterialApp(
         home: MediaQuery(

@@ -367,10 +367,10 @@ class _ReminderFloatingSurface extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            scheme.primary.withValues(alpha: .075),
-            scheme.surfaceContainerHigh.withValues(alpha: .27),
-            scheme.surface.withValues(alpha: .10),
-            scheme.surfaceContainerLow.withValues(alpha: .23),
+            scheme.primary.withValues(alpha: .10),
+            scheme.surfaceContainerHigh.withValues(alpha: .17),
+            scheme.surface.withValues(alpha: .055),
+            scheme.surfaceContainerLow.withValues(alpha: .14),
           ],
         ),
         borderRadius: const BorderRadius.only(
@@ -398,10 +398,10 @@ class _ReminderFloatingSurface extends StatelessWidget {
           end: Alignment.bottomRight,
           stops: const [0, .18, .76, 1],
           colors: [
-            scheme.primary.withValues(alpha: .075),
+            scheme.primary.withValues(alpha: .055),
             Colors.transparent,
             Colors.transparent,
-            Colors.black.withValues(alpha: .07),
+            Colors.black.withValues(alpha: .045),
           ],
         ),
         borderRadius: const BorderRadius.only(
