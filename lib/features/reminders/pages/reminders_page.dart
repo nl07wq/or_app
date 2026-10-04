@@ -16,10 +16,10 @@ typedef _OccurrenceAction = Future<void> Function(ReminderOccurrence value);
 typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
 
 const reminderHudCompletionUsesOuterPolygon = false;
-const reminderCompletionVisibleDiameter = 24.0;
+const reminderCompletionVisibleDiameter = 20.0;
 const reminderCompletionTouchTarget = 48.0;
 const reminderCircuitRailIsStatic = true;
-const reminderCircuitRailWidth = 1.0;
+const reminderCircuitRailWidth = 1.5;
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});

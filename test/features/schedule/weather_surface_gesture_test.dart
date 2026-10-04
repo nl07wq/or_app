@@ -282,6 +282,81 @@ void main() {
     );
   });
 
+  test(
+    'ambient scheduler starts visible traffic without waiting for afterglow',
+    () {
+      final travelSeconds = List<double>.filled(
+        holographicCircuitRouteCount,
+        1,
+      );
+      const initialDelay = .75;
+
+      expect(
+        holographicCircuitPhasesAt(
+          routeTravelSeconds: travelSeconds,
+          elapsedSeconds: initialDelay - .01,
+        ),
+        isEmpty,
+      );
+      expect(
+        holographicCircuitPhasesAt(
+          routeTravelSeconds: travelSeconds,
+          elapsedSeconds: initialDelay + .05,
+        ).any((phase) => phase.routeIndex == 0 && phase.isPropagating),
+        isTrue,
+      );
+
+      // Scenario 0's final traveler completes at 1.0s. Scenario 1 starts
+      // after only the 1.75s visible idle while scenario 0 still afterglows.
+      final secondScenarioStart = initialDelay + 1 + 1.75;
+      final beforeSecond = holographicCircuitPhasesAt(
+        routeTravelSeconds: travelSeconds,
+        elapsedSeconds: secondScenarioStart - .01,
+      );
+      expect(
+        beforeSecond.any(
+          (phase) => phase.routeIndex == 1 && phase.isPropagating,
+        ),
+        isFalse,
+      );
+      final secondScenario = holographicCircuitPhasesAt(
+        routeTravelSeconds: travelSeconds,
+        elapsedSeconds: secondScenarioStart + .05,
+      );
+      expect(
+        secondScenario.any(
+          (phase) => phase.routeIndex == 1 && phase.isPropagating,
+        ),
+        isTrue,
+      );
+      expect(
+        secondScenario.any(
+          (phase) => phase.routeIndex == 0 && !phase.isPropagating,
+        ),
+        isTrue,
+      );
+
+      // The third scenario has a delayed second traveler (route 6). Its
+      // following idle starts at that last traveler's completion, not the first.
+      const thirdScenarioStart = initialDelay + 2.75 + 2.75;
+      const fourthScenarioStart = thirdScenarioStart + 1.8 + 1.75;
+      expect(
+        holographicCircuitPhasesAt(
+          routeTravelSeconds: travelSeconds,
+          elapsedSeconds: fourthScenarioStart - .01,
+        ).any((phase) => phase.routeIndex == 3 && phase.isPropagating),
+        isFalse,
+      );
+      expect(
+        holographicCircuitPhasesAt(
+          routeTravelSeconds: travelSeconds,
+          elapsedSeconds: fourthScenarioStart + .05,
+        ).any((phase) => phase.routeIndex == 3 && phase.isPropagating),
+        isTrue,
+      );
+    },
+  );
+
   testWidgets('timeline keeps entries in its open HUD structure', (
     tester,
   ) async {

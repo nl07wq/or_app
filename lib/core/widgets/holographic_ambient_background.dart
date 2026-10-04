@@ -16,6 +16,103 @@ const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
 const holographicCircuitMaximumConcurrentSignals = 2;
 
 @immutable
+class HolographicCircuitScheduledPhase {
+  const HolographicCircuitScheduledPhase({
+    required this.routeIndex,
+    required this.elapsedSeconds,
+    required this.travelSeconds,
+    required this.nodeSeconds,
+  });
+
+  final int routeIndex;
+  final double elapsedSeconds;
+  final double travelSeconds;
+  final double nodeSeconds;
+
+  bool get isPropagating => elapsedSeconds < travelSeconds;
+}
+
+/// Returns every still-visible circuit phase for [elapsedSeconds].
+///
+/// Scenario cadence intentionally uses only traveling-signal completion. The
+/// route afterglow remains independently visible without delaying the next
+/// scenario's signal.
+@visibleForTesting
+List<HolographicCircuitScheduledPhase> holographicCircuitPhasesAt({
+  required List<double> routeTravelSeconds,
+  required double elapsedSeconds,
+}) {
+  if (elapsedSeconds < holographicCircuitInitialDelay.inMilliseconds / 1000) {
+    return const [];
+  }
+  assert(routeTravelSeconds.length == holographicCircuitRoutes.length);
+
+  final initialDelaySeconds =
+      holographicCircuitInitialDelay.inMilliseconds / 1000;
+  final idleSeconds = holographicCircuitIdleDuration.inMilliseconds / 1000;
+  final nodeSeconds =
+      holographicCircuitTerminalNodeDuration.inMilliseconds / 1000;
+  final afterglowSeconds =
+      holographicCircuitAfterglowDuration.inMilliseconds / 1000;
+  final scenarioStarts = <double>[];
+  var scenarioStart = 0.0;
+  for (final scenario in holographicCircuitTrafficScenarios) {
+    scenarioStarts.add(scenarioStart);
+    var lastTravelerCompletion = 0.0;
+    for (final entry in scenario.entries) {
+      lastTravelerCompletion = math.max(
+        lastTravelerCompletion,
+        entry.startDelay + routeTravelSeconds[entry.routeIndex],
+      );
+    }
+    scenarioStart += lastTravelerCompletion + idleSeconds;
+  }
+
+  final activeElapsed = elapsedSeconds - initialDelaySeconds;
+  final cycleSeconds = scenarioStart;
+  final earliestVisibleStart = activeElapsed - afterglowSeconds - nodeSeconds;
+  final firstCycle = math.max(0, (earliestVisibleStart / cycleSeconds).floor());
+  final lastCycle = (activeElapsed / cycleSeconds).floor();
+  final phases = <HolographicCircuitScheduledPhase>[];
+  for (var cycle = firstCycle; cycle <= lastCycle; cycle++) {
+    final cycleOffset = cycle * cycleSeconds;
+    for (
+      var scenarioIndex = 0;
+      scenarioIndex < holographicCircuitTrafficScenarios.length;
+      scenarioIndex++
+    ) {
+      final scenario = holographicCircuitTrafficScenarios[scenarioIndex];
+      for (final entry in scenario.entries) {
+        final travelSeconds = routeTravelSeconds[entry.routeIndex];
+        final routeNodeSeconds =
+            holographicCircuitRoutes[entry.routeIndex].terminalNode
+            ? nodeSeconds
+            : 0.0;
+        final phaseElapsed =
+            activeElapsed -
+            cycleOffset -
+            scenarioStarts[scenarioIndex] -
+            entry.startDelay;
+        if (phaseElapsed < 0 ||
+            phaseElapsed >
+                travelSeconds + routeNodeSeconds + afterglowSeconds) {
+          continue;
+        }
+        phases.add(
+          HolographicCircuitScheduledPhase(
+            routeIndex: entry.routeIndex,
+            elapsedSeconds: phaseElapsed,
+            travelSeconds: travelSeconds,
+            nodeSeconds: routeNodeSeconds,
+          ),
+        );
+      }
+    }
+  }
+  return phases;
+}
+
+@immutable
 class HolographicCircuitRoute {
   const HolographicCircuitRoute({
     required this.points,
@@ -192,65 +289,26 @@ class _AmbientGeometryPainter extends CustomPainter {
   List<_CircuitPhase> _phasesFor(
     List<_ResolvedCircuitRoute> routes,
     double elapsed,
-  ) {
-    final initialDelaySeconds =
-        holographicCircuitInitialDelay.inMilliseconds / 1000;
-    if (elapsed < initialDelaySeconds) return const [];
-    elapsed -= initialDelaySeconds;
-    final idleSeconds = holographicCircuitIdleDuration.inMilliseconds / 1000;
-    final nodeSeconds =
-        holographicCircuitTerminalNodeDuration.inMilliseconds / 1000;
-    final afterglowSeconds =
-        holographicCircuitAfterglowDuration.inMilliseconds / 1000;
-    double scenarioWindow(HolographicCircuitTrafficScenario scenario) {
-      var activityEnd = 0.0;
-      for (final entry in scenario.entries) {
-        final route = routes[entry.routeIndex];
-        final travel =
-            route.metric.length / holographicCircuitSignalPixelsPerSecond;
-        final node = route.definition.terminalNode ? nodeSeconds : 0.0;
-        activityEnd = math.max(
-          activityEnd,
-          entry.startDelay + travel + node + afterglowSeconds,
-        );
-      }
-      return activityEnd + idleSeconds;
-    }
-
-    final cycleSeconds = holographicCircuitTrafficScenarios.fold<double>(
-      0,
-      (total, scenario) => total + scenarioWindow(scenario),
-    );
-    var scenarioElapsed = elapsed % cycleSeconds;
-    for (final scenario in holographicCircuitTrafficScenarios) {
-      final window = scenarioWindow(scenario);
-      if (scenarioElapsed >= window) {
-        scenarioElapsed -= window;
-        continue;
-      }
-      final phases = <_CircuitPhase>[];
-      for (final entry in scenario.entries) {
-        final routeElapsed = scenarioElapsed - entry.startDelay;
-        if (routeElapsed < 0) continue;
-        final route = routes[entry.routeIndex];
-        final travel =
-            route.metric.length / holographicCircuitSignalPixelsPerSecond;
-        final node = route.definition.terminalNode ? nodeSeconds : 0.0;
-        if (routeElapsed <= travel + node + afterglowSeconds) {
-          phases.add(
-            _CircuitPhase(
-              route: route,
-              elapsedSeconds: routeElapsed,
-              travelSeconds: travel,
-              nodeSeconds: node,
+  ) =>
+      holographicCircuitPhasesAt(
+            routeTravelSeconds: routes
+                .map(
+                  (route) =>
+                      route.metric.length /
+                      holographicCircuitSignalPixelsPerSecond,
+                )
+                .toList(growable: false),
+            elapsedSeconds: elapsed,
+          )
+          .map(
+            (phase) => _CircuitPhase(
+              route: routes[phase.routeIndex],
+              elapsedSeconds: phase.elapsedSeconds,
+              travelSeconds: phase.travelSeconds,
+              nodeSeconds: phase.nodeSeconds,
             ),
-          );
-        }
-      }
-      return phases;
-    }
-    return const [];
-  }
+          )
+          .toList(growable: false);
 
   void _paintAfterglow(Canvas canvas, _CircuitPhase phase) {
     final metric = phase.route.metric;
@@ -322,11 +380,9 @@ class _AmbientGeometryPainter extends CustomPainter {
       final ring = Paint()
         ..color = color.withValues(alpha: .48 * intensity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      final core = Paint()..color = color.withValues(alpha: .58 * intensity);
-      canvas.drawCircle(position, 4.2, halo);
-      canvas.drawCircle(position, 1.9, ring);
-      canvas.drawCircle(position, .7, core);
+        ..strokeWidth = 1.1;
+      canvas.drawCircle(position, 4.8, halo);
+      canvas.drawCircle(position, 2.35, ring);
     }
     if (!phase.route.definition.terminalNode ||
         phase.elapsedSeconds < phase.travelSeconds) {
@@ -339,11 +395,16 @@ class _AmbientGeometryPainter extends CustomPainter {
         .getTangentForOffset(phase.route.metric.length)
         ?.position;
     if (position == null) return;
-    final paint = Paint()
+    if (phase.isTerminalNode) return;
+    final halo = Paint()
+      ..color = color.withValues(alpha: .16 * intensity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    final ring = Paint()
       ..color = color.withValues(alpha: .42 * intensity)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(position, 2.2, paint);
+      ..strokeWidth = 1.1;
+    canvas.drawCircle(position, 4.8, halo);
+    canvas.drawCircle(position, 2.35, ring);
   }
 
   void _paintTerminalNode(Canvas canvas, _CircuitPhase phase) {
@@ -358,14 +419,13 @@ class _AmbientGeometryPainter extends CustomPainter {
     final halo = Paint()
       ..color = color.withValues(alpha: .32 * intensity)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
-    final glow = Paint()
-      ..color = color.withValues(alpha: .62 * intensity)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-    final core = Paint()..color = color.withValues(alpha: .92 * intensity);
-    final radius = 2.2 + intensity * 1.6;
+    final ring = Paint()
+      ..color = color.withValues(alpha: .88 * intensity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final radius = 2.35 + intensity * .45;
     canvas.drawCircle(position, radius + 5, halo);
-    canvas.drawCircle(position, radius + 1.6, glow);
-    canvas.drawCircle(position, radius, core);
+    canvas.drawCircle(position, radius, ring);
   }
 
   @override
