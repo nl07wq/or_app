@@ -366,10 +366,10 @@ class _ReminderFloatingSurface extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            scheme.primary.withValues(alpha: .055),
-            scheme.surfaceContainerHigh.withValues(alpha: .32),
-            scheme.surface.withValues(alpha: .13),
-            scheme.surfaceContainerLow.withValues(alpha: .26),
+            scheme.primary.withValues(alpha: .075),
+            scheme.surfaceContainerHigh.withValues(alpha: .27),
+            scheme.surface.withValues(alpha: .10),
+            scheme.surfaceContainerLow.withValues(alpha: .23),
           ],
         ),
         borderRadius: const BorderRadius.only(
@@ -380,16 +380,35 @@ class _ReminderFloatingSurface extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .38),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
+            color: scheme.primary.withValues(alpha: .10),
+            blurRadius: 34,
+            offset: const Offset(-5, -4),
           ),
           BoxShadow(
-            color: scheme.primary.withValues(alpha: .07),
-            blurRadius: 24,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: .46),
+            blurRadius: 36,
+            offset: const Offset(5, 16),
           ),
         ],
+      ),
+      foregroundDecoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: const [0, .18, .76, 1],
+          colors: [
+            scheme.primary.withValues(alpha: .075),
+            Colors.transparent,
+            Colors.transparent,
+            Colors.black.withValues(alpha: .07),
+          ],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(5),
+          bottomLeft: Radius.circular(5),
+          bottomRight: Radius.circular(16),
+        ),
       ),
       child: child,
     );

@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+const holographicAmbientDriftPeriod = Duration(seconds: 240);
+const holographicAmbientTravelPeriod = Duration(seconds: 26);
+const holographicAmbientUpdateCadence = Duration(milliseconds: 120);
 
 /// A single, non-interactive background layer for the Calendar and Reminder
 /// display planes. Its sparse geometry is intentionally independent from the
@@ -16,37 +20,36 @@ class HolographicAmbientBackground extends StatefulWidget {
 
 class _HolographicAmbientBackgroundState
     extends State<HolographicAmbientBackground> {
-  static const _period = Duration(seconds: 180);
-  static const _step = Duration(milliseconds: 750);
-
   Timer? _driftTimer;
-  double _phase = .18;
+  final _seconds = ValueNotifier<double>(0);
+  bool _motionEnabled = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _configureDrift(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+    _configureMotion(
+      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false),
+    );
   }
 
-  void _configureDrift(bool staticMode) {
+  void _configureMotion(bool motionEnabled) {
     _driftTimer?.cancel();
     _driftTimer = null;
-    if (staticMode) return;
-    _setPhase();
-    _driftTimer = Timer.periodic(_step, (_) {
-      if (mounted) _setPhase();
+    _motionEnabled = motionEnabled;
+    _setSeconds();
+    if (!motionEnabled) return;
+    _driftTimer = Timer.periodic(holographicAmbientUpdateCadence, (_) {
+      if (mounted) _setSeconds();
     });
   }
 
-  void _setPhase() {
-    final elapsed = DateTime.now().microsecondsSinceEpoch;
-    final period = _period.inMicroseconds;
-    setState(() => _phase = (elapsed % period) / period);
-  }
+  void _setSeconds() => _seconds.value =
+      DateTime.now().microsecondsSinceEpoch / Duration.microsecondsPerSecond;
 
   @override
   void dispose() {
     _driftTimer?.cancel();
+    _seconds.dispose();
     super.dispose();
   }
 
@@ -57,7 +60,8 @@ class _HolographicAmbientBackgroundState
         key: const ValueKey('holographic-ambient-background'),
         painter: _AmbientGeometryPainter(
           color: Theme.of(context).colorScheme.primary,
-          phase: _phase,
+          seconds: _seconds,
+          motionEnabled: _motionEnabled,
         ),
         child: const SizedBox.expand(),
       ),
@@ -66,27 +70,42 @@ class _HolographicAmbientBackgroundState
 }
 
 class _AmbientGeometryPainter extends CustomPainter {
-  const _AmbientGeometryPainter({required this.color, required this.phase});
+  _AmbientGeometryPainter({
+    required this.color,
+    required this.seconds,
+    required this.motionEnabled,
+  }) : super(repaint: seconds);
 
   final Color color;
-  final double phase;
+  final ValueListenable<double> seconds;
+  final bool motionEnabled;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final wave = phase * math.pi * 2;
-    final driftX = math.sin(wave) * size.width * .035;
-    final driftY = math.cos(wave) * size.height * .018;
+    final elapsed = seconds.value;
+    final drift =
+        (elapsed % holographicAmbientDriftPeriod.inSeconds) /
+        holographicAmbientDriftPeriod.inSeconds;
+    final wave = drift * math.pi * 2;
+    final driftX = motionEnabled ? math.sin(wave) * size.width * .035 : 0.0;
+    final driftY = motionEnabled ? math.cos(wave) * size.height * .018 : 0.0;
     canvas.save();
     canvas.translate(driftX, driftY);
 
-    final faint = Paint()
-      ..color = color.withValues(alpha: .045)
+    final halo = Paint()
+      ..color = color.withValues(alpha: .12)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final accent = Paint()
-      ..color = color.withValues(alpha: .075)
+      ..strokeWidth = 8
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    final glow = Paint()
+      ..color = color.withValues(alpha: .24)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15;
+      ..strokeWidth = 3
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+    final core = Paint()
+      ..color = color.withValues(alpha: .56)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.05;
 
     final first = Path()
       ..moveTo(-size.width * .18, size.height * .18)
@@ -108,11 +127,16 @@ class _AmbientGeometryPainter extends CustomPainter {
       ..lineTo(size.width * .50, size.height * .72)
       ..lineTo(size.width * 1.14, size.height * .82);
 
-    canvas.drawPath(first, faint);
-    canvas.drawPath(second, faint);
-    canvas.drawPath(third, faint);
-    canvas.drawPath(fourth, accent);
-    final junction = Paint()..color = color.withValues(alpha: .09);
+    final paths = [first, second, third, fourth];
+    for (final path in paths) {
+      canvas.drawPath(path, halo);
+      canvas.drawPath(path, glow);
+      canvas.drawPath(path, core);
+    }
+    if (motionEnabled) {
+      _paintTravelingLight(canvas, paths, elapsed);
+    }
+    final junction = Paint()..color = color.withValues(alpha: .52);
     canvas.drawCircle(
       Offset(size.width * .42, size.height * .30),
       1.4,
@@ -131,7 +155,39 @@ class _AmbientGeometryPainter extends CustomPainter {
     canvas.restore();
   }
 
+  void _paintTravelingLight(Canvas canvas, List<Path> paths, double elapsed) {
+    final cycle = elapsed / holographicAmbientTravelPeriod.inSeconds;
+    final pathIndex = cycle.floor() % paths.length;
+    final progress =
+        (elapsed % holographicAmbientTravelPeriod.inSeconds) /
+        holographicAmbientTravelPeriod.inSeconds;
+    final metric = paths[pathIndex].computeMetrics().first;
+    final segmentLength = math.min(metric.length * .12, 110.0);
+    final start = progress * metric.length;
+    final end = math.min(metric.length, start + segmentLength);
+    final visibility = math.sin(progress * math.pi);
+    if (end <= start || visibility <= 0) return;
+    final segment = metric.extractPath(start, end);
+    final halo = Paint()
+      ..color = color.withValues(alpha: .34 * visibility)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 11
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
+    final glow = Paint()
+      ..color = color.withValues(alpha: .70 * visibility)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    final core = Paint()
+      ..color = color.withValues(alpha: .96 * visibility)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+    canvas.drawPath(segment, halo);
+    canvas.drawPath(segment, glow);
+    canvas.drawPath(segment, core);
+  }
+
   @override
   bool shouldRepaint(_AmbientGeometryPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.phase != phase;
+      oldDelegate.color != color || oldDelegate.motionEnabled != motionEnabled;
 }

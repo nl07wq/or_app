@@ -147,6 +147,9 @@ void main() {
   testWidgets('ambient geometry stays visible and static with reduced motion', (
     tester,
   ) async {
+    expect(holographicAmbientDriftPeriod, const Duration(seconds: 240));
+    expect(holographicAmbientTravelPeriod, const Duration(seconds: 26));
+    expect(holographicAmbientUpdateCadence, const Duration(milliseconds: 120));
     await tester.pumpWidget(
       const MaterialApp(
         home: MediaQuery(
