@@ -1958,11 +1958,6 @@ class _WeatherDetails extends StatelessWidget {
                                 ? '--'
                                 : '気温 ${forecast.temperature.round()}℃',
                             icon: Icons.thermostat_outlined,
-                            microHud: _MicroHudKind.feelsLike,
-                            instrumentValue: forecast == null
-                                ? null
-                                : forecast.apparentTemperature -
-                                      forecast.temperature,
                             supplementalVisual: _WeatherTemperatureRail(
                               low: _WeatherDetailMetric(
                                 label: '最低気温',
@@ -2598,69 +2593,20 @@ class _WeatherTemperatureRail extends StatelessWidget {
         final lowFraction = scale?.lowFraction ?? 0.0;
         final highFraction = scale?.highFraction ?? 1.0;
         final dayRangeWidth = math.max(0.0, highFraction - lowFraction);
-        const endpointLabelWidth = 68.0;
-        var lowLabelLeft = (width * lowFraction - (endpointLabelWidth / 2))
-            .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
-            .toDouble();
-        var highLabelLeft = (width * highFraction - (endpointLabelWidth / 2))
-            .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
-            .toDouble();
-        if (highLabelLeft < lowLabelLeft + endpointLabelWidth + 4) {
-          lowLabelLeft = 0;
-          highLabelLeft = math
-              .max(endpointLabelWidth + 4, width - endpointLabelWidth)
-              .clamp(0.0, math.max(0.0, width - endpointLabelWidth))
-              .toDouble();
-        }
         final markerLeft = markerFraction == null
             ? 0.0
             : ((width - 8) * markerFraction)
                   .clamp(0.0, math.max(0.0, width - 8))
                   .toDouble();
-        const apparentLabelWidth = 64.0;
-        final apparentLabelLeft = markerFraction == null
-            ? 0.0
-            : ((width - apparentLabelWidth) * markerFraction)
-                  .clamp(0.0, math.max(0.0, width - apparentLabelWidth))
-                  .toDouble();
         return SizedBox(
-          height: apparent == null ? 28 : 50,
+          height: 12,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              if (low != null)
-                Positioned(
-                  left: lowLabelLeft,
-                  top: 0,
-                  width: math.min(endpointLabelWidth, width),
-                  child: Text(
-                    '最低 ${low!.value}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(height: 1),
-                  ),
-                ),
-              if (high != null)
-                Positioned(
-                  left: highLabelLeft,
-                  top: 0,
-                  width: math.min(endpointLabelWidth, width),
-                  child: Text(
-                    '最高 ${high!.value}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(height: 1),
-                  ),
-                ),
               Positioned(
                 left: 0,
                 right: 0,
-                top: 19,
+                top: 4,
                 child: Container(
                   height: 4,
                   decoration: BoxDecoration(
@@ -2671,7 +2617,7 @@ class _WeatherTemperatureRail extends StatelessWidget {
               ),
               Positioned(
                 left: width * lowFraction,
-                top: 18,
+                top: 3,
                 width: width * dayRangeWidth,
                 child: Container(
                   height: 6,
@@ -2684,7 +2630,7 @@ class _WeatherTemperatureRail extends StatelessWidget {
               if (markerFraction != null)
                 Positioned(
                   left: markerLeft,
-                  top: 17,
+                  top: 2,
                   child: Container(
                     width: 8,
                     height: 8,
@@ -2695,21 +2641,6 @@ class _WeatherTemperatureRail extends StatelessWidget {
                         color: Theme.of(context).colorScheme.surface,
                         width: 1.5,
                       ),
-                    ),
-                  ),
-                ),
-              if (markerFraction != null)
-                Positioned(
-                  left: apparentLabelLeft,
-                  top: 32,
-                  width: math.min(apparentLabelWidth, width),
-                  child: Text(
-                    '体感 ${apparent!.value}',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontSize: 10,
-                      height: 1,
                     ),
                   ),
                 ),
