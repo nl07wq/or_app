@@ -51,13 +51,17 @@ void main() {
   test('month grid reserves fixed anchors independently of entry metadata', () {
     expect(calendarMonthGridDateTopAnchor, 6);
     expect(calendarMonthGridMetadataHeight, 16);
-    expect(calendarMonthGridWeekendColorOpacity, .78);
-    expect(calendarMonthGridWeekRowBandOpacity, .035);
+    expect(calendarMonthGridWeekendColorOpacity, .60);
+    expect(calendarMonthGridWeekRowBandOpacity, .025);
     expect(calendarMonthGridUsesVerticalColumnBands, isFalse);
     expect(calendarMonthGridUsesHorizontalWeekSeparators, isFalse);
-    expect(calendarMonthGridWeekRowIsSubtle(0), isTrue);
-    expect(calendarMonthGridWeekRowIsSubtle(1), isFalse);
-    expect(calendarMonthGridWeekRowIsSubtle(2), isTrue);
+    expect(
+      calendarMonthGridWeekRowBandColor(ThemeData.dark().colorScheme),
+      ThemeData.dark().colorScheme.onSurface.withValues(alpha: .025),
+    );
+    for (var row = 0; row < 6; row++) {
+      expect(calendarMonthGridWeekRowIsSubtle(row), row.isEven);
+    }
   });
 
   test('temperature range rail reserves numeric telemetry clearance', () {

@@ -4712,12 +4712,15 @@ class _TimelineEntryState extends State<_TimelineEntry> {
 
 const calendarMonthGridDateTopAnchor = 6.0;
 const calendarMonthGridMetadataHeight = 16.0;
-const calendarMonthGridWeekendColorOpacity = .78;
-const calendarMonthGridWeekRowBandOpacity = .035;
+const calendarMonthGridWeekendColorOpacity = .60;
+const calendarMonthGridWeekRowBandOpacity = .025;
 const calendarMonthGridUsesVerticalColumnBands = false;
 const calendarMonthGridUsesHorizontalWeekSeparators = false;
 
 bool calendarMonthGridWeekRowIsSubtle(int row) => row.isEven;
+
+Color calendarMonthGridWeekRowBandColor(ColorScheme colorScheme) =>
+    colorScheme.onSurface.withValues(alpha: calendarMonthGridWeekRowBandOpacity);
 
 Color? calendarMonthGridWeekdayColor(int column) {
   if (column == 0) {
@@ -4894,8 +4897,8 @@ class _MonthGridState extends State<_MonthGrid> {
                     final weekRowBand = calendarMonthGridWeekRowIsSubtle(
                           index ~/ 7,
                         )
-                        ? Theme.of(context).colorScheme.surface.withValues(
-                            alpha: calendarMonthGridWeekRowBandOpacity,
+                        ? calendarMonthGridWeekRowBandColor(
+                            Theme.of(context).colorScheme,
                           )
                         : Colors.transparent;
                     if (!hasDate) {
