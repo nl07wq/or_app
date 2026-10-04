@@ -5,11 +5,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../operation_date/services/japanese_holiday_reference_service.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
@@ -4520,7 +4522,30 @@ class _TimelineEntryState extends State<_TimelineEntry> {
   }
 }
 
-class _MonthGrid extends StatelessWidget {
+const calendarMonthGridDateTopAnchor = 6.0;
+const calendarMonthGridMetadataHeight = 16.0;
+const calendarMonthGridColumnBandOpacity = .025;
+const calendarMonthGridWeekSeparatorOpacity = .09;
+
+Color? calendarMonthGridWeekdayColor(int column) => switch (column) {
+  DateTime.sunday % 7 => AppColors.danger,
+  DateTime.saturday % 7 => AppColors.primary,
+  _ => null,
+};
+
+Color? calendarMonthGridDateColor({
+  required DateTime date,
+  required JapaneseHolidayMatch holidayMatch,
+}) {
+  if (holidayMatch == JapaneseHolidayMatch.holiday ||
+      date.weekday == DateTime.sunday) {
+    return AppColors.danger;
+  }
+  if (date.weekday == DateTime.saturday) return AppColors.primary;
+  return null;
+}
+
+class _MonthGrid extends StatefulWidget {
   const _MonthGrid({
     required this.month,
     required this.selected,
@@ -4537,15 +4562,44 @@ class _MonthGrid extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onToday;
   final ValueChanged<DateTime> onSelect;
+
+  @override
+  State<_MonthGrid> createState() => _MonthGridState();
+}
+
+class _MonthGridState extends State<_MonthGrid> {
+  late Future<JapaneseHolidayDataStatus> _holidayFuture;
+  final _holidayService = JapaneseHolidayReferenceService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _holidayFuture = _holidayService.load();
+    JapaneseHolidayReferenceService.cacheRevision.addListener(_refreshHolidays);
+  }
+
+  @override
+  void dispose() {
+    JapaneseHolidayReferenceService.cacheRevision.removeListener(
+      _refreshHolidays,
+    );
+    super.dispose();
+  }
+
+  void _refreshHolidays() {
+    if (!mounted) return;
+    setState(() => _holidayFuture = _holidayService.load());
+  }
+
   @override
   Widget build(BuildContext context) {
-    final first = DateTime(month.year, month.month);
-    final days = DateTime(month.year, month.month + 1, 0).day;
+    final first = DateTime(widget.month.year, widget.month.month);
+    final days = DateTime(widget.month.year, widget.month.month + 1, 0).day;
     final offset = first.weekday % 7;
     return GestureDetector(
       onHorizontalDragEnd: (details) {
-        if ((details.primaryVelocity ?? 0) > 180) onPrevious();
-        if ((details.primaryVelocity ?? 0) < -180) onNext();
+        if ((details.primaryVelocity ?? 0) > 180) widget.onPrevious();
+        if ((details.primaryVelocity ?? 0) < -180) widget.onNext();
       },
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -4562,22 +4616,22 @@ class _MonthGrid extends StatelessWidget {
             Row(
               children: [
                 IconButton(
-                  onPressed: onPrevious,
+                  onPressed: widget.onPrevious,
                   icon: const Icon(Icons.chevron_left),
                 ),
                 Expanded(
                   child: Text(
-                    '${month.year}\n${_monthName(month.month)}',
+                    '${widget.month.year}\n${_monthName(widget.month.month)}',
                     textAlign: TextAlign.center,
                   ),
                 ),
                 IconButton(
-                  onPressed: onNext,
+                  onPressed: widget.onNext,
                   icon: const Icon(Icons.chevron_right),
                 ),
               ],
             ),
-            TextButton(onPressed: onToday, child: const Text('TODAY')),
+            TextButton(onPressed: widget.onToday, child: const Text('TODAY')),
             Align(
               alignment: Alignment.centerRight,
               child: Text(
@@ -4593,87 +4647,187 @@ class _MonthGrid extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                for (final label in [
-                  'SUN',
-                  'MON',
-                  'TUE',
-                  'WED',
-                  'THU',
-                  'FRI',
-                  'SAT',
+                for (final entry in const [
+                  ('SUN', 0),
+                  ('MON', 1),
+                  ('TUE', 2),
+                  ('WED', 3),
+                  ('THU', 4),
+                  ('FRI', 5),
+                  ('SAT', 6),
                 ])
-                  Expanded(child: Text(label, textAlign: TextAlign.center)),
-              ],
-            ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: offset + days,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-              ),
-              itemBuilder: (context, index) {
-                if (index < offset) return const SizedBox();
-                final date = DateTime(
-                  month.year,
-                  month.month,
-                  index - offset + 1,
-                );
-                final schedules = byDate[_key(date)] ?? const [];
-                final scheduleCount = schedules
-                    .where((value) => value.kind == ScheduleEntryKind.schedule)
-                    .length;
-                final reminderCount = schedules
-                    .where((value) => value.kind == ScheduleEntryKind.reminder)
-                    .length;
-                final isToday = _sameDay(date, DateTime.now());
-                final isSelected = _sameDay(date, selected);
-                return InkWell(
-                  onTap: () => onSelect(date),
-                  child: Container(
-                    margin: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      border: isSelected
-                          ? Border.all(
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          : isToday
-                          ? Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.secondary.withValues(alpha: .7),
-                            )
-                          : null,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('${date.day}'),
-                            if (isToday)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 2),
-                                child: Icon(
-                                  Icons.circle,
-                                  size: 4,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.secondary,
-                                ),
-                              ),
-                          ],
-                        ),
-                        if (schedules.isNotEmpty)
-                          Text(
-                            '${scheduleCount == 0 ? '–' : scheduleCount}│${reminderCount == 0 ? '–' : reminderCount}',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                      ],
+                  Expanded(
+                    child: Text(
+                      entry.$1,
+                      key: ValueKey('calendar-weekday-header-${entry.$1}'),
+                      textAlign: TextAlign.center,
+                      style: calendarMonthGridWeekdayColor(entry.$2) == null
+                          ? null
+                          : Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: calendarMonthGridWeekdayColor(entry.$2),
+                              fontWeight: FontWeight.w700,
+                            ),
                     ),
                   ),
+              ],
+            ),
+            FutureBuilder<JapaneseHolidayDataStatus>(
+              future: _holidayFuture,
+              builder: (context, holidaySnapshot) {
+                final holidayData = holidaySnapshot.data?.snapshot;
+                final totalCells = ((offset + days + 6) ~/ 7) * 7;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: totalCells,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                  ),
+                  itemBuilder: (context, index) {
+                    final column = index % 7;
+                    final hasDate = index >= offset && index < offset + days;
+                    final columnBand = column.isEven
+                        ? Theme.of(context).colorScheme.onSurface.withValues(
+                            alpha: calendarMonthGridColumnBandOpacity,
+                          )
+                        : Colors.transparent;
+                    final isLastWeek = index >= totalCells - 7;
+                    if (!hasDate) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: columnBand,
+                          border: isLastWeek
+                              ? null
+                              : Border(
+                                  bottom: BorderSide(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(
+                                          alpha:
+                                              calendarMonthGridWeekSeparatorOpacity,
+                                        ),
+                                  ),
+                                ),
+                        ),
+                      );
+                    }
+                    final date = DateTime(
+                      widget.month.year,
+                      widget.month.month,
+                      index - offset + 1,
+                    );
+                    final schedules = widget.byDate[_key(date)] ?? const [];
+                    final scheduleCount = schedules
+                        .where(
+                          (value) => value.kind == ScheduleEntryKind.schedule,
+                        )
+                        .length;
+                    final reminderCount = schedules
+                        .where(
+                          (value) => value.kind == ScheduleEntryKind.reminder,
+                        )
+                        .length;
+                    final isToday = _sameDay(date, DateTime.now());
+                    final isSelected = _sameDay(date, widget.selected);
+                    final holidayMatch =
+                        holidayData?.classify(_key(date)) ??
+                        _holidayService.classifyCached(_key(date));
+                    final dateColor = calendarMonthGridDateColor(
+                      date: date,
+                      holidayMatch: holidayMatch,
+                    );
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: columnBand,
+                        border: isLastWeek
+                            ? null
+                            : Border(
+                                bottom: BorderSide(
+                                  color: Theme.of(context).colorScheme.onSurface
+                                      .withValues(
+                                        alpha:
+                                            calendarMonthGridWeekSeparatorOpacity,
+                                      ),
+                                ),
+                              ),
+                      ),
+                      child: InkWell(
+                        onTap: () => widget.onSelect(date),
+                        child: Container(
+                          key: ValueKey('calendar-day-${_key(date)}'),
+                          margin: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                            border: isSelected
+                                ? Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  )
+                                : isToday
+                                ? Border.all(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .secondary
+                                        .withValues(alpha: .7),
+                                  )
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: calendarMonthGridDateTopAnchor,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${date.day}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: dateColor,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    if (isToday)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 2),
+                                        child: Icon(
+                                          Icons.circle,
+                                          size: 4,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.secondary,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const Spacer(),
+                              SizedBox(
+                                height: calendarMonthGridMetadataHeight,
+                                child: schedules.isEmpty
+                                    ? null
+                                    : Center(
+                                        child: Text(
+                                          '${scheduleCount == 0 ? '–' : scheduleCount}│${reminderCount == 0 ? '–' : reminderCount}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelSmall,
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(height: 3),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

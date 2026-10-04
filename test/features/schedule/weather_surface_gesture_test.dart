@@ -1,10 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/schedule/weather_forecast_summary.dart';
 import 'package:or_app/features/weather/weather_models.dart';
 
 void main() {
+  test('month grid retains the Operation Date weekend and holiday colors', () {
+    expect(calendarMonthGridWeekdayColor(0), AppColors.danger);
+    expect(calendarMonthGridWeekdayColor(6), AppColors.primary);
+    expect(calendarMonthGridWeekdayColor(1), isNull);
+
+    expect(
+      calendarMonthGridDateColor(
+        date: DateTime(2026, 10, 3),
+        holidayMatch: JapaneseHolidayMatch.notHoliday,
+      ),
+      AppColors.primary,
+    );
+    expect(
+      calendarMonthGridDateColor(
+        date: DateTime(2026, 10, 4),
+        holidayMatch: JapaneseHolidayMatch.notHoliday,
+      ),
+      AppColors.danger,
+    );
+    expect(
+      calendarMonthGridDateColor(
+        date: DateTime(2026, 10, 12),
+        holidayMatch: JapaneseHolidayMatch.holiday,
+      ),
+      AppColors.danger,
+    );
+    expect(
+      calendarMonthGridDateColor(
+        date: DateTime(2026, 10, 13),
+        holidayMatch: JapaneseHolidayMatch.notHoliday,
+      ),
+      isNull,
+    );
+  });
+
+  test('month grid reserves fixed anchors independently of entry metadata', () {
+    expect(calendarMonthGridDateTopAnchor, 6);
+    expect(calendarMonthGridMetadataHeight, 16);
+    expect(calendarMonthGridColumnBandOpacity, .025);
+    expect(calendarMonthGridWeekSeparatorOpacity, .09);
+  });
+
   test('temperature range rail reserves numeric telemetry clearance', () {
     expect(weatherTemperatureRailWidth(296), 88);
     expect(weatherTemperatureRailWidth(366), 158);
