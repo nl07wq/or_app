@@ -216,14 +216,9 @@ void main() {
       expect(headerRow.mainAxisAlignment, MainAxisAlignment.start);
       expect(tester.getCenter(find.text('SCHEDULE')).dx, lessThan(cardCenter));
       for (final id in ['overdue', 'morning', 'evening']) {
-        expect(
-          tester
-              .getCenter(
-                find.byKey(ValueKey('dashboard-schedule-entry-hud-$id')),
-              )
-              .dx,
-          closeTo(cardCenter, .1),
-        );
+        final entry = find.byKey(ValueKey('dashboard-schedule-entry-hud-$id'));
+        expect(tester.getCenter(entry).dx, closeTo(cardCenter, .1));
+        expect(tester.widget<Container>(entry).decoration, isNull);
       }
       final hud = tester.widget<Container>(
         find.byKey(const ValueKey('dashboard-schedule-hud')),

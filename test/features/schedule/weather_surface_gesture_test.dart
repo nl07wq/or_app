@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/schedule/models/schedule_record.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/schedule/weather_forecast_summary.dart';
 import 'package:or_app/features/weather/weather_models.dart';
@@ -72,6 +73,9 @@ void main() {
     expect(calendarMonthGridMainAxisExtent(64), 64);
     expect(calendarMonthGridUsesVerticalColumnBands, isFalse);
     expect(calendarMonthGridUsesHorizontalWeekSeparators, isFalse);
+    expect(calendarMonthGridUsesOverallHudSurface, isTrue);
+    expect(calendarMonthGridTelemetryDividerOpacity, .24);
+    expect(calendarTimelineUsesIndividualEntryCards, isFalse);
     expect(
       calendarMonthGridWeekRowBandColor(ThemeData.dark().colorScheme),
       ThemeData.dark().colorScheme.onSurface.withValues(alpha: .020),
@@ -79,6 +83,10 @@ void main() {
     expect(
       calendarMonthGridSelectedFillColor(ThemeData.dark().colorScheme),
       ThemeData.dark().colorScheme.primary.withValues(alpha: .18),
+    );
+    expect(
+      calendarMonthGridTelemetryDividerColor(ThemeData.dark().colorScheme),
+      ThemeData.dark().colorScheme.primary.withValues(alpha: .24),
     );
     for (var row = 0; row < 6; row++) {
       expect(calendarMonthGridWeekRowIsSubtle(row), row.isEven);
@@ -136,6 +144,36 @@ void main() {
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('timeline keeps entries in its open HUD structure', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    await AppRepositoryRegistry.container.schedules.save(
+      ScheduleRecord(
+        id: 'open-timeline-entry',
+        localDate: _dateText(today),
+        type: ScheduleType.work,
+        title: 'Open timeline',
+        startTime: '11:00',
+        endTime: '19:00',
+        createdAt: DateTime.utc(2026, 10, 4),
+        updatedAt: DateTime.utc(2026, 10, 4),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: CalendarPage(initialDate: today)),
+    );
+    await tester.pumpAndSettle();
+
+    final content = find.byKey(
+      const ValueKey('calendar-timeline-content-open-timeline-entry'),
+    );
+    expect(content, findsOneWidget);
+    expect(tester.widget<Container>(content).decoration, isNull);
+    expect(tester.takeException(), isNull);
   });
 
   test('temperature range rail reserves numeric telemetry clearance', () {

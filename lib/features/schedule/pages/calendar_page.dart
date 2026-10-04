@@ -4623,6 +4623,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
   Widget build(BuildContext context) {
     final record = widget.record;
     final timed = record.startTime != null && !record.allDay;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: widget.onTap,
       onLongPressStart: timed
@@ -4660,6 +4661,10 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                 width: 56,
                 child: Text(
                   record.allDay ? 'ALL DAY' : record.startTime ?? 'UNTIMED',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colorScheme.primary.withValues(alpha: .82),
+                    letterSpacing: .4,
+                  ),
                 ),
               ),
               Column(
@@ -4675,37 +4680,28 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                   Container(
                     width: 1,
                     height: 38,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: .5),
+                    color: colorScheme.primary.withValues(alpha: .42),
                   ),
                 ],
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surface.withValues(alpha: .26),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: .20),
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  key: ValueKey('calendar-timeline-content-${record.id}'),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(record.title),
+                      Text(
+                        record.title,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       Text(
                         '${record.type.name.toUpperCase()}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.primary.withValues(alpha: .72),
+                        ),
                       ),
                     ],
                   ),
@@ -4738,6 +4734,9 @@ const calendarMonthGridUsesSelectedOutline = false;
 const calendarMonthGridUsesTodayOutline = false;
 const calendarMonthGridUsesVerticalColumnBands = false;
 const calendarMonthGridUsesHorizontalWeekSeparators = false;
+const calendarMonthGridUsesOverallHudSurface = true;
+const calendarMonthGridTelemetryDividerOpacity = .24;
+const calendarTimelineUsesIndividualEntryCards = false;
 
 bool calendarMonthGridWeekRowIsSubtle(int row) => row.isEven;
 
@@ -4747,6 +4746,11 @@ Color calendarMonthGridWeekRowBandColor(ColorScheme colorScheme) => colorScheme
 
 Color calendarMonthGridSelectedFillColor(ColorScheme colorScheme) =>
     colorScheme.primary.withValues(alpha: calendarMonthGridSelectedFillOpacity);
+
+Color calendarMonthGridTelemetryDividerColor(ColorScheme colorScheme) =>
+    colorScheme.primary.withValues(
+      alpha: calendarMonthGridTelemetryDividerOpacity,
+    );
 
 double calendarMonthGridMainAxisExtent(double cellWidth) =>
     math.max(50, cellWidth);
@@ -4834,19 +4838,22 @@ class _MonthGridState extends State<_MonthGrid> {
     final first = DateTime(widget.month.year, widget.month.month);
     final days = DateTime(widget.month.year, widget.month.month + 1, 0).day;
     final offset = first.weekday % 7;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onHorizontalDragEnd: (details) {
         if ((details.primaryVelocity ?? 0) > 180) widget.onPrevious();
         if ((details.primaryVelocity ?? 0) < -180) widget.onNext();
       },
       child: Container(
+        key: const ValueKey('calendar-month-grid-hud'),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Theme.of(context).colorScheme.surface.withValues(alpha: .12),
-              Colors.transparent,
-            ],
+          color: colorScheme.surface.withValues(alpha: .10),
+          border: Border(
+            top: BorderSide(color: colorScheme.primary.withValues(alpha: .32)),
+            bottom: BorderSide(
+              color: colorScheme.primary.withValues(alpha: .20),
+            ),
           ),
         ),
         child: Column(
@@ -4881,6 +4888,12 @@ class _MonthGridState extends State<_MonthGrid> {
                   ).colorScheme.primary.withValues(alpha: .8),
                 ),
               ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              key: const ValueKey('calendar-month-grid-telemetry-divider'),
+              height: 1,
+              color: calendarMonthGridTelemetryDividerColor(colorScheme),
             ),
             const SizedBox(height: 4),
             Row(
