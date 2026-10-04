@@ -1000,6 +1000,7 @@ class _WeatherForecastRow extends StatelessWidget {
                                     context,
                                   ).textTheme.labelMedium?.copyWith(height: .9),
                                 ),
+                                const SizedBox(height: 2),
                                 Text(
                                   '${date.month}/${date.day}',
                                   textAlign: weatherForecastDateTextAlignment,
@@ -1277,6 +1278,7 @@ const weatherForecastDateTextAlignment = TextAlign.center;
 // block. Its upward offset preserves the compact row while anchoring weekday
 // and date at the row's top edge.
 const weatherForecastDateVerticalOffset = -14.0;
+const weatherForecastDateInternalGap = 2.0;
 const weatherForecastDateFontSize = 14.0;
 const weatherForecastWeatherBlockAlignment = CrossAxisAlignment.center;
 const weatherForecastWeatherTextAlignment = TextAlign.center;
@@ -1449,13 +1451,14 @@ IconData weatherPrecipitationSymbolForType(String? type) => switch (type) {
 
 /// Intensity is a visual restatement of the formal WMO label only. It never
 /// derives a level from probability, precipitation amount, or hourly values.
-int weatherPrecipitationIntensitySegments(String? intensity) => switch (intensity) {
-  '弱' => 1,
-  '中' || '弱〜中' => 2,
-  '強' => 3,
-  '激しい' => 4,
-  _ => 0,
-};
+int weatherPrecipitationIntensitySegments(String? intensity) =>
+    switch (intensity) {
+      '弱' => 1,
+      '中' || '弱〜中' => 2,
+      '強' => 3,
+      '激しい' => 4,
+      _ => 0,
+    };
 
 /// The four-axis telemetry stays on one line at its primary 390px surface and
 /// safely becomes a 2×2 grid only for narrow available content widths.
@@ -1778,6 +1781,24 @@ class _WeatherDetails extends StatelessWidget {
                                 ? null
                                 : forecast.apparentTemperature -
                                       forecast.temperature,
+                            supplementalVisual: _WeatherTemperatureRail(
+                              low: _WeatherDetailMetric(
+                                label: '最低気温',
+                                value: '${day.low.round()}℃',
+                              ),
+                              high: _WeatherDetailMetric(
+                                label: '最高気温',
+                                value: '${day.high.round()}℃',
+                              ),
+                              apparent: forecast == null
+                                  ? null
+                                  : _WeatherDetailMetric(
+                                      label: '体感温度',
+                                      value:
+                                          '${forecast.apparentTemperature.round()}℃',
+                                    ),
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                             onExplain: () => _showWeatherExplanation(
                               context,
                               _WeatherExplanation(
@@ -2238,7 +2259,7 @@ Future<void> _showWeatherExplanation(
                           color: scheme.onSurface.withValues(alpha: .62),
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: weatherForecastDateInternalGap),
                       Text(
                         explanation.body,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -3051,6 +3072,7 @@ class _TelemetryModule extends StatelessWidget {
     required this.onExplain,
     this.microHud,
     this.instrumentValue,
+    this.supplementalVisual,
   });
 
   final String label;
@@ -3060,6 +3082,7 @@ class _TelemetryModule extends StatelessWidget {
   final VoidCallback onExplain;
   final _MicroHudKind? microHud;
   final double? instrumentValue;
+  final Widget? supplementalVisual;
 
   @override
   Widget build(BuildContext context) {
@@ -3134,6 +3157,11 @@ class _TelemetryModule extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+              if (supplementalVisual != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: supplementalVisual,
                 ),
             ],
           ),
