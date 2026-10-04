@@ -4524,12 +4524,24 @@ class _TimelineEntryState extends State<_TimelineEntry> {
 
 const calendarMonthGridDateTopAnchor = 6.0;
 const calendarMonthGridMetadataHeight = 16.0;
-const calendarMonthGridColumnBandOpacity = .025;
-const calendarMonthGridWeekSeparatorOpacity = .09;
+const calendarMonthGridWeekendColorOpacity = .78;
+const calendarMonthGridWeekRowBandOpacity = .035;
+const calendarMonthGridUsesVerticalColumnBands = false;
+const calendarMonthGridUsesHorizontalWeekSeparators = false;
+
+bool calendarMonthGridWeekRowIsSubtle(int row) => row.isEven;
 
 Color? calendarMonthGridWeekdayColor(int column) {
-  if (column == 0) return AppColors.danger;
-  if (column == 6) return AppColors.primary;
+  if (column == 0) {
+    return AppColors.danger.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
+  }
+  if (column == 6) {
+    return AppColors.primary.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
+  }
   return null;
 }
 
@@ -4539,9 +4551,15 @@ Color? calendarMonthGridDateColor({
 }) {
   if (holidayMatch == JapaneseHolidayMatch.holiday ||
       date.weekday == DateTime.sunday) {
-    return AppColors.danger;
+    return AppColors.danger.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
   }
-  if (date.weekday == DateTime.saturday) return AppColors.primary;
+  if (date.weekday == DateTime.saturday) {
+    return AppColors.primary.withValues(
+      alpha: calendarMonthGridWeekendColorOpacity,
+    );
+  }
   return null;
 }
 
@@ -4684,32 +4702,17 @@ class _MonthGridState extends State<_MonthGrid> {
                     crossAxisCount: 7,
                   ),
                   itemBuilder: (context, index) {
-                    final column = index % 7;
                     final hasDate = index >= offset && index < offset + days;
-                    final columnBand = column.isEven
-                        ? Theme.of(context).colorScheme.onSurface.withValues(
-                            alpha: calendarMonthGridColumnBandOpacity,
+                    final weekRowBand = calendarMonthGridWeekRowIsSubtle(
+                          index ~/ 7,
+                        )
+                        ? Theme.of(context).colorScheme.surface.withValues(
+                            alpha: calendarMonthGridWeekRowBandOpacity,
                           )
                         : Colors.transparent;
-                    final isLastWeek = index >= totalCells - 7;
                     if (!hasDate) {
                       return Container(
-                        decoration: BoxDecoration(
-                          color: columnBand,
-                          border: isLastWeek
-                              ? null
-                              : Border(
-                                  bottom: BorderSide(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(
-                                          alpha:
-                                              calendarMonthGridWeekSeparatorOpacity,
-                                        ),
-                                  ),
-                                ),
-                        ),
+                        color: weekRowBand,
                       );
                     }
                     final date = DateTime(
@@ -4739,18 +4742,7 @@ class _MonthGridState extends State<_MonthGrid> {
                     );
                     return Container(
                       decoration: BoxDecoration(
-                        color: columnBand,
-                        border: isLastWeek
-                            ? null
-                            : Border(
-                                bottom: BorderSide(
-                                  color: Theme.of(context).colorScheme.onSurface
-                                      .withValues(
-                                        alpha:
-                                            calendarMonthGridWeekSeparatorOpacity,
-                                      ),
-                                ),
-                              ),
+                        color: weekRowBand,
                       ),
                       child: InkWell(
                         onTap: () => widget.onSelect(date),

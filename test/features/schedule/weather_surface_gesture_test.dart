@@ -8,8 +8,14 @@ import 'package:or_app/features/weather/weather_models.dart';
 
 void main() {
   test('month grid retains the Operation Date weekend and holiday colors', () {
-    expect(calendarMonthGridWeekdayColor(0), AppColors.danger);
-    expect(calendarMonthGridWeekdayColor(6), AppColors.primary);
+    expect(
+      calendarMonthGridWeekdayColor(0),
+      AppColors.danger.withValues(alpha: calendarMonthGridWeekendColorOpacity),
+    );
+    expect(
+      calendarMonthGridWeekdayColor(6),
+      AppColors.primary.withValues(alpha: calendarMonthGridWeekendColorOpacity),
+    );
     expect(calendarMonthGridWeekdayColor(1), isNull);
 
     expect(
@@ -17,21 +23,21 @@ void main() {
         date: DateTime(2026, 10, 3),
         holidayMatch: JapaneseHolidayMatch.notHoliday,
       ),
-      AppColors.primary,
+      AppColors.primary.withValues(alpha: calendarMonthGridWeekendColorOpacity),
     );
     expect(
       calendarMonthGridDateColor(
         date: DateTime(2026, 10, 4),
         holidayMatch: JapaneseHolidayMatch.notHoliday,
       ),
-      AppColors.danger,
+      AppColors.danger.withValues(alpha: calendarMonthGridWeekendColorOpacity),
     );
     expect(
       calendarMonthGridDateColor(
         date: DateTime(2026, 10, 12),
         holidayMatch: JapaneseHolidayMatch.holiday,
       ),
-      AppColors.danger,
+      AppColors.danger.withValues(alpha: calendarMonthGridWeekendColorOpacity),
     );
     expect(
       calendarMonthGridDateColor(
@@ -45,8 +51,13 @@ void main() {
   test('month grid reserves fixed anchors independently of entry metadata', () {
     expect(calendarMonthGridDateTopAnchor, 6);
     expect(calendarMonthGridMetadataHeight, 16);
-    expect(calendarMonthGridColumnBandOpacity, .025);
-    expect(calendarMonthGridWeekSeparatorOpacity, .09);
+    expect(calendarMonthGridWeekendColorOpacity, .78);
+    expect(calendarMonthGridWeekRowBandOpacity, .035);
+    expect(calendarMonthGridUsesVerticalColumnBands, isFalse);
+    expect(calendarMonthGridUsesHorizontalWeekSeparators, isFalse);
+    expect(calendarMonthGridWeekRowIsSubtle(0), isTrue);
+    expect(calendarMonthGridWeekRowIsSubtle(1), isFalse);
+    expect(calendarMonthGridWeekRowIsSubtle(2), isTrue);
   });
 
   test('temperature range rail reserves numeric telemetry clearance', () {
