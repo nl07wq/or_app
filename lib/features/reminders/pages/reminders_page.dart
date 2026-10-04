@@ -14,6 +14,8 @@ enum _DeleteChoice { single, once, future }
 typedef _OccurrenceAction = Future<void> Function(ReminderOccurrence value);
 typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
 
+const reminderHudCompletionUsesOuterPolygon = false;
+
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
 
@@ -289,45 +291,100 @@ class _RemindersPageState extends State<RemindersPage>
     floatingActionButton: _HudAddControl(onPressed: _create),
     body: Column(
       children: [
-        _ReminderHudTabs(controller: _tabs),
         Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : TabBarView(
-                  controller: _tabs,
-                  children: [
-                    _OccurrenceList(
-                      values: _today,
-                      empty: '今日のREMINDERはありません',
-                      onToggle: (value) => _toggle(value, retentionTab: 0),
-                      onEdit: _edit,
-                      onDelete: _deleteOccurrence,
-                    ),
-                    _OccurrenceList(
-                      values: _all,
-                      empty: '今後のREMINDERはありません',
-                      onToggle: (value) => _toggle(value, retentionTab: 1),
-                      onEdit: _edit,
-                      onDelete: _deleteOccurrence,
-                    ),
-                    _DefinitionList(
-                      values: _recurring,
-                      onEdit: _edit,
-                      onDelete: _deleteDefinitionFuture,
-                    ),
-                    _OccurrenceList(
-                      values: _completed,
-                      empty: '完了済みREMINDERはありません',
-                      onToggle: _toggle,
-                      onEdit: _edit,
-                      onDelete: _deleteOccurrence,
-                    ),
-                  ],
+          child: _ReminderFloatingSurface(
+            child: Column(
+              children: [
+                _ReminderHudTabs(controller: _tabs),
+                Expanded(
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : TabBarView(
+                          controller: _tabs,
+                          children: [
+                            _OccurrenceList(
+                              values: _today,
+                              empty: '今日のREMINDERはありません',
+                              onToggle: (value) =>
+                                  _toggle(value, retentionTab: 0),
+                              onEdit: _edit,
+                              onDelete: _deleteOccurrence,
+                            ),
+                            _OccurrenceList(
+                              values: _all,
+                              empty: '今後のREMINDERはありません',
+                              onToggle: (value) =>
+                                  _toggle(value, retentionTab: 1),
+                              onEdit: _edit,
+                              onDelete: _deleteOccurrence,
+                            ),
+                            _DefinitionList(
+                              values: _recurring,
+                              onEdit: _edit,
+                              onDelete: _deleteDefinitionFuture,
+                            ),
+                            _OccurrenceList(
+                              values: _completed,
+                              empty: '完了済みREMINDERはありません',
+                              onToggle: _toggle,
+                              onEdit: _edit,
+                              onDelete: _deleteOccurrence,
+                            ),
+                          ],
+                        ),
                 ),
+              ],
+            ),
+          ),
         ),
       ],
     ),
   );
+}
+
+class _ReminderFloatingSurface extends StatelessWidget {
+  const _ReminderFloatingSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('reminder-floating-list-surface'),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.surfaceContainerHigh.withValues(alpha: .42),
+            scheme.surface.withValues(alpha: .20),
+            scheme.surfaceContainerLow.withValues(alpha: .34),
+          ],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(5),
+          bottomLeft: Radius.circular(5),
+          bottomRight: Radius.circular(16),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .30),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: scheme.primary.withValues(alpha: .055),
+            blurRadius: 15,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }
 
 class _ReminderHudTabs extends StatelessWidget {
@@ -337,17 +394,7 @@ class _ReminderHudTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('reminder-hud-tabs'),
-    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-    decoration: BoxDecoration(
-      border: Border(
-        top: BorderSide(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: .42),
-        ),
-        bottom: BorderSide(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: .28),
-        ),
-      ),
-    ),
+    margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
     child: TabBar(
       controller: controller,
       isScrollable: false,
@@ -393,7 +440,7 @@ class _OccurrenceList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView.separated(
     key: const ValueKey('reminder-occurrence-hud-list'),
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
+    padding: const EdgeInsets.fromLTRB(12, 14, 12, 96),
     itemCount: values.isEmpty ? 1 : values.length,
     itemBuilder: (context, index) {
       if (values.isEmpty) {
@@ -513,26 +560,35 @@ class _HudCompletionControl extends StatelessWidget {
       child: SizedBox(
         width: 48,
         height: 48,
-        child: Material(
-          color: Colors.transparent,
-          shape: BeveledRectangleBorder(
-            borderRadius: const BorderRadius.all(Radius.circular(7)),
-            side: BorderSide(
-              color: accent.withValues(alpha: completed ? .88 : .42),
-            ),
-          ),
-          child: InkWell(
-            onTap: onPressed,
-            customBorder: const BeveledRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(7)),
-            ),
-            child: Center(
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Center(
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: completed ? accent.withValues(alpha: .16) : null,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: accent.withValues(alpha: completed ? .88 : .54),
+                  width: completed ? 1.5 : 1,
+                ),
+                boxShadow: completed
+                    ? [
+                        BoxShadow(
+                          color: accent.withValues(alpha: .16),
+                          blurRadius: 7,
+                        ),
+                      ]
+                    : null,
+              ),
               child: Icon(
                 completed ? Icons.check : Icons.circle_outlined,
-                size: completed ? 22 : 18,
+                size: completed ? 18 : 12,
                 color: completed
                     ? accent
-                    : colorScheme.onSurface.withValues(alpha: .72),
+                    : colorScheme.onSurface.withValues(alpha: .64),
               ),
             ),
           ),
@@ -592,7 +648,7 @@ class _DefinitionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView.separated(
     key: const ValueKey('reminder-definition-hud-list'),
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
+    padding: const EdgeInsets.fromLTRB(12, 14, 12, 96),
     itemCount: values.isEmpty ? 1 : values.length,
     itemBuilder: (context, index) {
       if (values.isEmpty) {

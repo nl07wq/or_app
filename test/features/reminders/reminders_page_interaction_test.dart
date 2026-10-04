@@ -144,8 +144,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('reminder-hud-tabs')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('reminder-floating-list-surface')),
+        findsOneWidget,
+      );
       expect(find.byType(ListTile), findsNothing);
       expect(find.text('TASK CONTROL // OCCURRENCE STATUS'), findsNothing);
+      expect(reminderHudCompletionUsesOuterPolygon, isFalse);
       expect(
         find.byKey(const ValueKey('reminder-add-control')),
         findsOneWidget,

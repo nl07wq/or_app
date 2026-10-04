@@ -338,57 +338,75 @@ class _CalendarPageState extends State<CalendarPage> {
                         },
                       ),
                       AppSpacing.gapLG,
-                      SectionHeader(
-                        icon: Icons.timeline,
-                        title: DateUtils.isSameDay(_selected, DateTime.now())
-                            ? '今日の予定'
-                            : '選択日の予定',
-                      ),
-                      Text(
-                        '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      AppSpacing.gapSM,
-                      if (_selectedSchedules.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Text('予定はありません', textAlign: TextAlign.center),
+                      _CalendarFloatingSurface(
+                        key: const ValueKey(
+                          'calendar-timeline-floating-surface',
                         ),
-                      for (final record in _selectedSchedules)
-                        Dismissible(
-                          key: ValueKey('schedule-entry-${record.id}'),
-                          direction: DismissDirection.endToStart,
-                          background: const _TimelineDeleteBackground(),
-                          confirmDismiss: (_) => _confirmDelete(record),
-                          onDismissed: (_) => _deleteRecord(record),
-                          child: _TimelineEntry(
-                            record: record,
-                            onTap: () {
-                              _collapseWeatherForCalendarAction();
-                              if (_projectedReminders.containsKey(record.id)) {
-                                Navigator.of(
-                                  context,
-                                ).pushNamed(AppRoutes.reminders);
-                                return;
-                              }
-                              _openEditor(record);
-                            },
-                            onReminderToggle:
-                                record.kind == ScheduleEntryKind.reminder
-                                ? () => _toggleReminder(record)
-                                : null,
-                            onMove: (minutes) => _moveTimed(record, minutes),
-                          ),
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SectionHeader(
+                              icon: Icons.timeline,
+                              title:
+                                  DateUtils.isSameDay(_selected, DateTime.now())
+                                  ? '今日の予定'
+                                  : '選択日の予定',
+                            ),
+                            Text(
+                              '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            AppSpacing.gapSM,
+                            if (_selectedSchedules.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: Text(
+                                  '予定はありません',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            for (final record in _selectedSchedules)
+                              Dismissible(
+                                key: ValueKey('schedule-entry-${record.id}'),
+                                direction: DismissDirection.endToStart,
+                                background: const _TimelineDeleteBackground(),
+                                confirmDismiss: (_) => _confirmDelete(record),
+                                onDismissed: (_) => _deleteRecord(record),
+                                child: _TimelineEntry(
+                                  record: record,
+                                  onTap: () {
+                                    _collapseWeatherForCalendarAction();
+                                    if (_projectedReminders.containsKey(
+                                      record.id,
+                                    )) {
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamed(AppRoutes.reminders);
+                                      return;
+                                    }
+                                    _openEditor(record);
+                                  },
+                                  onReminderToggle:
+                                      record.kind == ScheduleEntryKind.reminder
+                                      ? () => _toggleReminder(record)
+                                      : null,
+                                  onMove: (minutes) =>
+                                      _moveTimed(record, minutes),
+                                ),
+                              ),
+                            AppSpacing.gapMD,
+                            OperationButton(
+                              text: '予定を追加',
+                              icon: Icons.add,
+                              onPressed: () {
+                                _collapseWeatherForCalendarAction();
+                                _openEditor();
+                              },
+                              role: OperationActionRole.primary,
+                            ),
+                          ],
                         ),
-                      AppSpacing.gapMD,
-                      OperationButton(
-                        text: '予定を追加',
-                        icon: Icons.add,
-                        onPressed: () {
-                          _collapseWeatherForCalendarAction();
-                          _openEditor();
-                        },
-                        role: OperationActionRole.primary,
                       ),
                     ],
                   ),
@@ -4680,8 +4698,58 @@ const calendarMonthGridUsesTodayOutline = false;
 const calendarMonthGridUsesVerticalColumnBands = false;
 const calendarMonthGridUsesHorizontalWeekSeparators = false;
 const calendarMonthGridUsesOverallHudSurface = true;
+const calendarMonthGridUsesLocalMonthControlFrame = false;
 const calendarMonthGridTelemetryDividerOpacity = .24;
 const calendarTimelineUsesIndividualEntryCards = false;
+
+class _CalendarFloatingSurface extends StatelessWidget {
+  const _CalendarFloatingSurface({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.surfaceContainerHigh.withValues(alpha: .44),
+            scheme.surface.withValues(alpha: .20),
+            scheme.surfaceContainerLow.withValues(alpha: .34),
+          ],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(5),
+          bottomLeft: Radius.circular(5),
+          bottomRight: Radius.circular(16),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .30),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: scheme.primary.withValues(alpha: .055),
+            blurRadius: 15,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
 
 bool calendarMonthGridWeekRowIsSubtle(int row) => row.isEven;
 
@@ -4789,67 +4857,46 @@ class _MonthGridState extends State<_MonthGrid> {
         if ((details.primaryVelocity ?? 0) > 180) widget.onPrevious();
         if ((details.primaryVelocity ?? 0) < -180) widget.onNext();
       },
-      child: Container(
+      child: _CalendarFloatingSurface(
         key: const ValueKey('calendar-month-grid-hud'),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: .16),
-          border: Border(
-            top: BorderSide(color: colorScheme.primary.withValues(alpha: .32)),
-            bottom: BorderSide(
-              color: colorScheme.primary.withValues(alpha: .20),
-            ),
-          ),
-        ),
         child: Column(
           children: [
-            Container(
-              decoration: ShapeDecoration(
-                color: colorScheme.surface.withValues(alpha: .16),
-                shape: BeveledRectangleBorder(
-                  borderRadius: const BorderRadius.all(Radius.circular(6)),
-                  side: BorderSide(
-                    color: colorScheme.primary.withValues(alpha: .30),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: widget.onPrevious,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        '${widget.month.year}',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: colorScheme.onSurface.withValues(
+                                alpha: .68,
+                              ),
+                              letterSpacing: 1.4,
+                            ),
+                      ),
+                      Text(
+                        _monthName(widget.month.month),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.8,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: widget.onPrevious,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          '${widget.month.year}',
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: colorScheme.onSurface.withValues(
-                                  alpha: .68,
-                                ),
-                                letterSpacing: 1.4,
-                              ),
-                        ),
-                        Text(
-                          _monthName(widget.month.month),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.8,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: widget.onNext,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              ),
+                IconButton(
+                  onPressed: widget.onNext,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
             ),
             Align(
               alignment: Alignment.centerLeft,

@@ -75,6 +75,7 @@ void main() {
     expect(calendarMonthGridUsesVerticalColumnBands, isFalse);
     expect(calendarMonthGridUsesHorizontalWeekSeparators, isFalse);
     expect(calendarMonthGridUsesOverallHudSurface, isTrue);
+    expect(calendarMonthGridUsesLocalMonthControlFrame, isFalse);
     expect(calendarMonthGridTelemetryDividerOpacity, .24);
     expect(calendarTimelineUsesIndividualEntryCards, isFalse);
     expect(
@@ -165,6 +166,10 @@ void main() {
     );
     expect(content, findsOneWidget);
     expect(tester.widget<Container>(content).decoration, isNull);
+    expect(
+      find.byKey(const ValueKey('calendar-timeline-floating-surface')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
