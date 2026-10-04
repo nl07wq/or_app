@@ -12,6 +12,9 @@ import '../services/reminder_occurrence_service.dart';
 
 enum _DeleteChoice { single, once, future }
 
+typedef _OccurrenceAction = Future<void> Function(ReminderOccurrence value);
+typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
+
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
 
@@ -66,7 +69,7 @@ class _RemindersPageState extends State<RemindersPage>
       _all = pending;
       _completed = completed;
       _recurring = definitions
-          .where((value) => value.recurrence != ReminderRecurrence.none)
+          .where((value) => _isCurrentRecurringDefinition(value, today))
           .toList();
       _loading = false;
     });
@@ -91,13 +94,28 @@ class _RemindersPageState extends State<RemindersPage>
         content: Text(recurring ? '削除する範囲を選択してください。' : 'このREMINDERを削除しますか？'),
         actions: recurring
             ? [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-                TextButton(onPressed: () => Navigator.pop(context, _DeleteChoice.once), child: const Text('今回のみ削除')),
-                TextButton(onPressed: () => Navigator.pop(context, _DeleteChoice.future), child: const Text('今後すべて削除')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('キャンセル'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, _DeleteChoice.once),
+                  child: const Text('今回のみ削除'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, _DeleteChoice.future),
+                  child: const Text('今後すべて削除'),
+                ),
               ]
             : [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-                TextButton(onPressed: () => Navigator.pop(context, _DeleteChoice.single), child: const Text('削除')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('キャンセル'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, _DeleteChoice.single),
+                  child: const Text('削除'),
+                ),
               ],
       ),
     );
@@ -106,20 +124,19 @@ class _RemindersPageState extends State<RemindersPage>
     if (choice == _DeleteChoice.once) {
       await _occurrences.skip(value, DateTime.now());
     } else if (choice == _DeleteChoice.future) {
-      final boundary = DateTime.parse(value.localDate).subtract(const Duration(days: 1));
+      final boundary = DateTime.parse(
+        value.localDate,
+      ).subtract(const Duration(days: 1));
       final old = value.definition;
-      await repository.saveDefinition(ReminderDefinition(
-        id: old.id, title: old.title, note: old.note, startDate: old.startDate,
-        allDay: old.allDay, time: old.time, recurrence: old.recurrence,
-        recurrenceEnd: _dateKey(boundary), weekdays: old.weekdays,
-        monthDays: old.monthDays, active: old.active, createdAt: old.createdAt,
-        updatedAt: DateTime.now().toUtc(), effectiveFrom: old.effectiveFrom,
-        retiredAt: old.retiredAt,
-      ));
+      await repository.saveDefinition(
+        _withRecurrenceEnd(old, boundary, DateTime.now().toUtc()),
+      );
     } else {
       await repository.deleteDefinition(value.definition.id);
       for (final state in await repository.findStates()) {
-        if (state.definitionId == value.definition.id) await repository.deleteState(state.id);
+        if (state.definitionId == value.definition.id) {
+          await repository.deleteState(state.id);
+        }
       }
     }
     notifySchedulePlanChanged();
@@ -206,10 +223,29 @@ class _RemindersPageState extends State<RemindersPage>
   }
 
   Future<void> _deleteDefinitionFuture(ReminderDefinition definition) async {
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('今後すべて削除'), content: const Text('過去と完了履歴は保持します。'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('削除'))]));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('今後すべて削除'),
+        content: const Text('過去と完了履歴は保持します。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
     if (confirmed != true) return;
-    final end = _dateKey(DateUtils.dateOnly(DateTime.now()).subtract(const Duration(days: 1)));
-    await AppRepositoryRegistry.container.reminders.saveDefinition(ReminderDefinition(id: definition.id, title: definition.title, note: definition.note, startDate: definition.startDate, allDay: definition.allDay, time: definition.time, recurrence: definition.recurrence, recurrenceEnd: end, weekdays: definition.weekdays, monthDays: definition.monthDays, active: definition.active, createdAt: definition.createdAt, updatedAt: DateTime.now().toUtc(), effectiveFrom: definition.effectiveFrom, retiredAt: definition.retiredAt));
+    final now = DateTime.now();
+    final boundary = DateUtils.dateOnly(now).subtract(const Duration(days: 1));
+    await AppRepositoryRegistry.container.reminders.saveDefinition(
+      _withRecurrenceEnd(definition, boundary, now.toUtc()),
+    );
     notifySchedulePlanChanged();
     await _load();
   }
@@ -253,7 +289,11 @@ class _RemindersPageState extends State<RemindersPage>
                 onEdit: _edit,
                 onDelete: _deleteOccurrence,
               ),
-              _DefinitionList(values: _recurring, onEdit: _edit, onDelete: _deleteDefinitionFuture),
+              _DefinitionList(
+                values: _recurring,
+                onEdit: _edit,
+                onDelete: _deleteDefinitionFuture,
+              ),
               _OccurrenceList(
                 values: _completed,
                 empty: '完了済みREMINDERはありません',
@@ -276,9 +316,9 @@ class _OccurrenceList extends StatelessWidget {
   });
   final List<ReminderOccurrence> values;
   final String empty;
-  final ValueChanged<ReminderOccurrence> onToggle;
-  final ValueChanged<ReminderDefinition> onEdit;
-  final ValueChanged<ReminderOccurrence> onDelete;
+  final _OccurrenceAction onToggle;
+  final _DefinitionAction onEdit;
+  final _OccurrenceAction onDelete;
   @override
   Widget build(BuildContext context) => ListView(
     padding: AppSpacing.cardPadding,
@@ -294,7 +334,10 @@ class _OccurrenceList extends StatelessWidget {
                 (value) => Dismissible(
                   key: ValueKey('reminder-${value.id}'),
                   direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) async { onDelete(value); return false; },
+                  confirmDismiss: (_) async {
+                    await onDelete(value);
+                    return false;
+                  },
                   background: Container(
                     alignment: Alignment.centerRight,
                     color: Theme.of(context).colorScheme.error,
@@ -302,20 +345,28 @@ class _OccurrenceList extends StatelessWidget {
                     child: const Icon(Icons.delete_outline),
                   ),
                   child: ListTile(
-                  onLongPress: () => onEdit(value.definition),
-                  leading: Semantics(
-                    label: value.status == ReminderOccurrenceStatus.completed ? '未完了に戻す' : '完了にする',
-                    button: true,
-                    child: IconButton(
-                      onPressed: () => onToggle(value),
-                      icon: Icon(value.status == ReminderOccurrenceStatus.completed ? Icons.check_circle : Icons.radio_button_unchecked),
+                    key: ValueKey('reminder-row-${value.id}'),
+                    onLongPress: () => onEdit(value.definition),
+                    leading: Semantics(
+                      label: value.status == ReminderOccurrenceStatus.completed
+                          ? '未完了に戻す'
+                          : '完了にする',
+                      button: true,
+                      child: IconButton(
+                        key: ValueKey('reminder-toggle-${value.id}'),
+                        onPressed: () => onToggle(value),
+                        icon: Icon(
+                          value.status == ReminderOccurrenceStatus.completed
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                        ),
+                      ),
+                    ),
+                    title: Text(value.definition.title),
+                    subtitle: Text(
+                      '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
                     ),
                   ),
-                  title: Text(value.definition.title),
-                  subtitle: Text(
-                    '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
-                  ),
-                ),
                 ),
               )
               .toList(),
@@ -323,10 +374,14 @@ class _OccurrenceList extends StatelessWidget {
 }
 
 class _DefinitionList extends StatelessWidget {
-  const _DefinitionList({required this.values, required this.onEdit, required this.onDelete});
+  const _DefinitionList({
+    required this.values,
+    required this.onEdit,
+    required this.onDelete,
+  });
   final List<ReminderDefinition> values;
-  final ValueChanged<ReminderDefinition> onEdit;
-  final ValueChanged<ReminderDefinition> onDelete;
+  final _DefinitionAction onEdit;
+  final _DefinitionAction onDelete;
   @override
   Widget build(BuildContext context) => ListView(
     padding: AppSpacing.cardPadding,
@@ -340,17 +395,29 @@ class _DefinitionList extends StatelessWidget {
         : values
               .map(
                 (value) => Dismissible(
-                  key: ValueKey('recurring-${value.id}'), direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) async { onDelete(value); return false; },
-                  background: Container(alignment: Alignment.centerRight, color: Theme.of(context).colorScheme.error, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete_outline)),
-                  child: ListTile(
-                  title: Text(value.title),
-                  subtitle: Text(_recurrenceLabel(value.recurrence)),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => onEdit(value),
+                  key: ValueKey('recurring-${value.id}'),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (_) async {
+                    await onDelete(value);
+                    return false;
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    color: Theme.of(context).colorScheme.error,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete_outline),
                   ),
-                )),
+                  child: ListTile(
+                    key: ValueKey('recurring-row-${value.id}'),
+                    onLongPress: () => onEdit(value),
+                    title: Text(value.title),
+                    subtitle: Text(_recurrenceLabel(value.recurrence)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => onEdit(value),
+                    ),
+                  ),
+                ),
               )
               .toList(),
   );
@@ -411,8 +478,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       setState(() => _error = '終了日は開始日以降にしてください。');
       return;
     }
-    if (_recurrence == ReminderRecurrence.customWeekdays &&
-        weekdays.isEmpty) {
+    if (_recurrence == ReminderRecurrence.customWeekdays && weekdays.isEmpty) {
       setState(() => _error = '曜日を1つ以上選択してください。');
       return;
     }
@@ -439,14 +505,16 @@ class _ReminderEditorState extends State<_ReminderEditor> {
 
   List<int> get _effectiveWeekdays => switch (_recurrence) {
     ReminderRecurrence.weekly || ReminderRecurrence.biweekly =>
-      _weekdays.isEmpty ? [_date.weekday] : _weekdays.toList()..sort(),
+      _weekdays.isEmpty ? [_date.weekday] : _weekdays.toList()
+        ..sort(),
     ReminderRecurrence.customWeekdays => _weekdays.toList()..sort(),
     _ => const [],
   };
 
   List<int> get _effectiveMonthDays => switch (_recurrence) {
     ReminderRecurrence.monthly =>
-      _monthDays.isEmpty ? [_date.day] : _monthDays.toList()..sort(),
+      _monthDays.isEmpty ? [_date.day] : _monthDays.toList()
+        ..sort(),
     ReminderRecurrence.customMonthDays => _monthDays.toList()..sort(),
     _ => const [],
   };
@@ -473,89 +541,102 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-        Text(widget.initial == null ? 'REMINDER' : 'REMINDERを編集'),
-        TextField(
-          controller: _title,
-          decoration: const InputDecoration(labelText: 'タイトル'),
-          onChanged: (_) => setState(() => _error = null),
-        ),
-        TextField(
-          controller: _note,
-          decoration: const InputDecoration(labelText: 'メモ'),
-        ),
-        ListTile(
-          title: Text('日付  ${_date.year}/${_date.month}/${_date.day}'),
-          onTap: () => _pickDate(end: false),
-        ),
-        SwitchListTile(
-          title: const Text('時刻'),
-          value: _timed,
-          onChanged: (value) => setState(() => _timed = value),
-        ),
-        if (_timed)
+          Text(widget.initial == null ? 'REMINDER' : 'REMINDERを編集'),
+          TextField(
+            controller: _title,
+            decoration: const InputDecoration(labelText: 'タイトル'),
+            onChanged: (_) => setState(() => _error = null),
+          ),
+          TextField(
+            controller: _note,
+            decoration: const InputDecoration(labelText: 'メモ'),
+          ),
           ListTile(
-            title: Text('時刻  ${_time.format(context)}'),
-            onTap: () async {
-              final value = await showSharedTimePicker(context, initialTime: _time);
-              if (value != null) setState(() => _time = value);
-            },
+            title: Text('日付  ${_date.year}/${_date.month}/${_date.day}'),
+            onTap: () => _pickDate(end: false),
           ),
-        DropdownButtonFormField<ReminderRecurrence>(
-          initialValue: _recurrence,
-          decoration: const InputDecoration(labelText: '繰り返し'),
-          items: ReminderRecurrence.values
-              .map(
-                (value) =>
-                    DropdownMenuItem(value: value, child: Text(_recurrenceLabel(value))),
-              )
-              .toList(),
-          onChanged: (value) => setState(() {
-            _recurrence = value!;
-            _error = null;
-          }),
-        ),
-        if (_recurrence != ReminderRecurrence.none) ...[
-          const SizedBox(height: 12),
-          Text('繰り返しの設定', style: Theme.of(context).textTheme.titleSmall),
-          _recurrenceSettings(),
           SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('終了日を指定する'),
-            value: _end != null,
-            onChanged: (value) => setState(() => _end = value ? _date : null),
+            title: const Text('時刻'),
+            value: _timed,
+            onChanged: (value) => setState(() => _timed = value),
           ),
-          if (_end != null)
+          if (_timed)
             ListTile(
-              title: Text('繰り返しの終了  ${_end!.year}/${_end!.month}/${_end!.day}'),
-              onTap: () => _pickDate(end: true),
+              title: Text('時刻  ${_time.format(context)}'),
+              onTap: () async {
+                final value = await showSharedTimePicker(
+                  context,
+                  initialTime: _time,
+                );
+                if (value != null) setState(() => _time = value);
+              },
             ),
+          DropdownButtonFormField<ReminderRecurrence>(
+            initialValue: _recurrence,
+            decoration: const InputDecoration(labelText: '繰り返し'),
+            items: ReminderRecurrence.values
+                .map(
+                  (value) => DropdownMenuItem(
+                    value: value,
+                    child: Text(_recurrenceLabel(value)),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => setState(() {
+              _recurrence = value!;
+              _error = null;
+            }),
+          ),
+          if (_recurrence != ReminderRecurrence.none) ...[
+            const SizedBox(height: 12),
+            Text('繰り返しの設定', style: Theme.of(context).textTheme.titleSmall),
+            _recurrenceSettings(),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('終了日を指定する'),
+              value: _end != null,
+              onChanged: (value) => setState(() => _end = value ? _date : null),
+            ),
+            if (_end != null)
+              ListTile(
+                title: Text(
+                  '繰り返しの終了  ${_end!.year}/${_end!.month}/${_end!.day}',
+                ),
+                onTap: () => _pickDate(end: true),
+              ),
+          ],
+          if (_error != null)
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          const SizedBox(height: 12),
+          OperationButton(
+            text: '保存',
+            icon: Icons.check,
+            onPressed: _save,
+            role: OperationActionRole.primary,
+          ),
         ],
-        if (_error != null)
-          Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        const SizedBox(height: 12),
-        OperationButton(
-          text: '保存',
-          icon: Icons.check,
-          onPressed: _save,
-          role: OperationActionRole.primary,
-        ),
-      ],
       ),
     ),
   );
 
   Widget _recurrenceSettings() {
-    final weekdayRule = _recurrence == ReminderRecurrence.weekly ||
+    final weekdayRule =
+        _recurrence == ReminderRecurrence.weekly ||
         _recurrence == ReminderRecurrence.biweekly ||
         _recurrence == ReminderRecurrence.customWeekdays;
-    final monthRule = _recurrence == ReminderRecurrence.monthly ||
+    final monthRule =
+        _recurrence == ReminderRecurrence.monthly ||
         _recurrence == ReminderRecurrence.customMonthDays;
     if (weekdayRule) {
       return Wrap(
         spacing: 6,
         children: List.generate(7, (index) {
           final day = index + 1;
-          final selected = (_weekdays.isEmpty &&
+          final selected =
+              (_weekdays.isEmpty &&
                   _recurrence != ReminderRecurrence.customWeekdays
               ? _date.weekday == day
               : _weekdays.contains(day));
@@ -580,7 +661,8 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         runSpacing: 4,
         children: List.generate(31, (index) {
           final day = index + 1;
-          final selected = (_monthDays.isEmpty &&
+          final selected =
+              (_monthDays.isEmpty &&
                   _recurrence != ReminderRecurrence.customMonthDays
               ? _date.day == day
               : _monthDays.contains(day));
@@ -631,6 +713,46 @@ String _dateKey(DateTime value) =>
 String _timeKey(TimeOfDay value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
+bool _isCurrentRecurringDefinition(
+  ReminderDefinition definition,
+  DateTime today,
+) {
+  if (!definition.active || definition.recurrence == ReminderRecurrence.none) {
+    return false;
+  }
+  final end = DateTime.tryParse(definition.recurrenceEnd ?? '');
+  return end == null || !DateUtils.dateOnly(end).isBefore(today);
+}
+
+ReminderDefinition _withRecurrenceEnd(
+  ReminderDefinition definition,
+  DateTime boundary,
+  DateTime updatedAt,
+) {
+  final existingEnd = DateTime.tryParse(definition.recurrenceEnd ?? '');
+  final requestedEnd = DateUtils.dateOnly(boundary);
+  final effectiveEnd = existingEnd != null && existingEnd.isBefore(requestedEnd)
+      ? existingEnd
+      : requestedEnd;
+  return ReminderDefinition(
+    id: definition.id,
+    title: definition.title,
+    note: definition.note,
+    startDate: definition.startDate,
+    allDay: definition.allDay,
+    time: definition.time,
+    recurrence: definition.recurrence,
+    recurrenceEnd: _dateKey(effectiveEnd),
+    weekdays: definition.weekdays,
+    monthDays: definition.monthDays,
+    active: definition.active,
+    createdAt: definition.createdAt,
+    updatedAt: updatedAt,
+    effectiveFrom: definition.effectiveFrom,
+    retiredAt: definition.retiredAt,
+  );
+}
+
 String _recurrenceLabel(ReminderRecurrence value) => switch (value) {
   ReminderRecurrence.none => 'なし',
   ReminderRecurrence.daily => '毎日',
@@ -644,7 +766,8 @@ String _recurrenceLabel(ReminderRecurrence value) => switch (value) {
   ReminderRecurrence.customMonthDays => '日付指定',
 };
 
-String _weekdayLabel(int day) => const ['月', '火', '水', '木', '金', '土', '日'][day - 1];
+String _weekdayLabel(int day) =>
+    const ['月', '火', '水', '木', '金', '土', '日'][day - 1];
 
 String _recurrenceDescription(ReminderRecurrence recurrence, DateTime date) =>
     switch (recurrence) {

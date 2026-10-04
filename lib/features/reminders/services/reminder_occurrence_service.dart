@@ -108,8 +108,9 @@ class ReminderOccurrenceService {
   bool _isActiveFor(ReminderDefinition definition, String date) {
     final scheduled = _scheduledAt(definition, date);
     final effective = definition.effectiveFrom;
-    if (effective != null && scheduled.isBefore(effective.toLocal()))
+    if (effective != null && scheduled.isBefore(effective.toLocal())) {
       return false;
+    }
     final retired = definition.retiredAt;
     if (retired != null && !scheduled.isBefore(retired.toLocal())) return false;
     return definition.active || retired != null;
