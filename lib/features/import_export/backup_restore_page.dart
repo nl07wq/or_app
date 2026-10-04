@@ -142,7 +142,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         (normal.schemaVersion != 14 &&
             normal.schemaVersion != 15 &&
             normal.schemaVersion != 16 &&
-            normal.schemaVersion != 17)) {
+            normal.schemaVersion != 17 &&
+            normal.schemaVersion != 18)) {
       return;
     }
     setState(() {

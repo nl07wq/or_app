@@ -1,5 +1,10 @@
+import 'package:flutter/material.dart';
+
 import '../../schedule/models/schedule_record.dart';
 import '../../schedule/repository/schedule_repository.dart';
+import '../../reminders/models/reminder_occurrence.dart';
+import '../../reminders/repository/reminder_repository.dart';
+import '../../reminders/services/reminder_occurrence_service.dart';
 
 enum DashboardPlanInformationGroup {
   todaySchedule,
@@ -33,17 +38,36 @@ class DashboardPlanInformation {
 
 /// Read-only Dashboard projection of Calendar's Plan authority.
 class DashboardPlanInformationService {
-  const DashboardPlanInformationService(this._schedules);
+  const DashboardPlanInformationService(this._schedules, {this.reminders});
 
   final ScheduleRepository _schedules;
+  final ReminderRepository? reminders;
 
   Future<DashboardPlanInformation> loadFor(String operationDate) async {
     final entries = <DashboardPlanInformationEntry>[];
     for (final record in await _schedules.findAll()) {
+      if (record.kind == ScheduleEntryKind.reminder && reminders != null) {
+        continue;
+      }
       final group = _groupFor(record, operationDate);
       if (group != null) {
         entries.add(
           DashboardPlanInformationEntry(record: record, group: group),
+        );
+      }
+    }
+    final reminderRepository = reminders;
+    if (reminderRepository != null) {
+      final date = DateTime.parse(operationDate);
+      final occurrences = await ReminderOccurrenceService(
+        reminderRepository,
+      ).inRange(DateTimeRange(start: date, end: date), includeCompleted: false);
+      for (final occurrence in occurrences) {
+        entries.add(
+          DashboardPlanInformationEntry(
+            record: _projectReminder(occurrence),
+            group: DashboardPlanInformationGroup.todayReminder,
+          ),
         );
       }
     }
@@ -104,3 +128,18 @@ class DashboardPlanInformationService {
 
   int _allDayRank(ScheduleRecord record) => record.allDay ? 0 : 1;
 }
+
+ScheduleRecord _projectReminder(ReminderOccurrence occurrence) =>
+    ScheduleRecord(
+      id: occurrence.id,
+      localDate: occurrence.localDate,
+      type: ScheduleType.other,
+      title: occurrence.definition.title,
+      kind: ScheduleEntryKind.reminder,
+      allDay: occurrence.definition.allDay,
+      startTime: occurrence.definition.time,
+      memo: occurrence.definition.note,
+      completed: occurrence.status == ReminderOccurrenceStatus.completed,
+      createdAt: occurrence.definition.createdAt,
+      updatedAt: occurrence.definition.updatedAt,
+    );

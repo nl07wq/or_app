@@ -12,6 +12,9 @@ import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/services/japanese_holiday_reference_service.dart';
+import '../../reminders/models/reminder_occurrence.dart';
+import '../../reminders/services/legacy_reminder_migration_service.dart';
+import '../../reminders/services/reminder_occurrence_service.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
@@ -28,10 +31,28 @@ class CalendarPage extends StatefulWidget {
   State<CalendarPage> createState() => _CalendarPageState();
 }
 
+/// Calendar receives this presentation record from the independent reminder
+/// subsystem. It is deliberately never written through ScheduleRepository.
+ScheduleRecord _projectReminder(ReminderOccurrence occurrence) =>
+    ScheduleRecord(
+      id: occurrence.id,
+      localDate: occurrence.localDate,
+      type: ScheduleType.other,
+      title: occurrence.definition.title,
+      kind: ScheduleEntryKind.reminder,
+      allDay: occurrence.definition.allDay,
+      startTime: occurrence.definition.time,
+      memo: occurrence.definition.note,
+      completed: occurrence.status == ReminderOccurrenceStatus.completed,
+      createdAt: occurrence.definition.createdAt,
+      updatedAt: occurrence.definition.updatedAt,
+    );
+
 class _CalendarPageState extends State<CalendarPage> {
   late DateTime _selected = _dateOnly(widget.initialDate ?? DateTime.now());
   late DateTime _month = DateTime(_selected.year, _selected.month);
   Map<String, List<ScheduleRecord>> _byDate = const {};
+  Map<String, ReminderOccurrence> _projectedReminders = const {};
   bool _loading = true;
   final WeatherService _weatherService = WeatherService();
   WeatherLocationPreferences _weatherPreferences =
@@ -154,19 +175,35 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final values = await AppRepositoryRegistry.container.schedules.findForMonth(
-      _month,
-    );
+    final container = AppRepositoryRegistry.container;
+    await LegacyReminderMigrationService(
+      container.schedules,
+      container.reminders,
+    ).migrate();
+    final values = await container.schedules.findForMonth(_month);
+    final first = DateTime(_month.year, _month.month, 1);
+    final last = DateTime(_month.year, _month.month + 1, 0);
+    final occurrences = await ReminderOccurrenceService(
+      container.reminders,
+    ).inRange(DateTimeRange(start: first, end: last));
+    final projected = <String, ReminderOccurrence>{
+      for (final value in occurrences) value.id: value,
+    };
+    final calendarValues = <ScheduleRecord>[
+      ...values.where((value) => value.kind == ScheduleEntryKind.schedule),
+      ...occurrences.map(_projectReminder),
+    ];
     if (!mounted) return;
     setState(() {
       _byDate = {
-        for (final value in values)
+        for (final value in calendarValues)
           value.localDate: [
-            ...(values.where(
+            ...(calendarValues.where(
               (candidate) => candidate.localDate == value.localDate,
             )),
           ],
       };
+      _projectedReminders = projected;
       _loading = false;
     });
   }
@@ -200,7 +237,17 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('CALENDAR'), centerTitle: true),
+    appBar: AppBar(
+      title: const Text('CALENDAR'),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          tooltip: 'REMINDERS',
+          icon: const Icon(Icons.notifications_outlined),
+          onPressed: () => Navigator.of(context).pushNamed(AppRoutes.reminders),
+        ),
+      ],
+    ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
@@ -310,6 +357,12 @@ class _CalendarPageState extends State<CalendarPage> {
                             record: record,
                             onTap: () {
                               _collapseWeatherForCalendarAction();
+                              if (_projectedReminders.containsKey(record.id)) {
+                                Navigator.of(
+                                  context,
+                                ).pushNamed(AppRoutes.reminders);
+                                return;
+                              }
                               _openEditor(record);
                             },
                             onReminderToggle:
@@ -338,6 +391,20 @@ class _CalendarPageState extends State<CalendarPage> {
   );
 
   Future<void> _toggleReminder(ScheduleRecord record) async {
+    final occurrence = _projectedReminders[record.id];
+    if (occurrence != null) {
+      final service = ReminderOccurrenceService(
+        AppRepositoryRegistry.container.reminders,
+      );
+      if (occurrence.status == ReminderOccurrenceStatus.completed) {
+        await service.restore(occurrence);
+      } else {
+        await service.complete(occurrence, DateTime.now());
+      }
+      notifySchedulePlanChanged();
+      await _load();
+      return;
+    }
     await AppRepositoryRegistry.container.schedules.save(
       ScheduleRecord(
         id: record.id,
@@ -410,6 +477,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _deleteRecord(ScheduleRecord record) async {
+    if (_projectedReminders.containsKey(record.id)) return;
     await AppRepositoryRegistry.container.schedules.delete(record.id);
     notifySchedulePlanChanged();
     await _load();
@@ -4862,11 +4930,9 @@ class _ScheduleEditor extends StatefulWidget {
 }
 
 class _ScheduleEditorState extends State<_ScheduleEditor> {
-  late ScheduleEntryKind _kind =
-      widget.record?.kind ?? ScheduleEntryKind.schedule;
+  final ScheduleEntryKind _kind = ScheduleEntryKind.schedule;
   late ScheduleType _type = widget.record?.type ?? ScheduleType.personal;
   late bool _allDay = widget.record?.allDay ?? false;
-  late bool _completed = widget.record?.completed ?? false;
   late DateTime _date =
       DateTime.tryParse(widget.record?.localDate ?? '') ?? widget.initialDate;
   late final _title = TextEditingController(text: widget.record?.title ?? '');
@@ -4904,21 +4970,6 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SegmentedButton<ScheduleEntryKind>(
-              segments: const [
-                ButtonSegment(
-                  value: ScheduleEntryKind.schedule,
-                  label: Text('SCHEDULE'),
-                ),
-                ButtonSegment(
-                  value: ScheduleEntryKind.reminder,
-                  label: Text('REMINDER'),
-                ),
-              ],
-              selected: {_kind},
-              onSelectionChanged: (value) =>
-                  setState(() => _kind = value.single),
-            ),
             DropdownButtonFormField<ScheduleType>(
               initialValue: _type,
               items: ScheduleType.values
@@ -4944,34 +4995,18 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
               },
               child: Text('DATE ${_key(_date)}'),
             ),
-            if (_kind == ScheduleEntryKind.schedule)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('ALL DAY'),
-                value: _allDay,
-                onChanged: (value) => setState(() => _allDay = value),
-              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('ALL DAY'),
+              value: _allDay,
+              onChanged: (value) => setState(() => _allDay = value),
+            ),
             if (!_allDay)
-              _TimeControl(
-                label: _kind == ScheduleEntryKind.reminder
-                    ? 'TIME · OPTIONAL'
-                    : 'START',
-                controller: _start,
-              ),
-            if (_kind == ScheduleEntryKind.schedule && !_allDay)
+              _TimeControl(label: 'START', controller: _start),
+            if (!_allDay)
               _TimeControl(label: 'END', controller: _end),
-            if (_kind == ScheduleEntryKind.schedule &&
-                _type == ScheduleType.work &&
-                !_allDay)
+            if (_type == ScheduleType.work && !_allDay)
               _DurationControl(label: 'BREAK', controller: _break),
-            if (_kind == ScheduleEntryKind.reminder)
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('COMPLETED'),
-                value: _completed,
-                onChanged: (value) =>
-                    setState(() => _completed = value ?? false),
-              ),
             OperationTextField(controller: _memo, label: 'MEMO', maxLines: 3),
             AppSpacing.gapLG,
             OperationButton(
@@ -4998,7 +5033,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         type: _type,
         title: _title.text,
         kind: _kind,
-        allDay: _kind == ScheduleEntryKind.schedule && _allDay,
+        allDay: _allDay,
         startTime: _allDay || _start.text.trim().isEmpty
             ? null
             : _start.text.trim(),
@@ -5016,7 +5051,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
             ? _break.text.trim()
             : null,
         memo: _memo.text.trim().isEmpty ? null : _memo.text.trim(),
-        completed: _kind == ScheduleEntryKind.reminder && _completed,
+        completed: false,
         createdAt: widget.record?.createdAt ?? DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
       ),

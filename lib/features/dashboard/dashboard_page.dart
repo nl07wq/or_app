@@ -583,6 +583,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final operationDate = await _operationDateFuture;
     return DashboardPlanInformationService(
       AppRepositoryRegistry.container.schedules,
+      reminders: AppRepositoryRegistry.container.reminders,
     ).loadFor(operationDate.value);
   }
 

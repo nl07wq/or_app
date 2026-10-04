@@ -48,6 +48,8 @@ class AppRoutes {
 
   static const weatherSettings = '/weather-settings';
 
+  static const reminders = '/reminders';
+
   static const about = '/about';
 
   static const system = '/system';

@@ -37,6 +37,7 @@ import 'features/system/pages/system_monitoring_page.dart';
 import 'features/system/pages/startup_diagnostic_page.dart';
 import 'features/system/pages/body_map_svg_preview_page.dart';
 import 'features/weather/weather_settings_page.dart';
+import 'features/reminders/pages/reminders_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -167,6 +168,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.orloSync: (_) => OrloSyncPage(),
         AppRoutes.profile: (_) => const ProfilePage(),
         AppRoutes.weatherSettings: (_) => const WeatherSettingsPage(),
+        AppRoutes.reminders: (_) => const RemindersPage(),
         AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
         AppRoutes.animationsSandbox: (_) => const AnimationsSandboxPage(),
