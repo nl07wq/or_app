@@ -154,12 +154,9 @@ void main() {
     expect(holographicCircuitRouteCount, 8);
     expect(holographicCircuitMinimumRouteSegments, 8);
     expect(holographicCircuitMaximumRouteSegments, 14);
-    expect(holographicCircuitSignalPixelsPerSecond, 112);
+    expect(holographicCircuitSignalPixelsPerSecond, 190);
     expect(holographicCircuitIdleDuration, const Duration(seconds: 4));
-    expect(
-      holographicCircuitAfterglowDuration,
-      const Duration(milliseconds: 1600),
-    );
+    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 5));
     expect(
       holographicCircuitTerminalNodeDuration,
       const Duration(milliseconds: 420),
@@ -177,6 +174,44 @@ void main() {
     expect(
       holographicCircuitRoutes.where((route) => route.terminalNode),
       hasLength(3),
+    );
+    expect(
+      holographicCircuitRoutes.every(
+        (route) => route.nodePointIndexes.every(
+          (index) => index > 0 && index < route.points.length - 1,
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      holographicCircuitRoutes.every(
+        (route) => route.nodePointIndexes.isNotEmpty,
+      ),
+      isTrue,
+    );
+    expect(
+      holographicCircuitTrafficScenarios,
+      hasLength(holographicCircuitRouteCount),
+    );
+    expect(
+      holographicCircuitTrafficScenarios.every(
+        (scenario) =>
+            scenario.entries.length <=
+            holographicCircuitMaximumConcurrentSignals,
+      ),
+      isTrue,
+    );
+    expect(
+      holographicCircuitTrafficScenarios.where(
+        (scenario) => scenario.entries.length == 2,
+      ),
+      hasLength(3),
+    );
+    expect(
+      holographicCircuitTrafficScenarios
+          .map((scenario) => scenario.entries.first.routeIndex)
+          .toSet(),
+      hasLength(holographicCircuitRouteCount),
     );
     await tester.pumpWidget(
       const MaterialApp(

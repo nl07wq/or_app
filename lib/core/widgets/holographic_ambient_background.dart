@@ -7,23 +7,41 @@ import 'package:flutter/material.dart';
 const holographicCircuitRouteCount = 8;
 const holographicCircuitMinimumRouteSegments = 8;
 const holographicCircuitMaximumRouteSegments = 14;
-const holographicCircuitSignalPixelsPerSecond = 112.0;
+const holographicCircuitSignalPixelsPerSecond = 190.0;
 const holographicCircuitIdleDuration = Duration(seconds: 4);
 const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
-const holographicCircuitAfterglowDuration = Duration(milliseconds: 1600);
+const holographicCircuitAfterglowDuration = Duration(seconds: 5);
 const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
+const holographicCircuitMaximumConcurrentSignals = 2;
 
 @immutable
 class HolographicCircuitRoute {
   const HolographicCircuitRoute({
     required this.points,
+    this.nodePointIndexes = const [],
     this.terminalNode = false,
   });
 
   final List<Offset> points;
+  final List<int> nodePointIndexes;
   final bool terminalNode;
 
   int get segmentCount => points.length - 1;
+}
+
+@immutable
+class HolographicCircuitTrafficEntry {
+  const HolographicCircuitTrafficEntry(this.routeIndex, {this.startDelay = 0});
+
+  final int routeIndex;
+  final double startDelay;
+}
+
+@immutable
+class HolographicCircuitTrafficScenario {
+  const HolographicCircuitTrafficScenario(this.entries);
+
+  final List<HolographicCircuitTrafficEntry> entries;
 }
 
 /// A single, non-interactive circuit-signal layer behind the Calendar and
@@ -114,15 +132,31 @@ class _AmbientGeometryPainter extends CustomPainter {
     _resolvedSize = size;
     _resolvedRoutes = holographicCircuitRoutes
         .map((route) {
+          final scaledPoints = route.points
+              .map(
+                (point) =>
+                    Offset(point.dx * size.width, point.dy * size.height),
+              )
+              .toList(growable: false);
           final path = Path()
-            ..moveTo(
-              route.points.first.dx * size.width,
-              route.points.first.dy * size.height,
-            );
-          for (final point in route.points.skip(1)) {
-            path.lineTo(point.dx * size.width, point.dy * size.height);
+            ..moveTo(scaledPoints.first.dx, scaledPoints.first.dy);
+          for (final point in scaledPoints.skip(1)) {
+            path.lineTo(point.dx, point.dy);
           }
-          return _ResolvedCircuitRoute(route, path.computeMetrics().first);
+          var distance = 0.0;
+          final nodeDistances = <double>[];
+          for (var index = 1; index < scaledPoints.length; index++) {
+            distance +=
+                (scaledPoints[index] - scaledPoints[index - 1]).distance;
+            if (route.nodePointIndexes.contains(index)) {
+              nodeDistances.add(distance);
+            }
+          }
+          return _ResolvedCircuitRoute(
+            route,
+            path.computeMetrics().first,
+            nodeDistances,
+          );
         })
         .toList(growable: false);
     return _resolvedRoutes!;
@@ -133,50 +167,77 @@ class _AmbientGeometryPainter extends CustomPainter {
     List<_ResolvedCircuitRoute> routes,
     double elapsed,
   ) {
-    final phase = _phaseFor(routes, elapsed);
-    _paintAfterglow(canvas, phase);
-    if (phase.isPropagating) {
-      _paintSignal(canvas, phase);
-    } else if (phase.isTerminalNode) {
-      _paintTerminalNode(canvas, phase);
+    final phases = _phasesFor(routes, elapsed);
+    for (final phase in phases) {
+      _paintAfterglow(canvas, phase);
+      _paintRouteNodes(canvas, phase);
+    }
+    for (final phase in phases) {
+      if (phase.isPropagating) {
+        _paintSignal(canvas, phase);
+      } else if (phase.isTerminalNode) {
+        _paintTerminalNode(canvas, phase);
+      }
     }
   }
 
-  _CircuitPhase _phaseFor(List<_ResolvedCircuitRoute> routes, double elapsed) {
+  List<_CircuitPhase> _phasesFor(
+    List<_ResolvedCircuitRoute> routes,
+    double elapsed,
+  ) {
     final idleSeconds = holographicCircuitIdleDuration.inMilliseconds / 1000;
     final nodeSeconds =
         holographicCircuitTerminalNodeDuration.inMilliseconds / 1000;
-    final cycleSeconds = routes.fold<double>(
-      0,
-      (total, route) =>
-          total +
-          route.metric.length / holographicCircuitSignalPixelsPerSecond +
-          (route.definition.terminalNode ? nodeSeconds : 0) +
-          idleSeconds,
-    );
-    var routeElapsed = elapsed % cycleSeconds;
-    for (final route in routes) {
-      final travelSeconds =
-          route.metric.length / holographicCircuitSignalPixelsPerSecond;
-      final nodeWindow = route.definition.terminalNode ? nodeSeconds : 0.0;
-      final routeWindow = travelSeconds + nodeWindow + idleSeconds;
-      if (routeElapsed < routeWindow) {
-        return _CircuitPhase(
-          route: route,
-          elapsedSeconds: routeElapsed,
-          travelSeconds: travelSeconds,
-          nodeSeconds: nodeWindow,
+    final afterglowSeconds =
+        holographicCircuitAfterglowDuration.inMilliseconds / 1000;
+    double scenarioWindow(HolographicCircuitTrafficScenario scenario) {
+      var activityEnd = 0.0;
+      for (final entry in scenario.entries) {
+        final route = routes[entry.routeIndex];
+        final travel =
+            route.metric.length / holographicCircuitSignalPixelsPerSecond;
+        final node = route.definition.terminalNode ? nodeSeconds : 0.0;
+        activityEnd = math.max(
+          activityEnd,
+          entry.startDelay + travel + node + afterglowSeconds,
         );
       }
-      routeElapsed -= routeWindow;
+      return activityEnd + idleSeconds;
     }
-    return _CircuitPhase(
-      route: routes.last,
-      elapsedSeconds: 0,
-      travelSeconds:
-          routes.last.metric.length / holographicCircuitSignalPixelsPerSecond,
-      nodeSeconds: routes.last.definition.terminalNode ? nodeSeconds : 0,
+
+    final cycleSeconds = holographicCircuitTrafficScenarios.fold<double>(
+      0,
+      (total, scenario) => total + scenarioWindow(scenario),
     );
+    var scenarioElapsed = elapsed % cycleSeconds;
+    for (final scenario in holographicCircuitTrafficScenarios) {
+      final window = scenarioWindow(scenario);
+      if (scenarioElapsed >= window) {
+        scenarioElapsed -= window;
+        continue;
+      }
+      final phases = <_CircuitPhase>[];
+      for (final entry in scenario.entries) {
+        final routeElapsed = scenarioElapsed - entry.startDelay;
+        if (routeElapsed < 0) continue;
+        final route = routes[entry.routeIndex];
+        final travel =
+            route.metric.length / holographicCircuitSignalPixelsPerSecond;
+        final node = route.definition.terminalNode ? nodeSeconds : 0.0;
+        if (routeElapsed <= travel + node + afterglowSeconds) {
+          phases.add(
+            _CircuitPhase(
+              route: route,
+              elapsedSeconds: routeElapsed,
+              travelSeconds: travel,
+              nodeSeconds: node,
+            ),
+          );
+        }
+      }
+      return phases;
+    }
+    return const [];
   }
 
   void _paintAfterglow(Canvas canvas, _CircuitPhase phase) {
@@ -230,6 +291,49 @@ class _AmbientGeometryPainter extends CustomPainter {
     canvas.drawPath(segment, core);
   }
 
+  void _paintRouteNodes(Canvas canvas, _CircuitPhase phase) {
+    final fadeSeconds =
+        holographicCircuitAfterglowDuration.inMilliseconds / 1000;
+    for (final distance in phase.route.nodeDistances) {
+      final age =
+          phase.elapsedSeconds -
+          distance / holographicCircuitSignalPixelsPerSecond;
+      if (age < 0 || age > fadeSeconds) continue;
+      final intensity = math.pow(1 - age / fadeSeconds, 1.5).toDouble();
+      final position = phase.route.metric
+          .getTangentForOffset(distance)
+          ?.position;
+      if (position == null) continue;
+      final halo = Paint()
+        ..color = color.withValues(alpha: .16 * intensity)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      final ring = Paint()
+        ..color = color.withValues(alpha: .48 * intensity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1;
+      final core = Paint()..color = color.withValues(alpha: .58 * intensity);
+      canvas.drawCircle(position, 4.2, halo);
+      canvas.drawCircle(position, 1.9, ring);
+      canvas.drawCircle(position, .7, core);
+    }
+    if (!phase.route.definition.terminalNode ||
+        phase.elapsedSeconds < phase.travelSeconds) {
+      return;
+    }
+    final age = phase.elapsedSeconds - phase.travelSeconds;
+    if (age > fadeSeconds) return;
+    final intensity = math.pow(1 - age / fadeSeconds, 1.6).toDouble();
+    final position = phase.route.metric
+        .getTangentForOffset(phase.route.metric.length)
+        ?.position;
+    if (position == null) return;
+    final paint = Paint()
+      ..color = color.withValues(alpha: .42 * intensity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawCircle(position, 2.2, paint);
+  }
+
   void _paintTerminalNode(Canvas canvas, _CircuitPhase phase) {
     final progress =
         (phase.elapsedSeconds - phase.travelSeconds) / phase.nodeSeconds;
@@ -281,7 +385,7 @@ class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withValues(alpha: .014)
+      ..color = color.withValues(alpha: .018)
       ..strokeWidth = 1;
     for (var y = 1.5; y < size.height; y += 3) {
       canvas.drawLine(Offset.zero + Offset(0, y), Offset(size.width, y), paint);
@@ -294,10 +398,11 @@ class _ScanlinePainter extends CustomPainter {
 }
 
 class _ResolvedCircuitRoute {
-  const _ResolvedCircuitRoute(this.definition, this.metric);
+  const _ResolvedCircuitRoute(this.definition, this.metric, this.nodeDistances);
 
   final HolographicCircuitRoute definition;
   final PathMetric metric;
+  final List<double> nodeDistances;
 }
 
 class _CircuitPhase {
@@ -323,6 +428,7 @@ class _CircuitPhase {
 const holographicCircuitRoutes = <HolographicCircuitRoute>[
   HolographicCircuitRoute(
     terminalNode: true,
+    nodePointIndexes: [3, 6],
     points: [
       Offset(-.16, .13),
       Offset(.12, .13),
@@ -337,6 +443,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
     ],
   ),
   HolographicCircuitRoute(
+    nodePointIndexes: [3, 7, 9],
     points: [
       Offset(.07, 1.12),
       Offset(.07, .86),
@@ -354,6 +461,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
   ),
   HolographicCircuitRoute(
     terminalNode: true,
+    nodePointIndexes: [3, 6],
     points: [
       Offset(1.14, .20),
       Offset(.89, .20),
@@ -369,6 +477,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
     ],
   ),
   HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8],
     points: [
       Offset(-.12, .86),
       Offset(.12, .86),
@@ -384,6 +493,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
   ),
   HolographicCircuitRoute(
     terminalNode: true,
+    nodePointIndexes: [3, 7, 10],
     points: [
       Offset(.94, 1.12),
       Offset(.94, .89),
@@ -401,6 +511,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
     ],
   ),
   HolographicCircuitRoute(
+    nodePointIndexes: [3, 6],
     points: [
       Offset(-.10, .34),
       Offset(.12, .34),
@@ -415,6 +526,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
     ],
   ),
   HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8],
     points: [
       Offset(.76, -.10),
       Offset(.76, .15),
@@ -430,6 +542,7 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
     ],
   ),
   HolographicCircuitRoute(
+    nodePointIndexes: [3, 6, 9],
     points: [
       Offset(1.12, .93),
       Offset(.89, .93),
@@ -444,4 +557,24 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
       Offset(.02, 1.10),
     ],
   ),
+];
+
+const holographicCircuitTrafficScenarios = <HolographicCircuitTrafficScenario>[
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(0)]),
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(1)]),
+  HolographicCircuitTrafficScenario([
+    HolographicCircuitTrafficEntry(2),
+    HolographicCircuitTrafficEntry(6, startDelay: .8),
+  ]),
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(3)]),
+  HolographicCircuitTrafficScenario([
+    HolographicCircuitTrafficEntry(4),
+    HolographicCircuitTrafficEntry(7, startDelay: .65),
+  ]),
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(5)]),
+  HolographicCircuitTrafficScenario([
+    HolographicCircuitTrafficEntry(6),
+    HolographicCircuitTrafficEntry(1, startDelay: .95),
+  ]),
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(7)]),
 ];
