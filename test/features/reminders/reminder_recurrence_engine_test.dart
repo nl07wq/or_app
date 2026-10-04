@@ -10,6 +10,7 @@ void main() {
     String? end,
     List<int> weekdays = const [],
     List<int> monthDays = const [],
+    bool monthEnd = false,
   }) => ReminderDefinition(
     id: 'r',
     title: 'Reminder',
@@ -19,6 +20,7 @@ void main() {
     recurrenceEnd: end,
     weekdays: weekdays,
     monthDays: monthDays,
+    monthEnd: monthEnd,
     active: true,
     createdAt: DateTime.utc(2026),
     updatedAt: DateTime.utc(2026),
@@ -94,4 +96,37 @@ void main() {
       );
     },
   );
+
+  test('month-end uses the actual last day and deduplicates collisions', () {
+    DateTimeRange month(int year, int month) => DateTimeRange(
+      start: DateTime(year, month, 1),
+      end: DateTime(year, month + 1, 0),
+    );
+    ReminderDefinition monthEndDefinition({List<int> days = const []}) =>
+        definition(
+          recurrence: ReminderRecurrence.customMonthDays,
+          start: '2026-01-01',
+          monthDays: days,
+          monthEnd: true,
+        );
+
+    expect(engine.datesFor(monthEndDefinition(), month(2026, 2)), [
+      '2026-02-28',
+    ]);
+    expect(engine.datesFor(monthEndDefinition(), month(2028, 2)), [
+      '2028-02-29',
+    ]);
+    expect(engine.datesFor(monthEndDefinition(), month(2026, 4)), [
+      '2026-04-30',
+    ]);
+    expect(engine.datesFor(monthEndDefinition(), month(2026, 1)), [
+      '2026-01-31',
+    ]);
+    expect(engine.datesFor(monthEndDefinition(days: [31]), month(2026, 1)), [
+      '2026-01-31',
+    ]);
+    expect(engine.datesFor(monthEndDefinition(days: [30]), month(2026, 4)), [
+      '2026-04-30',
+    ]);
+  });
 }

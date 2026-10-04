@@ -26,6 +26,7 @@ class ReminderDefinition {
     this.recurrenceEnd,
     this.weekdays = const [],
     this.monthDays = const [],
+    this.monthEnd = false,
     this.effectiveFrom,
     this.retiredAt,
   });
@@ -40,6 +41,7 @@ class ReminderDefinition {
   final String? recurrenceEnd;
   final List<int> weekdays;
   final List<int> monthDays;
+  final bool monthEnd;
   final bool active;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -61,6 +63,7 @@ class ReminderDefinition {
     if (recurrenceEnd != null) 'recurrenceEnd': recurrenceEnd,
     if (weekdays.isNotEmpty) 'weekdays': weekdays,
     if (monthDays.isNotEmpty) 'monthDays': monthDays,
+    if (monthEnd) 'monthEnd': true,
     'active': active,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'updatedAt': updatedAt.toUtc().toIso8601String(),
@@ -113,6 +116,7 @@ class ReminderDefinition {
       recurrenceEnd: value['recurrenceEnd'] as String?,
       weekdays: readInts(value['weekdays'], 1, 7),
       monthDays: readInts(value['monthDays'], 1, 31),
+      monthEnd: value['monthEnd'] == true,
       active: value['active'] != false,
       createdAt: created.toUtc(),
       updatedAt: updated.toUtc(),

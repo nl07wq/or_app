@@ -69,6 +69,70 @@ class ReminderOccurrenceService {
     return List.unmodifiable(values);
   }
 
+  /// Returns the next pending occurrence for each recurrence slot used by
+  /// the compact ALL projection. Calendar and Dashboard continue to use
+  /// [inRange] and are intentionally unaffected by this policy.
+  Future<List<ReminderOccurrence>> nextPendingBySlot(DateTime from) async {
+    final definitions = await _repository.findDefinitions();
+    final states = await _repository.findStates();
+    final byId = {for (final state in states) state.id: state};
+    final statesByDefinition = <String, List<ReminderOccurrenceState>>{};
+    for (final state in states) {
+      statesByDefinition.putIfAbsent(state.definitionId, () => []).add(state);
+    }
+    final values = <String, ReminderOccurrence>{};
+    final firstDate = DateUtils.dateOnly(from);
+
+    for (final definition in definitions) {
+      final slots = _slotsFor(definition);
+      if (slots.isEmpty) continue;
+      final definitionStart = DateTime.parse(definition.startDate);
+      final searchStart = definitionStart.isAfter(firstDate)
+          ? definitionStart
+          : firstDate;
+      final recurrenceEnd = DateTime.tryParse(definition.recurrenceEnd ?? '');
+      if (recurrenceEnd != null && recurrenceEnd.isBefore(searchStart)) {
+        continue;
+      }
+      var latestRelevantDate = searchStart;
+      for (final state in statesByDefinition[definition.id] ?? const []) {
+        final stateDate = DateTime.tryParse(state.localDate);
+        if (stateDate != null && stateDate.isAfter(latestRelevantDate)) {
+          latestRelevantDate = stateDate;
+        }
+      }
+      final searchEnd =
+          recurrenceEnd ?? latestRelevantDate.add(const Duration(days: 1465));
+      final found = <String, ReminderOccurrence>{};
+      for (final date in _engine.datesFor(
+        definition,
+        DateTimeRange(start: searchStart, end: searchEnd),
+      )) {
+        if (!_isActiveFor(definition, date)) continue;
+        final occurrenceSlots = _slotsForDate(definition, date);
+        if (occurrenceSlots.isEmpty) continue;
+        final state = byId['${definition.id}@$date'];
+        final status = state?.status ?? ReminderOccurrenceStatus.pending;
+        if (status != ReminderOccurrenceStatus.pending) continue;
+        final occurrence = ReminderOccurrence(
+          definition: definition,
+          localDate: date,
+          status: status,
+        );
+        for (final slot in occurrenceSlots) {
+          if (slots.contains(slot)) found.putIfAbsent(slot, () => occurrence);
+        }
+        if (found.length == slots.length) break;
+      }
+      for (final occurrence in found.values) {
+        values[occurrence.id] = occurrence;
+      }
+    }
+
+    final result = values.values.toList()..sort(_compare);
+    return List.unmodifiable(result);
+  }
+
   Future<void> complete(ReminderOccurrence occurrence, DateTime now) =>
       _repository.saveState(
         ReminderOccurrenceState(
@@ -124,5 +188,31 @@ class ReminderOccurrenceService {
         ? 0
         : int.tryParse(parts[1]) ?? 0;
     return DateTime(date.year, date.month, date.day, hour, minute);
+  }
+
+  Set<String> _slotsFor(ReminderDefinition definition) =>
+      switch (definition.recurrence) {
+        ReminderRecurrence.customWeekdays => {
+          for (final weekday in definition.weekdays) 'weekday:$weekday',
+        },
+        ReminderRecurrence.customMonthDays => {
+          for (final day in definition.monthDays) 'monthDay:$day',
+          if (definition.monthEnd) 'monthEnd',
+        },
+        _ => const {'definition'},
+      };
+
+  Set<String> _slotsForDate(ReminderDefinition definition, String localDate) {
+    final date = DateTime.parse(localDate);
+    return switch (definition.recurrence) {
+      ReminderRecurrence.customWeekdays => {'weekday:${date.weekday}'},
+      ReminderRecurrence.customMonthDays => {
+        if (definition.monthDays.contains(date.day)) 'monthDay:${date.day}',
+        if (definition.monthEnd &&
+            date.day == DateTime(date.year, date.month + 1, 0).day)
+          'monthEnd',
+      },
+      _ => const {'definition'},
+    };
   }
 }

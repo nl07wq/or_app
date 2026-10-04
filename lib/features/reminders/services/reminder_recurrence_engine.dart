@@ -50,7 +50,8 @@ class ReminderRecurrenceEngine {
       case ReminderRecurrence.customWeekdays:
         return definition.weekdays.contains(date.weekday);
       case ReminderRecurrence.customMonthDays:
-        return definition.monthDays.contains(date.day);
+        return definition.monthDays.contains(date.day) ||
+            (definition.monthEnd && date.day == _lastDayOfMonth(date));
     }
   }
 
@@ -59,4 +60,6 @@ class ReminderRecurrenceEngine {
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
   bool _same(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+  int _lastDayOfMonth(DateTime value) =>
+      DateTime(value.year, value.month + 1, 0).day;
 }

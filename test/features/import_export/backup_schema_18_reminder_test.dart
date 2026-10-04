@@ -32,6 +32,19 @@ void main() {
         createdAt: timestamp,
         updatedAt: timestamp,
       );
+      final monthSlots = ReminderDefinition(
+        id: 'month-slots',
+        title: 'Month slots',
+        startDate: '2026-10-01',
+        allDay: true,
+        recurrence: ReminderRecurrence.customMonthDays,
+        recurrenceEnd: '2026-11-30',
+        monthDays: const [1, 15],
+        monthEnd: true,
+        active: true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      );
       final completed = ReminderOccurrenceState(
         id: 'daily@2026-10-02',
         definitionId: 'daily',
@@ -63,6 +76,11 @@ void main() {
         definition.toRecord(),
       );
       source.seed(
+        IndexedDbStoreNames.reminderDefinitions,
+        monthSlots.id,
+        monthSlots.toRecord(),
+      );
+      source.seed(
         IndexedDbStoreNames.reminderOccurrenceStates,
         completed.id,
         completed.toRecord(),
@@ -82,6 +100,7 @@ void main() {
       expect(bundle.normal.databaseVersion, IndexedDbSchema.databaseVersion);
       expect(bundle.normal.data[BackupSections.reminderDefinitions], [
         definition.toRecord(),
+        monthSlots.toRecord(),
       ]);
       expect(bundle.normal.data[BackupSections.reminderOccurrenceStates], [
         completed.toRecord(),
@@ -103,18 +122,26 @@ void main() {
       );
       expect(result.success, isTrue);
       final repository = IndexedDbReminderRepository(target);
+      final restoredDefinitions = await repository.findDefinitions();
       expect(
-        (await repository.findDefinitions()).single.recurrenceEnd,
+        restoredDefinitions
+            .singleWhere((value) => value.id == definition.id)
+            .recurrenceEnd,
         '2026-10-05',
       );
+      final restoredMonthSlots = restoredDefinitions.singleWhere(
+        (value) => value.id == monthSlots.id,
+      );
+      expect(restoredMonthSlots.monthDays, [1, 15]);
+      expect(restoredMonthSlots.monthEnd, isTrue);
       expect((await repository.findStates()).map((value) => value.status), [
         ReminderOccurrenceStatus.completed,
         ReminderOccurrenceStatus.skipped,
       ]);
 
-      final projection = await ReminderOccurrenceService(repository).inRange(
+      final projection = (await ReminderOccurrenceService(repository).inRange(
         DateTimeRange(start: DateTime(2026, 10, 1), end: DateTime(2026, 10, 7)),
-      );
+      )).where((value) => value.definition.id == definition.id).toList();
       expect(projection.map((value) => value.localDate), [
         '2026-10-01',
         '2026-10-02',
@@ -127,6 +154,21 @@ void main() {
             .status,
         ReminderOccurrenceStatus.completed,
       );
+      final monthProjection =
+          (await ReminderOccurrenceService(repository).inRange(
+            DateTimeRange(
+              start: DateTime(2026, 10, 1),
+              end: DateTime(2026, 11, 30),
+            ),
+          )).where((value) => value.definition.id == monthSlots.id).toList();
+      expect(monthProjection.map((value) => value.localDate), [
+        '2026-10-01',
+        '2026-10-15',
+        '2026-10-31',
+        '2026-11-01',
+        '2026-11-15',
+        '2026-11-30',
+      ]);
     },
   );
 }

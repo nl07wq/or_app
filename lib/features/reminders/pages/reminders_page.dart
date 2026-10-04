@@ -54,19 +54,17 @@ class _RemindersPageState extends State<RemindersPage>
       container.reminders,
     ).migrate();
     final today = DateUtils.dateOnly(DateTime.now());
-    final future = today.add(const Duration(days: 90));
-    final pending = await _occurrences.inRange(
-      DateTimeRange(start: today, end: future),
+    final todayPending = await _occurrences.inRange(
+      DateTimeRange(start: today, end: today),
       includeCompleted: false,
     );
+    final allCompact = await _occurrences.nextPendingBySlot(today);
     final definitions = await container.reminders.findDefinitions();
     final completed = await _occurrences.completed();
     if (!mounted) return;
     setState(() {
-      _today = pending
-          .where((value) => value.localDate == _dateKey(today))
-          .toList();
-      _all = pending;
+      _today = todayPending;
+      _all = allCompact;
       _completed = completed;
       _recurring = definitions
           .where((value) => _isCurrentRecurringDefinition(value, today))
@@ -163,6 +161,7 @@ class _RemindersPageState extends State<RemindersPage>
         recurrenceEnd: draft.end == null ? null : _dateKey(draft.end!),
         weekdays: draft.weekdays,
         monthDays: draft.monthDays,
+        monthEnd: draft.monthEnd,
         active: true,
         createdAt: now,
         updatedAt: now,
@@ -193,6 +192,7 @@ class _RemindersPageState extends State<RemindersPage>
         recurrenceEnd: previous.recurrenceEnd,
         weekdays: previous.weekdays,
         monthDays: previous.monthDays,
+        monthEnd: previous.monthEnd,
         active: false,
         createdAt: previous.createdAt,
         updatedAt: boundary,
@@ -212,6 +212,7 @@ class _RemindersPageState extends State<RemindersPage>
         recurrenceEnd: draft.end == null ? null : _dateKey(draft.end!),
         weekdays: draft.weekdays,
         monthDays: draft.monthDays,
+        monthEnd: draft.monthEnd,
         active: true,
         createdAt: boundary,
         updatedAt: boundary,
@@ -346,6 +347,7 @@ class _OccurrenceList extends StatelessWidget {
                   ),
                   child: ListTile(
                     key: ValueKey('reminder-row-${value.id}'),
+                    onTap: () => onEdit(value.definition),
                     onLongPress: () => onEdit(value.definition),
                     leading: Semantics(
                       label: value.status == ReminderOccurrenceStatus.completed
@@ -409,9 +411,10 @@ class _DefinitionList extends StatelessWidget {
                   ),
                   child: ListTile(
                     key: ValueKey('recurring-row-${value.id}'),
+                    onTap: () => onEdit(value),
                     onLongPress: () => onEdit(value),
                     title: Text(value.title),
-                    subtitle: Text(_recurrenceLabel(value.recurrence)),
+                    subtitle: Text(_recurrenceSummary(value)),
                     trailing: IconButton(
                       icon: const Icon(Icons.edit_outlined),
                       onPressed: () => onEdit(value),
@@ -440,6 +443,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
   DateTime? _end;
   final Set<int> _weekdays = <int>{};
   final Set<int> _monthDays = <int>{};
+  bool _monthEnd = false;
   String? _error;
   @override
   void initState() {
@@ -457,6 +461,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         : DateTime.tryParse(initial.recurrenceEnd!);
     _weekdays.addAll(initial.weekdays);
     _monthDays.addAll(initial.monthDays);
+    _monthEnd = initial.monthEnd;
   }
 
   @override
@@ -483,7 +488,8 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       return;
     }
     if (_recurrence == ReminderRecurrence.customMonthDays &&
-        monthDays.isEmpty) {
+        monthDays.isEmpty &&
+        !_monthEnd) {
       setState(() => _error = '日付を1つ以上選択してください。');
       return;
     }
@@ -499,6 +505,8 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         end: _end,
         weekdays: weekdays,
         monthDays: monthDays,
+        monthEnd:
+            _recurrence == ReminderRecurrence.customMonthDays && _monthEnd,
       ),
     );
   }
@@ -659,26 +667,37 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       return Wrap(
         spacing: 4,
         runSpacing: 4,
-        children: List.generate(31, (index) {
-          final day = index + 1;
-          final selected =
-              (_monthDays.isEmpty &&
-                  _recurrence != ReminderRecurrence.customMonthDays
-              ? _date.day == day
-              : _monthDays.contains(day));
-          return FilterChip(
-            label: Text('$day'),
-            selected: selected,
-            onSelected: (value) => setState(() {
-              if (value) {
-                _monthDays.add(day);
-              } else {
-                _monthDays.remove(day);
-              }
-              _error = null;
-            }),
-          );
-        }),
+        children: [
+          ...List.generate(31, (index) {
+            final day = index + 1;
+            final selected =
+                (_monthDays.isEmpty &&
+                    _recurrence != ReminderRecurrence.customMonthDays
+                ? _date.day == day
+                : _monthDays.contains(day));
+            return FilterChip(
+              label: Text('$day'),
+              selected: selected,
+              onSelected: (value) => setState(() {
+                if (value) {
+                  _monthDays.add(day);
+                } else {
+                  _monthDays.remove(day);
+                }
+                _error = null;
+              }),
+            );
+          }),
+          if (_recurrence == ReminderRecurrence.customMonthDays)
+            FilterChip(
+              label: const Text('月末'),
+              selected: _monthEnd,
+              onSelected: (value) => setState(() {
+                _monthEnd = value;
+                _error = null;
+              }),
+            ),
+        ],
       );
     }
     return Text(_recurrenceDescription(_recurrence, _date));
@@ -696,6 +715,7 @@ class _ReminderDraft {
     this.end,
     this.weekdays = const [],
     this.monthDays = const [],
+    this.monthEnd = false,
   });
   final String title;
   final String? note;
@@ -706,6 +726,7 @@ class _ReminderDraft {
   final DateTime? end;
   final List<int> weekdays;
   final List<int> monthDays;
+  final bool monthEnd;
 }
 
 String _dateKey(DateTime value) =>
@@ -745,6 +766,7 @@ ReminderDefinition _withRecurrenceEnd(
     recurrenceEnd: _dateKey(effectiveEnd),
     weekdays: definition.weekdays,
     monthDays: definition.monthDays,
+    monthEnd: definition.monthEnd,
     active: definition.active,
     createdAt: definition.createdAt,
     updatedAt: updatedAt,
@@ -765,6 +787,22 @@ String _recurrenceLabel(ReminderRecurrence value) => switch (value) {
   ReminderRecurrence.customWeekdays => '曜日指定',
   ReminderRecurrence.customMonthDays => '日付指定',
 };
+
+String _recurrenceSummary(ReminderDefinition definition) {
+  final label = _recurrenceLabel(definition.recurrence);
+  if (definition.recurrence == ReminderRecurrence.customWeekdays) {
+    final details = definition.weekdays.map(_weekdayLabel).join('・');
+    return details.isEmpty ? label : '$label  $details';
+  }
+  if (definition.recurrence == ReminderRecurrence.customMonthDays) {
+    final details = <String>[
+      ...definition.monthDays.map((day) => '$day'),
+      if (definition.monthEnd) '月末',
+    ].join('・');
+    return details.isEmpty ? label : '$label  $details';
+  }
+  return label;
+}
 
 String _weekdayLabel(int day) =>
     const ['月', '火', '水', '木', '金', '土', '日'][day - 1];

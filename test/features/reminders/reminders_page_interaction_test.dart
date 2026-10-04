@@ -20,7 +20,7 @@ void main() {
   tearDown(AppRepositoryRegistry.resetForTesting);
 
   testWidgets(
-    'circle completes and restores while tap, long press, and scroll stay distinct',
+    'circle completes while row tap edits and scroll stays distinct',
     (tester) async {
       final today = _dateKey(DateTime.now());
       await container.reminders.saveDefinition(
@@ -35,7 +35,9 @@ void main() {
 
       await tester.tap(find.text('Single'));
       await tester.pumpAndSettle();
-      expect(find.text('REMINDERを編集'), findsNothing);
+      expect(find.text('REMINDERを編集'), findsOneWidget);
+      Navigator.of(tester.element(find.text('REMINDERを編集'))).pop();
+      await tester.pumpAndSettle();
 
       await tester.drag(row, const Offset(0, -120));
       await tester.pumpAndSettle();
@@ -53,6 +55,7 @@ void main() {
 
       await tester.tap(find.byKey(ValueKey('reminder-toggle-$occurrenceId')));
       await tester.pumpAndSettle();
+      expect(find.text('REMINDERを編集'), findsNothing);
       expect(find.text('Single'), findsNothing);
       expect(
         (await container.reminders.findStates()).single.status,
@@ -89,6 +92,7 @@ void main() {
 
       final dismissible = find.byKey(ValueKey('reminder-single@$todayKey'));
       await _swipeLeft(tester, dismissible);
+      expect(find.text('REMINDERを編集'), findsNothing);
       expect(find.text('このREMINDERを削除しますか？'), findsOneWidget);
       await tester.tap(find.widgetWithText(TextButton, 'キャンセル'));
       await tester.pumpAndSettle();
@@ -112,6 +116,38 @@ void main() {
       expect(dashboard.entries, isEmpty);
     },
   );
+
+  testWidgets('vertical drag scrolls without editing or deleting', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    for (var index = 0; index < 20; index++) {
+      await container.reminders.saveDefinition(
+        _definition(
+          id: 'scroll-$index',
+          title: 'Scroll $index',
+          startDate: today,
+        ),
+      );
+    }
+    await _pumpPage(tester);
+    final list = find.byType(ListView).first;
+    final scrollable = find.descendant(
+      of: list,
+      matching: find.byType(Scrollable),
+    );
+    final before = tester.state<ScrollableState>(scrollable).position.pixels;
+
+    await tester.drag(find.text('Scroll 0'), const Offset(0, -300));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      greaterThan(before),
+    );
+    expect(find.text('REMINDERを編集'), findsNothing);
+    expect(find.text('このREMINDERを削除しますか？'), findsNothing);
+  });
 
   testWidgets(
     'recurring once-delete persists SKIPPED and keeps the next occurrence',
@@ -215,7 +251,7 @@ void main() {
   );
 
   testWidgets(
-    'recurring definition long press edits and swipe stops future generation',
+    'recurring definition tap edits and swipe stops future generation',
     (tester) async {
       final today = DateUtils.dateOnly(DateTime.now());
       final yesterday = today.subtract(const Duration(days: 1));
@@ -243,7 +279,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final row = find.byKey(const ValueKey('recurring-row-daily'));
-      await tester.longPress(row);
+      await tester.tap(row);
       await tester.pumpAndSettle();
       expect(find.text('REMINDERを編集'), findsOneWidget);
       expect(find.text('毎日'), findsWidgets);
@@ -307,6 +343,34 @@ void main() {
       expect(saved.weekdays, [DateTime.monday]);
     },
   );
+
+  testWidgets('custom month days save numeric slots and month-end separately', (
+    tester,
+  ) async {
+    await _pumpPage(tester);
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Month slots');
+    await tester.tap(find.text('なし'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('日付指定').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('月末'), findsOneWidget);
+    await tester.tap(find.text('1'));
+    await tester.tap(find.text('15'));
+    await tester.tap(find.text('月末'));
+    final save = find.widgetWithText(ElevatedButton, '保存');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final saved = (await container.reminders.findDefinitions()).single;
+    expect(saved.recurrence, ReminderRecurrence.customMonthDays);
+    expect(saved.monthDays, [1, 15]);
+    expect(saved.monthEnd, isTrue);
+  });
 }
 
 Future<void> _pumpPage(WidgetTester tester) async {
