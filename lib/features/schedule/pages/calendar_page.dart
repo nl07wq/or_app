@@ -4527,11 +4527,11 @@ const calendarMonthGridMetadataHeight = 16.0;
 const calendarMonthGridColumnBandOpacity = .025;
 const calendarMonthGridWeekSeparatorOpacity = .09;
 
-Color? calendarMonthGridWeekdayColor(int column) => switch (column) {
-  DateTime.sunday % 7 => AppColors.danger,
-  DateTime.saturday % 7 => AppColors.primary,
-  _ => null,
-};
+Color? calendarMonthGridWeekdayColor(int column) {
+  if (column == 0) return AppColors.danger;
+  if (column == 6) return AppColors.primary;
+  return null;
+}
 
 Color? calendarMonthGridDateColor({
   required DateTime date,
