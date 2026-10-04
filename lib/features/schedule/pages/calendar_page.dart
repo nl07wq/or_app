@@ -4803,31 +4803,63 @@ class _MonthGridState extends State<_MonthGrid> {
         ),
         child: Column(
           children: [
-            Row(
-              children: [
-                IconButton(
-                  onPressed: widget.onPrevious,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Expanded(
-                  child: Text(
-                    '${widget.month.year}\n${_monthName(widget.month.month)}',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.3,
-                    ),
+            Container(
+              decoration: ShapeDecoration(
+                color: colorScheme.surface.withValues(alpha: .16),
+                shape: BeveledRectangleBorder(
+                  borderRadius: const BorderRadius.all(Radius.circular(6)),
+                  side: BorderSide(
+                    color: colorScheme.primary.withValues(alpha: .30),
                   ),
                 ),
-                IconButton(
-                  onPressed: widget.onNext,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: widget.onPrevious,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          '${widget.month.year}',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: .68,
+                                ),
+                                letterSpacing: 1.4,
+                              ),
+                        ),
+                        Text(
+                          _monthName(widget.month.month),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.8,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: widget.onNext,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
             ),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
+                style: TextButton.styleFrom(
+                  shape: const BeveledRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(4)),
+                  ),
+                  foregroundColor: colorScheme.primary,
+                ),
                 onPressed: widget.onToday,
                 child: const Text('今日'),
               ),
@@ -4934,14 +4966,18 @@ class _MonthGridState extends State<_MonthGrid> {
                           child: Container(
                             key: ValueKey('calendar-day-${_key(date)}'),
                             margin: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              color: isSelected
-                                  ? calendarMonthGridSelectedFillColor(
+                            decoration: isSelected
+                                ? ShapeDecoration(
+                                    color: calendarMonthGridSelectedFillColor(
                                       Theme.of(context).colorScheme,
-                                    )
-                                  : null,
-                            ),
+                                    ),
+                                    shape: BeveledRectangleBorder(
+                                      borderRadius: const BorderRadius.all(
+                                        Radius.circular(5),
+                                      ),
+                                    ),
+                                  )
+                                : null,
                             child: Column(
                               children: [
                                 Padding(

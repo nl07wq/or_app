@@ -286,12 +286,7 @@ class _RemindersPageState extends State<RemindersPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('REMINDERS')),
-    floatingActionButton: FloatingActionButton(
-      onPressed: _create,
-      tooltip: 'REMINDERを追加',
-      shape: const BeveledRectangleBorder(),
-      child: const Icon(Icons.add),
-    ),
+    floatingActionButton: _HudAddControl(onPressed: _create),
     body: Column(
       children: [
         _ReminderHudTabs(controller: _tabs),
@@ -342,7 +337,7 @@ class _ReminderHudTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('reminder-hud-tabs'),
-    margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
     decoration: BoxDecoration(
       border: Border(
         top: BorderSide(
@@ -355,17 +350,16 @@ class _ReminderHudTabs extends StatelessWidget {
     ),
     child: TabBar(
       controller: controller,
-      isScrollable: true,
-      tabAlignment: TabAlignment.start,
-      labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-      indicatorSize: TabBarIndicatorSize.label,
+      isScrollable: false,
+      indicatorSize: TabBarIndicatorSize.tab,
       indicator: ShapeDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: .16),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
         shape: const BeveledRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(3)),
+          borderRadius: BorderRadius.all(Radius.circular(4)),
         ),
       ),
-      indicatorPadding: const EdgeInsets.symmetric(vertical: 5),
+      indicatorPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      dividerColor: Colors.transparent,
       labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
         fontWeight: FontWeight.w700,
         letterSpacing: 1.1,
@@ -463,19 +457,10 @@ class _ReminderOccurrenceRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Semantics(
-                label: completed ? '未完了に戻す' : '完了にする',
-                button: true,
-                child: IconButton(
-                  key: ValueKey('reminder-toggle-${value.id}'),
-                  onPressed: onToggle,
-                  icon: Icon(
-                    completed
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    color: completed ? colorScheme.primary : secondary,
-                  ),
-                ),
+              _HudCompletionControl(
+                key: ValueKey('reminder-toggle-${value.id}'),
+                completed: completed,
+                onPressed: onToggle,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -502,6 +487,92 @@ class _ReminderOccurrenceRow extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HudCompletionControl extends StatelessWidget {
+  const _HudCompletionControl({
+    super.key,
+    required this.completed,
+    required this.onPressed,
+  });
+  final bool completed;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = colorScheme.primary;
+    return Semantics(
+      label: completed ? '未完了に戻す' : '完了にする',
+      button: true,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Material(
+          color: Colors.transparent,
+          shape: BeveledRectangleBorder(
+            borderRadius: const BorderRadius.all(Radius.circular(7)),
+            side: BorderSide(
+              color: accent.withValues(alpha: completed ? .88 : .42),
+            ),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const BeveledRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(7)),
+            ),
+            child: Center(
+              child: Icon(
+                completed ? Icons.check : Icons.circle_outlined,
+                size: completed ? 22 : 18,
+                color: completed
+                    ? accent
+                    : colorScheme.onSurface.withValues(alpha: .72),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HudAddControl extends StatelessWidget {
+  const _HudAddControl({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const shape = BeveledRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(8)),
+    );
+    return Semantics(
+      button: true,
+      label: 'REMINDERを追加',
+      child: Tooltip(
+        message: 'REMINDERを追加',
+        child: Material(
+          key: const ValueKey('reminder-add-control'),
+          color: colorScheme.primary.withValues(alpha: .18),
+          elevation: 4,
+          shadowColor: colorScheme.primary.withValues(alpha: .28),
+          shape: shape.copyWith(
+            side: BorderSide(color: colorScheme.primary.withValues(alpha: .78)),
+          ),
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: shape,
+              child: Icon(Icons.add, color: colorScheme.primary),
+            ),
           ),
         ),
       ),

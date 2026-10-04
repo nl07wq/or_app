@@ -146,6 +146,14 @@ void main() {
       expect(find.byKey(const ValueKey('reminder-hud-tabs')), findsOneWidget);
       expect(find.byType(ListTile), findsNothing);
       expect(find.text('TASK CONTROL // OCCURRENCE STATUS'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('reminder-add-control')),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<TabBar>(find.byType(TabBar)).indicator,
+        isA<ShapeDecoration>(),
+      );
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -388,7 +396,7 @@ void main() {
     'Japanese recurrence controls and shared Material time picker remain wired',
     (tester) async {
       await _pumpPage(tester);
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
       await tester.pumpAndSettle();
 
       expect(find.text('タイトル'), findsOneWidget);
@@ -428,7 +436,7 @@ void main() {
     tester,
   ) async {
     await _pumpPage(tester);
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Month slots');
     await tester.tap(find.text('なし'));
@@ -456,7 +464,7 @@ void main() {
     'monthly stays anchored to its start day without month-slot controls',
     (tester) async {
       await _pumpPage(tester);
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'Monthly');
       await tester.tap(find.text('なし'));
@@ -507,14 +515,14 @@ void main() {
     final today = _dateKey(DateTime.now());
     await _pumpPage(tester);
 
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
     await tester.pumpAndSettle();
     expect(find.text('REMINDERを追加'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back));
     await tester.pumpAndSettle();
     expect(find.text('変更内容が保存されていません。破棄しますか？'), findsNothing);
 
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Discarded');
     await tester.binding.handlePopRoute();

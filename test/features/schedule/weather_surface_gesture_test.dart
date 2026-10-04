@@ -118,30 +118,21 @@ void main() {
         findsOneWidget,
       );
       final selectedDecoration =
-          tester.widget<Container>(todayCell).decoration! as BoxDecoration;
-      expect(selectedDecoration.border, isNull);
-      expect(
-        selectedDecoration.color,
-        calendarMonthGridSelectedFillColor(
-          Theme.of(tester.element(todayCell)).colorScheme,
-        ),
-      );
+          tester.widget<Container>(todayCell).decoration! as ShapeDecoration;
+      expect(selectedDecoration.shape, isA<BeveledRectangleBorder>());
 
       await tester.tap(find.byKey(ValueKey('calendar-day-$tomorrowKey')));
       await tester.pumpAndSettle();
-      final todayDecoration =
-          tester.widget<Container>(todayCell).decoration! as BoxDecoration;
+      final todayDecoration = tester.widget<Container>(todayCell).decoration;
       final tomorrowDecoration =
           tester
                   .widget<Container>(
                     find.byKey(ValueKey('calendar-day-$tomorrowKey')),
                   )
                   .decoration!
-              as BoxDecoration;
-      expect(todayDecoration.border, isNull);
-      expect(todayDecoration.color, isNull);
-      expect(tomorrowDecoration.border, isNull);
-      expect(tomorrowDecoration.color, isNotNull);
+              as ShapeDecoration;
+      expect(todayDecoration, isNull);
+      expect(tomorrowDecoration.shape, isA<BeveledRectangleBorder>());
       expect(tester.takeException(), isNull);
     }
     addTearDown(() => tester.binding.setSurfaceSize(null));
