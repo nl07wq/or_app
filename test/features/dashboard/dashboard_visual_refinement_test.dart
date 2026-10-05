@@ -147,14 +147,15 @@ void main() {
           ),
         );
         final decoration = pinnedSurface.decoration as BoxDecoration;
-        expect(decoration.color!.a, closeTo(.86, .01));
-        final topInset = MediaQuery.paddingOf(
-          tester.element(find.byKey(glass)),
-        ).top;
-        expect(
-          tester.getRect(find.byKey(glass)).height,
-          closeTo(topInset + kToolbarHeight, .1),
-        );
+        expect(decoration.color!.a, closeTo(.58, .01));
+        expect(decoration.boxShadow, isNull);
+        // The Stack glass conforms to the actual AppBar geometry rather than
+        // introducing its own vertical extent.
+        final glassRect = tester.getRect(find.byKey(glass));
+        final appBarRect = tester.getRect(find.byType(AppBar));
+        expect(glassRect.top, closeTo(appBarRect.top, .1));
+        expect(glassRect.bottom, closeTo(appBarRect.bottom, .1));
+        expect(glassRect.height, closeTo(appBarRect.height, .1));
 
         tester.state<ScrollableState>(scrollable).position.jumpTo(0);
         await tester.pump();

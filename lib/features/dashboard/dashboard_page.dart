@@ -977,9 +977,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                       left: 0,
                                       top: 0,
                                       right: 0,
-                                      height:
-                                          MediaQuery.paddingOf(context).top +
-                                          kToolbarHeight,
+                                      // The fixed AppBar owns the original
+                                      // sticky geometry. The body-stack glass
+                                      // fills that toolbar band only; adding
+                                      // MediaQuery's top inset here would
+                                      // create a second vertical extent.
+                                      height: kToolbarHeight,
                                       child:
                                           const _DashboardPinnedTopBandGlass(),
                                     ),
@@ -3732,19 +3735,17 @@ class _DashboardPinnedTopBandGlass extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: AppColors.background.withValues(alpha: .86),
+            // This layer is constrained by the production Stack to the
+            // AppBar's existing sticky bounds. Keep the material translucent
+            // enough for the blurred Dashboard/Ambient beneath to remain
+            // perceptible; no shadow is used because it would visually extend
+            // the fixed band beyond those original bounds.
+            color: AppColors.background.withValues(alpha: .58),
             border: Border(
               bottom: BorderSide(
-                color: AppColors.information.withValues(alpha: .14),
+                color: AppColors.information.withValues(alpha: .10),
               ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .28),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-            ],
           ),
         ),
       ),
