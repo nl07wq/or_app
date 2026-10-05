@@ -40,6 +40,10 @@ void main() {
           find.byType(AmbientWildlifeV2ProductionStage),
         );
         expect(production.paintEnvironment, isFalse);
+        final productionClip = tester.widget<ClipRect>(
+          find.byKey(const ValueKey('dashboard-ambient-wildlife-clip')),
+        );
+        expect(productionClip.child, isA<OverflowBox>());
         expect(
           tester
               .getSize(
@@ -52,7 +56,7 @@ void main() {
     },
   );
 
-  testWidgets('Quick Access stays compact, centered, and common-width', (
+  testWidgets('Quick Access restores the original full content width', (
     tester,
   ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -77,7 +81,7 @@ void main() {
       final firstRect = tester.getRect(buttons.first);
       for (final button in buttons) {
         final rect = tester.getRect(button);
-        expect(rect.width, 224);
+        expect(rect.width, closeTo(width - 32, .1));
         expect(rect.left, firstRect.left);
         expect(rect.right, firstRect.right);
         expect(rect.center.dx, closeTo(width / 2, .1));
@@ -109,6 +113,14 @@ void main() {
     await tester.drag(scrollable, const Offset(0, -300));
     await tester.pump();
     expect(find.byKey(glass), findsOneWidget);
+    final pinnedSurface = tester.widget<DecoratedBox>(
+      find.descendant(
+        of: find.byKey(glass),
+        matching: find.byType(DecoratedBox),
+      ),
+    );
+    final decoration = pinnedSurface.decoration as BoxDecoration;
+    expect(decoration.color!.a, closeTo(.86, .01));
 
     tester.state<ScrollableState>(scrollable).position.jumpTo(0);
     await tester.pump();

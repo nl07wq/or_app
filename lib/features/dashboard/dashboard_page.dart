@@ -3633,18 +3633,14 @@ class _CommandCenterButton extends StatelessWidget {
   }
 }
 
-/// Compact Dashboard navigation uses one width derived from the longest label
-/// (COMMAND CENTER), rather than letting individual labels alter the stack.
-/// Its small translucent surface follows Calendar's add-control family while
-/// retaining the shared actionable-feedback contract.
+/// Dashboard navigation keeps the original full content width so the complete
+/// action stack reads as one aligned Dashboard surface.
 class _DashboardQuickAccessButton extends StatelessWidget {
   const _DashboardQuickAccessButton({
     required this.icon,
     required this.label,
     required this.onPressed,
   });
-
-  static const commonWidth = 224.0;
 
   final IconData icon;
   final String label;
@@ -3653,58 +3649,55 @@ class _DashboardQuickAccessButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: SizedBox(
-        key: ValueKey('dashboard-quick-access-button-$label'),
-        width: commonWidth,
-        height: 44,
-        child: ActionableFeedbackRegion(
-          child: Material(
-            color: Colors.transparent,
-            child: Ink(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    scheme.surfaceContainerHigh.withValues(alpha: .34),
-                    AppColors.background.withValues(alpha: .52),
-                    scheme.primary.withValues(alpha: .07),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .18),
-                    blurRadius: 7,
-                    offset: const Offset(0, 2),
-                  ),
+    return SizedBox(
+      key: ValueKey('dashboard-quick-access-button-$label'),
+      width: double.infinity,
+      height: 44,
+      child: ActionableFeedbackRegion(
+        child: Material(
+          color: Colors.transparent,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.surfaceContainerHigh.withValues(alpha: .34),
+                  AppColors.background.withValues(alpha: .52),
+                  scheme.primary.withValues(alpha: .07),
                 ],
               ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: onPressed,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 18, color: scheme.primary),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          label,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: scheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .18),
+                  blurRadius: 7,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onPressed,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -3724,8 +3717,24 @@ class _DashboardPinnedTopBandGlass extends StatelessWidget {
   Widget build(BuildContext context) => ClipRect(
     key: const ValueKey('dashboard-pinned-top-band-glass'),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-      child: ColoredBox(color: AppColors.background.withValues(alpha: .72)),
+      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.background.withValues(alpha: .86),
+          border: Border(
+            bottom: BorderSide(
+              color: AppColors.information.withValues(alpha: .14),
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .28),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

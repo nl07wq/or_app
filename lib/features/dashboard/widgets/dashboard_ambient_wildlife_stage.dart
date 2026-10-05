@@ -340,44 +340,40 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClipRect(
     key: const ValueKey('dashboard-ambient-wildlife-clip'),
-    child: ColoredBox(
-      color: AmbientWildlifeV2Stage.environmentBackground,
-      child: OverflowBox(
-        alignment: Alignment.bottomCenter,
-        minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-        maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
-        child: AmbientWildlifeV2ProductionStage(
-          key: stageKey,
-          nextInt: nextInt,
-          minimumInterval: minimumInterval,
-          maximumInterval: maximumInterval,
-          forcedPlan: forcedPlan,
-          forcedRequestId: forcedRequestId,
-          speciesPresentationScale:
-              DashboardAmbientWildlifeStage.animalPresentationScale,
-          birdPresentationScaleMultiplier:
-              DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier,
-          birdTravelSpeedMultiplier:
-              DashboardAmbientWildlifeStage.birdTravelSpeedMultiplier,
-          catFollowerSpacingMultiplier:
-              DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
-          foxFollowerSpacingMultiplier:
-              DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
-          catMotionProfile: catMotionProfile,
-          catPosePhaseMode: catPosePhaseMode,
-          paused: paused,
-          onCompleted: onCompleted,
-          catPresentationOffsetY:
-              DashboardAmbientWildlifeStage.catPresentationOffsetY,
-          batPresentationVerticalAnchor:
-              AirbornePresentationVerticalAnchor.canonicalAirspace,
-          batPresentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
-          batPresentationAltitudeOffsetY:
-              DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
-          birdPresentationTopCrop:
-              DashboardAmbientWildlifeStage.topAirspaceCrop,
-          paintEnvironment: false,
-        ),
+    child: OverflowBox(
+      alignment: Alignment.bottomCenter,
+      minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+      maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+      child: AmbientWildlifeV2ProductionStage(
+        key: stageKey,
+        nextInt: nextInt,
+        minimumInterval: minimumInterval,
+        maximumInterval: maximumInterval,
+        forcedPlan: forcedPlan,
+        forcedRequestId: forcedRequestId,
+        speciesPresentationScale:
+            DashboardAmbientWildlifeStage.animalPresentationScale,
+        birdPresentationScaleMultiplier:
+            DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier,
+        birdTravelSpeedMultiplier:
+            DashboardAmbientWildlifeStage.birdTravelSpeedMultiplier,
+        catFollowerSpacingMultiplier:
+            DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
+        foxFollowerSpacingMultiplier:
+            DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
+        catMotionProfile: catMotionProfile,
+        catPosePhaseMode: catPosePhaseMode,
+        paused: paused,
+        onCompleted: onCompleted,
+        catPresentationOffsetY:
+            DashboardAmbientWildlifeStage.catPresentationOffsetY,
+        batPresentationVerticalAnchor:
+            AirbornePresentationVerticalAnchor.canonicalAirspace,
+        batPresentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        batPresentationAltitudeOffsetY:
+            DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
+        birdPresentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        paintEnvironment: false,
       ),
     ),
   );
