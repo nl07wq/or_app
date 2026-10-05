@@ -140,7 +140,7 @@ class _AddCustomExerciseDialogState extends State<_AddCustomExerciseDialog> {
         textCapitalization: TextCapitalization.words,
         onChanged: (_) => setState(() {}),
         onSubmitted: (value) => _registerAndClose(value),
-      ),
+      ).inputFeedback(),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),

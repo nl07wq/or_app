@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/section_header.dart';
 
 class WeightInputCard extends StatelessWidget {
@@ -36,7 +37,7 @@ class WeightInputCard extends StatelessWidget {
                 borderSide: BorderSide(color: Colors.blue),
               ),
             ),
-          ),
+          ).inputFeedback(),
         ],
       ),
     );

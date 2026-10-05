@@ -781,7 +781,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                         decimal: true,
                       ),
                       onChanged: onQuantityChanged,
-                    ),
+                    ).inputFeedback(),
                   ),
                 ),
                 Container(
@@ -833,7 +833,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                                     .toList(growable: false),
                                 items: items,
                                 onChanged: onUnitChanged,
-                              ),
+                              ).inputFeedback(),
                             ),
                             Positioned(
                               left: unitTextLeft,

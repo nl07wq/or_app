@@ -208,7 +208,7 @@ class _EventChoiceChip extends StatelessWidget {
         label: ExcludeSemantics(child: Text(label)),
         selected: selected,
         onSelected: enabled ? (_) => onSelected() : null,
-      ),
+      ).inputFeedback(),
     );
   }
 }

@@ -283,7 +283,7 @@ class _SetEditor extends StatelessWidget {
                     set.rpe = value;
                     onChanged();
                   },
-                );
+                ).inputFeedback();
                 final rest = _numberField(
                   key: Key('v2-set-$index-rest'),
                   controller: set.rest,
@@ -344,7 +344,7 @@ class _SetEditor extends StatelessWidget {
       decoration: InputDecoration(labelText: label, suffixText: suffix),
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       onChanged: (_) => onChanged(),
-    );
+    ).inputFeedback();
   }
 
   Widget _setTypeField(BuildContext context) =>
@@ -370,7 +370,7 @@ class _SetEditor extends StatelessWidget {
           set.setType = value;
           onChanged();
         },
-      );
+      ).inputFeedback();
 
   Widget _copyWeightSlot() => SizedBox(
     width: _headerActionSlotWidth,

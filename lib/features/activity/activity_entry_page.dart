@@ -701,7 +701,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 title: const Text('Date'),
                 trailing: Text(_formatDate(_date)),
                 onTap: _isFormal ? null : _pickDate,
-              ).actionableFeedback(enabled: !_isFormal),
+              ).inputFeedback(),
               AppSpacing.gapMD,
               _MeasuredStepsField(
                 controller: _measuredStepsController,

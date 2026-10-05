@@ -1783,7 +1783,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   _pendingQuantityController.clear();
                 }
               }),
-      ),
+      ).inputFeedback(),
     ],
   );
 
@@ -1829,7 +1829,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         onChanged: isWaterEntry || _isSaving
             ? null
             : (value) => setState(() => mealType = value ?? mealType),
-      ),
+      ).inputFeedback(),
     ],
   );
 
@@ -2056,7 +2056,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
-      ),
+      ).inputFeedback(),
     );
   }
 

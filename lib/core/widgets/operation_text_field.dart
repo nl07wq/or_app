@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'global_touch_ripple.dart';
+
 class OperationTextField extends StatelessWidget {
   final TextEditingController controller;
 
@@ -27,16 +29,18 @@ class OperationTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      onChanged: onChanged,
-      keyboardType: keyboardType,
-      minLines: minLines,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: (label == null || label!.isEmpty) ? null : label,
-        hintText: hint,
+    return InputFeedbackRegion(
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: onChanged,
+        keyboardType: keyboardType,
+        minLines: minLines,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: (label == null || label!.isEmpty) ? null : label,
+          hintText: hint,
+        ),
       ),
     );
   }

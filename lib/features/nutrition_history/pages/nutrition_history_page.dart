@@ -181,7 +181,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ),
+          ).inputFeedback(),
       ],
     ),
   );
@@ -304,12 +304,23 @@ class _SummaryValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelSmall, textAlign: TextAlign.center),
-        AppSpacing.gapXS,
-        FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: Theme.of(context).textTheme.titleSmall, maxLines: 1)),
-      ],
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall,
+        textAlign: TextAlign.center,
+      ),
+      AppSpacing.gapXS,
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          value,
+          style: Theme.of(context).textTheme.titleSmall,
+          maxLines: 1,
+        ),
+      ),
+    ],
   );
 }
 

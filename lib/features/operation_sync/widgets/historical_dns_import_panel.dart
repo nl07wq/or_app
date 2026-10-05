@@ -438,7 +438,7 @@ class _PreviewCard extends StatelessWidget {
               'SOURCE TYPE ${item.aggregate?.sourceType.name ?? 'NOT AVAILABLE'}'
               '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.code}: ${issue.message}').join('\n')}'}',
             ),
-          ),
+          ).inputFeedback(),
           if (item.differences.isNotEmpty)
             ExpansionTile(
               tilePadding: EdgeInsets.zero,

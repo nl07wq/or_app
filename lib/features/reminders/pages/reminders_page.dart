@@ -1103,20 +1103,20 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'タイトル'),
                 onChanged: (_) => setState(() => _error = null),
-              ),
+              ).inputFeedback(),
               TextField(
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'メモ'),
-              ),
+              ).inputFeedback(),
               ListTile(
                 title: Text('日付  ${_date.year}/${_date.month}/${_date.day}'),
                 onTap: () => _pickDate(end: false),
-              ).actionableFeedback(enabled: true),
+              ).inputFeedback(),
               SwitchListTile(
                 title: const Text('時刻'),
                 value: _timed,
                 onChanged: (value) => setState(() => _timed = value),
-              ),
+              ).inputFeedback(),
               if (_timed)
                 ListTile(
                   title: Text('時刻  ${_time.format(context)}'),
@@ -1127,7 +1127,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                     );
                     if (value != null) setState(() => _time = value);
                   },
-                ).actionableFeedback(enabled: true),
+                ).inputFeedback(),
               DropdownButtonFormField<ReminderRecurrence>(
                 initialValue: _recurrence,
                 decoration: const InputDecoration(labelText: '繰り返し'),
@@ -1143,7 +1143,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                   _recurrence = value!;
                   _error = null;
                 }),
-              ),
+              ).inputFeedback(),
               if (_recurrence != ReminderRecurrence.none) ...[
                 const SizedBox(height: 12),
                 Text('繰り返しの設定', style: Theme.of(context).textTheme.titleSmall),
@@ -1154,14 +1154,14 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                   value: _end != null,
                   onChanged: (value) =>
                       setState(() => _end = value ? _date : null),
-                ),
+                ).inputFeedback(),
                 if (_end != null)
                   ListTile(
                     title: Text(
                       '繰り返しの終了  ${_end!.year}/${_end!.month}/${_end!.day}',
                     ),
                     onTap: () => _pickDate(end: true),
-                  ).actionableFeedback(enabled: true),
+                  ).inputFeedback(),
               ],
               if (_error != null)
                 Text(
@@ -1209,7 +1209,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
               }
               _error = null;
             }),
-          );
+          ).inputFeedback();
         }),
       );
     }
@@ -1236,7 +1236,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                 }
                 _error = null;
               }),
-            );
+            ).inputFeedback();
           }),
           if (_recurrence == ReminderRecurrence.customMonthDays)
             FilterChip(
@@ -1246,7 +1246,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                 _monthEnd = value;
                 _error = null;
               }),
-            ),
+            ).inputFeedback(),
         ],
       );
     }

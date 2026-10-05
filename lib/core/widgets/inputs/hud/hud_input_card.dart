@@ -74,20 +74,22 @@ class _HUDInputCardState extends State<HUDInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ).actionableFeedback(),
+              ).inputFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 
         if (expanded) ...[
-          OperationRuler(
-            controller: widget.controller,
-            min: widget.min,
-            max: widget.max,
-            step: widget.step,
-            unit: widget.unit,
-            initialValue: widget.initialValue,
+          InputFeedbackRegion(
+            child: OperationRuler(
+              controller: widget.controller,
+              min: widget.min,
+              max: widget.max,
+              step: widget.step,
+              unit: widget.unit,
+              initialValue: widget.initialValue,
+            ),
           ),
 
           const SizedBox(height: 12),
@@ -97,7 +99,7 @@ class _HUDInputCardState extends State<HUDInputCard> {
             child: FilledButton(
               onPressed: collapse,
               child: const Text("完了"),
-            ).actionableFeedback(),
+            ).inputFeedback(),
           ),
         ],
       ],

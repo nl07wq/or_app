@@ -505,7 +505,7 @@ class _PreviewRow extends StatelessWidget {
         '$recordDetails'
         '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.message}').join('\n')}'}',
       ),
-    );
+    ).inputFeedback();
   }
 
   static IconData _icon(OperationSyncRecordDisposition disposition) =>

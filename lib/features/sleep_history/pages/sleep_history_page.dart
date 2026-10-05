@@ -170,7 +170,7 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
                 selected: {_metric},
                 onSelectionChanged: (value) =>
                     setState(() => _metric = value.first),
-              ),
+              ).inputFeedback(),
             ),
             AppSpacing.gapXL,
             SectionHeader(
@@ -265,7 +265,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ),
+          ).inputFeedback(),
       ],
     ),
   );

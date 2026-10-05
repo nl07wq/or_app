@@ -694,7 +694,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     labelText: 'YYYY-MM-DD',
                     suffixIcon: Icon(Icons.calendar_month_outlined),
                   ),
-                ),
+                ).inputFeedback(),
                 AppSpacing.gapSM,
                 if (widget.exchangeType ==
                     ReportSyncExchangeType.morningBrief) ...[
@@ -1753,7 +1753,10 @@ class _FoodMealCard extends StatelessWidget {
           Row(
             children: [
               if (selected != null)
-                Checkbox(value: selected, onChanged: onSelected),
+                Checkbox(
+                  value: selected,
+                  onChanged: onSelected,
+                ).inputFeedback(),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1787,7 +1790,7 @@ class _FoodMealCard extends StatelessWidget {
         ],
       ),
     ),
-  ).actionableFeedback();
+  ).inputFeedback();
 }
 
 class _FoodItemPresentation extends StatelessWidget {

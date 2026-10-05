@@ -116,7 +116,7 @@ class _BowelCardState extends State<BowelCard> {
                   label: Text(item.label),
                   selected: amount == item,
                   onSelected: (_) => _selectAmount(item),
-                );
+                ).inputFeedback();
               }).toList(),
             ),
           ],
@@ -167,7 +167,7 @@ class _BowelCardState extends State<BowelCard> {
                     label: Text(item.label),
                     selected: shape == item,
                     onSelected: (_) => _selectShape(item),
-                  );
+                  ).inputFeedback();
                 }).toList(),
               ),
             ],

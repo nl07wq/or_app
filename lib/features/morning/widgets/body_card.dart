@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/section_header.dart';
 
 import '../../../core/widgets/inputs/hud/hud_input_card.dart';
@@ -95,7 +96,7 @@ class _UnmeasuredToggle extends StatelessWidget {
     label: const Text('未計測'),
     selected: selected,
     onSelected: (_) => onPressed(),
-  );
+  ).inputFeedback();
 }
 
 class _UnmeasuredValue extends StatelessWidget {

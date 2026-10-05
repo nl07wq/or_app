@@ -135,6 +135,123 @@ void main() {
     expect(audio.played, isEmpty);
   });
 
+  testWidgets(
+    'text input is silent while focus, typing, and a passive neighbor work',
+    (tester) async {
+      final audio = _RecordingTouchRippleAudio();
+      final focusNode = FocusNode();
+      var rippleEvents = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GlobalTouchRipple(
+            audio: audio,
+            onRippleEventCreated: (_) => rippleEvents++,
+            child: Scaffold(
+              body: Column(
+                children: [
+                  InputFeedbackRegion(
+                    child: TextField(
+                      key: const ValueKey('silent-input'),
+                      focusNode: focusNode,
+                    ),
+                  ),
+                  const Expanded(child: ColoredBox(color: Colors.black)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('silent-input')));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(focusNode.hasFocus, isTrue);
+      expect(audio.played, isEmpty);
+      expect(rippleEvents, 0);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('silent-input')),
+        'edit',
+      );
+      await tester.pump();
+      expect(audio.played, isEmpty);
+      expect(rippleEvents, 0);
+
+      await tester.longPress(find.byKey(const ValueKey('silent-input')));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(audio.played, isEmpty);
+      expect(rippleEvents, 0);
+
+      await tester.tapAt(const Offset(200, 500));
+      await tester.pump(const Duration(milliseconds: 32));
+      expect(audio.played, [TouchFeedbackSound.water]);
+      expect(rippleEvents, 1);
+    },
+  );
+
+  testWidgets('dropdown selection remains in the silent input domain', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    String selected = 'ONE';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => InputFeedbackRegion(
+                child: DropdownButtonFormField<String>(
+                  initialValue: selected,
+                  items: const [
+                    DropdownMenuItem(value: 'ONE', child: Text('ONE')),
+                    DropdownMenuItem(value: 'TWO', child: Text('TWO')),
+                  ],
+                  onChanged: (value) => setState(() => selected = value!),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('TWO').last);
+    await tester.pumpAndSettle();
+
+    expect(selected, 'TWO');
+    expect(audio.played, isEmpty);
+    expect(rippleEvents, 0);
+  });
+
+  testWidgets('input ownership cancels an accidental ancestor semantic claim', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: Scaffold(
+            body: ActionableFeedbackRegion(
+              child: InputFeedbackRegion(
+                child: const TextField(key: ValueKey('nested-input')),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('nested-input')));
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(audio.played, isEmpty);
+  });
+
   testWidgets('semantic sound dispatch precedes accepted action', (
     tester,
   ) async {

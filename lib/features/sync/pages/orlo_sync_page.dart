@@ -236,7 +236,7 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
             ],
             onChanged: (value) =>
                 setState(() => _selectedType = value ?? 'training'),
-          ),
+          ).inputFeedback(),
         AppSpacing.gapSM,
         OperationCard(
           child: OperationTextField(

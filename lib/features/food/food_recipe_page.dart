@@ -333,7 +333,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                 onChanged: readOnly
                     ? null
                     : (value) => setState(() => _yieldUnit = value!),
-              );
+              ).inputFeedback();
               if (constraints.maxWidth < 420) {
                 return Column(children: [quantity, AppSpacing.gapSM, unit]);
               }

@@ -104,7 +104,7 @@ class TrainingSessionV2Form extends StatelessWidget {
             controller: controller.sessionName,
             decoration: const InputDecoration(labelText: 'SESSION NAME'),
             onChanged: (_) => onChanged(),
-          ),
+          ).inputFeedback(),
           AppSpacing.gapSM,
           TextField(
             controller: controller.sessionMemo,
@@ -112,7 +112,7 @@ class TrainingSessionV2Form extends StatelessWidget {
             minLines: 2,
             maxLines: 3,
             onChanged: (_) => onChanged(),
-          ),
+          ).inputFeedback(),
           AppSpacing.gapSM,
           LayoutBuilder(
             builder: (context, constraints) {
@@ -365,7 +365,7 @@ class _TimeField extends StatelessWidget {
             onPressed: onEdit,
             icon: const Icon(Icons.edit_outlined),
             label: const Text('EDIT'),
-          ).actionableFeedback(),
+          ).inputFeedback(),
         ],
       ],
     );
@@ -579,6 +579,6 @@ class _TriStateField extends StatelessWidget {
         'notCompleted' => false,
         _ => null,
       }),
-    );
+    ).inputFeedback();
   }
 }

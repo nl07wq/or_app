@@ -1907,66 +1907,73 @@ class _WeatherSummary extends StatelessWidget {
         final velocity = details.primaryVelocity ?? 0;
         if (velocity.abs() > 120) onSwipeDate(velocity < 0 ? 1 : -1);
       },
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          key: const ValueKey('weather-selected-day'),
-          margin: const EdgeInsets.fromLTRB(12, 3, 12, 2),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            border: Border.all(color: scheme.primary.withValues(alpha: .35)),
-            borderRadius: BorderRadius.circular(8),
-            gradient: LinearGradient(
-              colors: [
-                scheme.primary.withValues(alpha: .12),
-                Colors.transparent,
-              ],
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$label  ${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.primary,
-                  letterSpacing: .7,
+      child:
+          InkWell(
+            onTap: onTap,
+            child: Container(
+              key: const ValueKey('weather-selected-day'),
+              margin: const EdgeInsets.fromLTRB(12, 3, 12, 2),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: scheme.primary.withValues(alpha: .35),
+                ),
+                borderRadius: BorderRadius.circular(8),
+                gradient: LinearGradient(
+                  colors: [
+                    scheme.primary.withValues(alpha: .12),
+                    Colors.transparent,
+                  ],
                 ),
               ),
-              const SizedBox(height: 5),
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(_weatherIcon(day.code), color: scheme.primary, size: 23),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _weatherConditionJapanese(day.code),
-                      style: Theme.of(context).textTheme.titleSmall,
+                  Text(
+                    '$label  ${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: scheme.primary,
+                      letterSpacing: .7,
                     ),
                   ),
-                  Text('最低 ${day.low.round()}℃ · 最高 ${day.high.round()}℃'),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(
+                        _weatherIcon(day.code),
+                        color: scheme.primary,
+                        size: 23,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _weatherConditionJapanese(day.code),
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      Text('最低 ${day.low.round()}℃ · 最高 ${day.high.round()}℃'),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '降水 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm${representative == null ? '' : ' · 風 ${representative.windSpeed.round()}km/h'}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    summary.primary,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: scheme.onSurface),
+                  ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                '降水 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm${representative == null ? '' : ' · 風 ${representative.windSpeed.round()}km/h'}',
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-              const SizedBox(height: 5),
-              Text(
-                summary.primary,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.onSurface),
-              ),
-            ],
+            ),
+          ).actionableFeedback(
+            role: silentOnTap
+                ? ActionableFeedbackRole.silent
+                : ActionableFeedbackRole.command,
           ),
-        ),
-      ).actionableFeedback(
-        role: silentOnTap
-            ? ActionableFeedbackRole.silent
-            : ActionableFeedbackRole.command,
-      ),
     ).actionableFeedback();
   }
 }
@@ -5338,7 +5345,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                   )
                   .toList(),
               onChanged: (value) => setState(() => _type = value!),
-            ),
+            ).inputFeedback(),
             OperationTextField(controller: _title, label: 'タイトル'),
             TextButton(
               onPressed: () async {
@@ -5351,13 +5358,13 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                 if (picked != null) setState(() => _date = picked);
               },
               child: Text('日付 ${_key(_date)}'),
-            ).actionableFeedback(),
+            ).inputFeedback(),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('終日'),
               value: _allDay,
               onChanged: (value) => setState(() => _allDay = value),
-            ),
+            ).inputFeedback(),
             if (!_allDay) _TimeControl(label: '開始', controller: _start),
             if (!_allDay) _TimeControl(label: '終了', controller: _end),
             if (_type == ScheduleType.work && !_allDay)
@@ -5435,43 +5442,45 @@ class _TimeControlState extends State<_TimeControl> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(widget.label, style: Theme.of(context).textTheme.labelSmall),
-      Row(
-        children: [
-          IconButton(
-            onPressed: () => _step(-15),
-            icon: const Icon(Icons.remove),
-          ).actionableFeedback(),
-          Expanded(
-            child: InkWell(
-              onTap: () async {
-                final result = await showSharedTimePicker(
-                  context,
-                  initialTime: timeOfDayFromClock(
-                    widget.controller.text,
-                    fallback: const TimeOfDay(hour: 9, minute: 0),
-                  ),
-                );
-                if (result != null) {
-                  widget.controller.text = clockFromTimeOfDay(result);
-                  setState(() {});
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                child: Text(
-                  widget.controller.text.isEmpty
-                      ? '未設定'
-                      : widget.controller.text,
-                  textAlign: TextAlign.center,
-                ),
-              ),
+      InputFeedbackRegion(
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => _step(-15),
+              icon: const Icon(Icons.remove),
             ).actionableFeedback(),
-          ),
-          IconButton(
-            onPressed: () => _step(15),
-            icon: const Icon(Icons.add),
-          ).actionableFeedback(),
-        ],
+            Expanded(
+              child: InkWell(
+                onTap: () async {
+                  final result = await showSharedTimePicker(
+                    context,
+                    initialTime: timeOfDayFromClock(
+                      widget.controller.text,
+                      fallback: const TimeOfDay(hour: 9, minute: 0),
+                    ),
+                  );
+                  if (result != null) {
+                    widget.controller.text = clockFromTimeOfDay(result);
+                    setState(() {});
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    widget.controller.text.isEmpty
+                        ? '未設定'
+                        : widget.controller.text,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ).actionableFeedback(),
+            ),
+            IconButton(
+              onPressed: () => _step(15),
+              icon: const Icon(Icons.add),
+            ).actionableFeedback(),
+          ],
+        ),
       ),
       const Divider(height: 1),
     ],
@@ -6235,23 +6244,27 @@ class _DurationControlState extends State<_DurationControl> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(widget.label, style: Theme.of(context).textTheme.labelSmall),
-      Row(
-        children: [
-          IconButton(
-            onPressed: () => _step(-15),
-            icon: const Icon(Icons.remove),
-          ).actionableFeedback(),
-          Expanded(
-            child: Text(
-              widget.controller.text.isEmpty ? '01:00' : widget.controller.text,
-              textAlign: TextAlign.center,
+      InputFeedbackRegion(
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => _step(-15),
+              icon: const Icon(Icons.remove),
+            ).actionableFeedback(),
+            Expanded(
+              child: Text(
+                widget.controller.text.isEmpty
+                    ? '01:00'
+                    : widget.controller.text,
+                textAlign: TextAlign.center,
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: () => _step(15),
-            icon: const Icon(Icons.add),
-          ).actionableFeedback(),
-        ],
+            IconButton(
+              onPressed: () => _step(15),
+              icon: const Icon(Icons.add),
+            ).actionableFeedback(),
+          ],
+        ),
       ),
       const Divider(height: 1),
     ],

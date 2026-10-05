@@ -123,7 +123,7 @@ class _EquipmentSheet extends StatelessWidget {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(labelText: 'EQUIPMENT NAME'),
-        ),
+        ).inputFeedback(),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

@@ -3891,7 +3891,7 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
                   decoration: const InputDecoration(
                     labelText: 'TIME MS (0–6000)',
                   ),
-                ),
+                ).inputFeedback(),
                 AppSpacing.gapSM,
                 _SandboxActionButton(
                   key: const ValueKey('suspension-add-point'),
@@ -6696,7 +6696,7 @@ class _Scene2NumberFieldState extends State<_Scene2NumberField> {
     ),
     decoration: InputDecoration(labelText: widget.label, hintText: 'NOT SET'),
     onChanged: widget.onChanged,
-  );
+  ).inputFeedback();
 }
 
 class _Scene2NullableValues extends StatelessWidget {

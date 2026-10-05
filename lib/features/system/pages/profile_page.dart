@@ -164,7 +164,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           hintText: '未設定',
                         ),
                         onChanged: (_) => _changed(),
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       TextFormField(
                         key: const ValueKey('profile-height'),
@@ -179,7 +179,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         validator: _validateHeight,
                         onChanged: (_) => _changed(),
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       DropdownButtonFormField<String>(
                         key: const ValueKey('profile-gender'),
@@ -216,7 +216,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           _gender = value;
                           _changed();
                         },
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       ListTile(
                         key: const ValueKey('profile-nationality'),
@@ -225,7 +225,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         subtitle: Text(_nationality ?? '未設定'),
                         trailing: const Icon(Icons.search),
                         onTap: _selectNationality,
-                      ).actionableFeedback(enabled: true),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       FilledButton.icon(
                         key: const ValueKey('save-profile'),
@@ -296,14 +296,14 @@ class _NationalityPickerState extends State<_NationalityPicker> {
                   prefixIcon: Icon(Icons.search),
                 ),
                 onChanged: (value) => setState(() => _query = value),
-              ),
+              ).inputFeedback(),
               AppSpacing.gapSM,
               ListTile(
                 title: const Text('未選択'),
                 leading: const Icon(Icons.remove_circle_outline),
                 onTap: () =>
                     Navigator.pop(context, const _NationalitySelection(null)),
-              ).actionableFeedback(enabled: true),
+              ).inputFeedback(),
               const Divider(),
               Expanded(
                 child: results.isEmpty
@@ -321,7 +321,7 @@ class _NationalityPickerState extends State<_NationalityPicker> {
                               context,
                               _NationalitySelection(value),
                             ),
-                          ).actionableFeedback(enabled: true);
+                          ).inputFeedback();
                         },
                       ),
               ),

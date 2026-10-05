@@ -254,7 +254,7 @@ class _WorkCardState extends State<WorkCard> {
                       labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       selected: false,
                       onSelected: (_) => _applyPreset(_presets[index]),
-                    ),
+                    ).inputFeedback(),
                   ),
                 ],
               ],
@@ -421,17 +421,17 @@ class _ShiftPresetEditorDialogState extends State<_ShiftPresetEditorDialog> {
             controller: _nameController,
             maxLength: 24,
             decoration: const InputDecoration(labelText: 'Preset Name'),
-          ),
+          ).inputFeedback(),
           TextField(
             controller: _startController,
             keyboardType: TextInputType.datetime,
             decoration: const InputDecoration(labelText: 'Start Time (HH:mm)'),
-          ),
+          ).inputFeedback(),
           TextField(
             controller: _endController,
             keyboardType: TextInputType.datetime,
             decoration: const InputDecoration(labelText: 'End Time (HH:mm)'),
-          ),
+          ).inputFeedback(),
           if (_errorText != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),

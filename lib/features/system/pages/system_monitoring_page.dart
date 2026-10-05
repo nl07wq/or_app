@@ -570,13 +570,13 @@ class _InformationDebugEditorState extends State<_InformationDebugEditor> {
           TextField(
             controller: _title,
             decoration: const InputDecoration(labelText: 'TITLE'),
-          ),
+          ).inputFeedback(),
           TextField(
             controller: _message,
             minLines: 2,
             maxLines: 4,
             decoration: const InputDecoration(labelText: 'MESSAGE'),
-          ),
+          ).inputFeedback(),
           DropdownButtonFormField<InformationNoticePriority>(
             initialValue: _priority,
             decoration: const InputDecoration(labelText: 'PRIORITY'),
@@ -590,7 +590,7 @@ class _InformationDebugEditorState extends State<_InformationDebugEditor> {
             onChanged: (value) {
               if (value != null) setState(() => _priority = value);
             },
-          ),
+          ).inputFeedback(),
         ],
       ),
     ),

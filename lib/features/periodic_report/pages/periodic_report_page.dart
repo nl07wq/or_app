@@ -260,7 +260,7 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
                           labelText: 'CHATGPT RESPONSE JSON',
                           border: OutlineInputBorder(),
                         ),
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       _PeriodicResponseActionBar(
                         enabled: !_busy,

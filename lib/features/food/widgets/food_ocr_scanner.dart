@@ -688,7 +688,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                         isDense: true,
                         border: InputBorder.none,
                       ),
-                    ),
+                    ).inputFeedback(),
                   ),
                   SizedBox(
                     width: unitWidth,
@@ -884,7 +884,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
           TextField(
             controller: _name,
             decoration: const InputDecoration(labelText: 'SELECTED NAME'),
-          ),
+          ).inputFeedback(),
           _candidateChoices(
             'NAME CANDIDATES',
             widget.draft.nameCandidates,
@@ -894,7 +894,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
           TextField(
             controller: _brand,
             decoration: const InputDecoration(labelText: 'SELECTED BRAND'),
-          ),
+          ).inputFeedback(),
           _candidateChoices(
             'BRAND CANDIDATES',
             widget.draft.brandCandidates,

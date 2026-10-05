@@ -297,7 +297,7 @@ class _InitializationConfirmationDialogState
           maxLines: 2,
           keyboardType: TextInputType.multiline,
           decoration: const InputDecoration(labelText: '確認文字列'),
-        ),
+        ).inputFeedback(),
       ],
     ),
     actions: [

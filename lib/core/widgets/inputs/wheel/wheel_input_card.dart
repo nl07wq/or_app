@@ -86,22 +86,24 @@ class _WheelInputCardState extends State<WheelInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ).actionableFeedback(),
+              ).inputFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 
         if (expanded) ...[
-          WheelRuler(
-            controller: widget.controller,
-            min: widget.min,
-            max: widget.max,
-            step: widget.step,
-            unit: widget.unit,
-            initialValue: widget.initialValue,
-            preserveEmpty: widget.preserveEmpty,
-            labels: widget.labels,
+          InputFeedbackRegion(
+            child: WheelRuler(
+              controller: widget.controller,
+              min: widget.min,
+              max: widget.max,
+              step: widget.step,
+              unit: widget.unit,
+              initialValue: widget.initialValue,
+              preserveEmpty: widget.preserveEmpty,
+              labels: widget.labels,
+            ),
           ),
 
           const SizedBox(height: 12),
@@ -113,7 +115,7 @@ class _WheelInputCardState extends State<WheelInputCard> {
                 setState(() => expanded = false);
               },
               child: const Text("完了"),
-            ).actionableFeedback(),
+            ).inputFeedback(),
           ),
         ],
       ],

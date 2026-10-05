@@ -70,18 +70,20 @@ class _TimeInputCardState extends State<TimeInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ).actionableFeedback(),
+              ).inputFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 
         if (expanded) ...[
-          OperationTimePicker(
-            controller: widget.controller,
-            minuteStep: widget.minuteStep,
-            initialHour: widget.initialHour,
-            initialMinute: widget.initialMinute,
+          InputFeedbackRegion(
+            child: OperationTimePicker(
+              controller: widget.controller,
+              minuteStep: widget.minuteStep,
+              initialHour: widget.initialHour,
+              initialMinute: widget.initialMinute,
+            ),
           ),
 
           const SizedBox(height: 12),
@@ -91,7 +93,7 @@ class _TimeInputCardState extends State<TimeInputCard> {
             child: FilledButton(
               onPressed: collapse,
               child: const Text("完了"),
-            ).actionableFeedback(),
+            ).inputFeedback(),
           ),
         ],
       ],

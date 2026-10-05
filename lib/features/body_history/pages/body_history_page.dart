@@ -184,7 +184,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ),
+          ).inputFeedback(),
       ],
     ),
   );
@@ -307,7 +307,7 @@ class _SummaryValue extends StatelessWidget {
           child: Text(label, style: Theme.of(context).textTheme.labelMedium),
         ),
       ),
-        const SizedBox(height: AppSpacing.xs),
+      const SizedBox(height: AppSpacing.xs),
       Text(value, style: Theme.of(context).textTheme.titleMedium, maxLines: 1),
     ],
   );

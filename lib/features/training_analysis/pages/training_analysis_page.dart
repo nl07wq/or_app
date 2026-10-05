@@ -413,7 +413,7 @@ class _TrainingAnalysisCreatePageState
                         labelText: 'RESPONSE JSON',
                         border: OutlineInputBorder(),
                       ),
-                    ),
+                    ).inputFeedback(),
                     AppSpacing.gapMD,
                     ReportSyncActionBar(
                       enabled: !_busy,
@@ -1143,7 +1143,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
                 selected: selectedCategory == category,
                 onSelected: (_) =>
                     setState(() => _selectedMetricKey = category),
-              ),
+              ).inputFeedback(),
           ],
         ),
         if (selectedCategory == 'volume' && volumeOptions.length > 1) ...[
@@ -1156,7 +1156,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
                   label: Text(key == 'recorded-volume' ? '総' : 'メインセット'),
                   selected: selectedKey == key,
                   onSelected: (_) => setState(() => _selectedVolumeKey = key),
-                ),
+                ).inputFeedback(),
             ],
           ),
         ],

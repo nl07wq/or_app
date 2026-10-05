@@ -59,16 +59,18 @@ class _WheelSelectorCardState<T> extends State<WheelSelectorCard<T>> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ).actionableFeedback(),
+              ).inputFeedback(),
           ],
         ),
 
         if (expanded) ...[
-          WheelSelector<T>(
-            values: widget.values,
-            labels: widget.labels,
-            value: widget.value,
-            onChanged: widget.onChanged,
+          InputFeedbackRegion(
+            child: WheelSelector<T>(
+              values: widget.values,
+              labels: widget.labels,
+              value: widget.value,
+              onChanged: widget.onChanged,
+            ),
           ),
 
           const SizedBox(height: 12),
@@ -82,7 +84,7 @@ class _WheelSelectorCardState<T> extends State<WheelSelectorCard<T>> {
                 });
               },
               child: const Text("完了"),
-            ).actionableFeedback(),
+            ).inputFeedback(),
           ),
         ],
       ],

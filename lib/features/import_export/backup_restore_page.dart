@@ -351,7 +351,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             onSelectionChanged: _selectedPackage!.permitsReplaceAll && !_busy
                 ? (value) => _changeMode(value.single)
                 : null,
-          ),
+          ).inputFeedback(),
           AppSpacing.gapMD,
           for (final section in plan.sections.entries)
             Text(

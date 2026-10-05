@@ -349,7 +349,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                 ),
                 selected: {_view},
                 onSelectionChanged: (value) => _selectView(value.single),
-              ),
+              ).inputFeedback(),
               AppSpacing.gapMD,
             ],
             OperationTextField(
@@ -1341,7 +1341,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         onChanged(item as T);
       }
     },
-  );
+  ).inputFeedback();
 }
 
 class _NutritionRecalculationRow extends StatelessWidget {

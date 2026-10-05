@@ -86,6 +86,20 @@ class GlobalTouchRipple extends StatefulWidget {
     ownership.genericExcluded = true;
   }
 
+  /// Marks an editable/selectable form surface.
+  ///
+  /// Input focus, typing, selection, and ordinary value selection are neither
+  /// environmental touches nor semantic commands. This also overrides an
+  /// accidental ancestor actionable boundary, so editable children never
+  /// inherit a command sound from their containing card.
+  static void beginInputFeedback(int pointer) {
+    final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    ownership
+      ..genericExcluded = true
+      ..inputExcluded = true
+      ..semanticCancelled = true;
+  }
+
   /// Resolves feedback from a confirmed accepted callback.
   ///
   /// Shared actionable controls use [beginSemanticFeedback] on pointer-down
@@ -110,6 +124,7 @@ class GlobalTouchRipple extends StatefulWidget {
     Offset position,
   ) {
     final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    if (ownership.inputExcluded) return;
     ownership
       ..genericExcluded = true
       ..sound = sound
@@ -144,7 +159,10 @@ class GlobalTouchRipple extends StatefulWidget {
     final ownership = _ownership[pointer];
     final sound = ownership?.sound;
     ownership?.semanticLongPressTimer?.cancel();
-    if (ownership == null || ownership.semanticCancelled || sound == null) {
+    if (ownership == null ||
+        ownership.inputExcluded ||
+        ownership.semanticCancelled ||
+        sound == null) {
       return;
     }
     _activeState?._playSemanticFeedback(pointer, sound);
@@ -350,6 +368,7 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
 
 class _TouchFeedbackOwnership {
   bool genericExcluded = false;
+  bool inputExcluded = false;
   bool soundPlayed = false;
   bool semanticCancelled = false;
   Offset? downPosition;
@@ -385,6 +404,26 @@ class SemanticFeedbackRegion extends StatelessWidget {
     behavior: HitTestBehavior.translucent,
     onPointerDown: (event) =>
         GlobalTouchRipple.excludeGenericFeedback(event.pointer),
+    child: child,
+  );
+}
+
+/// Marks the exact hit-test bounds of an editable/selectable form surface.
+///
+/// Input interaction is deliberately silent: it excludes the global ripple
+/// and Water Drop at pointer-down, but never establishes semantic ownership.
+/// Standard OR-APP input primitives use this automatically; raw/custom input
+/// surfaces use this one shared wrapper rather than feature-specific logic.
+class InputFeedbackRegion extends StatelessWidget {
+  const InputFeedbackRegion({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: (event) =>
+        GlobalTouchRipple.beginInputFeedback(event.pointer),
     child: child,
   );
 }
@@ -507,6 +546,11 @@ extension ActionableFeedbackWidget on Widget {
     role: role,
     child: this,
   );
+}
+
+/// Applies the input/edit feedback contract to a stock or custom form field.
+extension InputFeedbackWidget on Widget {
+  Widget inputFeedback() => InputFeedbackRegion(child: this);
 }
 
 bool _hasEnabledAction(Widget widget) => switch (widget) {
