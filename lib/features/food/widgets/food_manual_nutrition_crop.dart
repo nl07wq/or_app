@@ -291,7 +291,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       leading: IconButton(
         icon: const Icon(Icons.close),
         onPressed: _submitting ? null : () => Navigator.pop(context),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     ),
     body: SafeArea(
       child: Column(

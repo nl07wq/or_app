@@ -87,7 +87,7 @@ class _InformationDetailSheetState extends State<InformationDetailSheet> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
                   tooltip: '閉じる',
-                ).actionableFeedback(),
+                ).actionableFeedback(role: ActionableFeedbackRole.exit),
               ],
             ),
             if (_notices.length > 1) ...[

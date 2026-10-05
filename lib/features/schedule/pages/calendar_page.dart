@@ -249,6 +249,11 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: Navigator.of(context).canPop()
+          ? BackButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+            ).actionableFeedback(role: ActionableFeedbackRole.exit)
+          : null,
       title: const Text('CALENDAR'),
       centerTitle: true,
       actions: [
@@ -840,7 +845,7 @@ class _WeatherHeader extends StatelessWidget {
                 ],
               ),
             ),
-          ).actionableFeedback(result: ActionableFeedbackResult.silent),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
         IconButton(
           tooltip: '天気を更新',
@@ -964,7 +969,7 @@ class _WeatherConsoleSectionHeader extends StatelessWidget {
             ],
           ),
         ),
-      ).actionableFeedback(result: ActionableFeedbackResult.silent),
+      ).actionableFeedback(role: ActionableFeedbackRole.silent),
     );
   }
 }
@@ -1958,9 +1963,9 @@ class _WeatherSummary extends StatelessWidget {
           ),
         ),
       ).actionableFeedback(
-        result: silentOnTap
-            ? ActionableFeedbackResult.silent
-            : ActionableFeedbackResult.accepted,
+        role: silentOnTap
+            ? ActionableFeedbackRole.silent
+            : ActionableFeedbackRole.command,
       ),
     ).actionableFeedback();
   }

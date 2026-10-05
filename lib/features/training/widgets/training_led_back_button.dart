@@ -98,7 +98,7 @@ class _TrainingLedBackButtonState extends State<TrainingLedBackButton>
             ),
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

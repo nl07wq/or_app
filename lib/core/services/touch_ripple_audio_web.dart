@@ -61,6 +61,7 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     TouchFeedbackSound.water => touchRippleAudioAssetUrl,
     TouchFeedbackSound.success => touchRippleSuccessAudioAssetUrl,
     TouchFeedbackSound.failure => touchRippleFailureAudioAssetUrl,
+    TouchFeedbackSound.exit => touchRippleExitAudioAssetUrl,
   };
 
   @override

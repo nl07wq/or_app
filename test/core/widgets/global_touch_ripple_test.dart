@@ -170,54 +170,67 @@ void main() {
     expect(audio.played, isEmpty);
   });
 
-  testWidgets('shared actionable region owns accepted and unavailable taps', (
-    tester,
-  ) async {
-    final audio = _RecordingTouchRippleAudio();
-    var acceptedActions = 0;
-    var rippleEvents = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: GlobalTouchRipple(
-          audio: audio,
-          onRippleEventCreated: (_) => rippleEvents++,
-          child: Row(
-            children: [
-              Expanded(
-                child: ActionableFeedbackRegion(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => acceptedActions++,
+  testWidgets(
+    'shared actionable roles own command, exit, and unavailable taps',
+    (tester) async {
+      final audio = _RecordingTouchRippleAudio();
+      var acceptedActions = 0;
+      var rippleEvents = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GlobalTouchRipple(
+            audio: audio,
+            onRippleEventCreated: (_) => rippleEvents++,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ActionableFeedbackRegion(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => acceptedActions++,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ActionableFeedbackRegion(
+                    role: ActionableFeedbackRole.exit,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => acceptedActions++,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ActionableFeedbackRegion(
+                    result: ActionableFeedbackResult.unavailable,
                     child: const SizedBox.expand(),
                   ),
                 ),
-              ),
-              Expanded(
-                child: ActionableFeedbackRegion(
-                  result: ActionableFeedbackResult.unavailable,
-                  child: const SizedBox.expand(),
-                ),
-              ),
-              const Expanded(child: ColoredBox(color: Colors.black)),
-            ],
+                const Expanded(child: ColoredBox(color: Colors.black)),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tapAt(const Offset(100, 300));
-    await tester.tapAt(const Offset(400, 300));
+      await tester.tapAt(const Offset(100, 300));
+    await tester.tapAt(const Offset(300, 300));
+    await tester.tapAt(const Offset(500, 300));
     await tester.tapAt(const Offset(700, 300));
-    await tester.pump(const Duration(milliseconds: 32));
+      await tester.pump(const Duration(milliseconds: 32));
 
-    expect(acceptedActions, 1);
-    expect(rippleEvents, 1);
-    expect(audio.played, [
-      TouchFeedbackSound.success,
-      TouchFeedbackSound.failure,
-      TouchFeedbackSound.water,
-    ]);
-  });
+      expect(acceptedActions, 2);
+      expect(rippleEvents, 1);
+      expect(audio.played, [
+        TouchFeedbackSound.success,
+        TouchFeedbackSound.exit,
+        TouchFeedbackSound.failure,
+        TouchFeedbackSound.water,
+      ]);
+    },
+  );
 
   testWidgets('silent actionable region excludes generic feedback only', (
     tester,
@@ -231,7 +244,7 @@ void main() {
           audio: audio,
           onRippleEventCreated: (_) => rippleEvents++,
           child: ActionableFeedbackRegion(
-            result: ActionableFeedbackResult.silent,
+            role: ActionableFeedbackRole.silent,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => actions++,
@@ -475,7 +488,7 @@ void main() {
     ]);
   });
 
-  testWidgets('STATUS back control claims success feedback', (tester) async {
+  testWidgets('STATUS back control claims exit feedback', (tester) async {
     final audio = _RecordingTouchRippleAudio();
     await tester.pumpWidget(
       MaterialApp(
@@ -503,7 +516,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('status-crt-back')));
     await tester.pump(const Duration(milliseconds: 32));
 
-    expect(audio.played.last, TouchFeedbackSound.success);
+    expect(audio.played.last, TouchFeedbackSound.exit);
   });
 
   testWidgets('Reduced Motion suppresses animation but preserves audio', (
@@ -544,6 +557,10 @@ void main() {
     expect(
       touchRippleFailureAudioAssetUrl,
       'assets/assets/audio/touch/キャンセル1.mp3',
+    );
+    expect(
+      touchRippleExitAudioAssetUrl,
+      'assets/assets/audio/touch/ボタン音09.mp3',
     );
   });
 }

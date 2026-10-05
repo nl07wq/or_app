@@ -330,26 +330,35 @@ class SemanticFeedbackRegion extends StatelessWidget {
   );
 }
 
-/// The feedback role owned by an actionable OR-APP control.
-enum ActionableFeedbackResult { accepted, unavailable, silent }
+/// The semantic meaning of an accepted actionable interaction.
+///
+/// Feature code describes the operation, never an audio file. An unavailable
+/// action resolves to [ActionableFeedbackResult.unavailable] regardless of its
+/// normal [ActionableFeedbackRole].
+enum ActionableFeedbackRole { command, exit, silent }
+
+/// The result of an actionable interaction.
+enum ActionableFeedbackResult { accepted, unavailable }
 
 /// Shared ownership boundary for every actionable control.
 ///
 /// It keeps feature code concerned with the control's existing callback while
 /// this primitive owns generic-feedback exclusion and the one semantic sound.
 /// Use [unavailable] only for intentionally pointer-aware disabled controls.
-/// Use [silent] only for an intentionally silent, display-only interaction.
+/// Use [role] to describe accepted action semantics.
 class ActionableFeedbackRegion extends StatelessWidget {
   const ActionableFeedbackRegion({
     super.key,
     required this.child,
     this.enabled = true,
     this.result = ActionableFeedbackResult.accepted,
+    this.role = ActionableFeedbackRole.command,
   });
 
   final Widget child;
   final bool enabled;
   final ActionableFeedbackResult result;
+  final ActionableFeedbackRole role;
 
   @override
   Widget build(BuildContext context) {
@@ -360,19 +369,24 @@ class ActionableFeedbackRegion extends StatelessWidget {
         GlobalTouchRipple.excludeGenericFeedback(event.pointer);
         switch (result) {
           case ActionableFeedbackResult.accepted:
-            GlobalTouchRipple.beginSemanticFeedback(
-              event.pointer,
-              TouchFeedbackSound.success,
-              event.position,
-            );
+            final sound = switch (role) {
+              ActionableFeedbackRole.command => TouchFeedbackSound.success,
+              ActionableFeedbackRole.exit => TouchFeedbackSound.exit,
+              ActionableFeedbackRole.silent => null,
+            };
+            if (sound != null) {
+              GlobalTouchRipple.beginSemanticFeedback(
+                event.pointer,
+                sound,
+                event.position,
+              );
+            }
           case ActionableFeedbackResult.unavailable:
             GlobalTouchRipple.beginSemanticFeedback(
               event.pointer,
               TouchFeedbackSound.failure,
               event.position,
             );
-          case ActionableFeedbackResult.silent:
-            break;
         }
       },
       onPointerMove: (event) => GlobalTouchRipple.updateSemanticPointer(
@@ -400,6 +414,7 @@ class ActionableFeedbackButton extends ActionableFeedbackRegion {
     required super.child,
     required super.enabled,
     super.result,
+    super.role,
   });
 }
 
@@ -409,9 +424,11 @@ extension ActionableFeedbackWidget on Widget {
   Widget actionableFeedback({
     bool? enabled,
     ActionableFeedbackResult result = ActionableFeedbackResult.accepted,
+    ActionableFeedbackRole role = ActionableFeedbackRole.command,
   }) => ActionableFeedbackButton(
     enabled: enabled ?? _hasEnabledAction(this),
     result: result,
+    role: role,
     child: this,
   );
 }

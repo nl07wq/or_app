@@ -232,7 +232,7 @@ class _FoodVfdBackButtonState extends State<FoodVfdBackButton>
             ),
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

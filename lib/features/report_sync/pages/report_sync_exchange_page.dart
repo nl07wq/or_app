@@ -116,7 +116,7 @@ class ReportSyncExchangePage extends StatelessWidget {
                   child: IconButton(
                     icon: const Icon(Icons.arrow_back),
                     onPressed: () => Navigator.of(context).maybePop(),
-                  ).actionableFeedback(),
+                  ).actionableFeedback(role: ActionableFeedbackRole.exit),
                 )
               : null),
       title: appBarTitle ?? Text(_title(exchangeType)),

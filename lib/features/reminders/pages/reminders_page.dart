@@ -301,7 +301,7 @@ class _RemindersPageState extends State<RemindersPage>
               child: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => Navigator.of(context).maybePop(),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.exit),
             )
           : null,
       title: const Text('REMINDERS'),
@@ -984,7 +984,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('破棄する'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
         ],
       ),
     );
@@ -1071,6 +1071,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       appBar: AppBar(
         leading: ActionableFeedbackButton(
           enabled: true,
+          role: ActionableFeedbackRole.exit,
           child: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: _requestExit,

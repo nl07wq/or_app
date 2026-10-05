@@ -81,7 +81,7 @@ class _ActivityMechanicalBackButtonState
             sequence: _sequence,
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

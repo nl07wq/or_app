@@ -131,7 +131,7 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                           onPressed: _exiting ? null : _requestBack,
                           color: opticalBlue,
                           icon: const Icon(Symbols.chevron_left),
-                        ).actionableFeedback(),
+                        ).actionableFeedback(role: ActionableFeedbackRole.exit),
                       ),
                     ),
                   Positioned.fill(

@@ -73,7 +73,7 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
             },
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

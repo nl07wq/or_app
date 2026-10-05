@@ -6,8 +6,9 @@ const touchRippleAudioAssetUrl =
 const touchRippleSuccessAudioAssetUrl =
     'assets/assets/audio/touch/Cyber03-1.mp3';
 const touchRippleFailureAudioAssetUrl = 'assets/assets/audio/touch/キャンセル1.mp3';
+const touchRippleExitAudioAssetUrl = 'assets/assets/audio/touch/ボタン音09.mp3';
 
-enum TouchFeedbackSound { water, success, failure }
+enum TouchFeedbackSound { water, success, failure, exit }
 
 abstract interface class TouchRippleAudio {
   void prepare();
