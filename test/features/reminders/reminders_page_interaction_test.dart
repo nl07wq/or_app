@@ -175,8 +175,27 @@ void main() {
         tester.widget<TabBar>(find.byType(TabBar)).indicator,
         isA<ShapeDecoration>(),
       );
+      expect(tester.widget<TabBar>(find.byType(TabBar)).isScrollable, isTrue);
       expect(tester.takeException(), isNull);
     }
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('Reminder tabs scroll horizontally and retain active selection', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 800));
+    await _pumpPage(tester);
+
+    final tabs = find.byKey(const ValueKey('reminder-hud-tabs'));
+    final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+    expect(tabBar.isScrollable, isTrue);
+    await tester.drag(tabs, const Offset(-180, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('COMPLETED'));
+    await tester.pumpAndSettle();
+    expect(tabBar.controller!.index, 3);
+    expect(tester.takeException(), isNull);
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 

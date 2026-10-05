@@ -4,17 +4,21 @@ import 'dart:ui' show PathMetric;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-const holographicCircuitRouteCount = 8;
+const holographicCircuitRouteCount = 10;
 const holographicCircuitMinimumRouteSegments = 8;
 const holographicCircuitMaximumRouteSegments = 14;
 const holographicCircuitSignalPixelsPerSecond = 340.0;
 const holographicCircuitInitialDelay = Duration(milliseconds: 750);
 const holographicCircuitIdleDuration = Duration(milliseconds: 1750);
 const holographicAmbientUpdateCadence = Duration(milliseconds: 50);
-const holographicCircuitAfterglowDuration = Duration(seconds: 15);
+const holographicCircuitAfterglowDuration = Duration(seconds: 20);
 const holographicCircuitTerminalNodeDuration = Duration(milliseconds: 420);
 const holographicCircuitMaximumConcurrentSignals = 2;
 const holographicCircuitAmbientNodeDiameter = 5.8;
+const holographicTimelineNodeIconSize = 16.0;
+const holographicTimelineNodeOpacity = .64;
+const holographicTimelineRailWidth = 2.0;
+const holographicTimelineRailOpacity = .28;
 
 enum HolographicCircuitTopologyKind { branch, parallel }
 
@@ -899,17 +903,53 @@ const holographicCircuitRoutes = <HolographicCircuitRoute>[
   HolographicCircuitRoute(
     nodePointIndexes: [3, 6, 9],
     points: [
-      Offset(1.12, .93),
-      Offset(.89, .93),
-      Offset(.80, .84),
-      Offset(.67, .84),
-      Offset(.67, .72),
-      Offset(.55, .72),
-      Offset(.45, .83),
-      Offset(.34, .83),
-      Offset(.34, .96),
-      Offset(.18, .96),
-      Offset(.02, 1.10),
+      Offset(-.12, .06),
+      Offset(.10, .06),
+      Offset(.20, .16),
+      Offset(.20, .30),
+      Offset(.34, .30),
+      Offset(.43, .41),
+      Offset(.43, .55),
+      Offset(.56, .55),
+      Offset(.56, .68),
+      Offset(.72, .68),
+      Offset(.84, .80),
+      Offset(1.12, .80),
+    ],
+  ),
+  // Central vertical backbone: an offset PCB bus spanning the viewport.
+  HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8, 10],
+    points: [
+      Offset(.46, -.12),
+      Offset(.46, .10),
+      Offset(.40, .16),
+      Offset(.40, .31),
+      Offset(.49, .31),
+      Offset(.49, .48),
+      Offset(.43, .54),
+      Offset(.43, .69),
+      Offset(.53, .69),
+      Offset(.53, .84),
+      Offset(.47, .90),
+      Offset(.47, 1.12),
+    ],
+  ),
+  // Central horizontal backbone: a bent PCB bus crossing left, center, right.
+  HolographicCircuitRoute(
+    nodePointIndexes: [3, 6, 9],
+    points: [
+      Offset(-.12, .48),
+      Offset(.10, .48),
+      Offset(.20, .40),
+      Offset(.36, .40),
+      Offset(.42, .48),
+      Offset(.58, .48),
+      Offset(.66, .40),
+      Offset(.80, .40),
+      Offset(.80, .52),
+      Offset(.96, .52),
+      Offset(1.12, .42),
     ],
   ),
 ];
@@ -932,4 +972,6 @@ const holographicCircuitTrafficScenarios = <HolographicCircuitTrafficScenario>[
     HolographicCircuitTrafficEntry(1, startDelay: .95),
   ]),
   HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(7)]),
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(8)]),
+  HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(9)]),
 ];

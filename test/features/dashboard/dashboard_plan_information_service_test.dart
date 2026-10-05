@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/holographic_ambient_background.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/services/dashboard_plan_information_service.dart';
 import 'package:or_app/features/schedule/models/schedule_record.dart';
@@ -235,7 +236,7 @@ void main() {
                 find.byKey(ValueKey('dashboard-schedule-anchor-$id')),
               )
               .size,
-          18,
+          holographicTimelineNodeIconSize,
         );
         expect(
           tester

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
@@ -80,8 +82,8 @@ void main() {
     expect(calendarMonthGridTelemetryDividerOpacity, .24);
     expect(calendarTimelineUsesIndividualEntryCards, isFalse);
     expect(calendarTimelineUsesHorizontalAnchorConnector, isFalse);
-    expect(calendarTimelineScheduleAnchorSize, 18);
-    expect(calendarTimelineRailColumnWidth, 18);
+    expect(calendarTimelineScheduleAnchorSize, holographicTimelineNodeIconSize);
+    expect(calendarTimelineRailColumnWidth, holographicTimelineNodeIconSize);
     expect(calendarTimelineContentGap, 6);
     expect(
       calendarMonthGridWeekRowBandColor(ThemeData.dark().colorScheme),
@@ -180,20 +182,42 @@ void main() {
   testWidgets('ambient geometry stays visible and static with reduced motion', (
     tester,
   ) async {
-    expect(holographicCircuitRouteCount, 8);
+    expect(holographicCircuitRouteCount, 10);
     expect(holographicCircuitMinimumRouteSegments, 8);
     expect(holographicCircuitMaximumRouteSegments, 14);
     expect(holographicCircuitSignalPixelsPerSecond, 340);
     expect(holographicCircuitAmbientNodeDiameter, 5.8);
     expect(holographicCircuitInitialDelay, const Duration(milliseconds: 750));
     expect(holographicCircuitIdleDuration, const Duration(milliseconds: 1750));
-    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 15));
+    expect(holographicCircuitAfterglowDuration, const Duration(seconds: 20));
     expect(
       holographicCircuitTerminalNodeDuration,
       const Duration(milliseconds: 420),
     );
     expect(holographicAmbientUpdateCadence, const Duration(milliseconds: 50));
     expect(holographicCircuitRoutes, hasLength(holographicCircuitRouteCount));
+    expect(
+      holographicCircuitRoutes.any(
+        (route) =>
+            route.points.map((point) => point.dy).reduce(math.min) < .1 &&
+            route.points.map((point) => point.dy).reduce(math.max) > .9 &&
+            route.points.map((point) => point.dx).reduce(math.max) -
+                    route.points.map((point) => point.dx).reduce(math.min) <
+                .2,
+      ),
+      isTrue,
+    );
+    expect(
+      holographicCircuitRoutes.any(
+        (route) =>
+            route.points.map((point) => point.dx).reduce(math.min) < .1 &&
+            route.points.map((point) => point.dx).reduce(math.max) > .9 &&
+            route.points.map((point) => point.dy).reduce(math.max) -
+                    route.points.map((point) => point.dy).reduce(math.min) <
+                .2,
+      ),
+      isTrue,
+    );
     expect(
       holographicCircuitRoutes.every(
         (route) =>

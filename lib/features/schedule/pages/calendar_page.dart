@@ -4660,16 +4660,20 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                           : Icons.circle_outlined,
                       color: record.kind == ScheduleEntryKind.reminder
                           ? null
-                          : colorScheme.onSurface.withValues(alpha: .94),
+                          : colorScheme.onSurface.withValues(
+                              alpha: holographicTimelineNodeOpacity,
+                            ),
                       size: record.kind == ScheduleEntryKind.reminder
                           ? 16
                           : calendarTimelineScheduleAnchorSize,
                     ),
                     Container(
                       key: ValueKey('calendar-timeline-rail-${record.id}'),
-                      width: 1,
+                      width: holographicTimelineRailWidth,
                       height: 38,
-                      color: colorScheme.primary.withValues(alpha: .42),
+                      color: colorScheme.primary.withValues(
+                        alpha: holographicTimelineRailOpacity,
+                      ),
                     ),
                   ],
                 ),
@@ -4729,8 +4733,8 @@ const calendarMonthGridUsesLocalMonthControlFrame = false;
 const calendarMonthGridTelemetryDividerOpacity = .24;
 const calendarTimelineUsesIndividualEntryCards = false;
 const calendarTimelineUsesHorizontalAnchorConnector = false;
-const calendarTimelineScheduleAnchorSize = 18.0;
-const calendarTimelineRailColumnWidth = 18.0;
+const calendarTimelineScheduleAnchorSize = holographicTimelineNodeIconSize;
+const calendarTimelineRailColumnWidth = holographicTimelineNodeIconSize;
 const calendarTimelineContentGap = 6.0;
 
 class _CalendarTimelineAddControl extends StatelessWidget {

@@ -17,10 +17,10 @@ typedef _DefinitionAction = Future<void> Function(ReminderDefinition value);
 
 const reminderHudCompletionUsesOuterPolygon = false;
 const reminderCompletionVisibleDiameter = 14.0;
-const reminderCompletionIconSize = 16.0;
+const reminderCompletionIconSize = holographicTimelineNodeIconSize;
 const reminderCompletionTouchTarget = 48.0;
 const reminderCircuitRailIsStatic = true;
-const reminderCircuitRailWidth = 2.0;
+const reminderCircuitRailWidth = holographicTimelineRailWidth;
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
@@ -435,41 +435,32 @@ class _ReminderHudTabs extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     key: const ValueKey('reminder-hud-tabs'),
     margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 360;
-        final fontSize = compact ? 9.3 : 10.5;
-        final letterSpacing = compact ? .05 : .28;
-        return TabBar(
-          controller: controller,
-          isScrollable: false,
-          indicatorSize: TabBarIndicatorSize.tab,
-          indicator: ShapeDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
-            shape: const BeveledRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(4)),
-            ),
-          ),
-          indicatorPadding: const EdgeInsets.symmetric(
-            vertical: 4,
-            horizontal: 1,
-          ),
-          dividerColor: Colors.transparent,
-          labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w700,
-            letterSpacing: letterSpacing,
-          ),
-          unselectedLabelStyle: Theme.of(context).textTheme.labelMedium
-              ?.copyWith(fontSize: fontSize, letterSpacing: letterSpacing),
-          tabs: const [
-            Tab(text: 'TODAY'),
-            Tab(text: 'ALL'),
-            Tab(text: 'RECURRING'),
-            Tab(text: 'COMPLETED'),
-          ],
-        );
-      },
+    child: TabBar(
+      controller: controller,
+      isScrollable: true,
+      indicatorSize: TabBarIndicatorSize.tab,
+      indicator: ShapeDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
+        shape: const BeveledRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(4)),
+        ),
+      ),
+      indicatorPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+      dividerColor: Colors.transparent,
+      labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.1,
+      ),
+      unselectedLabelStyle: Theme.of(
+        context,
+      ).textTheme.labelMedium?.copyWith(letterSpacing: .7),
+      tabs: const [
+        Tab(text: 'TODAY'),
+        Tab(text: 'ALL'),
+        Tab(text: 'RECURRING'),
+        Tab(text: 'COMPLETED'),
+      ],
     ),
   );
 }
@@ -536,9 +527,9 @@ class _OccurrenceList extends StatelessWidget {
               ),
               width: reminderCircuitRailWidth,
               height: 1,
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: .28),
+              color: Theme.of(context).colorScheme.primary.withValues(
+                alpha: holographicTimelineRailOpacity,
+              ),
             ),
           ),
           Positioned(
@@ -649,7 +640,7 @@ class _ReminderCircuitNode extends StatelessWidget {
   Widget build(BuildContext context) {
     final railColor = Theme.of(
       context,
-    ).colorScheme.primary.withValues(alpha: .28);
+    ).colorScheme.primary.withValues(alpha: holographicTimelineRailOpacity);
     const nodeTop = 12.0;
     final ringRadius = reminderCompletionIconSize / 2;
     final nodeCenter = nodeTop + reminderCompletionTouchTarget / 2;
@@ -724,7 +715,9 @@ class _HudCompletionControl extends StatelessWidget {
               size: reminderCompletionIconSize,
               color: completed
                   ? accent
-                  : colorScheme.onSurface.withValues(alpha: .64),
+                  : colorScheme.onSurface.withValues(
+                      alpha: holographicTimelineNodeOpacity,
+                    ),
             ),
           ),
         ),

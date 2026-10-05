@@ -23,6 +23,7 @@ import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
+import '../../core/widgets/holographic_ambient_background.dart';
 import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
@@ -1051,16 +1052,18 @@ class _DashboardScheduleRow extends StatelessWidget {
                       Icon(
                         key: ValueKey('dashboard-schedule-anchor-${record.id}'),
                         Icons.circle_outlined,
-                        size: 18,
-                        color: entry.isOverdue
-                            ? accent
-                            : colorScheme.onSurface.withValues(alpha: .94),
+                        size: holographicTimelineNodeIconSize,
+                        color: colorScheme.onSurface.withValues(
+                          alpha: holographicTimelineNodeOpacity,
+                        ),
                       ),
                       Container(
                         key: ValueKey('dashboard-schedule-rail-${record.id}'),
-                        width: 1,
+                        width: holographicTimelineRailWidth,
                         height: 38,
-                        color: accent.withValues(alpha: .38),
+                        color: colorScheme.primary.withValues(
+                          alpha: holographicTimelineRailOpacity,
+                        ),
                       ),
                     ],
                   ),
