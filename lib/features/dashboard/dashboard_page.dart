@@ -1128,7 +1128,7 @@ LinearGradient _dashboardWeatherGlassGradient(
 /// It is intentionally much quieter than a standalone active-state card: the
 /// grid can show eight semantic surfaces at once.
 @visibleForTesting
-const double operationProgressSemanticTintOpacity = .06;
+const double operationProgressSemanticTintOpacity = .10;
 
 /// Resolves presentation-only tile tint from the canonical Progress state.
 /// No colour state is stored separately: a normal rebuild immediately follows
@@ -2383,78 +2383,85 @@ class _ProgressCardState extends State<_ProgressCard> {
             _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
         return FutureBuilder<_BriefDebriefProgress>(
           future: _briefDebrief,
-          builder: (context, briefSnapshot) => _DashboardHolographicOuterSurface(
-            surfaceKey: const ValueKey('operation-progress-holographic-surface'),
-            scanlineKey: const ValueKey('operation-progress-holographic-scanlines'),
-            child: widget.useLargeLayout
-                ? Row(
-                    key: const ValueKey('operation-progress-large-layout'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: _buildSummary(
-                          context,
-                          estimatedBaseBurn:
-                              targets?.estimatedBaseBurnKcal ??
-                              widget.estimatedTDEE,
-                          exerciseCalories: exerciseCalories,
-                          energyStatus: energyStatus,
-                          estimatedTotalBurn: estimatedTotalBurn,
-                          large: true,
-                        ),
-                      ),
-                      SizedBox(width: AppSpacing.xl),
-                      Expanded(
-                        flex: 3,
-                        child: _buildProgressTiles(
-                          mealCount: mealCount,
-                          calories: calories,
-                          protein: protein,
-                          hydrationMl: hydrationMl,
-                          targets: targets,
-                          completionModel: widget.completionModel,
-                          briefDebrief:
-                              briefSnapshot.data ??
-                              const _BriefDebriefProgress(),
-                          forceTwoColumns: true,
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    key: const ValueKey('operation-progress-compact-layout'),
-                    children: [
-                      _buildSummary(
-                        context,
-                        estimatedBaseBurn:
-                            targets?.estimatedBaseBurnKcal ??
-                            widget.estimatedTDEE,
-                        exerciseCalories: exerciseCalories,
-                        energyStatus: energyStatus,
-                        estimatedTotalBurn: estimatedTotalBurn,
-                        large: false,
-                      ),
-                      AppSpacing.gapLG,
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 800),
-                          child: _buildProgressTiles(
-                            mealCount: mealCount,
-                            calories: calories,
-                            protein: protein,
-                            hydrationMl: hydrationMl,
-                            targets: targets,
-                            completionModel: widget.completionModel,
-                            briefDebrief:
-                                briefSnapshot.data ??
-                                const _BriefDebriefProgress(),
+          builder: (context, briefSnapshot) =>
+              _DashboardHolographicOuterSurface(
+                surfaceKey: const ValueKey(
+                  'operation-progress-holographic-surface',
+                ),
+                scanlineKey: const ValueKey(
+                  'operation-progress-holographic-scanlines',
+                ),
+                child: widget.useLargeLayout
+                    ? Row(
+                        key: const ValueKey('operation-progress-large-layout'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _buildSummary(
+                              context,
+                              estimatedBaseBurn:
+                                  targets?.estimatedBaseBurnKcal ??
+                                  widget.estimatedTDEE,
+                              exerciseCalories: exerciseCalories,
+                              energyStatus: energyStatus,
+                              estimatedTotalBurn: estimatedTotalBurn,
+                              large: true,
+                            ),
                           ),
+                          SizedBox(width: AppSpacing.xl),
+                          Expanded(
+                            flex: 3,
+                            child: _buildProgressTiles(
+                              mealCount: mealCount,
+                              calories: calories,
+                              protein: protein,
+                              hydrationMl: hydrationMl,
+                              targets: targets,
+                              completionModel: widget.completionModel,
+                              briefDebrief:
+                                  briefSnapshot.data ??
+                                  const _BriefDebriefProgress(),
+                              forceTwoColumns: true,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        key: const ValueKey(
+                          'operation-progress-compact-layout',
                         ),
+                        children: [
+                          _buildSummary(
+                            context,
+                            estimatedBaseBurn:
+                                targets?.estimatedBaseBurnKcal ??
+                                widget.estimatedTDEE,
+                            exerciseCalories: exerciseCalories,
+                            energyStatus: energyStatus,
+                            estimatedTotalBurn: estimatedTotalBurn,
+                            large: false,
+                          ),
+                          AppSpacing.gapLG,
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: _buildProgressTiles(
+                                mealCount: mealCount,
+                                calories: calories,
+                                protein: protein,
+                                hydrationMl: hydrationMl,
+                                targets: targets,
+                                completionModel: widget.completionModel,
+                                briefDebrief:
+                                    briefSnapshot.data ??
+                                    const _BriefDebriefProgress(),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-          ),
+              ),
         );
       },
     );

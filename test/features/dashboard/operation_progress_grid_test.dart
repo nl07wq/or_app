@@ -105,7 +105,7 @@ void main() {
         ),
         isNull,
       );
-      expect(operationProgressSemanticTintOpacity, .06);
+      expect(operationProgressSemanticTintOpacity, .10);
     },
   );
 
