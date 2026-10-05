@@ -556,11 +556,11 @@ void main() {
     );
     expect(
       touchRippleFailureAudioAssetUrl,
-      'assets/assets/audio/touch/キャンセル1.mp3',
+      'assets/assets/audio/touch/cancel-1.mp3',
     );
     expect(
       touchRippleExitAudioAssetUrl,
-      'assets/assets/audio/touch/ボタン音09.mp3',
+      'assets/assets/audio/touch/button-09.mp3',
     );
   });
 }

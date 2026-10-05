@@ -66,6 +66,8 @@ flutter:
     - assets/audio/touch/Cyber03-1.mp3
     - assets/audio/touch/キャンセル1.mp3
     - assets/audio/touch/ボタン音09.mp3
+    - assets/audio/touch/cancel-1.mp3
+    - assets/audio/touch/button-09.mp3
     - assets/icons/orlo_icon.png
     - assets/icons/orlo_logo_1024_transparent.png
     - assets/animations/sandbox/boot_sequence/phase_01/background/base_camp_background.png
