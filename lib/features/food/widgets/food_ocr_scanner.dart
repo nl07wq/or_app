@@ -517,7 +517,10 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
   Widget build(BuildContext context) => Dialog.fullscreen(
     child: SafeArea(
       child: Scaffold(
-        appBar: AppBar(title: const Text('OCR PREVIEW')),
+        appBar: AppBar(
+          leading: const ActionableBackButton(),
+          title: const Text('OCR PREVIEW'),
+        ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

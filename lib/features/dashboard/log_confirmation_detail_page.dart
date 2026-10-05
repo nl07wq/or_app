@@ -144,7 +144,10 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('LAST FINALIZE')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('LAST FINALIZE'),
+    ),
     body: FutureBuilder<_LastFinalizeState>(
       future: _state,
       builder: (context, snapshot) {

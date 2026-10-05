@@ -207,7 +207,10 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.title)),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: Text(widget.title),
+    ),
     body: ListView(
       key: const ValueKey('orlo-sync-content'),
       padding: AppSpacing.cardPadding,

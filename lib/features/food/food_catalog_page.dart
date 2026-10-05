@@ -315,7 +315,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                 _FoodDatabaseView.recipe => 'ADD RECIPE',
                 _FoodDatabaseView.meal => 'CREATE MEAL',
               }),
-            ),
+            ).actionableFeedback(),
       body: Padding(
         padding: AppSpacing.cardPadding,
         child: Column(
@@ -349,7 +349,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                 ),
                 selected: {_view},
                 onSelectionChanged: (value) => _selectView(value.single),
-              ).inputFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               AppSpacing.gapMD,
             ],
             OperationTextField(
@@ -942,7 +942,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             key: const ValueKey('nutrition-recalculation-cancel'),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             key: const ValueKey('nutrition-recalculation-apply'),
             onPressed: () => Navigator.pop(context, true),
@@ -986,6 +986,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         base <= 0 ||
         (_packageQuantity.text.trim().isNotEmpty && package == null) ||
         (package == null) != (_packageUnit == null)) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       setState(() => _error = 'ENTER VALID FOOD AND QUANTITY VALUES');
       return;
     }
@@ -998,6 +1001,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       );
       if (duplicate.isNotEmpty) {
         if (!mounted) return;
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
         setState(() => _error = 'EXISTING FOOD FOUND: ${duplicate.first.name}');
         return;
       }
@@ -1017,6 +1023,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           nutrition.fat,
           nutrition.carbohydrate,
         ].any((value) => value == null || !value.isFinite || value < 0)) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       setState(() => _error = 'COMPLETE NUTRITION VALUES ARE REQUIRED');
       return;
     }
@@ -1064,9 +1073,17 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       final saved = (await widget.repository.list()).singleWhere(
         (candidate) => candidate.foodId == entry.foodId,
       );
-      if (mounted) Navigator.pop(context, saved);
+      if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.accepted,
+        );
+        Navigator.pop(context, saved);
+      }
     } catch (error) {
       if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
         setState(() {
           _saving = false;
           _error = '食品データベースへの保存に失敗しました';
@@ -1263,6 +1280,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   icon: Icons.save,
                   text: 'SAVE',
                   onPressed: _saving ? null : _save,
+                  deferFeedback: true,
                 ),
               ],
             ),
@@ -1586,7 +1604,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(

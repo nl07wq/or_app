@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/services/operation_system_metadata.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/section_header.dart';
 import '../services/app_metadata.dart';
 
@@ -16,7 +17,10 @@ class AboutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('ABOUT')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('ABOUT'),
+    ),
     body: ListView(
       key: const ValueKey('about-content'),
       padding: AppSpacing.cardPadding,

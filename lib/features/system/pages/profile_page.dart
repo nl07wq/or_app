@@ -138,7 +138,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('PROFILE')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('PROFILE'),
+    ),
     body: _loading
         ? const Center(child: Text('取得中です'))
         : Form(

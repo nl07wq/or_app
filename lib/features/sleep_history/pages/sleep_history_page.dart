@@ -170,7 +170,7 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
                 selected: {_metric},
                 onSelectionChanged: (value) =>
                     setState(() => _metric = value.first),
-              ).inputFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
             AppSpacing.gapXL,
             SectionHeader(
@@ -265,7 +265,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -483,7 +483,7 @@ class _Buckets extends StatelessWidget {
             child: TextButton(
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ).actionableFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
       ],
     );
@@ -638,7 +638,7 @@ class _DailyHistory extends StatelessWidget {
               IconButton(
                 onPressed: start.isAfter(range.start) ? () => onMove(-7) : null,
                 icon: const Icon(Icons.chevron_left),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               Expanded(
                 child: Text(
                   '${_short(start)} - ${_short(windowEnd)}',
@@ -650,7 +650,7 @@ class _DailyHistory extends StatelessWidget {
                     ? () => onMove(7)
                     : null,
                 icon: const Icon(Icons.chevron_right),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
           for (var i = 0; i < 7; i++)

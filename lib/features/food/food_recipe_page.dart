@@ -146,7 +146,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
@@ -181,7 +181,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
@@ -229,6 +229,9 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                 !servingCount.isFinite ||
                 servingCount <= 0)) ||
         _ingredients.isEmpty) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       setState(() => _error = 'ENTER A NAME, YIELD, AND INGREDIENTS');
       return;
     }
@@ -273,9 +276,19 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
       } else {
         await widget.repository.update(recipe);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.accepted,
+        );
+        Navigator.pop(context, true);
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'RECIPE SAVE FAILED');
+      if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
+        setState(() => _error = 'RECIPE SAVE FAILED');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -294,6 +307,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
     final readOnly = appInitializationController.value.isReadOnly;
     return Scaffold(
       appBar: AppBar(
+        leading: const ActionableBackButton(),
         title: Text(
           widget.initialRecipe == null ? 'CREATE RECIPE' : 'EDIT RECIPE',
         ),
@@ -457,6 +471,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             text: 'SAVE RECIPE',
             role: OperationActionRole.primary,
             onPressed: readOnly || _saving ? null : _save,
+            deferFeedback: true,
           ),
           if (widget.initialRecipe != null) ...[
             AppSpacing.gapSM,

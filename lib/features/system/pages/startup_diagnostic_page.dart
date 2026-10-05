@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 
 /// Temporary on-device viewer for the bounded startup lifecycle trace.
 class StartupDiagnosticPage extends StatefulWidget {
@@ -54,7 +55,10 @@ class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('STARTUP DIAGNOSTIC')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('STARTUP DIAGNOSTIC'),
+    ),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [

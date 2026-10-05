@@ -184,7 +184,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );

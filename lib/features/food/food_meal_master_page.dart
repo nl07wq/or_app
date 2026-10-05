@@ -173,7 +173,7 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
@@ -219,6 +219,9 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
     if (_saving) return;
     final name = _name.text.trim();
     if (name.isEmpty || _components.isEmpty) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       setState(() => _error = 'ENTER A NAME AND AT LEAST ONE ITEM');
       return;
     }
@@ -249,9 +252,19 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
       } else {
         await widget.repository.update(meal);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.accepted,
+        );
+        Navigator.pop(context, true);
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'MEAL SAVE FAILED');
+      if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
+        setState(() => _error = 'MEAL SAVE FAILED');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -277,6 +290,7 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
     final readOnly = appInitializationController.value.isReadOnly;
     return Scaffold(
       appBar: AppBar(
+        leading: const ActionableBackButton(),
         title: Text(widget.initialMeal == null ? 'CREATE MEAL' : 'EDIT MEAL'),
       ),
       body: ListView(
@@ -365,6 +379,7 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
             text: 'SAVE MEAL',
             role: OperationActionRole.primary,
             onPressed: readOnly || _saving ? null : _save,
+            deferFeedback: true,
           ),
           if (widget.initialMeal != null) ...[
             AppSpacing.gapSM,

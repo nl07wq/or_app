@@ -302,7 +302,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: selected == period,
             onSelected: (_) => onSelected(period),
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -446,7 +446,7 @@ class _DailyStatusTrend extends StatelessWidget {
               key: const ValueKey('digestive-trend-toggle'),
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ).actionableFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ],
       ),
     );
@@ -777,7 +777,7 @@ class _BucketSection extends StatelessWidget {
               ),
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ).actionableFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
       ],
     );
@@ -992,12 +992,12 @@ class _DailyHistoryWindowState extends State<_DailyHistoryWindow> {
                 onPressed: canBack ? () => widget.onMove(-7) : null,
                 icon: const Icon(Icons.chevron_left),
                 tooltip: '前の7日間',
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               IconButton(
                 onPressed: canForward ? () => widget.onMove(7) : null,
                 icon: const Icon(Icons.chevron_right),
                 tooltip: '次の7日間',
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
           for (final date in dates)
@@ -1070,7 +1070,7 @@ class _DailyHistoryRow extends StatelessWidget {
               ],
             ),
           ),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: ActionableFeedbackRole.silent),
         if (expanded)
           Padding(
             padding: const EdgeInsets.only(

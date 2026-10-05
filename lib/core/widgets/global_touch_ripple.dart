@@ -136,6 +136,75 @@ class GlobalTouchRipple extends StatefulWidget {
       });
   }
 
+  /// Starts a semantic interaction whose acceptance cannot be known until its
+  /// callback has validated or persisted data. The owning actionable region
+  /// still suppresses environmental feedback at pointer-down; the feature
+  /// resolves only the semantic result through [resolveDeferredFeedback].
+  static void beginDeferredSemanticFeedback(
+    int pointer,
+    ActionableFeedbackRole role,
+    Offset position,
+  ) {
+    final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    if (ownership.inputExcluded) return;
+    ownership
+      ..genericExcluded = true
+      ..role = role
+      ..deferred = true
+      ..semanticSequence = ++_semanticSequence
+      ..downPosition = position
+      ..semanticCancelled = false
+      ..semanticLongPressTimer?.cancel()
+      ..semanticLongPressTimer = Timer(kLongPressTimeout, () {
+        ownership.semanticCancelled = true;
+      });
+    ownership.deferredResolutionTimeout?.cancel();
+    ownership.deferredResolutionTimeout = Timer(
+      const Duration(seconds: 30),
+      () {
+        _release(pointer);
+      },
+    );
+  }
+
+  /// Resolves the newest completed deferred actionable callback without
+  /// exposing sound assets to feature code. Deferred actions are used only
+  /// when validation/persistence determines whether the requested operation
+  /// was actually accepted.
+  static void resolveDeferredFeedback(ActionableFeedbackResult result) {
+    MapEntry<int, _TouchFeedbackOwnership>? selected;
+    for (final entry in _ownership.entries) {
+      final ownership = entry.value;
+      if (!ownership.deferred ||
+          ownership.deferredResolved ||
+          ownership.semanticCancelled ||
+          ownership.inputExcluded ||
+          (selected != null &&
+              ownership.semanticSequence <= selected.value.semanticSequence)) {
+        continue;
+      }
+      selected = entry;
+    }
+    if (selected == null) return;
+    final pointer = selected.key;
+    final ownership = selected.value..deferredResolved = true;
+    final sound = result == ActionableFeedbackResult.unavailable
+        ? TouchFeedbackSound.failure
+        : switch (ownership.role) {
+            ActionableFeedbackRole.command => TouchFeedbackSound.success,
+            ActionableFeedbackRole.exit => TouchFeedbackSound.exit,
+            ActionableFeedbackRole.silent => null,
+            null => null,
+          };
+    if (sound != null) {
+      ownership.sound = sound;
+      _activeState?._playSemanticFeedbackForOwnership(ownership, sound);
+    }
+    _release(pointer);
+  }
+
+  static int _semanticSequence = 0;
+
   static void updateSemanticPointer(int pointer, Offset position) {
     final ownership = _ownership[pointer];
     final downPosition = ownership?.downPosition;
@@ -169,7 +238,9 @@ class GlobalTouchRipple extends StatefulWidget {
   }
 
   static void _release(int pointer) {
-    _ownership.remove(pointer)?.semanticLongPressTimer?.cancel();
+    final ownership = _ownership.remove(pointer);
+    ownership?.semanticLongPressTimer?.cancel();
+    ownership?.deferredResolutionTimeout?.cancel();
   }
 
   @override
@@ -268,6 +339,15 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     _audio.playFromUserGesture(sound);
   }
 
+  void _playSemanticFeedbackForOwnership(
+    _TouchFeedbackOwnership ownership,
+    TouchFeedbackSound sound,
+  ) {
+    if (ownership.soundPlayed) return;
+    ownership.soundPlayed = true;
+    _audio.playFromUserGesture(sound);
+  }
+
   void _onPointerFinished(PointerEvent event) {
     if (event is PointerCancelEvent) {
       _genericCandidates.remove(event.pointer)?.cancel();
@@ -279,6 +359,9 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
       // Some controls legitimately claim semantic success from onPressed,
       // after pointer-up. Keep ownership through that synchronous gesture
       // completion, then dispose it promptly and independently per pointer.
+      if (ownership?.deferred == true && !ownership!.deferredResolved) {
+        return;
+      }
       _exclusionCleanup[event.pointer]?.cancel();
       _exclusionCleanup[event.pointer] = Timer(
         const Duration(milliseconds: 100),
@@ -329,6 +412,12 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     for (final pointer in _pendingAudio.keys) {
       GlobalTouchRipple._release(pointer);
     }
+    // Deferred validation/persistence may outlive a route. Its ownership is
+    // scoped to this root feedback host and must not retain timers after the
+    // host is disposed (notably in navigation and widget-test teardown).
+    for (final pointer in GlobalTouchRipple._ownership.keys.toList()) {
+      GlobalTouchRipple._release(pointer);
+    }
     if (identical(GlobalTouchRipple._activeState, this)) {
       GlobalTouchRipple._activeState = null;
     }
@@ -373,7 +462,12 @@ class _TouchFeedbackOwnership {
   bool semanticCancelled = false;
   Offset? downPosition;
   TouchFeedbackSound? sound;
+  ActionableFeedbackRole? role;
+  bool deferred = false;
+  bool deferredResolved = false;
+  int semanticSequence = 0;
   Timer? semanticLongPressTimer;
+  Timer? deferredResolutionTimeout;
 }
 
 class _GenericTouchCandidate {
@@ -451,12 +545,20 @@ class ActionableFeedbackRegion extends StatelessWidget {
     this.enabled = true,
     this.result = ActionableFeedbackResult.accepted,
     this.role = ActionableFeedbackRole.command,
+    this.deferResolution = false,
   });
 
   final Widget child;
   final bool enabled;
   final ActionableFeedbackResult result;
   final ActionableFeedbackRole role;
+  final bool deferResolution;
+
+  /// Resolves a [deferResolution] action after its callback has determined
+  /// whether the operation was accepted. This is semantic-result dispatch,
+  /// not an audio API; the shared feedback layer chooses the role sound.
+  static void resolveDeferred(ActionableFeedbackResult result) =>
+      GlobalTouchRipple.resolveDeferredFeedback(result);
 
   @override
   Widget build(BuildContext context) {
@@ -465,6 +567,14 @@ class ActionableFeedbackRegion extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
         GlobalTouchRipple.excludeGenericFeedback(event.pointer);
+        if (deferResolution) {
+          GlobalTouchRipple.beginDeferredSemanticFeedback(
+            event.pointer,
+            role,
+            event.position,
+          );
+          return;
+        }
         switch (result) {
           case ActionableFeedbackResult.accepted:
             final sound = switch (role) {
@@ -493,8 +603,11 @@ class ActionableFeedbackRegion extends StatelessWidget {
       ),
       onPointerCancel: (event) =>
           GlobalTouchRipple.cancelSemanticFeedback(event.pointer),
-      onPointerUp: (event) =>
-          GlobalTouchRipple.confirmSemanticFeedback(event.pointer),
+      onPointerUp: (event) {
+        if (!deferResolution) {
+          GlobalTouchRipple.confirmSemanticFeedback(event.pointer);
+        }
+      },
       child: child,
     );
   }
@@ -513,6 +626,7 @@ class ActionableFeedbackButton extends ActionableFeedbackRegion {
     required super.enabled,
     super.result,
     super.role,
+    super.deferResolution,
   });
 }
 
@@ -556,6 +670,7 @@ extension InputFeedbackWidget on Widget {
 bool _hasEnabledAction(Widget widget) => switch (widget) {
   ButtonStyleButton(:final onPressed) => onPressed != null,
   IconButton(:final onPressed) => onPressed != null,
+  FloatingActionButton(:final onPressed) => onPressed != null,
   PopupMenuButton<dynamic>(:final enabled) => enabled,
   PopupMenuItem<dynamic>(:final enabled) => enabled,
   InkWell(:final onTap, :final onDoubleTap, :final onLongPress) =>

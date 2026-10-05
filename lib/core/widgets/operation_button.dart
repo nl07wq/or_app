@@ -20,6 +20,11 @@ class OperationButton extends StatelessWidget {
   /// action while retaining its disabled visual and accessibility semantics.
   final bool reportUnavailableTap;
 
+  /// Defers semantic result feedback until the callback has validated or
+  /// persisted its operation. The callback resolves through the shared
+  /// [ActionableFeedbackRegion] API, never by choosing a sound asset.
+  final bool deferFeedback;
+
   const OperationButton({
     super.key,
     required this.text,
@@ -27,6 +32,7 @@ class OperationButton extends StatelessWidget {
     this.icon,
     this.role = OperationActionRole.secondary,
     this.reportUnavailableTap = false,
+    this.deferFeedback = false,
   });
 
   @override
@@ -71,7 +77,10 @@ class OperationButton extends StatelessWidget {
       ),
     );
     if (onPressed != null) {
-      return ActionableFeedbackRegion(child: button);
+      return ActionableFeedbackRegion(
+        deferResolution: deferFeedback,
+        child: button,
+      );
     }
     if (!reportUnavailableTap) return button;
     return ActionableFeedbackRegion(

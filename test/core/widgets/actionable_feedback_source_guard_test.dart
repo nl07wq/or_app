@@ -8,6 +8,7 @@ const _rawControls = <String>[
   'OutlinedButton',
   'ElevatedButton',
   'FilledButton',
+  'FloatingActionButton',
   'PopupMenuButton',
   'PopupMenuItem',
   'BackButton',
@@ -65,7 +66,9 @@ void main() {
       final normalizedPath = file.path.replaceAll('\\', '/');
       final source = file.readAsStringSync();
       for (final name in _rawControls) {
-        final pattern = RegExp('\\b$name(?:<[^>]+>)?(?:\\.icon)?\\s*\\(');
+        final pattern = RegExp(
+          '\\b$name(?:<[^>]+>)?(?:\\.(?:icon|extended))?\\s*\\(',
+        );
         for (final match in pattern.allMatches(source)) {
           final prefix = source.substring(0, match.start);
           if (RegExp(r'const\s*$').hasMatch(prefix)) continue;
@@ -152,8 +155,11 @@ void main() {
             continue;
           }
           final tail = source.substring(close + 1);
-          if (RegExp(r'^\s*\.inputFeedback\s*\(').hasMatch(tail) ||
-              _insideInputRegion(source, match.start)) {
+          if (RegExp(
+                r'^\s*\.(?:inputFeedback|actionableFeedback)\s*\(',
+              ).hasMatch(tail) ||
+              _insideInputRegion(source, match.start) ||
+              _insideOwnershipRegion(source, match.start)) {
             continue;
           }
           gaps.add('${file.path}:${_lineOf(source, match.start)} $name');

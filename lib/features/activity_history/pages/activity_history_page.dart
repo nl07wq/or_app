@@ -269,7 +269,7 @@ class _ActivityPeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -526,7 +526,7 @@ class _ActivityDailyTrend extends StatelessWidget {
                 key: const ValueKey('activity-trend-toggle'),
                 onPressed: onToggle,
                 child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
         ],
       ),
@@ -642,7 +642,7 @@ class _ActivityBuckets extends StatelessWidget {
               ),
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ).actionableFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
       ],
     );
@@ -855,7 +855,7 @@ class _ActivityDailyHistory extends StatelessWidget {
                     ? null
                     : () => onMove(-7),
                 icon: const Icon(Icons.chevron_left),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               Expanded(
                 child: Text(
                   '${_shortDate(start)} - ${_shortDate(windowEnd)}',
@@ -869,7 +869,7 @@ class _ActivityDailyHistory extends StatelessWidget {
                     ? null
                     : () => onMove(7),
                 icon: const Icon(Icons.chevron_right),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
           for (final date in window)

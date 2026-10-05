@@ -311,7 +311,7 @@ class _ViewSelector extends StatelessWidget {
             }),
             selected: selected == view,
             onSelected: (_) => onSelected(view),
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -2191,7 +2191,7 @@ class _ExerciseView extends StatelessWidget {
             onChanged: (value) {
               if (value != null) onCategorySelected(value);
             },
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
         AppSpacing.gapMD,
         const _SelectorCaption('EQUIPMENT'),
@@ -2225,7 +2225,7 @@ class _ExerciseView extends StatelessWidget {
                 onEquipmentSelected(value.variant!.identity);
               }
             },
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
         AppSpacing.gapMD,
         _ExerciseMetricSelector(selected: metric, onSelected: onMetricSelected),
@@ -2393,7 +2393,7 @@ class _CompactChoiceRow extends StatelessWidget {
             materialTapTargetSize: MaterialTapTargetSize.padded,
             selected: selectedIndex == index,
             onSelected: (_) => onSelected(index),
-          ).inputFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
       ],
     ],

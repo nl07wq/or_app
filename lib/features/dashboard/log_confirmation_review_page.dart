@@ -6,6 +6,7 @@ import '../../core/engine/training_summary.dart';
 import '../../core/services/daily_log_confirmation_validation.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/global_touch_ripple.dart';
 import '../morning/models/morning_fact.dart';
 import 'widgets/daily_review_body.dart';
 
@@ -47,7 +48,10 @@ class LogConfirmationReviewPage extends StatelessWidget {
         .join(', ');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('DAILY REVIEW')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY REVIEW'),
+      ),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: OperationCard(

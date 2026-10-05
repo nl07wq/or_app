@@ -487,6 +487,77 @@ void main() {
     expect(audio.played, isEmpty);
   });
 
+  testWidgets('deferred action resolves success only after acceptance', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    final events = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: Scaffold(
+            body: OperationButton(
+              text: 'SAVE',
+              deferFeedback: true,
+              onPressed: () {
+                events.add('validated');
+                ActionableFeedbackRegion.resolveDeferred(
+                  ActionableFeedbackResult.accepted,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('SAVE')),
+    );
+    await tester.pump();
+    expect(audio.played, isEmpty);
+    await gesture.up();
+    await tester.pump();
+
+    expect(events, ['validated']);
+    expect(audio.played, [TouchFeedbackSound.success]);
+    await tester.pump(const Duration(milliseconds: 100));
+  });
+
+  testWidgets('deferred action resolves validation refusal as failure', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var callbacks = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: Scaffold(
+            body: OperationButton(
+              text: 'REGISTER',
+              deferFeedback: true,
+              onPressed: () {
+                callbacks++;
+                ActionableFeedbackRegion.resolveDeferred(
+                  ActionableFeedbackResult.unavailable,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('REGISTER'));
+    await tester.pump();
+
+    expect(callbacks, 1);
+    expect(audio.played, [TouchFeedbackSound.failure]);
+    await tester.pump(const Duration(milliseconds: 100));
+  });
+
   testWidgets('stock controls inherit the shared actionable contract', (
     tester,
   ) async {
