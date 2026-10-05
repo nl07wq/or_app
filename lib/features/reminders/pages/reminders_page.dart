@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/operation_button.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
@@ -701,23 +702,26 @@ class _HudCompletionControl extends StatelessWidget {
       child: SizedBox(
         width: reminderCompletionTouchTarget,
         height: reminderCompletionTouchTarget,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          child: Center(
-            child: Icon(
-              key: ValueKey(
-                completed
-                    ? 'reminder-completion-check-circle'
-                    : 'reminder-completion-circle',
+        child: SemanticFeedbackActionRegion(
+          enabled: true,
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const CircleBorder(),
+            child: Center(
+              child: Icon(
+                key: ValueKey(
+                  completed
+                      ? 'reminder-completion-check-circle'
+                      : 'reminder-completion-circle',
+                ),
+                completed ? Icons.check_circle : Icons.circle_outlined,
+                size: reminderCompletionIconSize,
+                color: completed
+                    ? accent
+                    : colorScheme.onSurface.withValues(
+                        alpha: holographicTimelineNodeOpacity,
+                      ),
               ),
-              completed ? Icons.check_circle : Icons.circle_outlined,
-              size: reminderCompletionIconSize,
-              color: completed
-                  ? accent
-                  : colorScheme.onSurface.withValues(
-                      alpha: holographicTimelineNodeOpacity,
-                    ),
             ),
           ),
         ),
@@ -750,10 +754,13 @@ class _HudAddControl extends StatelessWidget {
           child: SizedBox(
             width: 56,
             height: 56,
-            child: InkWell(
-              onTap: onPressed,
-              customBorder: shape,
-              child: Icon(Icons.add, color: colorScheme.primary),
+            child: SemanticFeedbackActionRegion(
+              enabled: true,
+              child: InkWell(
+                onTap: onPressed,
+                customBorder: shape,
+                child: Icon(Icons.add, color: colorScheme.primary),
+              ),
             ),
           ),
         ),

@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/operation_button.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
@@ -5005,9 +5006,12 @@ class _MonthGridState extends State<_MonthGrid> {
           children: [
             Row(
               children: [
-                IconButton(
-                  onPressed: widget.onPrevious,
-                  icon: const Icon(Icons.chevron_left),
+                SemanticFeedbackActionRegion(
+                  enabled: true,
+                  child: IconButton(
+                    onPressed: widget.onPrevious,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
                 ),
                 Expanded(
                   child: Column(
@@ -5033,9 +5037,12 @@ class _MonthGridState extends State<_MonthGrid> {
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: widget.onNext,
-                  icon: const Icon(Icons.chevron_right),
+                SemanticFeedbackActionRegion(
+                  enabled: true,
+                  child: IconButton(
+                    onPressed: widget.onNext,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
                 ),
               ],
             ),
