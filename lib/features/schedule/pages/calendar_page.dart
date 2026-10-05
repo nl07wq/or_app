@@ -4778,30 +4778,33 @@ class _CalendarTimelineAddControl extends StatelessWidget {
                   opacity: .014,
                 ),
               ),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  key: const ValueKey('calendar-timeline-add-control'),
-                  onTap: onPressed,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 11,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, size: 18, color: scheme.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          '予定を追加',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: scheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
+              SemanticFeedbackActionRegion(
+                enabled: true,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: const ValueKey('calendar-timeline-add-control'),
+                    onTap: onPressed,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 11,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, size: 18, color: scheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            '予定を追加',
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: scheme.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -570,53 +570,57 @@ class _ReminderOccurrenceRow extends StatelessWidget {
     final secondary = colorScheme.onSurface.withValues(alpha: .65);
     return Semantics(
       label: '${value.definition.title} ${completed ? '完了' : '未完了'}',
-      child: InkWell(
-        key: ValueKey('reminder-row-${value.id}'),
-        onTap: onEdit,
-        onLongPress: onEdit,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _ReminderCircuitNode(
-                id: value.id,
-                isFirst: isFirst,
-                isLast: isLast,
-                child: _HudCompletionControl(
-                  key: ValueKey('reminder-toggle-${value.id}'),
-                  completed: completed,
-                  onPressed: onToggle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        value.definition.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: completed ? secondary : null,
-                          decoration: completed
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                      _ReminderSubtitle(
-                        summary:
-                            '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
-                        note: value.definition.note,
-                        completed: completed,
-                      ),
-                    ],
+      child: SemanticFeedbackActionRegion(
+        enabled: true,
+        child: InkWell(
+          key: ValueKey('reminder-row-${value.id}'),
+          onTap: onEdit,
+          onLongPress: onEdit,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ReminderCircuitNode(
+                  id: value.id,
+                  isFirst: isFirst,
+                  isLast: isLast,
+                  child: _HudCompletionControl(
+                    key: ValueKey('reminder-toggle-${value.id}'),
+                    completed: completed,
+                    onPressed: onToggle,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          value.definition.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: completed ? secondary : null,
+                                decoration: completed
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                        ),
+                        _ReminderSubtitle(
+                          summary:
+                              '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
+                          note: value.definition.note,
+                          completed: completed,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
