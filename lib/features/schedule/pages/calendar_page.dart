@@ -889,7 +889,7 @@ class _HeaderArrow extends StatelessWidget {
     padding: EdgeInsets.zero,
     icon: Icon(icon, size: 16),
     onPressed: onPressed,
-  ).actionableFeedback();
+  ).actionableFeedback(role: ActionableFeedbackRole.silent);
 }
 
 /// Header space belongs to the active city/area. Saved locations may carry a
@@ -1307,7 +1307,7 @@ class _WeatherForecastRow extends StatelessWidget {
             },
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.silent),
     );
   }
 }
@@ -1902,6 +1902,7 @@ class _WeatherSummary extends StatelessWidget {
         : '${date.month}/${date.day}（${_weekdayJapanese(date.weekday)}）';
     final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
+      // feedback-guard: drag-only; the nested InkWell owns the discrete tap.
       behavior: HitTestBehavior.opaque,
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
@@ -1974,7 +1975,7 @@ class _WeatherSummary extends StatelessWidget {
                 ? ActionableFeedbackRole.silent
                 : ActionableFeedbackRole.command,
           ),
-    ).actionableFeedback();
+    );
   }
 }
 
@@ -2434,7 +2435,9 @@ Future<void> _showWeatherExplanation(
                             tooltip: '閉じる',
                             icon: const Icon(Icons.close, size: 18),
                             onPressed: () => Navigator.of(context).pop(),
-                          ).actionableFeedback(),
+                          ).actionableFeedback(
+                            role: ActionableFeedbackRole.exit,
+                          ),
                         ],
                       ),
                       if (explanation.value != '--')
@@ -5021,6 +5024,7 @@ class _MonthGridState extends State<_MonthGrid> {
     final offset = first.weekday % 7;
     final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
+      // feedback-guard: drag-only; calendar cells own their discrete taps.
       onHorizontalDragEnd: (details) {
         if ((details.primaryVelocity ?? 0) > 180) widget.onPrevious();
         if ((details.primaryVelocity ?? 0) < -180) widget.onNext();
@@ -5035,7 +5039,7 @@ class _MonthGridState extends State<_MonthGrid> {
                 IconButton(
                   onPressed: widget.onPrevious,
                   icon: const Icon(Icons.chevron_left),
-                ).actionableFeedback(),
+                ).actionableFeedback(role: ActionableFeedbackRole.silent),
                 Expanded(
                   child: Column(
                     children: [
@@ -5063,7 +5067,7 @@ class _MonthGridState extends State<_MonthGrid> {
                 IconButton(
                   onPressed: widget.onNext,
                   icon: const Icon(Icons.chevron_right),
-                ).actionableFeedback(),
+                ).actionableFeedback(role: ActionableFeedbackRole.silent),
               ],
             ),
             Align(
@@ -5077,7 +5081,7 @@ class _MonthGridState extends State<_MonthGrid> {
                 ),
                 onPressed: widget.onToday,
                 child: const Text('今日'),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -5251,7 +5255,7 @@ class _MonthGridState extends State<_MonthGrid> {
                               ],
                             ),
                           ),
-                        ).actionableFeedback(),
+                        ).actionableFeedback(role: ActionableFeedbackRole.silent),
                       );
                     },
                   ),
@@ -5261,7 +5265,7 @@ class _MonthGridState extends State<_MonthGrid> {
           ],
         ),
       ),
-    ).actionableFeedback();
+    );
   }
 }
 
@@ -5320,6 +5324,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const ActionableBackButton(),
       title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
       actions: [
         IconButton(
@@ -5704,6 +5709,7 @@ class _ClockDialState extends State<_ClockDial> {
                           label: 'CANCEL',
                           icon: Icons.close,
                           onTap: () => Navigator.pop(context),
+                          role: ActionableFeedbackRole.exit,
                         ),
                         const Spacer(),
                         _ClockInstrumentAction(
@@ -5711,6 +5717,7 @@ class _ClockDialState extends State<_ClockDial> {
                           icon: Icons.access_time_outlined,
                           active: !_minutes,
                           onTap: () => setState(() => _minutes = false),
+                          role: ActionableFeedbackRole.silent,
                         ),
                         const SizedBox(width: 8),
                         _ClockInstrumentAction(
@@ -5817,12 +5824,14 @@ class _ClockInstrumentAction extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.active = false,
+    this.role = ActionableFeedbackRole.command,
   });
 
   final String label;
   final IconData icon;
   final VoidCallback onTap;
   final bool active;
+  final ActionableFeedbackRole role;
 
   @override
   Widget build(BuildContext context) {
@@ -5872,7 +5881,7 @@ class _ClockInstrumentAction extends StatelessWidget {
               ],
             ),
           ),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: role),
       ),
     );
   }

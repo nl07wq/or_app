@@ -541,6 +541,39 @@ void main() {
     expect(rippleEvents, 0);
   });
 
+  testWidgets('Calendar production period and date targets are silent', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: const CalendarPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.chevron_left).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.pumpAndSettle();
+    final date = find.byWidgetPredicate(
+      (widget) =>
+          widget.key is ValueKey<String> &&
+          (widget.key! as ValueKey<String>).value.startsWith('calendar-day-'),
+    );
+    expect(date, findsWidgets);
+    await tester.tap(date.first);
+    await tester.pumpAndSettle();
+
+    expect(audio.played, isEmpty);
+    expect(rippleEvents, 0);
+  });
+
   testWidgets(
     'Calendar shows Japanese operation labels and reminder identity',
     (tester) async {

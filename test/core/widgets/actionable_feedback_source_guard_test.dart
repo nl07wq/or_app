@@ -15,6 +15,10 @@ const _rawControls = <String>[
   'ListTile',
   'InkWell',
   'GestureDetector',
+  'TabBar',
+  'SegmentedButton',
+  'ChoiceChip',
+  'FilterChip',
 ];
 
 const _sharedPrimitiveInternals = <String>{
@@ -64,6 +68,7 @@ void main() {
         );
     for (final file in files) {
       final normalizedPath = file.path.replaceAll('\\', '/');
+      if (_inputTechnicalExceptions.contains(normalizedPath)) continue;
       final source = file.readAsStringSync();
       for (final name in _rawControls) {
         final pattern = RegExp(
@@ -80,6 +85,12 @@ void main() {
           }
           final constructor = source.substring(open, close + 1);
           if (_sharedPrimitiveInternals.contains(normalizedPath)) continue;
+          if (constructor.contains('feedback-guard: drag-only')) {
+            // A concrete drag-only parent may contain an explicitly-owned
+            // child tap target. The marker prevents the source guard from
+            // mistaking that descendant for a parent actionable callback.
+            continue;
+          }
           if ((name == 'GestureDetector' || name == 'InkWell') &&
               !RegExp(
                 r'on(?:Tap|DoubleTap|LongPress)\s*:',

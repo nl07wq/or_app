@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/features/dashboard/services/dashboard_plan_information_service.dart';
 import 'package:or_app/features/reminders/models/reminder_definition.dart';
 import 'package:or_app/features/reminders/models/reminder_occurrence.dart';
@@ -18,6 +20,29 @@ void main() {
   });
 
   tearDown(AppRepositoryRegistry.resetForTesting);
+
+  testWidgets('Reminder production filter tabs are silent', (tester) async {
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: const RemindersPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final label in ['ALL', 'RECURRING', 'COMPLETED', 'TODAY']) {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    expect(audio.played, isEmpty);
+    expect(rippleEvents, 0);
+  });
 
   testWidgets(
     'circle completes while row tap edits and scroll stays distinct',
@@ -676,6 +701,19 @@ Future<void> _pumpPage(WidgetTester tester) async {
 Future<void> _swipeLeft(WidgetTester tester, Finder finder) async {
   await tester.drag(finder, const Offset(-500, 0));
   await tester.pumpAndSettle();
+}
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void prepare() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
 }
 
 ReminderDefinition _definition({

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
@@ -9,8 +11,43 @@ import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 import 'package:or_app/features/food/widgets/food_pfc_balance_card.dart';
 import 'package:or_app/features/food/widgets/food_thumbnail.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
+
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  testWidgets('food database production segmented tabs are silent', (
+    tester,
+  ) async {
+    AppRepositoryRegistry.install(
+      AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
+    );
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: const FoodCatalogPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('food-database-type')), findsOneWidget);
+    await tester.tap(find.text('RECIPE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MEAL'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('FOOD'));
+    await tester.pumpAndSettle();
+
+    expect(audio.played, isEmpty);
+    expect(rippleEvents, 0);
+  });
   testWidgets('food database uses Japanese human-facing description', (
     tester,
   ) async {
@@ -1192,4 +1229,17 @@ class _MemoryCatalogRepository implements FoodCatalogRepository {
   @override
   Future<void> update(FoodCatalogEntry entry) async =>
       _entries[entry.foodId] = entry;
+}
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void prepare() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
 }

@@ -349,7 +349,10 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
                 ),
                 selected: {_view},
                 onSelectionChanged: (value) => _selectView(value.single),
-              ).actionableFeedback(role: ActionableFeedbackRole.silent),
+              ).actionableFeedback(
+                enabled: true,
+                role: ActionableFeedbackRole.silent,
+              ),
               AppSpacing.gapMD,
             ],
             OperationTextField(

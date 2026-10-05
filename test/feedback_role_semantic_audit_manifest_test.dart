@@ -13,11 +13,17 @@ class SemanticAuditScreen {
     required this.path,
     required this.source,
     required this.interactions,
+    this.productionBindingVerified = const [],
   });
 
   final String path;
   final String source;
   final List<String> interactions;
+
+  /// A declaration records intended semantics. This list is deliberately
+  /// separate and names interaction paths exercised through their production
+  /// widget hit target by feedback tests.
+  final List<String> productionBindingVerified;
 }
 
 const semanticAuditScreens = <SemanticAuditScreen>[
@@ -45,6 +51,7 @@ const semanticAuditScreens = <SemanticAuditScreen>[
       'exit back',
       'input',
     ],
+    productionBindingVerified: ['FOOD/RECIPE/MEAL segmented control'],
   ),
   SemanticAuditScreen(
     path: 'Food recipe editor',
@@ -138,6 +145,12 @@ const semanticAuditScreens = <SemanticAuditScreen>[
       'exit back',
       'input',
     ],
+    productionBindingVerified: [
+      'month previous/next',
+      'calendar date selection',
+      'weather detail entry and close',
+      'schedule editor back',
+    ],
   ),
   SemanticAuditScreen(
     path: 'Reminder / editor',
@@ -147,6 +160,10 @@ const semanticAuditScreens = <SemanticAuditScreen>[
       'silent tabs',
       'exit back',
       'input',
+    ],
+    productionBindingVerified: [
+      'AppBar back',
+      'TODAY/ALL/RECURRING/COMPLETED tabs',
     ],
   ),
   SemanticAuditScreen(
@@ -216,6 +233,15 @@ void main() {
     for (final source in semanticAuditTechnicalExceptions) {
       expect(File(source).existsSync(), isTrue, reason: source);
     }
+  });
+
+  test('production binding verification is distinct from declared role', () {
+    final productionPaths = semanticAuditScreens
+        .expand((screen) => screen.productionBindingVerified)
+        .toList();
+    expect(productionPaths, contains('FOOD/RECIPE/MEAL segmented control'));
+    expect(productionPaths, contains('month previous/next'));
+    expect(productionPaths, contains('AppBar back'));
   });
 
   test('known role-sensitive paths retain explicit role declarations', () {

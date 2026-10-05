@@ -487,6 +487,56 @@ void main() {
     expect(audio.played, isEmpty);
   });
 
+  testWidgets(
+    'explicit production hit-target role survives nested default wrapper',
+    (tester) async {
+      final audio = _RecordingTouchRippleAudio();
+      var silentActions = 0;
+      var exitActions = 0;
+      var rippleEvents = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GlobalTouchRipple(
+            audio: audio,
+            onRippleEventCreated: (_) => rippleEvents++,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ActionableFeedbackButton(
+                    enabled: true,
+                    role: ActionableFeedbackRole.silent,
+                    child: IconButton(
+                      icon: const Icon(Icons.filter_list),
+                      onPressed: () => silentActions++,
+                    ).actionableFeedback(),
+                  ),
+                ),
+                Expanded(
+                  child: ActionableFeedbackButton(
+                    enabled: true,
+                    child: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => exitActions++,
+                    ).actionableFeedback(role: ActionableFeedbackRole.exit),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(silentActions, 1);
+      expect(exitActions, 1);
+      expect(rippleEvents, 0);
+      expect(audio.played, [TouchFeedbackSound.exit]);
+    },
+  );
+
   testWidgets('deferred action resolves success only after acceptance', (
     tester,
   ) async {

@@ -447,32 +447,38 @@ class _ReminderHudTabs extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     key: const ValueKey('reminder-hud-tabs'),
     margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-    child: TabBar(
-      controller: controller,
-      isScrollable: true,
-      indicatorSize: TabBarIndicatorSize.tab,
-      indicator: ShapeDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
-        shape: const BeveledRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(4)),
+    child: ActionableFeedbackRegion(
+      role: ActionableFeedbackRole.silent,
+      child: TabBar(
+        controller: controller,
+        isScrollable: true,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: ShapeDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
+          shape: const BeveledRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(4)),
+          ),
         ),
+        indicatorPadding: const EdgeInsets.symmetric(
+          vertical: 4,
+          horizontal: 2,
+        ),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+        dividerColor: Colors.transparent,
+        labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+        ),
+        unselectedLabelStyle: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(letterSpacing: .7),
+        tabs: const [
+          Tab(text: 'TODAY'),
+          Tab(text: 'ALL'),
+          Tab(text: 'RECURRING'),
+          Tab(text: 'COMPLETED'),
+        ],
       ),
-      indicatorPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-      labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-      dividerColor: Colors.transparent,
-      labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.1,
-      ),
-      unselectedLabelStyle: Theme.of(
-        context,
-      ).textTheme.labelMedium?.copyWith(letterSpacing: .7),
-      tabs: const [
-        Tab(text: 'TODAY'),
-        Tab(text: 'ALL'),
-        Tab(text: 'RECURRING'),
-        Tab(text: 'COMPLETED'),
-      ],
     ),
   );
 }

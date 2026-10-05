@@ -136,6 +136,41 @@ class GlobalTouchRipple extends StatefulWidget {
       });
   }
 
+  /// Claims the actual semantic hit target, including SILENT controls. An
+  /// explicit role on the actual production target wins. Pointer listeners
+  /// dispatch from the deepest hit widget outwards, so a later ancestor must
+  /// not replace an explicit child role; an explicit owner may only replace a
+  /// previously claimed default role.
+  static void beginActionableFeedback(
+    int pointer,
+    ActionableFeedbackRole role,
+    Offset position, {
+    required bool roleExplicit,
+  }) {
+    final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    if (ownership.inputExcluded ||
+        (ownership.actionableClaimed &&
+            (ownership.roleExplicit || !roleExplicit))) {
+      return;
+    }
+    ownership
+      ..genericExcluded = true
+      ..actionableClaimed = true
+      ..roleExplicit = roleExplicit
+      ..role = role
+      ..sound = switch (role) {
+        ActionableFeedbackRole.command => TouchFeedbackSound.success,
+        ActionableFeedbackRole.exit => TouchFeedbackSound.exit,
+        ActionableFeedbackRole.silent => null,
+      }
+      ..downPosition = position
+      ..semanticCancelled = false
+      ..semanticLongPressTimer?.cancel()
+      ..semanticLongPressTimer = Timer(kLongPressTimeout, () {
+        ownership.semanticCancelled = true;
+      });
+  }
+
   /// Starts a semantic interaction whose acceptance cannot be known until its
   /// callback has validated or persisted data. The owning actionable region
   /// still suppresses environmental feedback at pointer-down; the feature
@@ -149,6 +184,8 @@ class GlobalTouchRipple extends StatefulWidget {
     if (ownership.inputExcluded) return;
     ownership
       ..genericExcluded = true
+      ..actionableClaimed = true
+      ..roleExplicit = true
       ..role = role
       ..deferred = true
       ..semanticSequence = ++_semanticSequence
@@ -465,6 +502,8 @@ class _TouchFeedbackOwnership {
   ActionableFeedbackRole? role;
   bool deferred = false;
   bool deferredResolved = false;
+  bool actionableClaimed = false;
+  bool roleExplicit = false;
   int semanticSequence = 0;
   Timer? semanticLongPressTimer;
   Timer? deferredResolutionTimeout;
@@ -545,6 +584,7 @@ class ActionableFeedbackRegion extends StatelessWidget {
     this.enabled = true,
     this.result = ActionableFeedbackResult.accepted,
     this.role = ActionableFeedbackRole.command,
+    this.roleExplicit = true,
     this.deferResolution = false,
   });
 
@@ -552,6 +592,7 @@ class ActionableFeedbackRegion extends StatelessWidget {
   final bool enabled;
   final ActionableFeedbackResult result;
   final ActionableFeedbackRole role;
+  final bool roleExplicit;
   final bool deferResolution;
 
   /// Resolves a [deferResolution] action after its callback has determined
@@ -577,18 +618,12 @@ class ActionableFeedbackRegion extends StatelessWidget {
         }
         switch (result) {
           case ActionableFeedbackResult.accepted:
-            final sound = switch (role) {
-              ActionableFeedbackRole.command => TouchFeedbackSound.success,
-              ActionableFeedbackRole.exit => TouchFeedbackSound.exit,
-              ActionableFeedbackRole.silent => null,
-            };
-            if (sound != null) {
-              GlobalTouchRipple.beginSemanticFeedback(
-                event.pointer,
-                sound,
-                event.position,
-              );
-            }
+            GlobalTouchRipple.beginActionableFeedback(
+              event.pointer,
+              role,
+              event.position,
+              roleExplicit: roleExplicit,
+            );
           case ActionableFeedbackResult.unavailable:
             GlobalTouchRipple.beginSemanticFeedback(
               event.pointer,
@@ -626,6 +661,7 @@ class ActionableFeedbackButton extends ActionableFeedbackRegion {
     required super.enabled,
     super.result,
     super.role,
+    super.roleExplicit,
     super.deferResolution,
   });
 }
@@ -653,11 +689,12 @@ extension ActionableFeedbackWidget on Widget {
   Widget actionableFeedback({
     bool? enabled,
     ActionableFeedbackResult result = ActionableFeedbackResult.accepted,
-    ActionableFeedbackRole role = ActionableFeedbackRole.command,
+    ActionableFeedbackRole? role,
   }) => ActionableFeedbackButton(
     enabled: enabled ?? _hasEnabledAction(this),
     result: result,
-    role: role,
+    role: role ?? ActionableFeedbackRole.command,
+    roleExplicit: role != null,
     child: this,
   );
 }
@@ -671,6 +708,12 @@ bool _hasEnabledAction(Widget widget) => switch (widget) {
   ButtonStyleButton(:final onPressed) => onPressed != null,
   IconButton(:final onPressed) => onPressed != null,
   FloatingActionButton(:final onPressed) => onPressed != null,
+  SegmentedButton<dynamic>(:final onSelectionChanged) =>
+    onSelectionChanged != null,
+  TabBar() => true,
+  ChoiceChip(:final onSelected) => onSelected != null,
+  FilterChip(:final onSelected) => onSelected != null,
+  ActionChip(:final onPressed) => onPressed != null,
   PopupMenuButton<dynamic>(:final enabled) => enabled,
   PopupMenuItem<dynamic>(:final enabled) => enabled,
   InkWell(:final onTap, :final onDoubleTap, :final onLongPress) =>
