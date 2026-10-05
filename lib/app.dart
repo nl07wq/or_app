@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core/navigation/app_routes.dart';
 import 'core/services/startup_diagnostic.dart';
+import 'core/widgets/global_touch_ripple.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/boot_sequence.dart';
@@ -117,11 +118,13 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
       debugShowCheckedModeBanner: false,
       theme: StandardTheme.theme,
       initialRoute: AppRoutes.dashboard,
-      builder: (context, child) => StartupGate(
-        service: _initializationService,
-        showBootSequence: true,
-        onBootEvent: widget.onBootEvent,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => GlobalTouchRipple(
+        child: StartupGate(
+          service: _initializationService,
+          showBootSequence: true,
+          onBootEvent: widget.onBootEvent,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
 
       routes: {
