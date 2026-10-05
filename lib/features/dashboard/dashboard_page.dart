@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show Path, PathMetric;
+import 'dart:ui' show ImageFilter, Path, PathMetric;
 
 import 'package:flutter/material.dart';
 
@@ -712,6 +712,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final GlobalKey _dashboardViewportKey = GlobalKey();
   Rect? _wildlifeStageRect;
   bool _wildlifeMeasurementQueued = false;
+  bool _topBandPinned = false;
 
   @override
   void initState() {
@@ -762,6 +763,11 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _scheduleWildlifeMeasurement() {
+    final topBandPinned =
+        _scrollController.hasClients && _scrollController.offset > 0;
+    if (_topBandPinned != topBandPinned) {
+      setState(() => _topBandPinned = topBandPinned);
+    }
     if (_wildlifeMeasurementQueued || !mounted) return;
     _wildlifeMeasurementQueued = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -812,7 +818,17 @@ class _DashboardPageState extends State<DashboardPage> {
                             : engine.estimateTDEE(input);
 
                         return Scaffold(
+                          extendBodyBehindAppBar: true,
                           appBar: AppBar(
+                            backgroundColor: _topBandPinned
+                                ? Colors.transparent
+                                : null,
+                            surfaceTintColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            scrolledUnderElevation: 0,
+                            flexibleSpace: _topBandPinned
+                                ? const _DashboardPinnedTopBandGlass()
+                                : null,
                             leadingWidth: 56,
                             leading: _DashboardAmbientManualTrigger(
                               onPressed: () => _ambientStageKey.currentState
@@ -856,7 +872,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                       'dashboard-scroll-view',
                                     ),
                                     controller: _scrollController,
-                                    padding: AppSpacing.cardPadding,
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppSpacing.lg,
+                                      MediaQuery.paddingOf(context).top +
+                                          kToolbarHeight +
+                                          AppSpacing.lg,
+                                      AppSpacing.lg,
+                                      AppSpacing.lg,
+                                    ),
                                     children: [
                                       Center(
                                         child: ConstrainedBox(
@@ -930,7 +953,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 title: 'QUICK ACCESS',
                                               ),
                                               AppSpacing.gapSM,
-                                              _MorningButton(),
+                                              const _MorningButton(),
                                               AppSpacing.gapMD,
                                               _FoodButton(),
                                               AppSpacing.gapMD,
@@ -3550,13 +3573,10 @@ class _MorningButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.play_arrow,
-      text: 'STATUS',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.morning);
-      },
+      label: 'STATUS',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.morning),
     );
   }
 }
@@ -3566,13 +3586,10 @@ class _FoodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.restaurant,
-      text: 'FOOD',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.food);
-      },
+      label: 'FOOD',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.food),
     );
   }
 }
@@ -3582,10 +3599,9 @@ class _ActivityButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.directions_walk_outlined,
-      text: 'ACTIVITY',
+      label: 'ACTIVITY',
       onPressed: () => Navigator.pushNamed(context, AppRoutes.activity),
     );
   }
@@ -3596,13 +3612,10 @@ class _TrainingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.fitness_center,
-      text: 'TRAINING',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.training);
-      },
+      label: 'TRAINING',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.training),
     );
   }
 }
@@ -3612,15 +3625,109 @@ class _CommandCenterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.flag,
-      text: 'COMMAND CENTER',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.commandCenter);
-      },
+      label: 'COMMAND CENTER',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.commandCenter),
     );
   }
+}
+
+/// Compact Dashboard navigation uses one width derived from the longest label
+/// (COMMAND CENTER), rather than letting individual labels alter the stack.
+/// Its small translucent surface follows Calendar's add-control family while
+/// retaining the shared actionable-feedback contract.
+class _DashboardQuickAccessButton extends StatelessWidget {
+  const _DashboardQuickAccessButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  static const commonWidth = 224.0;
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: SizedBox(
+        key: ValueKey('dashboard-quick-access-button-$label'),
+        width: commonWidth,
+        height: 44,
+        child: ActionableFeedbackRegion(
+          child: Material(
+            color: Colors.transparent,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    scheme.surfaceContainerHigh.withValues(alpha: .34),
+                    AppColors.background.withValues(alpha: .52),
+                    scheme.primary.withValues(alpha: .07),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .18),
+                    blurRadius: 7,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: onPressed,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 18, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          label,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Material used only while the Dashboard's fixed AppBar is covering scrolled
+/// content. The normal unpinned AppBar continues to use its existing theme.
+class _DashboardPinnedTopBandGlass extends StatelessWidget {
+  const _DashboardPinnedTopBandGlass();
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    key: const ValueKey('dashboard-pinned-top-band-glass'),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: ColoredBox(color: AppColors.background.withValues(alpha: .72)),
+    ),
+  );
 }
 
 /// Isolated AppBar-title renderer for the O.R.L.O. neon sign.  It remains

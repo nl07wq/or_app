@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
@@ -196,11 +197,17 @@ class _DashboardAmbientWildlifeStageState
             key: const ValueKey('dashboard-ambient-wildlife-stage'),
             height: DashboardAmbientWildlifeStage.height,
             width: double.infinity,
-            child: _DashboardAmbientWildlifeProductionViewport(
-              stageKey: widget.productionStageKey,
-              nextInt: widget.nextInt,
-              minimumInterval: widget.minimumInterval,
-              maximumInterval: widget.maximumInterval,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const _DashboardAmbientWildlifeFrostedSurface(),
+                _DashboardAmbientWildlifeProductionViewport(
+                  stageKey: widget.productionStageKey,
+                  nextInt: widget.nextInt,
+                  minimumInterval: widget.minimumInterval,
+                  maximumInterval: widget.maximumInterval,
+                ),
+              ],
             ),
           ),
         ),
@@ -369,6 +376,33 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
               DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
           birdPresentationTopCrop:
               DashboardAmbientWildlifeStage.topAirspaceCrop,
+          paintEnvironment: false,
+        ),
+      ),
+    ),
+  );
+}
+
+/// Glass belongs behind the production wildlife renderer so the Dashboard
+/// circuit remains visible while the CAT/FOX/BAT/BIRD artwork stays fully
+/// opaque and unblurred on the top layer.
+class _DashboardAmbientWildlifeFrostedSurface extends StatelessWidget {
+  const _DashboardAmbientWildlifeFrostedSurface();
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+      child: DecoratedBox(
+        key: const ValueKey('dashboard-ambient-wildlife-frosted-surface'),
+        decoration: BoxDecoration(
+          color: AppColors.background.withValues(alpha: .68),
+          border: Border(
+            top: BorderSide(
+              color: AppColors.information.withValues(alpha: .10),
+            ),
+            bottom: BorderSide(color: Colors.black.withValues(alpha: .24)),
+          ),
         ),
       ),
     ),

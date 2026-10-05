@@ -1045,6 +1045,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
     this.foxFollowerSpacingMultiplier = 1,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
     this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
+    this.paintEnvironment = true,
     super.key,
     this.onCompleted,
   });
@@ -1072,6 +1073,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
   final double foxFollowerSpacingMultiplier;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
   final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
+  final bool paintEnvironment;
   final VoidCallback? onCompleted;
 
   /// Shared stage authority: wildlife renderers never own the environment.
@@ -1119,6 +1121,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
     this.foxFollowerSpacingMultiplier = 1,
     this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
     this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
+    this.paintEnvironment = true,
     this.forcedPlan,
     this.forcedRequestId = 0,
     this.paused = false,
@@ -1144,6 +1147,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   final double foxFollowerSpacingMultiplier;
   final AmbientWildlifeV2CatMotionProfile catMotionProfile;
   final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
+  final bool paintEnvironment;
   final AmbientWildlifeV2EventPlan? forcedPlan;
   final int forcedRequestId;
   final bool paused;
@@ -1300,6 +1304,7 @@ class AmbientWildlifeV2ProductionStageState
     foxFollowerSpacingMultiplier: widget.foxFollowerSpacingMultiplier,
     catMotionProfile: widget.catMotionProfile,
     catPosePhaseMode: widget.catPosePhaseMode,
+    paintEnvironment: widget.paintEnvironment,
     onCompleted: _complete,
   );
 }
@@ -1611,12 +1616,13 @@ class _AmbientWildlifeV2StageState extends State<AmbientWildlifeV2Stage>
           return Stack(
             fit: StackFit.expand,
             children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  key: ValueKey('ambient-wildlife-v2-environment'),
-                  painter: const _AmbientWildlifeV2EnvironmentPainter(),
+              if (widget.paintEnvironment)
+                Positioned.fill(
+                  child: CustomPaint(
+                    key: const ValueKey('ambient-wildlife-v2-environment'),
+                    painter: const _AmbientWildlifeV2EnvironmentPainter(),
+                  ),
                 ),
-              ),
               // The visual ground belongs behind the species artwork. Ambient
               // CAT opts out of its opaque painter background below so this
               // shared line remains visible without a local duplicate.
