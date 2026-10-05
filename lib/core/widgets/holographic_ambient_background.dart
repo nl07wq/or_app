@@ -63,11 +63,14 @@ class HolographicCircuitScheduledPhase {
 List<HolographicCircuitScheduledPhase> holographicCircuitPhasesAt({
   required List<double> routeTravelSeconds,
   required double elapsedSeconds,
+  List<HolographicCircuitRoute> routes = holographicCircuitRoutes,
+  List<HolographicCircuitTrafficScenario> trafficScenarios =
+      holographicCircuitTrafficScenarios,
 }) {
   if (elapsedSeconds < holographicCircuitInitialDelay.inMilliseconds / 1000) {
     return const [];
   }
-  assert(routeTravelSeconds.length == holographicCircuitRoutes.length);
+  assert(routeTravelSeconds.length == routes.length);
 
   final initialDelaySeconds =
       holographicCircuitInitialDelay.inMilliseconds / 1000;
@@ -78,7 +81,7 @@ List<HolographicCircuitScheduledPhase> holographicCircuitPhasesAt({
       holographicCircuitAfterglowDuration.inMilliseconds / 1000;
   final scenarioStarts = <double>[];
   var scenarioStart = 0.0;
-  for (final scenario in holographicCircuitTrafficScenarios) {
+  for (final scenario in trafficScenarios) {
     scenarioStarts.add(scenarioStart);
     var lastTravelerCompletion = 0.0;
     for (final entry in scenario.entries) {
@@ -100,10 +103,10 @@ List<HolographicCircuitScheduledPhase> holographicCircuitPhasesAt({
     final cycleOffset = cycle * cycleSeconds;
     for (
       var scenarioIndex = 0;
-      scenarioIndex < holographicCircuitTrafficScenarios.length;
+      scenarioIndex < trafficScenarios.length;
       scenarioIndex++
     ) {
-      final scenario = holographicCircuitTrafficScenarios[scenarioIndex];
+      final scenario = trafficScenarios[scenarioIndex];
       for (final entry in scenario.entries) {
         final travelSeconds = routeTravelSeconds[entry.routeIndex];
         final routeNodeSeconds =
@@ -169,7 +172,16 @@ class HolographicCircuitTrafficScenario {
 /// A single, non-interactive circuit-signal layer behind the Calendar and
 /// Reminder display planes. Routes are intentionally never drawn at rest.
 class HolographicAmbientBackground extends StatefulWidget {
-  const HolographicAmbientBackground({super.key});
+  const HolographicAmbientBackground({
+    super.key,
+    this.routes = holographicCircuitRoutes,
+    this.trafficScenarios = holographicCircuitTrafficScenarios,
+    this.painterKey = const ValueKey('holographic-ambient-background'),
+  });
+
+  final List<HolographicCircuitRoute> routes;
+  final List<HolographicCircuitTrafficScenario> trafficScenarios;
+  final Key painterKey;
 
   @override
   State<HolographicAmbientBackground> createState() =>
@@ -222,11 +234,13 @@ class _HolographicAmbientBackgroundState
   Widget build(BuildContext context) => IgnorePointer(
     child: RepaintBoundary(
       child: CustomPaint(
-        key: const ValueKey('holographic-ambient-background'),
+        key: widget.painterKey,
         painter: _AmbientGeometryPainter(
           color: Theme.of(context).colorScheme.primary,
           seconds: _seconds,
           motionEnabled: _motionEnabled,
+          routes: widget.routes,
+          trafficScenarios: widget.trafficScenarios,
         ),
         child: const SizedBox.expand(),
       ),
@@ -239,11 +253,15 @@ class _AmbientGeometryPainter extends CustomPainter {
     required this.color,
     required this.seconds,
     required this.motionEnabled,
+    required this.routes,
+    required this.trafficScenarios,
   }) : super(repaint: seconds);
 
   final Color color;
   final ValueListenable<double> seconds;
   final bool motionEnabled;
+  final List<HolographicCircuitRoute> routes;
+  final List<HolographicCircuitTrafficScenario> trafficScenarios;
   Size? _resolvedSize;
   List<_ResolvedCircuitRoute>? _resolvedRoutes;
 
@@ -259,7 +277,7 @@ class _AmbientGeometryPainter extends CustomPainter {
       return _resolvedRoutes!;
     }
     _resolvedSize = size;
-    _resolvedRoutes = holographicCircuitRoutes
+    _resolvedRoutes = routes
         .map((route) {
           final scaledPoints = route.points
               .map(
@@ -348,6 +366,8 @@ class _AmbientGeometryPainter extends CustomPainter {
                 )
                 .toList(growable: false),
             elapsedSeconds: elapsed,
+            routes: this.routes,
+            trafficScenarios: trafficScenarios,
           )
           .map(
             (phase) => _CircuitPhase(
@@ -559,7 +579,10 @@ class _AmbientGeometryPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AmbientGeometryPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.motionEnabled != motionEnabled;
+      oldDelegate.color != color ||
+      oldDelegate.motionEnabled != motionEnabled ||
+      oldDelegate.routes != routes ||
+      oldDelegate.trafficScenarios != trafficScenarios;
 }
 
 /// Static display texture for the large holographic surfaces only.

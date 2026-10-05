@@ -71,6 +71,161 @@ import 'widgets/operation_ambient_animation.dart';
 import 'widgets/dashboard_ambient_wildlife_stage.dart';
 import '../system/pages/ambient_wildlife_v2.dart';
 
+/// Dashboard-specific page-space circuitry. The normalised coordinates are
+/// intentionally composed for the broad Dashboard viewport rather than the
+/// Calendar plane or the former narrow SCHEDULE panel.
+const dashboardPageCircuitRoutes = <HolographicCircuitRoute>[
+  HolographicCircuitRoute(
+    nodePointIndexes: [3, 6],
+    points: [
+      Offset(-.12, .16),
+      Offset(.12, .16),
+      Offset(.22, .25),
+      Offset(.38, .25),
+      Offset(.46, .16),
+      Offset(.67, .16),
+      Offset(.76, .27),
+      Offset(1.10, .27),
+    ],
+  ),
+  HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.parallel,
+        activationPointIndex: 3,
+        points: [
+          Offset(.31, .70),
+          Offset(.36, .66),
+          Offset(.50, .66),
+          Offset(.59, .56),
+          Offset(.70, .56),
+        ],
+      ),
+    ],
+    points: [
+      Offset(-.10, .82),
+      Offset(.10, .82),
+      Offset(.21, .70),
+      Offset(.31, .70),
+      Offset(.31, .57),
+      Offset(.46, .57),
+      Offset(.57, .46),
+      Offset(.70, .46),
+      Offset(.70, .34),
+      Offset(.90, .34),
+      Offset(1.12, .22),
+    ],
+  ),
+  // Central vertical PCB backbone spanning the upper, middle, and lower page.
+  HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8],
+    points: [
+      Offset(.49, -.12),
+      Offset(.49, .11),
+      Offset(.42, .18),
+      Offset(.42, .35),
+      Offset(.52, .35),
+      Offset(.52, .52),
+      Offset(.45, .59),
+      Offset(.45, .77),
+      Offset(.56, .77),
+      Offset(.56, 1.12),
+    ],
+  ),
+  // Central horizontal PCB backbone with a restrained offset through centre.
+  HolographicCircuitRoute(
+    nodePointIndexes: [3, 6, 9],
+    points: [
+      Offset(-.12, .50),
+      Offset(.10, .50),
+      Offset(.20, .41),
+      Offset(.36, .41),
+      Offset(.44, .50),
+      Offset(.59, .50),
+      Offset(.67, .41),
+      Offset(.82, .41),
+      Offset(.82, .54),
+      Offset(.97, .54),
+      Offset(1.12, .44),
+    ],
+  ),
+  HolographicCircuitRoute(
+    terminalNode: true,
+    nodePointIndexes: [3, 6],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.branch,
+        activationPointIndex: 3,
+        terminalNode: true,
+        points: [
+          Offset(.34, .40),
+          Offset(.45, .29),
+          Offset(.58, .29),
+          Offset(.67, .20),
+        ],
+      ),
+    ],
+    points: [
+      Offset(-.12, .64),
+      Offset(.12, .64),
+      Offset(.23, .53),
+      Offset(.34, .40),
+      Offset(.34, .54),
+      Offset(.48, .54),
+      Offset(.59, .65),
+      Offset(.75, .65),
+      Offset(.86, .76),
+      Offset(1.10, .76),
+    ],
+  ),
+  HolographicCircuitRoute(
+    terminalNode: true,
+    nodePointIndexes: [3, 6],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.parallel,
+        activationPointIndex: 3,
+        points: [
+          Offset(.69, .76),
+          Offset(.62, .80),
+          Offset(.49, .80),
+          Offset(.39, .70),
+          Offset(.25, .70),
+        ],
+      ),
+    ],
+    points: [
+      Offset(1.12, .88),
+      Offset(.91, .88),
+      Offset(.80, .77),
+      Offset(.69, .77),
+      Offset(.69, .64),
+      Offset(.54, .64),
+      Offset(.42, .53),
+      Offset(.28, .53),
+      Offset(.16, .42),
+      Offset(-.10, .42),
+    ],
+  ),
+];
+
+const dashboardPageCircuitTrafficScenarios =
+    <HolographicCircuitTrafficScenario>[
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(0)]),
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(1)]),
+      HolographicCircuitTrafficScenario([
+        HolographicCircuitTrafficEntry(2),
+        HolographicCircuitTrafficEntry(5, startDelay: .8),
+      ]),
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(3)]),
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(4)]),
+      HolographicCircuitTrafficScenario([
+        HolographicCircuitTrafficEntry(5),
+        HolographicCircuitTrafficEntry(0, startDelay: .75),
+      ]),
+    ];
+
 /// A single, pre-planned electrical phase for the Dashboard brand sign.
 ///
 /// The phases are intentionally data rather than frame-time randomness: an
@@ -681,6 +836,19 @@ class _DashboardPageState extends State<DashboardPage> {
                               return Stack(
                                 key: _dashboardViewportKey,
                                 children: [
+                                  Positioned.fill(
+                                    child: HolographicAmbientBackground(
+                                      key: const ValueKey(
+                                        'dashboard-page-ambient',
+                                      ),
+                                      painterKey: const ValueKey(
+                                        'dashboard-page-ambient-painter',
+                                      ),
+                                      routes: dashboardPageCircuitRoutes,
+                                      trafficScenarios:
+                                          dashboardPageCircuitTrafficScenarios,
+                                    ),
+                                  ),
                                   ListView(
                                     key: const ValueKey(
                                       'dashboard-scroll-view',
@@ -1032,106 +1200,59 @@ class DashboardScheduleCard extends StatelessWidget {
   }
 }
 
-/// The pilot keeps the holographic environment strictly inside SCHEDULE.
-class _DashboardSchedulePilotSurface extends StatefulWidget {
+/// SCHEDULE remains a floating display plane; the ambient environment now
+/// belongs to the Dashboard page rather than this individual panel.
+class _DashboardSchedulePilotSurface extends StatelessWidget {
   const _DashboardSchedulePilotSurface({required this.child, this.onTap});
 
   final Widget child;
   final VoidCallback? onTap;
 
   @override
-  State<_DashboardSchedulePilotSurface> createState() =>
-      _DashboardSchedulePilotSurfaceState();
-}
-
-class _DashboardSchedulePilotSurfaceState
-    extends State<_DashboardSchedulePilotSurface> {
-  final Stopwatch _clock = Stopwatch();
-  Timer? _timer;
-  double _seconds = 0;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (reduced) {
-      _timer?.cancel();
-      _timer = null;
-      _clock.stop();
-      return;
-    }
-    _clock.start();
-    _timer ??= Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (mounted) setState(() => _seconds = _clock.elapsedMilliseconds / 1000);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    return RepaintBoundary(
-      child: Container(
-        key: const ValueKey('dashboard-schedule'),
-        margin: AppSpacing.cardMargin,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: AppRadius.large,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              scheme.primary.withValues(alpha: .12),
-              scheme.surfaceContainerHigh.withValues(alpha: .15),
-              scheme.surface.withValues(alpha: .06),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: scheme.primary.withValues(alpha: .10),
-              blurRadius: 28,
-              offset: const Offset(-4, -3),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .42),
-              blurRadius: 30,
-              offset: const Offset(5, 13),
-            ),
+    return Container(
+      key: const ValueKey('dashboard-schedule'),
+      margin: AppSpacing.cardMargin,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.large,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primary.withValues(alpha: .12),
+            scheme.surfaceContainerHigh.withValues(alpha: .15),
+            scheme.surface.withValues(alpha: .06),
           ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: AppRadius.large,
-            child: Stack(
-              fit: StackFit.passthrough,
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      key: const ValueKey('dashboard-schedule-local-ambient'),
-                      painter: _DashboardScheduleCircuitPainter(
-                        seconds: _seconds,
-                        enabled: !reduced,
-                        color: scheme.primary,
-                      ),
-                    ),
-                  ),
-                ),
-                const Positioned.fill(child: HolographicScanlineOverlay()),
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: widget.child,
-                ),
-              ],
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withValues(alpha: .10),
+            blurRadius: 28,
+            offset: const Offset(-4, -3),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .42),
+            blurRadius: 30,
+            offset: const Offset(5, 13),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.large,
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              const Positioned.fill(child: HolographicScanlineOverlay()),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: child,
+              ),
+            ],
           ),
         ),
       ),
@@ -1139,8 +1260,9 @@ class _DashboardSchedulePilotSurfaceState
   }
 }
 
-class _DashboardScheduleCircuitPainter extends CustomPainter {
-  const _DashboardScheduleCircuitPainter({
+@Deprecated('Dashboard ambient circuitry is page-level.')
+class DashboardScheduleCircuitPainter extends CustomPainter {
+  const DashboardScheduleCircuitPainter({
     required this.seconds,
     required this.enabled,
     required this.color,
@@ -1332,7 +1454,7 @@ class _DashboardScheduleCircuitPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DashboardScheduleCircuitPainter old) =>
+  bool shouldRepaint(covariant DashboardScheduleCircuitPainter old) =>
       old.seconds != seconds || old.enabled != enabled || old.color != color;
 }
 
