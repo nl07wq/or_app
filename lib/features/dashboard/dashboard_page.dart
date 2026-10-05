@@ -1123,6 +1123,67 @@ LinearGradient _dashboardWeatherGlassGradient(
   ],
 );
 
+/// Full-size, non-interactive display material for Dashboard outer planes.
+/// It intentionally leaves the content and any nested Progress tile material
+/// untouched while allowing the page ambient to be attenuated through it.
+class _DashboardHolographicOuterSurface extends StatelessWidget {
+  const _DashboardHolographicOuterSurface({
+    required this.surfaceKey,
+    required this.scanlineKey,
+    required this.child,
+  });
+
+  final Key surfaceKey;
+  final Key scanlineKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: Colors.transparent,
+        cardTheme: Theme.of(context).cardTheme.copyWith(
+          color: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+        ),
+      ),
+      child: OperationCard(
+        padding: EdgeInsets.zero,
+        child: Container(
+          key: surfaceKey,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.large,
+            gradient: _dashboardWeatherGlassGradient(scheme),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withValues(alpha: .07),
+                blurRadius: 22,
+                offset: const Offset(-3, -2),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .34),
+                blurRadius: 24,
+                offset: const Offset(4, 10),
+              ),
+            ],
+          ),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(
+                child: HolographicScanlineOverlay(key: scanlineKey),
+              ),
+              Padding(padding: AppSpacing.cardPadding, child: child),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class DashboardScheduleCard extends StatelessWidget {
   const DashboardScheduleCard({
     super.key,
@@ -1835,7 +1896,9 @@ class _DailyCommandSummaryCard extends StatelessWidget {
   final DailyCommandReadModel model;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => _DashboardHolographicOuterSurface(
+    surfaceKey: const ValueKey('daily-command-holographic-surface'),
+    scanlineKey: const ValueKey('daily-command-holographic-scanlines'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2268,7 +2331,9 @@ class _ProgressCardState extends State<_ProgressCard> {
             _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
         return FutureBuilder<_BriefDebriefProgress>(
           future: _briefDebrief,
-          builder: (context, briefSnapshot) => OperationCard(
+          builder: (context, briefSnapshot) => _DashboardHolographicOuterSurface(
+            surfaceKey: const ValueKey('operation-progress-holographic-surface'),
+            scanlineKey: const ValueKey('operation-progress-holographic-scanlines'),
             child: widget.useLargeLayout
                 ? Row(
                     key: const ValueKey('operation-progress-large-layout'),
