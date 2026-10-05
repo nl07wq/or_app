@@ -224,7 +224,12 @@ void main() {
       final hud = tester.widget<Container>(
         find.byKey(const ValueKey('dashboard-schedule-hud')),
       );
-      expect((hud.decoration! as BoxDecoration).border, isNull);
+      expect(hud.decoration, isNull);
+      expect(
+        find.byKey(const ValueKey('dashboard-schedule-local-ambient')),
+        findsOneWidget,
+      );
+      expect(find.byType(HolographicScanlineOverlay), findsOneWidget);
       for (final id in ['overdue', 'morning', 'evening']) {
         expect(
           find.byKey(ValueKey('dashboard-schedule-anchor-$id')),

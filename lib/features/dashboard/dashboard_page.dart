@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show Path, PathMetric;
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -15,6 +16,7 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_radius.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
@@ -912,13 +914,10 @@ class DashboardScheduleCard extends StatelessWidget {
         .take(_visibleRowLimit)
         .toList(growable: false);
     final hiddenCount = entries.length - visibleEntries.length;
-    return OperationCard(
-      key: const ValueKey('dashboard-schedule'),
-      selectable: true,
+    return _DashboardSchedulePilotSurface(
       onTap: information == null
           ? null
           : () => onOpenDate(information!.operationDate),
-      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -926,11 +925,6 @@ class DashboardScheduleCard extends StatelessWidget {
           AppSpacing.gapSM,
           Container(
             key: const ValueKey('dashboard-schedule-hud'),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surface.withValues(alpha: .20),
-            ),
             child: loading
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -973,6 +967,371 @@ class DashboardScheduleCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The pilot keeps the holographic environment strictly inside SCHEDULE.
+class _DashboardSchedulePilotSurface extends StatefulWidget {
+  const _DashboardSchedulePilotSurface({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  State<_DashboardSchedulePilotSurface> createState() =>
+      _DashboardSchedulePilotSurfaceState();
+}
+
+class _DashboardSchedulePilotSurfaceState
+    extends State<_DashboardSchedulePilotSurface> {
+  final Stopwatch _clock = Stopwatch();
+  Timer? _timer;
+  double _seconds = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduced) {
+      _timer?.cancel();
+      _timer = null;
+      _clock.stop();
+      return;
+    }
+    _clock.start();
+    _timer ??= Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (mounted) setState(() => _seconds = _clock.elapsedMilliseconds / 1000);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return RepaintBoundary(
+      child: Container(
+        key: const ValueKey('dashboard-schedule'),
+        margin: AppSpacing.cardMargin,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.large,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              scheme.primary.withValues(alpha: .12),
+              scheme.surfaceContainerHigh.withValues(alpha: .15),
+              scheme.surface.withValues(alpha: .06),
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.primary.withValues(alpha: .10),
+              blurRadius: 28,
+              offset: const Offset(-4, -3),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .42),
+              blurRadius: 30,
+              offset: const Offset(5, 13),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: AppRadius.large,
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: [
+                IgnorePointer(
+                  child: CustomPaint(
+                    key: const ValueKey('dashboard-schedule-local-ambient'),
+                    painter: _DashboardScheduleCircuitPainter(
+                      seconds: _seconds,
+                      enabled: !reduced,
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
+                const Positioned.fill(child: HolographicScanlineOverlay()),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: widget.child,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardScheduleCircuitPainter extends CustomPainter {
+  const _DashboardScheduleCircuitPainter({
+    required this.seconds,
+    required this.enabled,
+    required this.color,
+  });
+
+  final double seconds;
+  final bool enabled;
+  final Color color;
+
+  static const _routes = <_DashboardScheduleCircuitRoute>[
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(-.10, .56),
+        Offset(.14, .56),
+        Offset(.22, .45),
+        Offset(.49, .45),
+        Offset(.56, .56),
+        Offset(.82, .56),
+        Offset(1.10, .42),
+      ],
+      nodes: [3, 5],
+      terminal: true,
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(.05, .22),
+        Offset(.24, .22),
+        Offset(.31, .32),
+        Offset(.58, .32),
+        Offset(.68, .22),
+        Offset(.94, .22),
+      ],
+      nodes: [3],
+      parallel: [Offset(.31, .36), Offset(.58, .36), Offset(.68, .26)],
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(-.08, .76),
+        Offset(.18, .76),
+        Offset(.27, .64),
+        Offset(.48, .64),
+        Offset(.58, .74),
+        Offset(.89, .74),
+      ],
+      nodes: [3],
+      branch: [Offset(.48, .64), Offset(.59, .52), Offset(.78, .52)],
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(.10, .38),
+        Offset(.28, .38),
+        Offset(.36, .48),
+        Offset(.62, .48),
+        Offset(.70, .38),
+        Offset(.96, .38),
+      ],
+      nodes: [2, 4],
+      parallel: [Offset(.36, .52), Offset(.62, .52), Offset(.70, .42)],
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(-.10, .30),
+        Offset(.16, .30),
+        Offset(.25, .40),
+        Offset(.53, .40),
+        Offset(.62, .30),
+        Offset(1.10, .30),
+      ],
+      nodes: [3, 4],
+    ),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!enabled || size.isEmpty) return;
+    final elapsed = seconds - .75;
+    if (elapsed < 0) return;
+    final resolved = _routes.map((route) => route.resolve(size)).toList();
+    final travel = resolved
+        .map(
+          (route) =>
+              route.metric.length / holographicCircuitSignalPixelsPerSecond,
+        )
+        .toList();
+    final starts = <double>[];
+    var cycle = 0.0;
+    for (final value in travel) {
+      starts.add(cycle);
+      cycle += value + 1.75;
+    }
+    final firstCycle = math.max(0, ((elapsed - 20) / cycle).floor());
+    final lastCycle = (elapsed / cycle).floor();
+    for (var cycleIndex = firstCycle; cycleIndex <= lastCycle; cycleIndex++) {
+      for (var index = 0; index < resolved.length; index++) {
+        final age = elapsed - cycleIndex * cycle - starts[index];
+        if (age < 0 || age > travel[index] + 20) continue;
+        _paintRoute(canvas, resolved[index], age, travel[index]);
+      }
+    }
+  }
+
+  void _paintRoute(
+    Canvas canvas,
+    _ResolvedDashboardScheduleRoute route,
+    double age,
+    double travel,
+  ) {
+    _paintTrace(canvas, route.metric, age, travel);
+    if (route.parallel != null) {
+      _paintTrace(canvas, route.parallel!, age, travel);
+    }
+    if (route.branch != null) {
+      _paintTrace(canvas, route.branch!, age, travel);
+    }
+    for (final distance in route.nodeDistances) {
+      final nodeAge = age - distance / holographicCircuitSignalPixelsPerSecond;
+      if (nodeAge >= 0 && nodeAge <= 20) {
+        _paintNode(canvas, route.metric, distance, 1 - nodeAge / 20);
+      }
+    }
+    if (route.definition.terminal && age >= travel && age <= travel + 20) {
+      _paintNode(
+        canvas,
+        route.metric,
+        route.metric.length,
+        1 - (age - travel) / 20,
+      );
+    }
+  }
+
+  void _paintTrace(
+    Canvas canvas,
+    PathMetric metric,
+    double age,
+    double travel,
+  ) {
+    final fade = 1 - ((age - travel).clamp(0.0, 20.0) / 20);
+    final revealed = math.min(
+      metric.length,
+      age * holographicCircuitSignalPixelsPerSecond,
+    );
+    if (revealed > 0) {
+      final trace = Paint()
+        ..color = color.withValues(alpha: .16 * fade)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.3);
+      canvas.drawPath(metric.extractPath(0, revealed), trace);
+    }
+    if (age <= travel) {
+      final head = age * holographicCircuitSignalPixelsPerSecond;
+      final start = math.max(0.0, head - math.min(54.0, metric.length * .18));
+      final signal = metric.extractPath(start, math.min(metric.length, head));
+      final glow = Paint()
+        ..color = color.withValues(alpha: .55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      final core = Paint()
+        ..color = color.withValues(alpha: .95)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6;
+      canvas.drawPath(signal, glow);
+      canvas.drawPath(signal, core);
+    }
+  }
+
+  void _paintNode(
+    Canvas canvas,
+    PathMetric metric,
+    double distance,
+    double intensity,
+  ) {
+    final position = metric.getTangentForOffset(distance)?.position;
+    if (position == null) return;
+    final halo = Paint()
+      ..color = color.withValues(alpha: .16 * intensity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    final ring = Paint()
+      ..color = color.withValues(alpha: .58 * intensity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    canvas.drawCircle(position, 5.6, halo);
+    canvas.drawCircle(
+      position,
+      holographicCircuitAmbientNodeDiameter / 2,
+      ring,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashboardScheduleCircuitPainter old) =>
+      old.seconds != seconds || old.enabled != enabled || old.color != color;
+}
+
+class _DashboardScheduleCircuitRoute {
+  const _DashboardScheduleCircuitRoute({
+    required this.points,
+    required this.nodes,
+    this.parallel,
+    this.branch,
+    this.terminal = false,
+  });
+  final List<Offset> points;
+  final List<int> nodes;
+  final List<Offset>? parallel;
+  final List<Offset>? branch;
+  final bool terminal;
+  _ResolvedDashboardScheduleRoute resolve(Size size) {
+    Path make(List<Offset> values) {
+      final path = Path()
+        ..moveTo(values.first.dx * size.width, values.first.dy * size.height);
+      for (final point in values.skip(1)) {
+        path.lineTo(point.dx * size.width, point.dy * size.height);
+      }
+      return path;
+    }
+
+    final metric = make(points).computeMetrics().single;
+    final distances = <double>[];
+    var total = 0.0;
+    for (var index = 1; index < points.length; index++) {
+      final a = Offset(
+        points[index - 1].dx * size.width,
+        points[index - 1].dy * size.height,
+      );
+      final b = Offset(
+        points[index].dx * size.width,
+        points[index].dy * size.height,
+      );
+      total += (b - a).distance;
+      if (nodes.contains(index)) distances.add(total);
+    }
+    return _ResolvedDashboardScheduleRoute(
+      this,
+      metric,
+      distances,
+      parallel == null ? null : make(parallel!).computeMetrics().single,
+      branch == null ? null : make(branch!).computeMetrics().single,
+    );
+  }
+}
+
+class _ResolvedDashboardScheduleRoute {
+  const _ResolvedDashboardScheduleRoute(
+    this.definition,
+    this.metric,
+    this.nodeDistances,
+    this.parallel,
+    this.branch,
+  );
+  final _DashboardScheduleCircuitRoute definition;
+  final PathMetric metric;
+  final List<double> nodeDistances;
+  final PathMetric? parallel;
+  final PathMetric? branch;
 }
 
 class _DashboardScheduleHeader extends StatelessWidget {
