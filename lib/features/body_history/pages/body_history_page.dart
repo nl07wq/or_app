@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
@@ -112,7 +113,10 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('BODY HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('BODY HISTORY'),
+    ),
     body: FutureBuilder<_BodyHistoryViewModel>(
       future: _model,
       builder: (context, snapshot) {

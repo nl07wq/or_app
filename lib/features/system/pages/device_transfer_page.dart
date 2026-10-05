@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 
@@ -38,7 +39,10 @@ class _DeviceTransferPageState extends State<DeviceTransferPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DEVICE TRANSFER')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DEVICE TRANSFER'),
+    ),
     body: ListView(
       key: const ValueKey('device-transfer-content'),
       padding: AppSpacing.cardPadding,
@@ -164,5 +168,5 @@ class _DestinationTile extends StatelessWidget {
     subtitle: subtitle == null ? null : Text(subtitle!),
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
-  );
+  ).actionableFeedback(enabled: true);
 }

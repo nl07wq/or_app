@@ -341,7 +341,7 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
                     ).actionableFeedback(),
                   ],
                 ),
-              ),
+              ).actionableFeedback(enabled: !readOnly),
             ),
             AppSpacing.gapSM,
           ],

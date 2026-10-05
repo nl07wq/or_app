@@ -477,6 +477,23 @@ class ActionableFeedbackButton extends ActionableFeedbackRegion {
   });
 }
 
+/// The standard in-app Back affordance.
+///
+/// Flutter's implied AppBar leading button is not part of the OR-APP feedback
+/// ownership tree. Pages that expose in-app return navigation use this shared
+/// replacement so EXIT classification, generic exclusion, and tap-only
+/// confirmation remain coupled without a feature-level audio call.
+class ActionableBackButton extends StatelessWidget {
+  const ActionableBackButton({super.key, this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => BackButton(
+    onPressed: onPressed ?? () => Navigator.maybePop(context),
+  ).actionableFeedback(enabled: true, role: ActionableFeedbackRole.exit);
+}
+
 /// Applies the OR-APP actionable contract to stock Flutter controls without
 /// duplicating audio or ripple policy at feature call sites.
 extension ActionableFeedbackWidget on Widget {

@@ -164,7 +164,10 @@ class _SystemPageState extends State<SystemPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('SYSTEM')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('SYSTEM'),
+    ),
     body: ListView(
       key: const ValueKey('system-content'),
       padding: AppSpacing.cardPadding,

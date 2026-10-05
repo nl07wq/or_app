@@ -10,6 +10,8 @@ const _rawControls = <String>[
   'FilledButton',
   'PopupMenuButton',
   'PopupMenuItem',
+  'BackButton',
+  'ListTile',
   'InkWell',
   'GestureDetector',
 ];
@@ -52,6 +54,11 @@ void main() {
               ).hasMatch(constructor)) {
             // Drag, scale, hover, and scroll gesture infrastructure is not a
             // discrete actionable control and must retain passive feedback.
+            continue;
+          }
+          if (name == 'ListTile' &&
+              !RegExp(r'on(?:Tap|LongPress)\s*:').hasMatch(constructor)) {
+            // Display-only list rows are passive by design.
             continue;
           }
           if (RegExp(r'onPressed\s*:\s*null').hasMatch(constructor)) {

@@ -114,7 +114,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
               ListTile(
                 title: Text(item.label),
                 onTap: () => Navigator.pop(context, item),
-              ),
+              ).actionableFeedback(enabled: true),
           ],
         ),
       ),

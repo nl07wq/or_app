@@ -119,13 +119,13 @@ class _EquipmentPickerSheet extends StatelessWidget {
           ListTile(
             title: const Text('なし'),
             onTap: () => Navigator.pop(context, ''),
-          ),
+          ).actionableFeedback(enabled: true),
           const Divider(height: 1),
           for (final item in equipment)
             ListTile(
               title: Text(equipmentDisplayNameJa(item)),
               onTap: () => Navigator.pop(context, item.id),
-            ),
+            ).actionableFeedback(enabled: true),
         ],
       ),
     );

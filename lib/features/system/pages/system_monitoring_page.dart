@@ -123,7 +123,10 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('SYSTEM MONITORING')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('SYSTEM MONITORING'),
+    ),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [

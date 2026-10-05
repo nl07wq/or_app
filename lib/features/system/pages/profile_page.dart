@@ -225,7 +225,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         subtitle: Text(_nationality ?? '未設定'),
                         trailing: const Icon(Icons.search),
                         onTap: _selectNationality,
-                      ),
+                      ).actionableFeedback(enabled: true),
                       AppSpacing.gapMD,
                       FilledButton.icon(
                         key: const ValueKey('save-profile'),
@@ -303,7 +303,7 @@ class _NationalityPickerState extends State<_NationalityPicker> {
                 leading: const Icon(Icons.remove_circle_outline),
                 onTap: () =>
                     Navigator.pop(context, const _NationalitySelection(null)),
-              ),
+              ).actionableFeedback(enabled: true),
               const Divider(),
               Expanded(
                 child: results.isEmpty
@@ -321,7 +321,7 @@ class _NationalityPickerState extends State<_NationalityPicker> {
                               context,
                               _NationalitySelection(value),
                             ),
-                          );
+                          ).actionableFeedback(enabled: true);
                         },
                       ),
               ),

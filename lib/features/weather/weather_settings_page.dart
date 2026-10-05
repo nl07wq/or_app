@@ -162,7 +162,7 @@ class _WeatherSettingsPageState extends State<WeatherSettingsPage> {
                   subtitle: Text(result.timezone),
                   trailing: const Icon(Icons.add_circle_outline),
                   onTap: () => _add(result),
-                ),
+                ).actionableFeedback(enabled: true),
               AppSpacing.gapLG,
               Text(
                 'Open-Meteo location search. GPS is not used.',

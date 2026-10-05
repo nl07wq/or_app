@@ -133,7 +133,10 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DIGESTIVE HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DIGESTIVE HISTORY'),
+    ),
     body: FutureBuilder<_ViewModel>(
       future: _model,
       builder: (context, snapshot) {

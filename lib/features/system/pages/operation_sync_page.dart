@@ -189,7 +189,10 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     final state = _workspace?.state;
     final requiresRecovery = state?.requiresRecovery ?? false;
     return Scaffold(
-      appBar: AppBar(title: const Text('OPERATION SYNC')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('OPERATION SYNC'),
+      ),
       body: ListView(
         key: const ValueKey('operation-sync-content'),
         padding: AppSpacing.cardPadding,
@@ -466,7 +469,7 @@ class _HistoricalImportScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: AppBar(leading: const ActionableBackButton(), title: Text(title)),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [
@@ -714,7 +717,7 @@ class _MixedRecordRow extends StatelessWidget {
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
     isThreeLine: record.failureCode != null,
-  );
+  ).actionableFeedback(enabled: true);
 }
 
 void _openMixedOperationSyncRecord(
@@ -741,7 +744,7 @@ class _MixedOperationSyncRecordArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: AppBar(leading: const ActionableBackButton(), title: Text(title)),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: records.length,
@@ -765,7 +768,7 @@ class _MixedOperationSyncRecordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: AppBar(leading: const ActionableBackButton(), title: Text(title)),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [

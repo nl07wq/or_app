@@ -91,6 +91,7 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const ActionableBackButton(),
       title: const Text('MEAL ANALYSIS'),
       actions: [
         IconButton(

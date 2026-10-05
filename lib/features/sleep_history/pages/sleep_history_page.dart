@@ -116,7 +116,10 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('SLEEP HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('SLEEP HISTORY'),
+    ),
     body: FutureBuilder<_SleepViewModel>(
       future: _model,
       builder: (context, snapshot) {

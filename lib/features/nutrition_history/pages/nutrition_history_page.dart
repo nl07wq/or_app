@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
@@ -114,7 +115,10 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('NUTRITION HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('NUTRITION HISTORY'),
+    ),
     body: FutureBuilder<_NutritionHistoryViewModel>(
       future: _model,
       builder: (context, snapshot) {

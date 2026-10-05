@@ -111,13 +111,7 @@ class ReportSyncExchangePage extends StatelessWidget {
       leading:
           appBarLeading ??
           (Navigator.of(context).canPop()
-              ? ActionableFeedbackButton(
-                  enabled: true,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ).actionableFeedback(role: ActionableFeedbackRole.exit),
-                )
+              ? const ActionableBackButton()
               : null),
       title: appBarTitle ?? Text(_title(exchangeType)),
     ),
@@ -1930,7 +1924,7 @@ class _HistoryCard extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _openReportSyncRecord(context, history[index]),
-                ),
+                ).actionableFeedback(enabled: true),
                 if (index != history.length - 1) const Divider(),
               ],
             ],
@@ -1952,7 +1946,10 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('REPORT SYNC RECORD')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('REPORT SYNC RECORD'),
+    ),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: history.length,
@@ -1970,7 +1967,7 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => _openReportSyncRecord(context, history[index]),
-      ),
+      ).actionableFeedback(enabled: true),
     ),
   );
 }
@@ -1982,7 +1979,10 @@ class _ReportSyncRecordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('REPORT SYNC RECORD')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('REPORT SYNC RECORD'),
+    ),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [

@@ -133,7 +133,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('ACTIVITY HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('ACTIVITY HISTORY'),
+    ),
     body: FutureBuilder<_ActivityViewModel>(
       future: _model,
       builder: (context, snapshot) {

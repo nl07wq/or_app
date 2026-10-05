@@ -89,7 +89,10 @@ class _DailyNutritionAnalysisPageState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY NUTRITION ANALYSIS')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY NUTRITION ANALYSIS'),
+    ),
     body: FutureBuilder<_DailyContext>(
       future: _context,
       builder: (context, snapshot) {

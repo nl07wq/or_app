@@ -83,7 +83,7 @@ class _EquipmentSheet extends StatelessWidget {
                     title: const Text('なし'),
                     onTap: () =>
                         Navigator.pop(context, const _EquipmentSelection(null)),
-                  ),
+                  ).actionableFeedback(enabled: true),
                   for (final candidate in candidates)
                     ListTile(
                       leading: const Icon(Icons.fitness_center_outlined),
@@ -95,7 +95,7 @@ class _EquipmentSheet extends StatelessWidget {
                         context,
                         _EquipmentSelection(candidate),
                       ),
-                    ),
+                    ).actionableFeedback(enabled: true),
                 ],
               ),
             ),
@@ -105,7 +105,7 @@ class _EquipmentSheet extends StatelessWidget {
                 leading: const Icon(Icons.add),
                 title: const Text('CUSTOM EQUIPMENT'),
                 onTap: () => _custom(context),
-              ),
+              ).actionableFeedback(enabled: true),
             ],
           ],
         ),

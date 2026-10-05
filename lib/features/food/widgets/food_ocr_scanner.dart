@@ -339,19 +339,19 @@ Future<FoodNutritionCaptureMode?> _chooseCaptureMode(BuildContext context) =>
               title: const Text('LIVE SCAN'),
               onTap: () =>
                   Navigator.pop(context, FoodNutritionCaptureMode.live),
-            ),
+            ).actionableFeedback(enabled: true),
             ListTile(
               leading: const Icon(Icons.photo_camera),
               title: const Text('CAMERA'),
               onTap: () =>
                   Navigator.pop(context, FoodNutritionCaptureMode.camera),
-            ),
+            ).actionableFeedback(enabled: true),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('PHOTO LIBRARY'),
               onTap: () =>
                   Navigator.pop(context, FoodNutritionCaptureMode.gallery),
-            ),
+            ).actionableFeedback(enabled: true),
           ],
         ),
       ),

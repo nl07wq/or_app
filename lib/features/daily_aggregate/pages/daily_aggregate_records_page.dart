@@ -54,7 +54,10 @@ class _DailyAggregateRecordsPageState extends State<DailyAggregateRecordsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY AGGREGATE RECORDS')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY AGGREGATE RECORDS'),
+    ),
     body: FutureBuilder<List<DailyAggregateV1>>(
       future: _records,
       builder: (context, snapshot) {
@@ -107,7 +110,7 @@ class _AggregateRow extends StatelessWidget {
       subtitle: Text('Source Type  ${aggregate.sourceType.name}'),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
-    ),
+    ).actionableFeedback(enabled: true),
   );
 }
 
@@ -190,7 +193,10 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY AGGREGATE DETAIL')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY AGGREGATE DETAIL'),
+    ),
     body: FutureBuilder<DailyAggregateV1?>(
       future: _record,
       builder: (context, snapshot) {

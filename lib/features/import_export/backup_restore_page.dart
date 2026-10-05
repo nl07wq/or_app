@@ -255,7 +255,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('BACKUP & RESTORE')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('BACKUP & RESTORE'),
+      ),
       body: ListView(
         padding: AppSpacing.cardPadding,
         children: [

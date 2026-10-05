@@ -160,7 +160,7 @@ class _WorkCardState extends State<WorkCard> {
                                 ),
                               ],
                             ),
-                          );
+                          ).actionableFeedback(enabled: true);
                         },
                       ),
                       if (_presets.length < ShiftPresetPreferences.maxPresets)

@@ -626,6 +626,47 @@ void main() {
     expect(audio.played.last, TouchFeedbackSound.exit);
   });
 
+  testWidgets('shared AppBar back dispatches exit before navigation', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    final events = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            GlobalTouchRipple(audio: audio, child: child!),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(
+                    leading: ActionableBackButton(
+                      onPressed: () {
+                        events.add('pop');
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            child: const Text('OPEN SHARED BACK'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('OPEN SHARED BACK'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byType(ActionableBackButton));
+    await tester.pump();
+
+    expect(audio.played.last, TouchFeedbackSound.exit);
+    expect(events, ['pop']);
+  });
+
   testWidgets('Reduced Motion suppresses animation but preserves audio', (
     tester,
   ) async {

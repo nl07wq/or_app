@@ -1111,7 +1111,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
               ListTile(
                 title: Text('日付  ${_date.year}/${_date.month}/${_date.day}'),
                 onTap: () => _pickDate(end: false),
-              ),
+              ).actionableFeedback(enabled: true),
               SwitchListTile(
                 title: const Text('時刻'),
                 value: _timed,
@@ -1127,7 +1127,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                     );
                     if (value != null) setState(() => _time = value);
                   },
-                ),
+                ).actionableFeedback(enabled: true),
               DropdownButtonFormField<ReminderRecurrence>(
                 initialValue: _recurrence,
                 decoration: const InputDecoration(labelText: '繰り返し'),
@@ -1161,7 +1161,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                       '繰り返しの終了  ${_end!.year}/${_end!.month}/${_end!.day}',
                     ),
                     onTap: () => _pickDate(end: true),
-                  ),
+                  ).actionableFeedback(enabled: true),
               ],
               if (_error != null)
                 Text(

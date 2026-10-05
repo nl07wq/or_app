@@ -948,12 +948,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 leading: const Icon(Icons.photo_camera),
                 title: const Text('CAMERA'),
                 onTap: () => Navigator.pop(context, FoodImageSource.camera),
-              ),
+              ).actionableFeedback(enabled: true),
               ListTile(
                 leading: const Icon(Icons.photo_library),
                 title: const Text('PHOTO LIBRARY'),
                 onTap: () => Navigator.pop(context, FoodImageSource.gallery),
-              ),
+              ).actionableFeedback(enabled: true),
             ],
           ),
         ),
@@ -2140,7 +2140,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 onTap: _addingDatabaseItem
                     ? null
                     : () => _selectDatabaseFood(entry),
-              ),
+              ).actionableFeedback(enabled: !_addingDatabaseItem),
           _masterListDisclosure(
             mode: _FoodEntryInputMode.databaseFood,
             total: entries.length,
@@ -2195,7 +2195,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 onTap: _addingDatabaseItem
                     ? null
                     : () => _selectDatabaseRecipe(recipe),
-              ),
+              ).actionableFeedback(enabled: !_addingDatabaseItem),
           _masterListDisclosure(
             mode: _FoodEntryInputMode.databaseRecipe,
             total: recipes.length,
@@ -2249,7 +2249,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 subtitle: Text('${meal.components.length} ITEMS'),
                 trailing: const Icon(Icons.add_circle_outline),
                 onTap: _addingDatabaseItem ? null : () => _addMealDirect(meal),
-              ),
+              ).actionableFeedback(enabled: !_addingDatabaseItem),
           _masterListDisclosure(
             mode: _FoodEntryInputMode.databaseMeal,
             total: meals.length,

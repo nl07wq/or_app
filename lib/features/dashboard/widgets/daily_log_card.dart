@@ -749,17 +749,23 @@ class _DailyCloseActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(text, style: AppTextStyles.label),
-        ),
-      ).actionableFeedback(),
+      child:
+          ElevatedButton(
+            onPressed: onPressed,
+            style: ElevatedButton.styleFrom(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(text, style: AppTextStyles.label),
+            ),
+          ).actionableFeedback(
+            enabled: true,
+            result: onPressed == null
+                ? ActionableFeedbackResult.unavailable
+                : ActionableFeedbackResult.accepted,
+          ),
     );
   }
 }

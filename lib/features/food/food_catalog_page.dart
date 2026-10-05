@@ -280,6 +280,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const ActionableBackButton(),
       title: Text(
         widget.selectionMode
             ? widget.recipesEnabled
@@ -417,7 +418,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openEntry(entry),
-          ),
+          ).actionableFeedback(enabled: true),
         );
       },
     );
@@ -461,7 +462,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             isThreeLine: true,
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openRecipe(recipe),
-          ),
+          ).actionableFeedback(enabled: true),
         );
       },
     );
@@ -487,7 +488,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openMeal(meal),
-          ),
+          ).actionableFeedback(enabled: true),
         );
       },
     );
@@ -733,12 +734,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                 leading: const Icon(Icons.photo_camera),
                 title: const Text('CAMERA'),
                 onTap: () => Navigator.pop(context, FoodImageSource.camera),
-              ),
+              ).actionableFeedback(enabled: true),
               ListTile(
                 leading: const Icon(Icons.photo_library),
                 title: const Text('PHOTO LIBRARY'),
                 onTap: () => Navigator.pop(context, FoodImageSource.gallery),
-              ),
+              ).actionableFeedback(enabled: true),
             ],
           ),
         ),
@@ -1066,6 +1067,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const ActionableBackButton(),
       title: Text(widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD'),
     ),
     body: FoodFormTheme(
@@ -1583,7 +1585,10 @@ class FoodCatalogDetailPage extends StatelessWidget {
     final nutrition = entry.nutrition;
     final hasChart = FoodPfcBalanceCard.hasBalance(nutrition);
     return Scaffold(
-      appBar: AppBar(title: const Text('FOOD DETAIL')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('FOOD DETAIL'),
+      ),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(
