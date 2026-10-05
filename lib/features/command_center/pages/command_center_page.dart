@@ -784,7 +784,7 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
                     ),
                   ),
                 ),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
           ),
         ),

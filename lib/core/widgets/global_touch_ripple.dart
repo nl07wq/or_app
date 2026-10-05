@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart' show kTouchSlop;
+import 'package:flutter/gestures.dart' show kLongPressTimeout, kTouchSlop;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -114,7 +114,11 @@ class GlobalTouchRipple extends StatefulWidget {
       ..genericExcluded = true
       ..sound = sound
       ..downPosition = position
-      ..semanticCancelled = false;
+      ..semanticCancelled = false
+      ..semanticLongPressTimer?.cancel()
+      ..semanticLongPressTimer = Timer(kLongPressTimeout, () {
+        ownership.semanticCancelled = true;
+      });
   }
 
   static void updateSemanticPointer(int pointer, Offset position) {
@@ -123,24 +127,32 @@ class GlobalTouchRipple extends StatefulWidget {
     if (ownership == null || downPosition == null) return;
     if ((position - downPosition).distance > kTouchSlop) {
       ownership.semanticCancelled = true;
+      ownership.semanticLongPressTimer?.cancel();
     }
   }
 
   static void cancelSemanticFeedback(int pointer) {
     final ownership = _ownership[pointer];
-    if (ownership != null) ownership.semanticCancelled = true;
+    if (ownership != null) {
+      ownership
+        ..semanticCancelled = true
+        ..semanticLongPressTimer?.cancel();
+    }
   }
 
   static void confirmSemanticFeedback(int pointer) {
     final ownership = _ownership[pointer];
     final sound = ownership?.sound;
+    ownership?.semanticLongPressTimer?.cancel();
     if (ownership == null || ownership.semanticCancelled || sound == null) {
       return;
     }
     _activeState?._playSemanticFeedback(pointer, sound);
   }
 
-  static void _release(int pointer) => _ownership.remove(pointer);
+  static void _release(int pointer) {
+    _ownership.remove(pointer)?.semanticLongPressTimer?.cancel();
+  }
 
   @override
   State<GlobalTouchRipple> createState() => _GlobalTouchRippleState();
@@ -150,6 +162,7 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     with SingleTickerProviderStateMixin {
   final _events = <TouchRippleEvent>[];
   final _pendingAudio = <int, Timer>{};
+  final _genericCandidates = <int, _GenericTouchCandidate>{};
   final _exclusionCleanup = <int, Timer>{};
   final _frame = ValueNotifier<_TouchRippleFrame>(_TouchRippleFrame.empty());
   final _clock = Stopwatch();
@@ -195,19 +208,32 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
       // Water Drop fallback; semantic feedback is played by its own claim.
       return;
     }
+    _genericCandidates[pointer]?.cancel();
+    _genericCandidates[pointer] = _GenericTouchCandidate(
+      position: localPosition,
+      longPressTimer: Timer(kLongPressTimeout, () {
+        _genericCandidates[pointer]?.cancelled = true;
+      }),
+    );
+  }
+
+  void _confirmGenericFeedback(int pointer) {
+    final candidate = _genericCandidates.remove(pointer);
+    if (candidate == null || candidate.cancelled) {
+      candidate?.cancel();
+      return;
+    }
+    candidate.cancel();
     _pendingAudio[pointer]?.cancel();
     _pendingAudio[pointer] = Timer(const Duration(milliseconds: 32), () {
-      _audio.playFromUserGesture(
-        GlobalTouchRipple._ownership.remove(pointer)?.sound ??
-            TouchFeedbackSound.water,
-      );
+      _audio.playFromUserGesture(TouchFeedbackSound.water);
       _pendingAudio.remove(pointer);
     });
     if (!_motionEnabled) return;
     if (!_clock.isRunning) _clock.start();
     final nextEvents = boundedTouchRippleEvents(
       _events,
-      TouchRippleEvent(position: localPosition, startedAt: _clock.elapsed),
+      TouchRippleEvent(position: candidate.position, startedAt: _clock.elapsed),
     );
     _events
       ..clear()
@@ -225,6 +251,11 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   }
 
   void _onPointerFinished(PointerEvent event) {
+    if (event is PointerCancelEvent) {
+      _genericCandidates.remove(event.pointer)?.cancel();
+    } else if (event is PointerUpEvent) {
+      _confirmGenericFeedback(event.pointer);
+    }
     final ownership = GlobalTouchRipple._ownership[event.pointer];
     if (ownership?.genericExcluded ?? false) {
       // Some controls legitimately claim semantic success from onPressed,
@@ -238,6 +269,16 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
           _exclusionCleanup.remove(event.pointer);
         },
       );
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    final candidate = _genericCandidates[event.pointer];
+    if (candidate == null) return;
+    if ((event.localPosition - candidate.position).distance > kTouchSlop) {
+      _genericCandidates.remove(event.pointer)
+        ?..cancelled = true
+        ..cancel();
     }
   }
 
@@ -261,6 +302,9 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     for (final pending in _pendingAudio.values) {
       pending.cancel();
     }
+    for (final candidate in _genericCandidates.values) {
+      candidate.cancel();
+    }
     for (final pending in _exclusionCleanup.values) {
       pending.cancel();
     }
@@ -280,6 +324,7 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   Widget build(BuildContext context) => Listener(
     behavior: HitTestBehavior.translucent,
     onPointerDown: _onPointerDown,
+    onPointerMove: _onPointerMove,
     onPointerUp: _onPointerFinished,
     onPointerCancel: _onPointerFinished,
     child: Stack(
@@ -309,6 +354,20 @@ class _TouchFeedbackOwnership {
   bool semanticCancelled = false;
   Offset? downPosition;
   TouchFeedbackSound? sound;
+  Timer? semanticLongPressTimer;
+}
+
+class _GenericTouchCandidate {
+  _GenericTouchCandidate({
+    required this.position,
+    required this.longPressTimer,
+  });
+
+  final Offset position;
+  final Timer longPressTimer;
+  bool cancelled = false;
+
+  void cancel() => longPressTimer.cancel();
 }
 
 /// Marks the exact hit-test bounds of a semantic/actionable control.

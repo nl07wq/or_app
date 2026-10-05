@@ -4,7 +4,9 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/section_header.dart';
@@ -1139,6 +1141,21 @@ void main() {
     await tester.dragFrom(topSwipeOrigin, const Offset(300, 0));
     await tester.pumpAndSettle();
     expect(find.text('WEEKLY REPORT'), findsOneWidget);
+  });
+
+  testWidgets('top workspace tabs are silent display controls', (tester) async {
+    final audio = _RecordingTouchRippleAudio();
+    await _pump(tester, width: 390, feedbackAudio: audio);
+
+    for (final label in [
+      'PERIODIC REPORT',
+      'BRIEF / DEBRIEF',
+      'DAILY COMMAND',
+      'DATA CENTER',
+    ]) {
+      await _tapCommandCenterTab(tester, label);
+      expect(audio.played, isEmpty, reason: label);
+    }
   });
 
   testWidgets('balances BRIEF and DEBRIEF tabs across the available width', (
@@ -2750,6 +2767,7 @@ Future<void> _pump(
   required double width,
   ThemeData? theme,
   WidgetBuilder? reviewPageBuilder,
+  TouchRippleAudio? feedbackAudio,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -2758,6 +2776,12 @@ Future<void> _pump(
   await tester.pumpWidget(
     MaterialApp(
       theme: theme,
+      builder: feedbackAudio == null
+          ? null
+          : (context, child) => GlobalTouchRipple(
+              audio: feedbackAudio,
+              child: child ?? const SizedBox.shrink(),
+            ),
       home: const CommandCenterPage(),
       onGenerateRoute: (settings) {
         if (settings.name == AppRoutes.finalizedDashboard) {
@@ -2791,6 +2815,19 @@ Future<void> _pump(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
 }
 
 MorningFact _status() => MorningFact(

@@ -72,12 +72,15 @@ class PeriodicReportWorkspace extends StatelessWidget {
             title: 'PERIODIC REPORT',
           ),
         ),
-        const TabBar(
-          tabs: [
-            Tab(text: 'WEEKLY'),
-            Tab(text: 'MONTHLY'),
-            Tab(text: 'YEARLY'),
-          ],
+        const ActionableFeedbackRegion(
+          role: ActionableFeedbackRole.silent,
+          child: TabBar(
+            tabs: [
+              Tab(text: 'WEEKLY'),
+              Tab(text: 'MONTHLY'),
+              Tab(text: 'YEARLY'),
+            ],
+          ),
         ),
         Expanded(
           child: TabBarView(
@@ -477,7 +480,7 @@ class _ReportHeaderCard extends StatelessWidget {
                 tooltip: 'PREVIOUS PERIOD',
                 onPressed: busy ? null : onPrevious,
                 icon: const Icon(Icons.chevron_left),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               Expanded(
                 child: Column(
                   children: [
@@ -496,7 +499,7 @@ class _ReportHeaderCard extends StatelessWidget {
                 tooltip: 'NEXT PERIOD',
                 onPressed: busy || !canMoveNext ? null : onNext,
                 icon: const Icon(Icons.chevron_right),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
           if (report == null) ...[

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
@@ -79,21 +80,127 @@ void main() {
     tester,
   ) async {
     final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: GlobalTouchRipple(
           audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
           child: const ColoredBox(color: Colors.black),
         ),
       ),
     );
 
-    await tester.tapAt(const Offset(40, 40));
+    final gesture = await tester.startGesture(const Offset(40, 40));
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(rippleEvents, 0);
+    expect(audio.played, isEmpty);
+
+    await gesture.up();
     await tester.pump(const Duration(milliseconds: 31));
     expect(audio.played, isEmpty);
     await tester.pump(const Duration(milliseconds: 1));
 
+    expect(rippleEvents, 1);
     expect(audio.played, [TouchFeedbackSound.water]);
+  });
+
+  testWidgets('passive drag and long press remain fully silent', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: const ColoredBox(color: Colors.black),
+        ),
+      ),
+    );
+
+    final drag = await tester.startGesture(const Offset(40, 40));
+    await drag.moveBy(const Offset(0, 40));
+    await drag.up();
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(rippleEvents, 0);
+    expect(audio.played, isEmpty);
+
+    final longPress = await tester.startGesture(const Offset(80, 80));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 1));
+    await longPress.up();
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(rippleEvents, 0);
+    expect(audio.played, isEmpty);
+  });
+
+  testWidgets('semantic sound dispatch precedes accepted action', (
+    tester,
+  ) async {
+    final events = <String>[];
+    final audio = _RecordingTouchRippleAudio(
+      onPlay: (sound) => events.add(sound.name),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: ActionableFeedbackRegion(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => events.add('action'),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tapAt(const Offset(100, 100));
+
+    expect(events, ['success', 'action']);
+  });
+
+  testWidgets('semantic long press remains silent for all result paths', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: Row(
+            children: [
+              Expanded(
+                child: ActionableFeedbackRegion(child: const SizedBox.expand()),
+              ),
+              Expanded(
+                child: ActionableFeedbackRegion(
+                  role: ActionableFeedbackRole.exit,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              Expanded(
+                child: ActionableFeedbackRegion(
+                  result: ActionableFeedbackResult.unavailable,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    for (final x in [100.0, 400.0, 700.0]) {
+      final gesture = await tester.startGesture(Offset(x, 300));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 1));
+      await gesture.up();
+    }
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(audio.played, isEmpty);
   });
 
   testWidgets('OperationButton excludes generic feedback before it starts', (
@@ -216,9 +323,9 @@ void main() {
       );
 
       await tester.tapAt(const Offset(100, 300));
-    await tester.tapAt(const Offset(300, 300));
-    await tester.tapAt(const Offset(500, 300));
-    await tester.tapAt(const Offset(700, 300));
+      await tester.tapAt(const Offset(300, 300));
+      await tester.tapAt(const Offset(500, 300));
+      await tester.tapAt(const Offset(700, 300));
       await tester.pump(const Duration(milliseconds: 32));
 
       expect(acceptedActions, 2);
@@ -566,7 +673,10 @@ void main() {
 }
 
 class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  _RecordingTouchRippleAudio({this.onPlay});
+
   final played = <TouchFeedbackSound>[];
+  final ValueChanged<TouchFeedbackSound>? onPlay;
   var prepared = false;
   var disposed = false;
 
@@ -574,7 +684,10 @@ class _RecordingTouchRippleAudio implements TouchRippleAudio {
   void prepare() => prepared = true;
 
   @override
-  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+  void playFromUserGesture(TouchFeedbackSound sound) {
+    played.add(sound);
+    onPlay?.call(sound);
+  }
 
   @override
   void dispose() => disposed = true;
