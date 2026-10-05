@@ -90,40 +90,76 @@ void main() {
     }
   });
 
-  testWidgets('Dashboard top band gains glass only while content is pinned', (
-    tester,
-  ) async {
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(AppRepositoryRegistry.resetForTesting);
-    final database = FakeIndexedDbDatabase();
-    seedOperationState(database, '2026-07-28');
-    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
-    tester.view.physicalSize = const Size(390, 800);
-    tester.view.devicePixelRatio = 1;
-    await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
-    await tester.pump(const Duration(milliseconds: 500));
+  testWidgets(
+    'Dashboard production stack adds a frosted top band only while pinned',
+    (tester) async {
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+      for (final width in [320.0, 390.0, 900.0]) {
+        final database = FakeIndexedDbDatabase();
+        seedOperationState(database, '2026-07-28');
+        AppRepositoryRegistry.install(
+          AppRepositoryContainer.indexedDb(database),
+        );
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
+        await tester.pump(const Duration(milliseconds: 500));
 
-    const glass = ValueKey('dashboard-pinned-top-band-glass');
-    expect(find.byKey(glass), findsNothing);
-    final scrollable = find.descendant(
-      of: find.byKey(const ValueKey('dashboard-scroll-view')),
-      matching: find.byType(Scrollable),
-    );
-    await tester.drag(scrollable, const Offset(0, -300));
-    await tester.pump();
-    expect(find.byKey(glass), findsOneWidget);
-    final pinnedSurface = tester.widget<DecoratedBox>(
-      find.descendant(
-        of: find.byKey(glass),
-        matching: find.byType(DecoratedBox),
-      ),
-    );
-    final decoration = pinnedSurface.decoration as BoxDecoration;
-    expect(decoration.color!.a, closeTo(.86, .01));
+        const glass = ValueKey('dashboard-pinned-top-band-glass');
+        expect(find.byKey(glass), findsNothing);
+        final scrollable = find.descendant(
+          of: find.byKey(const ValueKey('dashboard-scroll-view')),
+          matching: find.byType(Scrollable),
+        );
+        await tester.drag(scrollable, const Offset(0, -300));
+        await tester.pump();
+        expect(find.byKey(glass), findsOneWidget);
+        expect(
+          find.ancestor(of: find.byKey(glass), matching: find.byType(Stack)),
+          findsOneWidget,
+        );
+        expect(
+          find.ancestor(of: find.byKey(glass), matching: find.byType(AppBar)),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(glass),
+            matching: find.byType(BackdropFilter),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.ancestor(
+            of: find.byKey(glass),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is IgnorePointer && widget.ignoring,
+            ),
+          ),
+          findsOneWidget,
+        );
+        final pinnedSurface = tester.widget<DecoratedBox>(
+          find.descendant(
+            of: find.byKey(glass),
+            matching: find.byType(DecoratedBox),
+          ),
+        );
+        final decoration = pinnedSurface.decoration as BoxDecoration;
+        expect(decoration.color!.a, closeTo(.86, .01));
+        final topInset = MediaQuery.paddingOf(
+          tester.element(find.byKey(glass)),
+        ).top;
+        expect(
+          tester.getRect(find.byKey(glass)).height,
+          closeTo(topInset + kToolbarHeight, .1),
+        );
 
-    tester.state<ScrollableState>(scrollable).position.jumpTo(0);
-    await tester.pump();
-    expect(find.byKey(glass), findsNothing);
-  });
+        tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+        await tester.pump();
+        expect(find.byKey(glass), findsNothing);
+      }
+    },
+  );
 }

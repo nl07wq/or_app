@@ -826,9 +826,6 @@ class _DashboardPageState extends State<DashboardPage> {
                             surfaceTintColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                             scrolledUnderElevation: 0,
-                            flexibleSpace: _topBandPinned
-                                ? const _DashboardPinnedTopBandGlass()
-                                : null,
                             leadingWidth: 56,
                             leading: _DashboardAmbientManualTrigger(
                               onPressed: () => _ambientStageKey.currentState
@@ -975,6 +972,17 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ),
                                     ],
                                   ),
+                                  if (_topBandPinned)
+                                    Positioned(
+                                      left: 0,
+                                      top: 0,
+                                      right: 0,
+                                      height:
+                                          MediaQuery.paddingOf(context).top +
+                                          kToolbarHeight,
+                                      child:
+                                          const _DashboardPinnedTopBandGlass(),
+                                    ),
                                   Positioned.fromRect(
                                     rect:
                                         _wildlifeStageRect ?? fallbackStageRect,
@@ -3709,30 +3717,35 @@ class _DashboardQuickAccessButton extends StatelessWidget {
 }
 
 /// Material used only while the Dashboard's fixed AppBar is covering scrolled
-/// content. The normal unpinned AppBar continues to use its existing theme.
+/// content. It lives in the production body stack, directly above the
+/// scrolling Dashboard and ambient layers, so its backdrop samples the actual
+/// content the fixed AppBar is covering. The normal unpinned AppBar continues
+/// to use its existing theme.
 class _DashboardPinnedTopBandGlass extends StatelessWidget {
   const _DashboardPinnedTopBandGlass();
 
   @override
-  Widget build(BuildContext context) => ClipRect(
-    key: const ValueKey('dashboard-pinned-top-band-glass'),
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.background.withValues(alpha: .86),
-          border: Border(
-            bottom: BorderSide(
-              color: AppColors.information.withValues(alpha: .14),
+  Widget build(BuildContext context) => IgnorePointer(
+    child: ClipRect(
+      key: const ValueKey('dashboard-pinned-top-band-glass'),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.background.withValues(alpha: .86),
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.information.withValues(alpha: .14),
+              ),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .28),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .28),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
       ),
     ),
