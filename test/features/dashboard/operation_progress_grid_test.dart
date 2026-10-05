@@ -26,7 +26,9 @@ import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
+import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
+import 'package:or_app/features/dashboard/models/dynamic_daily_target.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/food/data/water_quick_presets.dart';
@@ -48,6 +50,64 @@ import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test(
+    'Progress semantic glass tint follows the authoritative state colour',
+    () {
+      const recorded = DailyCommandCompletionItem(
+        label: 'STATUS',
+        state: DailyCommandModuleState.recorded,
+        missingRequirements: [],
+      );
+      const missing = DailyCommandCompletionItem(
+        label: 'STATUS',
+        state: DailyCommandModuleState.missing,
+        missingRequirements: [],
+      );
+
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: DynamicTargetState.green,
+          completion: null,
+          completed: true,
+        ),
+        AppColors.success,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: DynamicTargetState.yellowHigh,
+          completion: null,
+          completed: false,
+        ),
+        AppColors.warning,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: null,
+          completion: recorded,
+          completed: true,
+        ),
+        AppColors.success,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: null,
+          completion: missing,
+          completed: false,
+        ),
+        AppColors.danger,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: DynamicTargetState.neutral,
+          completion: null,
+          completed: false,
+        ),
+        isNull,
+      );
+      expect(operationProgressSemanticTintOpacity, .06);
+    },
+  );
 
   test('NIXIE Operation Date motion has two deliberate blinks', () {
     expect(NixieTransitionMotion.duration, const Duration(milliseconds: 720));

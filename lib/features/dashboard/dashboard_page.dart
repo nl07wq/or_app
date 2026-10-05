@@ -1123,6 +1123,58 @@ LinearGradient _dashboardWeatherGlassGradient(
   ],
 );
 
+/// The Progress grid keeps its Weather-glass base, with this deliberately
+/// low-strength wash carrying the same state colour already used by the tile.
+/// It is intentionally much quieter than a standalone active-state card: the
+/// grid can show eight semantic surfaces at once.
+@visibleForTesting
+const double operationProgressSemanticTintOpacity = .06;
+
+/// Resolves presentation-only tile tint from the canonical Progress state.
+/// No colour state is stored separately: a normal rebuild immediately follows
+/// a completion or target-state change.
+@visibleForTesting
+Color? operationProgressSemanticSurfaceTintColor({
+  required DynamicTargetState? targetState,
+  required DailyCommandCompletionItem? completion,
+  required bool completed,
+}) {
+  final targetColor = switch (targetState) {
+    DynamicTargetState.green ||
+    DynamicTargetState.greenHigh => AppColors.success,
+    DynamicTargetState.yellowLow ||
+    DynamicTargetState.yellowHigh => AppColors.warning,
+    DynamicTargetState.redLow || DynamicTargetState.redHigh => AppColors.danger,
+    DynamicTargetState.neutral || null => null,
+  };
+  if (targetColor != null) {
+    return targetColor;
+  }
+
+  return switch (completion?.state) {
+    DailyCommandModuleState.recorded => AppColors.success,
+    DailyCommandModuleState.missing ||
+    DailyCommandModuleState.invalid => AppColors.danger,
+    DailyCommandModuleState.optionalMissing => null,
+    null => completed ? AppColors.success : null,
+  };
+}
+
+LinearGradient _operationProgressGlassGradient(
+  ColorScheme scheme, {
+  required Color? semanticTint,
+}) => LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [
+    (semanticTint ?? scheme.primary).withValues(
+      alpha: semanticTint == null ? .085 : operationProgressSemanticTintOpacity,
+    ),
+    scheme.surface.withValues(alpha: .24),
+    scheme.surfaceContainerHigh.withValues(alpha: .13),
+  ],
+);
+
 /// Full-size, non-interactive display material for Dashboard outer planes.
 /// It intentionally leaves the content and any nested Progress tile material
 /// untouched while allowing the page ambient to be attenuated through it.
@@ -3015,6 +3067,11 @@ class _ProgressRow extends StatelessWidget {
     final progressColor = targetState == DynamicTargetState.neutral
         ? colorScheme.outline
         : semanticColor;
+    final semanticSurfaceTint = operationProgressSemanticSurfaceTintColor(
+      targetState: targetState,
+      completion: completion,
+      completed: completed,
+    );
     final title = compactTitle && MediaQuery.sizeOf(context).width < 390
         ? FittedBox(
             key: ValueKey('operation-progress-title-fit-$label'),
@@ -3134,10 +3191,9 @@ class _ProgressRow extends StatelessWidget {
       key: ValueKey('dashboard-weather-glass-$label'),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        gradient: _dashboardWeatherGlassGradient(
+        gradient: _operationProgressGlassGradient(
           colorScheme,
-          stateColor: semanticColor,
-          stateActive: completed,
+          semanticTint: semanticSurfaceTint,
         ),
       ),
       child: child,
