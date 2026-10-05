@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/work_type.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/navigation/app_routes.dart';
@@ -178,7 +180,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -194,11 +196,11 @@ class _MorningFactPageState extends State<MorningFactPage> {
             TextButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('YES'),
-            ),
+            ).actionableFeedback(),
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('NO'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
       ) ??

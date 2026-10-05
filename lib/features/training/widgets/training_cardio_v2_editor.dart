@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/cardio_entry.dart';
 import '../../../core/models/cardio_entry_v2.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -82,7 +84,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                 ),
                 tooltip: 'Delete cardio',
                 onPressed: onDelete,
-              ),
+              ).actionableFeedback(),
             ],
           ),
           AppSpacing.gapXS,
@@ -283,11 +285,11 @@ class _CardioDurationPickerState extends State<_CardioDurationPicker> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('CANCEL'),
-        ),
+        ).actionableFeedback(),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_duration),
           child: const Text('APPLY'),
-        ),
+        ).actionableFeedback(),
       ],
     );
   }

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -502,7 +504,7 @@ class _AnimalSandboxCategoryState extends State<_AnimalSandboxCategory> {
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
       if (_expanded) ...[AppSpacing.gapSM, widget.child],
     ],
@@ -571,7 +573,7 @@ class _AmbientWildlifeV1SectionState extends State<_AmbientWildlifeV1Section> {
                 ],
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
         if (_expanded) ...[
           AppSpacing.gapSM,
@@ -839,7 +841,7 @@ class _DashboardAmbientWildlifePreviewSectionState
                 ],
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
         if (_expanded) ...[
           AppSpacing.gapSM,
@@ -1141,7 +1143,7 @@ class _AmbientWildlifeSandboxSectionState
                 ],
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
         if (_expanded) ...[
           AppSpacing.gapSM,
@@ -1379,7 +1381,7 @@ class _WildlifePreviewOption extends StatelessWidget {
             )
           : null,
       child: Text(label),
-    ),
+    ).actionableFeedback(),
   );
 }
 
@@ -3922,7 +3924,7 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
                                 tooltip: 'REMOVE',
                                 onPressed: () => _removeImpulsePoint(timeMs),
                                 icon: const Icon(Icons.delete_outline),
-                              ),
+                              ).actionableFeedback(),
                             ],
                           ),
                           Slider(
@@ -4497,7 +4499,7 @@ class _CompactActionButton extends StatelessWidget {
     onPressed: onPressed,
     icon: Icon(icon),
     label: Text(label),
-  );
+  ).actionableFeedback();
 }
 
 class _CalibrationSession {
@@ -5108,12 +5110,12 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
               key: const ValueKey('set-calibration-start'),
               onPressed: _setStart,
               child: const Text('SET START'),
-            ),
+            ).actionableFeedback(),
             ElevatedButton(
               key: const ValueKey('set-calibration-end'),
               onPressed: _setEnd,
               child: const Text('SET END'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
         AppSpacing.gapMD,
@@ -5134,19 +5136,19 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
         onPressed: _playMotion,
         icon: const Icon(Icons.play_arrow),
         label: const Text('TEST PLAY'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton.icon(
         key: const ValueKey('calibration-test-stop'),
         onPressed: _stopMotion,
         icon: const Icon(Icons.stop),
         label: const Text('STOP'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton.icon(
         key: const ValueKey('calibration-test-replay'),
         onPressed: _playMotion,
         icon: const Icon(Icons.replay),
         label: const Text('REPLAY'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 
@@ -5698,7 +5700,7 @@ class _BootAssetPreviewDialog extends StatelessWidget {
           key: const ValueKey('close-boot-asset-preview'),
           onPressed: () => Navigator.pop(context),
           child: const Text('CLOSE'),
-        ),
+        ).actionableFeedback(),
       ],
     );
   }
@@ -6587,19 +6589,19 @@ class _Scene2PlaybackControls extends StatelessWidget {
       ElevatedButton(
         onPressed: enabled ? onPlay : null,
         child: const Text('TEST PLAY'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton(
         onPressed: enabled ? onPause : null,
         child: const Text('PAUSE'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton(
         onPressed: enabled ? onStop : null,
         child: const Text('STOP'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton(
         onPressed: enabled ? onReplay : null,
         child: const Text('REPLAY'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 }
@@ -7265,6 +7267,6 @@ class _SandboxActionButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ),
+    ).actionableFeedback(),
   );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import 'global_touch_ripple.dart';
 
 class OperationCard extends StatefulWidget {
   final Widget child;
@@ -45,23 +46,25 @@ class _OperationCardState extends State<OperationCard> {
                 : Colors.transparent,
           ),
         ),
-        child: InkWell(
-          borderRadius: AppRadius.large,
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            decoration: BoxDecoration(
-              borderRadius: AppRadius.large,
-              color: widget.selectable && _hovering
-                  ? Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.04)
-                  : Colors.transparent,
-            ),
-            child: Padding(padding: widget.padding, child: widget.child),
-          ),
-        ),
+        child: widget.onTap == null
+            ? _cardBody()
+            : ActionableFeedbackButton(enabled: true, child: _cardBody()),
       ),
     );
   }
+
+  Widget _cardBody() => InkWell(
+    borderRadius: AppRadius.large,
+    onTap: widget.onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.large,
+        color: widget.selectable && _hovering
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04)
+            : Colors.transparent,
+      ),
+      child: Padding(padding: widget.padding, child: widget.child),
+    ),
+  );
 }

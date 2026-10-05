@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -78,7 +80,7 @@ class _BirdV1SandboxState extends State<BirdV1Sandbox> {
             setState(() => _frame = i);
           },
           child: Text('FRAME ${(i + 1).toString().padLeft(2, '0')}'),
-        ),
+        ).actionableFeedback(),
     ],
   );
 
@@ -143,8 +145,11 @@ class _BirdV1SandboxState extends State<BirdV1Sandbox> {
                     key: const ValueKey('bird-v1-play'),
                     onPressed: _play,
                     child: const Text('PLAY'),
-                  ),
-                  OutlinedButton(onPressed: _pause, child: const Text('PAUSE')),
+                  ).actionableFeedback(),
+                  OutlinedButton(
+                    onPressed: _pause,
+                    child: const Text('PAUSE'),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     key: const ValueKey('bird-v1-restart'),
                     onPressed: () {
@@ -156,7 +161,7 @@ class _BirdV1SandboxState extends State<BirdV1Sandbox> {
                       _play();
                     },
                     child: const Text('RESTART'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
               AppSpacing.gapSM,
@@ -201,7 +206,7 @@ class _BirdDisclosure extends StatelessWidget {
           ],
         ),
       ),
-    ),
+    ).actionableFeedback(),
   );
 }
 
@@ -485,7 +490,7 @@ class _BirdV1ProductionPreviewState extends State<BirdV1ProductionPreview> {
             : null,
         onPressed: action,
         child: Text(label),
-      );
+      ).actionableFeedback();
 
   Widget _controlRow(String label, List<Widget> children) => Padding(
     padding: const EdgeInsets.only(top: 8),

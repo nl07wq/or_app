@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show Path, PathMetric;
 
 import 'package:flutter/material.dart';
+
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/engine/activity_summary.dart';
@@ -1302,7 +1303,7 @@ class DashboardScheduleCard extends StatelessWidget {
                             onPressed: () =>
                                 onOpenDate(information!.operationDate),
                             child: Text('他$hiddenCount件'),
-                          ),
+                          ).actionableFeedback(),
                         ),
                       const SizedBox(height: AppSpacing.xs),
                     ],
@@ -1355,12 +1356,10 @@ class _DashboardSchedulePilotSurface extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        child: SemanticFeedbackActionRegion(
-          enabled: onTap != null,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: AppRadius.large,
-            child: Stack(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.large,
+          child: Stack(
             fit: StackFit.passthrough,
             children: [
               const Positioned.fill(child: HolographicScanlineOverlay()),
@@ -1369,9 +1368,8 @@ class _DashboardSchedulePilotSurface extends StatelessWidget {
                 child: child,
               ),
             ],
-            ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -1769,7 +1767,7 @@ class _DashboardScheduleRow extends StatelessWidget {
                 ],
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
       ),
     );
@@ -2387,78 +2385,85 @@ class _ProgressCardState extends State<_ProgressCard> {
             _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
         return FutureBuilder<_BriefDebriefProgress>(
           future: _briefDebrief,
-          builder: (context, briefSnapshot) => _DashboardHolographicOuterSurface(
-            surfaceKey: const ValueKey('operation-progress-holographic-surface'),
-            scanlineKey: const ValueKey('operation-progress-holographic-scanlines'),
-            child: widget.useLargeLayout
-                ? Row(
-                    key: const ValueKey('operation-progress-large-layout'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: _buildSummary(
-                          context,
-                          estimatedBaseBurn:
-                              targets?.estimatedBaseBurnKcal ??
-                              widget.estimatedTDEE,
-                          exerciseCalories: exerciseCalories,
-                          energyStatus: energyStatus,
-                          estimatedTotalBurn: estimatedTotalBurn,
-                          large: true,
-                        ),
-                      ),
-                      SizedBox(width: AppSpacing.xl),
-                      Expanded(
-                        flex: 3,
-                        child: _buildProgressTiles(
-                          mealCount: mealCount,
-                          calories: calories,
-                          protein: protein,
-                          hydrationMl: hydrationMl,
-                          targets: targets,
-                          completionModel: widget.completionModel,
-                          briefDebrief:
-                              briefSnapshot.data ??
-                              const _BriefDebriefProgress(),
-                          forceTwoColumns: true,
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    key: const ValueKey('operation-progress-compact-layout'),
-                    children: [
-                      _buildSummary(
-                        context,
-                        estimatedBaseBurn:
-                            targets?.estimatedBaseBurnKcal ??
-                            widget.estimatedTDEE,
-                        exerciseCalories: exerciseCalories,
-                        energyStatus: energyStatus,
-                        estimatedTotalBurn: estimatedTotalBurn,
-                        large: false,
-                      ),
-                      AppSpacing.gapLG,
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 800),
-                          child: _buildProgressTiles(
-                            mealCount: mealCount,
-                            calories: calories,
-                            protein: protein,
-                            hydrationMl: hydrationMl,
-                            targets: targets,
-                            completionModel: widget.completionModel,
-                            briefDebrief:
-                                briefSnapshot.data ??
-                                const _BriefDebriefProgress(),
+          builder: (context, briefSnapshot) =>
+              _DashboardHolographicOuterSurface(
+                surfaceKey: const ValueKey(
+                  'operation-progress-holographic-surface',
+                ),
+                scanlineKey: const ValueKey(
+                  'operation-progress-holographic-scanlines',
+                ),
+                child: widget.useLargeLayout
+                    ? Row(
+                        key: const ValueKey('operation-progress-large-layout'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _buildSummary(
+                              context,
+                              estimatedBaseBurn:
+                                  targets?.estimatedBaseBurnKcal ??
+                                  widget.estimatedTDEE,
+                              exerciseCalories: exerciseCalories,
+                              energyStatus: energyStatus,
+                              estimatedTotalBurn: estimatedTotalBurn,
+                              large: true,
+                            ),
                           ),
+                          SizedBox(width: AppSpacing.xl),
+                          Expanded(
+                            flex: 3,
+                            child: _buildProgressTiles(
+                              mealCount: mealCount,
+                              calories: calories,
+                              protein: protein,
+                              hydrationMl: hydrationMl,
+                              targets: targets,
+                              completionModel: widget.completionModel,
+                              briefDebrief:
+                                  briefSnapshot.data ??
+                                  const _BriefDebriefProgress(),
+                              forceTwoColumns: true,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        key: const ValueKey(
+                          'operation-progress-compact-layout',
                         ),
+                        children: [
+                          _buildSummary(
+                            context,
+                            estimatedBaseBurn:
+                                targets?.estimatedBaseBurnKcal ??
+                                widget.estimatedTDEE,
+                            exerciseCalories: exerciseCalories,
+                            energyStatus: energyStatus,
+                            estimatedTotalBurn: estimatedTotalBurn,
+                            large: false,
+                          ),
+                          AppSpacing.gapLG,
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: _buildProgressTiles(
+                                mealCount: mealCount,
+                                calories: calories,
+                                protein: protein,
+                                hydrationMl: hydrationMl,
+                                targets: targets,
+                                completionModel: widget.completionModel,
+                                briefDebrief:
+                                    briefSnapshot.data ??
+                                    const _BriefDebriefProgress(),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-          ),
+              ),
         );
       },
     );
@@ -3220,7 +3225,7 @@ class _ProgressRow extends StatelessWidget {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     child: content,
                   ),
-                ),
+                ).actionableFeedback(),
               ),
               Positioned(
                 top: 0,
@@ -3260,7 +3265,7 @@ class _ProgressRow extends StatelessWidget {
                       ),
                       child: content,
                     ),
-                  ),
+                  ).actionableFeedback(),
                 ),
               ),
               SizedBox(
@@ -3286,12 +3291,10 @@ class _ProgressRow extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: content,
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
-    return label == 'WATER'
-        ? SemanticFeedbackActionRegion(enabled: onTap != null, child: tile)
-        : tile;
+    return tile;
   }
 }
 
@@ -3502,7 +3505,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
                             ? null
                             : () => _addDraftAmount(amount),
                         child: Text('+$amount ml'),
-                      ),
+                      ).actionableFeedback(),
                     )
                     .toList(),
               ),
@@ -3533,7 +3536,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
               TextButton(
                 onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         ),
@@ -3871,7 +3874,7 @@ class _DashboardAmbientManualTrigger extends StatelessWidget {
           tooltip: 'Run ambient wildlife',
           onPressed: onPressed,
           icon: Icon(Symbols.pets, color: const Color(0xC738BDF8), size: 20),
-        ),
+        ).actionableFeedback(),
       ),
     ),
   );

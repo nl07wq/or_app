@@ -108,7 +108,17 @@ class ReportSyncExchangePage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       centerTitle: appBarTitle != null,
-      leading: appBarLeading,
+      leading:
+          appBarLeading ??
+          (Navigator.of(context).canPop()
+              ? ActionableFeedbackButton(
+                  enabled: true,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ).actionableFeedback(),
+                )
+              : null),
       title: appBarTitle ?? Text(_title(exchangeType)),
     ),
     body: ReportSyncExchangePanel(
@@ -518,11 +528,11 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('CONFIRM IMPORT'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -755,14 +765,11 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         if (_isImportOnly) ...[
           Align(
             alignment: Alignment.centerLeft,
-            child: SemanticFeedbackActionRegion(
-              enabled: ready && !_busy,
-              child: OutlinedButton.icon(
-                onPressed: ready && !_busy ? _copyInstruction : null,
-                icon: const Icon(Icons.content_copy),
-                label: const Text('COPY CHATGPT PROMPT'),
-              ),
-            ),
+            child: OutlinedButton.icon(
+              onPressed: ready && !_busy ? _copyInstruction : null,
+              icon: const Icon(Icons.content_copy),
+              label: const Text('COPY CHATGPT PROMPT'),
+            ).actionableFeedback(),
           ),
           _ActionFeedback(
             message: _promptCopyMessage,
@@ -773,16 +780,13 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           if (widget.exchangeType == ReportSyncExchangeType.morningBrief) ...[
             Align(
               alignment: Alignment.centerLeft,
-              child: SemanticFeedbackActionRegion(
-                enabled: _hasValidSelectedDate && !_busy,
-                child: OutlinedButton.icon(
-                  onPressed: _hasValidSelectedDate && !_busy
-                      ? _generateStatusSource
-                      : null,
-                  icon: const Icon(Icons.description_outlined),
-                  label: const Text('GENERATE STATUS SOURCE'),
-                ),
-              ),
+              child: OutlinedButton.icon(
+                onPressed: _hasValidSelectedDate && !_busy
+                    ? _generateStatusSource
+                    : null,
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('GENERATE STATUS SOURCE'),
+              ).actionableFeedback(),
             ),
             _ActionFeedback(
               message: _generateMessage,
@@ -793,25 +797,18 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           ],
           Align(
             alignment: Alignment.centerLeft,
-            child: SemanticFeedbackActionRegion(
-              enabled:
+            child: OutlinedButton.icon(
+              onPressed:
                   ready &&
-                  !_busy &&
-                  (widget.exchangeType != ReportSyncExchangeType.morningBrief ||
-                      _statusSourceGenerated),
-              child: OutlinedButton.icon(
-                onPressed:
-                    ready &&
-                        !_busy &&
-                        (widget.exchangeType !=
-                                ReportSyncExchangeType.morningBrief ||
-                            _statusSourceGenerated)
-                    ? _copyInstruction
-                    : null,
-                icon: const Icon(Icons.content_copy),
-                label: const Text('COPY CHATGPT PROMPT'),
-              ),
-            ),
+                      !_busy &&
+                      (widget.exchangeType !=
+                              ReportSyncExchangeType.morningBrief ||
+                          _statusSourceGenerated)
+                  ? _copyInstruction
+                  : null,
+              icon: const Icon(Icons.content_copy),
+              label: const Text('COPY CHATGPT PROMPT'),
+            ).actionableFeedback(),
           ),
           _ActionFeedback(
             message: _promptCopyMessage,
@@ -829,7 +826,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     : null,
                 icon: const Icon(Icons.copy_all_outlined),
                 label: Text(_copySourceLabel(widget.exchangeType)),
-              ),
+              ).actionableFeedback(),
             ),
             _ActionFeedback(
               message: _sourceCopyMessage,
@@ -909,17 +906,17 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                 onPressed: ready && !_busy ? _selectResponseFile : null,
                 icon: const Icon(Icons.file_open_outlined),
                 label: const Text('SELECT RESPONSE FILE'),
-              ),
+              ).actionableFeedback(),
               OutlinedButton.icon(
                 onPressed: ready && !_busy ? _pasteResponse : null,
                 icon: const Icon(Icons.content_paste_outlined),
                 label: const Text('PASTE'),
-              ),
+              ).actionableFeedback(),
               OutlinedButton.icon(
                 onPressed: ready && !_busy ? _validate : null,
                 icon: const Icon(Icons.fact_check_outlined),
                 label: const Text('VALIDATE'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         _ActionFeedback(
@@ -1678,13 +1675,13 @@ class _FoodPreviewCard extends StatelessWidget {
                         ? null
                         : () => onSelectionChanged(selectableIds),
                     child: const Text('すべて選択'),
-                  ),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     onPressed: selectedMealIds.isEmpty
                         ? null
                         : () => onSelectionChanged(const {}),
                     child: const Text('すべて解除'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ],
@@ -1796,7 +1793,7 @@ class _FoodMealCard extends StatelessWidget {
         ],
       ),
     ),
-  );
+  ).actionableFeedback();
 }
 
 class _FoodItemPresentation extends StatelessWidget {

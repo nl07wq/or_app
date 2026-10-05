@@ -252,10 +252,14 @@ class _CalendarPageState extends State<CalendarPage> {
       title: const Text('CALENDAR'),
       centerTitle: true,
       actions: [
-        IconButton(
-          tooltip: 'REMINDERS',
-          icon: const Icon(Icons.notifications_outlined),
-          onPressed: () => Navigator.of(context).pushNamed(AppRoutes.reminders),
+        ActionableFeedbackButton(
+          enabled: true,
+          child: IconButton(
+            tooltip: 'REMINDERS',
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.reminders),
+          ).actionableFeedback(),
         ),
       ],
     ),
@@ -430,7 +434,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             ),
                           ],
                         ),
-                      ),
+                      ).actionableFeedback(),
                     ],
                   ),
                 ),
@@ -514,11 +518,11 @@ class _CalendarPageState extends State<CalendarPage> {
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
                 child: const Text('CANCEL'),
-              ),
+              ).actionableFeedback(),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 child: const Text('DELETE'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         ) ??
@@ -749,7 +753,7 @@ class WeatherSurfaceGesture extends StatelessWidget {
           }
         : null,
     child: child,
-  );
+  ).actionableFeedback();
 }
 
 class _WeatherHeader extends StatelessWidget {
@@ -835,7 +839,7 @@ class _WeatherHeader extends StatelessWidget {
                 ],
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
         IconButton(
           tooltip: '天気を更新',
@@ -848,13 +852,13 @@ class _WeatherHeader extends StatelessWidget {
                 )
               : const Icon(Icons.refresh, size: 18),
           onPressed: loading || !canRefresh ? null : onRefresh,
-        ),
+        ).actionableFeedback(),
         IconButton(
           tooltip: '天気の場所',
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.settings_outlined, size: 18),
           onPressed: onSettings,
-        ),
+        ).actionableFeedback(),
       ],
     );
   }
@@ -879,7 +883,7 @@ class _HeaderArrow extends StatelessWidget {
     padding: EdgeInsets.zero,
     icon: Icon(icon, size: 16),
     onPressed: onPressed,
-  );
+  ).actionableFeedback();
 }
 
 /// Header space belongs to the active city/area. Saved locations may carry a
@@ -909,7 +913,10 @@ class _WeatherMessage extends StatelessWidget {
         Expanded(
           child: Text(text, style: Theme.of(context).textTheme.bodySmall),
         ),
-        TextButton(onPressed: onAction, child: Text(action)),
+        TextButton(
+          onPressed: onAction,
+          child: Text(action),
+        ).actionableFeedback(),
       ],
     ),
   );
@@ -956,7 +963,7 @@ class _WeatherConsoleSectionHeader extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -1294,7 +1301,7 @@ class _WeatherForecastRow extends StatelessWidget {
             },
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -1947,8 +1954,8 @@ class _WeatherSummary extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      ).actionableFeedback(),
+    ).actionableFeedback();
   }
 }
 
@@ -2408,7 +2415,7 @@ Future<void> _showWeatherExplanation(
                             tooltip: '閉じる',
                             icon: const Icon(Icons.close, size: 18),
                             onPressed: () => Navigator.of(context).pop(),
-                          ),
+                          ).actionableFeedback(),
                         ],
                       ),
                       if (explanation.value != '--')
@@ -3336,7 +3343,7 @@ class _TelemetryModule extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -3479,7 +3486,7 @@ class _WindTelemetryModule extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -3648,7 +3655,7 @@ class _SunTelemetryModule extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -3717,7 +3724,7 @@ class _PressureTelemetryModule extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -4185,7 +4192,7 @@ class _WeatherHourlyTimelineColumn extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 }
 
@@ -4449,7 +4456,7 @@ class _WeatherHourlyCell extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 }
 
@@ -4577,7 +4584,7 @@ class _OpenMeteoAttribution extends StatelessWidget {
       minimumSize: Size.zero,
     ),
     child: const Text('Weather data: Open-Meteo'),
-  );
+  ).actionableFeedback();
 }
 
 class _TimelineEntry extends StatefulWidget {
@@ -4710,12 +4717,12 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                         : Icons.radio_button_unchecked,
                   ),
                   onPressed: widget.onReminderToggle,
-                ),
+                ).actionableFeedback(),
             ],
           ),
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 }
 
@@ -4778,36 +4785,33 @@ class _CalendarTimelineAddControl extends StatelessWidget {
                   opacity: .014,
                 ),
               ),
-              SemanticFeedbackActionRegion(
-                enabled: true,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    key: const ValueKey('calendar-timeline-add-control'),
-                    onTap: onPressed,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 11,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add, size: 18, color: scheme.primary),
-                          const SizedBox(width: 6),
-                          Text(
-                            '予定を追加',
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: scheme.onSurface,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ],
-                      ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('calendar-timeline-add-control'),
+                  onTap: onPressed,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 11,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, size: 18, color: scheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          '予定を追加',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                ).actionableFeedback(),
               ),
             ],
           ),
@@ -5009,13 +5013,10 @@ class _MonthGridState extends State<_MonthGrid> {
           children: [
             Row(
               children: [
-                SemanticFeedbackActionRegion(
-                  enabled: true,
-                  child: IconButton(
-                    onPressed: widget.onPrevious,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                ),
+                IconButton(
+                  onPressed: widget.onPrevious,
+                  icon: const Icon(Icons.chevron_left),
+                ).actionableFeedback(),
                 Expanded(
                   child: Column(
                     children: [
@@ -5040,13 +5041,10 @@ class _MonthGridState extends State<_MonthGrid> {
                     ],
                   ),
                 ),
-                SemanticFeedbackActionRegion(
-                  enabled: true,
-                  child: IconButton(
-                    onPressed: widget.onNext,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ),
+                IconButton(
+                  onPressed: widget.onNext,
+                  icon: const Icon(Icons.chevron_right),
+                ).actionableFeedback(),
               ],
             ),
             Align(
@@ -5060,7 +5058,7 @@ class _MonthGridState extends State<_MonthGrid> {
                 ),
                 onPressed: widget.onToday,
                 child: const Text('今日'),
-              ),
+              ).actionableFeedback(),
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -5234,7 +5232,7 @@ class _MonthGridState extends State<_MonthGrid> {
                               ],
                             ),
                           ),
-                        ),
+                        ).actionableFeedback(),
                       );
                     },
                   ),
@@ -5244,7 +5242,7 @@ class _MonthGridState extends State<_MonthGrid> {
           ],
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 }
 
@@ -5304,7 +5302,12 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
-      actions: [IconButton(icon: const Icon(Icons.check), onPressed: _save)],
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.check),
+          onPressed: _save,
+        ).actionableFeedback(),
+      ],
     ),
     body: SafeArea(
       child: SingleChildScrollView(
@@ -5336,7 +5339,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                 if (picked != null) setState(() => _date = picked);
               },
               child: Text('日付 ${_key(_date)}'),
-            ),
+            ).actionableFeedback(),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('終日'),
@@ -5425,7 +5428,7 @@ class _TimeControlState extends State<_TimeControl> {
           IconButton(
             onPressed: () => _step(-15),
             icon: const Icon(Icons.remove),
-          ),
+          ).actionableFeedback(),
           Expanded(
             child: InkWell(
               onTap: () async {
@@ -5450,9 +5453,12 @@ class _TimeControlState extends State<_TimeControl> {
                   textAlign: TextAlign.center,
                 ),
               ),
-            ),
+            ).actionableFeedback(),
           ),
-          IconButton(onPressed: () => _step(15), icon: const Icon(Icons.add)),
+          IconButton(
+            onPressed: () => _step(15),
+            icon: const Icon(Icons.add),
+          ).actionableFeedback(),
         ],
       ),
       const Divider(height: 1),
@@ -5845,7 +5851,7 @@ class _ClockInstrumentAction extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -5974,7 +5980,7 @@ class _DirectClockFace extends StatelessWidget {
             ),
           ),
         ),
-      );
+      ).actionableFeedback();
     },
   );
 }
@@ -6222,14 +6228,17 @@ class _DurationControlState extends State<_DurationControl> {
           IconButton(
             onPressed: () => _step(-15),
             icon: const Icon(Icons.remove),
-          ),
+          ).actionableFeedback(),
           Expanded(
             child: Text(
               widget.controller.text.isEmpty ? '01:00' : widget.controller.text,
               textAlign: TextAlign.center,
             ),
           ),
-          IconButton(onPressed: () => _step(15), icon: const Icon(Icons.add)),
+          IconButton(
+            onPressed: () => _step(15),
+            icon: const Icon(Icons.add),
+          ).actionableFeedback(),
         ],
       ),
       const Divider(height: 1),

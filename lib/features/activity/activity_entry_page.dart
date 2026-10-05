@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/activity_data.dart';
 import '../../core/models/bowel_movement_record.dart';
 import '../../core/models/digestive_event.dart';
@@ -544,11 +546,11 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('削除'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -828,7 +830,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
             onPressed: _isBusy ? null : _addDigestiveEvent,
             icon: const Icon(Icons.add),
             label: const Text('ADD DIGESTIVE'),
-          ),
+          ).actionableFeedback(),
         ),
       ],
     );
@@ -910,7 +912,7 @@ class _LoadError extends StatelessWidget {
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('RETRY'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
       ),
@@ -991,7 +993,7 @@ class _QuickStepRow extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: FittedBox(child: Text('+${values[index]}')),
-          ),
+          ).actionableFeedback(),
         ),
       ],
     ],

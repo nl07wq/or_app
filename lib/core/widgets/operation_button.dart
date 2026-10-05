@@ -50,41 +50,33 @@ class OperationButton extends StatelessWidget {
           disabledForegroundColor: Theme.of(context).disabledColor,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
-        child: Listener(
-          onPointerDown: onPressed == null
-              ? null
-              : (event) => GlobalTouchRipple.claimSuccess(event.pointer),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: foregroundColor),
-                SizedBox(width: AppSpacing.sm),
-              ],
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    text,
-                    style: AppTextStyles.label.copyWith(color: foregroundColor),
-                  ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 20, color: foregroundColor),
+              SizedBox(width: AppSpacing.sm),
+            ],
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  text,
+                  style: AppTextStyles.label.copyWith(color: foregroundColor),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
     if (onPressed != null) {
-      return SemanticFeedbackRegion(child: button);
+      return ActionableFeedbackRegion(child: button);
     }
     if (!reportUnavailableTap) return button;
-    return SemanticFeedbackRegion(
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) => GlobalTouchRipple.claimFailure(event.pointer),
-        child: button,
-      ),
+    return ActionableFeedbackRegion(
+      result: ActionableFeedbackResult.unavailable,
+      child: button,
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../import_export/services/backup_file_export_service.dart';
 import '../../import_export/services/backup_file_gateway.dart';
 
@@ -90,22 +92,28 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('NOT NOW'),
-        ),
-        FilledButton(onPressed: _export, child: const Text('EXPORT BACKUP')),
+        ).actionableFeedback(),
+        FilledButton(
+          onPressed: _export,
+          child: const Text('EXPORT BACKUP'),
+        ).actionableFeedback(),
       ],
       _BackupPromptState.exporting => const [],
       _BackupPromptState.exported || _BackupPromptState.cancelled => [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('CLOSE'),
-        ),
+        ).actionableFeedback(),
       ],
       _BackupPromptState.failed => [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('CLOSE'),
-        ),
-        FilledButton(onPressed: _export, child: const Text('RETRY')),
+        ).actionableFeedback(),
+        FilledButton(
+          onPressed: _export,
+          child: const Text('RETRY'),
+        ).actionableFeedback(),
       ],
     };
   }

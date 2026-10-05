@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../models/training_set_controller.dart';
 import 'training_set_row.dart';
 
@@ -78,7 +80,7 @@ class _TrainingSetListState extends State<TrainingSetList> {
                             widget.sets[index - 1].weightController,
                             set.weightController,
                           ),
-                        ),
+                        ).actionableFeedback(),
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.repeat),
@@ -87,7 +89,7 @@ class _TrainingSetListState extends State<TrainingSetList> {
                             widget.sets[index - 1].repsController,
                             set.repsController,
                           ),
-                        ),
+                        ).actionableFeedback(),
                       ],
                       if (widget.isEditMode)
                         IconButton(
@@ -97,7 +99,7 @@ class _TrainingSetListState extends State<TrainingSetList> {
                           onPressed: () {
                             widget.onCopy(index);
                           },
-                        ),
+                        ).actionableFeedback(),
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         icon: Icon(
@@ -110,7 +112,7 @@ class _TrainingSetListState extends State<TrainingSetList> {
                                 widget.onDelete(index);
                               }
                             : null,
-                      ),
+                      ).actionableFeedback(),
                     ],
                   ),
                 ],

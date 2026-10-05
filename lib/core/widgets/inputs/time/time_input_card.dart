@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../global_touch_ripple.dart';
 import 'operation_time_picker.dart';
 
 class TimeInputCard extends StatefulWidget {
@@ -69,7 +70,7 @@ class _TimeInputCardState extends State<TimeInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ),
+              ).actionableFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
@@ -87,7 +88,10 @@ class _TimeInputCardState extends State<TimeInputCard> {
 
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton(onPressed: collapse, child: const Text("完了")),
+            child: FilledButton(
+              onPressed: collapse,
+              child: const Text("完了"),
+            ).actionableFeedback(),
           ),
         ],
       ],

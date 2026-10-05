@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -153,11 +155,11 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('DELETE'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -308,7 +310,7 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
                   child: Text('DELETE DAILY AGGREGATE'),
                 ),
                 onPressed: _deleting ? null : () => _delete(aggregate),
-              ),
+              ).actionableFeedback(),
             ),
             AppSpacing.gapLG,
           ],

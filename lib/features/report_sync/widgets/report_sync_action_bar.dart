@@ -64,7 +64,7 @@ class _ReportSyncActionButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => SemanticFeedbackActionRegion(
+  Widget build(BuildContext context) => ActionableFeedbackRegion(
     enabled: onPressed != null,
     child: SizedBox(
       height: 44,

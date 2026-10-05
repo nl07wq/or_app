@@ -289,29 +289,93 @@ class SemanticFeedbackRegion extends StatelessWidget {
   );
 }
 
-/// Declares a synchronous accepted action while retaining the child's own
-/// gesture behavior. Use this only where the existing action is known to be
-/// immediately available; it neither invokes nor changes that action.
-class SemanticFeedbackActionRegion extends StatelessWidget {
-  const SemanticFeedbackActionRegion({
+/// The semantic result owned by an actionable OR-APP control.
+enum ActionableFeedbackResult { accepted, unavailable }
+
+/// Shared ownership boundary for every actionable control.
+///
+/// It keeps feature code concerned with the control's existing callback while
+/// this primitive owns generic-feedback exclusion and the one semantic sound.
+/// Use [unavailable] only for intentionally pointer-aware disabled controls.
+class ActionableFeedbackRegion extends StatelessWidget {
+  const ActionableFeedbackRegion({
     super.key,
     required this.child,
-    required this.enabled,
+    this.enabled = true,
+    this.result = ActionableFeedbackResult.accepted,
   });
 
   final Widget child;
   final bool enabled;
+  final ActionableFeedbackResult result;
 
   @override
   Widget build(BuildContext context) {
     if (!enabled) return child;
     return SemanticFeedbackRegion(
       child: Listener(
-        onPointerDown: (event) => GlobalTouchRipple.claimSuccess(event.pointer),
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (event) => switch (result) {
+          ActionableFeedbackResult.accepted => GlobalTouchRipple.claimSuccess(
+            event.pointer,
+          ),
+          ActionableFeedbackResult.unavailable =>
+            GlobalTouchRipple.claimFailure(event.pointer),
+        },
         child: child,
       ),
     );
   }
+}
+
+/// Wraps a stock Material button while preserving its visual implementation.
+///
+/// New OR-APP IconButton, TextButton, OutlinedButton, ElevatedButton, AppBar
+/// action and menu-item call sites should use this instead of adding separate
+/// ripple/audio wiring. Custom tappable surfaces use [ActionableFeedbackRegion]
+/// directly.
+class ActionableFeedbackButton extends ActionableFeedbackRegion {
+  const ActionableFeedbackButton({
+    super.key,
+    required super.child,
+    required super.enabled,
+    super.result,
+  });
+}
+
+/// Applies the OR-APP actionable contract to stock Flutter controls without
+/// duplicating audio or ripple policy at feature call sites.
+extension ActionableFeedbackWidget on Widget {
+  Widget actionableFeedback({
+    bool? enabled,
+    ActionableFeedbackResult result = ActionableFeedbackResult.accepted,
+  }) => ActionableFeedbackButton(
+    enabled: enabled ?? _hasEnabledAction(this),
+    result: result,
+    child: this,
+  );
+}
+
+bool _hasEnabledAction(Widget widget) => switch (widget) {
+  ButtonStyleButton(:final onPressed) => onPressed != null,
+  IconButton(:final onPressed) => onPressed != null,
+  PopupMenuButton<dynamic>(:final enabled) => enabled,
+  PopupMenuItem<dynamic>(:final enabled) => enabled,
+  InkWell(:final onTap, :final onDoubleTap, :final onLongPress) =>
+    onTap != null || onDoubleTap != null || onLongPress != null,
+  GestureDetector(:final onTap, :final onDoubleTap, :final onLongPress) =>
+    onTap != null || onDoubleTap != null || onLongPress != null,
+  _ => false,
+};
+
+/// Backwards-compatible name for the original accepted-action wrapper.
+/// New code should use [ActionableFeedbackRegion] directly.
+class SemanticFeedbackActionRegion extends ActionableFeedbackRegion {
+  const SemanticFeedbackActionRegion({
+    super.key,
+    required super.child,
+    required super.enabled,
+  });
 }
 
 @immutable

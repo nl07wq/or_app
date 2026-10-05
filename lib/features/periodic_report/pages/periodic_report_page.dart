@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -475,7 +477,7 @@ class _ReportHeaderCard extends StatelessWidget {
                 tooltip: 'PREVIOUS PERIOD',
                 onPressed: busy ? null : onPrevious,
                 icon: const Icon(Icons.chevron_left),
-              ),
+              ).actionableFeedback(),
               Expanded(
                 child: Column(
                   children: [
@@ -494,7 +496,7 @@ class _ReportHeaderCard extends StatelessWidget {
                 tooltip: 'NEXT PERIOD',
                 onPressed: busy || !canMoveNext ? null : onNext,
                 icon: const Icon(Icons.chevron_right),
-              ),
+              ).actionableFeedback(),
             ],
           ),
           if (report == null) ...[
@@ -631,7 +633,7 @@ class _ResponseActionButton extends StatelessWidget {
           ],
         ),
       ),
-    ),
+    ).actionableFeedback(),
   );
 }
 

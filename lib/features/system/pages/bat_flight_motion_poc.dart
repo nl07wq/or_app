@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -458,7 +460,7 @@ class _AuditButton extends StatelessWidget {
         : null,
     onPressed: onPressed,
     child: Text(label),
-  );
+  ).actionableFeedback();
 }
 
 class _BatVectorCanvas extends StatelessWidget {

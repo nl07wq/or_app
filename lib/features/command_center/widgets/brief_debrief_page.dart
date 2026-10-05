@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/state/app_initialization_state.dart';
@@ -290,7 +292,7 @@ class _ArchiveButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ),
+    ).actionableFeedback(),
   );
 }
 

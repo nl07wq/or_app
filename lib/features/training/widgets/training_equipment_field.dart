@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/training_equipment_snapshot.dart';
 import '../services/training_equipment_candidates.dart';
 
@@ -43,7 +45,7 @@ class TrainingEquipmentField extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 
   Future<void> _select(BuildContext context) async {
@@ -126,14 +128,14 @@ class _EquipmentSheet extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(context, value);
             },
             child: const Text('ADD'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );

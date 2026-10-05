@@ -1,5 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -87,7 +89,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
                 _reportIsCurrent = null;
               }),
               icon: const Icon(Icons.list_alt_outlined),
-            ),
+            ).actionableFeedback(),
         ],
       ),
       body: SafeArea(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'fox_pattern_preview.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -282,7 +284,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
       if (_expanded) ...[
         AppSpacing.gapSM,
@@ -575,7 +577,7 @@ class _FoxRunV1SectionState extends State<FoxRunV1Section>
         key: ValueKey(key),
         onPressed: onPressed,
         child: Text(label),
-      );
+      ).actionableFeedback();
 }
 
 /// Couples the canonical 01→10 gait cycle to crossing progress so translation

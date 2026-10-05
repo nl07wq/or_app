@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -305,26 +307,26 @@ class _FoxRearLegGeometryLabState extends State<FoxRearLegGeometryLab> {
                         ? null
                         : () => setState(_candidate.undo),
                     child: const Text('UNDO'),
-                  ),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     key: const ValueKey('fox-rear-leg-clear'),
                     onPressed: _candidate.points.isEmpty
                         ? null
                         : () => setState(_candidate.clear),
                     child: const Text('CLEAR'),
-                  ),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     key: const ValueKey('fox-rear-leg-close'),
                     onPressed: _candidate.canClose
                         ? () => setState(() => _candidate.closed = true)
                         : null,
                     child: const Text('CLOSE AREA'),
-                  ),
+                  ).actionableFeedback(),
                   FilledButton(
                     key: const ValueKey('fox-rear-leg-apply'),
                     onPressed: _candidate.isReady ? _applyRegion : null,
                     child: const Text('APPLY REGION'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ],
@@ -361,13 +363,13 @@ class _FoxRearLegGeometryLabState extends State<FoxRearLegGeometryLab> {
                   key: const ValueKey('fox-rear-leg-reset-frame'),
                   onPressed: _resetFrame,
                   child: const Text('RESET FRAME'),
-                ),
+                ).actionableFeedback(),
                 FilledButton.icon(
                   key: const ValueKey('fox-rear-leg-copy'),
                   onPressed: _copyData,
                   icon: const Icon(Icons.content_copy_outlined),
                   label: const Text('COPY REAR LEG DATA'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
           ],
@@ -555,7 +557,7 @@ class _RearLegStageState extends State<_RearLegStage> {
                 ),
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
       );
     },
@@ -744,8 +746,11 @@ class _RearLegDPadState extends State<_RearLegDPad> {
     onTap: () => widget.onNudge(dx: dx, dy: dy),
     onLongPressStart: (_) => _start(dx, dy),
     onLongPressEnd: (_) => _stop(),
-    child: OutlinedButton(onPressed: null, child: Text(label)),
-  );
+    child: OutlinedButton(
+      onPressed: null,
+      child: Text(label),
+    ).actionableFeedback(),
+  ).actionableFeedback();
 }
 
 class _RearLegFrameData {

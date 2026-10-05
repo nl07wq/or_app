@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -872,17 +874,17 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                     key: const ValueKey('cat-run-v23-play-restart'),
                     onPressed: _restart,
                     child: const Text('PLAY / RESTART'),
-                  ),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     key: const ValueKey('cat-run-v23-force-chain'),
                     onPressed: _forcedPlan == null ? _forceChain : null,
                     child: const Text('FORCE CHAIN ×3'),
-                  ),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     key: const ValueKey('cat-run-v23-force-glitch'),
                     onPressed: _forcedPlan == null ? _forceGlitch : null,
                     child: const Text('FORCE GLITCH ×10'),
-                  ),
+                  ).actionableFeedback(),
                   for (final direction in CatRunV23Direction.values)
                     OutlinedButton(
                       key: ValueKey('cat-run-v23-direction-${direction.name}'),
@@ -892,7 +894,7 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                             ? 'L→R'
                             : 'R→L',
                       ),
-                    ),
+                    ).actionableFeedback(),
                   for (final speed in [0.5, 1.0])
                     OutlinedButton(
                       key: ValueKey('cat-run-v23-speed-$speed'),
@@ -900,18 +902,18 @@ class _CatRunV23ProductionPreviewState extends State<CatRunV23ProductionPreview>
                           ? () => _setSpeed(speed)
                           : null,
                       child: Text('$speed×'),
-                    ),
+                    ).actionableFeedback(),
                   for (final variant in CatRunCoatPatterns.visualVariants)
                     OutlinedButton(
                       key: ValueKey('cat-run-v23-coat-${variant.name}'),
                       onPressed: () => _selectCoat(variant),
                       child: Text(variant.label),
-                    ),
+                    ).actionableFeedback(),
                   OutlinedButton(
                     key: const ValueKey('cat-run-v23-coat-random'),
                     onPressed: _selectRandomCoat,
                     child: const Text('RANDOM'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
               AppSpacing.gapSM,

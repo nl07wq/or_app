@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_text_field.dart';
@@ -202,12 +204,12 @@ class _LocationRow extends StatelessWidget {
           icon: Icon(
             active ? Icons.check_circle : Icons.radio_button_unchecked,
           ),
-        ),
+        ).actionableFeedback(),
         IconButton(
           tooltip: 'Remove',
           onPressed: onRemove,
           icon: const Icon(Icons.delete_outline),
-        ),
+        ).actionableFeedback(),
       ],
     ),
   );

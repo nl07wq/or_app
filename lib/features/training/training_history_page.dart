@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/training_set_v2.dart';
 import '../../core/repositories/training_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
@@ -256,7 +258,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                                   setState(() {});
                                 }
                               },
-                      ),
+                      ).actionableFeedback(),
 
                       IconButton(
                         icon: Icon(
@@ -271,7 +273,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                             : () {
                                 _deleteRecord(record);
                               },
-                      ),
+                      ).actionableFeedback(),
                     ],
                   ),
                 );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -299,7 +301,7 @@ class _InitializationConfirmationDialogState
       TextButton(
         onPressed: () => Navigator.pop(context, false),
         child: const Text('キャンセル'),
-      ),
+      ).actionableFeedback(),
       ValueListenableBuilder<TextEditingValue>(
         valueListenable: _controller,
         builder: (context, value, child) => FilledButton(
@@ -308,7 +310,7 @@ class _InitializationConfirmationDialogState
               ? () => Navigator.pop(context, true)
               : null,
           child: child,
-        ),
+        ).actionableFeedback(),
         child: const Text('初期化する'),
       ),
     ],
@@ -479,7 +481,7 @@ class _HolidayDataSection extends StatelessWidget {
                           )
                         : const Icon(Icons.refresh),
                     label: const Text('UPDATE'),
-                  ),
+                  ).actionableFeedback(),
                 ),
               ],
             );
@@ -587,7 +589,7 @@ class _InitializeSection extends StatelessWidget {
                       )
                     : const Icon(Icons.delete_forever_outlined),
                 label: Text(busy ? '初期化しています' : 'アプリデータを初期化'),
-              ),
+              ).actionableFeedback(),
             ),
             if (result != null) ...[AppSpacing.gapSM, Text(result!)],
           ],
@@ -669,7 +671,7 @@ class _SystemSection extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   child: Text(buttonText),
                 ),
-              ),
+              ).actionableFeedback(),
             ),
           ],
         ),

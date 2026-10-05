@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -478,7 +480,7 @@ class _Buckets extends StatelessWidget {
             child: TextButton(
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ),
+            ).actionableFeedback(),
           ),
       ],
     );
@@ -633,7 +635,7 @@ class _DailyHistory extends StatelessWidget {
               IconButton(
                 onPressed: start.isAfter(range.start) ? () => onMove(-7) : null,
                 icon: const Icon(Icons.chevron_left),
-              ),
+              ).actionableFeedback(),
               Expanded(
                 child: Text(
                   '${_short(start)} - ${_short(windowEnd)}',
@@ -645,7 +647,7 @@ class _DailyHistory extends StatelessWidget {
                     ? () => onMove(7)
                     : null,
                 icon: const Icon(Icons.chevron_right),
-              ),
+              ).actionableFeedback(),
             ],
           ),
           for (var i = 0; i < 7; i++)

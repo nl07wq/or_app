@@ -140,25 +140,25 @@ class _RemindersPageState extends State<RemindersPage>
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('キャンセル'),
-                ),
+                ).actionableFeedback(),
                 TextButton(
                   onPressed: () => Navigator.pop(context, _DeleteChoice.once),
                   child: const Text('今回のみ削除'),
-                ),
+                ).actionableFeedback(),
                 TextButton(
                   onPressed: () => Navigator.pop(context, _DeleteChoice.future),
                   child: const Text('今後すべて削除'),
-                ),
+                ).actionableFeedback(),
               ]
             : [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('キャンセル'),
-                ),
+                ).actionableFeedback(),
                 TextButton(
                   onPressed: () => Navigator.pop(context, _DeleteChoice.single),
                   child: const Text('削除'),
-                ),
+                ).actionableFeedback(),
               ],
       ),
     );
@@ -274,11 +274,11 @@ class _RemindersPageState extends State<RemindersPage>
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('削除'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -294,7 +294,18 @@ class _RemindersPageState extends State<RemindersPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('REMINDERS')),
+    appBar: AppBar(
+      leading: Navigator.of(context).canPop()
+          ? ActionableFeedbackButton(
+              enabled: true,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ).actionableFeedback(),
+            )
+          : null,
+      title: const Text('REMINDERS'),
+    ),
     floatingActionButton: _HudAddControl(onPressed: _create),
     body: Stack(
       children: [
@@ -570,60 +581,56 @@ class _ReminderOccurrenceRow extends StatelessWidget {
     final secondary = colorScheme.onSurface.withValues(alpha: .65);
     return Semantics(
       label: '${value.definition.title} ${completed ? '完了' : '未完了'}',
-      child: SemanticFeedbackActionRegion(
-        enabled: true,
-        child: InkWell(
-          key: ValueKey('reminder-row-${value.id}'),
-          onTap: onEdit,
-          onLongPress: onEdit,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ReminderCircuitNode(
-                  id: value.id,
-                  isFirst: isFirst,
-                  isLast: isLast,
-                  child: _HudCompletionControl(
-                    key: ValueKey('reminder-toggle-${value.id}'),
-                    completed: completed,
-                    onPressed: onToggle,
+      child: InkWell(
+        key: ValueKey('reminder-row-${value.id}'),
+        onTap: onEdit,
+        onLongPress: onEdit,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ReminderCircuitNode(
+                id: value.id,
+                isFirst: isFirst,
+                isLast: isLast,
+                child: _HudCompletionControl(
+                  key: ValueKey('reminder-toggle-${value.id}'),
+                  completed: completed,
+                  onPressed: onToggle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value.definition.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: completed ? secondary : null,
+                          decoration: completed
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                      _ReminderSubtitle(
+                        summary:
+                            '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
+                        note: value.definition.note,
+                        completed: completed,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          value.definition.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: completed ? secondary : null,
-                                decoration: completed
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                              ),
-                        ),
-                        _ReminderSubtitle(
-                          summary:
-                              '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
-                          note: value.definition.note,
-                          completed: completed,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -706,29 +713,26 @@ class _HudCompletionControl extends StatelessWidget {
       child: SizedBox(
         width: reminderCompletionTouchTarget,
         height: reminderCompletionTouchTarget,
-        child: SemanticFeedbackActionRegion(
-          enabled: true,
-          child: InkWell(
-            onTap: onPressed,
-            customBorder: const CircleBorder(),
-            child: Center(
-              child: Icon(
-                key: ValueKey(
-                  completed
-                      ? 'reminder-completion-check-circle'
-                      : 'reminder-completion-circle',
-                ),
-                completed ? Icons.check_circle : Icons.circle_outlined,
-                size: reminderCompletionIconSize,
-                color: completed
-                    ? accent
-                    : colorScheme.onSurface.withValues(
-                        alpha: holographicTimelineNodeOpacity,
-                      ),
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Center(
+            child: Icon(
+              key: ValueKey(
+                completed
+                    ? 'reminder-completion-check-circle'
+                    : 'reminder-completion-circle',
               ),
+              completed ? Icons.check_circle : Icons.circle_outlined,
+              size: reminderCompletionIconSize,
+              color: completed
+                  ? accent
+                  : colorScheme.onSurface.withValues(
+                      alpha: holographicTimelineNodeOpacity,
+                    ),
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -758,14 +762,11 @@ class _HudAddControl extends StatelessWidget {
           child: SizedBox(
             width: 56,
             height: 56,
-            child: SemanticFeedbackActionRegion(
-              enabled: true,
-              child: InkWell(
-                onTap: onPressed,
-                customBorder: shape,
-                child: Icon(Icons.add, color: colorScheme.primary),
-              ),
-            ),
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: shape,
+              child: Icon(Icons.add, color: colorScheme.primary),
+            ).actionableFeedback(),
           ),
         ),
       ),
@@ -841,7 +842,7 @@ class _DefinitionList extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(),
       );
     },
     separatorBuilder: (_, _) => Container(
@@ -979,11 +980,11 @@ class _ReminderEditorState extends State<_ReminderEditor> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('編集を続ける'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('破棄する'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -1068,12 +1069,23 @@ class _ReminderEditorState extends State<_ReminderEditor> {
     },
     child: Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _requestExit,
+        leading: ActionableFeedbackButton(
+          enabled: true,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _requestExit,
+          ).actionableFeedback(),
         ),
         title: Text(widget.initial == null ? 'REMINDERを追加' : 'REMINDERを編集'),
-        actions: [TextButton(onPressed: _save, child: const Text('保存'))],
+        actions: [
+          ActionableFeedbackButton(
+            enabled: true,
+            child: TextButton(
+              onPressed: _save,
+              child: const Text('保存'),
+            ).actionableFeedback(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

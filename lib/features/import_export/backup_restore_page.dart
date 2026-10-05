@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/state/app_initialization_state.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/theme/app_spacing.dart';
@@ -219,11 +221,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('IMPORT DATA'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );

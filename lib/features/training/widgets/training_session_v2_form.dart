@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -242,7 +244,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
               : null,
           icon: const Icon(Icons.play_arrow),
           label: const Text('START TRAINING'),
-        ),
+        ).actionableFeedback(),
         AppSpacing.gapSM,
         _TimeField(
           label: 'END TIME',
@@ -270,7 +272,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
             },
             icon: const Icon(Icons.pause),
             label: const Text('PAUSE TRAINING'),
-          ),
+          ).actionableFeedback(),
         ] else if (start != null &&
             end == null &&
             widget.controller.isPaused) ...[
@@ -287,7 +289,7 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
             },
             icon: const Icon(Icons.undo),
             label: const Text('RESUME TRAINING'),
-          ),
+          ).actionableFeedback(),
         ],
       ],
     );
@@ -363,7 +365,7 @@ class _TimeField extends StatelessWidget {
             onPressed: onEdit,
             icon: const Icon(Icons.edit_outlined),
             label: const Text('EDIT'),
-          ),
+          ).actionableFeedback(),
         ],
       ],
     );

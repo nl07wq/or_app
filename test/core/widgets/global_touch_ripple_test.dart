@@ -129,6 +129,127 @@ void main() {
     expect(audio.played, [TouchFeedbackSound.success]);
   });
 
+  testWidgets('shared actionable region owns accepted and unavailable taps', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var acceptedActions = 0;
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: Row(
+            children: [
+              Expanded(
+                child: ActionableFeedbackRegion(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => acceptedActions++,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ActionableFeedbackRegion(
+                  result: ActionableFeedbackResult.unavailable,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              const Expanded(child: ColoredBox(color: Colors.black)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tapAt(const Offset(100, 300));
+    await tester.tapAt(const Offset(400, 300));
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pump(const Duration(milliseconds: 32));
+
+    expect(acceptedActions, 1);
+    expect(rippleEvents, 1);
+    expect(audio.played, [
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.failure,
+      TouchFeedbackSound.water,
+    ]);
+  });
+
+  testWidgets('stock controls inherit the shared actionable contract', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var actions = 0;
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                tooltip: 'BACK',
+                onPressed: () => actions++,
+                icon: const Icon(Icons.arrow_back),
+              ).actionableFeedback(),
+            ),
+            body: Wrap(
+              children: [
+                OutlinedButton(
+                  onPressed: () => actions++,
+                  child: const Text('OUTLINED'),
+                ).actionableFeedback(),
+                TextButton(
+                  onPressed: () => actions++,
+                  child: const Text('TEXT'),
+                ).actionableFeedback(),
+                ElevatedButton(
+                  onPressed: () => actions++,
+                  child: const Text('ELEVATED'),
+                ).actionableFeedback(),
+                PopupMenuButton<String>(
+                  tooltip: 'MENU',
+                  onSelected: (_) => actions++,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'item',
+                      child: ActionableFeedbackButton(
+                        enabled: true,
+                        child: Text('MENU ITEM'),
+                      ),
+                    ),
+                  ],
+                ).actionableFeedback(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    for (final finder in [
+      find.byTooltip('BACK'),
+      find.text('OUTLINED'),
+      find.text('TEXT'),
+      find.text('ELEVATED'),
+    ]) {
+      await tester.tap(finder);
+      await tester.pump();
+    }
+    await tester.tap(find.byTooltip('MENU'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MENU ITEM'));
+    await tester.pumpAndSettle();
+
+    expect(actions, 5);
+    expect(rippleEvents, 0);
+    expect(audio.played, List.filled(6, TouchFeedbackSound.success));
+  });
+
   testWidgets('failure claim suppresses Water Drop and success', (
     tester,
   ) async {

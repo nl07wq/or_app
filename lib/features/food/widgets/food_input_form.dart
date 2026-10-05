@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/food_item.dart';
 import '../../../core/models/meal_data.dart';
 import '../../../core/models/meal_type.dart';
@@ -151,8 +153,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final _mealItemUsedAmountController = TextEditingController();
   final _mealItemQuantityController = TextEditingController();
   final List<TextEditingController> _recipeIngredientControllers = [];
-  final List<TextEditingController> _mealItemRecipeIngredientControllers =
-      [];
+  final List<TextEditingController> _mealItemRecipeIngredientControllers = [];
 
   MealType mealType = MealType.breakfast;
 
@@ -746,7 +747,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _mealItemQuantityController.text,
     ).value;
     if (quantity == null) return null;
-    if (_recipeInstanceSnapshots[index] != null || _recipeSources[index] != null) {
+    if (_recipeInstanceSnapshots[index] != null ||
+        _recipeSources[index] != null) {
       return item.copyWith(
         amount: quantity,
         amountMode: FoodAmountMode.baseMultiplier,
@@ -783,8 +785,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _saveMealItemEdit() {
     final index = _mealItemEditingIndex;
-    final recipeSource =
-        index == null
+    final recipeSource = index == null
         ? null
         : _recipeInstanceSnapshots[index] ?? _recipeSources[index];
     if (index != null && recipeSource != null) {
@@ -1895,7 +1896,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                     ],
                   ),
                 ),
-              ),
+              ).actionableFeedback(),
             ),
         ],
       );
@@ -2031,7 +2032,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   icon: const Icon(Icons.close, size: 18),
                   tooltip: 'CLEAR SEARCH',
                   onPressed: onClear ?? () => setState(controller.clear),
-                ),
+                ).actionableFeedback(),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 10,
             vertical: 8,
@@ -2066,7 +2067,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
         onPressed: () => _setMasterListExpanded(mode, !expanded),
         child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-      ),
+      ).actionableFeedback(),
     );
   }
 
@@ -2321,7 +2322,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   key: const ValueKey('food-recipe-instance-cancel'),
                   onPressed: _isSaving ? null : _cancelRecipeInstance,
                   child: const Text('CANCEL'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
           ],
@@ -2450,7 +2451,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 key: const ValueKey('food-db-cancel'),
                 onPressed: _isSaving ? null : _cancelPendingDatabaseSelection,
                 child: const Text('CANCEL'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         ],
@@ -2492,8 +2493,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   Widget _mealItemEditor() {
     final index = _mealItemEditingIndex!;
     final item = items[index];
-    final recipe =
-        _recipeInstanceSnapshots[index] ?? _recipeSources[index];
+    final recipe = _recipeInstanceSnapshots[index] ?? _recipeSources[index];
     final catalog = _catalogSources[index];
     final editable = recipe != null || item.hasMeasuredAmount;
     final isRecipe = recipe != null;
@@ -2634,7 +2634,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                 key: const ValueKey('meal-item-edit-cancel'),
                 onPressed: () => setState(_cancelMealItemEdit),
                 child: const Text('CANCEL'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         ],
@@ -2690,7 +2690,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                           ? null
                           : () => _addWaterAmount(amount),
                       child: Text('+$amount ml'),
-                    ),
+                    ).actionableFeedback(),
                   )
                   .toList(),
             ),
@@ -2891,7 +2891,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                   ],
                 ],
               ),
-            ),
+            ).actionableFeedback(),
           ],
         ],
       ),

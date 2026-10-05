@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
@@ -95,11 +97,11 @@ Future<bool> presentWeeklyReportInvitationForFinalizedDate({
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: const Text('NO'),
-        ),
+        ).actionableFeedback(),
         FilledButton(
           onPressed: () => Navigator.pop(context, true),
           child: const Text('YES'),
-        ),
+        ).actionableFeedback(),
       ],
     ),
   );
@@ -233,11 +235,11 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('YES'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('NO'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -581,7 +583,7 @@ class _DailyLogEntryStatus extends StatelessWidget {
               ),
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -757,7 +759,7 @@ class _DailyCloseActionButton extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(text, style: AppTextStyles.label),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }

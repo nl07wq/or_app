@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/state/app_initialization_state.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
@@ -144,7 +146,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
@@ -153,7 +155,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
               }
             },
             child: const Text('ADD'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     ).whenComplete(controller.dispose);
@@ -179,7 +181,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
@@ -188,7 +190,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
               }
             },
             child: const Text('UPDATE'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -418,7 +420,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                           onPressed: readOnly
                               ? null
                               : () => _editIngredientQuantity(index),
-                        ),
+                        ).actionableFeedback(),
                         IconButton(
                           icon: const Icon(Icons.remove_circle_outline),
                           onPressed: readOnly
@@ -426,7 +428,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
                               : () => setState(
                                   () => _ingredients.removeAt(index),
                                 ),
-                        ),
+                        ).actionableFeedback(),
                       ],
                     ),
                   ),

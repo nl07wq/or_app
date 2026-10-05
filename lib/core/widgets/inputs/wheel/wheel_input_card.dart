@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../global_touch_ripple.dart';
 import 'wheel_ruler.dart';
 
 class WheelInputCard extends StatefulWidget {
@@ -85,7 +86,7 @@ class _WheelInputCardState extends State<WheelInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ),
+              ).actionableFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
@@ -112,7 +113,7 @@ class _WheelInputCardState extends State<WheelInputCard> {
                 setState(() => expanded = false);
               },
               child: const Text("完了"),
-            ),
+            ).actionableFeedback(),
           ),
         ],
       ],

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -435,24 +437,24 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                           ? null
                           : _undoAreaPoint,
                       child: const Text('UNDO POINT'),
-                    ),
+                    ).actionableFeedback(),
                     OutlinedButton(
                       key: const ValueKey('fox-pattern-preview-clear-area'),
                       onPressed: _activeCandidate.points.isEmpty
                           ? null
                           : _clearArea,
                       child: const Text('CLEAR AREA'),
-                    ),
+                    ).actionableFeedback(),
                     OutlinedButton(
                       key: const ValueKey('fox-pattern-preview-close-area'),
                       onPressed: _activeCandidate.canClose ? _closeArea : null,
                       child: const Text('CLOSE AREA'),
-                    ),
+                    ).actionableFeedback(),
                     FilledButton(
                       key: const ValueKey('fox-pattern-preview-apply-area'),
                       onPressed: _activeCandidate.isReady ? _applyArea : null,
                       child: const Text('APPLY AREA'),
-                    ),
+                    ).actionableFeedback(),
                   ],
                 ),
               if (_editorMode == _EditorMode.fineTune) ...[
@@ -519,24 +521,24 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                       key: const ValueKey('fox-pattern-preview-add-point'),
                       onPressed: _addPoint,
                       child: const Text('ADD POINT'),
-                    ),
+                    ).actionableFeedback(),
                     OutlinedButton(
                       key: const ValueKey('fox-pattern-preview-delete-point'),
                       onPressed: _activeMask.canDelete(_pointId)
                           ? _deletePoint
                           : null,
                       child: const Text('DELETE POINT'),
-                    ),
+                    ).actionableFeedback(),
                     OutlinedButton(
                       key: const ValueKey('fox-pattern-preview-reset-part'),
                       onPressed: _resetPart,
                       child: const Text('RESET PART'),
-                    ),
+                    ).actionableFeedback(),
                     OutlinedButton(
                       key: const ValueKey('fox-pattern-preview-reset-frame'),
                       onPressed: _resetFrame,
                       child: const Text('RESET FRAME'),
-                    ),
+                    ).actionableFeedback(),
                   ],
                 ),
                 AppSpacing.gapSM,
@@ -566,14 +568,14 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
                     'COPY ${_part.label} FRAME ${_copySourceFrame.toString().padLeft(2, '0')} '
                     '→ ${_frame.toString().padLeft(2, '0')}',
                   ),
-                ),
+                ).actionableFeedback(),
                 AppSpacing.gapMD,
                 FilledButton.icon(
                   key: const ValueKey('fox-pattern-preview-copy'),
                   onPressed: _copyPatternData,
                   icon: const Icon(Icons.content_copy_outlined),
                   label: const Text('COPY PATTERN DATA'),
-                ),
+                ).actionableFeedback(),
               ],
             ],
           ),
@@ -588,7 +590,7 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
     ),
     onPressed: () => _nudge(dx: dx, dy: dy),
     child: Text(label),
-  );
+  ).actionableFeedback();
 }
 
 class _MaskEditorStage extends StatelessWidget {
@@ -855,7 +857,7 @@ class _EditorGestureLayerState extends State<_EditorGestureLayer> {
       _dragPointId = null;
     },
     child: widget.child,
-  );
+  ).actionableFeedback();
 }
 
 class _PreviewPatternCel extends StatelessWidget {
@@ -1206,7 +1208,10 @@ class _RepeatNudgeButtonState extends State<_RepeatNudgeButton> {
     onPointerDown: (_) => _start(),
     onPointerUp: (_) => _stop(),
     onPointerCancel: (_) => _stop(),
-    child: IconButton(icon: Icon(widget.icon), onPressed: () {}),
+    child: IconButton(
+      icon: Icon(widget.icon),
+      onPressed: () {},
+    ).actionableFeedback(),
   );
 }
 

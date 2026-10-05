@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../services/exercise_catalog_service.dart';
 import '../services/exercise_name_localization.dart';
 
@@ -30,7 +32,7 @@ class ExerciseSelector extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
-        );
+        ).actionableFeedback();
       },
     );
   }
@@ -143,13 +145,13 @@ class _AddCustomExerciseDialogState extends State<_AddCustomExerciseDialog> {
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
-        ),
+        ).actionableFeedback(),
         FilledButton(
           onPressed: _nameController.text.trim().isEmpty
               ? null
               : () => _registerAndClose(_nameController.text),
           child: const Text('Save'),
-        ),
+        ).actionableFeedback(),
       ],
     );
   }

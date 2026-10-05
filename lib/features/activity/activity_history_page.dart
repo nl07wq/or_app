@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/activity_data.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
@@ -118,7 +120,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                                 _reload();
                                 setState(() {});
                               },
-                      ),
+                      ).actionableFeedback(),
                       IconButton(
                         icon: Icon(
                           Icons.delete_outline,
@@ -127,7 +129,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                         onPressed: appInitializationController.value.isReadOnly
                             ? null
                             : () => _delete(data),
-                      ),
+                      ).actionableFeedback(),
                     ],
                   ),
                 ),

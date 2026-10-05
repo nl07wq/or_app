@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/data/default_training_templates.dart';
 import '../../core/widgets/operation_card.dart';
 import 'widgets/training_dot_matrix_title.dart';
@@ -39,11 +41,11 @@ class TrainingPlanPage extends StatelessWidget {
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
                         child: const Text('キャンセル'),
-                      ),
+                      ).actionableFeedback(),
                       FilledButton(
                         onPressed: () => Navigator.pop(context, true),
                         child: const Text('適用'),
-                      ),
+                      ).actionableFeedback(),
                     ],
                   ),
                 );

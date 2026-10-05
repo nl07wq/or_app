@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -361,7 +363,13 @@ class _ActivityMetric extends StatelessWidget {
         ),
         if (detail.isNotEmpty) ...[
           AppSpacing.gapXS,
-          Text(detail, maxLines: 1, overflow: TextOverflow.fade, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall),
+          Text(
+            detail,
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
         ],
       ],
     ),
@@ -515,7 +523,7 @@ class _ActivityDailyTrend extends StatelessWidget {
                 key: const ValueKey('activity-trend-toggle'),
                 onPressed: onToggle,
                 child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-              ),
+              ).actionableFeedback(),
             ),
         ],
       ),
@@ -631,7 +639,7 @@ class _ActivityBuckets extends StatelessWidget {
               ),
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ),
+            ).actionableFeedback(),
           ),
       ],
     );
@@ -844,7 +852,7 @@ class _ActivityDailyHistory extends StatelessWidget {
                     ? null
                     : () => onMove(-7),
                 icon: const Icon(Icons.chevron_left),
-              ),
+              ).actionableFeedback(),
               Expanded(
                 child: Text(
                   '${_shortDate(start)} - ${_shortDate(windowEnd)}',
@@ -858,7 +866,7 @@ class _ActivityDailyHistory extends StatelessWidget {
                     ? null
                     : () => onMove(7),
                 icon: const Icon(Icons.chevron_right),
-              ),
+              ).actionableFeedback(),
             ],
           ),
           for (final date in window)

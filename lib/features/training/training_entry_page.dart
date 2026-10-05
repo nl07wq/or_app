@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/repositories/training_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/theme/app_colors.dart';
@@ -224,11 +226,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('NO'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('YES'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -383,7 +385,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -436,7 +438,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext, false),
                   child: const Text('キャンセル'),
-                ),
+                ).actionableFeedback(),
                 TextButton(
                   key: confirmKey,
                   style: TextButton.styleFrom(
@@ -444,7 +446,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                   ),
                   onPressed: () => Navigator.pop(dialogContext, true),
                   child: Text(confirmLabel),
-                ),
+                ).actionableFeedback(),
               ],
             ),
           )) ??
@@ -680,7 +682,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('ADD EXERCISE'),
-                  ),
+                  ).actionableFeedback(),
                   AppSpacing.gapMD,
                   const SectionHeader(
                     icon: Icons.directions_run,
@@ -708,7 +710,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('ADD CARDIO'),
-                  ),
+                  ).actionableFeedback(),
                   AppSpacing.gapMD,
                   SizedBox(
                     height: 48,

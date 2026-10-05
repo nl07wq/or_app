@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 
 enum ContextPopoverEdge { left, right }
@@ -89,7 +91,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _dismiss,
-            ),
+            ).actionableFeedback(),
           ),
           Positioned(
             left: popoverLeft,
@@ -139,7 +141,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
           ),
         ],
         child: widget.child,
-      );
+      ).actionableFeedback();
     }
 
     return GestureDetector(
@@ -147,7 +149,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
       behavior: HitTestBehavior.opaque,
       onTap: _showContextualPopover,
       child: widget.child,
-    );
+    ).actionableFeedback();
   }
 }
 

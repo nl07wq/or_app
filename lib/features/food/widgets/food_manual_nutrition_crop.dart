@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../services/food_input_capture_gateway.dart';
 
@@ -289,7 +291,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
       leading: IconButton(
         icon: const Icon(Icons.close),
         onPressed: _submitting ? null : () => Navigator.pop(context),
-      ),
+      ).actionableFeedback(),
     ),
     body: SafeArea(
       child: Column(
@@ -371,7 +373,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                                     ],
                                   ),
                                 ),
-                              ),
+                              ).actionableFeedback(),
                               Positioned.fill(
                                 child: _CropViewportControls(
                                   viewport: viewport,
@@ -410,7 +412,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                         ? null
                         : () => Navigator.pop(context),
                     child: const Text('CANCEL'),
-                  ),
+                  ).actionableFeedback(),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -418,7 +420,7 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
                     key: const ValueKey('manual-nutrition-crop-confirm'),
                     onPressed: _submitting ? null : () => _confirmCrop(),
                     child: const Text('USE THIS AREA'),
-                  ),
+                  ).actionableFeedback(),
                 ),
               ],
             ),
@@ -976,7 +978,7 @@ class _CropViewportHandle extends StatelessWidget {
                 )
               : const SizedBox.expand(),
         ),
-      ),
+      ).actionableFeedback(),
     ),
   );
 }

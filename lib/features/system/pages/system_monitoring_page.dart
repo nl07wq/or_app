@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/engine/operation_status.dart';
 import '../../../core/widgets/operation_button.dart';
@@ -81,11 +83,11 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('キャンセル'),
-            ),
+            ).actionableFeedback(),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('削除'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
       );
@@ -470,7 +472,7 @@ class _InformationDebugCard extends StatelessWidget {
             OutlinedButton(
               onPressed: onClear,
               child: const Text('CLEAR TEST NOTICES'),
-            ),
+            ).actionableFeedback(),
             for (final notice in testNotices) ...[
               const Divider(),
               Row(
@@ -488,7 +490,7 @@ class _InformationDebugCard extends StatelessWidget {
                     tooltip: 'テスト通知を削除',
                     onPressed: () => onDelete(notice),
                     icon: const Icon(Icons.delete_outline),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
               Text(
@@ -593,7 +595,7 @@ class _InformationDebugEditorState extends State<_InformationDebugEditor> {
       TextButton(
         onPressed: () => Navigator.pop(context),
         child: const Text('キャンセル'),
-      ),
+      ).actionableFeedback(),
       TextButton(
         onPressed: () => Navigator.pop(
           context,
@@ -604,7 +606,7 @@ class _InformationDebugEditorState extends State<_InformationDebugEditor> {
           ),
         ),
         child: const Text('作成'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 

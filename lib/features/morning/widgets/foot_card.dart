@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -165,7 +167,7 @@ class _FootCardState extends State<FootCard> {
                         color: Colors.lightBlueAccent,
                       ),
                     ),
-                  ),
+                  ).actionableFeedback(),
               ],
             ),
           ),
@@ -269,7 +271,7 @@ class _PainLevelChip extends StatelessWidget {
                       ).textTheme.labelLarge?.copyWith(color: foregroundColor),
                     ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
       ),
     );

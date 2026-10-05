@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_dropdown.dart';
@@ -169,7 +171,7 @@ class FoodInputFields extends StatelessWidget {
                   minimumSize: FoodFormMetrics.barcodeButtonSize,
                   padding: FoodFormMetrics.barcodeButtonPadding,
                 ),
-              ),
+              ).actionableFeedback(),
             ],
           ),
 
@@ -896,7 +898,7 @@ class FoodNumericStepButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       icon: Icon(icon),
-    ),
+    ).actionableFeedback(),
   );
 }
 

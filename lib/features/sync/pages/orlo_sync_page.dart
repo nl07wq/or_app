@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -162,11 +164,11 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('CONFIRM IMPORT'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -258,12 +260,12 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
               onPressed: _busy ? null : _selectFile,
               icon: const Icon(Icons.file_open_outlined),
               label: const Text('SELECT FILE'),
-            ),
+            ).actionableFeedback(),
             OutlinedButton.icon(
               onPressed: _busy ? null : _copyInstruction,
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT INSTRUCTION'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
         AppSpacing.gapSM,

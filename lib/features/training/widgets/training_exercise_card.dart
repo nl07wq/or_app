@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/training_set.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
@@ -95,7 +97,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
                   icon: const Icon(Icons.copy_outlined),
                   tooltip: 'Copy exercise',
                   onPressed: widget.onCopy,
-                ),
+                ).actionableFeedback(),
               IconButton(
                 visualDensity: VisualDensity.compact,
                 icon: Icon(
@@ -104,7 +106,7 @@ class _TrainingExerciseCardState extends State<TrainingExerciseCard> {
                 ),
                 tooltip: 'Delete exercise',
                 onPressed: widget.canDelete ? widget.onDelete : null,
-              ),
+              ).actionableFeedback(),
             ],
           ),
           AppSpacing.gapXS,

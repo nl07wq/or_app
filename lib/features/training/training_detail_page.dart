@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/cardio_entry.dart';
 import '../../core/state/app_initialization_state.dart';
 import '../../core/theme/app_spacing.dart';
@@ -51,7 +53,7 @@ class TrainingDetailPage extends StatelessWidget {
                       TrainingAnalysisPage(targetRecordId: record.id),
                 ),
               ),
-            ),
+            ).actionableFeedback(),
             if (record.isEditable &&
                 !appInitializationController.value.isReadOnly)
               IconButton(
@@ -69,7 +71,7 @@ class TrainingDetailPage extends StatelessWidget {
                     Navigator.pop(context, true);
                   }
                 },
-              ),
+              ).actionableFeedback(),
           ],
         ),
         body: ListView(children: [TrainingV2RecordDetail(record: record)]),

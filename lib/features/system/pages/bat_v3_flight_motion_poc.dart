@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -345,7 +347,7 @@ class _BatV3FlightMotionPocState extends State<BatV3FlightMotionPoc> {
         : null,
     onPressed: action,
     child: Text(label),
-  );
+  ).actionableFeedback();
 }
 
 class _BatV3Disclosure extends StatelessWidget {
@@ -377,7 +379,7 @@ class _BatV3Disclosure extends StatelessWidget {
           ],
         ),
       ),
-    ),
+    ).actionableFeedback(),
   );
 }
 
@@ -1011,7 +1013,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
                   key: const ValueKey('bat-v3-production-force-glitch'),
                   onPressed: _forcedGlitch ? null : _forceGlitch,
                   child: const Text('FORCE GLITCH ×10'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
             AppSpacing.gapSM,
@@ -1100,7 +1102,7 @@ class _BatV3ProductionPreviewState extends State<BatV3ProductionPreview> {
         : null,
     onPressed: action,
     child: Text(label),
-  );
+  ).actionableFeedback();
 }
 
 /// Chooses the vertical origin used only while presenting an already-canonical

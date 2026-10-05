@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import 'cat_run_v2_registration.dart';
@@ -106,7 +108,7 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
                 ],
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
         if (_expanded) ...[
           AppSpacing.gapSM,
@@ -138,7 +140,7 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
                         child: Text(
                           'FRAME ${(i + 1).toString().padLeft(2, '0')}',
                         ),
-                      ),
+                      ).actionableFeedback(),
                   ],
                 ),
                 AppSpacing.gapSM,
@@ -150,19 +152,19 @@ class _CatRunV2PocSectionState extends State<CatRunV2PocSection>
                       key: const ValueKey('cat-run-v2-play'),
                       onPressed: _playPause,
                       child: Text(_playing ? 'PAUSE' : 'PLAY'),
-                    ),
+                    ).actionableFeedback(),
                     for (final speed in [0.5, 1.0])
                       OutlinedButton(
                         key: ValueKey('cat-run-v2-speed-$speed'),
                         onPressed: () => _setSpeed(speed),
                         child: Text('$speed×'),
-                      ),
+                      ).actionableFeedback(),
                     for (final scale in [1, 2, 4])
                       OutlinedButton(
                         key: ValueKey('cat-run-v2-scale-$scale'),
                         onPressed: () => setState(() => _scale = scale),
                         child: Text('$scale×'),
-                      ),
+                      ).actionableFeedback(),
                   ],
                 ),
                 AppSpacing.gapSM,

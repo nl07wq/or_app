@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
 import '../../core/theme/app_spacing.dart';
@@ -1006,7 +1008,7 @@ class _AssessmentRow extends StatelessWidget {
                       style: commentStyle,
                     ),
                   ),
-                ),
+                ).actionableFeedback(),
               ),
             ),
           ],
@@ -1039,7 +1041,7 @@ void _showAssessmentDetail(
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('CLOSE'),
-        ),
+        ).actionableFeedback(),
       ],
     ),
   );

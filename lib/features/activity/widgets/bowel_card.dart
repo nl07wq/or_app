@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/bowel_amount.dart';
 import '../../../core/models/bowel_shape.dart';
 
@@ -98,7 +100,7 @@ class _BowelCardState extends State<BowelCard> {
                       Text(amount.label),
                     ],
                   ),
-                ),
+                ).actionableFeedback(),
             ],
           ),
 
@@ -149,7 +151,7 @@ class _BowelCardState extends State<BowelCard> {
                         Text(shape.label),
                       ],
                     ),
-                  ),
+                  ).actionableFeedback(),
               ],
             ),
 

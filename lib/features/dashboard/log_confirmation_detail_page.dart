@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
 import '../../core/engine/training_summary.dart';
@@ -94,11 +96,11 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('FINALIZEを取り消す'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );

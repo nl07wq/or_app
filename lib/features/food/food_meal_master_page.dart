@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/state/app_initialization_state.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
@@ -171,7 +173,7 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
@@ -183,7 +185,7 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
               }
             },
             child: const Text('APPLY'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     ).whenComplete(controller.dispose);
@@ -322,21 +324,21 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
                           ? null
                           : () => _move(index, -1),
                       icon: const Icon(Icons.arrow_upward),
-                    ),
+                    ).actionableFeedback(),
                     IconButton(
                       tooltip: 'MOVE DOWN',
                       onPressed: readOnly || index == _components.length - 1
                           ? null
                           : () => _move(index, 1),
                       icon: const Icon(Icons.arrow_downward),
-                    ),
+                    ).actionableFeedback(),
                     IconButton(
                       tooltip: 'REMOVE',
                       onPressed: readOnly
                           ? null
                           : () => setState(() => _components.removeAt(index)),
                       icon: const Icon(Icons.remove_circle_outline),
-                    ),
+                    ).actionableFeedback(),
                   ],
                 ),
               ),

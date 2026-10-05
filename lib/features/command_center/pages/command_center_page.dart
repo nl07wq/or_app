@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/navigation/app_routes.dart';
@@ -782,7 +784,7 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
                     ),
                   ),
                 ),
-              ),
+              ).actionableFeedback(),
             ),
           ),
         ),

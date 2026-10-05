@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_text_field.dart';
@@ -147,7 +149,7 @@ class TrainingSetRow extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
         child: Text(label, semanticsLabel: 'Adjust $kind by $label'),
-      ),
+      ).actionableFeedback(),
     );
   }
 

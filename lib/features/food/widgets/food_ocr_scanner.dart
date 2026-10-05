@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -265,12 +267,12 @@ Future<void> showNutritionOcrDiagnostics(
                   TextButton(
                     onPressed: () => Navigator.pop(previewContext),
                     child: const Text('CLOSE'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ),
             child: const Text('VIEW STANDARD INPUT'),
-          ),
+          ).actionableFeedback(),
         if (_diagnosticPreview(diagnostics, 'nutritionLabelReader')
             case final preview?)
           TextButton(
@@ -284,12 +286,12 @@ Future<void> showNutritionOcrDiagnostics(
                   TextButton(
                     onPressed: () => Navigator.pop(previewContext),
                     child: const Text('CLOSE'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ),
             child: const Text('VIEW NUTRITION INPUT'),
-          ),
+          ).actionableFeedback(),
         TextButton(
           key: const ValueKey('copy-ocr-diagnostics'),
           onPressed: () async {
@@ -301,11 +303,11 @@ Future<void> showNutritionOcrDiagnostics(
             }
           },
           child: const Text('COPY OCR DIAGNOSTICS'),
-        ),
+        ).actionableFeedback(),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext),
           child: const Text('CLOSE'),
-        ),
+        ).actionableFeedback(),
       ],
     ),
   );
@@ -609,14 +611,14 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('CANCEL'),
-                    ),
+                    ).actionableFeedback(),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: FilledButton(
                       onPressed: () => Navigator.pop(context, _result()),
                       child: const Text('APPLY'),
-                    ),
+                    ).actionableFeedback(),
                   ),
                 ],
               ),
@@ -910,7 +912,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
       TextButton(
         onPressed: () => Navigator.pop(context),
         child: const Text('CANCEL'),
-      ),
+      ).actionableFeedback(),
       FilledButton(
         onPressed: () => Navigator.pop(
           context,
@@ -924,7 +926,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
           ),
         ),
         child: const Text('APPLY TO FORM'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 

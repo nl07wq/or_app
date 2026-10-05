@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../training/services/training_history_domain_service.dart';
@@ -143,11 +145,11 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('RESET ALL'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -172,11 +174,11 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('RESTORE DRAFT'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -201,11 +203,11 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('RESTORE BACKUP'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -335,7 +337,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                 TextButton(
                   onPressed: () => setState(() => recoveryStatus = null),
                   child: const Text('NEUTRAL / データなし'),
-                ),
+                ).actionableFeedback(),
               ],
               const SizedBox(height: 8),
               OutlinedButton.icon(
@@ -348,7 +350,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                         _selectedRegionId = null;
                       })
                     : null,
-              ),
+              ).actionableFeedback(),
               const SizedBox(height: 8),
               const Text(
                 'Prototype only — production Recovery Body Map is unchanged.',
@@ -405,7 +407,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                       : null,
                   icon: const Icon(Icons.add),
                   label: const Text('ADD SHAPE'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
             const SizedBox(height: 8),
@@ -547,7 +549,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                   onPressed: () =>
                       _tuner.resetRegion(_sideName, draft.regionId),
                   child: const Text('RESET REGION'),
-                ),
+                ).actionableFeedback(),
                 OutlinedButton(
                   onPressed:
                       canEdit &&
@@ -566,7 +568,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                         }
                       : null,
                   child: const Text('DUPLICATE COMPONENT'),
-                ),
+                ).actionableFeedback(),
                 OutlinedButton(
                   onPressed: canEdit && components.length > 1
                       ? () {
@@ -580,7 +582,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                         }
                       : null,
                   child: const Text('DELETE COMPONENT'),
-                ),
+                ).actionableFeedback(),
                 FilledButton.tonal(
                   onPressed: () =>
                       _copy(_tuner.copyRegion(draft), 'Region feedback'),
@@ -589,14 +591,14 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
                 OutlinedButton(
                   onPressed: _confirmResetAll,
                   child: const Text('RESET ALL'),
-                ),
+                ).actionableFeedback(),
                 FilledButton(
                   onPressed: () => _copy(
                     _tuner.copyAllChanges(_baseBounds),
                     'All changed-region feedback',
                   ),
                   child: const Text('COPY ALL CHANGES'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
           ],
@@ -619,7 +621,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
         tooltip: 'Decrease $label',
         onPressed: enabled ? () => onAdjust(-amount) : null,
         icon: const Icon(Icons.remove_circle_outline),
-      ),
+      ).actionableFeedback(),
       Expanded(
         child: Text(
           '${value.toStringAsFixed(2)}$suffix',
@@ -630,7 +632,7 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
         tooltip: 'Increase $label',
         onPressed: enabled ? () => onAdjust(amount) : null,
         icon: const Icon(Icons.add_circle_outline),
-      ),
+      ).actionableFeedback(),
     ],
   );
 }
@@ -682,8 +684,14 @@ class _StaleDraftWarning extends StatelessWidget {
           Wrap(
             spacing: 8,
             children: [
-              TextButton(onPressed: onCopy, child: const Text('COPY STALE')),
-              TextButton(onPressed: onReset, child: const Text('RESET DRAFT')),
+              TextButton(
+                onPressed: onCopy,
+                child: const Text('COPY STALE'),
+              ).actionableFeedback(),
+              TextButton(
+                onPressed: onReset,
+                child: const Text('RESET DRAFT'),
+              ).actionableFeedback(),
             ],
           ),
         ],
@@ -725,7 +733,7 @@ class _RecoveryDraftAction extends StatelessWidget {
                 OutlinedButton(
                   onPressed: onRestoreBackup,
                   child: const Text('RESTORE PREVIOUS BACKUP'),
-                ),
+                ).actionableFeedback(),
               FilledButton.tonal(
                 onPressed: onRestore,
                 child: const Text('RESTORE PRODUCT OWNER RECOVERY DRAFT'),

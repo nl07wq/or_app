@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/training_set_v2.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../models/training_record_read_model.dart';
@@ -111,7 +113,7 @@ class _TrainingExerciseV2EditorState extends State<TrainingExerciseV2Editor> {
                 ),
                 tooltip: 'Delete exercise',
                 onPressed: widget.onDelete,
-              ),
+              ).actionableFeedback(),
               if (widget.reorderHandle != null) widget.reorderHandle!,
             ],
           ),

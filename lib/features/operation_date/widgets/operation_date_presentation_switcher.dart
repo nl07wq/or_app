@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/services/app_clock.dart';
 import '../../../core/widgets/operation_flip_tile.dart';
 import '../models/operation_local_date.dart';
@@ -198,7 +200,7 @@ class _OperationDatePresentationSwitcherState
                       : null,
                 ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }

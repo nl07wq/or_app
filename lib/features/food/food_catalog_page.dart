@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/state/app_initialization_state.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -932,12 +934,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             key: const ValueKey('nutrition-recalculation-cancel'),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             key: const ValueKey('nutrition-recalculation-apply'),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('APPLY'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -1137,7 +1139,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                       minimumSize: FoodFormMetrics.barcodeButtonSize,
                       padding: FoodFormMetrics.barcodeButtonPadding,
                     ),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
               if (_barcode.text.trim().isNotEmpty) ...[
@@ -1437,7 +1439,7 @@ class _FoodThumbnailField extends StatelessWidget {
               padding: EdgeInsets.zero,
             ),
             child: const Text('CHANGE'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
       Row(
@@ -1467,7 +1469,7 @@ class _FoodThumbnailField extends StatelessWidget {
     key: const ValueKey('food-catalog-thumbnail-change'),
     onPressed: onChange,
     child: const Text('CHANGE'),
-  );
+  ).actionableFeedback();
 }
 
 class _FoodVisualChoice extends StatelessWidget {
@@ -1519,7 +1521,7 @@ class _FoodVisualChoice extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -1559,7 +1561,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
@@ -1567,7 +1569,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: const Text('削除'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );

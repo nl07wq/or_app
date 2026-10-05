@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -85,7 +87,7 @@ class _InformationDetailSheetState extends State<InformationDetailSheet> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
                   tooltip: '閉じる',
-                ),
+                ).actionableFeedback(),
               ],
             ),
             if (_notices.length > 1) ...[
@@ -119,7 +121,7 @@ class _InformationDetailSheetState extends State<InformationDetailSheet> {
               child: OutlinedButton(
                 onPressed: () => _dismiss(notice),
                 child: const Text('表示から消す'),
-              ),
+              ).actionableFeedback(),
             ),
             if (_notices.length > 1) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -133,7 +135,7 @@ class _InformationDetailSheetState extends State<InformationDetailSheet> {
                             _markRead(_notices[_index]);
                           },
                     child: const Text('前へ'),
-                  ),
+                  ).actionableFeedback(),
                   TextButton(
                     onPressed: _index == _notices.length - 1
                         ? null
@@ -142,7 +144,7 @@ class _InformationDetailSheetState extends State<InformationDetailSheet> {
                             _markRead(_notices[_index]);
                           },
                     child: const Text('次へ'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ],

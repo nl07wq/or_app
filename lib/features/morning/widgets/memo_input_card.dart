@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/operation_text_field.dart';
@@ -60,7 +62,7 @@ class _MemoInputCardState extends State<MemoInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ),
+              ).actionableFeedback(),
             ),
 
           if (expanded) ...[
@@ -74,7 +76,10 @@ class _MemoInputCardState extends State<MemoInputCard> {
 
             Align(
               alignment: Alignment.centerRight,
-              child: FilledButton(onPressed: collapse, child: const Text("完了")),
+              child: FilledButton(
+                onPressed: collapse,
+                child: const Text("完了"),
+              ).actionableFeedback(),
             ),
           ],
         ],

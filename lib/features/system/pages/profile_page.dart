@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -193,7 +195,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     _changed();
                                   },
                                   icon: const Icon(Icons.clear),
-                                ),
+                                ).actionableFeedback(),
                         ),
                         hint: const Text('未設定'),
                         items: const [
@@ -237,7 +239,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               )
                             : const Icon(Icons.save_outlined),
                         label: const Text('プロフィールを保存'),
-                      ),
+                      ).actionableFeedback(),
                       AppSpacing.gapSM,
                       Text(_dirty ? '未保存の変更があります' : '保存済み'),
                       if (_message != null) ...[

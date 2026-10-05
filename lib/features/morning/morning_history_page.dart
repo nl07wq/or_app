@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/morning_data.dart';
 import '../../core/repositories/morning_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
@@ -115,7 +117,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                                 appInitializationController.value.isReadOnly
                                 ? null
                                 : () => _editRecord(data),
-                          ),
+                          ).actionableFeedback(),
                           IconButton(
                             icon: Icon(
                               Icons.delete_outline,
@@ -126,7 +128,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
                                 appInitializationController.value.isReadOnly
                                 ? null
                                 : () => _deleteRecord(data),
-                          ),
+                          ).actionableFeedback(),
                         ],
                       ),
                       const SizedBox(height: 12),
