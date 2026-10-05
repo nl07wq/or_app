@@ -7,7 +7,7 @@ class _SilentTouchRippleAudio implements TouchRippleAudio {
   void dispose() {}
 
   @override
-  void playFromUserGesture() {}
+  void playFromUserGesture(TouchFeedbackSound sound) {}
 
   @override
   void prepare() {}

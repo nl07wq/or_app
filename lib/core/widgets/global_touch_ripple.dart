@@ -64,6 +64,12 @@ class GlobalTouchRipple extends StatefulWidget {
 
   final Widget child;
 
+  static final Map<int, TouchFeedbackSound> _claims = {};
+  static void claimSuccess(int pointer) =>
+      _claims[pointer] = TouchFeedbackSound.success;
+  static void claimFailure(int pointer) =>
+      _claims[pointer] = TouchFeedbackSound.failure;
+
   @override
   State<GlobalTouchRipple> createState() => _GlobalTouchRippleState();
 }
@@ -71,6 +77,7 @@ class GlobalTouchRipple extends StatefulWidget {
 class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     with SingleTickerProviderStateMixin {
   final _events = <TouchRippleEvent>[];
+  final _pendingAudio = <int, Timer>{};
   final _frame = ValueNotifier<_TouchRippleFrame>(_TouchRippleFrame.empty());
   final _clock = Stopwatch();
   late final Ticker _ticker;
@@ -95,7 +102,14 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    _audio.playFromUserGesture();
+    _pendingAudio[event.pointer]?.cancel();
+    _pendingAudio[event.pointer] = Timer(const Duration(milliseconds: 32), () {
+      _audio.playFromUserGesture(
+        GlobalTouchRipple._claims.remove(event.pointer) ??
+            TouchFeedbackSound.water,
+      );
+      _pendingAudio.remove(event.pointer);
+    });
     if (!_motionEnabled) return;
     if (!_clock.isRunning) _clock.start();
     final nextEvents = boundedTouchRippleEvents(
@@ -129,6 +143,9 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   @override
   void dispose() {
     _ticker.dispose();
+    for (final pending in _pendingAudio.values) {
+      pending.cancel();
+    }
     _clock.stop();
     _frame.dispose();
     _audio.dispose();
@@ -188,11 +205,15 @@ class _TouchRipplePainter extends CustomPainter {
           event.position,
           radius,
           Paint()
-            ..color = color.withValues(alpha: opacity * .22)
+            ..color = Color.lerp(
+              color,
+              Colors.white,
+              .42,
+            )!.withValues(alpha: opacity * .30)
             ..style = PaintingStyle.stroke
             ..strokeWidth = lerpDouble(
-              3.4,
-              1.4,
+              4.0,
+              1.8,
               radius / touchRippleMaximumRadius,
             )!,
         );
@@ -200,11 +221,15 @@ class _TouchRipplePainter extends CustomPainter {
           event.position,
           radius,
           Paint()
-            ..color = color.withValues(alpha: opacity)
+            ..color = Color.lerp(
+              color,
+              Colors.white,
+              .36,
+            )!.withValues(alpha: opacity * (.48 - index * .08))
             ..style = PaintingStyle.stroke
             ..strokeWidth = lerpDouble(
-              1.35,
-              .65,
+              .9,
+              .45,
               radius / touchRippleMaximumRadius,
             )!,
         );
@@ -214,7 +239,7 @@ class _TouchRipplePainter extends CustomPainter {
         canvas.drawCircle(
           event.position,
           2 + (1 - contactOpacity) * 3,
-          Paint()..color = color.withValues(alpha: contactOpacity * .5),
+          Paint()..color = color.withValues(alpha: contactOpacity * .20),
         );
       }
     }

@@ -5,25 +5,29 @@ import 'dart:html';
 import 'touch_ripple_audio.dart';
 
 const _touchRippleAudioVolume = .28;
+const _semanticAudioVolume = .34;
 const _maximumConcurrentTouchRippleSounds = 2;
 
 TouchRippleAudio createPlatformTouchRippleAudio() => _WebTouchRippleAudio();
 
 class _WebTouchRippleAudio implements TouchRippleAudio {
   final List<AudioElement> _active = [];
-  AudioElement? _prepared;
+  final Map<TouchFeedbackSound, AudioElement> _prepared = {};
 
   @override
   void prepare() {
-    _prepared ??= _newAudio();
+    for (final sound in TouchFeedbackSound.values) {
+      _prepared.putIfAbsent(sound, () => _newAudio(sound));
+    }
   }
 
   @override
-  void playFromUserGesture() {
+  void playFromUserGesture(TouchFeedbackSound sound) {
     if (_active.length >= _maximumConcurrentTouchRippleSounds) return;
-    final audio = _prepared != null && !_active.contains(_prepared)
-        ? _prepared!
-        : _newAudio();
+    final prepared = _prepared[sound];
+    final audio = prepared != null && !_active.contains(prepared)
+        ? prepared
+        : _newAudio(sound);
     audio
       ..currentTime = 0
       ..play();
@@ -32,10 +36,18 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     audio.onError.first.then((_) => _active.remove(audio));
   }
 
-  AudioElement _newAudio() =>
-      AudioElement(Uri.base.resolve(touchRippleAudioAssetUrl).toString())
+  AudioElement _newAudio(TouchFeedbackSound sound) =>
+      AudioElement(Uri.base.resolve(_assetUrl(sound)).toString())
         ..preload = 'auto'
-        ..volume = _touchRippleAudioVolume;
+        ..volume = sound == TouchFeedbackSound.water
+            ? _touchRippleAudioVolume
+            : _semanticAudioVolume;
+
+  String _assetUrl(TouchFeedbackSound sound) => switch (sound) {
+    TouchFeedbackSound.water => touchRippleAudioAssetUrl,
+    TouchFeedbackSound.success => touchRippleSuccessAudioAssetUrl,
+    TouchFeedbackSound.failure => touchRippleFailureAudioAssetUrl,
+  };
 
   @override
   void dispose() {
@@ -43,7 +55,9 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
       audio.pause();
     }
     _active.clear();
-    _prepared?.pause();
-    _prepared = null;
+    for (final audio in _prepared.values) {
+      audio.pause();
+    }
+    _prepared.clear();
   }
 }

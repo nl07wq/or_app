@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import 'global_touch_ripple.dart';
 
 enum OperationActionRole { primary, secondary, danger }
 
@@ -44,23 +45,27 @@ class OperationButton extends StatelessWidget {
           disabledForegroundColor: Theme.of(context).disabledColor,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20, color: foregroundColor),
-              SizedBox(width: AppSpacing.sm),
-            ],
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  text,
-                  style: AppTextStyles.label.copyWith(color: foregroundColor),
+        child: Listener(
+          onPointerDown: (event) =>
+              GlobalTouchRipple.claimSuccess(event.pointer),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: foregroundColor),
+                SizedBox(width: AppSpacing.sm),
+              ],
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    text,
+                    style: AppTextStyles.label.copyWith(color: foregroundColor),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
