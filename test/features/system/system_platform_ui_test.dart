@@ -352,7 +352,13 @@ void main() {
     expect(find.text(AppMetadata.backupSchemaVersion), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('NOT AVAILABLE'), findsNWidgets(3));
-    expect(find.text('未設定'), findsNWidgets(2));
+    expect(find.text('未設定'), findsOneWidget);
+    expect(
+      find.text(
+        'SE(Water_Drop02-1(Low-Reverb).mp3) by OtoLogic(https://otologic.jp)',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Version'), findsNothing);
   });
 
