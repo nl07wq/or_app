@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
 import 'training_dot_matrix_title.dart';
 
 abstract final class TrainingLedBackGeometry {
@@ -43,6 +44,7 @@ class _TrainingLedBackButtonState extends State<TrainingLedBackButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _exitController;
   bool _popRequested = false;
+  int? _pointerId;
 
   @override
   void initState() {
@@ -55,6 +57,8 @@ class _TrainingLedBackButtonState extends State<TrainingLedBackButton>
 
   void _handlePressed() {
     if (_popRequested || _exitController.isAnimating) return;
+    final pointerId = _pointerId;
+    if (pointerId != null) GlobalTouchRipple.claimSuccess(pointerId);
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _popOnce();
       return;
@@ -80,19 +84,25 @@ class _TrainingLedBackButtonState extends State<TrainingLedBackButton>
     return Semantics(
       button: true,
       label: tooltip,
-      child: IconButton(
-        key: const ValueKey('training-led-back'),
-        tooltip: tooltip,
-        onPressed: _handlePressed,
-        icon: ExcludeSemantics(
-          child: AnimatedBuilder(
-            animation: _exitController,
-            builder: (context, child) => ClipRect(
-              key: const ValueKey('training-led-back-viewport'),
-              child: Transform.translate(
-                key: const ValueKey('training-led-back-scroll'),
-                offset: Offset(-_exitController.value * _LedTriangle.width, 0),
-                child: _LedTriangle(activeColor: widget.activeColor),
+      child: Listener(
+        onPointerDown: (event) => _pointerId = event.pointer,
+        child: IconButton(
+          key: const ValueKey('training-led-back'),
+          tooltip: tooltip,
+          onPressed: _handlePressed,
+          icon: ExcludeSemantics(
+            child: AnimatedBuilder(
+              animation: _exitController,
+              builder: (context, child) => ClipRect(
+                key: const ValueKey('training-led-back-viewport'),
+                child: Transform.translate(
+                  key: const ValueKey('training-led-back-scroll'),
+                  offset: Offset(
+                    -_exitController.value * _LedTriangle.width,
+                    0,
+                  ),
+                  child: _LedTriangle(activeColor: widget.activeColor),
+                ),
               ),
             ),
           ),

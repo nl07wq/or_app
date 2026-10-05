@@ -16,12 +16,17 @@ class OperationButton extends StatelessWidget {
 
   final OperationActionRole role;
 
+  /// Lets an explicitly unavailable control report a non-mutating attempted
+  /// action while retaining its disabled visual and accessibility semantics.
+  final bool reportUnavailableTap;
+
   const OperationButton({
     super.key,
     required this.text,
     required this.onPressed,
     this.icon,
     this.role = OperationActionRole.secondary,
+    this.reportUnavailableTap = false,
   });
 
   @override
@@ -34,7 +39,7 @@ class OperationButton extends StatelessWidget {
             OperationActionRole.secondary => AppTextStyles.label.color!,
             OperationActionRole.danger => colorScheme.error,
           };
-    return SizedBox(
+    final button = SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
@@ -46,8 +51,9 @@ class OperationButton extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
         child: Listener(
-          onPointerDown: (event) =>
-              GlobalTouchRipple.claimSuccess(event.pointer),
+          onPointerDown: onPressed == null
+              ? null
+              : (event) => GlobalTouchRipple.claimSuccess(event.pointer),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -68,6 +74,12 @@ class OperationButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (onPressed != null || !reportUnavailableTap) return button;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) => GlobalTouchRipple.claimFailure(event.pointer),
+      child: button,
     );
   }
 }

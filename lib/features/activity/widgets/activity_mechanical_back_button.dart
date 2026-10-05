@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 /// A compact directional drum for Activity's shared Back affordance.
 ///
 /// The sequence is presentation-only: it always locks on the left direction
@@ -28,6 +30,7 @@ class _ActivityMechanicalBackButtonState
   int _nextSequence = 0;
   List<_Direction> _sequence = const [_left];
   bool _popRequested = false;
+  int? _pointerId;
 
   @override
   void initState() {
@@ -40,6 +43,8 @@ class _ActivityMechanicalBackButtonState
 
   void _handlePressed() {
     if (_popRequested || _controller.isAnimating) return;
+    final pointerId = _pointerId;
+    if (pointerId != null) GlobalTouchRipple.claimSuccess(pointerId);
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _popOnce();
       return;
@@ -69,14 +74,17 @@ class _ActivityMechanicalBackButtonState
     return Semantics(
       button: true,
       label: tooltip,
-      child: IconButton(
-        key: const ValueKey('activity-mechanical-back'),
-        tooltip: tooltip,
-        onPressed: _handlePressed,
-        icon: ExcludeSemantics(
-          child: _MechanicalDirectionCell(
-            animation: _controller,
-            sequence: _sequence,
+      child: Listener(
+        onPointerDown: (event) => _pointerId = event.pointer,
+        child: IconButton(
+          key: const ValueKey('activity-mechanical-back'),
+          tooltip: tooltip,
+          onPressed: _handlePressed,
+          icon: ExcludeSemantics(
+            child: _MechanicalDirectionCell(
+              animation: _controller,
+              sequence: _sequence,
+            ),
           ),
         ),
       ),

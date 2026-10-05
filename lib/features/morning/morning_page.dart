@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
+import '../../core/state/app_initialization_state.dart';
 
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_button.dart';
@@ -75,6 +76,11 @@ class _MorningPageState extends State<MorningPage> {
                           snapshot.connectionState == ConnectionState.done &&
                           !snapshot.hasError &&
                           !statusExists,
+                      reportUnavailableTap:
+                          snapshot.connectionState == ConnectionState.done &&
+                          !snapshot.hasError &&
+                          statusExists &&
+                          !appInitializationController.value.isReadOnly,
                     ),
                     if (statusExists) ...[
                       AppSpacing.gapSM,

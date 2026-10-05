@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 /// A standard Back affordance rendered with the STATUS CRT phosphor language.
 /// System and browser navigation remain under Navigator's normal control.
 class StatusCrtBackButton extends StatefulWidget {
@@ -15,6 +17,7 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _exitController;
   bool _popRequested = false;
+  int? _pointerId;
 
   @override
   void initState() {
@@ -27,6 +30,8 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
 
   void _handlePressed() {
     if (_popRequested || _exitController.isAnimating) return;
+    final pointerId = _pointerId;
+    if (pointerId != null) GlobalTouchRipple.claimSuccess(pointerId);
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _popOnce();
       return;
@@ -52,23 +57,26 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
     return Semantics(
       button: true,
       label: tooltip,
-      child: IconButton(
-        key: const ValueKey('status-crt-back'),
-        tooltip: tooltip,
-        onPressed: _handlePressed,
-        icon: ExcludeSemantics(
-          child: AnimatedBuilder(
-            animation: _exitController,
-            builder: (context, child) {
-              final progress = Curves.easeOutCubic.transform(
-                _exitController.value,
-              );
-              return ClipRect(
-                key: const ValueKey('status-crt-back-exit'),
-                clipper: _RightToLeftPhosphorEraseClipper(progress),
-                child: const _StatusCrtBackTriangle(),
-              );
-            },
+      child: Listener(
+        onPointerDown: (event) => _pointerId = event.pointer,
+        child: IconButton(
+          key: const ValueKey('status-crt-back'),
+          tooltip: tooltip,
+          onPressed: _handlePressed,
+          icon: ExcludeSemantics(
+            child: AnimatedBuilder(
+              animation: _exitController,
+              builder: (context, child) {
+                final progress = Curves.easeOutCubic.transform(
+                  _exitController.value,
+                );
+                return ClipRect(
+                  key: const ValueKey('status-crt-back-exit'),
+                  clipper: _RightToLeftPhosphorEraseClipper(progress),
+                  child: const _StatusCrtBackTriangle(),
+                );
+              },
+            ),
           ),
         ),
       ),

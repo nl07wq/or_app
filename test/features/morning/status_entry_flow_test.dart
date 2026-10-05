@@ -6,6 +6,8 @@ import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/widgets/command_center_hud_sign.dart';
 import 'package:or_app/features/morning/morning_fact_page.dart';
@@ -54,6 +56,34 @@ void main() {
     expect(find.textContaining('本日のSTATUSは登録済みです。'), findsOneWidget);
     expect(find.textContaining('編集する場合はRECORDから行ってください。'), findsOneWidget);
   });
+
+  testWidgets(
+    'completed STATUS ENTRY keeps its disabled action and claims failure feedback',
+    (tester) async {
+      final audio = _RecordingTouchRippleAudio();
+      await AppRepositoryRegistry.container.status.save(_status('2026-08-15'));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GlobalTouchRipple(audio: audio, child: const MorningPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final entry = find.byKey(const ValueKey('status-entry-button'));
+      expect(_entryButton(tester).onPressed, isNull);
+      await tester.tap(entry);
+      await tester.pump(const Duration(milliseconds: 32));
+
+      expect(find.byType(MorningFactPage), findsNothing);
+      expect(
+        await AppRepositoryRegistry.container.status.findByLocalDate(
+          '2026-08-15',
+        ),
+        isNotNull,
+      );
+      expect(audio.played, [TouchFeedbackSound.failure]);
+    },
+  );
 
   test(
     'same-day second new STATUS save is rejected without replacement',
@@ -320,6 +350,19 @@ void main() {
 
 OperationButton _entryButton(WidgetTester tester) =>
     tester.widget(find.byKey(const ValueKey('status-entry-button')));
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
+}
 
 Future<void> _pumpEntry(
   WidgetTester tester, {

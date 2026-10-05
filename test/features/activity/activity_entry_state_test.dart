@@ -5,6 +5,8 @@ import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/features/activity/activity_entry_page.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
@@ -120,6 +122,39 @@ void main() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   });
+
+  testWidgets(
+    'completed ACTIVITY ENTRY keeps its disabled action and claims failure feedback',
+    (tester) async {
+      final audio = _RecordingTouchRippleAudio();
+      await AppRepositoryRegistry.container.activity.save(
+        _activity(currentDate, steps: 5000),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: AppRoutes.activity,
+          routes: {
+            AppRoutes.activity: (_) =>
+                GlobalTouchRipple(audio: audio, child: const ActivityPage()),
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final entry = find.byKey(const ValueKey('activity-entry-button'));
+      expect(_entryButton(tester).onPressed, isNull);
+      await tester.tap(entry);
+      await tester.pump(const Duration(milliseconds: 32));
+
+      expect(find.byType(ActivityEntryPage), findsNothing);
+      expect(
+        await AppRepositoryRegistry.container.activity.findByDate(currentDate),
+        isNotNull,
+      );
+      expect(audio.played, [TouchFeedbackSound.failure]);
+    },
+  );
 }
 
 Future<void> _pumpActivity(
@@ -138,6 +173,19 @@ Future<void> _pumpActivity(
 
 OperationButton _entryButton(WidgetTester tester) =>
     tester.widget(find.byKey(const ValueKey('activity-entry-button')));
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
+}
 
 Future<void> _deleteActivity(WidgetTester tester, String localDate) async {
   final card = find.ancestor(

@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 /// A route-aware optical console header for the command center.
 ///
 /// The visual boot sequence is purely presentational. Navigation continues to
@@ -41,6 +43,7 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
   );
   bool _reducedMotionApplied = false;
   bool _exiting = false;
+  int? _backPointerId;
   late final AnimationController _exitController = AnimationController(
     vsync: this,
     duration: CommandCenterHudSign.exitDuration,
@@ -70,6 +73,8 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
 
   void _requestBack() {
     if (_exiting || widget.onBack == null) return;
+    final pointerId = _backPointerId;
+    if (pointerId != null) GlobalTouchRipple.claimSuccess(pointerId);
     if (_reducedMotionApplied) {
       widget.onBack!.call();
       return;
@@ -122,12 +127,17 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: IconButton(
-                          key: CommandCenterHudSign.backKey,
-                          tooltip: 'Back',
-                          onPressed: _exiting ? null : _requestBack,
-                          color: opticalBlue,
-                          icon: const Icon(Symbols.chevron_left),
+                        child: Listener(
+                          onPointerDown: _exiting
+                              ? null
+                              : (event) => _backPointerId = event.pointer,
+                          child: IconButton(
+                            key: CommandCenterHudSign.backKey,
+                            tooltip: 'Back',
+                            onPressed: _exiting ? null : _requestBack,
+                            color: opticalBlue,
+                            icon: const Icon(Symbols.chevron_left),
+                          ),
                         ),
                       ),
                     ),

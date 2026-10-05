@@ -61,9 +61,13 @@ double? touchRippleRingOpacity(Duration age, int ringIndex) {
 }
 
 class GlobalTouchRipple extends StatefulWidget {
-  const GlobalTouchRipple({super.key, required this.child});
+  const GlobalTouchRipple({super.key, required this.child, this.audio});
 
   final Widget child;
+
+  /// Optional injection point used by focused interaction-feedback tests.
+  /// Production callers use the platform implementation.
+  final TouchRippleAudio? audio;
 
   static final Map<int, TouchFeedbackSound> _claims = {};
   static void claimSuccess(int pointer) =>
@@ -89,7 +93,8 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   void initState() {
     super.initState();
     _ticker = createTicker(_onFrame);
-    _audio = createTouchRippleAudio()..prepare();
+    _audio = widget.audio ?? createTouchRippleAudio();
+    _audio.prepare();
   }
 
   @override
@@ -146,6 +151,9 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     _ticker.dispose();
     for (final pending in _pendingAudio.values) {
       pending.cancel();
+    }
+    for (final pointer in _pendingAudio.keys) {
+      GlobalTouchRipple._claims.remove(pointer);
     }
     _clock.stop();
     _frame.dispose();

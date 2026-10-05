@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 import 'food_vfd_scale_display_title.dart';
 
 enum FoodVfdBackPhase {
@@ -181,6 +183,7 @@ class _FoodVfdBackButtonState extends State<FoodVfdBackButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool _popRequested = false;
+  int? _pointerId;
 
   @override
   void initState() {
@@ -193,6 +196,8 @@ class _FoodVfdBackButtonState extends State<FoodVfdBackButton>
 
   void _handlePressed() {
     if (_popRequested || _controller.isAnimating) return;
+    final pointerId = _pointerId;
+    if (pointerId != null) GlobalTouchRipple.claimSuccess(pointerId);
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _popOnce();
       return;
@@ -218,15 +223,18 @@ class _FoodVfdBackButtonState extends State<FoodVfdBackButton>
     return Semantics(
       button: true,
       label: tooltip,
-      child: IconButton(
-        key: const ValueKey('food-vfd-back'),
-        tooltip: tooltip,
-        onPressed: _handlePressed,
-        icon: ExcludeSemantics(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) => _FoodVfdBackVisual(
-              frame: FoodVfdBackTiming.frameFor(_controller.value),
+      child: Listener(
+        onPointerDown: (event) => _pointerId = event.pointer,
+        child: IconButton(
+          key: const ValueKey('food-vfd-back'),
+          tooltip: tooltip,
+          onPressed: _handlePressed,
+          icon: ExcludeSemantics(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => _FoodVfdBackVisual(
+                frame: FoodVfdBackTiming.frameFor(_controller.value),
+              ),
             ),
           ),
         ),
