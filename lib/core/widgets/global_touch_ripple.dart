@@ -61,7 +61,12 @@ double? touchRippleRingOpacity(Duration age, int ringIndex) {
 }
 
 class GlobalTouchRipple extends StatefulWidget {
-  const GlobalTouchRipple({super.key, required this.child, this.audio});
+  const GlobalTouchRipple({
+    super.key,
+    required this.child,
+    this.audio,
+    this.onRippleEventCreated,
+  });
 
   final Widget child;
 
@@ -69,11 +74,34 @@ class GlobalTouchRipple extends StatefulWidget {
   /// Production callers use the platform implementation.
   final TouchRippleAudio? audio;
 
-  static final Map<int, TouchFeedbackSound> _claims = {};
+  /// Focused test hook for proving exclusion happens before generic feedback.
+  final ValueChanged<int>? onRippleEventCreated;
+
+  static final Map<int, _TouchFeedbackOwnership> _ownership = {};
+  static _GlobalTouchRippleState? _activeState;
+
+  static void excludeGenericFeedback(int pointer) {
+    final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    ownership.genericExcluded = true;
+    final sound = ownership.sound;
+    if (sound != null) _activeState?._playSemanticFeedback(pointer, sound);
+  }
+
   static void claimSuccess(int pointer) =>
-      _claims[pointer] = TouchFeedbackSound.success;
+      _claim(pointer, TouchFeedbackSound.success);
+
   static void claimFailure(int pointer) =>
-      _claims[pointer] = TouchFeedbackSound.failure;
+      _claim(pointer, TouchFeedbackSound.failure);
+
+  static void _claim(int pointer, TouchFeedbackSound sound) {
+    final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    ownership.sound = sound;
+    if (ownership.genericExcluded) {
+      _activeState?._playSemanticFeedback(pointer, sound);
+    }
+  }
+
+  static void _release(int pointer) => _ownership.remove(pointer);
 
   @override
   State<GlobalTouchRipple> createState() => _GlobalTouchRippleState();
@@ -83,6 +111,7 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     with SingleTickerProviderStateMixin {
   final _events = <TouchRippleEvent>[];
   final _pendingAudio = <int, Timer>{};
+  final _exclusionCleanup = <int, Timer>{};
   final _frame = ValueNotifier<_TouchRippleFrame>(_TouchRippleFrame.empty());
   final _clock = Stopwatch();
   late final Ticker _ticker;
@@ -95,6 +124,7 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     _ticker = createTicker(_onFrame);
     _audio = widget.audio ?? createTouchRippleAudio();
     _audio.prepare();
+    GlobalTouchRipple._activeState = this;
   }
 
   @override
@@ -108,28 +138,68 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    _pendingAudio[event.pointer]?.cancel();
-    _pendingAudio[event.pointer] = Timer(const Duration(milliseconds: 32), () {
+    // Pointer dispatch reaches the root before some nested GestureDetectors.
+    // Defer only this classification to the current microtask so the actual
+    // hit control can mark its bounds first. Generic feedback is still never
+    // created for an excluded control, and this is independent of the 32ms
+    // passive-audio fallback.
+    final pointer = event.pointer;
+    final localPosition = event.localPosition;
+    scheduleMicrotask(() => _startPointerFeedback(pointer, localPosition));
+  }
+
+  void _startPointerFeedback(int pointer, Offset localPosition) {
+    final ownership = GlobalTouchRipple._ownership[pointer];
+    if (ownership?.genericExcluded ?? false) {
+      // A semantic region has already identified this physical control. It
+      // deliberately bypasses both generic ripple creation and the delayed
+      // Water Drop fallback; semantic feedback is played by its own claim.
+      return;
+    }
+    _pendingAudio[pointer]?.cancel();
+    _pendingAudio[pointer] = Timer(const Duration(milliseconds: 32), () {
       _audio.playFromUserGesture(
-        GlobalTouchRipple._claims.remove(event.pointer) ??
+        GlobalTouchRipple._ownership.remove(pointer)?.sound ??
             TouchFeedbackSound.water,
       );
-      _pendingAudio.remove(event.pointer);
+      _pendingAudio.remove(pointer);
     });
     if (!_motionEnabled) return;
     if (!_clock.isRunning) _clock.start();
     final nextEvents = boundedTouchRippleEvents(
       _events,
-      TouchRippleEvent(
-        position: event.localPosition,
-        startedAt: _clock.elapsed,
-      ),
+      TouchRippleEvent(position: localPosition, startedAt: _clock.elapsed),
     );
     _events
       ..clear()
       ..addAll(nextEvents);
+    widget.onRippleEventCreated?.call(pointer);
     _publishFrame();
     if (!_ticker.isActive) _ticker.start();
+  }
+
+  void _playSemanticFeedback(int pointer, TouchFeedbackSound sound) {
+    final ownership = GlobalTouchRipple._ownership[pointer];
+    if (ownership == null || ownership.soundPlayed) return;
+    ownership.soundPlayed = true;
+    _audio.playFromUserGesture(sound);
+  }
+
+  void _onPointerFinished(PointerEvent event) {
+    final ownership = GlobalTouchRipple._ownership[event.pointer];
+    if (ownership?.genericExcluded ?? false) {
+      // Some controls legitimately claim semantic success from onPressed,
+      // after pointer-up. Keep ownership through that synchronous gesture
+      // completion, then dispose it promptly and independently per pointer.
+      _exclusionCleanup[event.pointer]?.cancel();
+      _exclusionCleanup[event.pointer] = Timer(
+        const Duration(milliseconds: 100),
+        () {
+          GlobalTouchRipple._release(event.pointer);
+          _exclusionCleanup.remove(event.pointer);
+        },
+      );
+    }
   }
 
   void _onFrame(Duration _) {
@@ -152,8 +222,14 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     for (final pending in _pendingAudio.values) {
       pending.cancel();
     }
+    for (final pending in _exclusionCleanup.values) {
+      pending.cancel();
+    }
     for (final pointer in _pendingAudio.keys) {
-      GlobalTouchRipple._claims.remove(pointer);
+      GlobalTouchRipple._release(pointer);
+    }
+    if (identical(GlobalTouchRipple._activeState, this)) {
+      GlobalTouchRipple._activeState = null;
     }
     _clock.stop();
     _frame.dispose();
@@ -165,6 +241,8 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
   Widget build(BuildContext context) => Listener(
     behavior: HitTestBehavior.translucent,
     onPointerDown: _onPointerDown,
+    onPointerUp: _onPointerFinished,
+    onPointerCancel: _onPointerFinished,
     child: Stack(
       fit: StackFit.expand,
       children: [
@@ -184,6 +262,56 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
       ],
     ),
   );
+}
+
+class _TouchFeedbackOwnership {
+  bool genericExcluded = false;
+  bool soundPlayed = false;
+  TouchFeedbackSound? sound;
+}
+
+/// Marks the exact hit-test bounds of a semantic/actionable control.
+///
+/// It does not consume events or alter accessibility semantics. Its only job
+/// is to identify ownership before the root environmental observer can create
+/// a generic ripple or queue Water Drop audio.
+class SemanticFeedbackRegion extends StatelessWidget {
+  const SemanticFeedbackRegion({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: (event) =>
+        GlobalTouchRipple.excludeGenericFeedback(event.pointer),
+    child: child,
+  );
+}
+
+/// Declares a synchronous accepted action while retaining the child's own
+/// gesture behavior. Use this only where the existing action is known to be
+/// immediately available; it neither invokes nor changes that action.
+class SemanticFeedbackActionRegion extends StatelessWidget {
+  const SemanticFeedbackActionRegion({
+    super.key,
+    required this.child,
+    required this.enabled,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return SemanticFeedbackRegion(
+      child: Listener(
+        onPointerDown: (event) => GlobalTouchRipple.claimSuccess(event.pointer),
+        child: child,
+      ),
+    );
+  }
 }
 
 @immutable

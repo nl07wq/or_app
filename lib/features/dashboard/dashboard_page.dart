@@ -26,6 +26,7 @@ import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/holographic_ambient_background.dart';
+import '../../core/widgets/global_touch_ripple.dart';
 import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
@@ -1354,10 +1355,12 @@ class _DashboardSchedulePilotSurface extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppRadius.large,
-          child: Stack(
+        child: SemanticFeedbackActionRegion(
+          enabled: onTap != null,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppRadius.large,
+            child: Stack(
             fit: StackFit.passthrough,
             children: [
               const Positioned.fill(child: HolographicScanlineOverlay()),
@@ -1366,6 +1369,7 @@ class _DashboardSchedulePilotSurface extends StatelessWidget {
                 child: child,
               ),
             ],
+            ),
           ),
         ),
       ),
@@ -3270,7 +3274,7 @@ class _ProgressRow extends StatelessWidget {
       );
     }
 
-    return Material(
+    final tile = Material(
       color: Colors.transparent,
       shape: shape,
       clipBehavior: Clip.antiAlias,
@@ -3285,6 +3289,9 @@ class _ProgressRow extends StatelessWidget {
         ),
       ),
     );
+    return label == 'WATER'
+        ? SemanticFeedbackActionRegion(enabled: onTap != null, child: tile)
+        : tile;
   }
 }
 

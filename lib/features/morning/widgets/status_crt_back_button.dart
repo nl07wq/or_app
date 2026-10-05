@@ -57,25 +57,27 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
     return Semantics(
       button: true,
       label: tooltip,
-      child: Listener(
-        onPointerDown: (event) => _pointerId = event.pointer,
-        child: IconButton(
-          key: const ValueKey('status-crt-back'),
-          tooltip: tooltip,
-          onPressed: _handlePressed,
-          icon: ExcludeSemantics(
-            child: AnimatedBuilder(
-              animation: _exitController,
-              builder: (context, child) {
-                final progress = Curves.easeOutCubic.transform(
-                  _exitController.value,
-                );
-                return ClipRect(
-                  key: const ValueKey('status-crt-back-exit'),
-                  clipper: _RightToLeftPhosphorEraseClipper(progress),
-                  child: const _StatusCrtBackTriangle(),
-                );
-              },
+      child: SemanticFeedbackRegion(
+        child: Listener(
+          onPointerDown: (event) => _pointerId = event.pointer,
+          child: IconButton(
+            key: const ValueKey('status-crt-back'),
+            tooltip: tooltip,
+            onPressed: _handlePressed,
+            icon: ExcludeSemantics(
+              child: AnimatedBuilder(
+                animation: _exitController,
+                builder: (context, child) {
+                  final progress = Curves.easeOutCubic.transform(
+                    _exitController.value,
+                  );
+                  return ClipRect(
+                    key: const ValueKey('status-crt-back-exit'),
+                    clipper: _RightToLeftPhosphorEraseClipper(progress),
+                    child: const _StatusCrtBackTriangle(),
+                  );
+                },
+              ),
             ),
           ),
         ),

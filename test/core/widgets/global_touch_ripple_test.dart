@@ -96,15 +96,17 @@ void main() {
     expect(audio.played, [TouchFeedbackSound.water]);
   });
 
-  testWidgets('OperationButton claims success without double audio', (
+  testWidgets('OperationButton excludes generic feedback before it starts', (
     tester,
   ) async {
     final audio = _RecordingTouchRippleAudio();
     var actions = 0;
+    var rippleEvents = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: GlobalTouchRipple(
           audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
           child: Scaffold(
             body: Center(
               child: OperationButton(
@@ -118,6 +120,9 @@ void main() {
     );
 
     await tester.tap(find.text('ACTION'));
+    await tester.pump();
+    expect(rippleEvents, 0);
+    expect(audio.played, [TouchFeedbackSound.success]);
     await tester.pump(const Duration(milliseconds: 32));
 
     expect(actions, 1);
@@ -216,10 +221,12 @@ void main() {
     tester,
   ) async {
     final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: GlobalTouchRipple(
           audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
           child: const Scaffold(
             body: Center(
               child: OperationButton(
@@ -234,9 +241,45 @@ void main() {
     );
 
     await tester.tap(find.text('UNAVAILABLE'));
+    await tester.pump();
+    expect(rippleEvents, 0);
+    expect(audio.played, [TouchFeedbackSound.failure]);
     await tester.pump(const Duration(milliseconds: 32));
 
     expect(audio.played, [TouchFeedbackSound.failure]);
+  });
+
+  testWidgets('semantic and passive pointers retain independent ownership', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: Row(
+            children: [
+              Expanded(
+                child: OperationButton(text: 'ACTION', onPressed: () {}),
+              ),
+              const Expanded(child: ColoredBox(color: Colors.black)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tapAt(tester.getCenter(find.text('ACTION')));
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pump(const Duration(milliseconds: 32));
+
+    expect(rippleEvents, 1);
+    expect(audio.played, [
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.water,
+    ]);
   });
 
   testWidgets('STATUS back control claims success feedback', (tester) async {

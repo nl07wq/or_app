@@ -75,11 +75,16 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
-    if (onPressed != null || !reportUnavailableTap) return button;
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) => GlobalTouchRipple.claimFailure(event.pointer),
-      child: button,
+    if (onPressed != null) {
+      return SemanticFeedbackRegion(child: button);
+    }
+    if (!reportUnavailableTap) return button;
+    return SemanticFeedbackRegion(
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (event) => GlobalTouchRipple.claimFailure(event.pointer),
+        child: button,
+      ),
     );
   }
 }

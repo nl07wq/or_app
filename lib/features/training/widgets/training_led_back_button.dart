@@ -84,24 +84,26 @@ class _TrainingLedBackButtonState extends State<TrainingLedBackButton>
     return Semantics(
       button: true,
       label: tooltip,
-      child: Listener(
-        onPointerDown: (event) => _pointerId = event.pointer,
-        child: IconButton(
-          key: const ValueKey('training-led-back'),
-          tooltip: tooltip,
-          onPressed: _handlePressed,
-          icon: ExcludeSemantics(
-            child: AnimatedBuilder(
-              animation: _exitController,
-              builder: (context, child) => ClipRect(
-                key: const ValueKey('training-led-back-viewport'),
-                child: Transform.translate(
-                  key: const ValueKey('training-led-back-scroll'),
-                  offset: Offset(
-                    -_exitController.value * _LedTriangle.width,
-                    0,
+      child: SemanticFeedbackRegion(
+        child: Listener(
+          onPointerDown: (event) => _pointerId = event.pointer,
+          child: IconButton(
+            key: const ValueKey('training-led-back'),
+            tooltip: tooltip,
+            onPressed: _handlePressed,
+            icon: ExcludeSemantics(
+              child: AnimatedBuilder(
+                animation: _exitController,
+                builder: (context, child) => ClipRect(
+                  key: const ValueKey('training-led-back-viewport'),
+                  child: Transform.translate(
+                    key: const ValueKey('training-led-back-scroll'),
+                    offset: Offset(
+                      -_exitController.value * _LedTriangle.width,
+                      0,
+                    ),
+                    child: _LedTriangle(activeColor: widget.activeColor),
                   ),
-                  child: _LedTriangle(activeColor: widget.activeColor),
                 ),
               ),
             ),

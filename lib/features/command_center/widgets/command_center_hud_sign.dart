@@ -127,16 +127,18 @@ class _CommandCenterHudSignState extends State<CommandCenterHudSign>
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: Listener(
-                          onPointerDown: _exiting
-                              ? null
-                              : (event) => _backPointerId = event.pointer,
-                          child: IconButton(
-                            key: CommandCenterHudSign.backKey,
-                            tooltip: 'Back',
-                            onPressed: _exiting ? null : _requestBack,
-                            color: opticalBlue,
-                            icon: const Icon(Symbols.chevron_left),
+                        child: SemanticFeedbackRegion(
+                          child: Listener(
+                            onPointerDown: _exiting
+                                ? null
+                                : (event) => _backPointerId = event.pointer,
+                            child: IconButton(
+                              key: CommandCenterHudSign.backKey,
+                              tooltip: 'Back',
+                              onPressed: _exiting ? null : _requestBack,
+                              color: opticalBlue,
+                              icon: const Icon(Symbols.chevron_left),
+                            ),
                           ),
                         ),
                       ),

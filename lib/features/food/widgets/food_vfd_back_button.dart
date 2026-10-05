@@ -223,17 +223,19 @@ class _FoodVfdBackButtonState extends State<FoodVfdBackButton>
     return Semantics(
       button: true,
       label: tooltip,
-      child: Listener(
-        onPointerDown: (event) => _pointerId = event.pointer,
-        child: IconButton(
-          key: const ValueKey('food-vfd-back'),
-          tooltip: tooltip,
-          onPressed: _handlePressed,
-          icon: ExcludeSemantics(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => _FoodVfdBackVisual(
-                frame: FoodVfdBackTiming.frameFor(_controller.value),
+      child: SemanticFeedbackRegion(
+        child: Listener(
+          onPointerDown: (event) => _pointerId = event.pointer,
+          child: IconButton(
+            key: const ValueKey('food-vfd-back'),
+            tooltip: tooltip,
+            onPressed: _handlePressed,
+            icon: ExcludeSemantics(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) => _FoodVfdBackVisual(
+                  frame: FoodVfdBackTiming.frameFor(_controller.value),
+                ),
               ),
             ),
           ),

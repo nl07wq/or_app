@@ -74,16 +74,18 @@ class _ActivityMechanicalBackButtonState
     return Semantics(
       button: true,
       label: tooltip,
-      child: Listener(
-        onPointerDown: (event) => _pointerId = event.pointer,
-        child: IconButton(
-          key: const ValueKey('activity-mechanical-back'),
-          tooltip: tooltip,
-          onPressed: _handlePressed,
-          icon: ExcludeSemantics(
-            child: _MechanicalDirectionCell(
-              animation: _controller,
-              sequence: _sequence,
+      child: SemanticFeedbackRegion(
+        child: Listener(
+          onPointerDown: (event) => _pointerId = event.pointer,
+          child: IconButton(
+            key: const ValueKey('activity-mechanical-back'),
+            tooltip: tooltip,
+            onPressed: _handlePressed,
+            icon: ExcludeSemantics(
+              child: _MechanicalDirectionCell(
+                animation: _controller,
+                sequence: _sequence,
+              ),
             ),
           ),
         ),
