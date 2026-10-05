@@ -578,6 +578,26 @@ void main() {
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
 
+    expect(
+      find.byKey(const ValueKey('dashboard-weather-glass-operation-date')),
+      findsOneWidget,
+    );
+    for (final label in const [
+      'STATUS',
+      'FOOD',
+      'CALORIES',
+      'PROTEIN',
+      'WATER',
+      'TRAINING',
+      'ACTIVITY',
+      'BRIEF / DEBRIEF',
+    ]) {
+      expect(
+        find.byKey(ValueKey('dashboard-weather-glass-$label')),
+        findsOneWidget,
+      );
+    }
+
     for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
       expect(
         find.descendant(

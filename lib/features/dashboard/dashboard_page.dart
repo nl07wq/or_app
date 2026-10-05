@@ -864,7 +864,8 @@ class _OperationDateCard extends StatelessWidget {
   final FinalizeDateTransition? finalizeTransition;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => _DashboardWeatherGlassSurface(
+    key: const ValueKey('dashboard-weather-glass-operation-date'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -891,6 +892,68 @@ class _OperationDateCard extends StatelessWidget {
     ),
   );
 }
+
+/// Static Calendar-Weather-derived material used only by the Dashboard
+/// surfaces explicitly selected for this pilot. It deliberately contains no
+/// scanlines or ambient animation.
+class _DashboardWeatherGlassSurface extends StatelessWidget {
+  const _DashboardWeatherGlassSurface({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: Colors.transparent,
+        cardTheme: Theme.of(context).cardTheme.copyWith(
+          color: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+        ),
+      ),
+      child: OperationCard(
+        padding: EdgeInsets.zero,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.large,
+            gradient: _dashboardWeatherGlassGradient(scheme),
+            border: Border.all(color: scheme.primary.withValues(alpha: .16)),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withValues(alpha: .055),
+                blurRadius: 18,
+                offset: const Offset(-2, -2),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .34),
+                blurRadius: 18,
+                offset: const Offset(4, 8),
+              ),
+            ],
+          ),
+          child: Padding(padding: AppSpacing.cardPadding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+LinearGradient _dashboardWeatherGlassGradient(
+  ColorScheme scheme, {
+  Color? stateColor,
+  bool stateActive = false,
+}) => LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [
+    (stateColor ?? scheme.primary).withValues(
+      alpha: stateActive || stateColor != null ? .11 : .085,
+    ),
+    scheme.surface.withValues(alpha: .24),
+    scheme.surfaceContainerHigh.withValues(alpha: .13),
+  ],
+);
 
 class DashboardScheduleCard extends StatelessWidget {
   const DashboardScheduleCard({
@@ -1050,13 +1113,15 @@ class _DashboardSchedulePilotSurfaceState
             child: Stack(
               fit: StackFit.passthrough,
               children: [
-                IgnorePointer(
-                  child: CustomPaint(
-                    key: const ValueKey('dashboard-schedule-local-ambient'),
-                    painter: _DashboardScheduleCircuitPainter(
-                      seconds: _seconds,
-                      enabled: !reduced,
-                      color: scheme.primary,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      key: const ValueKey('dashboard-schedule-local-ambient'),
+                      painter: _DashboardScheduleCircuitPainter(
+                        seconds: _seconds,
+                        enabled: !reduced,
+                        color: scheme.primary,
+                      ),
                     ),
                   ),
                 ),
@@ -2878,86 +2943,102 @@ class _ProgressRow extends StatelessWidget {
                   colorScheme.outlineVariant.withValues(alpha: 0.6),
       ),
     );
-    final color = completed
-        ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
-        : Colors.transparent;
+    Widget glassInk({required Widget child}) => Ink(
+      key: ValueKey('dashboard-weather-glass-$label'),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        gradient: _dashboardWeatherGlassGradient(
+          colorScheme,
+          stateColor: semanticColor,
+          stateActive: completed,
+        ),
+      ),
+      child: child,
+    );
     if (completion != null && overlayCompletionZone) {
       return Material(
-        color: color,
+        color: Colors.transparent,
         shape: shape,
         clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            Semantics(
-              button: true,
-              label: 'Open $label',
-              child: InkWell(
-                key: ValueKey('operation-progress-body-$label'),
-                onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: content,
-                ),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              right: 0,
-              bottom: 0,
-              child: SizedBox(
-                key: ValueKey('operation-progress-status-zone-$label'),
-                width: _ProgressStatusAnchorGeometry.statusZoneWidth,
-                child: _CompletionHelpButton(completion: completion!),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (completion != null) {
-      return Material(
-        color: color,
-        shape: shape,
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Semantics(
+        child: glassInk(
+          child: Stack(
+            children: [
+              Semantics(
                 button: true,
                 label: 'Open $label',
                 child: InkWell(
                   key: ValueKey('operation-progress-body-$label'),
                   onTap: onTap,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.md,
-                    ),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     child: content,
                   ),
                 ),
               ),
-            ),
-            SizedBox(
-              key: ValueKey('operation-progress-status-zone-$label'),
-              width: _ProgressStatusAnchorGeometry.statusZoneWidth,
-              child: _CompletionHelpButton(completion: completion!),
-            ),
-          ],
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: SizedBox(
+                  key: ValueKey('operation-progress-status-zone-$label'),
+                  width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+                  child: _CompletionHelpButton(completion: completion!),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (completion != null) {
+      return Material(
+        color: Colors.transparent,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: glassInk(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Semantics(
+                  button: true,
+                  label: 'Open $label',
+                  child: InkWell(
+                    key: ValueKey('operation-progress-body-$label'),
+                    onTap: onTap,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.md,
+                      ),
+                      child: content,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                key: ValueKey('operation-progress-status-zone-$label'),
+                width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+                child: _CompletionHelpButton(completion: completion!),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Material(
-      color: color,
+      color: Colors.transparent,
       shape: shape,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: content,
+      clipBehavior: Clip.antiAlias,
+      child: glassInk(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: content,
+          ),
         ),
       ),
     );

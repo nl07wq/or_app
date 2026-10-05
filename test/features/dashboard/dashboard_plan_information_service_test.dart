@@ -229,6 +229,17 @@ void main() {
         find.byKey(const ValueKey('dashboard-schedule-local-ambient')),
         findsOneWidget,
       );
+      final ambient = find.byKey(
+        const ValueKey('dashboard-schedule-local-ambient'),
+      );
+      final ambientSize = tester.getSize(ambient);
+      expect(ambientSize.width, greaterThan(0));
+      expect(ambientSize.height, greaterThan(0));
+      final initialPainter = tester.widget<CustomPaint>(ambient).painter;
+      await tester.pump(const Duration(milliseconds: 800));
+      final activePainter = tester.widget<CustomPaint>(ambient).painter;
+      expect(activePainter, isNot(same(initialPainter)));
+      expect(activePainter!.shouldRepaint(initialPainter!), isTrue);
       expect(find.byType(HolographicScanlineOverlay), findsOneWidget);
       for (final id in ['overdue', 'morning', 'evening']) {
         expect(
