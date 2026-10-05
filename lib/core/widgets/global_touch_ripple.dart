@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -83,22 +84,60 @@ class GlobalTouchRipple extends StatefulWidget {
   static void excludeGenericFeedback(int pointer) {
     final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
     ownership.genericExcluded = true;
-    final sound = ownership.sound;
-    if (sound != null) _activeState?._playSemanticFeedback(pointer, sound);
   }
 
+  /// Resolves feedback from a confirmed accepted callback.
+  ///
+  /// Shared actionable controls use [beginSemanticFeedback] on pointer-down
+  /// and [confirmSemanticFeedback] only after a completed tap. This remains
+  /// available for an existing callback that already knows the action result.
   static void claimSuccess(int pointer) =>
-      _claim(pointer, TouchFeedbackSound.success);
+      _claimResolved(pointer, TouchFeedbackSound.success);
 
   static void claimFailure(int pointer) =>
-      _claim(pointer, TouchFeedbackSound.failure);
+      _claimResolved(pointer, TouchFeedbackSound.failure);
 
-  static void _claim(int pointer, TouchFeedbackSound sound) {
+  static void _claimResolved(int pointer, TouchFeedbackSound sound) {
     final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    ownership.genericExcluded = true;
     ownership.sound = sound;
-    if (ownership.genericExcluded) {
-      _activeState?._playSemanticFeedback(pointer, sound);
+    _activeState?._playSemanticFeedback(pointer, sound);
+  }
+
+  static void beginSemanticFeedback(
+    int pointer,
+    TouchFeedbackSound sound,
+    Offset position,
+  ) {
+    final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
+    ownership
+      ..genericExcluded = true
+      ..sound = sound
+      ..downPosition = position
+      ..semanticCancelled = false;
+  }
+
+  static void updateSemanticPointer(int pointer, Offset position) {
+    final ownership = _ownership[pointer];
+    final downPosition = ownership?.downPosition;
+    if (ownership == null || downPosition == null) return;
+    if ((position - downPosition).distance > kTouchSlop) {
+      ownership.semanticCancelled = true;
     }
+  }
+
+  static void cancelSemanticFeedback(int pointer) {
+    final ownership = _ownership[pointer];
+    if (ownership != null) ownership.semanticCancelled = true;
+  }
+
+  static void confirmSemanticFeedback(int pointer) {
+    final ownership = _ownership[pointer];
+    final sound = ownership?.sound;
+    if (ownership == null || ownership.semanticCancelled || sound == null) {
+      return;
+    }
+    _activeState?._playSemanticFeedback(pointer, sound);
   }
 
   static void _release(int pointer) => _ownership.remove(pointer);
@@ -267,6 +306,8 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
 class _TouchFeedbackOwnership {
   bool genericExcluded = false;
   bool soundPlayed = false;
+  bool semanticCancelled = false;
+  Offset? downPosition;
   TouchFeedbackSound? sound;
 }
 
@@ -289,14 +330,15 @@ class SemanticFeedbackRegion extends StatelessWidget {
   );
 }
 
-/// The semantic result owned by an actionable OR-APP control.
-enum ActionableFeedbackResult { accepted, unavailable }
+/// The feedback role owned by an actionable OR-APP control.
+enum ActionableFeedbackResult { accepted, unavailable, silent }
 
 /// Shared ownership boundary for every actionable control.
 ///
 /// It keeps feature code concerned with the control's existing callback while
 /// this primitive owns generic-feedback exclusion and the one semantic sound.
 /// Use [unavailable] only for intentionally pointer-aware disabled controls.
+/// Use [silent] only for an intentionally silent, display-only interaction.
 class ActionableFeedbackRegion extends StatelessWidget {
   const ActionableFeedbackRegion({
     super.key,
@@ -312,18 +354,36 @@ class ActionableFeedbackRegion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!enabled) return child;
-    return SemanticFeedbackRegion(
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) => switch (result) {
-          ActionableFeedbackResult.accepted => GlobalTouchRipple.claimSuccess(
-            event.pointer,
-          ),
-          ActionableFeedbackResult.unavailable =>
-            GlobalTouchRipple.claimFailure(event.pointer),
-        },
-        child: child,
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        GlobalTouchRipple.excludeGenericFeedback(event.pointer);
+        switch (result) {
+          case ActionableFeedbackResult.accepted:
+            GlobalTouchRipple.beginSemanticFeedback(
+              event.pointer,
+              TouchFeedbackSound.success,
+              event.position,
+            );
+          case ActionableFeedbackResult.unavailable:
+            GlobalTouchRipple.beginSemanticFeedback(
+              event.pointer,
+              TouchFeedbackSound.failure,
+              event.position,
+            );
+          case ActionableFeedbackResult.silent:
+            break;
+        }
+      },
+      onPointerMove: (event) => GlobalTouchRipple.updateSemanticPointer(
+        event.pointer,
+        event.position,
       ),
+      onPointerCancel: (event) =>
+          GlobalTouchRipple.cancelSemanticFeedback(event.pointer),
+      onPointerUp: (event) =>
+          GlobalTouchRipple.confirmSemanticFeedback(event.pointer),
+      child: child,
     );
   }
 }

@@ -659,6 +659,7 @@ class _CalendarWeatherHud extends StatelessWidget {
                       day: selected,
                       snapshot: snapshot!,
                       onSwipeDate: onSwipeDate,
+                      silentOnTap: !expanded,
                       onTap: expanded
                           ? () => _showDailyForecastDetail(
                               context,
@@ -839,7 +840,7 @@ class _WeatherHeader extends StatelessWidget {
                 ],
               ),
             ),
-          ).actionableFeedback(),
+          ).actionableFeedback(result: ActionableFeedbackResult.silent),
         ),
         IconButton(
           tooltip: '天気を更新',
@@ -963,7 +964,7 @@ class _WeatherConsoleSectionHeader extends StatelessWidget {
             ],
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(result: ActionableFeedbackResult.silent),
     );
   }
 }
@@ -1860,12 +1861,14 @@ class _WeatherSummary extends StatelessWidget {
     required this.snapshot,
     required this.onSwipeDate,
     required this.onTap,
+    required this.silentOnTap,
   });
 
   final WeatherDaily day;
   final WeatherSnapshot snapshot;
   final ValueChanged<int> onSwipeDate;
   final VoidCallback onTap;
+  final bool silentOnTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1954,7 +1957,11 @@ class _WeatherSummary extends StatelessWidget {
             ],
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(
+        result: silentOnTap
+            ? ActionableFeedbackResult.silent
+            : ActionableFeedbackResult.accepted,
+      ),
     ).actionableFeedback();
   }
 }

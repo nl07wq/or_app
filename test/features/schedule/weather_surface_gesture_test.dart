@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/holographic_ambient_background.dart';
 import 'package:or_app/features/operation_date/services/japanese_holiday_reference_service.dart';
 import 'package:or_app/features/reminders/models/reminder_definition.dart';
@@ -504,6 +506,39 @@ void main() {
     expect(find.text('SCHEDULE │ REMINDER'), findsOneWidget);
     expect(find.text('スケジュール │ リマインダー'), findsNothing);
     expect(find.text('CALENDAR // DATE MATRIX'), findsNothing);
+  });
+
+  testWidgets('Calendar Weather disclosure expands and collapses silently', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: const CalendarPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final disclosure = find.text('天気').first;
+    expect(find.byIcon(Icons.expand_more), findsWidgets);
+    await tester.tap(disclosure);
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.expand_less), findsWidgets);
+    expect(audio.played, isEmpty);
+    expect(rippleEvents, 0);
+
+    await tester.tap(disclosure);
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.expand_more), findsWidgets);
+    expect(audio.played, isEmpty);
+    expect(rippleEvents, 0);
   });
 
   testWidgets(
@@ -1009,3 +1044,16 @@ WeatherSnapshot _recentPastSnapshot() {
 }
 
 String _dateText(DateTime value) => value.toIso8601String().split('T').first;
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
+}

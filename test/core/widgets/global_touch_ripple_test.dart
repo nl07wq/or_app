@@ -119,14 +119,55 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('ACTION'));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('ACTION')),
+    );
     await tester.pump();
     expect(rippleEvents, 0);
+    expect(audio.played, isEmpty);
+    await gesture.up();
+    await tester.pump();
+
     expect(audio.played, [TouchFeedbackSound.success]);
     await tester.pump(const Duration(milliseconds: 32));
 
     expect(actions, 1);
     expect(audio.played, [TouchFeedbackSound.success]);
+  });
+
+  testWidgets('actionable drag cancellation stays fully silent', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var actions = 0;
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: Scaffold(
+            body: Center(
+              child: OperationButton(
+                text: 'DRAG ACTION',
+                onPressed: () => actions++,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('DRAG ACTION')),
+    );
+    await gesture.moveBy(const Offset(0, 40));
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 32));
+
+    expect(actions, 0);
+    expect(rippleEvents, 0);
+    expect(audio.played, isEmpty);
   });
 
   testWidgets('shared actionable region owns accepted and unavailable taps', (
@@ -176,6 +217,37 @@ void main() {
       TouchFeedbackSound.failure,
       TouchFeedbackSound.water,
     ]);
+  });
+
+  testWidgets('silent actionable region excludes generic feedback only', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    var actions = 0;
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: ActionableFeedbackRegion(
+            result: ActionableFeedbackResult.silent,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => actions++,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tapAt(const Offset(100, 100));
+    await tester.pump(const Duration(milliseconds: 32));
+
+    expect(actions, 1);
+    expect(rippleEvents, 0);
+    expect(audio.played, isEmpty);
   });
 
   testWidgets('stock controls inherit the shared actionable contract', (

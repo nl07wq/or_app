@@ -127,6 +127,7 @@ void main() {
     'completed ACTIVITY ENTRY keeps its disabled action and claims failure feedback',
     (tester) async {
       final audio = _RecordingTouchRippleAudio();
+      var rippleEvents = 0;
       await AppRepositoryRegistry.container.activity.save(
         _activity(currentDate, steps: 5000),
       );
@@ -135,8 +136,11 @@ void main() {
         MaterialApp(
           initialRoute: AppRoutes.activity,
           routes: {
-            AppRoutes.activity: (_) =>
-                GlobalTouchRipple(audio: audio, child: const ActivityPage()),
+            AppRoutes.activity: (_) => GlobalTouchRipple(
+              audio: audio,
+              onRippleEventCreated: (_) => rippleEvents++,
+              child: const ActivityPage(),
+            ),
           },
         ),
       );
@@ -144,7 +148,10 @@ void main() {
 
       final entry = find.byKey(const ValueKey('activity-entry-button'));
       expect(_entryButton(tester).onPressed, isNull);
-      await tester.tap(entry);
+      final tap = await tester.startGesture(tester.getCenter(entry));
+      await tester.pump();
+      expect(audio.played, isEmpty);
+      await tap.up();
       await tester.pump(const Duration(milliseconds: 32));
 
       expect(find.byType(ActivityEntryPage), findsNothing);
@@ -153,6 +160,16 @@ void main() {
         isNotNull,
       );
       expect(audio.played, [TouchFeedbackSound.failure]);
+      expect(rippleEvents, 0);
+
+      audio.played.clear();
+      final drag = await tester.startGesture(tester.getCenter(entry));
+      await drag.moveBy(const Offset(0, 40));
+      await drag.up();
+      await tester.pump(const Duration(milliseconds: 32));
+
+      expect(audio.played, isEmpty);
+      expect(rippleEvents, 0);
     },
   );
 }

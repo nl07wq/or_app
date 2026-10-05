@@ -61,17 +61,25 @@ void main() {
     'completed STATUS ENTRY keeps its disabled action and claims failure feedback',
     (tester) async {
       final audio = _RecordingTouchRippleAudio();
+      var rippleEvents = 0;
       await AppRepositoryRegistry.container.status.save(_status('2026-08-15'));
       await tester.pumpWidget(
         MaterialApp(
-          home: GlobalTouchRipple(audio: audio, child: const MorningPage()),
+          home: GlobalTouchRipple(
+            audio: audio,
+            onRippleEventCreated: (_) => rippleEvents++,
+            child: const MorningPage(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
       final entry = find.byKey(const ValueKey('status-entry-button'));
       expect(_entryButton(tester).onPressed, isNull);
-      await tester.tap(entry);
+      final tap = await tester.startGesture(tester.getCenter(entry));
+      await tester.pump();
+      expect(audio.played, isEmpty);
+      await tap.up();
       await tester.pump(const Duration(milliseconds: 32));
 
       expect(find.byType(MorningFactPage), findsNothing);
@@ -82,6 +90,16 @@ void main() {
         isNotNull,
       );
       expect(audio.played, [TouchFeedbackSound.failure]);
+      expect(rippleEvents, 0);
+
+      audio.played.clear();
+      final drag = await tester.startGesture(tester.getCenter(entry));
+      await drag.moveBy(const Offset(0, 40));
+      await drag.up();
+      await tester.pump(const Duration(milliseconds: 32));
+
+      expect(audio.played, isEmpty);
+      expect(rippleEvents, 0);
     },
   );
 
