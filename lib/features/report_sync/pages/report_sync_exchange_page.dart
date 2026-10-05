@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
@@ -754,10 +755,13 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         if (_isImportOnly) ...[
           Align(
             alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: ready && !_busy ? _copyInstruction : null,
-              icon: const Icon(Icons.content_copy),
-              label: const Text('COPY CHATGPT PROMPT'),
+            child: SemanticFeedbackActionRegion(
+              enabled: ready && !_busy,
+              child: OutlinedButton.icon(
+                onPressed: ready && !_busy ? _copyInstruction : null,
+                icon: const Icon(Icons.content_copy),
+                label: const Text('COPY CHATGPT PROMPT'),
+              ),
             ),
           ),
           _ActionFeedback(
@@ -769,12 +773,15 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           if (widget.exchangeType == ReportSyncExchangeType.morningBrief) ...[
             Align(
               alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _hasValidSelectedDate && !_busy
-                    ? _generateStatusSource
-                    : null,
-                icon: const Icon(Icons.description_outlined),
-                label: const Text('GENERATE STATUS SOURCE'),
+              child: SemanticFeedbackActionRegion(
+                enabled: _hasValidSelectedDate && !_busy,
+                child: OutlinedButton.icon(
+                  onPressed: _hasValidSelectedDate && !_busy
+                      ? _generateStatusSource
+                      : null,
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('GENERATE STATUS SOURCE'),
+                ),
               ),
             ),
             _ActionFeedback(
@@ -786,17 +793,24 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           ],
           Align(
             alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed:
+            child: SemanticFeedbackActionRegion(
+              enabled:
                   ready &&
-                      !_busy &&
-                      (widget.exchangeType !=
-                              ReportSyncExchangeType.morningBrief ||
-                          _statusSourceGenerated)
-                  ? _copyInstruction
-                  : null,
-              icon: const Icon(Icons.content_copy),
-              label: const Text('COPY CHATGPT PROMPT'),
+                  !_busy &&
+                  (widget.exchangeType != ReportSyncExchangeType.morningBrief ||
+                      _statusSourceGenerated),
+              child: OutlinedButton.icon(
+                onPressed:
+                    ready &&
+                        !_busy &&
+                        (widget.exchangeType !=
+                                ReportSyncExchangeType.morningBrief ||
+                            _statusSourceGenerated)
+                    ? _copyInstruction
+                    : null,
+                icon: const Icon(Icons.content_copy),
+                label: const Text('COPY CHATGPT PROMPT'),
+              ),
             ),
           ),
           _ActionFeedback(
