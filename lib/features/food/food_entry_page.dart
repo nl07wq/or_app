@@ -94,7 +94,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       ),
     );
 
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    _returnToFood();
     return true;
   }
 
@@ -139,7 +139,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    _returnToFood();
     return true;
   }
 
@@ -180,48 +180,62 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    _returnToFood();
     return true;
+  }
+
+  void _returnToFood() {
+    // A focused DOM input can retain the mobile browser's reduced visual
+    // viewport while this route is removed. Clear it before the cascading pop
+    // so FOOD receives fresh viewport metrics immediately on return.
+    FocusScope.of(context).unfocus();
+    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
-        title: const FoodVfdScaleDisplayTitle(
-          mode: FoodVfdScaleDisplayMode.entry,
+    return WillPopScope(
+      onWillPop: () async {
+        FocusScope.of(context).unfocus();
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
+          title: const FoodVfdScaleDisplayTitle(
+            mode: FoodVfdScaleDisplayMode.entry,
+          ),
         ),
-      ),
-      body: _localDate == null && _dateLoadError == null
-          ? const Center(child: CircularProgressIndicator())
-          : _dateLoadError != null
-          ? const Center(child: Text('Operation Dateを取得できませんでした。'))
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                child: Column(
-                  children: [
-                    FoodInputForm(
-                      onSave: save,
-                      onSaveWithCatalog: saveWithCatalog,
-                      onSaveWithSources: saveWithSources,
-                      scrollController: _scrollController,
-                    ),
-                    const SizedBox(height: 20),
-                    ValueListenableBuilder(
-                      valueListenable: foodSummaryNotifier,
-                      builder: (context, summary, _) => summary == null
-                          ? const SizedBox.shrink()
-                          : FoodSummaryCard(summary: summary),
-                    ),
-                  ],
+        body: _localDate == null && _dateLoadError == null
+            ? const Center(child: CircularProgressIndicator())
+            : _dateLoadError != null
+            ? const Center(child: Text('Operation Dateを取得できませんでした。'))
+            : Padding(
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    children: [
+                      FoodInputForm(
+                        onSave: save,
+                        onSaveWithCatalog: saveWithCatalog,
+                        onSaveWithSources: saveWithSources,
+                        scrollController: _scrollController,
+                      ),
+                      const SizedBox(height: 20),
+                      ValueListenableBuilder(
+                        valueListenable: foodSummaryNotifier,
+                        builder: (context, summary, _) => summary == null
+                            ? const SizedBox.shrink()
+                            : FoodSummaryCard(summary: summary),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }

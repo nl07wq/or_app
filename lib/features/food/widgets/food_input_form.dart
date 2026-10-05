@@ -1543,12 +1543,24 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
       ),
     );
+    // Navigator restores the previous route's focused field during its pop
+    // completion. Clear it now and once after that restoration frame, so a
+    // keyboard-adjusted browser viewport cannot survive the later FOOD ENTRY
+    // -> FOOD return.
+    _dismissRestoredInput();
     if (saved != null && mounted) {
       _bindCurrentItemToCatalog(saved, consumedAmount);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('SAVED · DB LINKED')));
     }
+  }
+
+  void _dismissRestoredInput() {
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FocusScope.of(context).unfocus();
+    });
   }
 
   void _bindCurrentItemToCatalog(
@@ -1619,6 +1631,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
       });
       return;
     }
+
+    // Finish the active text-input session before the successful save removes
+    // FOOD ENTRY from the route stack. This keeps the browser viewport from
+    // carrying a keyboard-adjusted layout back to FOOD.
+    FocusScope.of(context).unfocus();
 
     final meal = MealData(
       id:

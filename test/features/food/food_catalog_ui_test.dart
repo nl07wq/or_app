@@ -970,6 +970,50 @@ void main() {
     expect(await repository.list(), isEmpty);
   });
 
+  testWidgets('editor back clears a focused field before route return', (
+    tester,
+  ) async {
+    final repository = _MemoryCatalogRepository(const []);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        FoodCatalogEditorPage(repository: repository),
+                  ),
+                ),
+                child: const Text('OPEN EDITOR'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('OPEN EDITOR'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'NAME'), 'Food');
+    expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('OPEN EDITOR'), findsOneWidget);
+    expect(
+      find
+          .byType(EditableText)
+          .evaluate()
+          .map((element) => element.widget as EditableText)
+          .any((field) => field.focusNode.hasFocus),
+      isFalse,
+    );
+    expect(await repository.list(), isEmpty);
+  });
+
   testWidgets('duplicate barcode reports existing food without overwrite', (
     tester,
   ) async {

@@ -11,6 +11,7 @@ import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/food/data/beta_meal_templates.dart';
 import 'package:or_app/features/food/food_edit_page.dart';
 import 'package:or_app/features/food/food_entry_page.dart';
+import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/food_history_page.dart';
 import 'package:or_app/features/food/food_page.dart';
 import 'package:or_app/features/food/models/persisted_food_record.dart';
@@ -1242,6 +1243,77 @@ void main() {
       expect(find.byType(FoodEntryPage), findsNothing);
       expect(observer.popCount, 1);
     });
+
+    testWidgets(
+      'database registration clears focused input before returning to FOOD',
+      (tester) async {
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        tester.view.physicalSize = const Size(900, 900);
+        tester.view.devicePixelRatio = 1;
+        for (final registrationCycle in [1, 2]) {
+          await _pumpFoodModule(tester);
+          final foodEntryButton = find.widgetWithText(
+            OperationButton,
+            'FOOD ENTRY',
+          );
+          final before = tester.getRect(foodEntryButton);
+          final textScaleBefore = MediaQuery.textScalerOf(
+            tester.element(find.byType(FoodPage)),
+          ).scale(16);
+
+          await tester.tap(find.text('FOOD ENTRY'));
+          await tester.pumpAndSettle();
+          await _enterNavigationMeal(tester);
+          await tester.ensureVisible(
+            find.byKey(const ValueKey('food-save-to-catalog')),
+          );
+          await tester.tap(find.byKey(const ValueKey('food-save-to-catalog')));
+          await tester.pumpAndSettle();
+          expect(find.byType(FoodCatalogEditorPage), findsOneWidget);
+
+          final nameField = find.widgetWithText(TextField, 'NAME');
+          await tester.enterText(nameField, 'Food $registrationCycle');
+          expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+          await tester.ensureVisible(find.text('SAVE'));
+          await tester.tap(find.text('SAVE'));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(FoodEntryPage), findsOneWidget);
+          expect(
+            find
+                .byType(EditableText)
+                .evaluate()
+                .map((element) => element.widget as EditableText)
+                .any((field) => field.focusNode.hasFocus),
+            isFalse,
+          );
+          await tester.ensureVisible(find.text('SAVE MEAL'));
+          await tester.tap(find.text('SAVE MEAL'));
+          await tester.pumpAndSettle();
+
+          _expectFoodModule();
+          final after = tester.getRect(
+            find.widgetWithText(OperationButton, 'FOOD ENTRY'),
+          );
+          final textScaleAfter = MediaQuery.textScalerOf(
+            tester.element(find.byType(FoodPage)),
+          ).scale(16);
+          expect(after.size, before.size);
+          expect(after.topLeft, before.topLeft);
+          expect(textScaleAfter, textScaleBefore);
+          expect(
+            await AppRepositoryRegistry.container.foodCatalog.list(),
+            hasLength(registrationCycle),
+          );
+          expect(
+            await AppRepositoryRegistry.container.dailyMealsV2.findAll(),
+            hasLength(registrationCycle),
+          );
+        }
+      },
+    );
 
     testWidgets('SAVE WATER returns once to the FOOD module after success', (
       tester,
