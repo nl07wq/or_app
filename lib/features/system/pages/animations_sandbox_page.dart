@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,7 +12,14 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
-import 'cat_trace_poc_data.dart';
+import 'bat_v3_flight_motion_poc.dart';
+import 'bird_v1_flight_preview.dart';
+import 'ambient_wildlife_v2.dart';
+import 'cat_run_v2_poc_section.dart';
+import 'cat_run_v23_production_preview.dart';
+import 'fox_run_v1_section.dart';
+import 'fox_rear_leg_geometry_lab.dart';
+import 'fox_pattern_preview.dart';
 import 'pixel_lab_page.dart';
 
 const _bootSequenceAssets = [
@@ -112,70 +121,407 @@ class AnimationsSandboxPage extends StatelessWidget {
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [
-        const SectionHeader(
-          icon: Icons.rocket_launch_outlined,
-          title: 'BOOT SEQUENCE',
-        ),
-        AppSpacing.gapSM,
-        OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('起動演出の構成と再生操作を確認します。'),
-              AppSpacing.gapMD,
-              _SandboxActionButton(
-                key: const ValueKey('open-boot-sequence-preview'),
-                text: 'OPEN BOOT SEQUENCE',
-                icon: Icons.play_circle_outline,
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.bootSequencePreview),
-              ),
-            ],
-          ),
-        ),
+        const _BootSequenceSandboxSection(),
         AppSpacing.gapXL,
-        const SectionHeader(icon: Icons.grid_on_outlined, title: 'PIXEL LAB'),
-        AppSpacing.gapSM,
-        OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('AssetのPixelation、表示サイズ、背景、色変換をPreviewします。'),
-              AppSpacing.gapMD,
-              _SandboxActionButton(
-                key: const ValueKey('open-pixel-lab'),
-                text: 'OPEN PIXEL LAB',
-                icon: Icons.grid_on_outlined,
-                onPressed: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PixelLabPage(assetLoader: pixelLabAssetLoader),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        _PixelLabSandboxSection(pixelLabAssetLoader: pixelLabAssetLoader),
+        AppSpacing.gapXL,
+        const _WeatherSymbolSandboxSection(),
+        AppSpacing.gapXL,
+        const _DashboardAmbientWildlifePreviewSection(),
         AppSpacing.gapXL,
         const _AmbientWildlifeSandboxSection(),
         AppSpacing.gapXL,
-        const _CatTracePipelinePocSection(),
+        const _AmbientWildlifeV1Section(),
+        AppSpacing.gapXL,
+        const _AnimalSandboxSections(),
       ],
     ),
   );
 }
 
-class _AmbientWildlifeSandboxSection extends StatefulWidget {
-  const _AmbientWildlifeSandboxSection();
+class _BootSequenceSandboxSection extends StatelessWidget {
+  const _BootSequenceSandboxSection();
 
   @override
-  State<_AmbientWildlifeSandboxSection> createState() =>
-      _AmbientWildlifeSandboxSectionState();
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(
+        icon: Icons.rocket_launch_outlined,
+        title: 'BOOT SEQUENCE',
+      ),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('起動演出の構成と再生操作を確認します。'),
+            AppSpacing.gapMD,
+            _SandboxActionButton(
+              key: const ValueKey('open-boot-sequence-preview'),
+              text: 'OPEN BOOT SEQUENCE',
+              icon: Icons.play_circle_outline,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.bootSequencePreview),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
-class _AmbientWildlifeSandboxSectionState
-    extends State<_AmbientWildlifeSandboxSection> {
+class _PixelLabSandboxSection extends StatelessWidget {
+  const _PixelLabSandboxSection({this.pixelLabAssetLoader});
+
+  final PixelLabAssetLoader? pixelLabAssetLoader;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SectionHeader(icon: Icons.grid_on_outlined, title: 'PIXEL LAB'),
+      AppSpacing.gapSM,
+      OperationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('AssetのPixelation、表示サイズ、背景、色変換をPreviewします。'),
+            AppSpacing.gapMD,
+            _SandboxActionButton(
+              key: const ValueKey('open-pixel-lab'),
+              text: 'OPEN PIXEL LAB',
+              icon: Icons.grid_on_outlined,
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PixelLabPage(assetLoader: pixelLabAssetLoader),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// Comparison-only catalog for deciding how shower conditions should read at
+/// production sizes. It deliberately does not feed a selection back into the
+/// Weather UI or its condition mapping.
+class _WeatherSymbolSandboxSection extends StatelessWidget {
+  const _WeatherSymbolSandboxSection();
+
+  static const _candidates = <_WeatherSymbolCandidateData>[
+    _WeatherSymbolCandidateData(
+      keyName: 'material-showers',
+      label: 'MATERIAL · SHOWERS',
+      note: '既存の単体候補',
+      symbol: _WeatherSymbolCandidate.materialShowers,
+    ),
+    _WeatherSymbolCandidateData(
+      keyName: 'cloud-base',
+      label: 'MATERIAL · CLOUD',
+      note: 'Cloud base',
+      symbol: _WeatherSymbolCandidate.cloudBase,
+    ),
+    _WeatherSymbolCandidateData(
+      keyName: 'cloud-umbrella',
+      label: 'CLOUD + UMBRELLA',
+      note: 'Composite shower A',
+      symbol: _WeatherSymbolCandidate.cloudUmbrella,
+    ),
+    _WeatherSymbolCandidateData(
+      keyName: 'cloud-drops',
+      label: 'CLOUD + DROPS',
+      note: 'Composite shower B',
+      symbol: _WeatherSymbolCandidate.cloudDrops,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: const ValueKey('weather-symbol-sandbox-section'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          icon: Icons.cloud_outlined,
+          title: 'WEATHER SYMBOL SANDBOX',
+        ),
+        AppSpacing.gapSM,
+        OperationCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Material SymbolとCloudベースのShower表現を比較します。',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              AppSpacing.gapMD,
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final candidate in _candidates)
+                    _WeatherSymbolCandidateCard(
+                      key: ValueKey(
+                        'weather-symbol-candidate-${candidate.keyName}',
+                      ),
+                      candidate: candidate,
+                      accent: scheme.primary,
+                      muted: scheme.onSurfaceVariant,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _WeatherSymbolCandidate {
+  materialShowers,
+  cloudBase,
+  cloudUmbrella,
+  cloudDrops,
+}
+
+class _WeatherSymbolCandidateData {
+  const _WeatherSymbolCandidateData({
+    required this.keyName,
+    required this.label,
+    required this.note,
+    required this.symbol,
+  });
+
+  final String keyName;
+  final String label;
+  final String note;
+  final _WeatherSymbolCandidate symbol;
+}
+
+class _WeatherSymbolCandidateCard extends StatelessWidget {
+  const _WeatherSymbolCandidateCard({
+    super.key,
+    required this.candidate,
+    required this.accent,
+    required this.muted,
+  });
+
+  final _WeatherSymbolCandidateData candidate;
+  final Color accent;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 156,
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: .28),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: SizedBox(
+              key: ValueKey('weather-symbol-preview-${candidate.keyName}'),
+              width: 72,
+              height: 64,
+              child: _WeatherSymbolPreview(
+                symbol: candidate.symbol,
+                accent: accent,
+                muted: muted,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(candidate.label, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 2),
+          Text(candidate.note, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    ),
+  );
+}
+
+class _WeatherSymbolPreview extends StatelessWidget {
+  const _WeatherSymbolPreview({
+    required this.symbol,
+    required this.accent,
+    required this.muted,
+  });
+
+  final _WeatherSymbolCandidate symbol;
+  final Color accent;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) => switch (symbol) {
+    _WeatherSymbolCandidate.materialShowers => Center(
+      child: Icon(Icons.umbrella_outlined, color: accent, size: 42),
+    ),
+    _WeatherSymbolCandidate.cloudBase => Center(
+      child: Icon(Icons.cloud_outlined, color: muted, size: 48),
+    ),
+    _WeatherSymbolCandidate.cloudUmbrella => Stack(
+      key: const ValueKey('weather-symbol-composite-cloud-umbrella'),
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.cloud_outlined, color: muted, size: 48),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Icon(Icons.umbrella_outlined, color: accent, size: 27),
+        ),
+      ],
+    ),
+    _WeatherSymbolCandidate.cloudDrops => Stack(
+      key: const ValueKey('weather-symbol-composite-cloud-drops'),
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.cloud_outlined, color: muted, size: 48),
+        Positioned(
+          left: 20,
+          bottom: 0,
+          child: Icon(Icons.water_drop_outlined, color: accent, size: 18),
+        ),
+        Positioned(
+          right: 16,
+          bottom: 4,
+          child: Icon(Icons.water_drop_outlined, color: accent, size: 15),
+        ),
+      ],
+    ),
+  };
+}
+
+class _AnimalSandboxSections extends StatelessWidget {
+  const _AnimalSandboxSections();
+
+  @override
+  Widget build(BuildContext context) => const Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _AnimalSandboxCategory(
+        title: 'CAT',
+        icon: Icons.pets_outlined,
+        child: Column(
+          children: [
+            CatRunV2PocSection(),
+            SizedBox(height: 20),
+            CatRunV23ProductionPreview(),
+          ],
+        ),
+      ),
+      SizedBox(height: 20),
+      _AnimalSandboxCategory(
+        title: 'BAT',
+        icon: Icons.nightlight_outlined,
+        child: Column(
+          children: [
+            BatV3FlightMotionPoc(),
+            SizedBox(height: 20),
+            BatV3ProductionPreview(),
+          ],
+        ),
+      ),
+      SizedBox(height: 20),
+      _AnimalSandboxCategory(
+        title: 'FOX',
+        icon: Icons.pets_outlined,
+        child: Column(
+          children: [
+            FoxRunV1Section(),
+            SizedBox(height: 20),
+            FoxRearLegGeometryLab(),
+            SizedBox(height: 20),
+            FoxPatternPreview(),
+          ],
+        ),
+      ),
+      SizedBox(height: 20),
+      _AnimalSandboxCategory(
+        title: 'BIRD',
+        icon: Icons.flight_outlined,
+        child: Column(
+          children: [
+            BirdV1Sandbox(),
+            SizedBox(height: 20),
+            BirdV1ProductionPreview(),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _AnimalSandboxCategory extends StatefulWidget {
+  const _AnimalSandboxCategory({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  State<_AnimalSandboxCategory> createState() => _AnimalSandboxCategoryState();
+}
+
+class _AnimalSandboxCategoryState extends State<_AnimalSandboxCategory> {
+  var _expanded = false;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      OperationCard(
+        key: ValueKey('animal-category-${widget.title.toLowerCase()}'),
+        child: InkWell(
+          key: ValueKey('animal-category-${widget.title.toLowerCase()}-toggle'),
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(widget.icon),
+                const SizedBox(width: 12),
+                Expanded(child: Text(widget.title)),
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+              ],
+            ),
+          ),
+        ).actionableFeedback(),
+      ),
+      if (_expanded) ...[AppSpacing.gapSM, widget.child],
+    ],
+  );
+}
+
+/// Restored V1 CAT-oriented inspection surface. Its state is intentionally
+/// independent from the multi-species V2 preview below.
+class _AmbientWildlifeV1Section extends StatefulWidget {
+  const _AmbientWildlifeV1Section();
+
+  @override
+  State<_AmbientWildlifeV1Section> createState() =>
+      _AmbientWildlifeV1SectionState();
+}
+
+class _AmbientWildlifeV1SectionState extends State<_AmbientWildlifeV1Section> {
   static const _autoKinds = [
     WildlifeKind.cat,
     WildlifeKind.birds,
@@ -189,13 +535,12 @@ class _AmbientWildlifeSandboxSectionState
   var _neutralZoomed = false;
   var _requestId = 0;
   var _nextAutoKind = 0;
+  var _expanded = false;
 
-  void _start(WildlifeKind kind) {
-    setState(() {
-      _plan = wildlifePreviewPlan(kind: kind, leftToRight: _leftToRight);
-      _requestId++;
-    });
-  }
+  void _start(WildlifeKind kind) => setState(() {
+    _plan = wildlifePreviewPlan(kind: kind, leftToRight: _leftToRight);
+    _requestId++;
+  });
 
   void _startAuto() {
     final kind = _autoKinds[_nextAutoKind];
@@ -212,173 +557,802 @@ class _AmbientWildlifeSandboxSectionState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader(
-          icon: Icons.pets_outlined,
-          title: 'AMBIENT WILDLIFE',
-        ),
-        AppSpacing.gapSM,
         OperationCard(
-          key: const ValueKey('ambient-wildlife-sandbox-section'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              DashboardAmbientWildlifePreviewStage(
-                plan: _plan,
-                requestId: _requestId,
-                neutralKind: _neutral
-                    ? (_plan?.kind ?? WildlifeKind.cat)
-                    : null,
-                neutralLeftToRight: _leftToRight,
-                neutralScale:
-                    _neutral &&
-                        (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat &&
-                        _neutralZoomed
-                    ? 2
-                    : 1,
-              ),
-              AppSpacing.gapMD,
-              const Text('MODE'),
-              AppSpacing.gapSM,
-              Row(
+          key: const ValueKey('ambient-wildlife-v1-disclosure'),
+          child: InkWell(
+            key: const ValueKey('ambient-wildlife-v1-toggle'),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
                 children: [
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-mode-motion'),
-                      label: 'MOTION',
-                      selected: !_neutral,
-                      onPressed: () => setState(() => _neutral = false),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-mode-neutral'),
-                      label: 'NEUTRAL',
-                      selected: _neutral,
-                      onPressed: () => setState(() => _neutral = true),
-                    ),
-                  ),
+                  const Icon(Icons.pets_outlined),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('AMBIENT WILDLIFE')),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more),
                 ],
               ),
-              if (_neutral &&
-                  (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat) ...[
+            ),
+          ).actionableFeedback(),
+        ),
+        if (_expanded) ...[
+          AppSpacing.gapSM,
+          OperationCard(
+            key: const ValueKey('ambient-wildlife-v1-section'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DashboardAmbientWildlifePreviewStage(
+                  plan: _plan,
+                  requestId: _requestId,
+                  neutralKind: _neutral
+                      ? (_plan?.kind ?? WildlifeKind.cat)
+                      : null,
+                  neutralLeftToRight: _leftToRight,
+                  neutralScale:
+                      _neutral &&
+                          (_plan?.kind ?? WildlifeKind.cat) ==
+                              WildlifeKind.cat &&
+                          _neutralZoomed
+                      ? 2
+                      : 1,
+                ),
                 AppSpacing.gapMD,
-                const Text('CAT NEUTRAL INSPECTION'),
+                const Text('MODE'),
                 AppSpacing.gapSM,
                 Row(
                   children: [
                     Expanded(
                       child: _WildlifePreviewOption(
-                        key: const ValueKey('wildlife-preview-neutral-normal'),
-                        label: 'NORMAL',
-                        selected: !_neutralZoomed,
-                        onPressed: () => setState(() => _neutralZoomed = false),
+                        key: const ValueKey('wildlife-v1-mode-motion'),
+                        label: 'MOTION',
+                        selected: !_neutral,
+                        onPressed: () => setState(() => _neutral = false),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: _WildlifePreviewOption(
-                        key: const ValueKey('wildlife-preview-neutral-2x'),
-                        label: '2× PREVIEW',
-                        selected: _neutralZoomed,
-                        onPressed: () => setState(() => _neutralZoomed = true),
+                        key: const ValueKey('wildlife-v1-mode-neutral'),
+                        label: 'NEUTRAL',
+                        selected: _neutral,
+                        onPressed: () => setState(() => _neutral = true),
                       ),
                     ),
                   ],
                 ),
+                if (_neutral &&
+                    (_plan?.kind ?? WildlifeKind.cat) == WildlifeKind.cat) ...[
+                  AppSpacing.gapMD,
+                  const Text('CAT NEUTRAL INSPECTION'),
+                  AppSpacing.gapSM,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _WildlifePreviewOption(
+                          key: const ValueKey('wildlife-v1-neutral-normal'),
+                          label: 'NORMAL',
+                          selected: !_neutralZoomed,
+                          onPressed: () =>
+                              setState(() => _neutralZoomed = false),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _WildlifePreviewOption(
+                          key: const ValueKey('wildlife-v1-neutral-2x'),
+                          label: '2× PREVIEW',
+                          selected: _neutralZoomed,
+                          onPressed: () =>
+                              setState(() => _neutralZoomed = true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                AppSpacing.gapMD,
+                const Text('DIRECTION'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-direction-ltr'),
+                        label: 'L → R',
+                        selected: _leftToRight,
+                        onPressed: () => setState(() => _leftToRight = true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-direction-rtl'),
+                        label: 'R → L',
+                        selected: !_leftToRight,
+                        onPressed: () => setState(() => _leftToRight = false),
+                      ),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapMD,
+                const Text('SPECIES'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-cat'),
+                        label: 'CAT',
+                        selected: _plan?.kind == WildlifeKind.cat,
+                        onPressed: reducedMotion
+                            ? null
+                            : () => _start(WildlifeKind.cat),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-fox'),
+                        label: 'FOX',
+                        selected: _plan?.kind == WildlifeKind.fox,
+                        onPressed: reducedMotion
+                            ? null
+                            : () => _start(WildlifeKind.fox),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-birds'),
+                        label: 'BIRDS',
+                        selected: _plan?.kind == WildlifeKind.birds,
+                        onPressed: reducedMotion
+                            ? null
+                            : () => _start(WildlifeKind.birds),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-v1-bat'),
+                        label: 'BAT',
+                        selected: _plan?.kind == WildlifeKind.bat,
+                        onPressed: reducedMotion
+                            ? null
+                            : () => _start(WildlifeKind.bat),
+                      ),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('wildlife-v1-auto'),
+                  text: 'AUTO',
+                  icon: Icons.autorenew,
+                  onPressed: reducedMotion ? null : _startAuto,
+                ),
+                AppSpacing.gapSM,
+                Text(
+                  reducedMotion
+                      ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
+                      : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'CAT'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
+                  key: const ValueKey('ambient-wildlife-v1-state'),
+                  textAlign: TextAlign.center,
+                ),
               ],
-              AppSpacing.gapMD,
-              const Text('DIRECTION'),
-              AppSpacing.gapSM,
-              Row(
-                children: [
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-direction-ltr'),
-                      label: 'L → R',
-                      selected: _leftToRight,
-                      onPressed: () => setState(() => _leftToRight = true),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-direction-rtl'),
-                      label: 'R → L',
-                      selected: !_leftToRight,
-                      onPressed: () => setState(() => _leftToRight = false),
-                    ),
-                  ),
-                ],
-              ),
-              AppSpacing.gapMD,
-              const Text('SPECIES'),
-              AppSpacing.gapSM,
-              Row(
-                children: [
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-cat'),
-                      label: 'CAT',
-                      onPressed: reducedMotion
-                          ? null
-                          : () => _start(WildlifeKind.cat),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-fox'),
-                      label: 'FOX',
-                      onPressed: reducedMotion
-                          ? null
-                          : () => _start(WildlifeKind.fox),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-birds'),
-                      label: 'BIRDS',
-                      onPressed: reducedMotion
-                          ? null
-                          : () => _start(WildlifeKind.birds),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _WildlifePreviewOption(
-                      key: const ValueKey('wildlife-preview-bat'),
-                      label: 'BAT',
-                      onPressed: reducedMotion
-                          ? null
-                          : () => _start(WildlifeKind.bat),
-                    ),
-                  ),
-                ],
-              ),
-              AppSpacing.gapSM,
-              _SandboxActionButton(
-                key: const ValueKey('wildlife-preview-auto'),
-                text: 'AUTO',
-                icon: Icons.autorenew,
-                onPressed: reducedMotion ? null : _startAuto,
-              ),
-              AppSpacing.gapSM,
-              Text(
-                reducedMotion
-                    ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
-                    : 'CURRENT: ${_plan?.kind.name.toUpperCase() ?? 'CAT'} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
-                key: const ValueKey('ambient-wildlife-preview-state'),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DashboardAmbientWildlifePreviewSection extends StatefulWidget {
+  const _DashboardAmbientWildlifePreviewSection();
+
+  @override
+  State<_DashboardAmbientWildlifePreviewSection> createState() =>
+      _DashboardAmbientWildlifePreviewSectionState();
+}
+
+class _DashboardAmbientWildlifePreviewSectionState
+    extends State<_DashboardAmbientWildlifePreviewSection> {
+  static const _catGlitchSpacingPresets = <double>[.075, .09, .10];
+
+  static String _catGlitchSpacingPresetKey(double spacing) =>
+      spacing == .10 ? 'base' : spacing.toString().replaceFirst('0.', '');
+
+  var _expanded = true;
+  var _species = AmbientWildlifeV2Species.cat;
+  var _randomSpecies = false;
+  var _variant = AmbientWildlifeV2ForcedVariant.one;
+  var _motionProfile = AmbientWildlifeV2CatMotionProfile.current;
+  var _catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync;
+  var _catGlitchSpacing = .10;
+  var _requestId = 0;
+  var _playing = false;
+  var _paused = false;
+
+  void _selectSpecies(AmbientWildlifeV2Species species) => setState(() {
+    _species = species;
+    _randomSpecies = false;
+  });
+
+  void _selectCatGlitchSpacing(double spacing) => setState(() {
+    _catGlitchSpacing = spacing;
+    // A changed forced plan is the explicit, production-path restart for the
+    // new comparison value. PLAY/REPEAT remains active and all selections are
+    // retained.
+    _requestId++;
+  });
+
+  void _playOrResume() => setState(() {
+    if (_paused) {
+      _paused = false;
+      return;
+    }
+    _playing = true;
+    _requestId++;
+  });
+
+  void _pause() => setState(() => _paused = true);
+
+  void _restart() => setState(() {
+    _playing = true;
+    _paused = false;
+    _requestId++;
+  });
+
+  void _onCompleted() {
+    if (!_playing || _paused || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _playing && !_paused) setState(() => _requestId++);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final isCat = !_randomSpecies && _species == AmbientWildlifeV2Species.cat;
+    final isCatGlitch =
+        isCat && _variant == AmbientWildlifeV2ForcedVariant.glitch10;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OperationCard(
+          key: const ValueKey('dashboard-preview-disclosure'),
+          child: InkWell(
+            key: const ValueKey('dashboard-preview-toggle'),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.dashboard_outlined),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('DASHBOARD PREVIEW')),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
+            ),
+          ).actionableFeedback(),
         ),
+        if (_expanded) ...[
+          AppSpacing.gapSM,
+          OperationCard(
+            key: const ValueKey('dashboard-preview-section'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DashboardAmbientWildlifeProductionPreviewStage(
+                  requestId: _requestId,
+                  forcedSpecies: _randomSpecies ? null : _species,
+                  variant: _variant,
+                  leftToRight: true,
+                  catMotionProfile: _motionProfile,
+                  catPosePhaseMode: _catPosePhaseMode,
+                  catGlitchSpacingOverride: isCatGlitch
+                      ? _catGlitchSpacing
+                      : null,
+                  paused: !_playing || _paused,
+                  onCompleted: _onCompleted,
+                ),
+                AppSpacing.gapMD,
+                const Text('SPECIES'),
+                AppSpacing.gapSM,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final species
+                        in AmbientWildlifeV2Registry.availableSpecies)
+                      ChoiceChip(
+                        key: ValueKey('dashboard-preview-${species.name}'),
+                        label: Text(species.name.toUpperCase()),
+                        selected: !_randomSpecies && _species == species,
+                        onSelected: (_) => _selectSpecies(species),
+                      ),
+                    ChoiceChip(
+                      key: const ValueKey('dashboard-preview-random'),
+                      label: const Text('RANDOM'),
+                      selected: _randomSpecies,
+                      onSelected: (_) => setState(() => _randomSpecies = true),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapMD,
+                const Text('COUNT'),
+                AppSpacing.gapSM,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final variant in AmbientWildlifeV2ForcedVariant.values)
+                      ChoiceChip(
+                        key: ValueKey('dashboard-preview-${variant.name}'),
+                        label: Text(switch (variant) {
+                          AmbientWildlifeV2ForcedVariant.one => '×1',
+                          AmbientWildlifeV2ForcedVariant.two => '×2',
+                          AmbientWildlifeV2ForcedVariant.three => '×3',
+                          AmbientWildlifeV2ForcedVariant.glitch10 => 'GLITCH10',
+                        }),
+                        selected: _variant == variant,
+                        onSelected: (_) => setState(() => _variant = variant),
+                      ),
+                  ],
+                ),
+                if (isCat) ...[
+                  AppSpacing.gapMD,
+                  const Text('MOTION'),
+                  AppSpacing.gapSM,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final profile
+                          in AmbientWildlifeV2CatMotionProfile.values)
+                        ChoiceChip(
+                          key: ValueKey(
+                            'dashboard-preview-cat-motion-${profile.name}',
+                          ),
+                          label: Text(
+                            ambientWildlifeV2CatMotionProfileLabel(profile),
+                          ),
+                          selected: _motionProfile == profile,
+                          onSelected: (_) =>
+                              setState(() => _motionProfile = profile),
+                        ),
+                    ],
+                  ),
+                  AppSpacing.gapMD,
+                  const Text('PHASE MODE'),
+                  AppSpacing.gapSM,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final mode
+                          in AmbientWildlifeV2CatPosePhaseMode.values)
+                        ChoiceChip(
+                          key: ValueKey(
+                            'dashboard-preview-cat-phase-${mode.name}',
+                          ),
+                          label: Text(
+                            ambientWildlifeV2CatPosePhaseModeLabel(mode),
+                          ),
+                          selected: _catPosePhaseMode == mode,
+                          onSelected: (_) =>
+                              setState(() => _catPosePhaseMode = mode),
+                        ),
+                    ],
+                  ),
+                ],
+                if (isCatGlitch) ...[
+                  AppSpacing.gapMD,
+                  const Text('GLITCH SPACING'),
+                  AppSpacing.gapSM,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final spacing in _catGlitchSpacingPresets)
+                        ChoiceChip(
+                          key: ValueKey(
+                            'dashboard-preview-cat-glitch-spacing-${_catGlitchSpacingPresetKey(spacing)}',
+                          ),
+                          label: Text(
+                            spacing == .10 ? '.10 BASE' : spacing.toString(),
+                          ),
+                          selected: _catGlitchSpacing == spacing,
+                          onSelected: (_) => _selectCatGlitchSpacing(spacing),
+                        ),
+                    ],
+                  ),
+                ],
+                AppSpacing.gapMD,
+                _SandboxActionButton(
+                  key: const ValueKey('dashboard-preview-play'),
+                  text: _paused ? 'RESUME' : 'PLAY / REPEAT',
+                  icon: _paused ? Icons.play_arrow : Icons.repeat,
+                  onPressed: reducedMotion ? null : _playOrResume,
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('dashboard-preview-pause'),
+                  text: 'PAUSE',
+                  icon: Icons.pause,
+                  onPressed: reducedMotion || !_playing || _paused
+                      ? null
+                      : _pause,
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('dashboard-preview-restart'),
+                  text: 'RESTART',
+                  icon: Icons.restart_alt,
+                  onPressed: reducedMotion ? null : _restart,
+                ),
+                AppSpacing.gapSM,
+                Text(
+                  'PRODUCTION PATH · CAT ${isCat ? ambientWildlifeV2CatMotionProfileLabel(_motionProfile) : 'CURRENT'}${isCat ? ' · PHASE ${ambientWildlifeV2CatPosePhaseModeLabel(_catPosePhaseMode)}' : ''}${isCatGlitch ? ' · GLITCH ${_catGlitchSpacing.toStringAsFixed(3)}' : ''} · SCALE ${(DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(3)} · BIRD ${(BirdV1ProductionFlight.renderedSize * DashboardAmbientWildlifeStage.animalPresentationScale * DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier).toStringAsFixed(2)}px',
+                  key: const ValueKey('dashboard-preview-readout'),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AmbientWildlifeSandboxSection extends StatefulWidget {
+  const _AmbientWildlifeSandboxSection();
+
+  @override
+  State<_AmbientWildlifeSandboxSection> createState() =>
+      _AmbientWildlifeSandboxSectionState();
+}
+
+class _AmbientWildlifeSandboxSectionState
+    extends State<_AmbientWildlifeSandboxSection> {
+  final math.Random _random = math.Random();
+  AmbientWildlifeV2EventPlan? _plan;
+  var _selectedSpecies = AmbientWildlifeV2Species.cat;
+  var _leftToRight = true;
+  var _neutral = false;
+  var _randomSpecies = false;
+  var _playing = false;
+  var _paused = false;
+  var _requestId = 0;
+  var _visualGroundLineOffset = 0.0;
+  var _expanded = true;
+
+  int _next(int max) => _random.nextInt(max);
+
+  void _start(AmbientWildlifeV2Species kind) {
+    setState(() {
+      _selectedSpecies = kind;
+      _randomSpecies = false;
+      _plan = AmbientWildlifeV2EventPlan.resolve(
+        species: kind,
+        leftToRight: _leftToRight,
+        nextInt: _next,
+      );
+      _requestId++;
+    });
+  }
+
+  void _startRandomEvent() {
+    final available = AmbientWildlifeV2Registry.availableSpecies;
+    final species = available[_next(available.length)];
+    setState(() {
+      _selectedSpecies = species;
+      _plan = AmbientWildlifeV2EventPlan.resolve(
+        species: species,
+        leftToRight: _leftToRight,
+        nextInt: _next,
+      );
+      _requestId++;
+    });
+  }
+
+  void _playOrRestart() {
+    if (_neutral) return;
+    _playing = true;
+    _paused = false;
+    if (_randomSpecies) {
+      _startRandomEvent();
+    } else {
+      _start(_selectedSpecies);
+    }
+  }
+
+  void _pause() => setState(() => _paused = true);
+
+  void _resume() => setState(() => _paused = false);
+
+  void _onCompleted() {
+    if (!_playing || _paused || _neutral || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_playing || _paused || _neutral) return;
+      if (_randomSpecies) {
+        _startRandomEvent();
+      } else {
+        _start(_selectedSpecies);
+      }
+    });
+  }
+
+  void _selectSpecies(AmbientWildlifeV2Species species) {
+    setState(() {
+      _selectedSpecies = species;
+      _randomSpecies = false;
+      if (_neutral) _plan = null;
+    });
+    if (_playing && !_neutral) _playOrRestart();
+  }
+
+  void _selectRandom() {
+    if (_neutral) return;
+    setState(() => _randomSpecies = true);
+    if (_playing) _playOrRestart();
+  }
+
+  void _setNeutral(bool value) {
+    setState(() {
+      _neutral = value;
+      _paused = false;
+      if (value) {
+        _playing = false;
+        _plan = null;
+        _randomSpecies = false;
+      }
+    });
+  }
+
+  String get _directionLabel => _leftToRight ? 'L → R' : 'R → L';
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OperationCard(
+          key: const ValueKey('ambient-wildlife-v2-disclosure'),
+          child: InkWell(
+            key: const ValueKey('ambient-wildlife-v2-toggle'),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.pets_outlined),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('AMBIENT WILDLIFE V2')),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
+            ),
+          ).actionableFeedback(),
+        ),
+        if (_expanded) ...[
+          AppSpacing.gapSM,
+          OperationCard(
+            key: const ValueKey('ambient-wildlife-sandbox-section'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AmbientWildlifeV2Stage(
+                  plan: _plan,
+                  requestId: _requestId,
+                  neutral: _neutral,
+                  neutralSpecies: _selectedSpecies,
+                  paused: _paused,
+                  leftToRight: _leftToRight,
+                  visualGroundLineOffset: _visualGroundLineOffset,
+                  onCompleted: _onCompleted,
+                ),
+                AppSpacing.gapMD,
+                const Text('GROUND LINE'),
+                AppSpacing.gapSM,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final offset in [
+                      0.0,
+                      1.0,
+                      2.0,
+                      3.0,
+                      4.0,
+                      5.0,
+                      6.0,
+                      7.0,
+                      8.0,
+                    ])
+                      ChoiceChip(
+                        key: ValueKey('wildlife-ground-line-$offset'),
+                        label: Text(
+                          offset == 0 ? 'CURRENT' : '+${offset.toInt()}px',
+                        ),
+                        selected: _visualGroundLineOffset == offset,
+                        onSelected: (_) =>
+                            setState(() => _visualGroundLineOffset = offset),
+                      ),
+                  ],
+                ),
+                AppSpacing.gapMD,
+                const Text('MODE'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-mode-motion'),
+                        label: 'MOTION',
+                        selected: !_neutral,
+                        onPressed: () => _setNeutral(false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-mode-neutral'),
+                        label: 'NEUTRAL',
+                        selected: _neutral,
+                        onPressed: () => _setNeutral(true),
+                      ),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapMD,
+                const Text('DIRECTION'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-direction-ltr'),
+                        label: 'L → R',
+                        selected: _leftToRight,
+                        onPressed: () => setState(() => _leftToRight = true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-direction-rtl'),
+                        label: 'R → L',
+                        selected: !_leftToRight,
+                        onPressed: () => setState(() => _leftToRight = false),
+                      ),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapMD,
+                const Text('SPECIES'),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-cat'),
+                        label: 'CAT',
+                        selected:
+                            !_randomSpecies &&
+                            _selectedSpecies == AmbientWildlifeV2Species.cat,
+                        onPressed: reducedMotion
+                            ? null
+                            : () =>
+                                  _selectSpecies(AmbientWildlifeV2Species.cat),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-fox'),
+                        label: 'FOX',
+                        onPressed:
+                            reducedMotion ||
+                                !AmbientWildlifeV2Registry.available(
+                                  AmbientWildlifeV2Species.fox,
+                                )
+                            ? null
+                            : () =>
+                                  _selectSpecies(AmbientWildlifeV2Species.fox),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-birds'),
+                        label: 'BIRDS',
+                        onPressed:
+                            reducedMotion ||
+                                !AmbientWildlifeV2Registry.available(
+                                  AmbientWildlifeV2Species.birds,
+                                )
+                            ? null
+                            : () => _selectSpecies(
+                                AmbientWildlifeV2Species.birds,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _WildlifePreviewOption(
+                        key: const ValueKey('wildlife-preview-bat'),
+                        label: 'BAT',
+                        selected:
+                            !_randomSpecies &&
+                            _selectedSpecies == AmbientWildlifeV2Species.bat,
+                        onPressed: reducedMotion
+                            ? null
+                            : () =>
+                                  _selectSpecies(AmbientWildlifeV2Species.bat),
+                      ),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapSM,
+                _SandboxActionButton(
+                  key: const ValueKey('wildlife-v2-random'),
+                  text: 'RANDOM',
+                  icon: Icons.autorenew,
+                  onPressed: reducedMotion || _neutral ? null : _selectRandom,
+                ),
+                AppSpacing.gapSM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SandboxActionButton(
+                        key: const ValueKey('wildlife-v2-play-restart'),
+                        text: _playing ? 'RESTART' : 'PLAY / RESTART',
+                        icon: Icons.play_arrow,
+                        onPressed: reducedMotion || _neutral
+                            ? null
+                            : _playOrRestart,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _SandboxActionButton(
+                        key: const ValueKey('wildlife-v2-pause'),
+                        text: _paused ? 'PLAY' : 'PAUSE',
+                        icon: _paused ? Icons.play_arrow : Icons.pause,
+                        onPressed: reducedMotion || _neutral || !_playing
+                            ? null
+                            : (_paused ? _resume : _pause),
+                      ),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapSM,
+                Text(
+                  reducedMotion
+                      ? 'REDUCED MOTION: PREVIEW SUPPRESSED'
+                      : 'CURRENT: ${_neutral ? _selectedSpecies.name.toUpperCase() : (_randomSpecies ? 'RANDOM' : _selectedSpecies.name.toUpperCase())} / ${_neutral ? 'NEUTRAL' : 'MOTION'} / $_directionLabel',
+                  key: const ValueKey('ambient-wildlife-preview-state'),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -407,501 +1381,8 @@ class _WildlifePreviewOption extends StatelessWidget {
             )
           : null,
       child: Text(label),
-    ),
+    ).actionableFeedback(),
   );
-}
-
-/// Sandbox-only calibration data for the supplied CAT silhouette reference.
-/// Values are normalized against the reference's visible silhouette bounds;
-/// no source image is bundled, rendered, or used by production wildlife.
-@immutable
-class CatTracePocFidelity {
-  const CatTracePocFidelity({
-    required this.headToBodyLength,
-    required this.bodyDepthToLength,
-    required this.tailReachPastPelvis,
-    required this.curveSegmentCount,
-    required this.referenceFeatures,
-  });
-
-  final double headToBodyLength;
-  final double bodyDepthToLength;
-  final double tailReachPastPelvis;
-  final int curveSegmentCount;
-  final Set<String> referenceFeatures;
-}
-
-/// The POC is deliberately separate from DashboardAmbientWildlifePainter.
-/// Its metrics record broad contour relationships observed in the supplied
-/// source, rather than copying an image asset or retaining pixel coordinates.
-const catTracePocFidelity = CatTracePocFidelity(
-  headToBodyLength: .19,
-  bodyDepthToLength: .34,
-  tailReachPastPelvis: .31,
-  curveSegmentCount: 24,
-  referenceFeatures: {
-    'shortMuzzle',
-    'pairedEars',
-    'lowDorsalLine',
-    'raisedTaperedTail',
-    'articulatedForeleg',
-    'articulatedHindLeg',
-  },
-);
-
-class _CatTracePipelinePocSection extends StatefulWidget {
-  const _CatTracePipelinePocSection();
-
-  @override
-  State<_CatTracePipelinePocSection> createState() =>
-      _CatTracePipelinePocSectionState();
-}
-
-class _CatTracePipelinePocSectionState
-    extends State<_CatTracePipelinePocSection> {
-  var _mode = _CatTracePocMode.reconstructed;
-  var _inspectionScale = 2;
-
-  @override
-  Widget build(BuildContext context) {
-    final level = _mode.level;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SectionHeader(
-          icon: Icons.gesture_outlined,
-          title: 'CAT TRACE PIPELINE POC',
-        ),
-        AppSpacing.gapSM,
-        OperationCard(
-          key: const ValueKey('cat-trace-poc-section'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('SANDBOX ONLY · STATIC VECTOR COMPARISON'),
-              AppSpacing.gapSM,
-              SizedBox(
-                height: 190,
-                child: CustomPaint(
-                  key: const ValueKey('cat-trace-poc-canvas'),
-                  painter: _mode == _CatTracePocMode.reconstructed
-                      ? CatTracePocPainter(presentationScale: _inspectionScale)
-                      : CatTraceVectorPainter(
-                          level: level!,
-                          presentationScale: _inspectionScale,
-                        ),
-                ),
-              ),
-              AppSpacing.gapSM,
-              const Text('VECTOR MODE'),
-              AppSpacing.gapSM,
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final mode in _CatTracePocMode.values)
-                    _TracePocChoice(
-                      key: ValueKey('cat-trace-poc-${mode.name}'),
-                      label: mode.label,
-                      selected: _mode == mode,
-                      onPressed: () => setState(() => _mode = mode),
-                    ),
-                ],
-              ),
-              AppSpacing.gapSM,
-              const Text('INSPECTION SCALE'),
-              AppSpacing.gapSM,
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final scale in [1, 2, 4])
-                    _TracePocChoice(
-                      key: ValueKey('cat-trace-poc-scale-$scale'),
-                      label: '$scale×',
-                      selected: _inspectionScale == scale,
-                      onPressed: () => setState(() => _inspectionScale = scale),
-                    ),
-                ],
-              ),
-              AppSpacing.gapSM,
-              Text(
-                level == null
-                    ? 'RECONSTRUCTED CONTROL · authored Bezier · source metric unavailable'
-                    : '${level.name} · RDP ${level.tolerance}px · '
-                          '${level.sourcePointCount} points · '
-                          'IoU ${(level.iou * 100).toStringAsFixed(2)}%',
-                key: const ValueKey('cat-trace-poc-metrics'),
-              ),
-              AppSpacing.gapSM,
-              const Text(
-                'Original asset is not bundled. Production Wildlife is not connected.',
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-enum _CatTracePocMode { reconstructed, high, medium, low }
-
-extension on _CatTracePocMode {
-  String get name => switch (this) {
-    _CatTracePocMode.reconstructed => 'reconstructed',
-    _CatTracePocMode.high => 'high',
-    _CatTracePocMode.medium => 'medium',
-    _CatTracePocMode.low => 'low',
-  };
-
-  String get label => switch (this) {
-    _CatTracePocMode.reconstructed => 'A · RECONSTRUCTED',
-    _CatTracePocMode.high => 'B · TRACE HIGH',
-    _CatTracePocMode.medium => 'C · TRACE MEDIUM',
-    _CatTracePocMode.low => 'D · TRACE LOW',
-  };
-
-  CatTraceVectorLevel? get level => switch (this) {
-    _CatTracePocMode.reconstructed => null,
-    _CatTracePocMode.high => generatedCatTraceVectorLevels[0],
-    _CatTracePocMode.medium => generatedCatTraceVectorLevels[1],
-    _CatTracePocMode.low => generatedCatTraceVectorLevels[2],
-  };
-}
-
-class _TracePocChoice extends StatelessWidget {
-  const _TracePocChoice({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: onPressed,
-    style: selected
-        ? OutlinedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          )
-        : null,
-    child: Text(label),
-  );
-}
-
-/// Simplified original Bezier reconstruction of the user-supplied walking CAT
-/// silhouette. This POC has no dependency on production wildlife geometry.
-class CatTracePocPainter extends CustomPainter {
-  const CatTracePocPainter({this.presentationScale = 4});
-
-  final int presentationScale;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final background = Paint()
-      ..color = const Color(0xFF101010)
-      ..isAntiAlias = true;
-    final silhouette = Paint()
-      ..color = const Color(0xFFB8B8B8)
-      ..isAntiAlias = true;
-    canvas.drawRect(Offset.zero & size, background);
-    canvas.save();
-    canvas.translate(size.width / 2, size.height / 2);
-    canvas.scale(presentationScale / 4);
-    canvas.translate(-size.width / 2, -size.height / 2);
-    canvas.drawPath(_outline(size), silhouette);
-    canvas.restore();
-  }
-
-  Path _outline(Size size) {
-    final path = Path()
-      // Nose, short muzzle, chin, and the descending throat.
-      ..moveTo(size.width * .075, size.height * .555)
-      ..cubicTo(
-        size.width * .064,
-        size.height * .535,
-        size.width * .072,
-        size.height * .505,
-        size.width * .102,
-        size.height * .465,
-      )
-      ..cubicTo(
-        size.width * .108,
-        size.height * .400,
-        size.width * .126,
-        size.height * .335,
-        size.width * .166,
-        size.height * .300,
-      )
-      // Two pointed ears flow back into a compact skull.
-      ..lineTo(size.width * .145, size.height * .130)
-      ..quadraticBezierTo(
-        size.width * .185,
-        size.height * .170,
-        size.width * .205,
-        size.height * .255,
-      )
-      ..lineTo(size.width * .190, size.height * .075)
-      ..quadraticBezierTo(
-        size.width * .245,
-        size.height * .175,
-        size.width * .260,
-        size.height * .265,
-      )
-      // Neck, shoulder, and restrained low dorsal contour.
-      ..cubicTo(
-        size.width * .318,
-        size.height * .295,
-        size.width * .345,
-        size.height * .410,
-        size.width * .390,
-        size.height * .430,
-      )
-      ..cubicTo(
-        size.width * .535,
-        size.height * .440,
-        size.width * .645,
-        size.height * .345,
-        size.width * .760,
-        size.height * .425,
-      )
-      // Pelvis through the tail's raised, tapered outer envelope.
-      ..cubicTo(
-        size.width * .825,
-        size.height * .470,
-        size.width * .845,
-        size.height * .565,
-        size.width * .905,
-        size.height * .585,
-      )
-      ..cubicTo(
-        size.width * .948,
-        size.height * .600,
-        size.width * .968,
-        size.height * .520,
-        size.width * .982,
-        size.height * .455,
-      )
-      ..quadraticBezierTo(
-        size.width * .997,
-        size.height * .385,
-        size.width * .962,
-        size.height * .370,
-      )
-      ..cubicTo(
-        size.width * .925,
-        size.height * .405,
-        size.width * .904,
-        size.height * .485,
-        size.width * .848,
-        size.height * .500,
-      )
-      ..cubicTo(
-        size.width * .812,
-        size.height * .510,
-        size.width * .780,
-        size.height * .470,
-        size.width * .734,
-        size.height * .435,
-      )
-      // Near hind leg: thigh, hock, compact paw.
-      ..cubicTo(
-        size.width * .715,
-        size.height * .535,
-        size.width * .730,
-        size.height * .625,
-        size.width * .760,
-        size.height * .690,
-      )
-      ..cubicTo(
-        size.width * .785,
-        size.height * .745,
-        size.width * .805,
-        size.height * .790,
-        size.width * .800,
-        size.height * .845,
-      )
-      ..quadraticBezierTo(
-        size.width * .782,
-        size.height * .885,
-        size.width * .747,
-        size.height * .875,
-      )
-      ..quadraticBezierTo(
-        size.width * .735,
-        size.height * .855,
-        size.width * .758,
-        size.height * .825,
-      )
-      ..cubicTo(
-        size.width * .727,
-        size.height * .765,
-        size.width * .692,
-        size.height * .700,
-        size.width * .661,
-        size.height * .640,
-      )
-      // Curved abdominal return and planted far hind leg.
-      ..cubicTo(
-        size.width * .565,
-        size.height * .625,
-        size.width * .475,
-        size.height * .625,
-        size.width * .382,
-        size.height * .640,
-      )
-      ..cubicTo(
-        size.width * .385,
-        size.height * .720,
-        size.width * .392,
-        size.height * .790,
-        size.width * .390,
-        size.height * .845,
-      )
-      ..quadraticBezierTo(
-        size.width * .382,
-        size.height * .885,
-        size.width * .340,
-        size.height * .878,
-      )
-      ..quadraticBezierTo(
-        size.width * .325,
-        size.height * .855,
-        size.width * .348,
-        size.height * .825,
-      )
-      ..cubicTo(
-        size.width * .340,
-        size.height * .755,
-        size.width * .315,
-        size.height * .695,
-        size.width * .292,
-        size.height * .650,
-      )
-      // Chest into a reaching foreleg and rounded paw.
-      ..cubicTo(
-        size.width * .270,
-        size.height * .630,
-        size.width * .250,
-        size.height * .655,
-        size.width * .230,
-        size.height * .690,
-      )
-      ..cubicTo(
-        size.width * .185,
-        size.height * .735,
-        size.width * .132,
-        size.height * .760,
-        size.width * .110,
-        size.height * .820,
-      )
-      ..quadraticBezierTo(
-        size.width * .085,
-        size.height * .875,
-        size.width * .065,
-        size.height * .862,
-      )
-      ..quadraticBezierTo(
-        size.width * .052,
-        size.height * .846,
-        size.width * .078,
-        size.height * .815,
-      )
-      ..cubicTo(
-        size.width * .095,
-        size.height * .750,
-        size.width * .135,
-        size.height * .700,
-        size.width * .190,
-        size.height * .640,
-      )
-      ..cubicTo(
-        size.width * .225,
-        size.height * .600,
-        size.width * .230,
-        size.height * .555,
-        size.width * .202,
-        size.height * .525,
-      )
-      ..cubicTo(
-        size.width * .170,
-        size.height * .515,
-        size.width * .130,
-        size.height * .540,
-        size.width * .075,
-        size.height * .555,
-      )
-      ..close();
-    return path;
-  }
-
-  @override
-  bool shouldRepaint(covariant CatTracePocPainter oldDelegate) =>
-      oldDelegate.presentationScale != presentationScale;
-}
-
-/// Mechanically-derived POC-B renderer. Its cubic handles are calculated from
-/// adjacent traced contour samples; no anatomy landmarks are authored here.
-class CatTraceVectorPainter extends CustomPainter {
-  const CatTraceVectorPainter({
-    required this.level,
-    required this.presentationScale,
-  });
-
-  final CatTraceVectorLevel level;
-  final int presentationScale;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final background = Paint()
-      ..color = const Color(0xFF101010)
-      ..isAntiAlias = true;
-    final silhouette = Paint()
-      ..color = const Color(0xFFB8B8B8)
-      ..isAntiAlias = true;
-    canvas.drawRect(Offset.zero & size, background);
-    canvas.drawPath(_pathFor(size), silhouette);
-  }
-
-  Path _pathFor(Size size) {
-    final points = level.points;
-    final maxY = points.map((point) => point.dy).reduce(math.max);
-    final base = math.min(size.width * .88 / 4, size.height * .82 / (maxY * 4));
-    final scale = base * presentationScale;
-    final offset = Offset(
-      (size.width - scale) / 2,
-      (size.height - maxY * scale) / 2,
-    );
-    Offset at(Offset point) =>
-        Offset(offset.dx + point.dx * scale, offset.dy + point.dy * scale);
-    final path = Path()..moveTo(at(points.first).dx, at(points.first).dy);
-    for (var index = 0; index < points.length; index++) {
-      final previous = at(points[(index - 1 + points.length) % points.length]);
-      final current = at(points[index]);
-      final next = at(points[(index + 1) % points.length]);
-      final afterNext = at(points[(index + 2) % points.length]);
-      final firstControl = current + (next - previous) / 6;
-      final secondControl = next - (afterNext - current) / 6;
-      path.cubicTo(
-        firstControl.dx,
-        firstControl.dy,
-        secondControl.dx,
-        secondControl.dy,
-        next.dx,
-        next.dy,
-      );
-    }
-    return path..close();
-  }
-
-  @override
-  bool shouldRepaint(covariant CatTraceVectorPainter oldDelegate) =>
-      oldDelegate.level != level ||
-      oldDelegate.presentationScale != presentationScale;
 }
 
 class BootSequencePreviewPage extends StatefulWidget {
@@ -3410,7 +3891,7 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
                   decoration: const InputDecoration(
                     labelText: 'TIME MS (0–6000)',
                   ),
-                ),
+                ).inputFeedback(),
                 AppSpacing.gapSM,
                 _SandboxActionButton(
                   key: const ValueKey('suspension-add-point'),
@@ -3443,7 +3924,7 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
                                 tooltip: 'REMOVE',
                                 onPressed: () => _removeImpulsePoint(timeMs),
                                 icon: const Icon(Icons.delete_outline),
-                              ),
+                              ).actionableFeedback(),
                             ],
                           ),
                           Slider(
@@ -4018,7 +4499,7 @@ class _CompactActionButton extends StatelessWidget {
     onPressed: onPressed,
     icon: Icon(icon),
     label: Text(label),
-  );
+  ).actionableFeedback();
 }
 
 class _CalibrationSession {
@@ -4629,12 +5110,12 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
               key: const ValueKey('set-calibration-start'),
               onPressed: _setStart,
               child: const Text('SET START'),
-            ),
+            ).actionableFeedback(),
             ElevatedButton(
               key: const ValueKey('set-calibration-end'),
               onPressed: _setEnd,
               child: const Text('SET END'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
         AppSpacing.gapMD,
@@ -4655,19 +5136,19 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
         onPressed: _playMotion,
         icon: const Icon(Icons.play_arrow),
         label: const Text('TEST PLAY'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton.icon(
         key: const ValueKey('calibration-test-stop'),
         onPressed: _stopMotion,
         icon: const Icon(Icons.stop),
         label: const Text('STOP'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton.icon(
         key: const ValueKey('calibration-test-replay'),
         onPressed: _playMotion,
         icon: const Icon(Icons.replay),
         label: const Text('REPLAY'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 
@@ -5219,7 +5700,7 @@ class _BootAssetPreviewDialog extends StatelessWidget {
           key: const ValueKey('close-boot-asset-preview'),
           onPressed: () => Navigator.pop(context),
           child: const Text('CLOSE'),
-        ),
+        ).actionableFeedback(),
       ],
     );
   }
@@ -6121,19 +6602,19 @@ class _Scene2PlaybackControls extends StatelessWidget {
       ElevatedButton(
         onPressed: enabled ? onPlay : null,
         child: const Text('TEST PLAY'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton(
         onPressed: enabled ? onPause : null,
         child: const Text('PAUSE'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton(
         onPressed: enabled ? onStop : null,
         child: const Text('STOP'),
-      ),
+      ).actionableFeedback(),
       ElevatedButton(
         onPressed: enabled ? onReplay : null,
         child: const Text('REPLAY'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 }
@@ -6228,7 +6709,7 @@ class _Scene2NumberFieldState extends State<_Scene2NumberField> {
     ),
     decoration: InputDecoration(labelText: widget.label, hintText: 'NOT SET'),
     onChanged: widget.onChanged,
-  );
+  ).inputFeedback();
 }
 
 class _Scene2NullableValues extends StatelessWidget {
@@ -6799,6 +7280,6 @@ class _SandboxActionButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ),
+    ).actionableFeedback(),
   );
 }

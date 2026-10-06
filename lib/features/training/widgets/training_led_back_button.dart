@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
 import 'training_dot_matrix_title.dart';
 
 abstract final class TrainingLedBackGeometry {
@@ -97,7 +98,7 @@ class _TrainingLedBackButtonState extends State<TrainingLedBackButton>
             ),
           ),
         ),
-      ),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

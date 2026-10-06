@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
+import '../../core/state/app_initialization_state.dart';
 
 import '../../core/widgets/operation_description.dart';
+import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/section_header.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../repositories/app_repository_container.dart';
+import '../schedule/pages/calendar_page.dart';
 
 import 'widgets/morning_history_button.dart';
 import 'widgets/morning_manual_card.dart';
@@ -73,6 +76,11 @@ class _MorningPageState extends State<MorningPage> {
                           snapshot.connectionState == ConnectionState.done &&
                           !snapshot.hasError &&
                           !statusExists,
+                      reportUnavailableTap:
+                          snapshot.connectionState == ConnectionState.done &&
+                          !snapshot.hasError &&
+                          statusExists &&
+                          !appInitializationController.value.isReadOnly,
                     ),
                     if (statusExists) ...[
                       AppSpacing.gapSM,
@@ -85,6 +93,20 @@ class _MorningPageState extends State<MorningPage> {
                   ],
                 );
               },
+            ),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(icon: Icons.calendar_month, title: 'SCHEDULE'),
+
+            AppSpacing.gapSM,
+
+            OperationButton(
+              icon: Icons.calendar_month,
+              text: 'OPEN CALENDAR',
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const CalendarPage())),
             ),
 
             AppSpacing.gapXL,

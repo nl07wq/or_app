@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
@@ -276,7 +278,7 @@ class _SvgBodyMapState extends State<SvgBodyMap> {
                 onSelected: widget.onSelected,
               ),
             ),
-          ),
+          ).actionableFeedback(),
         ),
       );
     },

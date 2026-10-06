@@ -1,4 +1,5 @@
 import '../models/report_sync_issue.dart';
+import '../models/morning_brief_decision_trace.dart';
 
 class MorningBriefReportSyncPayloadSchemaV2 {
   const MorningBriefReportSyncPayloadSchemaV2();
@@ -30,14 +31,39 @@ class MorningBriefReportSyncPayloadSchemaV2 {
     _digest(source['sourceDigest'], r'$.payload.source.sourceDigest');
 
     final content = _map(value['content'], r'$.payload.content');
-    _exact(content, const {
-      'situationAnalysis',
-      'operatingPolicy',
-      'strategicResourceDecision',
-      'operationStatus',
-      'commanderIntent',
-      'actions',
-    }, r'$.payload.content');
+    _fields(
+      content,
+      const {
+        'situationAnalysis',
+        'operatingPolicy',
+        'strategicResourceDecision',
+        'operationStatus',
+        'commanderIntent',
+        'actions',
+        'decisionTrace',
+      },
+      const {
+        'situationAnalysis',
+        'operatingPolicy',
+        'strategicResourceDecision',
+        'operationStatus',
+        'commanderIntent',
+        'actions',
+      },
+      r'$.payload.content',
+    );
+    final trace = content['decisionTrace'];
+    if (trace != null) {
+      if (trace is! Map) {
+        _invalid(
+          r'$.payload.content.decisionTrace',
+          'decisionTrace is invalid.',
+          'object',
+          trace,
+        );
+      }
+      MorningBriefDecisionTrace.fromJson(Map<String, Object?>.from(trace));
+    }
 
     final analysis = _map(
       content['situationAnalysis'],

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
+import 'package:or_app/features/food/widgets/food_form_theme.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 
@@ -36,6 +38,7 @@ void main() {
       expect(find.text('NAME'), findsOneWidget);
       expect(find.text('BRAND'), findsOneWidget);
       expect(find.text('CATEGORY'), findsOneWidget);
+      _expectCompactFoodForm(tester, _field('NAME'));
 
       await tester.enterText(_field('NAME'), 'Promotion Chicken');
       await tester.enterText(_field('表示量'), '150');
@@ -74,6 +77,7 @@ void main() {
       await tester.ensureVisible(find.text('SAVE TO DATABASE'));
       await tester.tap(find.text('SAVE TO DATABASE'));
       await tester.pumpAndSettle();
+      _expectCompactFoodForm(tester, _field('NAME').last);
       await tester.ensureVisible(find.text('SAVE'));
       await tester.tap(find.text('SAVE'));
       await tester.pumpAndSettle();
@@ -83,8 +87,68 @@ void main() {
         find.byKey(const ValueKey('food-catalog-selection')),
         findsOneWidget,
       );
+      _expectCompactFoodForm(tester, _field('NAME'));
     },
   );
+
+  testWidgets(
+    'database add round-trips keep entry presentation local and entry data intact',
+    (tester) async {
+      final controller = AppInitializationController()..markReady();
+      AppRepositoryRegistry.beginStartup(controller: controller);
+      AppRepositoryRegistry.install(
+        AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
+      );
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(onSave: (_) async => true),
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(_field('NAME'), 'Entry data persists');
+      _expectCompactFoodForm(tester, _field('NAME'));
+
+      for (var roundTrip = 0; roundTrip < 2; roundTrip++) {
+        final entryContext = tester.element(_field('NAME'));
+        Navigator.of(entryContext).push<void>(
+          MaterialPageRoute(
+            builder: (_) => FoodCatalogEditorPage(
+              repository: AppRepositoryRegistry.container.foodCatalog,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final databaseName = _field('NAME').last;
+        _expectCompactFoodForm(tester, databaseName);
+        await tester.enterText(databaseName, 'Database draft $roundTrip');
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+
+        _expectCompactFoodForm(tester, _field('NAME'));
+        expect(
+          tester.widget<TextField>(_field('NAME')).controller!.text,
+          'Entry data persists',
+        );
+      }
+    },
+  );
+}
+
+void _expectCompactFoodForm(WidgetTester tester, Finder field) {
+  final theme = Theme.of(tester.element(field));
+  expect(theme.inputDecorationTheme.isDense, isTrue);
+  expect(
+    theme.inputDecorationTheme.contentPadding,
+    FoodFormMetrics.fieldContentPadding,
+  );
+  expect(theme.inputDecorationTheme.labelStyle?.fontSize, 12);
+  expect(theme.textTheme.bodyLarge?.fontSize, 14);
 }
 
 Finder _field(String label) => switch (label) {

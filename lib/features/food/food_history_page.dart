@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import 'food_nutrition_formatter.dart';
 import 'daily_nutrition_analysis_page.dart';
 import 'food_edit_page.dart';
@@ -256,7 +258,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                             await _loadRecords();
                           }
                         },
-                ),
+                ).actionableFeedback(),
                 IconButton(
                   key: ValueKey('delete-v1-meal-${meal.id}'),
                   icon: Icon(
@@ -266,7 +268,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                   onPressed: appInitializationController.value.isReadOnly
                       ? null
                       : () => _deleteRecord(meal),
-                ),
+                ).actionableFeedback(),
               ],
             ),
             SectionHeader(
@@ -321,7 +323,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                           onPressed: () => _addLegacyItemToCatalog(item),
                           icon: const Icon(Icons.add_business),
                           label: const Text('ADD TO FOOD DATABASE'),
-                        ),
+                        ).actionableFeedback(),
                       ),
                   ],
                 ),
@@ -338,7 +340,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           ],
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 
   Future<void> _addLegacyItemToCatalog(FoodItem item) async {
@@ -420,7 +422,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                           );
                           if (updated == true) await _loadRecords();
                         },
-                ),
+                ).actionableFeedback(),
                 IconButton(
                   key: ValueKey('delete-v2-meal-${meal.mealId}'),
                   icon: Icon(
@@ -430,7 +432,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                   onPressed: appInitializationController.value.isReadOnly
                       ? null
                       : () => _deleteV2Record(meal),
-                ),
+                ).actionableFeedback(),
               ],
             ),
             AppSpacing.gapSM,
@@ -476,13 +478,13 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                     onPressed: () => _addV2ItemToCatalog(item),
                     icon: const Icon(Icons.add_business),
                     label: const Text('ADD TO FOOD DATABASE'),
-                  ),
+                  ).actionableFeedback(),
                 ),
             ],
           ],
         ),
       ),
-    );
+    ).actionableFeedback();
   }
 
   bool _hasActiveMasterReference(DailyMealItemSnapshot item) {
@@ -614,7 +616,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                   const Icon(Icons.insights_outlined),
                 ],
               ),
-            ),
+            ).actionableFeedback(),
             AppSpacing.gapMD,
             for (var index = 0; index < group.value.length; index++) ...[
               group.value[index],

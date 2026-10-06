@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter, Path, PathMetric;
 
 import 'package:flutter/material.dart';
+
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/engine/activity_summary.dart';
@@ -15,18 +17,18 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_radius.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_lamp.dart';
 import '../system/widgets/system_menu_button.dart';
-import '../system/models/information_notice.dart';
-import '../system/services/information_notice_service.dart';
-import '../system/widgets/dashboard_information_strip.dart';
-import '../system/widgets/information_detail_sheet.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/services/device_settings_controller.dart';
 import '../../core/widgets/confirmed_log_message.dart';
+import '../../core/widgets/holographic_ambient_background.dart';
+import '../../core/widgets/global_touch_ripple.dart';
 import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
@@ -44,7 +46,13 @@ import '../command_center/services/daily_command_read_model_builder.dart';
 import '../command_center/widgets/daily_command_item.dart';
 import '../command_center/widgets/semantic_help_popover.dart';
 import '../command_center/pages/command_center_page.dart'
-    show cycleStateHelp, cycleStateIconFor, cycleStateShortLabelFor;
+    show
+        CommandCenterPage,
+        CommandCenterSection,
+        cycleStateHelp,
+        cycleStateIconFor,
+        cycleStateShortLabelFor;
+import '../command_center/widgets/brief_debrief_page.dart' show BriefDebriefTab;
 import '../repositories/app_repository_container.dart';
 import '../operation_date/models/operation_local_date.dart';
 import '../operation_date/models/operation_state.dart';
@@ -55,11 +63,171 @@ import '../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../report_sync/models/daily_debrief_record.dart';
 import '../report_sync/models/daily_debrief_state.dart';
 import '../report_sync/models/morning_brief_state.dart';
+import '../schedule/models/schedule_plan_revision.dart';
+import '../schedule/models/schedule_record.dart';
+import '../schedule/pages/calendar_page.dart';
 
 import 'models/dynamic_daily_target.dart';
+import 'services/dashboard_plan_information_service.dart';
 import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
 import 'widgets/dashboard_ambient_wildlife_stage.dart';
+import '../system/pages/ambient_wildlife_v2.dart';
+
+/// Dashboard-specific page-space circuitry. The normalised coordinates are
+/// intentionally composed for the broad Dashboard viewport rather than the
+/// Calendar plane or the former narrow SCHEDULE panel.
+const dashboardPageCircuitRoutes = <HolographicCircuitRoute>[
+  HolographicCircuitRoute(
+    nodePointIndexes: [3, 6],
+    points: [
+      Offset(-.12, .16),
+      Offset(.12, .16),
+      Offset(.22, .25),
+      Offset(.38, .25),
+      Offset(.46, .16),
+      Offset(.67, .16),
+      Offset(.76, .27),
+      Offset(1.10, .27),
+    ],
+  ),
+  HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.parallel,
+        activationPointIndex: 3,
+        points: [
+          Offset(.31, .70),
+          Offset(.36, .66),
+          Offset(.50, .66),
+          Offset(.59, .56),
+          Offset(.70, .56),
+        ],
+      ),
+    ],
+    points: [
+      Offset(-.10, .82),
+      Offset(.10, .82),
+      Offset(.21, .70),
+      Offset(.31, .70),
+      Offset(.31, .57),
+      Offset(.46, .57),
+      Offset(.57, .46),
+      Offset(.70, .46),
+      Offset(.70, .34),
+      Offset(.90, .34),
+      Offset(1.12, .22),
+    ],
+  ),
+  // Central vertical PCB backbone spanning the upper, middle, and lower page.
+  HolographicCircuitRoute(
+    nodePointIndexes: [2, 5, 8],
+    points: [
+      Offset(.49, -.12),
+      Offset(.49, .11),
+      Offset(.42, .18),
+      Offset(.42, .35),
+      Offset(.52, .35),
+      Offset(.52, .52),
+      Offset(.45, .59),
+      Offset(.45, .77),
+      Offset(.56, .77),
+      Offset(.56, 1.12),
+    ],
+  ),
+  // Central horizontal PCB backbone with a restrained offset through centre.
+  HolographicCircuitRoute(
+    nodePointIndexes: [3, 6, 9],
+    points: [
+      Offset(-.12, .50),
+      Offset(.10, .50),
+      Offset(.20, .41),
+      Offset(.36, .41),
+      Offset(.44, .50),
+      Offset(.59, .50),
+      Offset(.67, .41),
+      Offset(.82, .41),
+      Offset(.82, .54),
+      Offset(.97, .54),
+      Offset(1.12, .44),
+    ],
+  ),
+  HolographicCircuitRoute(
+    terminalNode: true,
+    nodePointIndexes: [3, 6],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.branch,
+        activationPointIndex: 3,
+        terminalNode: true,
+        points: [
+          Offset(.34, .40),
+          Offset(.45, .29),
+          Offset(.58, .29),
+          Offset(.67, .20),
+        ],
+      ),
+    ],
+    points: [
+      Offset(-.12, .64),
+      Offset(.12, .64),
+      Offset(.23, .53),
+      Offset(.34, .40),
+      Offset(.34, .54),
+      Offset(.48, .54),
+      Offset(.59, .65),
+      Offset(.75, .65),
+      Offset(.86, .76),
+      Offset(1.10, .76),
+    ],
+  ),
+  HolographicCircuitRoute(
+    terminalNode: true,
+    nodePointIndexes: [3, 6],
+    topologyTraces: [
+      HolographicCircuitTopologyTrace(
+        kind: HolographicCircuitTopologyKind.parallel,
+        activationPointIndex: 3,
+        points: [
+          Offset(.69, .76),
+          Offset(.62, .80),
+          Offset(.49, .80),
+          Offset(.39, .70),
+          Offset(.25, .70),
+        ],
+      ),
+    ],
+    points: [
+      Offset(1.12, .88),
+      Offset(.91, .88),
+      Offset(.80, .77),
+      Offset(.69, .77),
+      Offset(.69, .64),
+      Offset(.54, .64),
+      Offset(.42, .53),
+      Offset(.28, .53),
+      Offset(.16, .42),
+      Offset(-.10, .42),
+    ],
+  ),
+];
+
+const dashboardPageCircuitTrafficScenarios =
+    <HolographicCircuitTrafficScenario>[
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(0)]),
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(1)]),
+      HolographicCircuitTrafficScenario([
+        HolographicCircuitTrafficEntry(2),
+        HolographicCircuitTrafficEntry(5, startDelay: .8),
+      ]),
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(3)]),
+      HolographicCircuitTrafficScenario([HolographicCircuitTrafficEntry(4)]),
+      HolographicCircuitTrafficScenario([
+        HolographicCircuitTrafficEntry(5),
+        HolographicCircuitTrafficEntry(0, startDelay: .75),
+      ]),
+    ];
 
 /// A single, pre-planned electrical phase for the Dashboard brand sign.
 ///
@@ -535,12 +703,17 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late Future<OperationLocalDate> _operationDateFuture;
-  late final InformationNoticeService _informationService =
-      InformationNoticeService();
-  late Future<List<InformationNotice>> _informationNoticesFuture;
+  late Future<DashboardPlanInformation> _planInformationFuture;
   late final FinalizeDateTransition? _dashboardFinalizeTransition;
   int _operationDateTransitionToken = 0;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<AmbientWildlifeV2ProductionStageState> _ambientStageKey =
+      GlobalKey();
+  final GlobalKey _wildlifeNaturalSlotKey = GlobalKey();
+  final GlobalKey _dashboardViewportKey = GlobalKey();
+  Rect? _wildlifeStageRect;
+  bool _wildlifeMeasurementQueued = false;
+  bool _topBandPinned = false;
 
   @override
   void initState() {
@@ -550,9 +723,9 @@ class _DashboardPageState extends State<DashboardPage> {
     _operationDateFuture = finalizeTransition == null
         ? const OperationDateService().current()
         : Future.value(finalizeTransition.fromDate);
-    _informationNoticesFuture = _informationService.activeNotices();
-    informationNoticeRevision.addListener(_refreshInformation);
-    morningBriefRevisionNotifier.addListener(_refreshInformation);
+    _planInformationFuture = _loadPlanInformation();
+    schedulePlanRevisionNotifier.addListener(_refreshPlanInformation);
+    _scrollController.addListener(_scheduleWildlifeMeasurement);
     if (finalizeTransition != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _playFinalizeDateTransition(finalizeTransition);
@@ -562,16 +735,56 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
-    informationNoticeRevision.removeListener(_refreshInformation);
-    morningBriefRevisionNotifier.removeListener(_refreshInformation);
+    schedulePlanRevisionNotifier.removeListener(_refreshPlanInformation);
+    _scrollController.removeListener(_scheduleWildlifeMeasurement);
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _refreshInformation() {
+  Future<DashboardPlanInformation> _loadPlanInformation() async {
+    final operationDate = await _operationDateFuture;
+    return DashboardPlanInformationService(
+      AppRepositoryRegistry.container.schedules,
+      reminders: AppRepositoryRegistry.container.reminders,
+    ).loadFor(operationDate.value);
+  }
+
+  void _refreshPlanInformation() {
     if (!mounted) return;
-    setState(() {
-      _informationNoticesFuture = _informationService.activeNotices();
+    setState(() => _planInformationFuture = _loadPlanInformation());
+  }
+
+  Future<void> _openCalendarForDate(String localDate) async {
+    final date = DateTime.tryParse(localDate);
+    if (date == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => CalendarPage(initialDate: date)),
+    );
+    _refreshPlanInformation();
+  }
+
+  void _scheduleWildlifeMeasurement() {
+    final topBandPinned =
+        _scrollController.hasClients && _scrollController.offset > 0;
+    if (_topBandPinned != topBandPinned) {
+      setState(() => _topBandPinned = topBandPinned);
+    }
+    if (_wildlifeMeasurementQueued || !mounted) return;
+    _wildlifeMeasurementQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _wildlifeMeasurementQueued = false;
+      if (!mounted) return;
+      final slot = _wildlifeNaturalSlotKey.currentContext?.findRenderObject();
+      final viewport = _dashboardViewportKey.currentContext?.findRenderObject();
+      if (slot is! RenderBox || viewport is! RenderBox) return;
+      final naturalOrigin = slot.localToGlobal(Offset.zero, ancestor: viewport);
+      final naturalRect = naturalOrigin & slot.size;
+      final next = dashboardAdaptiveAmbientStageRect(
+        naturalSlotRect: naturalRect,
+        viewportSize: viewport.size,
+        safeBottom: MediaQuery.paddingOf(context).bottom,
+      );
+      if (_wildlifeStageRect != next) setState(() => _wildlifeStageRect = next);
     });
   }
 
@@ -606,7 +819,19 @@ class _DashboardPageState extends State<DashboardPage> {
                             : engine.estimateTDEE(input);
 
                         return Scaffold(
+                          extendBodyBehindAppBar: true,
                           appBar: AppBar(
+                            backgroundColor: _topBandPinned
+                                ? Colors.transparent
+                                : null,
+                            surfaceTintColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            scrolledUnderElevation: 0,
+                            leadingWidth: 56,
+                            leading: _DashboardAmbientManualTrigger(
+                              onPressed: () => _ambientStageKey.currentState
+                                  ?.triggerManualSequence(),
+                            ),
                             title: const _DashboardNeonBrandMark(),
                             actions: const [SystemMenuButton()],
                           ),
@@ -614,101 +839,166 @@ class _DashboardPageState extends State<DashboardPage> {
                             builder: (context, dashboardConstraints) {
                               final useLargeLayout =
                                   dashboardConstraints.maxWidth >= 900;
-                              return ListView(
-                                key: const ValueKey('dashboard-scroll-view'),
-                                controller: _scrollController,
-                                padding: AppSpacing.cardPadding,
+                              _scheduleWildlifeMeasurement();
+                              final fallbackStageRect = Rect.fromLTWH(
+                                AppSpacing.lg,
+                                dashboardConstraints.maxHeight -
+                                    MediaQuery.paddingOf(context).bottom -
+                                    DashboardAmbientWildlifeStage.height,
+                                dashboardConstraints.maxWidth -
+                                    (AppSpacing.lg * 2),
+                                DashboardAmbientWildlifeStage.height,
+                              );
+                              return Stack(
+                                key: _dashboardViewportKey,
                                 children: [
-                                  Center(
-                                    child: ConstrainedBox(
-                                      key: const ValueKey(
-                                        'dashboard-main-content',
+                                  ValueListenableBuilder<DeviceSettings>(
+                                    valueListenable:
+                                        DeviceSettingsController.instance,
+                                    builder: (context, settings, _) =>
+                                        Positioned.fill(
+                                          child: HolographicAmbientBackground(
+                                            key: const ValueKey(
+                                              'dashboard-page-ambient',
+                                            ),
+                                            painterKey: const ValueKey(
+                                              'dashboard-page-ambient-painter',
+                                            ),
+                                            enabled:
+                                                settings.ambientCircuitEnabled,
+                                            routes: dashboardPageCircuitRoutes,
+                                            trafficScenarios:
+                                                dashboardPageCircuitTrafficScenarios,
+                                          ),
+                                        ),
+                                  ),
+                                  ListView(
+                                    key: const ValueKey(
+                                      'dashboard-scroll-view',
+                                    ),
+                                    controller: _scrollController,
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppSpacing.lg,
+                                      MediaQuery.paddingOf(context).top +
+                                          kToolbarHeight +
+                                          AppSpacing.lg,
+                                      AppSpacing.lg,
+                                      AppSpacing.lg,
+                                    ),
+                                    children: [
+                                      Center(
+                                        child: ConstrainedBox(
+                                          key: const ValueKey(
+                                            'dashboard-main-content',
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 1280,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              _OperationDateCard(
+                                                operationDateFuture:
+                                                    _operationDateFuture,
+                                                transitionToken:
+                                                    _operationDateTransitionToken,
+                                                finalizeTransition:
+                                                    _dashboardFinalizeTransition,
+                                              ),
+                                              AppSpacing.gapSM,
+                                              FutureBuilder<
+                                                DashboardPlanInformation
+                                              >(
+                                                future: _planInformationFuture,
+                                                builder: (context, snapshot) =>
+                                                    DashboardScheduleCard(
+                                                      information:
+                                                          snapshot.data,
+                                                      loading:
+                                                          snapshot.connectionState !=
+                                                              ConnectionState
+                                                                  .done &&
+                                                          !snapshot.hasError,
+                                                      onOpenDate:
+                                                          _openCalendarForDate,
+                                                    ),
+                                              ),
+                                              AppSpacing.gapLG,
+                                              ValueListenableBuilder<int>(
+                                                valueListenable:
+                                                    morningBriefRevisionNotifier,
+                                                builder: (context, revision, _) =>
+                                                    _DashboardOperationOverview(
+                                                      morningFact: morningFact,
+                                                      estimatedTDEE:
+                                                          estimatedTDEE,
+                                                      foodSummary: foodSummary,
+                                                      trainingSummary:
+                                                          trainingSummary,
+                                                      activitySummary:
+                                                          activitySummary,
+                                                      refreshToken:
+                                                          _operationDateTransitionToken,
+                                                      morningBriefRevision:
+                                                          revision,
+                                                      useLargeLayout:
+                                                          useLargeLayout,
+                                                      onWaterTap: isReadOnly
+                                                          ? null
+                                                          : () =>
+                                                                _showQuickWaterInput(
+                                                                  context,
+                                                                ),
+                                                    ),
+                                              ),
+                                              AppSpacing.gapXL,
+                                              SectionHeader(
+                                                icon: Icons.bolt_outlined,
+                                                title: 'QUICK ACCESS',
+                                              ),
+                                              AppSpacing.gapSM,
+                                              const _MorningButton(),
+                                              AppSpacing.gapMD,
+                                              _FoodButton(),
+                                              AppSpacing.gapMD,
+                                              _TrainingButton(),
+                                              AppSpacing.gapMD,
+                                              _ActivityButton(),
+                                              AppSpacing.gapMD,
+                                              _CommandCenterButton(),
+                                              AppSpacing.gapMD,
+                                              SizedBox(
+                                                key: _wildlifeNaturalSlotKey,
+                                                height:
+                                                    DashboardAmbientWildlifeStage
+                                                        .height,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 1280,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          _OperationDateCard(
-                                            operationDateFuture:
-                                                _operationDateFuture,
-                                            transitionToken:
-                                                _operationDateTransitionToken,
-                                            finalizeTransition:
-                                                _dashboardFinalizeTransition,
-                                          ),
-                                          FutureBuilder<
-                                            List<InformationNotice>
-                                          >(
-                                            future: _informationNoticesFuture,
-                                            builder: (context, snapshot) {
-                                              final notices =
-                                                  snapshot.data ?? const [];
-                                              if (notices.isEmpty) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              return Column(
-                                                children: [
-                                                  AppSpacing.gapSM,
-                                                  DashboardInformationStrip(
-                                                    notices: notices,
-                                                    onTap: () =>
-                                                        _showInformation(
-                                                          notices,
-                                                        ),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                          AppSpacing.gapLG,
-                                          ValueListenableBuilder<int>(
-                                            valueListenable:
-                                                morningBriefRevisionNotifier,
-                                            builder: (context, revision, _) =>
-                                                _DashboardOperationOverview(
-                                                  morningFact: morningFact,
-                                                  estimatedTDEE: estimatedTDEE,
-                                                  foodSummary: foodSummary,
-                                                  trainingSummary:
-                                                      trainingSummary,
-                                                  activitySummary:
-                                                      activitySummary,
-                                                  refreshToken:
-                                                      _operationDateTransitionToken,
-                                                  morningBriefRevision:
-                                                      revision,
-                                                  useLargeLayout:
-                                                      useLargeLayout,
-                                                  onWaterTap: isReadOnly
-                                                      ? null
-                                                      : () =>
-                                                            _showQuickWaterInput(
-                                                              context,
-                                                            ),
-                                                ),
-                                          ),
-                                          AppSpacing.gapXL,
-                                          SectionHeader(
-                                            icon: Icons.bolt_outlined,
-                                            title: 'QUICK ACCESS',
-                                          ),
-                                          AppSpacing.gapSM,
-                                          _MorningButton(),
-                                          AppSpacing.gapMD,
-                                          _FoodButton(),
-                                          AppSpacing.gapMD,
-                                          _TrainingButton(),
-                                          AppSpacing.gapMD,
-                                          _ActivityButton(),
-                                          AppSpacing.gapMD,
-                                          _CommandCenterButton(),
-                                          AppSpacing.gapMD,
-                                          const DashboardAmbientWildlifeStage(),
-                                        ],
-                                      ),
+                                    ],
+                                  ),
+                                  if (_topBandPinned)
+                                    Positioned(
+                                      left: 0,
+                                      top: 0,
+                                      right: 0,
+                                      // The fixed AppBar owns the original
+                                      // sticky geometry. The body-stack glass
+                                      // fills that toolbar band only; adding
+                                      // MediaQuery's top inset here would
+                                      // create a second vertical extent.
+                                      height: kToolbarHeight,
+                                      child:
+                                          const _DashboardPinnedTopBandGlass(),
+                                    ),
+                                  Positioned.fromRect(
+                                    rect:
+                                        _wildlifeStageRect ?? fallbackStageRect,
+                                    child: DashboardAmbientWildlifeStage(
+                                      productionStageKey: _ambientStageKey,
                                     ),
                                   ),
                                 ],
@@ -741,6 +1031,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     setState(() {
       _operationDateFuture = Future.value(transition.toDate);
+      _planInformationFuture = _loadPlanInformation();
       _operationDateTransitionToken++;
     });
   }
@@ -771,23 +1062,6 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (_) => _QuickWaterSheet(dashboardContext: context),
     );
   }
-
-  Future<void> _showInformation(List<InformationNotice> notices) async {
-    final result = await showModalBottomSheet<InformationDetailResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => InformationDetailSheet(
-        notices: notices,
-        onRead: _informationService.markRead,
-        onDismiss: _informationService.dismiss,
-      ),
-    );
-    if (!mounted) return;
-    _refreshInformation();
-    if (result == InformationDetailResult.systemMonitoring) {
-      await Navigator.of(context).pushNamed(AppRoutes.systemMonitoring);
-    }
-  }
 }
 
 class _OperationDateCard extends StatelessWidget {
@@ -802,7 +1076,8 @@ class _OperationDateCard extends StatelessWidget {
   final FinalizeDateTransition? finalizeTransition;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => _DashboardWeatherGlassSurface(
+    key: const ValueKey('dashboard-weather-glass-operation-date'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -828,6 +1103,739 @@ class _OperationDateCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Static Calendar-Weather-derived material used only by the Dashboard
+/// surfaces explicitly selected for this pilot. It deliberately contains no
+/// scanlines or ambient animation.
+class _DashboardWeatherGlassSurface extends StatelessWidget {
+  const _DashboardWeatherGlassSurface({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: Colors.transparent,
+        cardTheme: Theme.of(context).cardTheme.copyWith(
+          color: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+        ),
+      ),
+      child: OperationCard(
+        padding: EdgeInsets.zero,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.large,
+            gradient: _dashboardWeatherGlassGradient(scheme),
+            border: Border.all(color: scheme.primary.withValues(alpha: .16)),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withValues(alpha: .055),
+                blurRadius: 18,
+                offset: const Offset(-2, -2),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .34),
+                blurRadius: 18,
+                offset: const Offset(4, 8),
+              ),
+            ],
+          ),
+          child: Padding(padding: AppSpacing.cardPadding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+LinearGradient _dashboardWeatherGlassGradient(
+  ColorScheme scheme, {
+  Color? stateColor,
+  bool stateActive = false,
+}) => LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [
+    (stateColor ?? scheme.primary).withValues(
+      alpha: stateActive || stateColor != null ? .11 : .085,
+    ),
+    scheme.surface.withValues(alpha: .24),
+    scheme.surfaceContainerHigh.withValues(alpha: .13),
+  ],
+);
+
+/// The Progress grid keeps its Weather-glass base, with this deliberately
+/// low-strength wash carrying the same state colour already used by the tile.
+/// It is intentionally much quieter than a standalone active-state card: the
+/// grid can show eight semantic surfaces at once.
+@visibleForTesting
+const double operationProgressSemanticTintOpacity = .10;
+
+/// Resolves presentation-only tile tint from the canonical Progress state.
+/// No colour state is stored separately: a normal rebuild immediately follows
+/// a completion or target-state change.
+@visibleForTesting
+Color? operationProgressSemanticSurfaceTintColor({
+  required DynamicTargetState? targetState,
+  required DailyCommandCompletionItem? completion,
+  required bool completed,
+}) {
+  final targetColor = switch (targetState) {
+    DynamicTargetState.green ||
+    DynamicTargetState.greenHigh => AppColors.success,
+    DynamicTargetState.yellowLow ||
+    DynamicTargetState.yellowHigh => AppColors.warning,
+    DynamicTargetState.redLow || DynamicTargetState.redHigh => AppColors.danger,
+    DynamicTargetState.neutral || null => null,
+  };
+  if (targetColor != null) {
+    return targetColor;
+  }
+
+  return switch (completion?.state) {
+    DailyCommandModuleState.recorded => AppColors.success,
+    DailyCommandModuleState.missing ||
+    DailyCommandModuleState.invalid => AppColors.danger,
+    DailyCommandModuleState.optionalMissing => null,
+    null => completed ? AppColors.success : null,
+  };
+}
+
+LinearGradient _operationProgressGlassGradient(
+  ColorScheme scheme, {
+  required Color? semanticTint,
+}) => LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [
+    (semanticTint ?? scheme.primary).withValues(
+      alpha: semanticTint == null ? .085 : operationProgressSemanticTintOpacity,
+    ),
+    scheme.surface.withValues(alpha: .24),
+    scheme.surfaceContainerHigh.withValues(alpha: .13),
+  ],
+);
+
+/// Full-size, non-interactive display material for Dashboard outer planes.
+/// It intentionally leaves the content and any nested Progress tile material
+/// untouched while allowing the page ambient to be attenuated through it.
+class _DashboardHolographicOuterSurface extends StatelessWidget {
+  const _DashboardHolographicOuterSurface({
+    required this.surfaceKey,
+    required this.scanlineKey,
+    required this.child,
+  });
+
+  final Key surfaceKey;
+  final Key scanlineKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: Colors.transparent,
+        cardTheme: Theme.of(context).cardTheme.copyWith(
+          color: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+        ),
+      ),
+      child: OperationCard(
+        padding: EdgeInsets.zero,
+        child: Container(
+          key: surfaceKey,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.large,
+            gradient: _dashboardWeatherGlassGradient(scheme),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withValues(alpha: .07),
+                blurRadius: 22,
+                offset: const Offset(-3, -2),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .34),
+                blurRadius: 24,
+                offset: const Offset(4, 10),
+              ),
+            ],
+          ),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(
+                child: HolographicScanlineOverlay(key: scanlineKey),
+              ),
+              Padding(padding: AppSpacing.cardPadding, child: child),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DashboardScheduleCard extends StatelessWidget {
+  const DashboardScheduleCard({
+    super.key,
+    required this.information,
+    required this.loading,
+    required this.onOpenDate,
+  });
+
+  static const _visibleRowLimit = 3;
+
+  final DashboardPlanInformation? information;
+  final bool loading;
+  final ValueChanged<String> onOpenDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries =
+        information?.entries ?? const <DashboardPlanInformationEntry>[];
+    final visibleEntries = entries
+        .take(_visibleRowLimit)
+        .toList(growable: false);
+    final hiddenCount = entries.length - visibleEntries.length;
+    return _DashboardSchedulePilotSurface(
+      onTap: information == null
+          ? null
+          : () => onOpenDate(information!.operationDate),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _DashboardScheduleHeader(),
+          AppSpacing.gapSM,
+          Container(
+            key: const ValueKey('dashboard-schedule-hud'),
+            child: loading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                    child: Center(child: Text('予定を確認しています…')),
+                  )
+                : entries.isEmpty
+                ? const _DashboardScheduleEmptyState()
+                : Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < visibleEntries.length;
+                        index++
+                      )
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: index == 0 ? AppSpacing.xs : AppSpacing.sm,
+                          ),
+                          child: _DashboardScheduleRow(
+                            entry: visibleEntries[index],
+                            onTap: () => onOpenDate(
+                              visibleEntries[index].record.localDate,
+                            ),
+                          ),
+                        ),
+                      if (hiddenCount > 0)
+                        Center(
+                          child: TextButton(
+                            key: const ValueKey('dashboard-schedule-more'),
+                            onPressed: () =>
+                                onOpenDate(information!.operationDate),
+                            child: Text('他$hiddenCount件'),
+                          ).actionableFeedback(),
+                        ),
+                      const SizedBox(height: AppSpacing.xs),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// SCHEDULE remains a floating display plane; the ambient environment now
+/// belongs to the Dashboard page rather than this individual panel.
+class _DashboardSchedulePilotSurface extends StatelessWidget {
+  const _DashboardSchedulePilotSurface({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('dashboard-schedule'),
+      margin: AppSpacing.cardMargin,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.large,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primary.withValues(alpha: .12),
+            scheme.surfaceContainerHigh.withValues(alpha: .15),
+            scheme.surface.withValues(alpha: .06),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withValues(alpha: .10),
+            blurRadius: 28,
+            offset: const Offset(-4, -3),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .42),
+            blurRadius: 30,
+            offset: const Offset(5, 13),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.large,
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              const Positioned.fill(child: HolographicScanlineOverlay()),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: child,
+              ),
+            ],
+          ),
+        ).actionableFeedback(),
+      ),
+    );
+  }
+}
+
+@Deprecated('Dashboard ambient circuitry is page-level.')
+class DashboardScheduleCircuitPainter extends CustomPainter {
+  const DashboardScheduleCircuitPainter({
+    required this.seconds,
+    required this.enabled,
+    required this.color,
+  });
+
+  final double seconds;
+  final bool enabled;
+  final Color color;
+
+  static const _routes = <_DashboardScheduleCircuitRoute>[
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(-.10, .56),
+        Offset(.14, .56),
+        Offset(.22, .45),
+        Offset(.49, .45),
+        Offset(.56, .56),
+        Offset(.82, .56),
+        Offset(1.10, .42),
+      ],
+      nodes: [3, 5],
+      terminal: true,
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(.05, .22),
+        Offset(.24, .22),
+        Offset(.31, .32),
+        Offset(.58, .32),
+        Offset(.68, .22),
+        Offset(.94, .22),
+      ],
+      nodes: [3],
+      parallel: [Offset(.31, .36), Offset(.58, .36), Offset(.68, .26)],
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(-.08, .76),
+        Offset(.18, .76),
+        Offset(.27, .64),
+        Offset(.48, .64),
+        Offset(.58, .74),
+        Offset(.89, .74),
+      ],
+      nodes: [3],
+      branch: [Offset(.48, .64), Offset(.59, .52), Offset(.78, .52)],
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(.10, .38),
+        Offset(.28, .38),
+        Offset(.36, .48),
+        Offset(.62, .48),
+        Offset(.70, .38),
+        Offset(.96, .38),
+      ],
+      nodes: [2, 4],
+      parallel: [Offset(.36, .52), Offset(.62, .52), Offset(.70, .42)],
+    ),
+    _DashboardScheduleCircuitRoute(
+      points: [
+        Offset(-.10, .30),
+        Offset(.16, .30),
+        Offset(.25, .40),
+        Offset(.53, .40),
+        Offset(.62, .30),
+        Offset(1.10, .30),
+      ],
+      nodes: [3, 4],
+    ),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!enabled || size.isEmpty) return;
+    final elapsed = seconds - .75;
+    if (elapsed < 0) return;
+    final resolved = _routes.map((route) => route.resolve(size)).toList();
+    final travel = resolved
+        .map(
+          (route) =>
+              route.metric.length / holographicCircuitSignalPixelsPerSecond,
+        )
+        .toList();
+    final starts = <double>[];
+    var cycle = 0.0;
+    for (final value in travel) {
+      starts.add(cycle);
+      cycle += value + 1.75;
+    }
+    final firstCycle = math.max(0, ((elapsed - 20) / cycle).floor());
+    final lastCycle = (elapsed / cycle).floor();
+    for (var cycleIndex = firstCycle; cycleIndex <= lastCycle; cycleIndex++) {
+      for (var index = 0; index < resolved.length; index++) {
+        final age = elapsed - cycleIndex * cycle - starts[index];
+        if (age < 0 || age > travel[index] + 20) continue;
+        _paintRoute(canvas, resolved[index], age, travel[index]);
+      }
+    }
+  }
+
+  void _paintRoute(
+    Canvas canvas,
+    _ResolvedDashboardScheduleRoute route,
+    double age,
+    double travel,
+  ) {
+    _paintTrace(canvas, route.metric, age, travel);
+    if (route.parallel != null) {
+      _paintTrace(canvas, route.parallel!, age, travel);
+    }
+    if (route.branch != null) {
+      _paintTrace(canvas, route.branch!, age, travel);
+    }
+    for (final distance in route.nodeDistances) {
+      final nodeAge = age - distance / holographicCircuitSignalPixelsPerSecond;
+      if (nodeAge >= 0 && nodeAge <= 20) {
+        _paintNode(canvas, route.metric, distance, 1 - nodeAge / 20);
+      }
+    }
+    if (route.definition.terminal && age >= travel && age <= travel + 20) {
+      _paintNode(
+        canvas,
+        route.metric,
+        route.metric.length,
+        1 - (age - travel) / 20,
+      );
+    }
+  }
+
+  void _paintTrace(
+    Canvas canvas,
+    PathMetric metric,
+    double age,
+    double travel,
+  ) {
+    final fade = 1 - ((age - travel).clamp(0.0, 20.0) / 20);
+    final revealed = math.min(
+      metric.length,
+      age * holographicCircuitSignalPixelsPerSecond,
+    );
+    if (revealed > 0) {
+      final trace = Paint()
+        ..color = color.withValues(alpha: .16 * fade)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.3);
+      canvas.drawPath(metric.extractPath(0, revealed), trace);
+    }
+    if (age <= travel) {
+      final head = age * holographicCircuitSignalPixelsPerSecond;
+      final start = math.max(0.0, head - math.min(54.0, metric.length * .18));
+      final signal = metric.extractPath(start, math.min(metric.length, head));
+      final glow = Paint()
+        ..color = color.withValues(alpha: .55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      final core = Paint()
+        ..color = color.withValues(alpha: .95)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6;
+      canvas.drawPath(signal, glow);
+      canvas.drawPath(signal, core);
+    }
+  }
+
+  void _paintNode(
+    Canvas canvas,
+    PathMetric metric,
+    double distance,
+    double intensity,
+  ) {
+    final position = metric.getTangentForOffset(distance)?.position;
+    if (position == null) return;
+    final halo = Paint()
+      ..color = color.withValues(alpha: .16 * intensity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    final ring = Paint()
+      ..color = color.withValues(alpha: .58 * intensity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    canvas.drawCircle(position, 5.6, halo);
+    canvas.drawCircle(
+      position,
+      holographicCircuitAmbientNodeDiameter / 2,
+      ring,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant DashboardScheduleCircuitPainter old) =>
+      old.seconds != seconds || old.enabled != enabled || old.color != color;
+}
+
+class _DashboardScheduleCircuitRoute {
+  const _DashboardScheduleCircuitRoute({
+    required this.points,
+    required this.nodes,
+    this.parallel,
+    this.branch,
+    this.terminal = false,
+  });
+  final List<Offset> points;
+  final List<int> nodes;
+  final List<Offset>? parallel;
+  final List<Offset>? branch;
+  final bool terminal;
+  _ResolvedDashboardScheduleRoute resolve(Size size) {
+    Path make(List<Offset> values) {
+      final path = Path()
+        ..moveTo(values.first.dx * size.width, values.first.dy * size.height);
+      for (final point in values.skip(1)) {
+        path.lineTo(point.dx * size.width, point.dy * size.height);
+      }
+      return path;
+    }
+
+    final metric = make(points).computeMetrics().single;
+    final distances = <double>[];
+    var total = 0.0;
+    for (var index = 1; index < points.length; index++) {
+      final a = Offset(
+        points[index - 1].dx * size.width,
+        points[index - 1].dy * size.height,
+      );
+      final b = Offset(
+        points[index].dx * size.width,
+        points[index].dy * size.height,
+      );
+      total += (b - a).distance;
+      if (nodes.contains(index)) distances.add(total);
+    }
+    return _ResolvedDashboardScheduleRoute(
+      this,
+      metric,
+      distances,
+      parallel == null ? null : make(parallel!).computeMetrics().single,
+      branch == null ? null : make(branch!).computeMetrics().single,
+    );
+  }
+}
+
+class _ResolvedDashboardScheduleRoute {
+  const _ResolvedDashboardScheduleRoute(
+    this.definition,
+    this.metric,
+    this.nodeDistances,
+    this.parallel,
+    this.branch,
+  );
+  final _DashboardScheduleCircuitRoute definition;
+  final PathMetric metric;
+  final List<double> nodeDistances;
+  final PathMetric? parallel;
+  final PathMetric? branch;
+}
+
+class _DashboardScheduleHeader extends StatelessWidget {
+  const _DashboardScheduleHeader();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(
+        Icons.calendar_today_outlined,
+        color: Theme.of(context).colorScheme.primary,
+        semanticLabel: 'SCHEDULE',
+      ),
+      AppSpacing.gapSM,
+      Text('SCHEDULE', style: Theme.of(context).textTheme.labelLarge),
+    ],
+  );
+}
+
+class _DashboardScheduleEmptyState extends StatelessWidget {
+  const _DashboardScheduleEmptyState();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+    child: Center(
+      child: Text(
+        '予定はありません',
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+      ),
+    ),
+  );
+}
+
+class _DashboardScheduleRow extends StatelessWidget {
+  const _DashboardScheduleRow({required this.entry, required this.onTap});
+
+  final DashboardPlanInformationEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final record = entry.record;
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = entry.isOverdue ? colorScheme.error : colorScheme.primary;
+    return Semantics(
+      button: true,
+      label: '${_timeLabel(record)} ${record.title} ${_detailLabel(entry)}',
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: InkWell(
+            key: ValueKey('dashboard-schedule-entry-${record.id}'),
+            onTap: onTap,
+            child: Container(
+              key: ValueKey('dashboard-schedule-entry-hud-${record.id}'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      _timeLabel(record),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(color: accent),
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      Icon(
+                        key: ValueKey('dashboard-schedule-anchor-${record.id}'),
+                        Icons.circle_outlined,
+                        size: holographicTimelineNodeIconSize,
+                        color: colorScheme.onSurface.withValues(
+                          alpha: holographicTimelineNodeOpacity,
+                        ),
+                      ),
+                      Container(
+                        key: ValueKey('dashboard-schedule-rail-${record.id}'),
+                        width: holographicTimelineRailWidth,
+                        height: 38,
+                        color: colorScheme.primary.withValues(
+                          alpha: holographicTimelineRailOpacity,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          record.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        Row(
+                          children: [
+                            Icon(
+                              record.kind == ScheduleEntryKind.reminder
+                                  ? Icons.notifications_none
+                                  : Icons.event_note_outlined,
+                              size: 14,
+                              color: accent,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Text(
+                                _detailLabel(entry),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Icon(Icons.chevron_right, size: 20),
+                ],
+              ),
+            ),
+          ).actionableFeedback(),
+        ),
+      ),
+    );
+  }
+
+  String _timeLabel(ScheduleRecord record) {
+    if (record.allDay) return '終日';
+    return record.startTime ?? '時刻未定';
+  }
+
+  String _detailLabel(DashboardPlanInformationEntry entry) {
+    final record = entry.record;
+    if (entry.isOverdue) {
+      final date =
+          '${record.localDate.substring(5, 7)}/${record.localDate.substring(8, 10)}';
+      final time = record.allDay ? '終日' : record.startTime ?? '時刻未定';
+      return '未完了のリマインダー · $date $time';
+    }
+    if (record.kind == ScheduleEntryKind.reminder) return 'リマインダー';
+    final timing = record.startTime == null
+        ? null
+        : record.endTime == null
+        ? record.startTime
+        : '${record.startTime}–${record.endTime}';
+    return ['予定', ?timing].join(' · ');
+  }
 }
 
 class _DashboardOperationOverview extends StatefulWidget {
@@ -984,7 +1992,9 @@ class _DailyCommandSummaryCard extends StatelessWidget {
   final DailyCommandReadModel model;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => _DashboardHolographicOuterSurface(
+    surfaceKey: const ValueKey('daily-command-holographic-surface'),
+    scanlineKey: const ValueKey('daily-command-holographic-scanlines'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1381,6 +2391,7 @@ class _ProgressCard extends StatefulWidget {
 
 class _ProgressCardState extends State<_ProgressCard> {
   late Future<DynamicDailyTargetResult> _targets = _loadDynamicTargets();
+  late Future<_BriefDebriefProgress> _briefDebrief = _loadBriefDebrief();
 
   @override
   void didUpdateWidget(covariant _ProgressCard oldWidget) {
@@ -1389,8 +2400,10 @@ class _ProgressCardState extends State<_ProgressCard> {
         oldWidget.foodSummary != widget.foodSummary ||
         oldWidget.trainingSummary != widget.trainingSummary ||
         oldWidget.activitySummary != widget.activitySummary ||
-        oldWidget.refreshToken != widget.refreshToken) {
+        oldWidget.refreshToken != widget.refreshToken ||
+        oldWidget.completionModel != widget.completionModel) {
       _targets = _loadDynamicTargets();
+      _briefDebrief = _loadBriefDebrief();
     }
   }
 
@@ -1400,18 +2413,6 @@ class _ProgressCardState extends State<_ProgressCard> {
     final calories = widget.foodSummary?.calories ?? 0;
     final protein = widget.foodSummary?.protein ?? 0;
     final hydrationMl = widget.foodSummary?.hydrationMl ?? 0;
-    final digestiveSummary = widget.activitySummary.digestiveSummary;
-    final activityDetails = !widget.activitySummary.isRecorded
-        ? const <String>[]
-        : digestiveSummary?.hasExplicitNoMovement == true
-        ? const ['Digestive None']
-        : (digestiveSummary?.eventCount ?? 0) > 0
-        ? [
-            'Digestive Count ${digestiveSummary!.eventCount}',
-            'Total Amount ${digestiveSummary.totalAmount}',
-          ]
-        : const <String>[];
-
     final energyStatus =
         widget.trainingSummary?.totalEnergyCalculationStatus ??
         TrainingEnergyCalculationStatus.complete;
@@ -1424,71 +2425,87 @@ class _ProgressCardState extends State<_ProgressCard> {
         final estimatedTotalBurn =
             targets?.estimatedTotalBurnKcal ??
             _estimatedTotalBurn(widget.estimatedTDEE, widget.trainingSummary);
-        return OperationCard(
-          child: widget.useLargeLayout
-              ? Row(
-                  key: const ValueKey('operation-progress-large-layout'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: _buildSummary(
-                        context,
-                        estimatedBaseBurn:
-                            targets?.estimatedBaseBurnKcal ??
-                            widget.estimatedTDEE,
-                        exerciseCalories: exerciseCalories,
-                        energyStatus: energyStatus,
-                        estimatedTotalBurn: estimatedTotalBurn,
-                        large: true,
-                      ),
-                    ),
-                    SizedBox(width: AppSpacing.xl),
-                    Expanded(
-                      flex: 3,
-                      child: _buildProgressTiles(
-                        mealCount: mealCount,
-                        calories: calories,
-                        protein: protein,
-                        hydrationMl: hydrationMl,
-                        activityDetails: activityDetails,
-                        targets: targets,
-                        completionModel: widget.completionModel,
-                        forceTwoColumns: true,
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  key: const ValueKey('operation-progress-compact-layout'),
-                  children: [
-                    _buildSummary(
-                      context,
-                      estimatedBaseBurn:
-                          targets?.estimatedBaseBurnKcal ??
-                          widget.estimatedTDEE,
-                      exerciseCalories: exerciseCalories,
-                      energyStatus: energyStatus,
-                      estimatedTotalBurn: estimatedTotalBurn,
-                      large: false,
-                    ),
-                    AppSpacing.gapLG,
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 800),
-                        child: _buildProgressTiles(
-                          mealCount: mealCount,
-                          calories: calories,
-                          protein: protein,
-                          hydrationMl: hydrationMl,
-                          activityDetails: activityDetails,
-                          targets: targets,
-                          completionModel: widget.completionModel,
-                        ),
-                      ),
-                    ),
-                  ],
+        return FutureBuilder<_BriefDebriefProgress>(
+          future: _briefDebrief,
+          builder: (context, briefSnapshot) =>
+              _DashboardHolographicOuterSurface(
+                surfaceKey: const ValueKey(
+                  'operation-progress-holographic-surface',
                 ),
+                scanlineKey: const ValueKey(
+                  'operation-progress-holographic-scanlines',
+                ),
+                child: widget.useLargeLayout
+                    ? Row(
+                        key: const ValueKey('operation-progress-large-layout'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _buildSummary(
+                              context,
+                              estimatedBaseBurn:
+                                  targets?.estimatedBaseBurnKcal ??
+                                  widget.estimatedTDEE,
+                              exerciseCalories: exerciseCalories,
+                              energyStatus: energyStatus,
+                              estimatedTotalBurn: estimatedTotalBurn,
+                              large: true,
+                            ),
+                          ),
+                          SizedBox(width: AppSpacing.xl),
+                          Expanded(
+                            flex: 3,
+                            child: _buildProgressTiles(
+                              mealCount: mealCount,
+                              calories: calories,
+                              protein: protein,
+                              hydrationMl: hydrationMl,
+                              targets: targets,
+                              completionModel: widget.completionModel,
+                              briefDebrief:
+                                  briefSnapshot.data ??
+                                  const _BriefDebriefProgress(),
+                              forceTwoColumns: true,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        key: const ValueKey(
+                          'operation-progress-compact-layout',
+                        ),
+                        children: [
+                          _buildSummary(
+                            context,
+                            estimatedBaseBurn:
+                                targets?.estimatedBaseBurnKcal ??
+                                widget.estimatedTDEE,
+                            exerciseCalories: exerciseCalories,
+                            energyStatus: energyStatus,
+                            estimatedTotalBurn: estimatedTotalBurn,
+                            large: false,
+                          ),
+                          AppSpacing.gapLG,
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: _buildProgressTiles(
+                                mealCount: mealCount,
+                                calories: calories,
+                                protein: protein,
+                                hydrationMl: hydrationMl,
+                                targets: targets,
+                                completionModel: widget.completionModel,
+                                briefDebrief:
+                                    briefSnapshot.data ??
+                                    const _BriefDebriefProgress(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
         );
       },
     );
@@ -1505,6 +2522,22 @@ class _ProgressCardState extends State<_ProgressCard> {
       food: widget.foodSummary,
       activity: widget.activitySummary,
       training: widget.trainingSummary,
+    );
+  }
+
+  Future<_BriefDebriefProgress> _loadBriefDebrief() async {
+    final container = AppRepositoryRegistry.container;
+    final state = await container.operationState.requireCurrent();
+    final date = state.operationDate.value;
+    final brief = await container.morningBriefs.readByLocalDate(date);
+    final debrief = await container.dailyDebriefs.readByLocalDate(date);
+    final activeDebrief =
+        debrief != null &&
+        await container.dailyDebriefSources.projectLifecycle(debrief) ==
+            DailyDebriefLifecycleStatus.active;
+    return _BriefDebriefProgress(
+      briefRecorded: brief != null,
+      debriefRecorded: activeDebrief,
     );
   }
 
@@ -1607,9 +2640,9 @@ class _ProgressCardState extends State<_ProgressCard> {
     required double calories,
     required double protein,
     required double hydrationMl,
-    required List<String> activityDetails,
     required DynamicDailyTargetResult? targets,
     required DailyCommandReadModel? completionModel,
+    required _BriefDebriefProgress briefDebrief,
     bool forceTwoColumns = false,
   }) {
     final foodSummaryAvailable = widget.foodSummary != null && mealCount > 0;
@@ -1627,129 +2660,199 @@ class _ProgressCardState extends State<_ProgressCard> {
           required double progress,
           VoidCallback? onTap,
           bool fullWidth = false,
-          List<String> details = const [],
+          bool pairCell = false,
+          bool overlayCompletionZone = false,
+          _ProgressReferenceLayout? referenceLayout,
+          bool summaryStatus = false,
+          bool compactTitle = false,
           DynamicTargetState? targetState,
           DailyCommandCompletionItem? completion,
         }) {
           return SizedBox(
             key: ValueKey('operation-progress-$label'),
-            width: fullWidth ? constraints.maxWidth : tileWidth,
+            width: pairCell
+                ? double.infinity
+                : fullWidth
+                ? constraints.maxWidth
+                : tileWidth,
             child: _ProgressRow(
               label: label,
               status: status,
               progress: progress,
               onTap: onTap,
-              details: details,
+              summaryStatus: summaryStatus,
+              compactTitle: compactTitle,
+              overlayCompletionZone: overlayCompletionZone,
+              referenceLayout: referenceLayout,
               targetState: targetState,
               completion: completion,
             ),
           );
         }
 
-        return Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
-          children: [
-            tile(
-              label: 'STATUS',
-              status:
-                  completionModel?.statusCompletion.displayState ??
-                  (widget.morningFact == null ? '未完了' : '完了'),
-              progress:
-                  completionModel?.statusCompletion.isComplete == true ||
-                      (completionModel == null && widget.morningFact != null)
-                  ? 1.0
-                  : 0.0,
-              completion: completionModel?.statusCompletion,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
-            ),
-            tile(
-              label: 'FOOD',
-              status:
-                  completionModel?.foodCompletion.displayState ??
-                  '$mealCount / 3',
-              progress: completionModel?.foodCompletion.isComplete == true
-                  ? 1.0
-                  : completionModel == null
-                  ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
-                  : 0.0,
-              completion: completionModel?.foodCompletion,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.food),
-            ),
-            tile(
-              label: 'CALORIES',
-              status: _rangeStatus(
+        final waterStatus = _waterStatus(
+          targets?.water,
+          fallbackCurrent: widget.foodSummary?.waterRecorded == true
+              ? hydrationMl
+              : null,
+        );
+        final waterReferenceLayout = _ProgressReferenceLayout(
+          title: 'WATER',
+          status: waterStatus,
+          includesQuickAdd: true,
+        );
+
+        final upperTiles = [
+          tile(
+            label: 'STATUS',
+            status:
+                completionModel?.statusCompletion.displayState ??
+                (widget.morningFact == null ? '未完了' : '完了'),
+            progress:
+                completionModel?.statusCompletion.isComplete == true ||
+                    (completionModel == null && widget.morningFact != null)
+                ? 1.0
+                : 0.0,
+            completion: completionModel?.statusCompletion,
+            summaryStatus: true,
+            overlayCompletionZone: true,
+            referenceLayout: waterReferenceLayout,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.morning),
+          ),
+          tile(
+            label: 'FOOD',
+            status:
+                completionModel?.foodCompletion.displayState ??
+                '$mealCount / 3',
+            progress: completionModel?.foodCompletion.isComplete == true
+                ? 1.0
+                : completionModel == null
+                ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
+                : 0.0,
+            completion: completionModel?.foodCompletion,
+            summaryStatus: true,
+            overlayCompletionZone: true,
+            referenceLayout: waterReferenceLayout,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.food),
+          ),
+          tile(
+            label: 'CALORIES',
+            status: _rangeStatus(
+              targets?.calories,
+              unit: 'kcal',
+              displayTarget: DynamicDailyTargetPresentation.caloriesTargetKcal(
                 targets?.calories,
-                unit: 'kcal',
-                displayTarget:
-                    DynamicDailyTargetPresentation.caloriesTargetKcal(
-                      targets?.calories,
-                    ),
-                formatCurrent: _formatIntegerValue,
-                fallbackCurrent: foodSummaryAvailable ? calories : null,
               ),
-              progress: _rangeProgress(targets?.calories),
-              targetState: targets?.calories.state,
+              formatCurrent: _formatIntegerValue,
+              fallbackCurrent: foodSummaryAvailable ? calories : null,
             ),
-            tile(
-              label: 'PROTEIN',
-              status: _rangeStatus(
+            progress: _rangeProgress(targets?.calories),
+            targetState: targets?.calories.state,
+            referenceLayout: waterReferenceLayout,
+          ),
+          tile(
+            label: 'PROTEIN',
+            status: _rangeStatus(
+              targets?.protein,
+              unit: 'g',
+              displayTarget: DynamicDailyTargetPresentation.proteinTargetG(
                 targets?.protein,
-                unit: 'g',
-                displayTarget: DynamicDailyTargetPresentation.proteinTargetG(
-                  targets?.protein,
-                ),
-                formatCurrent: _formatProtein,
-                fallbackCurrent: foodSummaryAvailable ? protein : null,
               ),
-              progress: _rangeProgress(targets?.protein),
-              targetState: targets?.protein.state,
+              formatCurrent: _formatProtein,
+              fallbackCurrent: foodSummaryAvailable ? protein : null,
             ),
-            tile(
-              label: 'WATER',
-              status: _waterStatus(
-                targets?.water,
-                fallbackCurrent: widget.foodSummary?.waterRecorded == true
-                    ? hydrationMl
-                    : null,
+            progress: _rangeProgress(targets?.protein),
+            targetState: targets?.protein.state,
+            referenceLayout: waterReferenceLayout,
+          ),
+        ];
+        final activityStatus =
+            completionModel?.activityCompletion.displayState ??
+            (widget.activitySummary.isRecorded ? 'COMPLETE' : 'NOT RECORDED');
+
+        final waterTile = tile(
+          label: 'WATER',
+          status: waterStatus,
+          progress: _waterProgress(targets?.water),
+          targetState: targets?.water.state,
+          pairCell: true,
+          onTap: widget.onWaterTap,
+        );
+        final trainingTile = tile(
+          label: 'TRAINING',
+          status: widget.trainingSummary?.completed == true
+              ? 'COMPLETE'
+              : 'NOT RECORDED',
+          progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
+          summaryStatus: true,
+          pairCell: true,
+          overlayCompletionZone: true,
+          referenceLayout: waterReferenceLayout,
+          completion:
+              completionModel?.trainingCompletion ??
+              DailyCommandCompletionItem(
+                label: 'TRAINING',
+                state: widget.trainingSummary?.completed == true
+                    ? DailyCommandModuleState.recorded
+                    : DailyCommandModuleState.optionalMissing,
+                missingRequirements: const [],
               ),
-              progress: _waterProgress(targets?.water),
-              targetState: targets?.water.state,
-              onTap: widget.onWaterTap,
+          onTap: () => Navigator.pushNamed(context, AppRoutes.training),
+        );
+        final activityTile = tile(
+          label: 'ACTIVITY',
+          status: activityStatus,
+          progress: completionModel?.activityCompletion.isComplete == true
+              ? 1.0
+              : completionModel == null && widget.activitySummary.isRecorded
+              ? 1.0
+              : 0.0,
+          completion: completionModel?.activityCompletion,
+          summaryStatus: true,
+          pairCell: true,
+          overlayCompletionZone: true,
+          referenceLayout: waterReferenceLayout,
+          onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
+        );
+        final briefDebriefTile = tile(
+          label: 'BRIEF / DEBRIEF',
+          status: briefDebrief.displayState,
+          progress: briefDebrief.isComplete ? 1 : 0,
+          summaryStatus: true,
+          compactTitle: true,
+          pairCell: true,
+          overlayCompletionZone: true,
+          referenceLayout: waterReferenceLayout,
+          completion: briefDebrief.completion,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => CommandCenterPage(
+                initialSection: CommandCenterSection.briefDebrief,
+                initialBriefDebriefTab: briefDebrief.destinationTab,
+              ),
             ),
-            tile(
-              label: 'TRAINING',
-              status: widget.trainingSummary?.completed == true
-                  ? 'Recorded'
-                  : 'Not recorded',
-              progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
-              completion:
-                  completionModel?.trainingCompletion ??
-                  DailyCommandCompletionItem(
-                    label: 'TRAINING',
-                    state: widget.trainingSummary?.completed == true
-                        ? DailyCommandModuleState.recorded
-                        : DailyCommandModuleState.optionalMissing,
-                    missingRequirements: const [],
-                  ),
-              onTap: () => Navigator.pushNamed(context, AppRoutes.training),
+          ),
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
+              children: upperTiles,
             ),
-            tile(
-              label: 'ACTIVITY',
-              status:
-                  completionModel?.activityCompletion.displayState ??
-                  (widget.activitySummary.isRecorded
-                      ? '${_formatInteger(widget.activitySummary.steps)} steps'
-                      : 'Not recorded'),
-              progress: completionModel?.activityCompletion.isComplete == true
-                  ? 1.0
-                  : completionModel == null && widget.activitySummary.isRecorded
-                  ? 1.0
-                  : 0.0,
-              fullWidth: true,
-              details: activityDetails,
-              completion: completionModel?.activityCompletion,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.activity),
+            AppSpacing.gapMD,
+            _OperationProgressPairRow(
+              reference: waterTile,
+              target: trainingTile,
+              twoColumns: useTwoColumns,
+            ),
+            AppSpacing.gapMD,
+            _OperationProgressPairRow(
+              reference: activityTile,
+              target: briefDebriefTile,
+              twoColumns: useTwoColumns,
             ),
           ],
         );
@@ -1814,6 +2917,37 @@ class _ProgressCardState extends State<_ProgressCard> {
   }
 }
 
+class _BriefDebriefProgress {
+  const _BriefDebriefProgress({
+    this.briefRecorded = false,
+    this.debriefRecorded = false,
+  });
+
+  final bool briefRecorded;
+  final bool debriefRecorded;
+
+  bool get isComplete => briefRecorded && debriefRecorded;
+
+  String get displayState => isComplete ? 'COMPLETE' : 'NOT RECORDED';
+
+  BriefDebriefTab get destinationTab => !briefRecorded
+      ? BriefDebriefTab.dailyBrief
+      : !debriefRecorded
+      ? BriefDebriefTab.dailyDebrief
+      : BriefDebriefTab.dailyBrief;
+
+  DailyCommandCompletionItem get completion => DailyCommandCompletionItem(
+    label: 'BRIEF / DEBRIEF',
+    state: isComplete
+        ? DailyCommandModuleState.recorded
+        : DailyCommandModuleState.missing,
+    missingRequirements: [
+      if (!briefRecorded) 'BRIEF',
+      if (!debriefRecorded) 'DEBRIEF',
+    ],
+  );
+}
+
 double? _estimatedTotalBurn(
   double? baseBurn,
   TrainingSummary? trainingSummary,
@@ -1870,12 +3004,82 @@ abstract final class _ProgressStatusAnchorGeometry {
   static const statusZoneRightPadding = AppSpacing.sm;
 }
 
+/// Shared typography for the five summary-state cards in OPERATION PROGRESS.
+abstract final class _OperationProgressTypography {
+  static TextStyle title(BuildContext context, {required bool compact}) {
+    final base = Theme.of(context).textTheme.labelLarge ?? const TextStyle();
+    return base.copyWith(
+      color: Theme.of(context).colorScheme.onSurface,
+      fontSize: compact ? 13 : base.fontSize,
+      fontWeight: compact ? FontWeight.w500 : base.fontWeight,
+      height: compact ? 1.2 : base.height,
+      letterSpacing: compact ? 0 : base.letterSpacing,
+    );
+  }
+
+  static TextStyle status(BuildContext context) => TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.2,
+    letterSpacing: 0,
+    color: Theme.of(context).colorScheme.onSurface,
+  );
+}
+
+/// Target-only sizing reference that mirrors WATER's natural content.
+/// WATER itself never consumes this layout.
+class _ProgressReferenceLayout {
+  const _ProgressReferenceLayout({
+    required this.title,
+    required this.status,
+    this.includesQuickAdd = false,
+  });
+
+  final String title;
+  final String status;
+  final bool includesQuickAdd;
+}
+
+class _OperationProgressPairRow extends StatelessWidget {
+  const _OperationProgressPairRow({
+    required this.reference,
+    required this.target,
+    required this.twoColumns,
+  });
+
+  final Widget reference;
+  final Widget target;
+  final bool twoColumns;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!twoColumns) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [reference, AppSpacing.gapMD, target],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: reference),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(child: target),
+      ],
+    );
+  }
+}
+
 class _ProgressRow extends StatelessWidget {
   final String label;
   final String status;
   final double progress;
   final VoidCallback? onTap;
-  final List<String> details;
+  final bool summaryStatus;
+  final bool compactTitle;
+  final bool overlayCompletionZone;
+  final _ProgressReferenceLayout? referenceLayout;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
 
@@ -1884,7 +3088,10 @@ class _ProgressRow extends StatelessWidget {
     required this.status,
     required this.progress,
     this.onTap,
-    this.details = const [],
+    this.summaryStatus = false,
+    this.compactTitle = false,
+    this.overlayCompletionZone = false,
+    this.referenceLayout,
     this.targetState,
     this.completion,
   });
@@ -1903,43 +3110,121 @@ class _ProgressRow extends StatelessWidget {
       DynamicTargetState.yellowHigh => AppColors.warning,
       DynamicTargetState.redLow ||
       DynamicTargetState.redHigh => AppColors.danger,
-      DynamicTargetState.neutral => colorScheme.outline,
+      // Neutral means no value has been evaluated yet. Let the shared base
+      // card border apply instead of treating it as a semantic state color.
+      DynamicTargetState.neutral => null,
       _ => null,
     };
+    final progressColor = targetState == DynamicTargetState.neutral
+        ? colorScheme.outline
+        : semanticColor;
+    final semanticSurfaceTint = operationProgressSemanticSurfaceTintColor(
+      targetState: targetState,
+      completion: completion,
+      completed: completed,
+    );
+    final title = compactTitle && MediaQuery.sizeOf(context).width < 390
+        ? FittedBox(
+            key: ValueKey('operation-progress-title-fit-$label'),
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              key: ValueKey('operation-progress-title-$label'),
+              maxLines: 1,
+              softWrap: false,
+              style: _OperationProgressTypography.title(context, compact: true),
+            ),
+          )
+        : Text(
+            label,
+            key: ValueKey('operation-progress-title-$label'),
+            maxLines: compactTitle ? 1 : null,
+            softWrap: !compactTitle,
+            style: _OperationProgressTypography.title(
+              context,
+              compact: compactTitle,
+            ),
+          );
+    final status = Row(
+      children: [
+        Expanded(
+          child: summaryStatus
+              ? FittedBox(
+                  key: ValueKey('operation-progress-status-fit-$label'),
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    this.status,
+                    key: ValueKey('operation-progress-status-$label'),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: _OperationProgressTypography.status(context),
+                  ),
+                )
+              : Text(
+                  this.status,
+                  key: ValueKey('operation-progress-status-$label'),
+                ),
+        ),
+        if (completion == null && onTap != null) ...[
+          SizedBox(width: AppSpacing.sm),
+          Icon(Icons.add_circle_outline, size: 18, color: colorScheme.primary),
+        ],
+      ],
+    );
+    final referenceTitle = referenceLayout == null
+        ? null
+        : Text(
+            referenceLayout!.title,
+            softWrap: true,
+            style: _OperationProgressTypography.title(context, compact: false),
+          );
+    final referenceStatus = referenceLayout == null
+        ? null
+        : Row(
+            children: [
+              Expanded(child: Text(referenceLayout!.status)),
+              if (referenceLayout!.includesQuickAdd) ...[
+                SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: 18, height: 18),
+              ],
+            ],
+          );
+    Widget waterSizedSlot({required Widget reference, required Widget child}) =>
+        LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            children: [
+              ExcludeSemantics(
+                child: Opacity(
+                  opacity: 0,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    child: reference,
+                  ),
+                ),
+              ),
+              Positioned(left: 0, right: 0, top: 0, child: child),
+            ],
+          ),
+        );
+
+    final titleSlot = referenceTitle == null
+        ? title
+        : waterSizedSlot(reference: referenceTitle, child: title);
+    final statusSlot = referenceStatus == null
+        ? status
+        : waterSizedSlot(reference: referenceStatus, child: status);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          key: ValueKey('operation-progress-title-$label'),
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+        titleSlot,
         AppSpacing.gapXS,
-        Row(
-          children: [
-            Expanded(child: Text(status)),
-            if (completion == null && onTap != null) ...[
-              SizedBox(width: AppSpacing.sm),
-              Icon(
-                Icons.add_circle_outline,
-                size: 18,
-                color: colorScheme.primary,
-              ),
-            ],
-          ],
-        ),
-        if (details.isNotEmpty) ...[
-          AppSpacing.gapSM,
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.xs,
-            children: [for (final detail in details) Text(detail)],
-          ),
-        ],
+        statusSlot,
         AppSpacing.gapXS,
         LinearProgressIndicator(
           value: progress,
-          color: semanticColor ?? (completed ? AppColors.success : null),
+          color: progressColor ?? (completed ? AppColors.success : null),
         ),
       ],
     );
@@ -1953,56 +3238,105 @@ class _ProgressRow extends StatelessWidget {
                   colorScheme.outlineVariant.withValues(alpha: 0.6),
       ),
     );
-    final color = completed
-        ? (semanticColor ?? AppColors.success).withValues(alpha: 0.12)
-        : Colors.transparent;
-    if (completion != null) {
+    Widget glassInk({required Widget child}) => Ink(
+      key: ValueKey('dashboard-weather-glass-$label'),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        gradient: _operationProgressGlassGradient(
+          colorScheme,
+          semanticTint: semanticSurfaceTint,
+        ),
+      ),
+      child: child,
+    );
+    if (completion != null && overlayCompletionZone) {
       return Material(
-        color: color,
+        color: Colors.transparent,
         shape: shape,
         clipBehavior: Clip.antiAlias,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Semantics(
+        child: glassInk(
+          child: Stack(
+            children: [
+              Semantics(
                 button: true,
                 label: 'Open $label',
                 child: InkWell(
                   key: ValueKey('operation-progress-body-$label'),
                   onTap: onTap,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.md,
-                    ),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     child: content,
                   ),
+                ).actionableFeedback(),
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: SizedBox(
+                  key: ValueKey('operation-progress-status-zone-$label'),
+                  width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+                  child: _CompletionHelpButton(completion: completion!),
                 ),
               ),
-            ),
-            SizedBox(
-              key: ValueKey('operation-progress-status-zone-$label'),
-              width: _ProgressStatusAnchorGeometry.statusZoneWidth,
-              child: _CompletionHelpButton(completion: completion!),
-            ),
-          ],
+            ],
+          ),
+        ),
+      );
+    }
+    if (completion != null) {
+      return Material(
+        color: Colors.transparent,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: glassInk(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Semantics(
+                  button: true,
+                  label: 'Open $label',
+                  child: InkWell(
+                    key: ValueKey('operation-progress-body-$label'),
+                    onTap: onTap,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.md,
+                      ),
+                      child: content,
+                    ),
+                  ).actionableFeedback(),
+                ),
+              ),
+              SizedBox(
+                key: ValueKey('operation-progress-status-zone-$label'),
+                width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+                child: _CompletionHelpButton(completion: completion!),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return Material(
-      color: color,
+    final tile = Material(
+      color: Colors.transparent,
       shape: shape,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: content,
-        ),
+      clipBehavior: Clip.antiAlias,
+      child: glassInk(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: content,
+          ),
+        ).actionableFeedback(),
       ),
     );
+    return tile;
   }
 }
 
@@ -2213,7 +3547,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
                             ? null
                             : () => _addDraftAmount(amount),
                         child: Text('+$amount ml'),
-                      ),
+                      ).actionableFeedback(),
                     )
                     .toList(),
               ),
@@ -2244,7 +3578,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
               TextButton(
                 onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         ),
@@ -2258,13 +3592,10 @@ class _MorningButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.play_arrow,
-      text: 'STATUS',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.morning);
-      },
+      label: 'STATUS',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.morning),
     );
   }
 }
@@ -2274,13 +3605,10 @@ class _FoodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.restaurant,
-      text: 'FOOD',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.food);
-      },
+      label: 'FOOD',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.food),
     );
   }
 }
@@ -2290,10 +3618,9 @@ class _ActivityButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.directions_walk_outlined,
-      text: 'ACTIVITY',
+      label: 'ACTIVITY',
       onPressed: () => Navigator.pushNamed(context, AppRoutes.activity),
     );
   }
@@ -2304,13 +3631,10 @@ class _TrainingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.fitness_center,
-      text: 'TRAINING',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.training);
-      },
+      label: 'TRAINING',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.training),
     );
   }
 }
@@ -2320,15 +3644,121 @@ class _CommandCenterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationButton(
-      role: OperationActionRole.primary,
+    return _DashboardQuickAccessButton(
       icon: Icons.flag,
-      text: 'COMMAND CENTER',
-      onPressed: () {
-        Navigator.pushNamed(context, AppRoutes.commandCenter);
-      },
+      label: 'COMMAND CENTER',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.commandCenter),
     );
   }
+}
+
+/// Dashboard navigation keeps the original full content width so the complete
+/// action stack reads as one aligned Dashboard surface.
+class _DashboardQuickAccessButton extends StatelessWidget {
+  const _DashboardQuickAccessButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: ValueKey('dashboard-quick-access-button-$label'),
+      width: double.infinity,
+      height: 44,
+      child: ActionableFeedbackRegion(
+        child: Material(
+          color: Colors.transparent,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.surfaceContainerHigh.withValues(alpha: .34),
+                  AppColors.background.withValues(alpha: .52),
+                  scheme.primary.withValues(alpha: .07),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .18),
+                  blurRadius: 7,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onPressed,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Material used only while the Dashboard's fixed AppBar is covering scrolled
+/// content. It lives in the production body stack, directly above the
+/// scrolling Dashboard and ambient layers, so its backdrop samples the actual
+/// content the fixed AppBar is covering. The normal unpinned AppBar continues
+/// to use its existing theme.
+class _DashboardPinnedTopBandGlass extends StatelessWidget {
+  const _DashboardPinnedTopBandGlass();
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: ClipRect(
+      key: const ValueKey('dashboard-pinned-top-band-glass'),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            // This layer is constrained by the production Stack to the
+            // AppBar's existing sticky bounds. Keep the material translucent
+            // enough for the blurred Dashboard/Ambient beneath to remain
+            // perceptible; no shadow is used because it would visually extend
+            // the fixed band beyond those original bounds.
+            color: AppColors.background.withValues(alpha: .58),
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.information.withValues(alpha: .10),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Isolated AppBar-title renderer for the O.R.L.O. neon sign.  It remains
@@ -2562,6 +3992,30 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
       ),
     );
   }
+}
+
+class _DashboardAmbientManualTrigger extends StatelessWidget {
+  const _DashboardAmbientManualTrigger({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Semantics(
+      button: true,
+      label: 'Run ambient wildlife',
+      child: SizedBox(
+        key: const ValueKey('dashboard-ambient-manual-trigger'),
+        width: 44,
+        height: 44,
+        child: IconButton(
+          tooltip: 'Run ambient wildlife',
+          onPressed: onPressed,
+          icon: Icon(Symbols.pets, color: const Color(0xC738BDF8), size: 20),
+        ).actionableFeedback(),
+      ),
+    ),
+  );
 }
 
 /// Fixed vector tubing for the brand wordmark.  ShareTechMono was audited but

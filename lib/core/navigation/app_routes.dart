@@ -46,9 +46,15 @@ class AppRoutes {
 
   static const profile = '/profile';
 
+  static const weatherSettings = '/weather-settings';
+
+  static const reminders = '/reminders';
+
   static const about = '/about';
 
   static const system = '/system';
+
+  static const deviceSettings = '/system/device-settings';
 
   static const animationsSandbox = '/system/animations-sandbox';
   static const bodyMapSvgPreview = '/system/body-map-svg-preview';

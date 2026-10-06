@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 
 class SleepScoreInputCard extends StatelessWidget {
   final TextEditingController controller;
@@ -35,7 +36,7 @@ class SleepScoreInputCard extends StatelessWidget {
                 borderSide: BorderSide(color: Colors.blue),
               ),
             ),
-          ),
+          ).inputFeedback(),
         ],
       ),
     );

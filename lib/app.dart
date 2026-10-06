@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/navigation/app_routes.dart';
+import 'core/services/device_settings_controller.dart';
 import 'core/services/startup_diagnostic.dart';
+import 'core/widgets/global_touch_ripple.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/boot_sequence.dart';
@@ -33,9 +35,12 @@ import 'features/system/pages/animations_sandbox_page.dart';
 import 'features/system/pages/profile_page.dart';
 import 'features/system/pages/system_page.dart';
 import 'features/system/pages/device_transfer_page.dart';
+import 'features/system/pages/device_settings_page.dart';
 import 'features/system/pages/system_monitoring_page.dart';
 import 'features/system/pages/startup_diagnostic_page.dart';
 import 'features/system/pages/body_map_svg_preview_page.dart';
+import 'features/weather/weather_settings_page.dart';
+import 'features/reminders/pages/reminders_page.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -115,11 +120,42 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
       debugShowCheckedModeBanner: false,
       theme: StandardTheme.theme,
       initialRoute: AppRoutes.dashboard,
-      builder: (context, child) => StartupGate(
-        service: _initializationService,
-        showBootSequence: true,
-        onBootEvent: widget.onBootEvent,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => ValueListenableBuilder<DeviceSettings>(
+        valueListenable: DeviceSettingsController.instance,
+        builder: (context, settings, _) {
+          final mediaQuery = MediaQuery.maybeOf(context);
+          final platformReducedMotion = mediaQuery?.disableAnimations ?? false;
+          final resolvedMediaQuery = (mediaQuery ?? const MediaQueryData())
+              .copyWith(
+                disableAnimations: settings.resolvesReducedMotion(
+                  platformReducedMotion,
+                ),
+              );
+          return MediaQuery(
+            data: resolvedMediaQuery,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                GlobalTouchRipple(
+                  child: StartupGate(
+                    service: _initializationService,
+                    showBootSequence: true,
+                    onBootEvent: widget.onBootEvent,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+                if (settings.brightness < 1)
+                  IgnorePointer(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(
+                        alpha: (1 - settings.brightness) * .55,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
 
       routes: {
@@ -165,8 +201,11 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
         AppRoutes.backupRestore: (_) => const BackupRestorePage(),
         AppRoutes.orloSync: (_) => OrloSyncPage(),
         AppRoutes.profile: (_) => const ProfilePage(),
+        AppRoutes.weatherSettings: (_) => const WeatherSettingsPage(),
+        AppRoutes.reminders: (_) => const RemindersPage(),
         AppRoutes.about: (_) => const AboutPage(),
         AppRoutes.system: (_) => const SystemPage(),
+        AppRoutes.deviceSettings: (_) => const DeviceSettingsPage(),
         AppRoutes.animationsSandbox: (_) => const AnimationsSandboxPage(),
         AppRoutes.bodyMapSvgPreview: (_) => const BodyMapSvgPreviewPage(),
         AppRoutes.bootSequencePreview: (_) => const BootSequencePreviewPage(),

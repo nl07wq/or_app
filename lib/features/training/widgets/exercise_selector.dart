@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../services/exercise_catalog_service.dart';
 import '../services/exercise_name_localization.dart';
 
@@ -30,7 +32,7 @@ class ExerciseSelector extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
-        );
+        ).actionableFeedback();
       },
     );
   }
@@ -73,7 +75,7 @@ class _ExercisePickerSheet extends StatelessWidget {
                         leading: const Icon(Icons.history),
                         title: Text(exerciseDisplayName(name)),
                         onTap: () => Navigator.pop(context, name),
-                      ),
+                      ).actionableFeedback(enabled: true),
                     ),
                     const Divider(),
                   ],
@@ -82,7 +84,7 @@ class _ExercisePickerSheet extends StatelessWidget {
                     (name) => ListTile(
                       title: Text(exerciseDisplayName(name)),
                       onTap: () => Navigator.pop(context, name),
-                    ),
+                    ).actionableFeedback(enabled: true),
                   ),
                 ],
               ),
@@ -92,7 +94,7 @@ class _ExercisePickerSheet extends StatelessWidget {
               leading: const Icon(Icons.add),
               title: const Text('Add Custom Exercise'),
               onTap: () => _addCustomExercise(context),
-            ),
+            ).actionableFeedback(enabled: true),
           ],
         ),
       ),
@@ -138,18 +140,18 @@ class _AddCustomExerciseDialogState extends State<_AddCustomExerciseDialog> {
         textCapitalization: TextCapitalization.words,
         onChanged: (_) => setState(() {}),
         onSubmitted: (value) => _registerAndClose(value),
-      ),
+      ).inputFeedback(),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
-        ),
+        ).actionableFeedback(),
         FilledButton(
           onPressed: _nameController.text.trim().isEmpty
               ? null
               : () => _registerAndClose(_nameController.text),
           child: const Text('Save'),
-        ),
+        ).actionableFeedback(),
       ],
     );
   }

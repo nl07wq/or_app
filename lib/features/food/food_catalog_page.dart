@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/state/app_initialization_state.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -28,6 +30,7 @@ import 'services/japanese_package_ocr_parser.dart';
 import 'widgets/food_ocr_scanner.dart';
 import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
+import 'widgets/food_form_theme.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -204,6 +207,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   }
 
   Future<void> _openEditor([FoodCatalogEntry? entry]) async {
+    FocusScope.of(context).unfocus();
     final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
@@ -275,86 +279,96 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        widget.selectionMode
-            ? widget.recipesEnabled
-                  ? widget.mealsEnabled
-                        ? MediaQuery.sizeOf(context).width < 480
-                              ? 'SELECT MASTER'
-                              : 'SELECT FOOD / RECIPE / MEAL'
-                        : 'SELECT FOOD / RECIPE'
-                  : 'SELECT FOOD'
-            : 'FOOD DATABASE',
+  Widget build(BuildContext context) => WillPopScope(
+    onWillPop: () async {
+      FocusScope.of(context).unfocus();
+      return true;
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: Text(
+          widget.selectionMode
+              ? widget.recipesEnabled
+                    ? widget.mealsEnabled
+                          ? MediaQuery.sizeOf(context).width < 480
+                                ? 'SELECT MASTER'
+                                : 'SELECT FOOD / RECIPE / MEAL'
+                          : 'SELECT FOOD / RECIPE'
+                    : 'SELECT FOOD'
+              : 'FOOD DATABASE',
+        ),
       ),
-    ),
-    floatingActionButton:
-        widget.selectionMode || appInitializationController.value.isReadOnly
-        ? null
-        : FloatingActionButton.extended(
-            key: const ValueKey('food-catalog-add'),
-            onPressed: switch (_view) {
-              _FoodDatabaseView.food => _openEditor,
-              _FoodDatabaseView.recipe => _openRecipeEditor,
-              _FoodDatabaseView.meal => _openMealEditor,
-            },
-            icon: const Icon(Icons.add),
-            label: Text(switch (_view) {
-              _FoodDatabaseView.food => 'ADD FOOD',
-              _FoodDatabaseView.recipe => 'ADD RECIPE',
-              _FoodDatabaseView.meal => 'CREATE MEAL',
-            }),
-          ),
-    body: Padding(
-      padding: AppSpacing.cardPadding,
-      child: Column(
-        children: [
-          if (widget.recipesEnabled && !widget.selectionViewLocked) ...[
-            SegmentedButton<_FoodDatabaseView>(
-              key: const ValueKey('food-database-type'),
-              segments: [
-                const ButtonSegment(
-                  value: _FoodDatabaseView.food,
-                  icon: Icon(Icons.restaurant_outlined),
-                  label: Text('FOOD', maxLines: 1, softWrap: false),
-                ),
-                const ButtonSegment(
-                  value: _FoodDatabaseView.recipe,
-                  icon: Icon(Icons.menu_book_outlined),
-                  label: Text('RECIPE', maxLines: 1, softWrap: false),
-                ),
-                if (widget.mealsEnabled)
+      floatingActionButton:
+          widget.selectionMode || appInitializationController.value.isReadOnly
+          ? null
+          : FloatingActionButton.extended(
+              key: const ValueKey('food-catalog-add'),
+              onPressed: switch (_view) {
+                _FoodDatabaseView.food => _openEditor,
+                _FoodDatabaseView.recipe => _openRecipeEditor,
+                _FoodDatabaseView.meal => _openMealEditor,
+              },
+              icon: const Icon(Icons.add),
+              label: Text(switch (_view) {
+                _FoodDatabaseView.food => 'ADD FOOD',
+                _FoodDatabaseView.recipe => 'ADD RECIPE',
+                _FoodDatabaseView.meal => 'CREATE MEAL',
+              }),
+            ).actionableFeedback(),
+      body: Padding(
+        padding: AppSpacing.cardPadding,
+        child: Column(
+          children: [
+            if (widget.recipesEnabled && !widget.selectionViewLocked) ...[
+              SegmentedButton<_FoodDatabaseView>(
+                key: const ValueKey('food-database-type'),
+                segments: [
                   const ButtonSegment(
-                    value: _FoodDatabaseView.meal,
-                    icon: Icon(Icons.view_list_outlined),
-                    label: Text('MEAL', maxLines: 1, softWrap: false),
+                    value: _FoodDatabaseView.food,
+                    icon: Icon(Icons.restaurant_outlined),
+                    label: Text('FOOD', maxLines: 1, softWrap: false),
                   ),
-              ],
-              style: const ButtonStyle(
-                padding: WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: 6),
+                  const ButtonSegment(
+                    value: _FoodDatabaseView.recipe,
+                    icon: Icon(Icons.menu_book_outlined),
+                    label: Text('RECIPE', maxLines: 1, softWrap: false),
+                  ),
+                  if (widget.mealsEnabled)
+                    const ButtonSegment(
+                      value: _FoodDatabaseView.meal,
+                      icon: Icon(Icons.view_list_outlined),
+                      label: Text('MEAL', maxLines: 1, softWrap: false),
+                    ),
+                ],
+                style: const ButtonStyle(
+                  padding: WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                  visualDensity: VisualDensity.compact,
                 ),
-                visualDensity: VisualDensity.compact,
+                selected: {_view},
+                onSelectionChanged: (value) => _selectView(value.single),
+              ).actionableFeedback(
+                enabled: true,
+                role: ActionableFeedbackRole.silent,
               ),
-              selected: {_view},
-              onSelectionChanged: (value) => _selectView(value.single),
+              AppSpacing.gapMD,
+            ],
+            OperationTextField(
+              key: const ValueKey('food-catalog-search'),
+              controller: _search,
+              label: switch (_view) {
+                _FoodDatabaseView.food => 'SEARCH NAME / BRAND / BARCODE',
+                _FoodDatabaseView.recipe => 'SEARCH RECIPE NAME',
+                _FoodDatabaseView.meal => 'SEARCH MEAL NAME',
+              },
+              onChanged: (_) => setState(() {}),
             ),
             AppSpacing.gapMD,
+            Expanded(child: _body()),
           ],
-          OperationTextField(
-            key: const ValueKey('food-catalog-search'),
-            controller: _search,
-            label: switch (_view) {
-              _FoodDatabaseView.food => 'SEARCH NAME / BRAND / BARCODE',
-              _FoodDatabaseView.recipe => 'SEARCH RECIPE NAME',
-              _FoodDatabaseView.meal => 'SEARCH MEAL NAME',
-            },
-            onChanged: (_) => setState(() {}),
-          ),
-          AppSpacing.gapMD,
-          Expanded(child: _body()),
-        ],
+        ),
       ),
     ),
   );
@@ -414,7 +428,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openEntry(entry),
-          ),
+          ).actionableFeedback(enabled: true),
         );
       },
     );
@@ -458,7 +472,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             isThreeLine: true,
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openRecipe(recipe),
-          ),
+          ).actionableFeedback(enabled: true),
         );
       },
     );
@@ -484,7 +498,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openMeal(meal),
-          ),
+          ).actionableFeedback(enabled: true),
         );
       },
     );
@@ -730,12 +744,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                 leading: const Icon(Icons.photo_camera),
                 title: const Text('CAMERA'),
                 onTap: () => Navigator.pop(context, FoodImageSource.camera),
-              ),
+              ).actionableFeedback(enabled: true),
               ListTile(
                 leading: const Icon(Icons.photo_library),
                 title: const Text('PHOTO LIBRARY'),
                 onTap: () => Navigator.pop(context, FoodImageSource.gallery),
-              ),
+              ).actionableFeedback(enabled: true),
             ],
           ),
         ),
@@ -931,12 +945,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             key: const ValueKey('nutrition-recalculation-cancel'),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             key: const ValueKey('nutrition-recalculation-apply'),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('APPLY'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -975,6 +989,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         base <= 0 ||
         (_packageQuantity.text.trim().isNotEmpty && package == null) ||
         (package == null) != (_packageUnit == null)) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       setState(() => _error = 'ENTER VALID FOOD AND QUANTITY VALUES');
       return;
     }
@@ -987,6 +1004,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       );
       if (duplicate.isNotEmpty) {
         if (!mounted) return;
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
         setState(() => _error = 'EXISTING FOOD FOUND: ${duplicate.first.name}');
         return;
       }
@@ -1006,9 +1026,16 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           nutrition.fat,
           nutrition.carbohydrate,
         ].any((value) => value == null || !value.isFinite || value < 0)) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       setState(() => _error = 'COMPLETE NUTRITION VALUES ARE REQUIRED');
       return;
     }
+    // The editor can be saved while a mobile keyboard is open. End that input
+    // session before this route pops so the previous FOOD route is rebuilt
+    // against the restored viewport rather than stale keyboard metrics.
+    FocusScope.of(context).unfocus();
     final entry = FoodCatalogEntry(
       foodId: existing?.foodId ?? FoodMealIdGenerator().generate().substring(5),
       recordVersion: FoodCatalogEntry.recordVersion2,
@@ -1049,9 +1076,17 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       final saved = (await widget.repository.list()).singleWhere(
         (candidate) => candidate.foodId == entry.foodId,
       );
-      if (mounted) Navigator.pop(context, saved);
+      if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.accepted,
+        );
+        Navigator.pop(context, saved);
+      }
     } catch (error) {
       if (mounted) {
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
         setState(() {
           _saving = false;
           _error = '食品データベースへの保存に失敗しました';
@@ -1061,182 +1096,198 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD'),
-    ),
-    body: SingleChildScrollView(
-      padding: AppSpacing.cardPadding,
-      child: OperationCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
-            AppSpacing.gapMD,
-            OperationButton(
-              key: const ValueKey('food-catalog-ocr'),
-              icon: Icons.document_scanner,
-              text: _capturing ? 'PROCESSING IMAGE' : 'SCAN NUTRITION LABEL',
-              onPressed: _capturing || _saving ? null : _scanOcr,
-            ),
-            AppSpacing.gapMD,
-            OperationTextField(controller: _name, label: 'NAME'),
-            AppSpacing.gapMD,
-            OperationTextField(controller: _brand, label: 'BRAND'),
-            AppSpacing.gapMD,
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final category = _dropdown(
-                  label: 'CATEGORY',
-                  value: _category,
-                  values: FoodCatalogCategory.values,
-                  text: foodCatalogCategoryLabel,
-                  onChanged: (value) => setState(() => _category = value),
-                );
-                final thumbnail = _FoodThumbnailField(
-                  visualKey: _visualKey,
-                  onChange: _selectThumbnail,
-                  dense: constraints.maxWidth >= _pairedAttributeMinimumWidth,
-                );
-                if (constraints.maxWidth < _pairedAttributeMinimumWidth) {
-                  return Column(
-                    key: const ValueKey('food-catalog-attributes-stacked'),
-                    children: [category, AppSpacing.gapMD, thumbnail],
-                  );
-                }
-                return Row(
-                  key: const ValueKey('food-catalog-attributes-paired'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => WillPopScope(
+    onWillPop: () async {
+      FocusScope.of(context).unfocus();
+      return true;
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: Text(widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD'),
+      ),
+      body: FoodFormTheme(
+        child: SingleChildScrollView(
+          padding: AppSpacing.cardPadding,
+          child: OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader(icon: Icons.restaurant_menu, title: 'FOOD'),
+                FoodFormMetrics.gap,
+                OperationButton(
+                  key: const ValueKey('food-catalog-ocr'),
+                  icon: Icons.document_scanner,
+                  text: _capturing
+                      ? 'PROCESSING IMAGE'
+                      : 'SCAN NUTRITION LABEL',
+                  onPressed: _capturing || _saving ? null : _scanOcr,
+                ),
+                FoodFormMetrics.gap,
+                OperationTextField(controller: _name, label: 'NAME'),
+                FoodFormMetrics.gap,
+                OperationTextField(controller: _brand, label: 'BRAND'),
+                FoodFormMetrics.gap,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final category = _dropdown(
+                      label: 'CATEGORY',
+                      value: _category,
+                      values: FoodCatalogCategory.values,
+                      text: foodCatalogCategoryLabel,
+                      onChanged: (value) => setState(() => _category = value),
+                    );
+                    final thumbnail = _FoodThumbnailField(
+                      visualKey: _visualKey,
+                      onChange: _selectThumbnail,
+                      dense:
+                          constraints.maxWidth >= _pairedAttributeMinimumWidth,
+                    );
+                    if (constraints.maxWidth < _pairedAttributeMinimumWidth) {
+                      return Column(
+                        key: const ValueKey('food-catalog-attributes-stacked'),
+                        children: [category, FoodFormMetrics.gap, thumbnail],
+                      );
+                    }
+                    return Row(
+                      key: const ValueKey('food-catalog-attributes-paired'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 11, child: category),
+                        FoodFormMetrics.horizontalGap,
+                        Expanded(flex: 9, child: thumbnail),
+                      ],
+                    );
+                  },
+                ),
+                FoodFormMetrics.gap,
+                Row(
                   children: [
-                    Expanded(flex: 11, child: category),
-                    AppSpacing.gapSM,
-                    Expanded(flex: 9, child: thumbnail),
+                    Expanded(
+                      child: OperationTextField(
+                        controller: _barcode,
+                        label: 'BARCODE / JAN',
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    FoodFormMetrics.horizontalGap,
+                    OutlinedButton.icon(
+                      key: const ValueKey('food-catalog-barcode-scan'),
+                      onPressed: _capturing || _saving ? null : _scanBarcode,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: Text(_capturing ? '...' : 'SCAN'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: FoodFormMetrics.barcodeButtonSize,
+                        padding: FoodFormMetrics.barcodeButtonPadding,
+                      ),
+                    ).actionableFeedback(),
                   ],
-                );
-              },
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _barcode,
-                    label: 'BARCODE / JAN',
-                    onChanged: (_) => setState(() {}),
-                  ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                OutlinedButton.icon(
-                  key: const ValueKey('food-catalog-barcode-scan'),
-                  onPressed: _capturing || _saving ? null : _scanBarcode,
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: Text(_capturing ? '...' : 'SCAN'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(96, 48),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                if (_barcode.text.trim().isNotEmpty) ...[
+                  AppSpacing.gapXS,
+                  Text(
+                    'FORMAT  ${_detectBarcodeFormat(_barcode.text.trim()).name.toUpperCase()}',
+                    key: const ValueKey('food-catalog-barcode-format'),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
+                ],
+                FoodFormMetrics.gap,
+                _quantityRow(
+                  controller: _packageQuantity,
+                  label: 'PACKAGE QUANTITY',
+                  value: _packageUnit,
+                  allowNull: true,
+                  onTextChanged: _packageQuantityChanged,
+                  onChanged: _packageUnitChanged,
+                ),
+                FoodFormMetrics.gap,
+                _quantityRow(
+                  controller: _baseQuantity,
+                  label: 'NUTRITION BASIS',
+                  value: _baseUnit,
+                  onTextChanged: _baseQuantityChanged,
+                  onChanged: _baseUnitChanged,
+                ),
+                FoodFormMetrics.gap,
+                Row(
+                  children: [
+                    Expanded(
+                      child: OperationTextField(
+                        controller: _calories,
+                        label: 'CALORIES',
+                        onChanged: (_) => setState(() => _rawCalories = null),
+                      ),
+                    ),
+                    FoodFormMetrics.horizontalGap,
+                    Expanded(
+                      child: OperationTextField(
+                        controller: _protein,
+                        label: 'PROTEIN',
+                        onChanged: (_) => setState(() => _rawProtein = null),
+                      ),
+                    ),
+                  ],
+                ),
+                FoodFormMetrics.gap,
+                Row(
+                  children: [
+                    Expanded(
+                      child: OperationTextField(
+                        controller: _fat,
+                        label: 'FAT',
+                        onChanged: (_) => setState(() => _rawFat = null),
+                      ),
+                    ),
+                    FoodFormMetrics.horizontalGap,
+                    Expanded(
+                      child: OperationTextField(
+                        controller: _carbs,
+                        label: 'CARBOHYDRATE',
+                        onChanged: (_) =>
+                            setState(() => _rawCarbohydrate = null),
+                      ),
+                    ),
+                  ],
+                ),
+                FoodFormMetrics.gap,
+                OperationButton(
+                  key: const ValueKey('food-catalog-recalculate-nutrition'),
+                  icon: Icons.calculate_outlined,
+                  text: 'RECALCULATE NUTRITION',
+                  onPressed: _recalculationBlockReason == null
+                      ? _previewNutritionRecalculation
+                      : null,
+                ),
+                if (_recalculationBlockReason case final reason?) ...[
+                  AppSpacing.gapXS,
+                  Text(
+                    reason,
+                    key: const ValueKey('food-catalog-recalculation-reason'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                FoodFormMetrics.gap,
+                OperationTextField(controller: _memo, label: 'MEMO'),
+                if (_error != null) ...[
+                  FoodFormMetrics.gap,
+                  Text(
+                    _error!,
+                    key: const ValueKey('food-catalog-error'),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+                AppSpacing.gapXL,
+                OperationButton(
+                  icon: Icons.save,
+                  text: 'SAVE',
+                  onPressed: _saving ? null : _save,
+                  deferFeedback: true,
                 ),
               ],
             ),
-            if (_barcode.text.trim().isNotEmpty) ...[
-              AppSpacing.gapXS,
-              Text(
-                'FORMAT  ${_detectBarcodeFormat(_barcode.text.trim()).name.toUpperCase()}',
-                key: const ValueKey('food-catalog-barcode-format'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            AppSpacing.gapMD,
-            _quantityRow(
-              controller: _packageQuantity,
-              label: 'PACKAGE QUANTITY',
-              value: _packageUnit,
-              allowNull: true,
-              onTextChanged: _packageQuantityChanged,
-              onChanged: _packageUnitChanged,
-            ),
-            AppSpacing.gapMD,
-            _quantityRow(
-              controller: _baseQuantity,
-              label: 'NUTRITION BASIS',
-              value: _baseUnit,
-              onTextChanged: _baseQuantityChanged,
-              onChanged: _baseUnitChanged,
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _calories,
-                    label: 'CALORIES',
-                    onChanged: (_) => setState(() => _rawCalories = null),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: OperationTextField(
-                    controller: _protein,
-                    label: 'PROTEIN',
-                    onChanged: (_) => setState(() => _rawProtein = null),
-                  ),
-                ),
-              ],
-            ),
-            AppSpacing.gapMD,
-            Row(
-              children: [
-                Expanded(
-                  child: OperationTextField(
-                    controller: _fat,
-                    label: 'FAT',
-                    onChanged: (_) => setState(() => _rawFat = null),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: OperationTextField(
-                    controller: _carbs,
-                    label: 'CARBOHYDRATE',
-                    onChanged: (_) => setState(() => _rawCarbohydrate = null),
-                  ),
-                ),
-              ],
-            ),
-            AppSpacing.gapMD,
-            OperationButton(
-              key: const ValueKey('food-catalog-recalculate-nutrition'),
-              icon: Icons.calculate_outlined,
-              text: 'RECALCULATE NUTRITION',
-              onPressed: _recalculationBlockReason == null
-                  ? _previewNutritionRecalculation
-                  : null,
-            ),
-            if (_recalculationBlockReason case final reason?) ...[
-              AppSpacing.gapXS,
-              Text(
-                reason,
-                key: const ValueKey('food-catalog-recalculation-reason'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            AppSpacing.gapMD,
-            OperationTextField(controller: _memo, label: 'MEMO'),
-            if (_error != null) ...[
-              AppSpacing.gapMD,
-              Text(
-                _error!,
-                key: const ValueKey('food-catalog-error'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-            AppSpacing.gapXL,
-            OperationButton(
-              icon: Icons.save,
-              text: 'SAVE',
-              onPressed: _saving ? null : _save,
-            ),
-          ],
+          ),
         ),
       ),
     ),
@@ -1259,7 +1310,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
           onChanged: onTextChanged,
         ),
       ),
-      const SizedBox(width: AppSpacing.md),
+      FoodFormMetrics.horizontalGap,
       Expanded(
         child: _dropdown<FoodQuantityUnit?>(
           label: 'UNIT',
@@ -1301,6 +1352,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     initialValue: value,
     isExpanded: true,
     decoration: InputDecoration(labelText: label),
+    style: Theme.of(context).textTheme.bodyLarge,
     items: [
       for (final item in values)
         DropdownMenuItem(value: item, child: Text(text(item))),
@@ -1310,7 +1362,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         onChanged(item as T);
       }
     },
-  );
+  ).inputFeedback();
 }
 
 class _NutritionRecalculationRow extends StatelessWidget {
@@ -1433,7 +1485,7 @@ class _FoodThumbnailField extends StatelessWidget {
               padding: EdgeInsets.zero,
             ),
             child: const Text('CHANGE'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
       Row(
@@ -1463,7 +1515,7 @@ class _FoodThumbnailField extends StatelessWidget {
     key: const ValueKey('food-catalog-thumbnail-change'),
     onPressed: onChange,
     child: const Text('CHANGE'),
-  );
+  ).actionableFeedback();
 }
 
 class _FoodVisualChoice extends StatelessWidget {
@@ -1515,7 +1567,7 @@ class _FoodVisualChoice extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -1555,7 +1607,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
@@ -1563,7 +1615,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: const Text('削除'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -1577,7 +1629,10 @@ class FoodCatalogDetailPage extends StatelessWidget {
     final nutrition = entry.nutrition;
     final hasChart = FoodPfcBalanceCard.hasBalance(nutrition);
     return Scaffold(
-      appBar: AppBar(title: const Text('FOOD DETAIL')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('FOOD DETAIL'),
+      ),
       body: SingleChildScrollView(
         padding: AppSpacing.cardPadding,
         child: Column(

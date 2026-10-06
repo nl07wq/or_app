@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/body_history/theme/history_metric_color_registry.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
@@ -291,6 +293,31 @@ void main() {
       expect(find.text(entry.$4), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('period tabs and navigation are silent display controls', (
+    tester,
+  ) async {
+    await _install(operationDate: '2027-02-01');
+    final audio = _RecordingTouchRippleAudio();
+    await _pump(
+      tester,
+      width: 390,
+      child: const PeriodicReportWorkspace(),
+      feedbackAudio: audio,
+    );
+
+    for (final label in ['MONTHLY', 'YEARLY', 'WEEKLY']) {
+      await tester.tap(find.text(label).first);
+      await tester.pumpAndSettle();
+      expect(audio.played, isEmpty, reason: label);
+    }
+
+    await tester.tap(find.byTooltip('PREVIOUS PERIOD'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('NEXT PERIOD'));
+    await tester.pumpAndSettle();
+    expect(audio.played, isEmpty);
   });
 
   testWidgets('weekly report uses semantic cards and formal daily charts', (
@@ -641,13 +668,37 @@ Future<void> _pump(
   required double width,
   double height = 900,
   required Widget child,
+  TouchRippleAudio? feedbackAudio,
 }) async {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: feedbackAudio == null
+          ? null
+          : (context, routeChild) => GlobalTouchRipple(
+              audio: feedbackAudio,
+              child: routeChild ?? const SizedBox.shrink(),
+            ),
+      home: Scaffold(body: child),
+    ),
+  );
   await tester.pumpAndSettle();
+}
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
 }
 
 void _seedReport(FakeIndexedDbDatabase database, PeriodicReportRecord report) {

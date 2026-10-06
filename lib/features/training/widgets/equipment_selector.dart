@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../models/equipment.dart';
 import '../services/equipment_catalog.dart';
 import '../services/exercise_equipment_mapping.dart';
@@ -70,7 +72,7 @@ class _EquipmentSelectorState extends State<EquipmentSelector> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            );
+            ).actionableFeedback();
           },
         );
       },
@@ -117,13 +119,13 @@ class _EquipmentPickerSheet extends StatelessWidget {
           ListTile(
             title: const Text('なし'),
             onTap: () => Navigator.pop(context, ''),
-          ),
+          ).actionableFeedback(enabled: true),
           const Divider(height: 1),
           for (final item in equipment)
             ListTile(
               title: Text(equipmentDisplayNameJa(item)),
               onTap: () => Navigator.pop(context, item.id),
-            ),
+            ).actionableFeedback(enabled: true),
         ],
       ),
     );

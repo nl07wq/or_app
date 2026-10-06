@@ -1,5 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -87,7 +89,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
                 _reportIsCurrent = null;
               }),
               icon: const Icon(Icons.list_alt_outlined),
-            ),
+            ).actionableFeedback(),
         ],
       ),
       body: SafeArea(
@@ -411,7 +413,7 @@ class _TrainingAnalysisCreatePageState
                         labelText: 'RESPONSE JSON',
                         border: OutlineInputBorder(),
                       ),
-                    ),
+                    ).inputFeedback(),
                     AppSpacing.gapMD,
                     ReportSyncActionBar(
                       enabled: !_busy,
@@ -1141,7 +1143,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
                 selected: selectedCategory == category,
                 onSelected: (_) =>
                     setState(() => _selectedMetricKey = category),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ],
         ),
         if (selectedCategory == 'volume' && volumeOptions.length > 1) ...[
@@ -1154,7 +1156,7 @@ class _ExerciseTrendGraphsState extends State<_ExerciseTrendGraphs> {
                   label: Text(key == 'recorded-volume' ? '総' : 'メインセット'),
                   selected: selectedKey == key,
                   onSelected: (_) => setState(() => _selectedVolumeKey = key),
-                ),
+                ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
         ],

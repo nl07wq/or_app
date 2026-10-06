@@ -4,6 +4,7 @@ import '../../core/models/meal_data.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
+import '../../core/widgets/global_touch_ripple.dart';
 
 import 'services/food_submit_service.dart';
 import 'services/daily_meal_v2_editor.dart';
@@ -113,7 +114,10 @@ class DailyMealV2EditPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('EDIT MEAL')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('EDIT MEAL'),
+    ),
     body: Padding(
       padding: const EdgeInsets.all(16),
       child: SingleChildScrollView(

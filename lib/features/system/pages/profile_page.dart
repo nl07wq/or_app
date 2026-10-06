@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -136,7 +138,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('PROFILE')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('PROFILE'),
+    ),
     body: _loading
         ? const Center(child: Text('取得中です'))
         : Form(
@@ -162,7 +167,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           hintText: '未設定',
                         ),
                         onChanged: (_) => _changed(),
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       TextFormField(
                         key: const ValueKey('profile-height'),
@@ -177,7 +182,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         validator: _validateHeight,
                         onChanged: (_) => _changed(),
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       DropdownButtonFormField<String>(
                         key: const ValueKey('profile-gender'),
@@ -193,7 +198,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     _changed();
                                   },
                                   icon: const Icon(Icons.clear),
-                                ),
+                                ).actionableFeedback(),
                         ),
                         hint: const Text('未設定'),
                         items: const [
@@ -214,7 +219,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           _gender = value;
                           _changed();
                         },
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       ListTile(
                         key: const ValueKey('profile-nationality'),
@@ -223,7 +228,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         subtitle: Text(_nationality ?? '未設定'),
                         trailing: const Icon(Icons.search),
                         onTap: _selectNationality,
-                      ),
+                      ).inputFeedback(),
                       AppSpacing.gapMD,
                       FilledButton.icon(
                         key: const ValueKey('save-profile'),
@@ -237,7 +242,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               )
                             : const Icon(Icons.save_outlined),
                         label: const Text('プロフィールを保存'),
-                      ),
+                      ).actionableFeedback(),
                       AppSpacing.gapSM,
                       Text(_dirty ? '未保存の変更があります' : '保存済み'),
                       if (_message != null) ...[
@@ -294,14 +299,14 @@ class _NationalityPickerState extends State<_NationalityPicker> {
                   prefixIcon: Icon(Icons.search),
                 ),
                 onChanged: (value) => setState(() => _query = value),
-              ),
+              ).inputFeedback(),
               AppSpacing.gapSM,
               ListTile(
                 title: const Text('未選択'),
                 leading: const Icon(Icons.remove_circle_outline),
                 onTap: () =>
                     Navigator.pop(context, const _NationalitySelection(null)),
-              ),
+              ).inputFeedback(),
               const Divider(),
               Expanded(
                 child: results.isEmpty
@@ -319,7 +324,7 @@ class _NationalityPickerState extends State<_NationalityPicker> {
                               context,
                               _NationalitySelection(value),
                             ),
-                          );
+                          ).inputFeedback();
                         },
                       ),
               ),

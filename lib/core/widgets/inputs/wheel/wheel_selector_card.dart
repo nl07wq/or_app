@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../global_touch_ripple.dart';
 import 'wheel_selector.dart';
 
 class WheelSelectorCard<T> extends StatefulWidget {
@@ -58,16 +59,18 @@ class _WheelSelectorCardState<T> extends State<WheelSelectorCard<T>> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ),
+              ).inputFeedback(),
           ],
         ),
 
         if (expanded) ...[
-          WheelSelector<T>(
-            values: widget.values,
-            labels: widget.labels,
-            value: widget.value,
-            onChanged: widget.onChanged,
+          InputFeedbackRegion(
+            child: WheelSelector<T>(
+              values: widget.values,
+              labels: widget.labels,
+              value: widget.value,
+              onChanged: widget.onChanged,
+            ),
           ),
 
           const SizedBox(height: 12),
@@ -81,7 +84,7 @@ class _WheelSelectorCardState<T> extends State<WheelSelectorCard<T>> {
                 });
               },
               child: const Text("完了"),
-            ),
+            ).inputFeedback(),
           ),
         ],
       ],

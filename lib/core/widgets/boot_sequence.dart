@@ -9,6 +9,7 @@ import '../services/operation_system_metadata.dart';
 import '../services/startup_diagnostic.dart';
 import '../state/app_initialization_state.dart';
 import '../theme/app_text_styles.dart';
+import 'global_touch_ripple.dart';
 
 enum BootSequenceEventType { bootStart, systemInitialized, bootComplete }
 
@@ -1080,7 +1081,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                         letterSpacing: 1.35,
                       ),
                     ),
-                  ),
+                  ).actionableFeedback(),
                 ),
               ),
             ),

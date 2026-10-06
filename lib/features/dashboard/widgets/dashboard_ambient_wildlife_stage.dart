@@ -1,9 +1,11 @@
-import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../system/pages/ambient_wildlife_v2.dart';
+import '../../system/pages/bat_v3_flight_motion_poc.dart';
 
 /// The local-clock periods used exclusively by Dashboard wildlife selection.
 enum WildlifePeriod { day, night }
@@ -28,6 +30,23 @@ double wildlifeSpeedFor(WildlifeKind kind) => switch (kind) {
   WildlifeKind.birds => 110,
   WildlifeKind.bat => 130,
 };
+
+/// Keeps the sole Dashboard Ambient V2 stage pinned to the safe viewport
+/// bottom until its natural final-row slot arrives in view.
+Rect dashboardAdaptiveAmbientStageRect({
+  required Rect naturalSlotRect,
+  required Size viewportSize,
+  required double safeBottom,
+}) {
+  final pinnedTop =
+      viewportSize.height - safeBottom - DashboardAmbientWildlifeStage.height;
+  return Rect.fromLTWH(
+    naturalSlotRect.left,
+    math.min(naturalSlotRect.top, pinnedTop),
+    naturalSlotRect.width,
+    DashboardAmbientWildlifeStage.height,
+  );
+}
 
 /// Deterministic, scheduler-free plan used by the diagnostic Sandbox. This
 /// shares production speed/duration and renderer data while intentionally
@@ -116,20 +135,47 @@ class WildlifeEventPlan {
   }
 }
 
-/// A quiet, decorative Dashboard-bottom lane. It owns no product state and
-/// remains completely idle except for its bounded next-event timer.
+/// A quiet, decorative Dashboard-bottom lane backed by the shared Ambient V2
+/// production runtime.
 class DashboardAmbientWildlifeStage extends StatefulWidget {
   const DashboardAmbientWildlifeStage({
     super.key,
+    this.productionStageKey,
     this.localNow = DateTime.now,
     this.nextInt,
     this.minimumInterval = const Duration(seconds: 45),
     this.maximumInterval = const Duration(seconds: 150),
   });
 
-  static const double height = 48;
+  /// Dashboard crops the canonical V2 surface vertically, while the species
+  /// renderer owns its visual scale. The stage and crossing coordinates remain
+  /// full width.
+  static const double canonicalHeight = AmbientWildlifeV2ProductionStage.height;
+
+  /// The former Dashboard presentation was 0.80 of canonical. V3 scales the
+  /// resulting rendered animal a further 0.80 without changing the lane width
+  /// or crossing coordinates.
+  static const double animalPresentationScale = .64;
+  static const double birdPresentationScaleMultiplier = 1.075;
+  static const double birdTravelSpeedMultiplier = .90;
+
+  /// Normal CAT chains begin at .15 global progress intervals and Dashboard
+  /// compacts only that normal spacing to .10. GLITCH retains its independent
+  /// production spacing authority inside the CAT event policy.
+  static const double catFollowerSpacingMultiplier = 2 / 3;
+  static const double foxFollowerSpacingMultiplier = 1.08;
+
+  static const double catPresentationOffsetY = -2;
+
+  /// A deliberate Dashboard-only optical altitude adjustment. It is applied
+  /// after canonical airborne mapping; it never changes BAT flight data.
+  static const double batPresentationAltitudeOffsetY = -3;
+  static const double height = 85;
+  static const double topAirspaceCrop = canonicalHeight - height;
+  static const double canonicalBottomAlignmentOffset = canonicalHeight - height;
   static const double groundInset = 5;
 
+  final GlobalKey<AmbientWildlifeV2ProductionStageState>? productionStageKey;
   final DateTime Function() localNow;
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
@@ -141,133 +187,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
 }
 
 class _DashboardAmbientWildlifeStageState
-    extends State<DashboardAmbientWildlifeStage>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final math.Random _random = math.Random();
-  late final AnimationController _controller = AnimationController(vsync: this)
-    ..addStatusListener(_onAnimationStatus);
-  Timer? _nextEventTimer;
-  WildlifeEventPlan? _activePlan;
-  bool _reducedMotion = false;
-  bool _tickerEnabled = true;
-  bool _appActive = true;
-  bool _waitingForMeasurement = false;
-  double _stageWidth = 0;
-
-  bool get _motionAllowed =>
-      !_reducedMotion && _tickerEnabled && _appActive && mounted;
-
-  int _next(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    _tickerEnabled = TickerMode.valuesOf(context).enabled;
-    _syncScheduling();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _appActive = state == AppLifecycleState.resumed;
-    _syncScheduling();
-  }
-
-  void _syncScheduling() {
-    if (!_motionAllowed) {
-      _cancelAndClear();
-      return;
-    }
-    if (_activePlan == null && _nextEventTimer == null) {
-      _scheduleNextEvent();
-    }
-  }
-
-  void _cancelAndClear() {
-    _nextEventTimer?.cancel();
-    _nextEventTimer = null;
-    _waitingForMeasurement = false;
-    _controller.stop();
-    if (_activePlan != null && mounted) {
-      setState(() => _activePlan = null);
-    } else {
-      _activePlan = null;
-    }
-  }
-
-  Duration _nextInterval() {
-    final minimum = widget.minimumInterval;
-    final maximum = widget.maximumInterval;
-    assert(maximum >= minimum);
-    final delta = maximum.inMilliseconds - minimum.inMilliseconds;
-    return minimum + Duration(milliseconds: delta == 0 ? 0 : _next(delta + 1));
-  }
-
-  void _scheduleNextEvent() {
-    if (!_motionAllowed || _activePlan != null || _nextEventTimer != null) {
-      return;
-    }
-    _nextEventTimer = Timer(_nextInterval(), () {
-      _nextEventTimer = null;
-      _startEvent();
-    });
-  }
-
-  WildlifeEventPlan _createPlan() {
-    final kinds = wildlifeKindsFor(wildlifePeriodFor(widget.localNow()));
-    final kind = kinds[_next(kinds.length)];
-    final count = switch (kind) {
-      WildlifeKind.birds => 2 + _next(3),
-      WildlifeKind.bat => 1 + _next(3),
-      WildlifeKind.cat || WildlifeKind.fox => 1,
-    };
-    return WildlifeEventPlan(
-      kind: kind,
-      leftToRight: _next(2) == 0,
-      count: count,
-      phaseSeed: _next(1000) / 1000,
-      speedPixelsPerSecond: wildlifeSpeedFor(kind),
-    );
-  }
-
-  void _startEvent() {
-    if (!_motionAllowed || _activePlan != null) return;
-    if (_stageWidth <= 0) {
-      if (_waitingForMeasurement) return;
-      _waitingForMeasurement = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _waitingForMeasurement = false;
-        _startEvent();
-      });
-      return;
-    }
-    final plan = _createPlan();
-    setState(() => _activePlan = plan);
-    _controller
-      ..duration = plan.durationForWidth(_stageWidth)
-      ..forward(from: 0);
-  }
-
-  void _onAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed || !mounted) return;
-    setState(() => _activePlan = null);
-    _scheduleNextEvent();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _nextEventTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
+    extends State<DashboardAmbientWildlifeStage> {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
@@ -277,32 +197,212 @@ class _DashboardAmbientWildlifeStageState
             key: const ValueKey('dashboard-ambient-wildlife-stage'),
             height: DashboardAmbientWildlifeStage.height,
             width: double.infinity,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                _stageWidth = constraints.maxWidth;
-                return ClipRect(
-                  key: const ValueKey('dashboard-ambient-wildlife-clip'),
-                  child: CustomPaint(
-                    key: ValueKey(
-                      'dashboard-ambient-wildlife-${_activePlan?.kind.name ?? 'idle'}',
-                    ),
-                    painter: DashboardAmbientWildlifePainter(
-                      plan: _reducedMotion ? null : _activePlan,
-                      progress: _controller,
-                      palette: DashboardAmbientWildlifePalette.forTheme(
-                        Theme.of(context),
-                      ),
-                    ),
-                    willChange: _activePlan != null,
-                  ),
-                );
-              },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const _DashboardAmbientWildlifeFrostedSurface(),
+                _DashboardAmbientWildlifeProductionViewport(
+                  stageKey: widget.productionStageKey,
+                  nextInt: widget.nextInt,
+                  minimumInterval: widget.minimumInterval,
+                  maximumInterval: widget.maximumInterval,
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Explicit production-path preview for the Animation Sandbox.  It shares
+/// the exact Dashboard crop, lane and presentation configuration rather than
+/// recreating its geometry in a diagnostic painter.
+class DashboardAmbientWildlifeProductionPreviewStage extends StatefulWidget {
+  const DashboardAmbientWildlifeProductionPreviewStage({
+    super.key,
+    required this.requestId,
+    required this.variant,
+    required this.leftToRight,
+    this.forcedSpecies,
+    this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
+    this.catGlitchSpacingOverride,
+    this.paused = false,
+    this.onCompleted,
+    this.nextInt,
+  });
+
+  final int requestId;
+  final AmbientWildlifeV2ForcedVariant variant;
+  final bool leftToRight;
+
+  /// Null is the only random-species mode. A non-null value always wins over
+  /// the Dashboard random picker.
+  final AmbientWildlifeV2Species? forcedSpecies;
+  final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
+
+  /// A Sandbox-only CAT GLITCH comparison value. Null preserves the shared
+  /// production policy exactly.
+  final double? catGlitchSpacingOverride;
+  final bool paused;
+  final VoidCallback? onCompleted;
+  final int Function(int max)? nextInt;
+
+  @override
+  State<DashboardAmbientWildlifeProductionPreviewStage> createState() =>
+      _DashboardAmbientWildlifeProductionPreviewStageState();
+}
+
+class _DashboardAmbientWildlifeProductionPreviewStageState
+    extends State<DashboardAmbientWildlifeProductionPreviewStage> {
+  late AmbientWildlifeV2EventPlan _plan;
+
+  @override
+  void initState() {
+    super.initState();
+    _plan = _resolvePlan();
+  }
+
+  int _next(int max) => widget.nextInt?.call(max) ?? math.Random().nextInt(max);
+
+  AmbientWildlifeV2EventPlan _resolvePlan() {
+    final species =
+        widget.forcedSpecies ??
+        AmbientWildlifeV2Registry.availableSpecies[_next(
+          AmbientWildlifeV2Registry.availableSpecies.length,
+        )];
+    return AmbientWildlifeV2EventPlan.forced(
+      species: species,
+      variant: widget.variant,
+      leftToRight: widget.leftToRight,
+      catGlitchSpacingOverride: widget.catGlitchSpacingOverride,
+    );
+  }
+
+  @override
+  void didUpdateWidget(
+    covariant DashboardAmbientWildlifeProductionPreviewStage oldWidget,
+  ) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.requestId != widget.requestId) {
+      _plan = _resolvePlan();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: SizedBox(
+      key: const ValueKey('dashboard-ambient-wildlife-production-preview'),
+      height: DashboardAmbientWildlifeStage.height,
+      width: double.infinity,
+      child: _DashboardAmbientWildlifeProductionViewport(
+        forcedPlan: _plan,
+        forcedRequestId: widget.requestId,
+        minimumInterval: Duration.zero,
+        maximumInterval: Duration.zero,
+        catMotionProfile: widget.catMotionProfile,
+        catPosePhaseMode: widget.catPosePhaseMode,
+        paused: widget.paused,
+        onCompleted: widget.onCompleted,
+      ),
+    ),
+  );
+}
+
+class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
+  const _DashboardAmbientWildlifeProductionViewport({
+    this.stageKey,
+    this.nextInt,
+    this.minimumInterval = const Duration(seconds: 45),
+    this.maximumInterval = const Duration(seconds: 150),
+    this.forcedPlan,
+    this.forcedRequestId = 0,
+    this.catMotionProfile = AmbientWildlifeV2CatMotionProfile.current,
+    this.catPosePhaseMode = AmbientWildlifeV2CatPosePhaseMode.sync,
+    this.paused = false,
+    this.onCompleted,
+  });
+
+  final GlobalKey<AmbientWildlifeV2ProductionStageState>? stageKey;
+  final int Function(int max)? nextInt;
+  final Duration minimumInterval;
+  final Duration maximumInterval;
+  final AmbientWildlifeV2EventPlan? forcedPlan;
+  final int forcedRequestId;
+  final AmbientWildlifeV2CatMotionProfile catMotionProfile;
+  final AmbientWildlifeV2CatPosePhaseMode catPosePhaseMode;
+  final bool paused;
+  final VoidCallback? onCompleted;
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    key: const ValueKey('dashboard-ambient-wildlife-clip'),
+    child: OverflowBox(
+      alignment: Alignment.bottomCenter,
+      minHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+      maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
+      child: AmbientWildlifeV2ProductionStage(
+        key: stageKey,
+        nextInt: nextInt,
+        minimumInterval: minimumInterval,
+        maximumInterval: maximumInterval,
+        forcedPlan: forcedPlan,
+        forcedRequestId: forcedRequestId,
+        speciesPresentationScale:
+            DashboardAmbientWildlifeStage.animalPresentationScale,
+        birdPresentationScaleMultiplier:
+            DashboardAmbientWildlifeStage.birdPresentationScaleMultiplier,
+        birdTravelSpeedMultiplier:
+            DashboardAmbientWildlifeStage.birdTravelSpeedMultiplier,
+        catFollowerSpacingMultiplier:
+            DashboardAmbientWildlifeStage.catFollowerSpacingMultiplier,
+        foxFollowerSpacingMultiplier:
+            DashboardAmbientWildlifeStage.foxFollowerSpacingMultiplier,
+        catMotionProfile: catMotionProfile,
+        catPosePhaseMode: catPosePhaseMode,
+        paused: paused,
+        onCompleted: onCompleted,
+        catPresentationOffsetY:
+            DashboardAmbientWildlifeStage.catPresentationOffsetY,
+        batPresentationVerticalAnchor:
+            AirbornePresentationVerticalAnchor.canonicalAirspace,
+        batPresentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        batPresentationAltitudeOffsetY:
+            DashboardAmbientWildlifeStage.batPresentationAltitudeOffsetY,
+        birdPresentationTopCrop: DashboardAmbientWildlifeStage.topAirspaceCrop,
+        paintEnvironment: false,
+      ),
+    ),
+  );
+}
+
+/// Glass belongs behind the production wildlife renderer so the Dashboard
+/// circuit remains visible while the CAT/FOX/BAT/BIRD artwork stays fully
+/// opaque and unblurred on the top layer.
+class _DashboardAmbientWildlifeFrostedSurface extends StatelessWidget {
+  const _DashboardAmbientWildlifeFrostedSurface();
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+      child: DecoratedBox(
+        key: const ValueKey('dashboard-ambient-wildlife-frosted-surface'),
+        decoration: BoxDecoration(
+          color: AppColors.background.withValues(alpha: .68),
+          border: Border(
+            top: BorderSide(
+              color: AppColors.information.withValues(alpha: .10),
+            ),
+            bottom: BorderSide(color: Colors.black.withValues(alpha: .24)),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Explicit-event diagnostic lane for the Animations Sandbox. It deliberately

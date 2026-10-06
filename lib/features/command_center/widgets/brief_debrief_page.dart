@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/state/app_initialization_state.dart';
@@ -94,14 +96,17 @@ class BriefDebriefPage extends StatelessWidget {
             title: 'BRIEF / DEBRIEF',
           ),
         ),
-        const TabBar(
-          key: ValueKey('brief-debrief-tab-bar'),
-          isScrollable: false,
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: [
-            Tab(text: 'DAILY BRIEF'),
-            Tab(text: 'DAILY DEBRIEF'),
-          ],
+        const ActionableFeedbackRegion(
+          role: ActionableFeedbackRole.silent,
+          child: TabBar(
+            key: ValueKey('brief-debrief-tab-bar'),
+            isScrollable: false,
+            indicatorSize: TabBarIndicatorSize.label,
+            tabs: [
+              Tab(text: 'DAILY BRIEF'),
+              Tab(text: 'DAILY DEBRIEF'),
+            ],
+          ),
         ),
         Expanded(
           child: TabBarView(
@@ -290,7 +295,7 @@ class _ArchiveButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ),
+    ).actionableFeedback(),
   );
 }
 
@@ -588,7 +593,10 @@ class _DailyDebriefDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY DEBRIEF')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY DEBRIEF'),
+    ),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [_DailyDebriefDetail(record: record)],
@@ -1220,6 +1228,7 @@ class _MorningBriefRevisionHistory extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => Scaffold(
                 appBar: AppBar(
+                  leading: const ActionableBackButton(),
                   title: Text(
                     'DAILY BRIEF ${ReportHumanPresentation.revisionLabel(revision.revision)}',
                   ),
@@ -1237,7 +1246,7 @@ class _MorningBriefRevisionHistory extends StatelessWidget {
               ),
             ),
           ),
-        ),
+        ).actionableFeedback(enabled: true),
     ],
   );
 }
@@ -1901,7 +1910,7 @@ class _BackNumberRow extends StatelessWidget {
         : Text(preview!, maxLines: 2, overflow: TextOverflow.ellipsis),
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
-  );
+  ).actionableFeedback(enabled: true);
 }
 
 class _BackNumberLeading extends StatelessWidget {
@@ -1957,7 +1966,10 @@ class _MorningBriefDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY BRIEF')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY BRIEF'),
+    ),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [_MorningBriefCard(record: record)],
@@ -1972,7 +1984,10 @@ class _MorningBriefArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY BRIEF BACK NUMBER')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY BRIEF BACK NUMBER'),
+    ),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: records.length,
@@ -1994,7 +2009,7 @@ class _MorningBriefArchivePage extends StatelessWidget {
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => _openMorningBriefDetail(context, records[index]),
-      ),
+      ).actionableFeedback(enabled: true),
     ),
   );
 }
@@ -2007,7 +2022,10 @@ class _DailyDebriefArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY DEBRIEF BACK NUMBER')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY DEBRIEF BACK NUMBER'),
+    ),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: records.length,

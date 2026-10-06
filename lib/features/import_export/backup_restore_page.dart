@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/state/app_initialization_state.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/theme/app_spacing.dart';
@@ -139,7 +141,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   Future<void> _selectAuditArchive() async {
     final normal = _selectedNormalPackage;
     if (normal == null ||
-        (normal.schemaVersion != 14 && normal.schemaVersion != 15)) {
+        (normal.schemaVersion != 14 &&
+            normal.schemaVersion != 15 &&
+            normal.schemaVersion != 16 &&
+            normal.schemaVersion != 17 &&
+            normal.schemaVersion != 18)) {
       return;
     }
     setState(() {
@@ -215,11 +221,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('IMPORT DATA'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -249,7 +255,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('BACKUP & RESTORE')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('BACKUP & RESTORE'),
+      ),
       body: ListView(
         padding: AppSpacing.cardPadding,
         children: [
@@ -342,7 +351,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             onSelectionChanged: _selectedPackage!.permitsReplaceAll && !_busy
                 ? (value) => _changeMode(value.single)
                 : null,
-          ),
+          ).inputFeedback(),
           AppSpacing.gapMD,
           for (final section in plan.sections.entries)
             Text(

@@ -6,7 +6,10 @@ import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/features/command_center/pages/command_center_page.dart';
+import 'package:or_app/features/command_center/widgets/command_center_hud_sign.dart';
 import 'package:or_app/features/morning/morning_fact_page.dart';
 import 'package:or_app/features/morning/morning_page.dart';
 import 'package:or_app/features/morning/services/morning_submit_service.dart';
@@ -53,6 +56,52 @@ void main() {
     expect(find.textContaining('本日のSTATUSは登録済みです。'), findsOneWidget);
     expect(find.textContaining('編集する場合はRECORDから行ってください。'), findsOneWidget);
   });
+
+  testWidgets(
+    'completed STATUS ENTRY keeps its disabled action and claims failure feedback',
+    (tester) async {
+      final audio = _RecordingTouchRippleAudio();
+      var rippleEvents = 0;
+      await AppRepositoryRegistry.container.status.save(_status('2026-08-15'));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GlobalTouchRipple(
+            audio: audio,
+            onRippleEventCreated: (_) => rippleEvents++,
+            child: const MorningPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final entry = find.byKey(const ValueKey('status-entry-button'));
+      expect(_entryButton(tester).onPressed, isNull);
+      final tap = await tester.startGesture(tester.getCenter(entry));
+      await tester.pump();
+      expect(audio.played, isEmpty);
+      await tap.up();
+      await tester.pump(const Duration(milliseconds: 32));
+
+      expect(find.byType(MorningFactPage), findsNothing);
+      expect(
+        await AppRepositoryRegistry.container.status.findByLocalDate(
+          '2026-08-15',
+        ),
+        isNotNull,
+      );
+      expect(audio.played, [TouchFeedbackSound.failure]);
+      expect(rippleEvents, 0);
+
+      audio.played.clear();
+      final drag = await tester.startGesture(tester.getCenter(entry));
+      await drag.moveBy(const Offset(0, 40));
+      await drag.up();
+      await tester.pump(const Duration(milliseconds: 32));
+
+      expect(audio.played, isEmpty);
+      expect(rippleEvents, 0);
+    },
+  );
 
   test(
     'same-day second new STATUS save is rejected without replacement',
@@ -196,7 +245,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
-      expect(find.text('COMMAND CENTER'), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.titleKey), findsOneWidget);
       final briefDebriefTab = tester.widget<Text>(
         find.descendant(
           of: find.byKey(const ValueKey('command-center-tab-1')),
@@ -217,7 +266,7 @@ void main() {
       );
       expect(find.textContaining('LATEST BRIEF'), findsOneWidget);
       expect(find.text('DASHBOARD TEST'), findsNothing);
-      expect(find.byType(BackButton), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
       final scrollable = tester.state<ScrollableState>(
         find.descendant(
           of: find.byKey(const ValueKey('morning-brief-content')),
@@ -226,9 +275,55 @@ void main() {
       );
       expect(scrollable.position.pixels, 0);
 
-      await tester.tap(find.byType(BackButton));
+      await tester.tap(find.byKey(CommandCenterHudSign.backKey));
       await tester.pumpAndSettle();
       expect(find.text('DASHBOARD TEST'), findsOneWidget);
+    },
+  );
+
+  testWidgets('rapid STATUS saves keep one confirmation flow', (tester) async {
+    await _pumpEntry(tester);
+    await tester.ensureVisible(find.text('SAVE STATUS'));
+    await tester.tap(find.text('SAVE STATUS'));
+    await tester.tap(find.text('SAVE STATUS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'), findsOneWidget);
+  });
+
+  testWidgets(
+    'STATUS brief success preserves its parent route for COMMAND CENTER back navigation',
+    (tester) async {
+      await _pumpEntryFromParent(
+        tester,
+        dailyBriefCreationPageBuilder: (onApplied) => Scaffold(
+          appBar: AppBar(title: const Text('DAILY BRIEF CREATE TEST')),
+          body: TextButton(
+            onPressed: () {
+              onApplied();
+              Navigator.pop(tester.element(find.text('COMPLETE BRIEF')));
+            },
+            child: const Text('COMPLETE BRIEF'),
+          ),
+        ),
+      );
+      await tester.ensureVisible(find.text('SAVE STATUS'));
+      await tester.tap(find.text('SAVE STATUS'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('YES'));
+      await tester.pumpAndSettle();
+      await AppRepositoryRegistry.container.morningBriefs.create(
+        _morningBrief('2026-08-15'),
+      );
+      await tester.tap(find.text('COMPLETE BRIEF'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CommandCenterPage), findsOneWidget);
+      expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
+
+      await tester.tap(find.byKey(CommandCenterHudSign.backKey));
+      await tester.pumpAndSettle();
+      expect(find.text('PARENT TEST'), findsOneWidget);
     },
   );
 
@@ -274,6 +369,19 @@ void main() {
 OperationButton _entryButton(WidgetTester tester) =>
     tester.widget(find.byKey(const ValueKey('status-entry-button')));
 
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
+}
+
 Future<void> _pumpEntry(
   WidgetTester tester, {
   DailyBriefCreationPageBuilder? dailyBriefCreationPageBuilder,
@@ -289,21 +397,71 @@ Future<void> _pumpEntry(
                 const Text('DASHBOARD TEST'),
                 TextButton(
                   onPressed: () =>
-                      Navigator.pushNamed(context, '/status-entry'),
+                      Navigator.pushNamed(context, AppRoutes.morning),
                   child: const Text('OPEN STATUS TEST'),
                 ),
               ],
             ),
           ),
         ),
-        '/status-entry': (_) => MorningFactPage(
-          dailyBriefCreationPageBuilder: dailyBriefCreationPageBuilder,
+        AppRoutes.morning: (context) => Scaffold(
+          body: Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => MorningFactPage(
+                    dailyBriefCreationPageBuilder:
+                        dailyBriefCreationPageBuilder,
+                  ),
+                ),
+              ),
+              child: const Text('OPEN STATUS FACT TEST'),
+            ),
+          ),
         ),
       },
     ),
   );
   await tester.pumpAndSettle();
   await tester.tap(find.text('OPEN STATUS TEST'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OPEN STATUS FACT TEST'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpEntryFromParent(
+  WidgetTester tester, {
+  required DailyBriefCreationPageBuilder dailyBriefCreationPageBuilder,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('PARENT TEST'),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => MorningFactPage(
+                        dailyBriefCreationPageBuilder:
+                            dailyBriefCreationPageBuilder,
+                      ),
+                    ),
+                  ),
+                  child: const Text('OPEN STATUS FROM PARENT'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OPEN STATUS FROM PARENT'));
   await tester.pumpAndSettle();
 }
 

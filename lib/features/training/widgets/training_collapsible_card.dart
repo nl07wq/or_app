@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 
@@ -103,7 +105,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ),
+            ).actionableFeedback(),
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 180),

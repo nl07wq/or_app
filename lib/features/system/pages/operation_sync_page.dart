@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -145,11 +147,11 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(selection.isRecovery ? 'RESUME' : 'APPLY'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -187,7 +189,10 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
     final state = _workspace?.state;
     final requiresRecovery = state?.requiresRecovery ?? false;
     return Scaffold(
-      appBar: AppBar(title: const Text('OPERATION SYNC')),
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('OPERATION SYNC'),
+      ),
       body: ListView(
         key: const ValueKey('operation-sync-content'),
         padding: AppSpacing.cardPadding,
@@ -464,7 +469,7 @@ class _HistoricalImportScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: AppBar(leading: const ActionableBackButton(), title: Text(title)),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [
@@ -577,7 +582,7 @@ class _OperationSyncRecordArchiveButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ),
+    ).actionableFeedback(),
   );
 }
 
@@ -634,7 +639,7 @@ class _SyncActionButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 20),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ),
+    ).actionableFeedback(),
   );
 }
 
@@ -712,7 +717,7 @@ class _MixedRecordRow extends StatelessWidget {
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
     isThreeLine: record.failureCode != null,
-  );
+  ).actionableFeedback(enabled: true);
 }
 
 void _openMixedOperationSyncRecord(
@@ -739,7 +744,7 @@ class _MixedOperationSyncRecordArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: AppBar(leading: const ActionableBackButton(), title: Text(title)),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: records.length,
@@ -763,7 +768,7 @@ class _MixedOperationSyncRecordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: AppBar(leading: const ActionableBackButton(), title: Text(title)),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [

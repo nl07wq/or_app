@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/cardio_entry.dart';
 import '../../../core/models/cardio_entry_v2.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -71,7 +73,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                     controller.type = value;
                     onChanged();
                   },
-                ),
+                ).inputFeedback(),
               ),
               const SizedBox(width: AppSpacing.xs),
               IconButton(
@@ -82,7 +84,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                 ),
                 tooltip: 'Delete cardio',
                 onPressed: onDelete,
-              ),
+              ).actionableFeedback(),
             ],
           ),
           AppSpacing.gapXS,
@@ -135,7 +137,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
                     ),
                     keyboardType: TextInputType.text,
                     onChanged: (_) => onChanged(),
-                  ),
+                  ).inputFeedback(),
                   InputDecorator(
                     key: ValueKey('v2-cardio-$index-estimated-calories'),
                     decoration: const InputDecoration(labelText: '推定消費カロリー'),
@@ -163,7 +165,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
             minLines: 1,
             maxLines: 2,
             onChanged: (_) => onChanged(),
-          ),
+          ).inputFeedback(),
         ],
       ),
     );
@@ -202,7 +204,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
           controller.purpose = value;
           onChanged();
         },
-      );
+      ).inputFeedback();
 
   Widget _durationField(BuildContext context) => TextField(
     key: Key('v2-cardio-$index-duration'),
@@ -214,7 +216,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
       suffixIcon: Icon(Icons.timer_outlined),
     ),
     onTap: () => _pickDuration(context),
-  );
+  ).inputFeedback();
 
   Future<void> _pickDuration(BuildContext context) async {
     final initialSeconds =
@@ -242,7 +244,7 @@ class TrainingCardioV2Editor extends StatelessWidget {
       decoration: InputDecoration(labelText: label, suffixText: suffix),
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       onChanged: (_) => onChanged(),
-    );
+    ).inputFeedback();
   }
 
   String? _summary() {
@@ -283,11 +285,11 @@ class _CardioDurationPickerState extends State<_CardioDurationPicker> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('CANCEL'),
-        ),
+        ).actionableFeedback(),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_duration),
           child: const Text('APPLY'),
-        ),
+        ).actionableFeedback(),
       ],
     );
   }
@@ -380,7 +382,7 @@ class _CardioDurationPickerState extends State<_CardioDurationPicker> {
         onChanged: (next) {
           if (next != null) onChanged(next);
         },
-      ),
+      ).inputFeedback(),
     );
   }
 }

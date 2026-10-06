@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/meal_data.dart';
 
 class FoodRecordTile extends StatelessWidget {
@@ -34,14 +36,14 @@ class FoodRecordTile extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: onEdit,
-                ),
+                ).actionableFeedback(),
                 IconButton(
                   icon: Icon(
                     Icons.delete_outline,
                     color: Theme.of(context).colorScheme.error,
                   ),
                   onPressed: onDelete,
-                ),
+                ).actionableFeedback(),
               ],
             ),
             const SizedBox(height: 12),

@@ -14,6 +14,10 @@ class OperationDateNixieDisplay extends StatelessWidget {
     required this.operationDateFuture,
     required this.transitionToken,
     this.previewTransitionToken = 0,
+    this.showTime = true,
+    this.dateFieldWidth = OperationDateNixieDisplay.dateTileWidth,
+    this.dateFieldGap = OperationDateNixieDisplay.tileGap,
+    this.dateVerticalPadding = const EdgeInsets.symmetric(vertical: 4),
     super.key,
     this.initialTransitionFrom,
   });
@@ -25,6 +29,10 @@ class OperationDateNixieDisplay extends StatelessWidget {
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final int previewTransitionToken;
+  final bool showTime;
+  final double dateFieldWidth;
+  final double dateFieldGap;
+  final EdgeInsetsGeometry dateVerticalPadding;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -36,38 +44,41 @@ class OperationDateNixieDisplay extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: dateVerticalPadding,
           child: _OperationDateNixieCalendar(
             operationDateFuture: operationDateFuture,
             transitionToken: transitionToken,
             previewTransitionToken: previewTransitionToken,
             initialTransitionFrom: initialTransitionFrom,
+            tileWidth: dateFieldWidth,
+            tileGap: dateFieldGap,
           ),
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: SizedBox(
-                height: tileHeight + 8,
-                child: VerticalDivider(
-                  key: const ValueKey('dashboard-nixie-date-time-divider'),
-                  width: 1,
-                  thickness: 1,
-                  color: NixiePresentationColors.frame,
+        if (showTime)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: SizedBox(
+                  height: tileHeight + 8,
+                  child: VerticalDivider(
+                    key: const ValueKey('dashboard-nixie-date-time-divider'),
+                    width: 1,
+                    thickness: 1,
+                    color: NixiePresentationColors.frame,
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _OperationDateNixieClock(
-                transitionToken: transitionToken,
-                previewTransitionToken: previewTransitionToken,
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: _OperationDateNixieClock(
+                  transitionToken: transitionToken,
+                  previewTransitionToken: previewTransitionToken,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     ),
   );
@@ -100,19 +111,24 @@ class NixiePresentationColors {
   ];
 }
 
-/// Deterministic whole-display cathode sequence: all foregrounds shut down,
-/// rear structures remain, then fields ignite from visual left to right.
+/// Deterministic whole-display cathode sequence. The old display visibly
+/// blinks twice before the new display ignites, so an Operation Date change is
+/// readable without changing the date authority.
 abstract final class NixieTransitionMotion {
-  static const duration = Duration(milliseconds: 360);
+  static const duration = Duration(milliseconds: 720);
+
+  static bool showsNewValue(double progress) => progress >= .56;
 
   static double foregroundOpacity({
     required double progress,
     required int ignitionOrder,
   }) {
-    if (progress < .24) return 1 - progress / .24;
-    if (progress < .42) return 0;
-    final start = .42 + ignitionOrder * .055;
-    const ignitionLength = .13;
+    if (progress < .16) return 1;
+    if (progress < .30) return 0;
+    if (progress < .42) return 1;
+    if (progress < .56) return 0;
+    final start = .56 + ignitionOrder * .035;
+    const ignitionLength = .12;
     if (progress <= start) return 0;
     if (progress >= start + ignitionLength) return 1;
     return .35 + ((progress - start) / ignitionLength) * .65;
@@ -151,12 +167,16 @@ class _OperationDateNixieCalendar extends StatefulWidget {
     required this.operationDateFuture,
     required this.transitionToken,
     required this.previewTransitionToken,
+    required this.tileWidth,
+    required this.tileGap,
     this.initialTransitionFrom,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final int previewTransitionToken;
+  final double tileWidth;
+  final double tileGap;
   final OperationLocalDate? initialTransitionFrom;
 
   @override
@@ -173,6 +193,7 @@ class _OperationDateNixieCalendarState
   late final AnimationController _transitionController;
   bool _dateTransitionActive = false;
   bool _showingInitialTransitionFrom = false;
+  OperationLocalDate? _transitionFromDate;
 
   @override
   void dispose() {
@@ -225,6 +246,7 @@ class _OperationDateNixieCalendarState
             widget.transitionToken != _consumedTransitionToken &&
             _displayedDate != null &&
             _displayedDate != nextDate;
+        if (animate) _transitionFromDate = _displayedDate;
         _displayedDate = nextDate;
         _consumedTransitionToken = widget.transitionToken;
         if (animate) _beginTransition();
@@ -238,7 +260,12 @@ class _OperationDateNixieCalendarState
           style: Theme.of(context).textTheme.titleSmall,
         );
       }
-      final parsed = date.asUtcDate;
+      final transitionDate =
+          _dateTransitionActive &&
+              !NixieTransitionMotion.showsNewValue(_transitionController.value)
+          ? _transitionFromDate ?? date
+          : date;
+      final parsed = transitionDate.asUtcDate;
       final values = [
         _months[parsed.month - 1],
         parsed.day.toString().padLeft(2, '0'),
@@ -262,13 +289,12 @@ class _OperationDateNixieCalendarState
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (var index = 0; index < values.length; index++) ...[
-                  if (index > 0)
-                    const SizedBox(width: OperationDateNixieDisplay.tileGap),
+                  if (index > 0) SizedBox(width: widget.tileGap),
                   index == 1
                       ? NixieTubeCell(
                           key: ValueKey('operation-date-nixie-field-$index'),
                           value: values[index],
-                          width: OperationDateNixieDisplay.dateTileWidth,
+                          width: widget.tileWidth,
                           height: OperationDateNixieDisplay.tileHeight,
                           animate: _dateTransitionActive,
                           foregroundOpacity: _foregroundOpacity(index),
@@ -279,7 +305,7 @@ class _OperationDateNixieCalendarState
                       : _NixieTechnicalLabel(
                           key: ValueKey('operation-date-nixie-field-$index'),
                           value: values[index],
-                          width: OperationDateNixieDisplay.dateTileWidth,
+                          width: widget.tileWidth,
                           height: OperationDateNixieDisplay.tileHeight,
                           animate: _dateTransitionActive,
                           foregroundOpacity: _foregroundOpacity(index),

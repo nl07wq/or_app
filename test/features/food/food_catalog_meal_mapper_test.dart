@@ -6,6 +6,7 @@ import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
+import 'package:or_app/features/food/models/recipe_models_v2.dart';
 import 'package:or_app/features/food/repository/food_meal_id_generator.dart';
 import 'package:or_app/features/food/services/food_catalog_meal_mapper.dart';
 
@@ -132,4 +133,110 @@ void main() {
       expect(mapped.items.single.recipeReferenceId, isNull);
     });
   }
+
+  test('recipe instance snapshot retains overridden ingredient nutrition', () {
+    final timestamp = DateTime.utc(2026, 9, 26);
+    final provenance = FoodDataProvenance(
+      sourceType: FoodProvenanceSourceType.userInput,
+      capturedAt: timestamp,
+    );
+    final source = FoodRecipeDefinition(
+      recipeId: '44444444-4444-4444-8444-444444444444',
+      name: 'Chicken',
+      ingredients: [
+        RecipeIngredientV2(
+          ingredientId: '55555555-5555-4555-8555-555555555555',
+          nameSnapshot: 'Chicken breast',
+          quantity: FoodQuantityDefinition(
+            value: 300,
+            unit: FoodQuantityUnit.gram,
+          ),
+          nutritionSnapshot: NutritionSnapshot(
+            calories: 300,
+            protein: 60,
+            fat: 6,
+            carbohydrate: 0,
+          ),
+          nutritionStatus: NutritionStatus.declared,
+          provenanceSnapshot: provenance,
+          sortOrder: 0,
+        ),
+      ],
+      yieldQuantity: FoodQuantityDefinition(
+        value: 1,
+        unit: FoodQuantityUnit.serving,
+      ),
+      nutrition: NutritionSnapshot(
+        calories: 300,
+        protein: 60,
+        fat: 6,
+        carbohydrate: 0,
+      ),
+      nutritionStatus: NutritionStatus.declared,
+      provenance: provenance,
+      isArchived: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    final instance = FoodRecipeDefinition.fromJson({
+      ...source.toJson(),
+      'ingredients': [
+        {
+          ...source.ingredients.single.toJson(),
+          'quantity': FoodQuantityDefinition(
+            value: 250,
+            unit: FoodQuantityUnit.gram,
+          ).toJson(),
+          'nutritionSnapshot': NutritionSnapshot(
+            calories: 250,
+            protein: 50,
+            fat: 5,
+            carbohydrate: 0,
+          ).toJson(),
+        },
+      ],
+      'nutrition': NutritionSnapshot(
+        calories: 250,
+        protein: 50,
+        fat: 5,
+        carbohydrate: 0,
+      ).toJson(),
+    });
+    final mapped = FoodCatalogMealMapper.map(
+      meal: const MealData(
+        date: '2026-09-26',
+        mealType: 'Lunch',
+        memo: '',
+        id: 'draft',
+        items: [
+          FoodItem(
+            name: 'Chicken',
+            calories: 250,
+            protein: 50,
+            fat: 5,
+            carbohydrate: 0,
+          ),
+        ],
+      ),
+      catalogSources: const [null],
+      recipeSources: [source],
+      recipeInstanceSnapshots: [instance],
+      localDate: '2026-09-26',
+      timestamp: timestamp,
+      idGenerator: FoodMealIdGenerator(nextInt: (_) => 9),
+    );
+    expect(source.ingredients.single.quantity.value, 300);
+    expect(
+      mapped
+          .items
+          .single
+          .recipeInstanceSnapshot!
+          .ingredients
+          .single
+          .quantity
+          .value,
+      250,
+    );
+    expect(mapped.items.single.nutritionConsumed.calories, 250);
+  });
 }

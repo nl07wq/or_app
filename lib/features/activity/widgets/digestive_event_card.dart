@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/digestive_event.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -47,7 +49,7 @@ class DigestiveEventCard extends StatelessWidget {
                     tooltip: '排便イベント${event.sequence}を削除',
                     onPressed: enabled ? onDelete : null,
                     icon: const Icon(Icons.delete_outline),
-                  ),
+                  ).actionableFeedback(),
                 ),
               ],
             ),
@@ -206,7 +208,7 @@ class _EventChoiceChip extends StatelessWidget {
         label: ExcludeSemantics(child: Text(label)),
         selected: selected,
         onSelected: enabled ? (_) => onSelected() : null,
-      ),
+      ).inputFeedback(),
     );
   }
 }

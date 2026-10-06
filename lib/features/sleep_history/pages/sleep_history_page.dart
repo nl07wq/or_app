@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -114,7 +116,10 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('SLEEP HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('SLEEP HISTORY'),
+    ),
     body: FutureBuilder<_SleepViewModel>(
       future: _model,
       builder: (context, snapshot) {
@@ -165,7 +170,7 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
                 selected: {_metric},
                 onSelectionChanged: (value) =>
                     setState(() => _metric = value.first),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
             AppSpacing.gapXL,
             SectionHeader(
@@ -260,7 +265,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -478,7 +483,7 @@ class _Buckets extends StatelessWidget {
             child: TextButton(
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
       ],
     );
@@ -633,7 +638,7 @@ class _DailyHistory extends StatelessWidget {
               IconButton(
                 onPressed: start.isAfter(range.start) ? () => onMove(-7) : null,
                 icon: const Icon(Icons.chevron_left),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               Expanded(
                 child: Text(
                   '${_short(start)} - ${_short(windowEnd)}',
@@ -645,7 +650,7 @@ class _DailyHistory extends StatelessWidget {
                     ? () => onMove(7)
                     : null,
                 icon: const Icon(Icons.chevron_right),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
           for (var i = 0; i < 7; i++)

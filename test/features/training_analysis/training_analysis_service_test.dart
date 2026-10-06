@@ -22,6 +22,9 @@ void main() {
       final preparation = await fixture.service.prepare(fixture.targetId);
 
       expect(preparation.target.id, fixture.targetId);
+      expect(preparation.prompt, contains('2026-08-21T12:00:00.000Z'));
+      expect(preparation.prompt, contains('authoritative UTC timestamp'));
+      expect(preparation.prompt, isNot(contains('<UTC_TIMESTAMP>')));
       expect(preparation.prompt, contains('"operationDate": "$targetDate"'));
       expect(
         preparation.prompt,

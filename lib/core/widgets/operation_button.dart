@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import 'global_touch_ripple.dart';
 
 enum OperationActionRole { primary, secondary, danger }
 
@@ -15,12 +16,23 @@ class OperationButton extends StatelessWidget {
 
   final OperationActionRole role;
 
+  /// Lets an explicitly unavailable control report a non-mutating attempted
+  /// action while retaining its disabled visual and accessibility semantics.
+  final bool reportUnavailableTap;
+
+  /// Defers semantic result feedback until the callback has validated or
+  /// persisted its operation. The callback resolves through the shared
+  /// [ActionableFeedbackRegion] API, never by choosing a sound asset.
+  final bool deferFeedback;
+
   const OperationButton({
     super.key,
     required this.text,
     required this.onPressed,
     this.icon,
     this.role = OperationActionRole.secondary,
+    this.reportUnavailableTap = false,
+    this.deferFeedback = false,
   });
 
   @override
@@ -33,7 +45,7 @@ class OperationButton extends StatelessWidget {
             OperationActionRole.secondary => AppTextStyles.label.color!,
             OperationActionRole.danger => colorScheme.error,
           };
-    return SizedBox(
+    final button = SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
@@ -63,6 +75,17 @@ class OperationButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (onPressed != null) {
+      return ActionableFeedbackRegion(
+        deferResolution: deferFeedback,
+        child: button,
+      );
+    }
+    if (!reportUnavailableTap) return button;
+    return ActionableFeedbackRegion(
+      result: ActionableFeedbackResult.unavailable,
+      child: button,
     );
   }
 }

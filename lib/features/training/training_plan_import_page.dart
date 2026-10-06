@@ -5,6 +5,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/models/training_set_v2.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/global_touch_ripple.dart';
 import '../../core/widgets/section_header.dart';
 import '../report_sync/widgets/report_sync_action_bar.dart';
 import 'models/training_plan_proposal.dart';
@@ -206,7 +207,7 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
                         ),
                     ],
                     onChanged: _busy ? null : _selectReference,
-                  ),
+                  ).inputFeedback(),
                   AppSpacing.gapSM,
                   Text(
                     preparation.reference == null
@@ -245,7 +246,7 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
                       labelText: 'RESPONSE JSON',
                       border: OutlineInputBorder(),
                     ),
-                  ),
+                  ).inputFeedback(),
                   AppSpacing.gapMD,
                   ReportSyncActionBar(
                     enabled: !_busy,

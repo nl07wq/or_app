@@ -1,4 +1,5 @@
 import '../../../core/services/daily_state_restore_service.dart';
+import '../../../core/services/device_settings_controller.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../repositories/app_repository_container.dart';
@@ -10,21 +11,31 @@ import 'backup_store_registry.dart';
 import '../../system/models/profile_model.dart';
 
 typedef BackupRestoreState = Future<void> Function();
+typedef BackupRestoreDeviceSettings =
+    Future<void> Function(Map<String, Object?> settings);
 
 class BackupImportService {
   final IndexedDbDatabase _database;
   final AppInitializationController _controller;
   final BackupRestoreState _restore;
+  final BackupRestoreDeviceSettings _restoreDeviceSettings;
+  final Map<String, Object?> Function() _deviceSettingsSnapshot;
   bool _executing = false;
 
   BackupImportService({
     IndexedDbDatabase? database,
     AppInitializationController? controller,
     BackupRestoreState? restore,
+    BackupRestoreDeviceSettings? restoreDeviceSettings,
+    Map<String, Object?> Function()? deviceSettingsSnapshot,
   }) : _database = database ?? AppRepositoryRegistry.container.database,
        _controller = controller ?? AppRepositoryRegistry.controller,
        _restore =
-           restore ?? (() => DailyStateRestoreService.restore(force: true));
+           restore ?? (() => DailyStateRestoreService.restore(force: true)),
+       _restoreDeviceSettings =
+           restoreDeviceSettings ?? DeviceSettingsController.instance.restore,
+       _deviceSettingsSnapshot =
+           deviceSettingsSnapshot ?? DeviceSettingsController.instance.snapshot;
 
   Future<BackupImportPlan> dryRun(
     BackupPackage package,
@@ -58,6 +69,8 @@ class BackupImportService {
     var sectionsCompleted = 0;
     String? activeSection;
     final controllerBefore = _controller.value;
+    final deviceSettingsBefore = _deviceSettingsSnapshot();
+    var deviceSettingsRestored = false;
     Map<String, List<Map<String, Object?>>>? preRestoreState;
     _controller.markMaintenance();
     try {
@@ -196,6 +209,16 @@ class BackupImportService {
           'Restored database failed startup-equivalent validation.',
         );
       }
+      // A complete device restore also replaces local presentation choices.
+      // Older backups have no preference domain and use production defaults.
+      // Record merges deliberately leave the current device preferences alone.
+      if (approvedPlan.mode == BackupImportMode.replaceAll) {
+        await _restoreDeviceSettings(
+          approvedPlan.package.deviceSettings ??
+              const DeviceSettings().toJson(),
+        );
+        deviceSettingsRestored = true;
+      }
       _controller.markReady();
       final restoresOperationState =
           approvedPlan.mode == BackupImportMode.replaceAll &&
@@ -219,6 +242,9 @@ class BackupImportService {
       var rollback = BackupRollbackStatus.notRequired;
       if (committed && preRestoreState != null) {
         try {
+          if (deviceSettingsRestored) {
+            await _restoreDeviceSettings(deviceSettingsBefore);
+          }
           _controller.markMaintenance();
           await _restoreCapturedState(preRestoreState);
           await _verifyCapturedState(preRestoreState);

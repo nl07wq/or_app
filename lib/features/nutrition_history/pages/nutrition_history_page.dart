@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
@@ -114,7 +115,10 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('NUTRITION HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('NUTRITION HISTORY'),
+    ),
     body: FutureBuilder<_NutritionHistoryViewModel>(
       future: _model,
       builder: (context, snapshot) {
@@ -177,7 +181,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -300,12 +304,23 @@ class _SummaryValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelSmall, textAlign: TextAlign.center),
-        AppSpacing.gapXS,
-        FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: Theme.of(context).textTheme.titleSmall, maxLines: 1)),
-      ],
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall,
+        textAlign: TextAlign.center,
+      ),
+      AppSpacing.gapXS,
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          value,
+          style: Theme.of(context).textTheme.titleSmall,
+          maxLines: 1,
+        ),
+      ),
+    ],
   );
 }
 

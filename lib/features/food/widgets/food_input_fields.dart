@@ -2,22 +2,20 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/operation_text_field.dart';
+import 'food_form_theme.dart';
 import '../food_catalog_page.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
 import '../services/food_nutrition_recalculation.dart';
 
 class FoodInputFields extends StatelessWidget {
-  static const _compactGap = SizedBox(height: AppSpacing.sm);
-  static const _compactFieldPadding = EdgeInsets.symmetric(
-    horizontal: 10,
-    vertical: 8,
-  );
-  static const _compactLabelStyle = TextStyle(fontSize: 12);
+  static const _compactGap = FoodFormMetrics.gap;
   final TextEditingController foodNameController;
   final TextEditingController brandController;
   final TextEditingController barcodeController;
@@ -89,21 +87,7 @@ class FoodInputFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseAmount = _formatAmount(baseAmountController.text);
-    final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(
-        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-          isDense: true,
-          contentPadding: _compactFieldPadding,
-          labelStyle: _compactLabelStyle.copyWith(
-            color: theme.inputDecorationTheme.labelStyle?.color,
-          ),
-          floatingLabelStyle: _compactLabelStyle,
-        ),
-        textTheme: theme.textTheme.copyWith(
-          bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: 14),
-        ),
-      ),
+    return FoodFormTheme(
       child: Column(
         children: [
           if (nutritionCaptureInProgress)
@@ -159,7 +143,7 @@ class FoodInputFields extends StatelessWidget {
               return Row(
                 children: [
                   Expanded(child: brand),
-                  const SizedBox(width: AppSpacing.sm),
+                  FoodFormMetrics.horizontalGap,
                   Expanded(child: categoryField),
                 ],
               );
@@ -177,17 +161,17 @@ class FoodInputFields extends StatelessWidget {
                   onChanged: onChanged,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              FoodFormMetrics.horizontalGap,
               OutlinedButton.icon(
                 key: const ValueKey('food-entry-barcode-scan'),
                 onPressed: onScanBarcode,
                 icon: const Icon(Icons.qr_code_scanner),
                 label: Text(barcodeScanInProgress ? '...' : 'SCAN'),
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(84, 44),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: FoodFormMetrics.barcodeButtonSize,
+                  padding: FoodFormMetrics.barcodeButtonPadding,
                 ),
-              ),
+              ).actionableFeedback(),
             ],
           ),
 
@@ -797,7 +781,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                         decimal: true,
                       ),
                       onChanged: onQuantityChanged,
-                    ),
+                    ).inputFeedback(),
                   ),
                 ),
                 Container(
@@ -849,7 +833,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                                     .toList(growable: false),
                                 items: items,
                                 onChanged: onUnitChanged,
-                              ),
+                              ).inputFeedback(),
                             ),
                             Positioned(
                               left: unitTextLeft,
@@ -914,7 +898,7 @@ class FoodNumericStepButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       icon: Icon(icon),
-    ),
+    ).actionableFeedback(),
   );
 }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/work_type.dart';
 import '../../../core/models/shift_preset.dart';
 import '../../../core/services/shift_preset_preferences.dart';
@@ -148,7 +150,7 @@ class _WorkCardState extends State<WorkCard> {
                                           .toList(),
                                     );
                                   },
-                                ),
+                                ).actionableFeedback(),
                                 ReorderableDragStartListener(
                                   index: index,
                                   child: const Padding(
@@ -158,7 +160,7 @@ class _WorkCardState extends State<WorkCard> {
                                 ),
                               ],
                             ),
-                          );
+                          ).actionableFeedback(enabled: true);
                         },
                       ),
                       if (_presets.length < ShiftPresetPreferences.maxPresets)
@@ -170,7 +172,7 @@ class _WorkCardState extends State<WorkCard> {
                           },
                           icon: const Icon(Icons.add),
                           label: const Text('追加'),
-                        ),
+                        ).actionableFeedback(),
                     ],
                   ),
                 ),
@@ -232,7 +234,7 @@ class _WorkCardState extends State<WorkCard> {
                   tooltip: 'EDIT SHIFT PRESETS',
                   onPressed: _loadingPresets ? null : _showPresetSettings,
                   icon: const Icon(Icons.edit_outlined),
-                ),
+                ).actionableFeedback(),
               ],
             ),
 
@@ -252,7 +254,7 @@ class _WorkCardState extends State<WorkCard> {
                       labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       selected: false,
                       onSelected: (_) => _applyPreset(_presets[index]),
-                    ),
+                    ).inputFeedback(),
                   ),
                 ],
               ],
@@ -419,17 +421,17 @@ class _ShiftPresetEditorDialogState extends State<_ShiftPresetEditorDialog> {
             controller: _nameController,
             maxLength: 24,
             decoration: const InputDecoration(labelText: 'Preset Name'),
-          ),
+          ).inputFeedback(),
           TextField(
             controller: _startController,
             keyboardType: TextInputType.datetime,
             decoration: const InputDecoration(labelText: 'Start Time (HH:mm)'),
-          ),
+          ).inputFeedback(),
           TextField(
             controller: _endController,
             keyboardType: TextInputType.datetime,
             decoration: const InputDecoration(labelText: 'End Time (HH:mm)'),
-          ),
+          ).inputFeedback(),
           if (_errorText != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -444,8 +446,11 @@ class _ShiftPresetEditorDialogState extends State<_ShiftPresetEditorDialog> {
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('CANCEL'),
-        ),
-        TextButton(onPressed: _save, child: const Text('SAVE')),
+        ).actionableFeedback(),
+        TextButton(
+          onPressed: _save,
+          child: const Text('SAVE'),
+        ).actionableFeedback(),
       ],
     );
   }

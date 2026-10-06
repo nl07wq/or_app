@@ -15,6 +15,7 @@ import 'package:or_app/core/services/app_clock.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/theme/app_colors.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/theme/app_text_styles.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
@@ -23,7 +24,11 @@ import 'package:or_app/core/widgets/status_lamp.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
+import 'package:or_app/features/command_center/pages/command_center_page.dart';
+import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
+import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
+import 'package:or_app/features/dashboard/models/dynamic_daily_target.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/food/data/water_quick_presets.dart';
@@ -45,6 +50,86 @@ import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test(
+    'Progress semantic glass tint follows the authoritative state colour',
+    () {
+      const recorded = DailyCommandCompletionItem(
+        label: 'STATUS',
+        state: DailyCommandModuleState.recorded,
+        missingRequirements: [],
+      );
+      const missing = DailyCommandCompletionItem(
+        label: 'STATUS',
+        state: DailyCommandModuleState.missing,
+        missingRequirements: [],
+      );
+
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: DynamicTargetState.green,
+          completion: null,
+          completed: true,
+        ),
+        AppColors.success,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: DynamicTargetState.yellowHigh,
+          completion: null,
+          completed: false,
+        ),
+        AppColors.warning,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: null,
+          completion: recorded,
+          completed: true,
+        ),
+        AppColors.success,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: null,
+          completion: missing,
+          completed: false,
+        ),
+        AppColors.danger,
+      );
+      expect(
+        operationProgressSemanticSurfaceTintColor(
+          targetState: DynamicTargetState.neutral,
+          completion: null,
+          completed: false,
+        ),
+        isNull,
+      );
+      expect(operationProgressSemanticTintOpacity, .10);
+    },
+  );
+
+  test('NIXIE Operation Date motion has two deliberate blinks', () {
+    expect(NixieTransitionMotion.duration, const Duration(milliseconds: 720));
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .10, ignitionOrder: 0),
+      1,
+    );
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .20, ignitionOrder: 0),
+      0,
+    );
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .35, ignitionOrder: 0),
+      1,
+    );
+    expect(
+      NixieTransitionMotion.foregroundOpacity(progress: .50, ignitionOrder: 0),
+      0,
+    );
+    expect(NixieTransitionMotion.showsNewValue(.55), isFalse);
+    expect(NixieTransitionMotion.showsNewValue(.56), isTrue);
+  });
 
   test('Ambient monitor HUD geometry stays compact and symmetric', () {
     expect(DailyCommandAmbientHudGeometry.cornerArmLength, 4);
@@ -321,7 +406,7 @@ void main() {
     },
   );
 
-  testWidgets('uses the approved two-column order and full-width ACTIVITY', (
+  testWidgets('uses the approved two-column OPERATION PROGRESS grid', (
     tester,
   ) async {
     await _pumpDashboard(tester, width: 800);
@@ -336,6 +421,28 @@ void main() {
     expect(header.style?.fontSize, 18);
     expect(header.style?.fontWeight, FontWeight.bold);
 
+    final progressWrap = find.descendant(
+      of: _progressTiles(),
+      matching: find.byType(Wrap),
+    );
+    expect(progressWrap, findsOneWidget);
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('WATER')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('TRAINING')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('ACTIVITY')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: progressWrap, matching: _tile('BRIEF / DEBRIEF')),
+      findsNothing,
+    );
+
     final status = _tile('STATUS');
     final food = _tile('FOOD');
     final calories = _tile('CALORIES');
@@ -343,6 +450,7 @@ void main() {
     final water = _tile('WATER');
     final training = _tile('TRAINING');
     final activity = _tile('ACTIVITY');
+    final briefDebrief = _tile('BRIEF / DEBRIEF');
 
     expect(tester.getTopLeft(status).dy, tester.getTopLeft(food).dy);
     expect(tester.getTopLeft(calories).dy, tester.getTopLeft(protein).dy);
@@ -359,9 +467,14 @@ void main() {
       tester.getTopLeft(activity).dy,
       greaterThan(tester.getTopLeft(water).dy),
     );
+    expect(tester.getTopLeft(activity).dy, tester.getTopLeft(briefDebrief).dy);
     expect(
       tester.getSize(activity).width,
-      closeTo(tester.getSize(status).width * 2 + 12, 0.1),
+      closeTo(tester.getSize(status).width, 0.1),
+    );
+    expect(
+      tester.getSize(briefDebrief).width,
+      closeTo(tester.getSize(status).width, 0.1),
     );
 
     for (final label in _labels) {
@@ -373,6 +486,67 @@ void main() {
       final indicator = tester.widget<LinearProgressIndicator>(progressFinder);
       expect(indicator.color, isNull);
       expect(indicator.backgroundColor, isNull);
+    }
+  });
+
+  testWidgets('restores the pre-unification WATER intrinsic geometry', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+    const baselines = {
+      320: (
+        height: 76.0,
+        title: Rect.fromLTRB(12, 12, 82.5, 32),
+        value: Rect.fromLTRB(12, 36, 218, 56),
+        bar: Rect.fromLTRB(12, 60, 244, 64),
+      ),
+      390: (
+        height: 96.0,
+        title: Rect.fromLTRB(12, 12, 82.5, 32),
+        value: Rect.fromLTRB(12, 36, 119, 76),
+        bar: Rect.fromLTRB(12, 80, 145, 84),
+      ),
+      900: (
+        height: 76.0,
+        title: Rect.fromLTRB(12, 12, 82.5, 32),
+        value: Rect.fromLTRB(12, 36, 199.6, 56),
+        bar: Rect.fromLTRB(12, 60, 225.6, 64),
+      ),
+    };
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pumpDashboard(tester, width: width);
+      await _settleDashboard(tester);
+      final baseline = baselines[width.toInt()]!;
+      final card = tester.getRect(_tile('WATER'));
+      final title = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-title-WATER')),
+        _tile('WATER'),
+      );
+      final value = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-status-WATER')),
+        _tile('WATER'),
+      );
+      final bar = _localRect(
+        tester,
+        find.descendant(
+          of: _tile('WATER'),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        _tile('WATER'),
+      );
+
+      expect(card.height, moreOrLessEquals(baseline.height, epsilon: 0.5));
+      _expectRectNear(title, baseline.title);
+      _expectRectNear(value, baseline.value);
+      _expectRectNear(bar, baseline.bar);
+      expect(value.top - title.bottom, moreOrLessEquals(4, epsilon: 0.5));
+      expect(bar.top - value.bottom, moreOrLessEquals(4, epsilon: 0.5));
     }
   });
 
@@ -437,12 +611,52 @@ void main() {
     },
   );
 
+  testWidgets('BRIEF / DEBRIEF is an actionable half-width progress module', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+    final activity = _tile('ACTIVITY');
+    final briefDebrief = _tile('BRIEF / DEBRIEF');
+    expect(tester.getTopLeft(activity).dy, tester.getTopLeft(briefDebrief).dy);
+    expect(tester.getSize(activity).width, tester.getSize(briefDebrief).width);
+    expect(find.text('STEP'), findsNothing);
+    expect(find.textContaining('Digestive'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('operation-progress-body-BRIEF / DEBRIEF')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CommandCenterPage), findsOneWidget);
+    expect(find.byType(BriefDebriefPage), findsOneWidget);
+  });
+
   testWidgets('completion cards remove stray quick add controls', (
     tester,
   ) async {
     await _installDdtStatus();
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
+
+    expect(
+      find.byKey(const ValueKey('dashboard-weather-glass-operation-date')),
+      findsOneWidget,
+    );
+    for (final label in const [
+      'STATUS',
+      'FOOD',
+      'CALORIES',
+      'PROTEIN',
+      'WATER',
+      'TRAINING',
+      'ACTIVITY',
+      'BRIEF / DEBRIEF',
+    ]) {
+      expect(
+        find.byKey(ValueKey('dashboard-weather-glass-$label')),
+        findsOneWidget,
+      );
+    }
 
     for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
       expect(
@@ -461,8 +675,13 @@ void main() {
         findsOneWidget,
       );
     }
-    expect(tester.getSize(_tile('STATUS')).height, lessThanOrEqualTo(100));
-    expect(tester.getSize(_tile('FOOD')).height, lessThanOrEqualTo(100));
+    final waterHeight = tester.getSize(_tile('WATER')).height;
+    for (final label in const ['STATUS', 'FOOD', 'ACTIVITY']) {
+      expect(
+        tester.getSize(_tile(label)).height,
+        moreOrLessEquals(waterHeight, epsilon: 0.5),
+      );
+    }
     expect(
       find.descendant(
         of: _tile('WATER'),
@@ -470,6 +689,162 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+    'summary statuses and BRIEF / DEBRIEF title use responsive one-line typography',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await _installDdtStatus();
+        await _pumpDashboard(tester, width: width);
+        await _settleDashboard(tester);
+
+        TextStyle? sharedStyle;
+        for (final label in const [
+          'STATUS',
+          'FOOD',
+          'TRAINING',
+          'ACTIVITY',
+          'BRIEF / DEBRIEF',
+        ]) {
+          final status = find.byKey(
+            ValueKey('operation-progress-status-$label'),
+          );
+          final text = tester.widget<Text>(status);
+          expect(text.data, 'NOT RECORDED', reason: '$label at $width');
+          expect(text.maxLines, 1, reason: '$label at $width');
+          expect(text.softWrap, isFalse, reason: '$label at $width');
+          expect(text.style, isNotNull, reason: '$label at $width');
+          sharedStyle ??= text.style;
+          expect(text.style, sharedStyle, reason: '$label at $width');
+          expect(
+            find.byKey(ValueKey('operation-progress-status-fit-$label')),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull, reason: '$label at $width');
+        }
+
+        final briefTitle = tester.widget<Text>(
+          find.byKey(
+            const ValueKey('operation-progress-title-BRIEF / DEBRIEF'),
+          ),
+        );
+        expect(briefTitle.data, 'BRIEF / DEBRIEF');
+        expect(briefTitle.maxLines, 1);
+        expect(briefTitle.softWrap, isFalse);
+        expect(briefTitle.style?.fontSize, 13);
+        expect(
+          find.byKey(
+            const ValueKey('operation-progress-title-fit-BRIEF / DEBRIEF'),
+          ),
+          width < 390 ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull, reason: 'title at $width');
+      }
+    },
+  );
+
+  testWidgets('all progress cards use the WATER title, value, and bar slots', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _installDdtStatus();
+      await _pumpDashboard(tester, width: width);
+      await _settleDashboard(tester);
+
+      final waterTitle = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-title-WATER')),
+        _tile('WATER'),
+      );
+      final waterValue = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-status-WATER')),
+        _tile('WATER'),
+      );
+      final waterBar = _localRect(
+        tester,
+        find.descendant(
+          of: _tile('WATER'),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        _tile('WATER'),
+      );
+
+      for (final label in _labels) {
+        final title = _localRect(
+          tester,
+          find.byKey(ValueKey('operation-progress-title-$label')),
+          _tile(label),
+        );
+        final status = _localRect(
+          tester,
+          find.byKey(ValueKey('operation-progress-status-$label')),
+          _tile(label),
+        );
+        final bar = _localRect(
+          tester,
+          find.descendant(
+            of: _tile(label),
+            matching: find.byType(LinearProgressIndicator),
+          ),
+          _tile(label),
+        );
+        expect(
+          title.top,
+          moreOrLessEquals(waterTitle.top, epsilon: 0.5),
+          reason: '$label title at $width',
+        );
+        expect(
+          status.top,
+          moreOrLessEquals(waterValue.top, epsilon: 0.5),
+          reason: '$label status/value at $width',
+        );
+        expect(
+          bar.top,
+          moreOrLessEquals(waterBar.top, epsilon: 0.5),
+          reason: '$label bar at $width',
+        );
+        expect(status.top - title.bottom, greaterThanOrEqualTo(4));
+        expect(bar.top - status.bottom, greaterThanOrEqualTo(4));
+        expect(
+          tester.getSize(_tile(label)).height,
+          moreOrLessEquals(tester.getSize(_tile('WATER')).height, epsilon: 0.5),
+          reason: '$label height at $width',
+        );
+      }
+
+      final trainingTitle = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-title-TRAINING')),
+        _tile('TRAINING'),
+      );
+      final trainingStatus = _localRect(
+        tester,
+        find.byKey(const ValueKey('operation-progress-status-TRAINING')),
+        _tile('TRAINING'),
+      );
+      expect(
+        trainingStatus.top - trainingTitle.bottom,
+        greaterThanOrEqualTo(waterValue.top - waterTitle.bottom),
+      );
+
+      final activityTitle = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-title-ACTIVITY')),
+      );
+      final briefTitle = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-title-BRIEF / DEBRIEF')),
+      );
+      final activityStatus = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-status-ACTIVITY')),
+      );
+      final briefStatus = tester.widget<Text>(
+        find.byKey(const ValueKey('operation-progress-status-BRIEF / DEBRIEF')),
+      );
+      expect(activityTitle.style?.color, briefTitle.style?.color);
+      expect(activityStatus.style?.color, briefStatus.style?.color);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets(
@@ -490,7 +865,7 @@ void main() {
       await _settleDashboard(tester);
 
       final training = _tile('TRAINING');
-      _expectTileText('TRAINING', 'Not recorded');
+      _expectTileText('TRAINING', 'NOT RECORDED');
       expect(
         find.byKey(const ValueKey('operation-progress-training-optional')),
         findsOneWidget,
@@ -506,7 +881,11 @@ void main() {
         const ValueKey('operation-progress-status-zone-TRAINING'),
       );
       expect(statusZone, findsOneWidget);
-      expect(tester.getSize(statusZone), const Size(48, 48));
+      expect(tester.getSize(statusZone).width, 48);
+      expect(
+        tester.getSize(statusZone).height,
+        tester.getSize(training).height,
+      );
       await tester.tapAt(tester.getCenter(statusZone));
       await _settleDashboard(tester);
       final popover = find.byKey(
@@ -528,6 +907,59 @@ void main() {
       expect(openedRoutes.last, AppRoutes.training);
     },
   );
+
+  testWidgets('status and target changes do not move progress slots', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+
+    final before = {
+      for (final label in _labels) label: _progressSlotTops(tester, label),
+    };
+
+    morningFactNotifier.value = _morning();
+    foodSummaryNotifier.value = const FoodSummary(
+      calories: 3000,
+      protein: 50,
+      fat: 30,
+      carbohydrates: 120,
+      hydrationMl: 2700,
+      mealCount: 3,
+    );
+    trainingSummaryNotifier.value = const TrainingSummary(
+      completed: true,
+      exerciseCount: 2,
+      setCount: 6,
+      duration: null,
+      sessionName: null,
+    );
+    activitySummaryNotifier.value = const ActivitySummary(
+      steps: 6000,
+      measuredSteps: 6000,
+      isRecorded: true,
+      calculationBasis: ActivityCalculationBasis(
+        rawSteps: 6000,
+        currentCarryOver: 0,
+        previousCarryOverDeduction: 0,
+        officialSteps: 6000,
+      ),
+    );
+    await tester.pump();
+    await _settleDashboard(tester);
+
+    _expectTileText('STATUS', 'COMPLETE');
+    _expectTileText('FOOD', 'COMPLETE');
+    _expectTileText('TRAINING', 'COMPLETE');
+    for (final label in _labels) {
+      expect(
+        _progressSlotTops(tester, label),
+        before[label],
+        reason: '$label moved after its state/value changed',
+      );
+    }
+  });
 
   testWidgets('TRAINING record uses the optional blue recorded status zone', (
     tester,
@@ -553,7 +985,7 @@ void main() {
     );
     await _settleDashboard(tester);
 
-    _expectTileText('TRAINING', 'Recorded');
+    _expectTileText('TRAINING', 'COMPLETE');
     final indicator = find.byKey(
       const ValueKey('operation-progress-training-recorded'),
     );
@@ -912,7 +1344,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.pump(const Duration(milliseconds: 420));
+      await tester.pump(const Duration(milliseconds: 800));
       await tester.pump();
       expect(find.byType(OperationDateFlipCalendar), findsNothing);
       expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
@@ -1396,7 +1828,7 @@ void main() {
     expect(find.textContaining('121.5–148.5'), findsNothing);
     expect(find.text('NOT RECORDED'), findsNothing);
     expect(find.text('ACTIVITY PENDING'), findsNothing);
-    _expectTileText('TRAINING', 'Recorded');
+    _expectTileText('TRAINING', 'COMPLETE');
     _expectTileText('ACTIVITY', 'INCOMPLETE');
     expect(
       find.descendant(
@@ -1432,6 +1864,43 @@ void main() {
         find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
         findsNothing,
       );
+    }
+  });
+
+  testWidgets('uses the shared neutral border before nutrition is evaluated', (
+    tester,
+  ) async {
+    await _installDdtStatus();
+    morningFactNotifier.value = _morning();
+
+    await _pumpDashboard(tester, width: 800);
+    await _settleDashboard(tester);
+
+    final neutralBorder = Theme.of(
+      tester.element(_tile('STATUS')),
+    ).colorScheme.outlineVariant.withValues(alpha: 0.6);
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(_progressBorderColor(tester, label), neutralBorder);
+    }
+  });
+
+  testWidgets('keeps evaluated nutrition borders semantic', (tester) async {
+    await _installDdtStatus();
+    morningFactNotifier.value = _morning();
+    foodSummaryNotifier.value = const FoodSummary(
+      calories: 2200,
+      protein: 135,
+      fat: 60,
+      carbohydrates: 250,
+      hydrationMl: 3000,
+      mealCount: 3,
+    );
+
+    await _pumpDashboard(tester, width: 800);
+    await _settleDashboard(tester);
+
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(_progressBorderColor(tester, label), AppColors.success);
     }
   });
 
@@ -2225,8 +2694,8 @@ void main() {
 
     _expectTileText('STATUS', '未完了');
     _expectTileText('FOOD', '0 / 3');
-    _expectTileText('TRAINING', 'Not recorded');
-    _expectTileText('ACTIVITY', 'Not recorded');
+    _expectTileText('TRAINING', 'NOT RECORDED');
+    _expectTileText('ACTIVITY', 'NOT RECORDED');
     expect(
       find.descendant(
         of: _tile('ACTIVITY'),
@@ -2317,7 +2786,7 @@ void main() {
 
     await _pumpDashboard(tester, width: 800);
 
-    _expectTileText('ACTIVITY', 'Not recorded');
+    _expectTileText('ACTIVITY', 'NOT RECORDED');
     expect(
       find.descendant(
         of: _tile('ACTIVITY'),
@@ -2471,9 +2940,15 @@ void main() {
       tester.getTopLeft(_tile('STATUS')).dy,
       tester.getTopLeft(_tile('FOOD')).dy,
     );
+    final expectedPairCellWidth =
+        (tester.getSize(_progressTiles()).width - AppSpacing.md) / 2;
     expect(
       tester.getSize(_tile('ACTIVITY')).width,
-      closeTo(tester.getSize(_progressTiles()).width, 0.1),
+      closeTo(expectedPairCellWidth, 0.1),
+    );
+    expect(
+      tester.getTopLeft(_tile('ACTIVITY')).dy,
+      tester.getTopLeft(_tile('BRIEF / DEBRIEF')).dy,
     );
     _expectProgressTilesFit(tester);
     expect(tester.takeException(), isNull);
@@ -2862,12 +3337,45 @@ const _labels = [
   'WATER',
   'TRAINING',
   'ACTIVITY',
+  'BRIEF / DEBRIEF',
 ];
 
 Finder _tile(String label) => find.byKey(ValueKey('operation-progress-$label'));
 
 double _localCenterX(WidgetTester tester, Finder child, Finder card) =>
     tester.getRect(child).center.dx - tester.getRect(card).left;
+
+Rect _localRect(WidgetTester tester, Finder child, Finder card) =>
+    tester.getRect(child).shift(-tester.getRect(card).topLeft);
+
+void _expectRectNear(Rect actual, Rect expected) {
+  expect(actual.left, closeTo(expected.left, 0.5));
+  expect(actual.top, closeTo(expected.top, 0.5));
+  expect(actual.right, closeTo(expected.right, 0.5));
+  expect(actual.bottom, closeTo(expected.bottom, 0.5));
+}
+
+(double, double, double) _progressSlotTops(WidgetTester tester, String label) =>
+    (
+      _localRect(
+        tester,
+        find.byKey(ValueKey('operation-progress-title-$label')),
+        _tile(label),
+      ).top,
+      _localRect(
+        tester,
+        find.byKey(ValueKey('operation-progress-status-$label')),
+        _tile(label),
+      ).top,
+      _localRect(
+        tester,
+        find.descendant(
+          of: _tile(label),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        _tile(label),
+      ).top,
+    );
 
 Finder _mainContent() => find.byKey(const ValueKey('dashboard-main-content'));
 
@@ -2928,6 +3436,13 @@ double? _progress(WidgetTester tester, String label) {
       .value;
 }
 
+Color _progressBorderColor(WidgetTester tester, String label) {
+  final material = tester.widget<Material>(
+    find.descendant(of: _tile(label), matching: find.byType(Material)).first,
+  );
+  return (material.shape! as RoundedRectangleBorder).side.color;
+}
+
 void _expectStatusLabelClearance(WidgetTester tester, String label) {
   final hudBounds = tester.getRect(
     find.byKey(const ValueKey('daily-command-ambient-monitor-grid')),
@@ -2977,8 +3492,10 @@ void _expectProgressTilesFit(WidgetTester tester) {
     for (final element in descendants.evaluate()) {
       final renderObject = element.renderObject;
       if (renderObject is! RenderBox || !renderObject.hasSize) continue;
-      final topLeft = renderObject.localToGlobal(Offset.zero);
-      final rect = topLeft & renderObject.size;
+      final rect = MatrixUtils.transformRect(
+        renderObject.getTransformTo(null),
+        Offset.zero & renderObject.size,
+      );
       expect(rect.left, greaterThanOrEqualTo(tileRect.left));
       expect(rect.right, lessThanOrEqualTo(tileRect.right));
     }

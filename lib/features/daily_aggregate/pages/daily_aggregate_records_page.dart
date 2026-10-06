@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -52,7 +54,10 @@ class _DailyAggregateRecordsPageState extends State<DailyAggregateRecordsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY AGGREGATE RECORDS')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY AGGREGATE RECORDS'),
+    ),
     body: FutureBuilder<List<DailyAggregateV1>>(
       future: _records,
       builder: (context, snapshot) {
@@ -105,7 +110,7 @@ class _AggregateRow extends StatelessWidget {
       subtitle: Text('Source Type  ${aggregate.sourceType.name}'),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
-    ),
+    ).actionableFeedback(enabled: true),
   );
 }
 
@@ -153,11 +158,11 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('DELETE'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -188,7 +193,10 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DAILY AGGREGATE DETAIL')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DAILY AGGREGATE DETAIL'),
+    ),
     body: FutureBuilder<DailyAggregateV1?>(
       future: _record,
       builder: (context, snapshot) {
@@ -308,7 +316,7 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
                   child: Text('DELETE DAILY AGGREGATE'),
                 ),
                 onPressed: _deleting ? null : () => _delete(aggregate),
-              ),
+              ).actionableFeedback(),
             ),
             AppSpacing.gapLG,
           ],

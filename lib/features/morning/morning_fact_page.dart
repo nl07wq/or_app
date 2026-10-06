@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/work_type.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/navigation/app_routes.dart';
@@ -48,6 +50,7 @@ class MorningFactPage extends StatefulWidget {
 
 class _MorningFactPageState extends State<MorningFactPage> {
   bool _initialValuesLoaded = false;
+  bool _submitting = false;
   String? _operationLocalDate;
   Object? _operationDateError;
 
@@ -104,6 +107,18 @@ class _MorningFactPageState extends State<MorningFactPage> {
       bodyFatController.text = values.bodyFat;
       sleepController.text = values.sleep;
       sleepScoreController.text = values.sleepScore;
+      if (values.workType != null) {
+        selectedWorkType = values.workType!;
+      }
+      if (values.workStart != null) {
+        workStartController.text = values.workStart!;
+      }
+      if (values.workEnd != null) {
+        workEndController.text = values.workEnd!;
+      }
+      if (values.workBreak != null) {
+        workBreakController.text = values.workBreak!;
+      }
 
       setState(() {
         if (values.hasPreviousRecord) {
@@ -165,7 +180,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -181,11 +196,11 @@ class _MorningFactPageState extends State<MorningFactPage> {
             TextButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('YES'),
-            ),
+            ).actionableFeedback(),
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('NO'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
       ) ??
@@ -205,6 +220,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
     );
     if (!mounted) return;
     if (applied) {
+      // STATUS is complete once its DAILY BRIEF is applied. Keep the named
+      // Dashboard route as the Command Center's actual Navigator parent, so
+      // both its HUD Back action and system/browser Back return there.
+      // A non-Dashboard caller still retains its root route.
       Navigator.of(context).pushAndRemoveUntil<void>(
         MaterialPageRoute(
           settings: const RouteSettings(name: AppRoutes.commandCenter),
@@ -213,7 +232,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
             initialBriefDebriefTab: BriefDebriefTab.dailyBrief,
           ),
         ),
-        ModalRoute.withName(AppRoutes.dashboard),
+        (route) => route.settings.name == AppRoutes.dashboard || route.isFirst,
       );
       return;
     }
@@ -330,6 +349,8 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     MorningSubmitButton(
                       isEdit: widget.isEdit,
                       onPressed: () async {
+                        if (_submitting) return;
+                        setState(() => _submitting = true);
                         String? error;
                         try {
                           error = await MorningSubmitService.submit(
@@ -351,6 +372,9 @@ class _MorningFactPageState extends State<MorningFactPage> {
                           if (!context.mounted) return;
 
                           if (error != null) {
+                            if (mounted) {
+                              setState(() => _submitting = false);
+                            }
                             _showError(error);
                             return;
                           }
@@ -374,11 +398,13 @@ class _MorningFactPageState extends State<MorningFactPage> {
                           }
                         } on ConfirmedDailyLogException catch (exception) {
                           if (context.mounted) {
+                            setState(() => _submitting = false);
                             showConfirmedLogMessage(context, exception);
                           }
                           return;
                         } catch (_) {
                           if (context.mounted) {
+                            setState(() => _submitting = false);
                             _showError('Operation Dateを取得できませんでした。');
                           }
                           return;

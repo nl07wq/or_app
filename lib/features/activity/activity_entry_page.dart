@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/activity_data.dart';
 import '../../core/models/bowel_movement_record.dart';
 import '../../core/models/digestive_event.dart';
@@ -15,6 +17,7 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
+import '../food/widgets/food_input_fields.dart';
 import '../repositories/app_repository_container.dart';
 import '../operation_date/services/operation_date_service.dart';
 import 'models/activity_draft.dart';
@@ -492,6 +495,16 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() {});
   }
 
+  void _adjustMeasuredSteps(int delta) {
+    final current = _measuredSteps ?? 0;
+    final text = (current + delta).clamp(0, 1 << 31).toString();
+    _measuredStepsController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    setState(() {});
+  }
+
   void _addDigestiveEvent() {
     setState(() {
       _digestiveEvents = [..._digestiveEvents, _createDigestiveEvent()];
@@ -533,11 +546,11 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('削除'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -688,14 +701,15 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 title: const Text('Date'),
                 trailing: Text(_formatDate(_date)),
                 onTap: _isFormal ? null : _pickDate,
-              ),
+              ).inputFeedback(),
               AppSpacing.gapMD,
-              OperationTextField(
+              _MeasuredStepsField(
                 controller: _measuredStepsController,
                 focusNode: _measuredStepsFocusNode,
-                label: 'Measured steps',
-                keyboardType: TextInputType.number,
+                enabled: !_isBusy,
                 onChanged: (_) => setState(() {}),
+                onIncrement: () => _adjustMeasuredSteps(1),
+                onDecrement: () => _adjustMeasuredSteps(-1),
               ),
               AppSpacing.gapMD,
               OperationTextField(
@@ -714,17 +728,20 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               AppSpacing.gapMD,
               _OfficialStepsDisplay(officialSteps: officialSteps),
               AppSpacing.gapMD,
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [500, 1000, 2000, 5000]
-                    .map(
-                      (value) => OutlinedButton(
-                        onPressed: _isBusy ? null : () => _addQuickSteps(value),
-                        child: Text('+$value'),
-                      ),
-                    )
-                    .toList(),
+              Column(
+                children: [
+                  _QuickStepRow(
+                    values: const [10, 50, 100, 500, 1000],
+                    enabled: !_isBusy,
+                    onPressed: _addQuickSteps,
+                  ),
+                  const SizedBox(height: 8),
+                  _QuickStepRow(
+                    values: const [2500, 5000, 7500, 10000],
+                    enabled: !_isBusy,
+                    onPressed: _addQuickSteps,
+                  ),
+                ],
               ),
               AppSpacing.gapLG,
               if (_usesDigestiveEvents)
@@ -813,7 +830,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
             onPressed: _isBusy ? null : _addDigestiveEvent,
             icon: const Icon(Icons.add),
             label: const Text('ADD DIGESTIVE'),
-          ),
+          ).actionableFeedback(),
         ),
       ],
     );
@@ -895,12 +912,92 @@ class _LoadError extends StatelessWidget {
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('RETRY'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
       ),
     );
   }
+}
+
+class _MeasuredStepsField extends StatelessWidget {
+  const _MeasuredStepsField({
+    required this.controller,
+    required this.focusNode,
+    required this.enabled,
+    required this.onChanged,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: OperationTextField(
+          controller: controller,
+          focusNode: focusNode,
+          label: 'Measured steps',
+          keyboardType: TextInputType.number,
+          onChanged: onChanged,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.xs),
+      SizedBox(
+        height: 56,
+        child: FoodNumericStepper(
+          fillParent: true,
+          incrementKey: const ValueKey('activity-measured-steps-increment'),
+          incrementTooltip: 'Increase measured steps by 1',
+          onIncrement: enabled ? onIncrement : null,
+          decrementKey: const ValueKey('activity-measured-steps-decrement'),
+          decrementTooltip: 'Decrease measured steps by 1',
+          onDecrement: enabled ? onDecrement : null,
+        ),
+      ),
+    ],
+  );
+}
+
+class _QuickStepRow extends StatelessWidget {
+  const _QuickStepRow({
+    required this.values,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final List<int> values;
+  final bool enabled;
+  final ValueChanged<int> onPressed;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      for (var index = 0; index < values.length; index++) ...[
+        if (index > 0) const SizedBox(width: 6),
+        Expanded(
+          child: OutlinedButton(
+            key: ValueKey('activity-quick-steps-${values[index]}'),
+            onPressed: enabled ? () => onPressed(values[index]) : null,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: FittedBox(child: Text('+${values[index]}')),
+          ).actionableFeedback(),
+        ),
+      ],
+    ],
+  );
 }
 
 class _ReadOnlyStepDisplay extends StatelessWidget {

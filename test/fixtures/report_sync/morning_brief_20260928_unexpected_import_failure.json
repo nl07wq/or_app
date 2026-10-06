@@ -1,0 +1,78 @@
+{
+  "format": "operation-reboot-report-sync",
+  "envelopeVersion": 1,
+  "schemaVersion": "2.0",
+  "direction": "response",
+  "exchangeType": "morningBrief",
+  "exchangeId": "mb-20260928-a43be36e-01",
+  "operationDate": "2026-09-28",
+  "createdAt": "2026-09-28T13:30:00Z",
+  "confirmationDigest": null,
+  "payload": {
+    "operationDate": "2026-09-28",
+    "source": {
+      "sourceType": "status",
+      "sourceOperationDate": "2026-09-28",
+      "sourceRecordId": "status:2026-09-28",
+      "sourceDigest": "a43be36efc8f8a5fe6ad84c0e82852dfa0114205a1b7b541c234760da163d524"
+    },
+    "content": {
+      "situationAnalysis": {
+        "body": "体重92.8kg、体脂肪率31.5%。前日比は体重-0.6kg、体脂肪率0ポイントで、いずれも直近1週間の平均を下回っている。",
+        "bodyDisplay": {
+          "primaryText": "体重: 92.8kg  体脂肪率: 31.5%",
+          "supportingText": "前日比は体重-0.6kg、体脂肪率0ポイント。体重は直近1週間の平均94.53kg、体脂肪率は31.85%を下回っている。"
+        },
+        "recovery": "睡眠6:30は適正範囲7:00–9:00を下回る一方、睡眠スコア83は直近1週間の平均79.43を上回っており、時間不足と良好な質が併存している。",
+        "recoveryDisplay": {
+          "primaryText": "睡眠時間: 6:30  睡眠スコア: 83",
+          "supportingText": "睡眠時間は適正範囲7:00–9:00を30分下回る一方、睡眠スコア83は直近1週間の平均79.43を上回っている。"
+        },
+        "condition": "足底筋膜炎LV.3は直近1週間の平均LV.3.43を下回っており、公休日のため強い制限ではなく変化を確認する水準である。",
+        "conditionDisplay": {
+          "primaryText": "足底筋膜炎: LV.3",
+          "supportingText": "直近1週間の平均LV.3.43を下回っており、公休日では強い制限を設けず変化を確認する水準である。"
+        },
+        "work": "公休日",
+        "workDisplay": {
+          "primaryText": "公休日",
+          "supportingText": null
+        },
+        "carryover": "前日から確認済みのCarryoverはない。",
+        "overall": "公休日で勤務負荷はなく、足底筋膜炎LV.3も監視水準にある一方、睡眠6:30は適正範囲を下回るため、睡眠スコア83を余力の過大評価につなげず安定した低負荷運用を優先する。"
+      },
+      "operatingPolicy": "公休日を安定した低負荷で運用し、睡眠6:30の不足を踏まえて不要な活動負荷の上積みを避けながら、足底筋膜炎LV.3の変化を確認する。",
+      "strategicResourceDecision": {
+        "decision": "新たな戦略リソース投入は行わず、低負荷の通常運用を維持する。",
+        "targetResource": null,
+        "rationale": "睡眠6:30は適正範囲を下回るが睡眠スコア83は直近平均を上回り、足底筋膜炎LV.3も公休日では強い保護介入を必要とする状況ではないため。",
+        "execution": null
+      },
+      "operationStatus": "green",
+      "commanderIntent": "公休日を低負荷で安定運用し、睡眠6:30の不足を踏まえて余力を過大評価せず、足底筋膜炎LV.3の変化を確認する。",
+      "actions": [
+        {"text": "公休日は不要な活動負荷の上積みを避け、安定した低負荷運用を維持する。", "priority": "medium"},
+        {"text": "睡眠6:30と睡眠スコア83を踏まえ、余力を過大評価せず通常の生活リズムを優先する。", "priority": "low"},
+        {"text": "足底筋膜炎LV.3の変化を確認する。", "priority": "low"}
+      ],
+      "decisionTrace": {
+        "traceSchemaVersion": "decision-trace-v1",
+        "modelVersion": "plantar-risk-v2",
+        "ruleSetVersion": "plantar-risk-v2",
+        "sourceSnapshot": {"weightKg": 92.8, "bodyFatPercent": 31.5, "previousDayWeightDifferenceKg": -0.6, "previousDayBodyFatDifferencePoint": 0, "sleepDurationMinutes": 390, "sleepScore": 83, "plantarFasciitisLevel": 3, "workType": "holiday", "workStartTime": null, "workEndTime": null, "breakDurationMinutes": null, "workHours": 0, "previousCarryoverConfirmed": null, "recentWeightAverageKg": 94.53333333333332, "recentBodyFatAveragePercent": 31.849999999999998, "recentSleepDurationAverageMinutes": 425.2857142857143, "recentSleepScoreAverage": 79.42857142857143, "recentPlantarFasciitisLevelAverage": 3.4285714285714284},
+        "rules": [
+          {"ruleId": "recovery-duration-range", "ruleVersion": "1", "domain": "recovery", "inputFacts": {"sleepDurationMinutes": 390}, "result": "below_appropriate_range", "effect": "ESCALATE_YELLOW", "reasonCode": "SLEEP_DURATION_BELOW_7H"},
+          {"ruleId": "recovery-sleep-score", "ruleVersion": "1", "domain": "recovery", "inputFacts": {"sleepScore": 83, "recentSleepScoreAverage": 79.42857142857143}, "result": "score_above_recent_average", "effect": "DEESCALATE", "reasonCode": "SLEEP_SCORE_SUPPORTIVE"},
+          {"ruleId": "plantar-severity", "ruleVersion": "plantar-risk-v2", "domain": "condition", "inputFacts": {"plantarFasciitisLevel": 3, "recentPlantarFasciitisLevelAverage": 3.4285714285714284}, "result": "monitor_without_independent_escalation", "effect": "GUARDRAIL", "reasonCode": "PLANTAR_LV3_MONITOR"},
+          {"ruleId": "work-exposure", "ruleVersion": "1", "domain": "work", "inputFacts": {"workType": "holiday", "workHours": 0}, "result": "no_scheduled_work_exposure", "effect": "SUPPORT_GREEN", "reasonCode": "HOLIDAY_NO_WORK_EXPOSURE"}
+        ],
+        "interactions": [
+          {"ruleId": "recovery-work-interaction", "ruleVersion": "1", "domain": "recovery_work", "inputFacts": {"sleepDurationMinutes": 390, "sleepScore": 83, "workType": "holiday", "workHours": 0}, "result": "sleep_duration_shortfall_without_work_exposure", "effect": "DEESCALATE", "reasonCode": "SLEEP_SHORTFALL_LOW_EXPOSURE"},
+          {"ruleId": "plantar-work-interaction", "ruleVersion": "plantar-risk-v2", "domain": "condition_work", "inputFacts": {"plantarFasciitisLevel": 3, "workType": "holiday", "workHours": 0}, "result": "watch_level_without_meaningful_work_exposure", "effect": "GUARDRAIL", "reasonCode": "PLANTAR_WATCH_NO_WORK_COMPOUNDING"}
+        ],
+        "finalDecision": {"candidateStatuses": {"recovery": "yellow", "condition": "green", "work": "green"}, "modifiers": ["睡眠スコア83", "公休日", "勤務時間0"], "guardrails": ["足底筋膜炎LV.3単独ではoperationStatusをyellowへ引き上げない", "睡眠時間不足は睡眠スコアと勤務負荷を含めて全日判断する"], "operationStatus": "green", "reasonCodes": ["SLEEP_DURATION_BELOW_7H", "SLEEP_SCORE_SUPPORTIVE", "HOLIDAY_NO_WORK_EXPOSURE", "PLANTAR_LV3_MONITOR"]}
+      }
+    }
+  },
+  "packageDigest": null
+}

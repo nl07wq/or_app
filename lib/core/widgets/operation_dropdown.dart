@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'global_touch_ripple.dart';
+
 class OperationDropdown<T> extends StatelessWidget {
   final String label;
   final T value;
@@ -18,15 +20,17 @@ class OperationDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
+    return InputFeedbackRegion(
+      child: DropdownButtonFormField<T>(
+        initialValue: value,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        isExpanded: isExpanded,
+        items: items,
+        onChanged: onChanged,
       ),
-      isExpanded: isExpanded,
-      items: items,
-      onChanged: onChanged,
     );
   }
 }

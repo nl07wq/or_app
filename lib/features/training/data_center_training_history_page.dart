@@ -8,6 +8,7 @@ import '../../core/repositories/training_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/global_touch_ripple.dart';
 import '../../core/widgets/section_header.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../repositories/app_repository_container.dart';
@@ -310,7 +311,7 @@ class _ViewSelector extends StatelessWidget {
             }),
             selected: selected == view,
             onSelected: (_) => onSelected(view),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -2190,7 +2191,7 @@ class _ExerciseView extends StatelessWidget {
             onChanged: (value) {
               if (value != null) onCategorySelected(value);
             },
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
         AppSpacing.gapMD,
         const _SelectorCaption('EQUIPMENT'),
@@ -2224,7 +2225,7 @@ class _ExerciseView extends StatelessWidget {
                 onEquipmentSelected(value.variant!.identity);
               }
             },
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
         AppSpacing.gapMD,
         _ExerciseMetricSelector(selected: metric, onSelected: onMetricSelected),
@@ -2392,7 +2393,7 @@ class _CompactChoiceRow extends StatelessWidget {
             materialTapTargetSize: MaterialTapTargetSize.padded,
             selected: selectedIndex == index,
             onSelected: (_) => onSelected(index),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ),
       ],
     ],
@@ -2549,7 +2550,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: period == selected,
             onSelected: (_) => onSelected(period),
-          ),
+          ).inputFeedback(),
       ],
     ),
   );

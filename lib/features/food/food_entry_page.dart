@@ -11,6 +11,7 @@ import '../repositories/app_repository_container.dart';
 import 'models/food_catalog_models.dart';
 import 'models/recipe_models_v2.dart';
 import 'models/food_quantity_models.dart';
+import 'models/food_entry_sources.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'models/food_summary_state.dart';
 import 'services/food_catalog_meal_mapper.dart';
@@ -35,6 +36,7 @@ class FoodEntryPage extends StatefulWidget {
 class _FoodEntryPageState extends State<FoodEntryPage> {
   String? _localDate;
   Object? _dateLoadError;
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -57,6 +59,12 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     }
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<bool> save(MealData data) async {
     final localDate = _localDate;
     if (localDate == null) return false;
@@ -67,9 +75,13 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       return false;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('MEALの保存に失敗しました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data.isWaterEntry ? 'WATER SAVE FAILED' : 'MEALの保存に失敗しました',
+            ),
+          ),
+        );
       }
       return false;
     }
@@ -82,7 +94,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       ),
     );
 
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    _returnToFood();
     return true;
   }
 
@@ -127,45 +139,103 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
-    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
+    _returnToFood();
     return true;
+  }
+
+  Future<bool> saveWithSources(MealData data, FoodEntrySources sources) async {
+    final localDate = _localDate;
+    if (localDate == null ||
+        sources.catalogSources.length != data.items.length) {
+      return false;
+    }
+    try {
+      await DailyLogMutationGuard.assertDateMutable(DateTime.parse(localDate));
+      final timestamp = DateTime.now().toUtc();
+      await AppRepositoryRegistry.container.dailyMealsV2.create(
+        FoodCatalogMealMapper.map(
+          meal: data,
+          catalogSources: sources.catalogSources,
+          recipeSources: sources.recipeSources,
+          recipeInstanceSnapshots: sources.recipeInstanceSnapshots,
+          quantityUnits: sources.quantityUnits,
+          localDate: localDate,
+          timestamp: timestamp,
+          idGenerator: FoodMealIdGenerator(),
+        ),
+      );
+      await refreshFoodSummary(localDate: localDate);
+    } on ConfirmedDailyLogException catch (error) {
+      if (mounted) showConfirmedLogMessage(context, error);
+      return false;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('MEAL SAVE FAILED')));
+      }
+      return false;
+    }
+    if (!mounted) return true;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
+    _returnToFood();
+    return true;
+  }
+
+  void _returnToFood() {
+    // A focused DOM input can retain the mobile browser's reduced visual
+    // viewport while this route is removed. Clear it before the cascading pop
+    // so FOOD receives fresh viewport metrics immediately on return.
+    FocusScope.of(context).unfocus();
+    Navigator.popUntil(context, ModalRoute.withName(AppRoutes.food));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
-        title: const FoodVfdScaleDisplayTitle(
-          mode: FoodVfdScaleDisplayMode.entry,
+    return WillPopScope(
+      onWillPop: () async {
+        FocusScope.of(context).unfocus();
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
+          title: const FoodVfdScaleDisplayTitle(
+            mode: FoodVfdScaleDisplayMode.entry,
+          ),
         ),
-      ),
-      body: _localDate == null && _dateLoadError == null
-          ? const Center(child: CircularProgressIndicator())
-          : _dateLoadError != null
-          ? const Center(child: Text('Operation Dateを取得できませんでした。'))
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    FoodInputForm(
-                      onSave: save,
-                      onSaveWithCatalog: saveWithCatalog,
-                    ),
-                    const SizedBox(height: 20),
-                    ValueListenableBuilder(
-                      valueListenable: foodSummaryNotifier,
-                      builder: (context, summary, _) => summary == null
-                          ? const SizedBox.shrink()
-                          : FoodSummaryCard(summary: summary),
-                    ),
-                  ],
+        body: _localDate == null && _dateLoadError == null
+            ? const Center(child: CircularProgressIndicator())
+            : _dateLoadError != null
+            ? const Center(child: Text('Operation Dateを取得できませんでした。'))
+            : Padding(
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    children: [
+                      FoodInputForm(
+                        onSave: save,
+                        onSaveWithCatalog: saveWithCatalog,
+                        onSaveWithSources: saveWithSources,
+                        scrollController: _scrollController,
+                      ),
+                      const SizedBox(height: 20),
+                      ValueListenableBuilder(
+                        valueListenable: foodSummaryNotifier,
+                        builder: (context, summary, _) => summary == null
+                            ? const SizedBox.shrink()
+                            : FoodSummaryCard(summary: summary),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }

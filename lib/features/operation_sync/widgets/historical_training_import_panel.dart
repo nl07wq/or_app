@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -174,11 +176,11 @@ class _HistoricalTrainingImportPanelState
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('IMPORT'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -244,7 +246,7 @@ class _HistoricalTrainingImportPanelState
                     ? 'SELECT DATE RANGE'
                     : '$_startDate — $_endDate',
               ),
-            ),
+            ).actionableFeedback(),
             AppSpacing.gapSM,
             const Text('保持されている記録が長い場合は、1か月以内の期間を選択してください。'),
             AppSpacing.gapMD,
@@ -252,7 +254,7 @@ class _HistoricalTrainingImportPanelState
               onPressed: widget.workflow != null && !_busy ? _copyPrompt : null,
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT PROMPT'),
-            ),
+            ).actionableFeedback(),
           ],
         ),
       ),
@@ -292,14 +294,14 @@ class _HistoricalTrainingImportPanelState
                   onPressed: widget.workflow != null && !_busy ? _paste : null,
                   icon: const Icon(Icons.content_paste),
                   label: const Text('PASTE'),
-                ),
+                ).actionableFeedback(),
                 FilledButton.icon(
                   onPressed: widget.workflow != null && !_busy
                       ? _validate
                       : null,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: const Text('VALIDATE'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
             if (_validationError != null) ...[
@@ -408,8 +410,14 @@ class _PreviewCard extends StatelessWidget {
         Wrap(
           spacing: AppSpacing.sm,
           children: [
-            TextButton(onPressed: onSelectAll, child: const Text('SELECT ALL')),
-            TextButton(onPressed: onClearAll, child: const Text('CLEAR ALL')),
+            TextButton(
+              onPressed: onSelectAll,
+              child: const Text('SELECT ALL'),
+            ).actionableFeedback(),
+            TextButton(
+              onPressed: onClearAll,
+              child: const Text('CLEAR ALL'),
+            ).actionableFeedback(),
           ],
         ),
         AppSpacing.gapMD,
@@ -497,7 +505,7 @@ class _PreviewRow extends StatelessWidget {
         '$recordDetails'
         '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.message}').join('\n')}'}',
       ),
-    );
+    ).inputFeedback();
   }
 
   static IconData _icon(OperationSyncRecordDisposition disposition) =>
@@ -567,7 +575,7 @@ class _HistoricalActionButton extends StatelessWidget {
           ),
         ],
       ),
-    ),
+    ).actionableFeedback(),
   );
 }
 

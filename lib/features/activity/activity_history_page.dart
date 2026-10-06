@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/models/activity_data.dart';
-import '../../core/models/bowel_movement_record.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
@@ -10,6 +11,7 @@ import '../../core/state/app_initialization_state.dart';
 import 'activity_entry_page.dart';
 import 'models/activity_summary_state.dart';
 import 'repository/activity_repository.dart';
+import 'services/activity_digestive_record_presentation.dart';
 import 'widgets/activity_mechanical_counter_title.dart';
 import 'widgets/activity_mechanical_back_button.dart';
 
@@ -97,9 +99,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                         Text(
                           'Previous Carry Over deducted: -${_formatSteps(previousCarryOver)} steps',
                         ),
-                      Text(
-                        'Bowel: ${_formatBowelMovement(data.bowelMovement)}',
-                      ),
+                      Text(ActivityDigestiveRecordPresentation.format(data)),
                     ],
                   ),
                   trailing: Row(
@@ -120,7 +120,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                                 _reload();
                                 setState(() {});
                               },
-                      ),
+                      ).actionableFeedback(),
                       IconButton(
                         icon: Icon(
                           Icons.delete_outline,
@@ -129,7 +129,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                         onPressed: appInitializationController.value.isReadOnly
                             ? null
                             : () => _delete(data),
-                      ),
+                      ).actionableFeedback(),
                     ],
                   ),
                 ),
@@ -156,16 +156,5 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       }
     }
     return 0;
-  }
-
-  String _formatBowelMovement(BowelMovementRecord record) {
-    return switch (record.status) {
-      BowelMovementStatus.unconfirmed => 'Not entered',
-      BowelMovementStatus.none => 'None',
-      BowelMovementStatus.recorded =>
-        record.amount == null
-            ? 'Recorded (legacy)'
-            : 'Amount ${record.amount}, shape ${record.shape ?? '-'}',
-    };
   }
 }

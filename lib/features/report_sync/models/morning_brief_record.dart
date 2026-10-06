@@ -1,4 +1,5 @@
 import 'report_sync_record_utils.dart';
+import 'morning_brief_decision_trace.dart';
 
 /// Presentation-only guard for legacy/generated BODY display text. Structured
 /// body facts remain owned by STATUS; this never parses prose into data.
@@ -306,6 +307,11 @@ class MorningBriefRecord {
     ...previousFields,
     'evaluationVersion',
   };
+  static const tracedPreviousFields = {...previousFields, 'decisionTrace'};
+  static const provenancedTracedPreviousFields = {
+    ...provenancedPreviousFields,
+    'decisionTrace',
+  };
   static const currentFields = {
     ...previousFields,
     'revision',
@@ -314,6 +320,11 @@ class MorningBriefRecord {
   static const provenancedCurrentFields = {
     ...currentFields,
     'evaluationVersion',
+  };
+  static const tracedCurrentFields = {...currentFields, 'decisionTrace'};
+  static const provenancedTracedCurrentFields = {
+    ...provenancedCurrentFields,
+    'decisionTrace',
   };
   static const archivedCurrentFields = {...currentFields, 'archivedRevisions'};
   static const provenancedArchivedCurrentFields = {
@@ -330,6 +341,7 @@ class MorningBriefRecord {
   final String? sourceRecordId;
   final String? sourceDigest;
   final String? evaluationVersion;
+  final MorningBriefDecisionTrace? decisionTrace;
   final String responseDigest;
   final String? exchangeId;
   final DateTime generatedAt;
@@ -370,6 +382,7 @@ class MorningBriefRecord {
        sourceRecordId = null,
        sourceDigest = null,
        evaluationVersion = null,
+       decisionTrace = null,
        exchangeId = null,
        _legacySituationAnalysis = situationAnalysis,
        situationAnalysisV2 = null,
@@ -401,6 +414,7 @@ class MorningBriefRecord {
     required this.sourceRecordId,
     required this.sourceDigest,
     this.evaluationVersion,
+    this.decisionTrace,
     required this.responseDigest,
     required this.exchangeId,
     required this.generatedAt,
@@ -424,6 +438,7 @@ class MorningBriefRecord {
        previousRevisions = const [],
        archivedRevisions = const [] {
     _validateCurrentIdentity();
+    _validateDecisionTrace();
     _validateTimestamps();
   }
 
@@ -434,6 +449,7 @@ class MorningBriefRecord {
     required this.sourceRecordId,
     required this.sourceDigest,
     this.evaluationVersion,
+    this.decisionTrace,
     required this.responseDigest,
     required this.exchangeId,
     required this.generatedAt,
@@ -461,6 +477,7 @@ class MorningBriefRecord {
          archivedRevisions.map(Map<String, Object?>.unmodifiable),
        ) {
     _validateCurrentIdentity();
+    _validateDecisionTrace();
     if (revision < 1 ||
         this.archivedRevisions.length + this.previousRevisions.length !=
             revision - 1 ||
@@ -500,6 +517,14 @@ class MorningBriefRecord {
     _validateTimestamps();
   }
 
+  void _validateDecisionTrace() {
+    final trace = decisionTrace;
+    if (trace != null &&
+        trace.finalDecision.operationStatus != operationStatus.stableId) {
+      throw const FormatException('DAILY BRIEF trace status is inconsistent.');
+    }
+  }
+
   bool get isCurrentFormat => recordVersion >= previousRecordVersion;
 
   String get situationAnalysis =>
@@ -524,6 +549,7 @@ class MorningBriefRecord {
           'sourceRecordId': sourceRecordId,
           'sourceDigest': sourceDigest,
           if (evaluationVersion != null) 'evaluationVersion': evaluationVersion,
+          if (decisionTrace != null) 'decisionTrace': decisionTrace!.toJson(),
           'responseDigest': responseDigest,
           'exchangeId': exchangeId,
           'generatedAt': generatedAt.toUtc().toIso8601String(),
@@ -600,9 +626,13 @@ class MorningBriefRecord {
   static MorningBriefRecord _fromPreviousRecord(Map<String, Object?> json) {
     ReportSyncRecordUtils.exactFields(
       json,
-      json.containsKey('evaluationVersion')
-          ? provenancedPreviousFields
-          : previousFields,
+      json.containsKey('decisionTrace')
+          ? (json.containsKey('evaluationVersion')
+                ? provenancedTracedPreviousFields
+                : tracedPreviousFields)
+          : (json.containsKey('evaluationVersion')
+                ? provenancedPreviousFields
+                : previousFields),
     );
     return MorningBriefRecord.v2(
       localDate: ReportSyncRecordUtils.localDate(json, 'localDate'),
@@ -617,6 +647,7 @@ class MorningBriefRecord {
         json,
         'evaluationVersion',
       ),
+      decisionTrace: _decisionTrace(json),
       responseDigest: ReportSyncRecordUtils.digest(json, 'responseDigest'),
       exchangeId: ReportSyncRecordUtils.string(json, 'exchangeId'),
       generatedAt: ReportSyncRecordUtils.date(json, 'generatedAt'),
@@ -644,9 +675,13 @@ class MorningBriefRecord {
           ? (json.containsKey('evaluationVersion')
                 ? provenancedArchivedCurrentFields
                 : archivedCurrentFields)
-          : (json.containsKey('evaluationVersion')
-                ? provenancedCurrentFields
-                : currentFields),
+          : (json.containsKey('decisionTrace')
+                ? (json.containsKey('evaluationVersion')
+                      ? provenancedTracedCurrentFields
+                      : tracedCurrentFields)
+                : (json.containsKey('evaluationVersion')
+                      ? provenancedCurrentFields
+                      : currentFields)),
     );
     final previous = json['previousRevisions'];
     if (previous is! List || previous.any((value) => value is! Map)) {
@@ -676,6 +711,7 @@ class MorningBriefRecord {
       sourceRecordId: base.sourceRecordId,
       sourceDigest: base.sourceDigest,
       evaluationVersion: base.evaluationVersion,
+      decisionTrace: base.decisionTrace,
       responseDigest: base.responseDigest,
       exchangeId: base.exchangeId,
       generatedAt: base.generatedAt,
@@ -710,6 +746,7 @@ class MorningBriefRecord {
       sourceRecordId: sourceRecordId,
       sourceDigest: sourceDigest,
       evaluationVersion: evaluationVersion,
+      decisionTrace: decisionTrace,
       responseDigest: responseDigest,
       exchangeId: exchangeId,
       generatedAt: generatedAt,
@@ -744,6 +781,7 @@ class MorningBriefRecord {
       sourceRecordId: next.sourceRecordId,
       sourceDigest: next.sourceDigest,
       evaluationVersion: next.evaluationVersion,
+      decisionTrace: next.decisionTrace,
       responseDigest: next.responseDigest,
       exchangeId: next.exchangeId,
       generatedAt: next.generatedAt,
@@ -777,6 +815,7 @@ class MorningBriefRecord {
           sourceRecordId: sourceRecordId,
           sourceDigest: sourceDigest,
           evaluationVersion: evaluationVersion,
+          decisionTrace: decisionTrace,
           responseDigest: responseDigest,
           exchangeId: exchangeId,
           generatedAt: generatedAt,
@@ -808,5 +847,14 @@ class MorningBriefRecord {
       for (final value in values)
         MorningBriefAction.fromJson(Map<String, Object?>.from(value as Map)),
     ];
+  }
+
+  static MorningBriefDecisionTrace? _decisionTrace(Map<String, Object?> json) {
+    final value = json['decisionTrace'];
+    if (value == null) return null;
+    if (value is! Map) {
+      throw const FormatException('DAILY BRIEF decision trace is invalid.');
+    }
+    return MorningBriefDecisionTrace.fromJson(Map<String, Object?>.from(value));
   }
 }

@@ -234,6 +234,108 @@ void main() {
     expect(find.byType(BowelCard), findsNothing);
   });
 
+  testWidgets(
+    'Measured steps Food stepper clamps at zero without focusing the field',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityEntryPage(
+            initialData: ActivityData(date: DateTime(2026, 7, 25)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final measuredStepsField = find.byType(TextField).first;
+      final decrement = find.byKey(
+        const ValueKey('activity-measured-steps-decrement'),
+      );
+      final increment = find.byKey(
+        const ValueKey('activity-measured-steps-increment'),
+      );
+
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(measuredStepsField).focusNode!.hasFocus,
+        isFalse,
+      );
+
+      await tester.tap(decrement);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(measuredStepsField).controller!.text,
+        '0',
+      );
+      expect(
+        tester.widget<TextField>(measuredStepsField).focusNode!.hasFocus,
+        isFalse,
+      );
+
+      final incrementRect = tester.getRect(increment);
+      await tester.tapAt(
+        Offset(incrementRect.left + 3, incrementRect.center.dy),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(measuredStepsField).controller!.text,
+        '1',
+      );
+      expect(
+        tester.widget<TextField>(measuredStepsField).focusNode!.hasFocus,
+        isFalse,
+      );
+
+      for (final value in [10, 50, 100, 500, 1000, 2500, 5000, 7500, 10000]) {
+        expect(
+          find.byKey(ValueKey('activity-quick-steps-$value')),
+          findsOneWidget,
+        );
+      }
+      await tester.tap(find.byKey(const ValueKey('activity-quick-steps-10')));
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(measuredStepsField).controller!.text,
+        '11',
+      );
+    },
+  );
+
+  testWidgets('Measured steps stepper and quick adds fit common widths', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const quickStepValues = [10, 50, 100, 500, 1000, 2500, 5000, 7500, 10000];
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityEntryPage(
+            initialData: ActivityData(date: DateTime(2026, 7, 25)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('activity-measured-steps-increment')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('activity-measured-steps-decrement')),
+        findsOneWidget,
+      );
+      for (final value in quickStepValues) {
+        expect(
+          find.byKey(ValueKey('activity-quick-steps-$value')),
+          findsOneWidget,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   test('unconfirmed and no bowel movement remain distinct internally', () {
     const unconfirmed = BowelMovementRecord.unconfirmed();
     const none = BowelMovementRecord.none();

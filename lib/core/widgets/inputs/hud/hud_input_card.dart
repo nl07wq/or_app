@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../global_touch_ripple.dart';
 import '../operation_ruler.dart';
 
 class HUDInputCard extends StatefulWidget {
@@ -73,27 +74,32 @@ class _HUDInputCardState extends State<HUDInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ),
+              ).inputFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 
         if (expanded) ...[
-          OperationRuler(
-            controller: widget.controller,
-            min: widget.min,
-            max: widget.max,
-            step: widget.step,
-            unit: widget.unit,
-            initialValue: widget.initialValue,
+          InputFeedbackRegion(
+            child: OperationRuler(
+              controller: widget.controller,
+              min: widget.min,
+              max: widget.max,
+              step: widget.step,
+              unit: widget.unit,
+              initialValue: widget.initialValue,
+            ),
           ),
 
           const SizedBox(height: 12),
 
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton(onPressed: collapse, child: const Text("完了")),
+            child: FilledButton(
+              onPressed: collapse,
+              child: const Text("完了"),
+            ).inputFeedback(),
           ),
         ],
       ],

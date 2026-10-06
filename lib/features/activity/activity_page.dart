@@ -217,6 +217,11 @@ class _ActivityPageState extends State<ActivityPage> {
                     key: const ValueKey('activity-entry-button'),
                     icon: Icons.edit_outlined,
                     text: 'ACTIVITY ENTRY',
+                    reportUnavailableTap:
+                        !appInitializationController.value.isReadOnly &&
+                        snapshot.connectionState == ConnectionState.done &&
+                        !snapshot.hasError &&
+                        activityExists,
                     onPressed:
                         appInitializationController.value.isReadOnly ||
                             snapshot.connectionState != ConnectionState.done ||

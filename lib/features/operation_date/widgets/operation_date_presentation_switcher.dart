@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/services/app_clock.dart';
 import '../../../core/widgets/operation_flip_tile.dart';
 import '../models/operation_local_date.dart';
@@ -9,6 +11,11 @@ import '../services/operation_date_display_mode_preference.dart';
 import '../state/finalize_date_transition.dart';
 import 'operation_date_flip_calendar.dart';
 import 'operation_date_nixie_display.dart';
+
+/// Controls which established Operation Date fields are physically presented.
+/// The operation date remains the single source of truth; this only controls
+/// whether a consumer also presents the live clock.
+enum OperationDatePresentationContentMode { dateOnly, dateAndTime }
 
 /// Isolates the optional Dashboard presentation from Operation Date state.
 class OperationDatePresentationSwitcher extends StatefulWidget {
@@ -18,12 +25,20 @@ class OperationDatePresentationSwitcher extends StatefulWidget {
     required this.finalizeTransition,
     super.key,
     this.preference,
+    this.contentMode = OperationDatePresentationContentMode.dateAndTime,
+    this.dateTileWidth = OperationDateNixieDisplay.dateTileWidth,
+    this.dateTileGap = OperationDateNixieDisplay.tileGap,
+    this.dateVerticalPadding = const EdgeInsets.symmetric(vertical: 4),
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final FinalizeDateTransition? finalizeTransition;
   final OperationDateDisplayModePreference? preference;
+  final OperationDatePresentationContentMode contentMode;
+  final double dateTileWidth;
+  final double dateTileGap;
+  final EdgeInsetsGeometry dateVerticalPadding;
 
   @override
   State<OperationDatePresentationSwitcher> createState() =>
@@ -43,7 +58,7 @@ class _OperationDatePresentationSwitcherState
   late final AnimationController _transitionLockController;
 
   static const _flipTransitionDuration = Duration(milliseconds: 500);
-  static const _nixieTransitionDuration = Duration(milliseconds: 260);
+  static const _nixieTransitionDuration = NixieTransitionMotion.duration;
 
   OperationDateDisplayModePreference get _preference =>
       widget.preference ?? OperationDateDisplayModePreference();
@@ -164,18 +179,28 @@ class _OperationDatePresentationSwitcherState
                   operationDateFuture: widget.operationDateFuture,
                   transitionToken: widget.transitionToken,
                   previewTransitionToken: _previewTransitionToken,
+                  contentMode: widget.contentMode,
+                  tileWidth: widget.dateTileWidth,
+                  tileGap: widget.dateTileGap,
+                  dateVerticalPadding: widget.dateVerticalPadding,
                 )
               : OperationDateNixieDisplay(
                   operationDateFuture: widget.operationDateFuture,
                   transitionToken: widget.transitionToken,
                   previewTransitionToken: _previewTransitionToken,
+                  dateFieldWidth: widget.dateTileWidth,
+                  dateFieldGap: widget.dateTileGap,
+                  dateVerticalPadding: widget.dateVerticalPadding,
+                  showTime:
+                      widget.contentMode ==
+                      OperationDatePresentationContentMode.dateAndTime,
                   initialTransitionFrom:
                       _nixieTransitionToken == widget.transitionToken
                       ? widget.finalizeTransition?.fromDate
                       : null,
                 ),
         ),
-      ),
+      ).actionableFeedback(),
     );
   }
 }
@@ -185,54 +210,72 @@ class _FlipDatePresentation extends StatelessWidget {
     required this.operationDateFuture,
     required this.transitionToken,
     required this.previewTransitionToken,
+    required this.contentMode,
+    required this.tileWidth,
+    required this.tileGap,
+    required this.dateVerticalPadding,
   });
 
   final Future<OperationLocalDate> operationDateFuture;
   final int transitionToken;
   final int previewTransitionToken;
+  final OperationDatePresentationContentMode contentMode;
+  final double tileWidth;
+  final double tileGap;
+  final EdgeInsetsGeometry dateVerticalPadding;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    key: const ValueKey('dashboard-date-time-row'),
-    spacing: 0,
-    runSpacing: 8,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: OperationDateFlipCalendar(
-          operationDateFuture: operationDateFuture,
-          transitionToken: transitionToken,
-          previewTransitionToken: previewTransitionToken,
-          tileWidth: 42,
+  Widget build(BuildContext context) {
+    final dateOnly =
+        contentMode == OperationDatePresentationContentMode.dateOnly;
+    return Wrap(
+      key: ValueKey(
+        dateOnly
+            ? 'operation-date-flip-date-only-row'
+            : 'dashboard-date-time-row',
+      ),
+      spacing: 0,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Padding(
+          padding: dateVerticalPadding,
+          child: OperationDateFlipCalendar(
+            operationDateFuture: operationDateFuture,
+            transitionToken: transitionToken,
+            previewTransitionToken: previewTransitionToken,
+            tileWidth: tileWidth,
+            tileGap: tileGap,
+          ),
         ),
-      ),
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: SizedBox(
-              height: OperationDateFlipCalendar.defaultTileHeight + 8,
-              child: VerticalDivider(
-                key: const ValueKey('dashboard-date-time-divider'),
-                width: 1,
-                thickness: 1,
-                color: Theme.of(context).colorScheme.outlineVariant,
+        if (!dateOnly)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: SizedBox(
+                  height: OperationDateFlipCalendar.defaultTileHeight + 8,
+                  child: VerticalDivider(
+                    key: const ValueKey('dashboard-date-time-divider'),
+                    width: 1,
+                    thickness: 1,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: OperationDateLiveFlipClock(
+                  transitionToken: transitionToken,
+                  previewTransitionToken: previewTransitionToken,
+                ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: OperationDateLiveFlipClock(
-              transitionToken: transitionToken,
-              previewTransitionToken: previewTransitionToken,
-            ),
-          ),
-        ],
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class OperationDateLiveFlipClock extends StatefulWidget {

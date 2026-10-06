@@ -1,14 +1,21 @@
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
-import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
-import 'package:or_app/features/system/pages/cat_trace_poc_data.dart';
+import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
+import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
+import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
+import 'package:or_app/features/system/pages/cat_run_v24_presentation.dart';
+import 'package:or_app/features/system/pages/cat_run_coat_patterns.dart';
 import 'package:or_app/features/system/pages/animations_sandbox_page.dart';
+import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
+import 'package:or_app/features/system/pages/bat_v3_flight_motion_poc.dart';
 import 'package:or_app/features/system/pages/pixel_lab_page.dart';
 import 'package:or_app/features/system/pages/system_page.dart';
 import 'package:or_app/features/system/services/storage_status_gateway.dart';
@@ -52,6 +59,7 @@ void main() {
     );
     await tester.pump();
     await tester.scrollUntilVisible(find.text('OPEN ANIMATIONS SANDBOX'), 300);
+    await tester.ensureVisible(find.text('OPEN ANIMATIONS SANDBOX'));
 
     expect(find.text('INITIALIZE APP DATA'), findsWidgets);
     expect(find.text('ANIMATIONS SANDBOX'), findsOneWidget);
@@ -102,329 +110,588 @@ void main() {
   });
 
   testWidgets(
-    'CAT TRACE PIPELINE POC is a static sandbox-only Bezier preview',
+    'WEATHER SYMBOL SANDBOX shows single and composite shower candidates',
     (tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.physicalSize = const Size(390, 1600);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
 
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('cat-trace-poc-section')),
-        300,
-      );
-      expect(find.text('CAT TRACE PIPELINE POC'), findsOneWidget);
-      final canvas = find.byKey(const ValueKey('cat-trace-poc-canvas'));
-      expect(canvas, findsOneWidget);
-      expect(tester.getSize(canvas).height, 190);
-      expect(tester.getSize(canvas).width, greaterThan(200));
       expect(
-        tester.widget<CustomPaint>(canvas).painter,
-        isA<CatTracePocPainter>(),
+        find.byKey(const ValueKey('weather-symbol-sandbox-section')),
+        findsOneWidget,
       );
-      for (final key in [
-        'cat-trace-poc-reconstructed',
-        'cat-trace-poc-high',
-        'cat-trace-poc-medium',
-        'cat-trace-poc-low',
-        'cat-trace-poc-scale-1',
-        'cat-trace-poc-scale-2',
-        'cat-trace-poc-scale-4',
+      for (final candidate in [
+        'material-showers',
+        'cloud-base',
+        'cloud-umbrella',
+        'cloud-drops',
       ]) {
-        expect(find.byKey(ValueKey(key)), findsOneWidget);
+        expect(
+          find.byKey(ValueKey('weather-symbol-candidate-$candidate')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(ValueKey('weather-symbol-preview-$candidate')),
+          findsOneWidget,
+        );
       }
-      await tester.drag(find.byType(ListView), const Offset(0, -700));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('cat-trace-poc-high')));
-      await tester.pump();
-      final tracePainter = tester.widget<CustomPaint>(canvas).painter!;
-      expect(tracePainter, isA<CatTraceVectorPainter>());
-      expect(find.textContaining('HIGH · RDP 1.5px'), findsOneWidget);
-      await tester.drag(find.byType(ListView), const Offset(0, -180));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('cat-trace-poc-scale-4')));
-      await tester.pump();
       expect(
-        (tester.widget<CustomPaint>(canvas).painter! as CatTraceVectorPainter)
-            .presentationScale,
-        4,
+        find.byKey(const ValueKey('weather-symbol-composite-cloud-umbrella')),
+        findsOneWidget,
       );
       expect(
-        find.textContaining('Production Wildlife is not connected'),
+        find.byKey(const ValueKey('weather-symbol-composite-cloud-drops')),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
     },
   );
 
-  test('CAT TRACE POC preserves broad supplied-silhouette contour cues', () {
-    final fidelity = catTracePocFidelity;
-    expect(fidelity.headToBodyLength, inInclusiveRange(.16, .22));
-    expect(fidelity.bodyDepthToLength, inInclusiveRange(.28, .38));
-    expect(fidelity.tailReachPastPelvis, inInclusiveRange(.25, .36));
-    expect(fidelity.curveSegmentCount, greaterThanOrEqualTo(20));
-    expect(
-      fidelity.referenceFeatures,
-      containsAll({
-        'shortMuzzle',
-        'pairedEars',
-        'lowDorsalLine',
-        'raisedTaperedTail',
-        'articulatedForeleg',
-        'articulatedHindLeg',
-      }),
-    );
+  testWidgets('WEATHER SYMBOL SANDBOX remains visible at target widths', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 1600);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('weather-symbol-sandbox-section')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('weather-symbol-composite-cloud-umbrella')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
   });
 
-  test(
-    'CAT TRACE POC vector levels derive monotonically from one raw contour',
-    () {
-      const report = catTraceSourceReport;
-      final levels = generatedCatTraceVectorLevels;
-      expect(report.sourceWidth, 1280);
-      expect(report.sourceHeight, 640);
-      expect(report.luminanceThreshold, 128);
-      expect(report.openingKernel, 3);
-      expect(report.rawContourPointCount, 5480);
+  testWidgets('Sandbox preserves the requested top-level hierarchy', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+
+    final bootY = tester.getTopLeft(find.text('BOOT SEQUENCE')).dy;
+    final pixelY = tester.getTopLeft(find.text('PIXEL LAB')).dy;
+    final dashboardY = tester
+        .getTopLeft(find.byKey(const ValueKey('dashboard-preview-disclosure')))
+        .dy;
+    final v2Y = tester
+        .getTopLeft(
+          find.byKey(const ValueKey('ambient-wildlife-v2-disclosure')),
+        )
+        .dy;
+    expect(bootY, lessThan(pixelY));
+    expect(pixelY, lessThan(dashboardY));
+    expect(dashboardY, lessThan(v2Y));
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-section')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+      findsOneWidget,
+    );
+    expect(find.text('AMBIENT WILDLIFE'), findsOneWidget);
+    expect(find.text('AMBIENT WILDLIFE V2'), findsOneWidget);
+    expect(find.text('OTHER ANIMATION SANDBOX'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('wildlife-preview-cat')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wildlife-preview-fox')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('wildlife-preview-birds')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('wildlife-preview-bat')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wildlife-v2-random')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('wildlife-v2-play-restart')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('wildlife-v2-pause')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('wildlife-preview-mode-motion')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('wildlife-preview-direction-ltr')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('wildlife-preview-direction-rtl')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+          )
+          .data,
+      'CURRENT: CAT / MOTION / L → R',
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      ),
+      findsOneWidget,
+    );
+    for (final offset in [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]) {
       expect(
-        levels.map((level) => level.tolerance),
-        orderedEquals([1.5, 4, 9]),
+        find.byKey(ValueKey('wildlife-ground-line-$offset')),
+        findsOneWidget,
       );
-      expect(
-        levels.map((level) => level.sourcePointCount),
-        orderedEquals([151, 85, 58]),
-      );
-      expect(levels[0].iou, greaterThan(levels[1].iou));
-      expect(levels[1].iou, greaterThan(levels[2].iou));
-      expect(levels.every((level) => level.disagreement < .06), isTrue);
-      for (final level in levels) {
-        expect(level.points, isNotEmpty);
-        expect(
-          level.points.every((point) => point.dx.isFinite && point.dy.isFinite),
-          isTrue,
-        );
-        expect(
-          level.points.every((point) => point.dx >= 0 && point.dy >= 0),
-          isTrue,
-        );
-        expect(
-          level.points.every((point) => point.dx <= 1 && point.dy <= 1),
-          isTrue,
-        );
-      }
-    },
-  );
+    }
+
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-play-restart')));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+          )
+          .data,
+      'CURRENT: CAT / MOTION / L → R',
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-cat')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('wildlife-preview-fox')),
+              matching: find.byType(OutlinedButton),
+            ),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('wildlife-preview-birds')),
+              matching: find.byType(OutlinedButton),
+            ),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byKey(const ValueKey('wildlife-preview-fox')));
+    await tester.pump();
+    expect(find.text('CURRENT: FOX / NEUTRAL / L → R'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-fox')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('wildlife-preview-bat')));
+    await tester.pump();
+    expect(find.text('CURRENT: BAT / NEUTRAL / L → R'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-neutral-bat')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-v2-environment')),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
+      300,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-section')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v1-disclosure')),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('animal-category-cat')),
+      300,
+    );
+    expect(find.byKey(const ValueKey('animal-category-cat')), findsOneWidget);
+  });
 
   testWidgets(
-    'CAT TRACE POC comparison controls remain usable at narrow widths',
+    'Dashboard Preview exposes CAT smooth and pose-blend comparisons',
     (tester) async {
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      for (final width in [320.0, 390.0]) {
-        tester.view.physicalSize = Size(width, 1800);
-        tester.view.devicePixelRatio = 1;
-        await tester.pumpWidget(
-          const MaterialApp(home: AnimationsSandboxPage()),
-        );
-        await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('cat-trace-poc-section')),
-          300,
-        );
-        expect(
-          find.byKey(const ValueKey('cat-trace-poc-canvas')),
-          findsOneWidget,
-        );
-        expect(find.byKey(const ValueKey('cat-trace-poc-low')), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      }
-    },
-  );
-
-  testWidgets(
-    'ANIMATIONS SANDBOX provides immediate production wildlife previews',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 1800);
+      tester.view.physicalSize = const Size(390, 10000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
-      );
-      expect(find.text('AMBIENT WILDLIFE'), findsOneWidget);
+      final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+      expect(productionStage, findsOneWidget);
       expect(
-        find.byKey(const ValueKey('ambient-wildlife-preview-stage')),
-        findsOneWidget,
+        tester
+            .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+            .catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.current,
       );
-      final previewStage = find.byKey(
-        const ValueKey('ambient-wildlife-preview-stage'),
-      );
-      final previewIgnorePointers = find
-          .ancestor(of: previewStage, matching: find.byType(IgnorePointer))
-          .evaluate()
-          .map((element) => element.widget as IgnorePointer);
-      expect(previewIgnorePointers.any((widget) => widget.ignoring), isTrue);
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-cat')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-fox')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-birds')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-bat')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-auto')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-mode-motion')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-direction-ltr')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-direction-rtl')),
-        findsOneWidget,
-      );
-      expect(find.text('CURRENT: CAT / MOTION / L → R'), findsOneWidget);
-
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
-        findsOneWidget,
-      );
-      expect(find.text('CURRENT: CAT / MOTION / L → R'), findsOneWidget);
-
-      await tester.tap(
-        find.byKey(const ValueKey('wildlife-preview-mode-neutral')),
-      );
-      await tester.pump();
-      final neutral =
+      for (final profile in [
+        AmbientWildlifeV2CatMotionProfile.smoothB,
+        AmbientWildlifeV2CatMotionProfile.smoothC,
+        AmbientWildlifeV2CatMotionProfile.smoothMax,
+        AmbientWildlifeV2CatMotionProfile.poseBlendA,
+        AmbientWildlifeV2CatMotionProfile.poseBlendB,
+      ]) {
+        final control = find.byKey(
+          ValueKey('dashboard-preview-cat-motion-${profile.name}'),
+        );
+        await tester.scrollUntilVisible(control, 300);
+        await tester.tap(control);
+        await tester.pump();
+        expect(
           tester
-                  .widget<CustomPaint>(
-                    find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
-                  )
-                  .painter!
-              as DashboardAmbientWildlifePainter;
-      expect(neutral.neutralKind, WildlifeKind.cat);
-      expect(neutral.plan, isNull);
+              .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+              .catMotionProfile,
+          profile,
+        );
+      }
       expect(
-        find.byKey(const ValueKey('wildlife-preview-neutral-normal')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('wildlife-preview-neutral-2x')),
-        findsOneWidget,
-      );
-      await tester.tap(
-        find.byKey(const ValueKey('wildlife-preview-neutral-2x')),
-      );
-      await tester.pump();
-      final zoomedNeutral =
-          tester
-                  .widget<CustomPaint>(
-                    find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
-                  )
-                  .painter!
-              as DashboardAmbientWildlifePainter;
-      expect(zoomedNeutral.neutralScale, 2);
-
-      await tester.tap(
-        find.byKey(const ValueKey('wildlife-preview-mode-motion')),
-      );
-      await tester.pump();
-
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-fox')));
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-s1')),
         findsNothing,
       );
       expect(
-        find.byKey(const ValueKey('ambient-wildlife-preview-fox')),
-        findsOneWidget,
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-s4')),
+        findsNothing,
       );
-
-      await tester.tap(
-        find.byKey(const ValueKey('wildlife-preview-direction-rtl')),
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-bat')),
+        300,
       );
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-birds')));
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
       await tester.pump();
-      final birds =
-          tester
-                  .widget<CustomPaint>(
-                    find.byKey(
-                      const ValueKey('ambient-wildlife-preview-birds'),
-                    ),
-                  )
-                  .painter!
-              as DashboardAmbientWildlifePainter;
-      expect(birds.plan?.leftToRight, isFalse);
-      expect(birds.plan?.count, 3);
-      expect(birds.palette, DashboardAmbientWildlifePalette.dark);
-
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-bat')));
-      await tester.pump();
-      final bats =
-          tester
-                  .widget<CustomPaint>(
-                    find.byKey(const ValueKey('ambient-wildlife-preview-bat')),
-                  )
-                  .painter!
-              as DashboardAmbientWildlifePainter;
-      expect(bats.plan?.count, 2);
+      expect(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-current')),
+        findsNothing,
+      );
     },
   );
 
+  testWidgets('Dashboard Preview applies and preserves CAT pose phase mode', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final productionStage = find.byType(AmbientWildlifeV2ProductionStage);
+
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catPosePhaseMode,
+      AmbientWildlifeV2CatPosePhaseMode.sync,
+    );
+    final desync = find.byKey(
+      const ValueKey('dashboard-preview-cat-phase-desync'),
+    );
+    await tester.scrollUntilVisible(desync, 300);
+    await tester.tap(desync);
+    await tester.pump();
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catPosePhaseMode,
+      AmbientWildlifeV2CatPosePhaseMode.desync,
+    );
+
+    final poseBlendB = find.byKey(
+      const ValueKey('dashboard-preview-cat-motion-poseBlendB'),
+    );
+    await tester.scrollUntilVisible(poseBlendB, 300);
+    await tester.tap(poseBlendB);
+    await tester.pump();
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.poseBlendB,
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-preview-play')),
+      300,
+    );
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-pause')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-restart')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catPosePhaseMode,
+      AmbientWildlifeV2CatPosePhaseMode.desync,
+    );
+    expect(
+      tester
+          .widget<AmbientWildlifeV2ProductionStage>(productionStage)
+          .catMotionProfile,
+      AmbientWildlifeV2CatMotionProfile.poseBlendB,
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-preview-bat')),
+      300,
+    );
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-bat')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-phase-sync')),
+      findsNothing,
+    );
+  });
+
   testWidgets(
-    'wildlife AUTO rotates deterministically and manual previews restart',
+    'Dashboard Preview repeats, pauses, resumes, and restarts in place',
     (tester) async {
-      tester.view.physicalSize = const Size(390, 1800);
+      tester.view.physicalSize = const Size(390, 10000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+      final stage = find.byType(AmbientWildlifeV2ProductionStage);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-birds')),
+        300,
       );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-birds')));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-glitch10')),
+        300,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-glitch10')),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-play')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+      var production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+      expect(production.forcedPlan!.birdInstances, hasLength(10));
+      expect(production.paused, isFalse);
 
-      for (final kind in ['cat', 'birds', 'fox', 'bat']) {
-        await tester.tap(find.byKey(const ValueKey('wildlife-preview-auto')));
-        await tester.pump();
-        expect(
-          find.byKey(ValueKey('ambient-wildlife-preview-$kind')),
-          findsOneWidget,
-        );
-      }
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-pause')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-pause')));
+      await tester.pump();
+      production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(production.paused, isTrue);
+      expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
 
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
-      await tester.tap(find.byKey(const ValueKey('wildlife-preview-cat')));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-play')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
       await tester.pump();
       expect(
-        find.byKey(const ValueKey('ambient-wildlife-preview-cat')),
-        findsOneWidget,
+        tester.widget<AmbientWildlifeV2ProductionStage>(stage).paused,
+        isFalse,
       );
-      await tester.pumpWidget(const SizedBox.shrink());
-      expect(tester.takeException(), isNull);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-restart')),
+        300,
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-restart')));
+      await tester.pump();
+      production = tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(production.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+      expect(production.forcedPlan!.birdInstances, hasLength(10));
     },
   );
+
+  testWidgets(
+    'Dashboard Preview preserves CAT SMOOTH B GLITCH spacing through playback controls',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final stage = find.byType(AmbientWildlifeV2ProductionStage);
+
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-cat')));
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-cat-motion-smoothB')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-glitch10')),
+      );
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('dashboard-preview-cat-glitch-spacing-base')),
+        300,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('dashboard-preview-cat-glitch-spacing-base')),
+      );
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+
+      AmbientWildlifeV2ProductionStage production() =>
+          tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+      expect(
+        production().catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.smoothB,
+      );
+      expect(production().forcedPlan!.catPlan!.crossings, hasLength(10));
+      expect(
+        production().forcedPlan!.catPlan!.crossings[1].startedAtProgress,
+        .10,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-pause')));
+      await tester.pump();
+      expect(production().paused, isTrue);
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-play')));
+      await tester.pump();
+      expect(production().paused, isFalse);
+      await tester.tap(find.byKey(const ValueKey('dashboard-preview-restart')));
+      await tester.pump();
+      expect(
+        production().catMotionProfile,
+        AmbientWildlifeV2CatMotionProfile.smoothB,
+      );
+      expect(
+        production().forcedPlan!.catPlan!.crossings[1].startedAtProgress,
+        .10,
+      );
+    },
+  );
+
+  testWidgets('Dashboard Preview applies every CAT GLITCH spacing preset', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final stage = find.byType(AmbientWildlifeV2ProductionStage);
+
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-cat')));
+    await tester.tap(find.byKey(const ValueKey('dashboard-preview-glitch10')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-glitch-spacing-06')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-preview-cat-glitch-spacing-12')),
+      findsNothing,
+    );
+    AmbientWildlifeV2ProductionStage production() =>
+        tester.widget<AmbientWildlifeV2ProductionStage>(stage);
+
+    for (final preset in const [('075', .075), ('09', .09), ('base', .10)]) {
+      final control = find.byKey(
+        ValueKey('dashboard-preview-cat-glitch-spacing-${preset.$1}'),
+      );
+      await tester.scrollUntilVisible(control, 300);
+      await tester.tap(control);
+      await tester.pump();
+      expect(
+        production().forcedPlan!.catPlan!.crossings[1].startedAtProgress,
+        preset.$2,
+      );
+    }
+  });
+
+  testWidgets('wildlife RANDOM only selects available species during motion', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-random')));
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-play-restart')));
+    await tester.pump();
+    final current = tester.widget<Text>(
+      find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+    );
+    expect(current.data, 'CURRENT: RANDOM / MOTION / L → R');
+    await tester.tap(find.byKey(const ValueKey('wildlife-v2-pause')));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('wildlife-v2-pause')),
+        matching: find.text('PLAY'),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('wildlife preview respects Reduced Motion and remains empty', (
     tester,
@@ -444,7 +711,14 @@ void main() {
     await tester.ensureVisible(
       find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
     );
-    expect(find.text('REDUCED MOTION: PREVIEW SUPPRESSED'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('ambient-wildlife-preview-state')),
+          )
+          .data,
+      'REDUCED MOTION: PREVIEW SUPPRESSED',
+    );
     expect(
       tester
           .widget<OutlinedButton>(
@@ -457,7 +731,10 @@ void main() {
       isNull,
     );
     expect(
-      find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+      find.descendant(
+        of: find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+        matching: find.byKey(const ValueKey('ambient-wildlife-preview-idle')),
+      ),
       findsOneWidget,
     );
   });
@@ -479,12 +756,489 @@ void main() {
         await tester.ensureVisible(
           find.byKey(const ValueKey('ambient-wildlife-sandbox-section')),
         );
-        final stage = find.byKey(
-          const ValueKey('ambient-wildlife-preview-stage'),
+        final stage = find.byKey(const ValueKey('ambient-wildlife-v2-stage'));
+        expect(tester.getSize(stage).height, BatV3ProductionFlight.stageHeight);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  test(
+    'Ambient FOX keeps its production motion configuration at 48px torso',
+    () {
+      expect(AmbientWildlifeV2Fox.ambientTorsoLength, 48);
+      expect(
+        AmbientWildlifeV2Fox.crossingDuration,
+        const Duration(milliseconds: 1600),
+      );
+      expect(
+        AmbientWildlifeV2Fox.frameDuration,
+        const Duration(milliseconds: 80),
+      );
+      expect(AmbientWildlifeV2Fox.selectedFrames, const [0, 2, 4, 5, 6]);
+      expect(AmbientWildlifeV2Fox.neutralFrame, 4);
+      expect(AmbientWildlifeV2Fox.verticalFlutterAmplitude, 1);
+      expect(AmbientWildlifeV2Fox.bodyFlexAmplitude, 2);
+      expect(AmbientWildlifeV2Fox.canvasSize.width, greaterThan(150));
+      expect(AmbientWildlifeV2Fox.canvasSize.height, greaterThan(70));
+    },
+  );
+
+  testWidgets(
+    'FOX PATTERN PREVIEW edits frame-aware session masks and copies all data',
+    (tester) async {
+      String? clipboardText;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              clipboardText =
+                  (call.arguments as Map<Object?, Object?>)['text'] as String?;
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final section = find.byKey(const ValueKey('fox-pattern-preview-section'));
+      await tester.scrollUntilVisible(section, 400);
+      expect(section, findsOneWidget);
+      for (final frame in [1, 3, 5, 6, 7]) {
+        expect(
+          find.descendant(
+            of: section,
+            matching: find.byKey(ValueKey('fox-pattern-preview-frame-$frame')),
+          ),
+          findsOneWidget,
+        );
+      }
+      expect(
+        find.descendant(
+          of: section,
+          matching: find.byKey(const ValueKey('fox-pattern-preview-frame-2')),
+        ),
+        findsNothing,
+      );
+      for (final part in ['tail', 'jaw', 'feet']) {
+        expect(
+          find.descendant(
+            of: section,
+            matching: find.byKey(ValueKey('fox-pattern-preview-part-$part')),
+          ),
+          findsOneWidget,
+        );
+      }
+
+      // The V4 session begins as a deep copy of the embedded user V3
+      // baseline. The clipboard is the public, lossless representation.
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 4'));
+      for (final expected in [
+        'MOVE A0 role=anchor x=0.125247 y=0.202117',
+        'MOVE A0 role=anchor x=0.728797 y=0.659245',
+        'MOVE A0 role=anchor x=0.281815 y=0.579701',
+        'MOVE A0 role=anchor x=0.035000 y=0.500000',
+        'MOVE A0 role=anchor x=0.699211 y=0.686080',
+        'MOVE A0 role=anchor x=0.340000 y=0.646820',
+        'MOVE A0 role=anchor x=0.804734 y=0.572608',
+        'MOVE A0 role=anchor x=0.143748 y=0.617927',
+        'MOVE A0 role=anchor x=0.736686 y=0.629865',
+        'MOVE A0 role=anchor x=0.340000 y=0.654483',
+        'MOVE A0 role=anchor x=0.727811 y=0.612243',
+        'MOVE A0 role=anchor x=0.392505 y=0.579073',
+        'C5 role=control x=0.198000 y=0.350000',
+        'C3 role=control x=1.037830 y=0.746951',
+        'C3 role=control x=0.866233 y=1.062069',
+      ]) {
+        expect(clipboardText, contains(expected));
+      }
+
+      final value = find.byKey(
+        const ValueKey('fox-pattern-preview-point-value'),
+      );
+      final pointCount = find.byKey(
+        const ValueKey('fox-pattern-preview-point-count'),
+      );
+      final initialValue = tester.widget<Text>(value).data;
+      final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+      final stageOrigin = tester.getTopLeft(stage);
+      final stageSize = tester.getSize(stage);
+
+      // The visible control dots use a deliberately larger direct hit target.
+      // Select and drag the root anchor, then select a cubic control directly.
+      final rootAnchor =
+          stageOrigin +
+          Offset(stageSize.width * .125247, stageSize.height * .202117);
+      await tester.tapAt(rootAnchor);
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, contains('ANCHOR'));
+      final rootGesture = await tester.startGesture(rootAnchor);
+      await rootGesture.moveBy(const Offset(12, -8));
+      await rootGesture.up();
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, contains('ANCHOR'));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-controls-on')),
+      );
+      await tester.pump();
+      final tailControl =
+          stageOrigin +
+          Offset(stageSize.width * .145157, stageSize.height * .202117);
+      await tester.tapAt(tailControl);
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, contains('CONTROL 1'));
+      final controlGesture = await tester.startGesture(tailControl);
+      await controlGesture.moveBy(const Offset(8, 6));
+      await controlGesture.up();
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-x-+1')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-3')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-1')),
+      );
+      await tester.pump();
+      await tester.tapAt(tailControl);
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, contains('CONTROL'));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
+      );
+      await tester.pump();
+      await tester.tapAt(rootAnchor);
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, initialValue);
+
+      // A newly inserted anchor is selected, nudgeable, copied, and removable.
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 22');
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-add-point')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 23');
+      expect(tester.widget<Text>(value).data, contains('ANCHOR 8'));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-y-+1')),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      final tailWithInsertedPoint = clipboardText!.split('\nJAW\n').first;
+      expect(tailWithInsertedPoint, contains('POINT_COUNT: 23'));
+      expect(tailWithInsertedPoint, contains('A8 role=anchor'));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-delete-point')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(pointCount).data, 'POINT COUNT: 22');
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-part')),
+      );
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-y-+1')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, isNot(initialValue));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-reset-frame')),
+      );
+      await tester.pump();
+      expect(tester.widget<Text>(value).data, initialValue);
+
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      expect(clipboardText, startsWith('FOX PATTERN DATA\nversion: 4'));
+      for (final frame in ['01', '03', '05', '06', '07']) {
+        expect(clipboardText, contains('FRAME $frame'));
+      }
+      expect(clipboardText, contains('TAIL'));
+      expect(clipboardText, contains('JAW'));
+      expect(clipboardText, contains('FEET'));
+      expect(clipboardText, contains('CLOSED: true'));
+      expect(clipboardText, contains('POINT_COUNT:'));
+      expect(clipboardText, contains('role=anchor'));
+      expect(clipboardText, contains('role=control'));
+      expect(clipboardText, contains('SEGMENT'));
+      final firstCopy = clipboardText;
+      await tester.tap(find.byKey(const ValueKey('fox-pattern-preview-copy')));
+      await tester.pump();
+      expect(clipboardText, firstCopy);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'FOX PATTERN PREVIEW V4 separates DEFINE, PREVIEW, and FINE TUNE',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('fox-pattern-preview-section')),
+        400,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-preview')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-point-selector')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+        findsNothing,
+      );
+
+      final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+      await tester.tapAt(tester.getCenter(stage) + const Offset(30, -20));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-zoom-3.0')),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-free-tap')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-point-selector')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-fine-tune')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-point-selector')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fox-pattern-preview-controls-off')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'FOX PATTERN PREVIEW V3 defines areas, resamples anchors, and copies parts independently',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 10000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final section = find.byKey(const ValueKey('fox-pattern-preview-section'));
+      await tester.scrollUntilVisible(section, 400);
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-part-jaw')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-mode-free-tap')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-area-points-8')),
+      );
+      await tester.pump();
+      final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+      final origin = tester.getTopLeft(stage);
+      final size = tester.getSize(stage);
+      for (final point in const [
+        Offset(.70, .35),
+        Offset(.82, .32),
+        Offset(.94, .42),
+        Offset(.89, .57),
+        Offset(.77, .60),
+      ]) {
+        await tester.tapAt(
+          origin + Offset(size.width * point.dx, size.height * point.dy),
+        );
+      }
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+            )
+            .data,
+        contains('5 points'),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-undo-area')),
+      );
+      await tester.pump();
+      await tester.tapAt(origin + Offset(size.width * .77, size.height * .60));
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-close-area')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+            )
+            .data,
+        contains('CANDIDATE READY'),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-apply-area')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-point-count')),
+            )
+            .data,
+        'POINT COUNT: 22',
+      );
+      final sourceValue = tester
+          .widget<Text>(
+            find.byKey(const ValueKey('fox-pattern-preview-point-value')),
+          )
+          .data;
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-3')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-copy-from-frame')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-point-value')),
+            )
+            .data,
+        sourceValue,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-nudge-x-+1')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('fox-pattern-preview-frame-1')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('fox-pattern-preview-point-value')),
+            )
+            .data,
+        sourceValue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('FOX PATTERN PREVIEW V3 traces and D-pad nudges at editor zoom', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 10000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('fox-pattern-preview-section')),
+      400,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('fox-pattern-preview-zoom-2.0')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('fox-pattern-preview-mode-trace')),
+    );
+    await tester.pump();
+    final stage = find.byKey(const ValueKey('fox-pattern-preview-stage'));
+    final origin = tester.getTopLeft(stage);
+    final gesture = await tester.startGesture(origin + const Offset(80, 55));
+    await gesture.moveBy(const Offset(50, 12));
+    await gesture.moveBy(const Offset(20, 45));
+    await gesture.moveBy(const Offset(-65, 18));
+    await gesture.up();
+    await tester.pump();
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('fox-pattern-preview-area-status')),
+          )
+          .data,
+      contains('CANDIDATE READY'),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('fox-pattern-preview-mode-fine-tune')),
+    );
+    await tester.pump();
+    final value = find.byKey(const ValueKey('fox-pattern-preview-point-value'));
+    final before = tester.widget<Text>(value).data;
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_right));
+    await tester.pump();
+    expect(tester.widget<Text>(value).data, isNot(before));
+    final longPress = await tester.startGesture(
+      tester.getCenter(find.byIcon(Icons.keyboard_arrow_right)),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    await longPress.up();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'FOX PATTERN PREVIEW remains responsive at 320, 390, and 900 pixels',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final width in [320.0, 390.0, 900.0]) {
+        tester.view.physicalSize = Size(width, 10000);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey('fox-pattern-preview-$width'),
+            home: const AnimationsSandboxPage(),
+          ),
+        );
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('fox-pattern-preview-section')),
+          400,
         );
         expect(
-          tester.getSize(stage).height,
-          DashboardAmbientWildlifeStage.height,
+          find.byKey(const ValueKey('fox-pattern-preview-stage')),
+          findsOneWidget,
         );
         expect(tester.takeException(), isNull);
       }
@@ -2660,6 +3414,575 @@ void main() {
     );
     expect(find.byKey(const ValueKey('boot-asset-card-2')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test(
+    'CAT RUN V2 freezes ten deterministic HIGH traces after Pose 01 replacement',
+    () {
+      expect(catRunV2HighTraces, hasLength(10));
+      expect(
+        catRunV2HighTraces.map((trace) => trace.pose),
+        List<int>.generate(10, (index) => index + 1),
+      );
+      expect(catRunV2HighTraces.map((trace) => trace.pointCount), [
+        69,
+        76,
+        78,
+        69,
+        79,
+        80,
+        85,
+        72,
+        61,
+        71,
+      ]);
+      final poseOne = catRunV2HighTraces.first;
+      expect(poseOne.rawCount, 1916);
+      expect(poseOne.iou, 0.967861);
+      expect(poseOne.disagreement, 0.032139);
+      for (final trace in catRunV2HighTraces) {
+        expect(trace.points, hasLength(trace.pointCount));
+        expect(trace.iou, greaterThan(.96));
+        expect(
+          trace.points.every((point) => point.dx.isFinite && point.dy.isFinite),
+          isTrue,
+        );
+      }
+    },
+  );
+
+  test(
+    'CAT RUN V2 scale audit preserves frozen traces and reports body metrics',
+    () {
+      expect(CatRunV24ScaleAudit.metrics, hasLength(10));
+      expect(
+        CatRunV24ScaleAudit.metrics.map((metric) => metric.pose),
+        List<int>.generate(10, (index) => index + 1),
+      );
+      for (final metric in CatRunV24ScaleAudit.metrics) {
+        expect(metric.torsoLength, greaterThan(0));
+        expect(metric.torsoHeight, greaterThan(0));
+        expect(metric.headSpan, greaterThan(0));
+        expect(metric.chestHeight, greaterThan(0));
+        expect(metric.visualWidth, greaterThan(0));
+        expect(metric.visualHeight, greaterThan(0));
+        expect(metric.silhouetteArea, greaterThan(0));
+        expect(metric.productionVisualHeight, greaterThan(0));
+      }
+    },
+  );
+
+  test(
+    'CAT RUN V2.4 foot lock lowers stance drift without changing frames',
+    () {
+      const stageWidth = 390.0;
+      for (final width in [320.0, 390.0, 900.0]) {
+        expect(
+          CatRunV24Travel.horizontalPosition(stageWidth: width, progress: 0),
+          lessThan(0),
+        );
+        expect(
+          CatRunV24Travel.horizontalPosition(stageWidth: width, progress: 1),
+          greaterThan(width),
+        );
+      }
+      for (var index = 0; index < catRunV2HighTraces.length; index++) {
+        final original = List<Offset>.of(catRunV2HighTraces[index].points);
+        expect(CatRunV24Travel.pointsAt(index / 10), isNotEmpty);
+        expect(catRunV2HighTraces[index].points, original);
+        if (CatRunV24Travel.isStanceFrame(index)) {
+          final before = CatRunV24Travel.uncorrectedStancePawWorldDrift(
+            frameIndex: index,
+            stageWidth: stageWidth,
+          );
+          final after = CatRunV24Travel.stancePawWorldDrift(
+            frameIndex: index,
+            stageWidth: stageWidth,
+            direction: CatRunV23Direction.leftToRight,
+          );
+          expect(after, lessThan(before * .3));
+          expect(
+            after,
+            CatRunV24Travel.stancePawWorldDrift(
+              frameIndex: index,
+              stageWidth: stageWidth,
+              direction: CatRunV23Direction.rightToLeft,
+            ),
+          );
+        }
+      }
+      var previous = CatRunV24Travel.horizontalPosition(
+        stageWidth: stageWidth,
+        progress: 0,
+      );
+      for (var sample = 1; sample <= 1000; sample++) {
+        final next = CatRunV24Travel.horizontalPosition(
+          stageWidth: stageWidth,
+          progress: sample / 1000,
+        );
+        expect(next, greaterThan(previous));
+        previous = next;
+      }
+    },
+  );
+
+  test('CAT RUN V2.10 replaces only Pose 01 and prevents double scaling', () {
+    expect(
+      CatRunV28Timing.frameDurations.map((duration) => duration.inMilliseconds),
+      [90, 25, 25, 90, 88, 25, 30, 90, 88, 90],
+    );
+    // The specified 01–10 holds sum to 641ms.
+    expect(CatRunV28Timing.cycleDuration, const Duration(milliseconds: 641));
+    for (final index in [1, 2, 5, 6]) {
+      expect(
+        CatRunV28Timing.frameDurations[index].inMilliseconds,
+        inInclusiveRange(25, 30),
+      );
+    }
+    for (final index in [0, 3, 4, 7, 8, 9]) {
+      expect(
+        CatRunV28Timing.frameDurations[index].inMilliseconds,
+        inInclusiveRange(85, 95),
+      );
+    }
+    expect(CatRunV28Timing.frameAtCycleProgress(0), 0);
+    expect(CatRunV28Timing.frameAtCycleProgress(.999999), 9);
+    expect(CatRunV24ScaleAudit.correctionFor(1), 1);
+    expect(CatRunV24ScaleAudit.verticalProportionCorrections[1], 1);
+    expect(CatRunV24ScaleAudit.scaleXFor(1), 1);
+    expect(CatRunV24ScaleAudit.scaleYFor(1), 1);
+    expect(CatRunV24ScaleAudit.correctionFor(2), 1.02);
+    expect(CatRunV24ScaleAudit.verticalProportionCorrections[2], 1.02);
+    expect(CatRunV24ScaleAudit.correctionFor(10), 1.02);
+    expect(CatRunV24ScaleAudit.verticalProportionCorrections[10], 1.01);
+    expect(catRunV2HighTraces.skip(1).map((trace) => trace.rawCount), [
+      1684,
+      1870,
+      1506,
+      1474,
+      1598,
+      2014,
+      1954,
+      2020,
+      1966,
+    ]);
+    expect(
+      CatRunV2Registration.registrationFor(1).sourceOrigin,
+      const Offset(163, 58),
+    );
+    expect(CatRunV2Registration.registrationFor(1).sourceExtent, 474);
+    expect(
+      CatRunV24ScaleAudit.uniformCorrections.values.every(
+        (scale) => scale >= 1 && scale <= 1.06,
+      ),
+      isTrue,
+    );
+    expect(
+      CatRunV24ScaleAudit.verticalProportionCorrections.values.every(
+        (scale) => scale >= 1 && scale <= 1.04,
+      ),
+      isTrue,
+    );
+    final verticalEnvelope = List<double>.generate(
+      10,
+      (index) => CatRunV24ScaleAudit.verticalProportionCorrections[index + 1]!,
+    );
+    for (var index = 0; index < verticalEnvelope.length; index++) {
+      final next = verticalEnvelope[(index + 1) % verticalEnvelope.length];
+      expect((verticalEnvelope[index] - next).abs(), lessThan(.031));
+    }
+    final contactTrace = catRunV2HighTraces[1];
+    final stancePaw = CatRunV2Registration.stancePaw(contactTrace)!;
+    expect(
+      CatRunV24ScaleAudit.correctedPoints(
+        contactTrace,
+      ).any((point) => (point - stancePaw).distance < 1e-10),
+      isTrue,
+    );
+  });
+
+  test(
+    'CAT RUN V2 registers frozen frames without changing their geometry',
+    () {
+      expect(CatRunV2Registration.frames, hasLength(10));
+      expect(CatRunV2Registration.commonTorsoAnchorX, .5);
+      expect(CatRunV2Registration.virtualGroundSourceY, 216);
+
+      for (final trace in catRunV2HighTraces) {
+        final original = List<Offset>.of(trace.points);
+        final registered = CatRunV2Registration.registeredPoints(trace);
+        expect(trace.points, original);
+        expect(registered, hasLength(trace.pointCount));
+        expect(
+          registered.every((point) => point.dx.isFinite && point.dy.isFinite),
+          isTrue,
+        );
+        final frame = CatRunV2Registration.registrationFor(trace.pose);
+        final transform = CatRunV2Registration.transformFor(trace);
+        expect(
+          frame.shoulder.dx.isFinite && frame.shoulder.dy.isFinite,
+          isTrue,
+        );
+        expect(frame.pelvis.dx.isFinite && frame.pelvis.dy.isFinite, isTrue);
+        expect(frame.torsoAxis.distance, greaterThan(0));
+        expect(transform.uniformScale, inInclusiveRange(.97, 1.03));
+        expect(
+          transform.rotationRadians.abs(),
+          lessThanOrEqualTo(2 * 3.141592653589793 / 180),
+        );
+        expect(
+          transform.translation.dx.isFinite &&
+              transform.translation.dy.isFinite,
+          isTrue,
+        );
+        final stancePaw = CatRunV2Registration.stancePaw(trace);
+        if (frame.stancePaw == null) {
+          expect(stancePaw, isNull);
+        } else {
+          expect(
+            stancePaw!.dy,
+            closeTo(CatRunV2Registration.virtualGround, 1e-9),
+          );
+        }
+      }
+
+      expect(CatRunV2Registration.frameDisplacements, hasLength(10));
+      expect(
+        CatRunV2Registration.frameDisplacements.every(
+          (displacement) => displacement.isFinite && displacement > 0,
+        ),
+        isTrue,
+      );
+      expect(CatRunV2Registration.frameDurations, hasLength(10));
+      expect(
+        CatRunV2Registration.frameDurations.every(
+          (duration) =>
+              duration.inMilliseconds >= 86 && duration.inMilliseconds <= 92,
+        ),
+        isTrue,
+      );
+      final loopEnd = CatRunV2Registration.transformFor(
+        catRunV2HighTraces.last,
+      );
+      final loopStart = CatRunV2Registration.transformFor(
+        catRunV2HighTraces.first,
+      );
+      expect(
+        (loopEnd.translation - loopStart.translation).distance,
+        lessThan(.01),
+      );
+      expect(CatRunV2Registration.cycleDuration, isNot(Duration.zero));
+      final verticalTranslations = catRunV2HighTraces
+          .map(
+            (trace) => CatRunV2Registration.transformFor(trace).translation.dy,
+          )
+          .toList(growable: false);
+      for (var index = 0; index < verticalTranslations.length; index++) {
+        final next =
+            verticalTranslations[(index + 1) % verticalTranslations.length];
+        expect((next - verticalTranslations[index]).abs(), lessThan(.02));
+      }
+      for (final trace in catRunV2HighTraces.where(
+        (trace) =>
+            CatRunV2Registration.registrationFor(trace.pose).stancePaw == null,
+      )) {
+        final lowest = CatRunV2Registration.registeredPoints(
+          trace,
+        ).map((point) => point.dy).reduce(math.max);
+        expect(lowest, lessThan(CatRunV2Registration.virtualGround));
+      }
+      expect(CatRunV2Registration.frameAtCycleProgress(0), 0);
+      expect(CatRunV2Registration.frameAtCycleProgress(.999999), 9);
+    },
+  );
+
+  test('CAT RUN V2.3 adds only constant-velocity travel presentation', () {
+    expect(CatRunV23Travel.stageHeight, 48);
+    expect(CatRunV23Travel.catUnit, 110);
+    expect(CatRunV23Travel.crossingDuration, const Duration(seconds: 3));
+    expect(
+      CatRunV2Registration.frameDurations.map((value) => value.inMilliseconds),
+      [86, 90, 90, 88, 88, 90, 92, 88, 86, 88],
+    );
+    for (final width in [320.0, 390.0, 900.0]) {
+      expect(
+        CatRunV23Travel.horizontalPosition(stageWidth: width, progress: 0),
+        lessThan(0),
+      );
+      expect(
+        CatRunV23Travel.horizontalPosition(stageWidth: width, progress: 1),
+        greaterThan(width),
+      );
+      expect(CatRunV23Travel.velocityFor(width), greaterThan(0));
+    }
+    for (final progress in [0.0, .1, .25, .5, .75, .999999]) {
+      final frame = CatRunV23Travel.frameAtTravelProgress(progress);
+      expect(frame, inInclusiveRange(0, 9));
+      expect(
+        CatRunV23Travel.registeredPointsAt(progress),
+        hasLength(catRunV2HighTraces[frame].pointCount),
+      );
+    }
+  });
+
+  test(
+    'CAT coat variants use low-contrast organic overlays without changing HIGH geometry',
+    () {
+      expect(CatRunCoatPatterns.visualVariants, hasLength(5));
+      expect(CatRunCoatPatterns.visualVariants, const [
+        CatRunCoatVariant.normal,
+        CatRunCoatVariant.hachiware,
+        CatRunCoatVariant.calico,
+        CatRunCoatVariant.kijitora,
+        CatRunCoatVariant.sabi,
+      ]);
+      expect(CatRunCoatPatterns.probabilities.values, everyElement(.2));
+      expect(CatRunCoatPatterns.baseColor, const Color(0xFF7A7A7A));
+      expect(CatRunCoatPatterns.patternColor, const Color(0xFF565656));
+      expect(
+        CatRunCoatPatterns.baseColor.r - CatRunCoatPatterns.patternColor.r,
+        lessThan(.16),
+      );
+      expect(
+        CatRunCoatPatterns.probabilities.values.reduce(
+          (sum, value) => sum + value,
+        ),
+        1,
+      );
+      final random = math.Random(7);
+      for (var index = 0; index < 100; index++) {
+        expect(
+          CatRunCoatPatterns.visualVariants,
+          contains(CatRunCoatPatterns.chooseRandom(random)),
+        );
+      }
+
+      for (final trace in catRunV2HighTraces) {
+        final original = List<Offset>.of(trace.points);
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+        final path = Path()
+          ..addPolygon(CatRunV24ScaleAudit.correctedPoints(trace), true);
+        for (final variant in CatRunCoatPatterns.visualVariants) {
+          CatRunCoatPatterns.paint(
+            canvas: canvas,
+            silhouette: path,
+            trace: trace,
+            variant: variant,
+          );
+        }
+        recorder.endRecording().dispose();
+        expect(trace.points, original);
+      }
+    },
+  );
+
+  testWidgets('CAT RUN V2 switches complete HIGH frames without morphing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 7000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+    final disclosure = find.byKey(
+      const ValueKey('cat-run-v2-audit-disclosure'),
+    );
+    expect(disclosure, findsOneWidget);
+    await tester.scrollUntilVisible(
+      disclosure,
+      350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+    await tester.pump();
+    final section = find.byKey(const ValueKey('cat-run-v2-poc'));
+    expect(section, findsOneWidget);
+    expect(find.byKey(const ValueKey('cat-run-v2-canvas')), findsOneWidget);
+    expect(
+      find.text(
+        'V2.2: SHOULDER / PELVIS / VIRTUAL GROUND · '
+        'NO MORPH / RESAMPLING / ARTICULATION',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-frame-10')));
+    await tester.pump();
+    expect(find.textContaining('HIGH FRAME 10'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+    await tester.pump();
+    expect(find.textContaining('HIGH FRAME 10'), findsOneWidget);
+
+    for (final key in [
+      'cat-run-v2-play',
+      'cat-run-v2-speed-0.5',
+      'cat-run-v2-speed-1.0',
+      'cat-run-v2-scale-1',
+      'cat-run-v2-scale-2',
+      'cat-run-v2-scale-4',
+    ]) {
+      final control = find.byKey(ValueKey(key));
+      await tester.ensureVisible(control);
+      await tester.tap(control);
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'SANDBOX removes retired CAT POCs and keeps current audit and BAT surfaces',
+    (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+
+      for (final title in [
+        'CAT TRACE PIPELINE POC',
+        'CAT ARTICULATION POC',
+        'CAT TRACE MOTION POC',
+        'CAT MULTI-POSE TRACE RUN POC',
+        'BAT SHAPE POC',
+      ]) {
+        expect(find.text(title), findsNothing);
+      }
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v2-audit-disclosure')),
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('CAT RUN V2 — SEQUENTIAL HIGH VECTOR'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v23-production-preview')),
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('CAT RUN V2.10 — PRODUCTION PREVIEW'), findsOneWidget);
+    },
+  );
+
+  testWidgets('CAT RUN V2 controls remain accessible at 320, 390, and 900', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 7000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v2-audit-disclosure')),
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('cat-run-v2-frame-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('cat-run-v2-scale-4')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v2-toggle')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('cat-run-v2-poc')), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'CAT RUN V2.3 previews direct HIGH frames in a 48px travel stage',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 8000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      final section = find.byKey(
+        const ValueKey('cat-run-v23-production-preview'),
+      );
+      await tester.scrollUntilVisible(
+        section,
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final stage = find.byKey(const ValueKey('cat-run-v23-stage'));
+      expect(stage, findsOneWidget);
+      expect(tester.getSize(stage).height, 48);
+      for (final key in [
+        'cat-run-v23-play-restart',
+        'cat-run-v23-direction-leftToRight',
+        'cat-run-v23-direction-rightToLeft',
+        'cat-run-v23-speed-0.5',
+        'cat-run-v23-speed-1.0',
+        'cat-run-v23-coat-normal',
+        'cat-run-v23-coat-hachiware',
+        'cat-run-v23-coat-calico',
+        'cat-run-v23-coat-kijitora',
+        'cat-run-v23-coat-sabi',
+        'cat-run-v23-coat-random',
+      ]) {
+        final control = find.byKey(ValueKey(key));
+        await tester.ensureVisible(control);
+        await tester.tap(control);
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(tester.takeException(), isNull);
+      }
+      await tester.tap(
+        find.byKey(const ValueKey('cat-run-v23-coat-hachiware')),
+      );
+      await tester.pump();
+      expect(find.textContaining('HACHIWARE'), findsWidgets);
+      await tester.tap(
+        find.byKey(const ValueKey('cat-run-v23-direction-rightToLeft')),
+      );
+      await tester.pump();
+      expect(find.textContaining('HACHIWARE'), findsWidgets);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v23-coat-random')));
+      await tester.pump();
+      expect(find.textContaining('RANDOM:'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('cat-run-v23-force-chain')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.byKey(const ValueKey('cat-run-v23-force-glitch')),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.pump(const Duration(seconds: 4));
+      await tester.tap(find.byKey(const ValueKey('cat-run-v23-force-glitch')));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('CAT RUN V2.3 controls remain accessible at 320, 390, and 900', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 390.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 8000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cat-run-v23-production-preview')),
+        350,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const ValueKey('cat-run-v23-stage')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('cat-run-v23-direction-rightToLeft')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('cat-run-v23-coat-random')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
   });
 }
 

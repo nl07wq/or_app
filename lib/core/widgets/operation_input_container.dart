@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'global_touch_ripple.dart';
+
 class OperationInputContainer extends StatefulWidget {
   final String title;
   final TextEditingController controller;
@@ -72,16 +74,19 @@ class _OperationInputContainerState extends State<OperationInputContainer> {
                 ),
 
                 if (!expanded && value.text.isNotEmpty)
-                  TextButton(
-                    onPressed: expand,
-                    child: Text(
-                      widget.suffix == null
-                          ? value.text
-                          : "${value.text} ${widget.suffix}",
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.lightBlueAccent,
+                  ActionableFeedbackButton(
+                    enabled: true,
+                    child: TextButton(
+                      onPressed: expand,
+                      child: Text(
+                        widget.suffix == null
+                            ? value.text
+                            : "${value.text} ${widget.suffix}",
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.lightBlueAccent,
+                        ),
                       ),
                     ),
                   ),
@@ -95,9 +100,12 @@ class _OperationInputContainerState extends State<OperationInputContainer> {
 
               Align(
                 alignment: Alignment.centerRight,
-                child: FilledButton(
-                  onPressed: collapse,
-                  child: const Text("完了"),
+                child: ActionableFeedbackButton(
+                  enabled: true,
+                  child: FilledButton(
+                    onPressed: collapse,
+                    child: const Text("完了"),
+                  ),
                 ),
               ),
             ],

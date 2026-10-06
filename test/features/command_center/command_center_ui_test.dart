@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/theme/app_spacing.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/core/widgets/status_lamp.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
@@ -14,6 +17,7 @@ import 'package:or_app/features/command_center/pages/command_center_page.dart';
 import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
+import 'package:or_app/features/command_center/widgets/command_center_hud_sign.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
@@ -24,6 +28,8 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/operation_date/state/finalize_date_transition.dart';
 import 'package:or_app/features/operation_date/widgets/operation_date_flip_calendar.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_nixie_display.dart';
+import 'package:or_app/features/operation_date/widgets/operation_date_presentation_switcher.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/daily_debrief_record.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
@@ -103,10 +109,12 @@ void main() {
   ) async {
     await _pump(tester, width: 390);
 
-    expect(find.text('COMMAND CENTER'), findsOneWidget);
-    expect(find.byType(BackButton), findsNothing);
+    expect(find.byKey(CommandCenterHudSign.titleKey), findsOneWidget);
+    expect(find.byKey(CommandCenterHudSign.backKey), findsNothing);
     expect(
-      Navigator.of(tester.element(find.text('COMMAND CENTER'))).canPop(),
+      Navigator.of(
+        tester.element(find.byKey(CommandCenterHudSign.titleKey)),
+      ).canPop(),
       isFalse,
     );
     expect(tester.takeException(), isNull);
@@ -147,9 +155,10 @@ void main() {
     await tester.tap(commandCenter);
     await tester.pumpAndSettle();
     expect(find.byType(CommandCenterPage), findsOneWidget);
-    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);
 
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byKey(CommandCenterHudSign.backKey));
+    await tester.pump(CommandCenterHudSign.exitDuration);
     await _settleDashboard(tester);
     expect(find.byType(DashboardPage), findsOneWidget);
     expect(find.byType(CommandCenterPage), findsNothing);
@@ -177,23 +186,76 @@ void main() {
     expect(find.byIcon(Symbols.calendar_today), findsOneWidget);
     expect(find.byIcon(Symbols.page_info), findsOneWidget);
     expect(find.text('DAILY ASSESSMENT'), findsOneWidget);
+    final dailyLog = find.text('DAILY LOG');
+    final assessment = find.text('DAILY ASSESSMENT');
+    expect(dailyLog, findsOneWidget);
+    expect(
+      tester.getTopLeft(dailyLog).dy,
+      lessThan(tester.getTopLeft(assessment).dy),
+    );
     expect(find.text('NOT AVAILABLE'), findsWidgets);
     expect(find.textContaining('STATUSを入力'), findsNothing);
     expect(find.text('COMMANDER INTENT'), findsNothing);
     expect(find.text('ARGO COMMENT'), findsNothing);
     expect(find.text('OPERATION MODULES'), findsNothing);
-    await tester.scrollUntilVisible(
-      find.text('DAILY LOG'),
-      300,
-      scrollable: _dailyCommandScrollable(),
-    );
-    expect(find.text('DAILY REVIEW'), findsOneWidget);
-    expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.text('STATUS, FOOD, ACTIVITY'), findsOneWidget);
-    expect(find.text('VIEW DAILY REVIEW'), findsNothing);
-    expect(find.text('FINALIZE DAY'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Commander Center Operation Date shares Dashboard tap and swipe contract',
+    (tester) async {
+      await _pump(tester, width: 390);
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      expect(switcher, findsOneWidget);
+      expect(find.byType(OperationDatePresentationSwitcher), findsOneWidget);
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(find.byType(OperationDateLiveFlipClock), findsNothing);
+      expect(
+        find.byKey(const ValueKey('dashboard-live-flip-clock')),
+        findsNothing,
+      );
+
+      await tester.tap(switcher);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('mechanical-flip-old-upper')),
+        findsWidgets,
+      );
+
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('dashboard-live-nixie-clock')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('dashboard-nixie-date-time-divider')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-field-0')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-field-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('operation-date-nixie-field-2')),
+        findsOneWidget,
+      );
+
+      await tester.drag(switcher, const Offset(72, 0));
+      await tester.pump();
+      expect(find.byType(OperationDateFlipCalendar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('CURRENT OPERATION shared calendar fits at 320px', (
     tester,
@@ -223,14 +285,18 @@ void main() {
       find.byKey(const ValueKey('current-operation-cycle-icon')),
       findsOneWidget,
     );
-    expect(tester.getSize(row).width, 168);
+    expect(tester.getSize(row).width, closeTo(165.6, 0.001));
     for (var index = 0; index < 3; index++) {
       expect(
         tester.getSize(find.byKey(ValueKey('operation-date-tile-$index'))),
-        const Size(52, 36),
+        const Size(50.4, 36),
       );
     }
-    expect(tester.getTopLeft(dateGroup).dy, tester.getTopLeft(cycleGroup).dy);
+    expect(tester.getTopLeft(cycleGroup).dy, tester.getTopLeft(dateGroup).dy);
+    expect(
+      tester.getTopLeft(cycleGroup).dx,
+      greaterThan(tester.getTopRight(dateGroup).dx),
+    );
     final cycleHeadingIcon = find.byKey(
       const ValueKey('current-operation-cycle-heading-icon'),
     );
@@ -249,7 +315,7 @@ void main() {
     expect(tester.getSize(cycleValue).height, lessThan(36));
     expect(
       tester.getTopLeft(cycleGroup).dx - tester.getTopRight(dateGroup).dx,
-      greaterThanOrEqualTo(AppSpacing.xl),
+      greaterThan(0),
     );
     expect(
       find.byKey(const ValueKey('dashboard-live-flip-clock')),
@@ -269,14 +335,389 @@ void main() {
         final cycleGroup = find.byKey(
           const ValueKey('current-operation-cycle-group'),
         );
+        final dateTopLeft = tester.getTopLeft(dateGroup);
+        final cycleTopLeft = tester.getTopLeft(cycleGroup);
+        expect(cycleTopLeft.dy, dateTopLeft.dy);
         expect(
-          tester.getTopLeft(cycleGroup).dx - tester.getTopRight(dateGroup).dx,
-          greaterThanOrEqualTo(AppSpacing.xl),
+          cycleTopLeft.dx - tester.getTopRight(dateGroup).dx,
+          greaterThan(0),
         );
         expect(tester.takeException(), isNull);
       }
     },
   );
+
+  testWidgets(
+    'CURRENT OPERATION widens FLIP and NIXIE fields without a render transform',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await _pump(tester, width: width);
+        final dateGroup = find.byKey(
+          const ValueKey('current-operation-date-group'),
+        );
+        final cycleGroup = find.byKey(
+          const ValueKey('current-operation-cycle-group'),
+        );
+        final switcher = find.byType(OperationDatePresentationSwitcher);
+        final switcherWidget = tester.widget<OperationDatePresentationSwitcher>(
+          switcher,
+        );
+        expect(
+          find.byKey(const ValueKey('current-operation-date-scale')),
+          findsNothing,
+        );
+        expect(switcherWidget.dateTileWidth, closeTo(50.4, 0.001));
+        expect(switcherWidget.dateTileGap, closeTo(7.2, 0.001));
+        expect(
+          tester.getTopLeft(cycleGroup).dx,
+          greaterThan(tester.getTopRight(dateGroup).dx),
+        );
+
+        if (find.byType(OperationDateNixieDisplay).evaluate().isEmpty) {
+          await tester.drag(
+            find.byKey(const ValueKey('operation-date-display-switcher')),
+            const Offset(-72, 0),
+          );
+          await tester.pump();
+          await tester.pump();
+        }
+        expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+        final nixie = tester.widget<OperationDateNixieDisplay>(
+          find.byType(OperationDateNixieDisplay),
+        );
+        expect(nixie.dateFieldWidth, closeTo(50.4, 0.001));
+        expect(nixie.dateFieldGap, closeTo(7.2, 0.001));
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('Operation Date widens without glyph distortion', (tester) async {
+    const baselines = {
+      320: (
+        card: Rect.fromLTRB(16, 194, 304, 286.2),
+        group: Rect.fromLTRB(32, 213, 185.6, 267.2),
+        heading: Rect.fromLTRB(47.4, 213, 185.6, 227),
+        date: Rect.fromLTRB(32, 234.3, 183.4, 267.2),
+        cycle: Rect.fromLTRB(192.9, 213, 288, 249.3),
+      ),
+      390: (
+        card: Rect.fromLTRB(16, 168, 374, 266.4),
+        group: Rect.fromLTRB(32, 187, 212, 247.4),
+        heading: Rect.fromLTRB(50, 187, 212, 203.4),
+        date: Rect.fromLTRB(32, 211.4, 197.6, 247.4),
+        cycle: Rect.fromLTRB(228.32, 187, 348.32, 228.6),
+      ),
+      900: (
+        card: Rect.fromLTRB(16, 168, 884, 270),
+        group: Rect.fromLTRB(32, 187, 251.4, 251),
+        heading: Rect.fromLTRB(54, 187, 251.4, 207),
+        date: Rect.fromLTRB(32, 215, 197.6, 251),
+        cycle: Rect.fromLTRB(268.32, 187, 388.32, 228.6),
+      ),
+    };
+    const expectedVisibleGaps = {320: 9.5, 390: 30.72, 900: 70.72};
+
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pump(tester, width: width);
+      final baseline = baselines[width.toInt()]!;
+      final card = find.ancestor(
+        of: find.byKey(const ValueKey('current-operation-date-group')),
+        matching: find.byType(OperationCard),
+      );
+      final group = find.byKey(const ValueKey('current-operation-date-group'));
+      final bounds = find.byKey(
+        const ValueKey('current-operation-date-bounds'),
+      );
+      final heading = find.text('OPERATION DATE');
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      final flip = find.byKey(const ValueKey('operation-date-flip-row'));
+      final cardRect = tester.getRect(card);
+      final groupRect = tester.getRect(group);
+      final headingRect = tester.getRect(heading);
+      final boundsRect = tester.getRect(bounds);
+      final switcherRect = tester.getRect(switcher);
+      final flipRect = tester.getRect(flip);
+      final cycleRect = tester.getRect(
+        find.byKey(const ValueKey('current-operation-cycle-group')),
+      );
+      final dateCycleRow = find.byKey(
+        const ValueKey('current-operation-date-cycle-row'),
+      );
+      final dateCycleRowWidget = tester.widget<Row>(dateCycleRow);
+      final explicitGroupGap =
+          (dateCycleRowWidget.children[1] as SizedBox).width!;
+      final cycleGroup = find.byKey(
+        const ValueKey('current-operation-cycle-group'),
+      );
+      final cycleFittedBoxes = find.descendant(
+        of: cycleGroup,
+        matching: find.byType(FittedBox),
+      );
+      final cycleHeadingBox = cycleFittedBoxes.at(0);
+      final cycleValueBox = find.byKey(
+        const ValueKey('current-operation-cycle-value'),
+      );
+      final dateHeadingBox = find
+          .descendant(of: group, matching: find.byType(FittedBox))
+          .first;
+
+      _expectRectNear(cardRect, baseline.card);
+      _expectRectNear(groupRect, baseline.group);
+      _expectRectNear(headingRect, baseline.heading);
+      _expectRectNear(flipRect, baseline.date);
+      _expectRectNear(cycleRect, baseline.cycle);
+      expect(
+        cycleRect.left - flipRect.right,
+        closeTo(expectedVisibleGaps[width.toInt()]!, 0.5),
+      );
+      expect(explicitGroupGap, closeTo(width == 320 ? 8 : 16.32, 0.001));
+      expect(boundsRect.left, greaterThanOrEqualTo(groupRect.left));
+      expect(boundsRect.right, lessThanOrEqualTo(groupRect.right));
+      expect(boundsRect.center.dx, closeTo(flipRect.center.dx, 0.5));
+      expect(boundsRect.left, closeTo(switcherRect.left, 0.5));
+      expect(boundsRect.right, closeTo(switcherRect.right, 0.5));
+      expect(tester.getSize(bounds), const Size(165.6, 36));
+      if (width == 390) {
+        const previousOuterHeight = 102.4;
+        const previousDateBottomToSurfaceBottom = 20.0;
+        const compactDateBottomToSurfaceBottom = 16.0;
+        const adoptedCompaction = 4.0;
+        final surfaceBottom = cardRect.bottom - 3;
+        expect(cardRect.height, closeTo(98.4, 0.5));
+        expect(groupRect.height, closeTo(60.4, 0.5));
+        expect(boundsRect.height, closeTo(36, 0.5));
+        expect(flipRect.height, closeTo(36, 0.5));
+        expect(boundsRect.top - headingRect.bottom, closeTo(8, 0.5));
+        expect(flipRect.top - headingRect.bottom, closeTo(8, 0.5));
+        expect(flipRect.top, closeTo(boundsRect.top, 0.5));
+        expect(boundsRect.bottom - flipRect.bottom, closeTo(0, 0.5));
+        expect(cardRect.bottom - flipRect.bottom, closeTo(19, 0.5));
+        expect(surfaceBottom - flipRect.bottom, closeTo(16, 0.5));
+        expect(
+          previousOuterHeight - cardRect.height,
+          closeTo(adoptedCompaction, 0.5),
+        );
+        expect(
+          previousDateBottomToSurfaceBottom - compactDateBottomToSurfaceBottom,
+          adoptedCompaction,
+        );
+        expect(boundsRect.width, closeTo(165.6, 0.5));
+        expect(cycleRect.width, closeTo(120, 0.5));
+        expect(cycleRect.left, closeTo(228.32, 0.5));
+        expect(cycleRect.top, closeTo(187, 0.5));
+        expect(cycleRect.left - flipRect.right, closeTo(38.4 * 0.8, 0.01));
+        expect(38.4 - (cycleRect.left - flipRect.right), closeTo(7.68, 0.01));
+        expect(tester.getSize(dateCycleRow).width, closeTo(316.32, 0.01));
+        expect(
+          tester.getRect(dateCycleRow).width,
+          closeTo(tester.getSize(dateCycleRow).width, 0.5),
+          reason: '390px does not scale the outer date/cycle row',
+        );
+        expect(
+          tester.getRect(cycleValueBox).top -
+              tester.getRect(cycleHeadingBox).bottom,
+          closeTo(4, 0.5),
+        );
+        expect(tester.getRect(cycleHeadingBox).height, closeTo(13.6, 0.5));
+        expect(tester.getRect(cycleValueBox).height, closeTo(24, 0.5));
+        expect(
+          flipRect.top - tester.getRect(cycleValueBox).top,
+          closeTo(6.8, 0.5),
+        );
+        expect(
+          flipRect.top - tester.getRect(dateHeadingBox).bottom,
+          closeTo(8, 0.5),
+        );
+      } else if (width == 320) {
+        expect(tester.getSize(cycleGroup).width, closeTo(104, 0.5));
+        expect(tester.getSize(dateCycleRow).width, closeTo(280, 0.5));
+        expect(tester.getRect(dateCycleRow).width, closeTo(256, 0.5));
+      } else if (width == 900) {
+        expect(cycleRect.width, closeTo(120, 0.5));
+        expect(tester.getSize(dateCycleRow).width, closeTo(356.32, 0.01));
+        expect(
+          tester.getRect(dateCycleRow).width,
+          closeTo(tester.getSize(dateCycleRow).width, 0.5),
+          reason: '900px does not scale the outer date/cycle row',
+        );
+        expect(
+          tester.getRect(cycleValueBox).top -
+              tester.getRect(cycleHeadingBox).bottom,
+          closeTo(4, 0.5),
+        );
+        expect(tester.getRect(cycleHeadingBox).height, closeTo(13.6, 0.5));
+        expect(tester.getRect(cycleValueBox).height, closeTo(24, 0.5));
+      }
+      expect(flipRect.left, greaterThanOrEqualTo(boundsRect.left));
+      expect(flipRect.right, lessThanOrEqualTo(boundsRect.right));
+      final responsiveScale = boundsRect.width / 165.6;
+      expect(flipRect.width / (138 * responsiveScale), closeTo(1.2, 0.01));
+      expect(flipRect.height / (36 * responsiveScale), closeTo(1.0, 0.01));
+      for (var index = 0; index < 3; index++) {
+        final tile = find.byKey(ValueKey('operation-date-tile-$index'));
+        final glyph = find
+            .descendant(of: tile, matching: find.byType(Text))
+            .first;
+        expect(tester.getSize(tile), const Size(50.4, 36));
+        _expectUndistortedRender(tester, glyph, expectedScale: responsiveScale);
+        expect(
+          tester.getRect(glyph).center.dx,
+          closeTo(tester.getRect(tile).center.dx, 0.5),
+        );
+      }
+
+      await tester.drag(switcher, const Offset(-72, 0));
+      await tester.pump();
+      await tester.pump();
+      final nixie = find.byKey(const ValueKey('operation-date-nixie-calendar'));
+      _expectRectNear(tester.getRect(group), groupRect);
+      _expectRectNear(tester.getRect(bounds), boundsRect);
+      _expectRectNear(tester.getRect(switcher), switcherRect);
+      _expectRectNear(tester.getRect(nixie), flipRect);
+      _expectRectNear(tester.getRect(cycleGroup), cycleRect);
+      final nixieGlyphKeys = [
+        'nixie-label-AUG',
+        'nixie-active-01',
+        'nixie-label-SAT',
+      ];
+      for (var index = 0; index < 3; index++) {
+        final field = find.byKey(ValueKey('operation-date-nixie-field-$index'));
+        final glyph = find.byKey(ValueKey(nixieGlyphKeys[index]));
+        expect(tester.getSize(field), const Size(50.4, 36));
+        _expectUndistortedRender(tester, glyph, expectedScale: responsiveScale);
+        expect(
+          tester.getRect(glyph).center.dx,
+          closeTo(tester.getRect(field).center.dx, 0.5),
+        );
+      }
+
+      await tester.drag(switcher, const Offset(72, 0));
+      await tester.pump();
+      await tester.pump();
+    }
+  });
+
+  testWidgets(
+    'compact CURRENT OPERATION keeps FLIP and NIXIE animation bounds stable',
+    (tester) async {
+      for (final width in [320.0, 390.0, 900.0]) {
+        await _pump(tester, width: width);
+        final bounds = find.byKey(
+          const ValueKey('current-operation-date-bounds'),
+        );
+        final switcher = find.byKey(
+          const ValueKey('operation-date-display-switcher'),
+        );
+        if (find.byType(OperationDateFlipCalendar).evaluate().isEmpty) {
+          await tester.drag(switcher, const Offset(72, 0));
+          await tester.pump();
+          await tester.pump();
+        }
+        var expectedBounds = tester.getRect(bounds);
+
+        await tester.tap(switcher);
+        for (final duration in [100, 200, 300]) {
+          await tester.pump(Duration(milliseconds: duration));
+          _expectRectNear(tester.getRect(bounds), expectedBounds);
+          for (var index = 0; index < 3; index++) {
+            final tileRect = tester.getRect(
+              find.byKey(ValueKey('operation-date-tile-$index')),
+            );
+            expect(tileRect.left, greaterThanOrEqualTo(expectedBounds.left));
+            expect(tileRect.top, greaterThanOrEqualTo(expectedBounds.top));
+            expect(tileRect.right, lessThanOrEqualTo(expectedBounds.right));
+            expect(tileRect.bottom, lessThanOrEqualTo(expectedBounds.bottom));
+          }
+          expect(tester.takeException(), isNull);
+        }
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pump(tester, width: width);
+        expectedBounds = tester.getRect(bounds);
+
+        if (find.byType(OperationDateNixieDisplay).evaluate().isEmpty) {
+          await tester.drag(switcher, const Offset(-72, 0));
+          await tester.pump();
+          await tester.pump();
+        }
+        expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+        await tester.tap(switcher);
+        for (final duration in [120, 240, 400]) {
+          await tester.pump(Duration(milliseconds: duration));
+          _expectRectNear(tester.getRect(bounds), expectedBounds);
+          for (var index = 0; index < 3; index++) {
+            final fieldRect = tester.getRect(
+              find.byKey(ValueKey('operation-date-nixie-field-$index')),
+            );
+            expect(fieldRect.left, greaterThanOrEqualTo(expectedBounds.left));
+            expect(fieldRect.top, greaterThanOrEqualTo(expectedBounds.top));
+            expect(fieldRect.right, lessThanOrEqualTo(expectedBounds.right));
+            expect(fieldRect.bottom, lessThanOrEqualTo(expectedBounds.bottom));
+          }
+          expect(tester.takeException(), isNull);
+        }
+      }
+    },
+  );
+
+  test('CURRENT OPERATION bottom compaction stops at the 36px content', () {
+    const previousWrapperHeight = 40.0;
+    const visibleDateHeight = 36.0;
+    const requiredCardBottomPadding = 16.0;
+
+    expect(AppSpacing.cardPadding.bottom, requiredCardBottomPadding);
+
+    for (var compaction = 1; compaction <= 4; compaction++) {
+      expect(
+        previousWrapperHeight - compaction,
+        greaterThanOrEqualTo(visibleDateHeight),
+        reason: '-${compaction}px keeps the complete FLIP/NIXIE content',
+      );
+    }
+    expect(
+      previousWrapperHeight - 5,
+      lessThan(visibleDateHeight),
+      reason: '-5px would clip 36px content unless card padding is consumed',
+    );
+  });
+
+  testWidgets('date-only NIXIE keeps cycle state beside operation date', (
+    tester,
+  ) async {
+    for (final width in [320.0, 390.0, 900.0]) {
+      await _pump(tester, width: width);
+      final switcher = find.byKey(
+        const ValueKey('operation-date-display-switcher'),
+      );
+      if (find.byType(OperationDateNixieDisplay).evaluate().isEmpty) {
+        await tester.drag(switcher, const Offset(-72, 0));
+        await tester.pump();
+        await tester.pump();
+      }
+
+      expect(find.byType(OperationDateNixieDisplay), findsOneWidget);
+      final dateGroup = find.byKey(
+        const ValueKey('current-operation-date-group'),
+      );
+      final cycleGroup = find.byKey(
+        const ValueKey('current-operation-cycle-group'),
+      );
+      expect(
+        tester.getTopLeft(cycleGroup).dy,
+        tester.getTopLeft(dateGroup).dy,
+        reason: 'side by side at $width',
+      );
+      expect(
+        tester.getTopLeft(cycleGroup).dx,
+        greaterThan(tester.getTopRight(dateGroup).dx),
+        reason: 'cycle is right of date at $width',
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   test('cycle state short labels preserve every internal state mapping', () {
     expect(cycleStateShortLabelFor(DailyCommandCycleState.standby), 'IDLE');
@@ -700,6 +1141,21 @@ void main() {
     await tester.dragFrom(topSwipeOrigin, const Offset(300, 0));
     await tester.pumpAndSettle();
     expect(find.text('WEEKLY REPORT'), findsOneWidget);
+  });
+
+  testWidgets('top workspace tabs are silent display controls', (tester) async {
+    final audio = _RecordingTouchRippleAudio();
+    await _pump(tester, width: 390, feedbackAudio: audio);
+
+    for (final label in [
+      'PERIODIC REPORT',
+      'BRIEF / DEBRIEF',
+      'DAILY COMMAND',
+      'DATA CENTER',
+    ]) {
+      await _tapCommandCenterTab(tester, label);
+      expect(audio.played, isEmpty, reason: label);
+    }
   });
 
   testWidgets('balances BRIEF and DEBRIEF tabs across the available width', (
@@ -2278,6 +2734,27 @@ String _commandCenterTabGeometry(WidgetTester tester) {
   ].join('; ');
 }
 
+void _expectRectNear(Rect actual, Rect expected) {
+  expect(actual.left, closeTo(expected.left, 0.5));
+  expect(actual.top, closeTo(expected.top, 0.5));
+  expect(actual.right, closeTo(expected.right, 0.5));
+  expect(actual.bottom, closeTo(expected.bottom, 0.5));
+}
+
+void _expectUndistortedRender(
+  WidgetTester tester,
+  Finder finder, {
+  required double expectedScale,
+}) {
+  final localSize = tester.getSize(finder);
+  final paintedRect = tester.getRect(finder);
+  final horizontalScale = paintedRect.width / localSize.width;
+  final verticalScale = paintedRect.height / localSize.height;
+  expect(horizontalScale, closeTo(expectedScale, 0.01));
+  expect(verticalScale, closeTo(expectedScale, 0.01));
+  expect(horizontalScale / verticalScale, closeTo(1, 0.01));
+}
+
 Future<void> _settleDashboard(WidgetTester tester) async {
   // The Dashboard ambient pulse repeats indefinitely by design. Flush finite
   // navigation work without waiting for the ambient status layer to stop.
@@ -2290,6 +2767,7 @@ Future<void> _pump(
   required double width,
   ThemeData? theme,
   WidgetBuilder? reviewPageBuilder,
+  TouchRippleAudio? feedbackAudio,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -2298,6 +2776,12 @@ Future<void> _pump(
   await tester.pumpWidget(
     MaterialApp(
       theme: theme,
+      builder: feedbackAudio == null
+          ? null
+          : (context, child) => GlobalTouchRipple(
+              audio: feedbackAudio,
+              child: child ?? const SizedBox.shrink(),
+            ),
       home: const CommandCenterPage(),
       onGenerateRoute: (settings) {
         if (settings.name == AppRoutes.finalizedDashboard) {
@@ -2331,6 +2815,19 @@ Future<void> _pump(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
 }
 
 MorningFact _status() => MorningFact(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../food_nutrition_formatter.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
@@ -137,7 +139,7 @@ class FoodItemList extends StatelessWidget {
                                           canAdjustQuantity && item.quantity > 1
                                           ? () => onQuantityChanged(index, -1)
                                           : null,
-                                    ),
+                                    ).actionableFeedback(),
                                     Text('${item.quantity}'),
                                     IconButton(
                                       visualDensity: VisualDensity.compact,
@@ -146,7 +148,7 @@ class FoodItemList extends StatelessWidget {
                                       onPressed: canAdjustQuantity
                                           ? () => onQuantityChanged(index, 1)
                                           : null,
-                                    ),
+                                    ).actionableFeedback(),
                                   ],
                                 ],
                               ),
@@ -173,11 +175,11 @@ class FoodItemList extends StatelessWidget {
                             color: Theme.of(context).colorScheme.error,
                           ),
                           onPressed: () => onDelete(index),
-                        ),
+                        ).actionableFeedback(),
                       ],
                     ),
                   ),
-                ),
+                ).actionableFeedback(),
               ),
             );
           }),

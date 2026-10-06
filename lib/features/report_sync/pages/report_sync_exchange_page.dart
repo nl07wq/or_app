@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
@@ -107,7 +108,11 @@ class ReportSyncExchangePage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       centerTitle: appBarTitle != null,
-      leading: appBarLeading,
+      leading:
+          appBarLeading ??
+          (Navigator.of(context).canPop()
+              ? const ActionableBackButton()
+              : null),
       title: appBarTitle ?? Text(_title(exchangeType)),
     ),
     body: ReportSyncExchangePanel(
@@ -289,6 +294,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       final instructionRequest = _isImportOnly
           ? ReportSyncRequestPreparation(
               operationDate: _targetDateController.text,
+              authoritativeCreatedAt: request.authoritativeCreatedAt,
             )
           : request;
       final instruction = _gateway.instruction(
@@ -516,11 +522,11 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('CONFIRM IMPORT'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -688,7 +694,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     labelText: 'YYYY-MM-DD',
                     suffixIcon: Icon(Icons.calendar_month_outlined),
                   ),
-                ),
+                ).inputFeedback(),
                 AppSpacing.gapSM,
                 if (widget.exchangeType ==
                     ReportSyncExchangeType.morningBrief) ...[
@@ -757,7 +763,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
               onPressed: ready && !_busy ? _copyInstruction : null,
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT PROMPT'),
-            ),
+            ).actionableFeedback(),
           ),
           _ActionFeedback(
             message: _promptCopyMessage,
@@ -774,7 +780,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     : null,
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('GENERATE STATUS SOURCE'),
-              ),
+              ).actionableFeedback(),
             ),
             _ActionFeedback(
               message: _generateMessage,
@@ -796,7 +802,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                   : null,
               icon: const Icon(Icons.content_copy),
               label: const Text('COPY CHATGPT PROMPT'),
-            ),
+            ).actionableFeedback(),
           ),
           _ActionFeedback(
             message: _promptCopyMessage,
@@ -814,7 +820,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                     : null,
                 icon: const Icon(Icons.copy_all_outlined),
                 label: Text(_copySourceLabel(widget.exchangeType)),
-              ),
+              ).actionableFeedback(),
             ),
             _ActionFeedback(
               message: _sourceCopyMessage,
@@ -894,17 +900,17 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                 onPressed: ready && !_busy ? _selectResponseFile : null,
                 icon: const Icon(Icons.file_open_outlined),
                 label: const Text('SELECT RESPONSE FILE'),
-              ),
+              ).actionableFeedback(),
               OutlinedButton.icon(
                 onPressed: ready && !_busy ? _pasteResponse : null,
                 icon: const Icon(Icons.content_paste_outlined),
                 label: const Text('PASTE'),
-              ),
+              ).actionableFeedback(),
               OutlinedButton.icon(
                 onPressed: ready && !_busy ? _validate : null,
                 icon: const Icon(Icons.fact_check_outlined),
                 label: const Text('VALIDATE'),
-              ),
+              ).actionableFeedback(),
             ],
           ),
         _ActionFeedback(
@@ -1663,13 +1669,13 @@ class _FoodPreviewCard extends StatelessWidget {
                         ? null
                         : () => onSelectionChanged(selectableIds),
                     child: const Text('すべて選択'),
-                  ),
+                  ).actionableFeedback(),
                   OutlinedButton(
                     onPressed: selectedMealIds.isEmpty
                         ? null
                         : () => onSelectionChanged(const {}),
                     child: const Text('すべて解除'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ],
@@ -1747,7 +1753,10 @@ class _FoodMealCard extends StatelessWidget {
           Row(
             children: [
               if (selected != null)
-                Checkbox(value: selected, onChanged: onSelected),
+                Checkbox(
+                  value: selected,
+                  onChanged: onSelected,
+                ).inputFeedback(),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1781,7 +1790,7 @@ class _FoodMealCard extends StatelessWidget {
         ],
       ),
     ),
-  );
+  ).inputFeedback();
 }
 
 class _FoodItemPresentation extends StatelessWidget {
@@ -1918,7 +1927,7 @@ class _HistoryCard extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _openReportSyncRecord(context, history[index]),
-                ),
+                ).actionableFeedback(enabled: true),
                 if (index != history.length - 1) const Divider(),
               ],
             ],
@@ -1940,7 +1949,10 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('REPORT SYNC RECORD')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('REPORT SYNC RECORD'),
+    ),
     body: ListView.separated(
       padding: AppSpacing.cardPadding,
       itemCount: history.length,
@@ -1958,7 +1970,7 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => _openReportSyncRecord(context, history[index]),
-      ),
+      ).actionableFeedback(enabled: true),
     ),
   );
 }
@@ -1970,7 +1982,10 @@ class _ReportSyncRecordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('REPORT SYNC RECORD')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('REPORT SYNC RECORD'),
+    ),
     body: ListView(
       padding: AppSpacing.cardPadding,
       children: [

@@ -16,12 +16,15 @@ class FoodCatalogMealMapper {
     required MealData meal,
     required List<FoodCatalogEntry?> catalogSources,
     List<FoodRecipeDefinition?>? recipeSources,
+    List<FoodRecipeDefinition?>? recipeInstanceSnapshots,
     List<FoodQuantityUnit>? quantityUnits,
     required String localDate,
     required DateTime timestamp,
     required FoodMealIdGenerator idGenerator,
   }) {
     final recipes = recipeSources ?? List.filled(meal.items.length, null);
+    final recipeInstances =
+        recipeInstanceSnapshots ?? List.filled(meal.items.length, null);
     final units =
         quantityUnits ??
         meal.items
@@ -35,6 +38,7 @@ class FoodCatalogMealMapper {
             .toList(growable: false);
     if (catalogSources.length != meal.items.length ||
         recipes.length != meal.items.length ||
+        recipeInstances.length != meal.items.length ||
         units.length != meal.items.length) {
       throw ArgumentError('FOOD sources must match FOOD items.');
     }
@@ -43,20 +47,27 @@ class FoodCatalogMealMapper {
       final item = meal.items[index];
       final catalog = catalogSources[index];
       final recipe = recipes[index];
+      final recipeInstance = recipeInstances[index];
       final inputUnit = units[index];
       if (catalog != null && recipe != null) {
         throw ArgumentError('A FOOD item cannot reference food and recipe.');
       }
       if (recipe != null) {
-        final perServing = FoodRecipeNutrition.perServing(recipe);
+        final instance = recipeInstance ?? recipe;
+        final perServing = FoodRecipeNutrition.perServing(instance);
         items.add(
           DailyMealItemSnapshot(
             mealItemId: _id(idGenerator),
             recipeReferenceId: recipe.recipeId,
+            recipeInstanceSnapshot: instance,
             nameSnapshot: recipe.name,
             quantity: FoodRecipeNutrition.consumptionQuantity(
-              recipe,
+              instance,
               item.multiplier,
+            ),
+            nutritionBasisQuantity: FoodQuantityDefinition(
+              value: 1,
+              unit: FoodQuantityUnit.serving,
             ),
             nutritionPerBase: perServing,
             nutritionConsumed: FoodRecipeNutrition.scale(
@@ -95,6 +106,10 @@ class FoodCatalogMealMapper {
           brandSnapshot: catalog?.brand,
           category: catalog?.category,
           quantity: quantity,
+          nutritionBasisQuantity: FoodQuantityDefinition(
+            value: item.baseAmount ?? quantity.value,
+            unit: inputUnit,
+          ),
           nutritionPerBase: perBase,
           nutritionConsumed: NutritionSnapshot(
             calories: item.totalCalories,

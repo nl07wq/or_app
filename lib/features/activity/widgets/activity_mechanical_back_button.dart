@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 /// A compact directional drum for Activity's shared Back affordance.
 ///
 /// The sequence is presentation-only: it always locks on the left direction
@@ -79,7 +81,7 @@ class _ActivityMechanicalBackButtonState
             sequence: _sequence,
           ),
         ),
-      ),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

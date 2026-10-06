@@ -1,0 +1,358 @@
+{
+  "version": "fox-v1",
+  "algorithm": "alpha mask + fixed torso ROI (36-72% X, 24-74% Y); ROI alpha centroid; median torso width scale",
+  "alpha": true,
+  "targetBodyLength": 516,
+  "bodyOrigin": {
+    "x": 897.4332949552927,
+    "y": 366.7165635675376
+  },
+  "virtualGround": 687,
+  "canvas": {
+    "width": 1646,
+    "height": 783
+  },
+  "safetyPadding": 96,
+  "frames": [
+    {
+      "frame": 1,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_01.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 113,
+        "minY": 233,
+        "maxX": 1541,
+        "maxY": 808,
+        "width": 1429,
+        "height": 576
+      },
+      "body": {
+        "minX": 627,
+        "minY": 371,
+        "maxX": 1142,
+        "maxY": 659,
+        "width": 516,
+        "height": 289,
+        "originX": 904.9830990392767,
+        "originY": 499.9318310257135
+      },
+      "scale": 1,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_01.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -791.9830990392767,
+      "relativeMaxX": 636.0169009607233,
+      "relativeMinY": -266.9318310257135,
+      "relativeMaxY": 308.0681689742865
+    },
+    {
+      "frame": 2,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_02.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 106,
+        "minY": 234,
+        "maxX": 1551,
+        "maxY": 808,
+        "width": 1446,
+        "height": 575
+      },
+      "body": {
+        "minX": 627,
+        "minY": 372,
+        "maxX": 1147,
+        "maxY": 660,
+        "width": 521,
+        "height": 289,
+        "originX": 915.1991214567975,
+        "originY": 497.143024312963
+      },
+      "scale": 0.9904030710172744,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_02.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -801.4332949552927,
+      "relativeMaxX": 629.6991426646689,
+      "relativeMinY": -260.6176593963319,
+      "relativeMaxY": 307.87370336758363
+    },
+    {
+      "frame": 3,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_03.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 114,
+        "minY": 223,
+        "maxX": 1542,
+        "maxY": 805,
+        "width": 1429,
+        "height": 583
+      },
+      "body": {
+        "minX": 628,
+        "minY": 363,
+        "maxX": 1143,
+        "maxY": 654,
+        "width": 516,
+        "height": 292,
+        "originX": 913.4330717385283,
+        "originY": 493.7165635675376
+      },
+      "scale": 1,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_03.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -799.4330717385283,
+      "relativeMaxX": 628.5669282614717,
+      "relativeMinY": -270.7165635675376,
+      "relativeMaxY": 311.2834364324624
+    },
+    {
+      "frame": 4,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_04.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 114,
+        "minY": 256,
+        "maxX": 1555,
+        "maxY": 840,
+        "width": 1442,
+        "height": 585
+      },
+      "body": {
+        "minX": 633,
+        "minY": 396,
+        "maxX": 1152,
+        "maxY": 689,
+        "width": 520,
+        "height": 294,
+        "originX": 916.3127400917116,
+        "originY": 519.0334291374836
+      },
+      "scale": 0.9923076923076923,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_04.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -796.1411036294677,
+      "relativeMaxX": 633.774280985917,
+      "relativeMinY": -261.01009506719527,
+      "relativeMaxY": 318.49759724049704
+    },
+    {
+      "frame": 5,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_05.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 113,
+        "minY": 230,
+        "maxX": 1542,
+        "maxY": 731,
+        "width": 1430,
+        "height": 502
+      },
+      "body": {
+        "minX": 628,
+        "minY": 354,
+        "maxX": 1143,
+        "maxY": 597,
+        "width": 516,
+        "height": 244,
+        "originX": 894.9970442842431,
+        "originY": 473.93995880535533
+      },
+      "scale": 1,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_05.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -781.9970442842431,
+      "relativeMaxX": 647.0029557157569,
+      "relativeMinY": -243.93995880535533,
+      "relativeMaxY": 257.06004119464467
+    },
+    {
+      "frame": 6,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_06.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 114,
+        "minY": 231,
+        "maxX": 1541,
+        "maxY": 765,
+        "width": 1428,
+        "height": 535
+      },
+      "body": {
+        "minX": 628,
+        "minY": 359,
+        "maxX": 1142,
+        "maxY": 627,
+        "width": 515,
+        "height": 269,
+        "originX": 906.8412131420495,
+        "originY": 484.4009409304757
+      },
+      "scale": 1.0019417475728156,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_06.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -794.3807106432962,
+      "relativeMaxX": 635.3901631431116,
+      "relativeMinY": -253.89298159247667,
+      "relativeMaxY": 281.1439116114069
+    },
+    {
+      "frame": 7,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_07.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 156,
+        "minY": 250,
+        "maxX": 1510,
+        "maxY": 775,
+        "width": 1355,
+        "height": 526
+      },
+      "body": {
+        "minX": 644,
+        "minY": 376,
+        "maxX": 1132,
+        "maxY": 639,
+        "width": 489,
+        "height": 264,
+        "originX": 914.1623007136552,
+        "originY": 489.6096806100635
+      },
+      "scale": 1.0552147239263803,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_07.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -800.024022838949,
+      "relativeMaxX": 628.7367133573699,
+      "relativeMinY": -252.8396629750363,
+      "relativeMaxY": 301.14806708631335
+    },
+    {
+      "frame": 8,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_08.png",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 135,
+        "minY": 298,
+        "maxX": 1528,
+        "maxY": 722,
+        "width": 1394,
+        "height": 425
+      },
+      "body": {
+        "minX": 637,
+        "minY": 400,
+        "maxX": 1139,
+        "maxY": 612,
+        "width": 503,
+        "height": 213,
+        "originX": 893.1654789751401,
+        "originY": 479.86172006745363
+      },
+      "scale": 1.025844930417495,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_08.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -777.7602130241994,
+      "relativeMaxX": 651.2417750473712,
+      "relativeMinY": -186.56192356820293,
+      "relativeMaxY": 248.39632692881497
+    },
+    {
+      "frame": 9,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_09.png",
+      "sourceWidth": 1671,
+      "sourceHeight": 941,
+      "silhouette": {
+        "minX": 113,
+        "minY": 228,
+        "maxX": 1556,
+        "maxY": 752,
+        "width": 1444,
+        "height": 525
+      },
+      "body": {
+        "minX": 633,
+        "minY": 354,
+        "maxX": 1153,
+        "maxY": 616,
+        "width": 521,
+        "height": 263,
+        "originX": 909.594960349666,
+        "originY": 465.31832715681196
+      },
+      "scale": 0.9904030710172744,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_09.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -788.9500950871932,
+      "relativeMaxX": 640.2015363907337,
+      "relativeMinY": -235.0408000247888,
+      "relativeMaxY": 283.930409188263
+    },
+    {
+      "frame": 10,
+      "sourcePath": "assets/animations/sandbox/fox_v1/source/frame_10.png",
+      "sourceWidth": 1984,
+      "sourceHeight": 793,
+      "silhouette": {
+        "minX": 74,
+        "minY": 99,
+        "maxX": 1946,
+        "maxY": 720,
+        "width": 1873,
+        "height": 622
+      },
+      "body": {
+        "minX": 748,
+        "minY": 248,
+        "maxX": 1423,
+        "maxY": 559,
+        "width": 676,
+        "height": 312,
+        "originX": 1102.8982306218943,
+        "originY": 390.5177942378012
+      },
+      "scale": 0.7633136094674556,
+      "canonicalPath": "assets/animations/sandbox/fox_v1/canonical/frame_10.png",
+      "canonicalBodyOrigin": {
+        "x": 897.4332949552927,
+        "y": 366.7165635675376
+      },
+      "relativeMinX": -785.3720221906767,
+      "relativeMaxX": 643.5510547324002,
+      "relativeMinY": -222.51949974364706,
+      "relativeMaxY": 251.4982517356429
+    }
+  ]
+}

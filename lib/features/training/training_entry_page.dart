@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/repositories/training_repository.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/theme/app_colors.dart';
@@ -224,11 +226,11 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('NO'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('YES'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -383,7 +385,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -436,7 +438,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext, false),
                   child: const Text('キャンセル'),
-                ),
+                ).actionableFeedback(),
                 TextButton(
                   key: confirmKey,
                   style: TextButton.styleFrom(
@@ -444,7 +446,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                   ),
                   onPressed: () => Navigator.pop(dialogContext, true),
                   child: Text(confirmLabel),
-                ),
+                ).actionableFeedback(),
               ],
             ),
           )) ??
@@ -628,30 +630,59 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     title: 'EXERCISE',
                   ),
                   AppSpacing.gapMD,
-                  for (final (index, exercise) in _form.exercises.indexed)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TrainingExerciseV2Editor(
-                        index: index,
-                        controller: exercise,
-                        preferredRecords: _preferredRecords,
-                        targetRecord: widget.existingRecord,
-                        sessionDate: _form.date,
-                        expanded: identical(_expandedItem, exercise),
-                        onToggle: () => _toggle(exercise),
-                        onDelete: () => _confirmDeleteExercise(exercise),
-                        onChanged: _handleEntryChanged,
-                      ),
-                    ),
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    itemCount: _form.exercises.length,
+                    onReorderItem: (oldIndex, newIndex) {
+                      final exercise = _form.exercises.removeAt(oldIndex);
+                      _form.exercises.insert(newIndex, exercise);
+                      _handleEntryChanged();
+                    },
+                    itemBuilder: (context, index) {
+                      final exercise = _form.exercises[index];
+                      return Padding(
+                        key: ValueKey(
+                          'training-exercise-${exercise.instanceId}',
+                        ),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: TrainingExerciseV2Editor(
+                          index: index,
+                          controller: exercise,
+                          preferredRecords: _preferredRecords,
+                          targetRecord: widget.existingRecord,
+                          sessionDate: _form.date,
+                          expanded: identical(_expandedItem, exercise),
+                          onToggle: () => _toggle(exercise),
+                          onDelete: () => _confirmDeleteExercise(exercise),
+                          onChanged: _handleEntryChanged,
+                          onAttachmentRequested: () {
+                            if (_form.attachDetachedPlanForNewExercise(
+                              exercise,
+                            )) {
+                              _handleEntryChanged();
+                            }
+                          },
+                          reorderHandle: ReorderableDelayedDragStartListener(
+                            index: index,
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.drag_handle),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                   OutlinedButton.icon(
                     onPressed: () {
-                      _form.addExercise();
-                      _expandedItem = _form.exercises.last;
+                      _expandedItem = _form.addExercise();
                       _handleEntryChanged();
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('ADD EXERCISE'),
-                  ),
+                  ).actionableFeedback(),
                   AppSpacing.gapMD,
                   const SectionHeader(
                     icon: Icons.directions_run,
@@ -679,7 +710,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('ADD CARDIO'),
-                  ),
+                  ).actionableFeedback(),
                   AppSpacing.gapMD,
                   SizedBox(
                     height: 48,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/models/training_set_v2.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -65,14 +67,14 @@ class TrainingSetV2Editor extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('削除'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -281,7 +283,7 @@ class _SetEditor extends StatelessWidget {
                     set.rpe = value;
                     onChanged();
                   },
-                );
+                ).inputFeedback();
                 final rest = _numberField(
                   key: Key('v2-set-$index-rest'),
                   controller: set.rest,
@@ -318,7 +320,7 @@ class _SetEditor extends StatelessWidget {
                           onChanged();
                         },
                         child: Text('$seconds'),
-                      ),
+                      ).actionableFeedback(),
                     ),
                   ),
               ],
@@ -342,7 +344,7 @@ class _SetEditor extends StatelessWidget {
       decoration: InputDecoration(labelText: label, suffixText: suffix),
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       onChanged: (_) => onChanged(),
-    );
+    ).inputFeedback();
   }
 
   Widget _setTypeField(BuildContext context) =>
@@ -368,7 +370,7 @@ class _SetEditor extends StatelessWidget {
           set.setType = value;
           onChanged();
         },
-      );
+      ).inputFeedback();
 
   Widget _copyWeightSlot() => SizedBox(
     width: _headerActionSlotWidth,
@@ -379,7 +381,7 @@ class _SetEditor extends StatelessWidget {
             icon: const Icon(Icons.monitor_weight_outlined),
             tooltip: 'Copy previous weight',
             onPressed: () => _copy(previous!.weight, set.weight),
-          ),
+          ).actionableFeedback(),
   );
 
   Widget _copyRepsSlot() => SizedBox(
@@ -391,7 +393,7 @@ class _SetEditor extends StatelessWidget {
             icon: const Icon(Icons.repeat),
             tooltip: 'Copy previous reps',
             onPressed: () => _copy(previous!.reps, set.reps),
-          ),
+          ).actionableFeedback(),
   );
 
   Widget _deleteSlot(BuildContext context) => SizedBox(
@@ -403,7 +405,7 @@ class _SetEditor extends StatelessWidget {
       icon: const Icon(Icons.delete_outline),
       tooltip: 'Delete set',
       onPressed: onDelete,
-    ),
+    ).actionableFeedback(),
   );
 
   void _copy(TextEditingController source, TextEditingController target) {
@@ -441,7 +443,7 @@ class _AdjustmentGrid extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       child: Text(_adjustmentLabel(values[(row * 3) + column])),
                     ),
-                  ),
+                  ).actionableFeedback(),
                 ),
               ],
             ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../core/engine/activity_summary.dart';
 import '../../core/engine/food_summary.dart';
 import '../../core/theme/app_spacing.dart';
@@ -89,6 +91,7 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const ActionableBackButton(),
       title: const Text('MEAL ANALYSIS'),
       actions: [
         IconButton(
@@ -102,7 +105,7 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
                   if (!context.mounted) return;
                   if (updated) Navigator.pop(context, true);
                 },
-        ),
+        ).actionableFeedback(),
         IconButton(
           key: const ValueKey('meal-analysis-delete'),
           tooltip: 'DELETE',
@@ -115,7 +118,7 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
             if (!context.mounted) return;
             if (deleted) Navigator.pop(context, true);
           },
-        ),
+        ).actionableFeedback(),
       ],
     ),
     body: FutureBuilder<_MealAnalysisContext>(
@@ -301,8 +304,27 @@ class _DailyMetric extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(width: 116, child: Text('${FoodNutritionFormatter.macro(current)} / ${target == null ? '—' : FoodNutritionFormatter.macro(target!)} $unit\n$suffix', textAlign: TextAlign.end)),
-          SizedBox(width: 68, child: Center(child: target == null ? null : NutritionStatusBadge(status: remaining! > 1 ? 'LOW' : remaining < -1 ? 'OVER' : 'ON TRACK'))),
+          SizedBox(
+            width: 116,
+            child: Text(
+              '${FoodNutritionFormatter.macro(current)} / ${target == null ? '—' : FoodNutritionFormatter.macro(target!)} $unit\n$suffix',
+              textAlign: TextAlign.end,
+            ),
+          ),
+          SizedBox(
+            width: 68,
+            child: Center(
+              child: target == null
+                  ? null
+                  : NutritionStatusBadge(
+                      status: remaining! > 1
+                          ? 'LOW'
+                          : remaining < -1
+                          ? 'OVER'
+                          : 'ON TRACK',
+                    ),
+            ),
+          ),
         ],
       ),
     );

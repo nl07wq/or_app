@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../models/activity_draft.dart';
 
@@ -83,11 +85,11 @@ class _ActivityDraftRecoveryDialogState
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('破棄'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -175,7 +177,7 @@ class _ActivityDraftRecoveryDialogState
                 ? () => Navigator.pop(context)
                 : null,
             child: const Text('あとで'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -244,7 +246,7 @@ class _DraftRecoveryRow extends StatelessWidget {
                             ? '前日入力を再開'
                             : '再開',
                       ),
-                    ),
+                    ).actionableFeedback(),
                   ),
                   Semantics(
                     label: '$dateのActivity記録を確定',
@@ -252,7 +254,7 @@ class _DraftRecoveryRow extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: busy ? null : onFinalize,
                       child: Text(single ? '前日分を確定' : '確定'),
-                    ),
+                    ).actionableFeedback(),
                   ),
                   Semantics(
                     label: '$dateの未確定データを破棄',
@@ -260,7 +262,7 @@ class _DraftRecoveryRow extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: busy ? null : onDiscard,
                       child: const Text('破棄'),
-                    ),
+                    ).actionableFeedback(),
                   ),
                 ],
               ),

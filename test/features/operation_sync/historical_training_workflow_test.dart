@@ -35,6 +35,9 @@ void main() {
     expect(prompt, contains('formal recordId when known'));
     expect(prompt, contains('Never generate, infer, or reconstruct recordId'));
     expect(prompt, contains('"recordId": null'));
+    expect(prompt, contains('2026-08-04T01:00:00.000Z'));
+    expect(prompt, contains('authoritative UTC timestamp'));
+    expect(prompt, isNot(contains('<UTC_TIMESTAMP>')));
     expect(
       () =>
           workflow.buildPrompt(startDate: '2026-06-30', endDate: '2026-06-01'),

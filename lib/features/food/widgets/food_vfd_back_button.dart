@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 import 'food_vfd_scale_display_title.dart';
 
 enum FoodVfdBackPhase {
@@ -230,7 +232,7 @@ class _FoodVfdBackButtonState extends State<FoodVfdBackButton>
             ),
           ),
         ),
-      ),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }

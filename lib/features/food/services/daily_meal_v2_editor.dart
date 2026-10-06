@@ -37,6 +37,9 @@ class DailyMealV2Editor {
   static FoodEntrySources sources(DailyMealV2 meal) => FoodEntrySources(
     catalogSources: List.filled(meal.items.length, null),
     recipeSources: List.filled(meal.items.length, null),
+    recipeInstanceSnapshots: meal.items
+        .map((item) => item.recipeInstanceSnapshot)
+        .toList(),
     quantityUnits: meal.items.map((item) => item.quantity.unit).toList(),
     foodReferenceIds: meal.items.map((item) => item.foodReferenceId).toList(),
     recipeReferenceIds: meal.items
@@ -52,6 +55,13 @@ class DailyMealV2Editor {
     brandSnapshots: meal.items.map((item) => item.brandSnapshot).toList(),
     categories: meal.items.map((item) => item.category).toList(),
     memos: meal.items.map((item) => item.memo).toList(),
+    usageSetAmounts: meal.items.map((item) => item.usageSetAmount).toList(),
+    usageSetQuantities: meal.items
+        .map((item) => item.usageSetQuantity)
+        .toList(),
+    quantitySemantics: meal.items
+        .map((item) => item.quantitySemantics)
+        .toList(),
   );
 
   static DailyMealV2 update({
@@ -88,6 +98,7 @@ class DailyMealV2Editor {
           mealItemId: existingId ?? _id(generator),
           foodReferenceId: foodId,
           recipeReferenceId: recipeId,
+          recipeInstanceSnapshot: sources.recipeInstanceSnapshots[index],
           nameSnapshot: entry.name,
           brandSnapshot: sources.brandSnapshots[index],
           category: sources.categories[index],
@@ -95,6 +106,13 @@ class DailyMealV2Editor {
             value: entry.physicalAmount ?? entry.quantity.toDouble(),
             unit: sources.quantityUnits[index],
           ),
+          nutritionBasisQuantity: FoodQuantityDefinition(
+            value: entry.baseAmount ?? entry.physicalAmount ?? 1,
+            unit: sources.quantityUnits[index],
+          ),
+          usageSetAmount: sources.usageSetAmounts[index],
+          usageSetQuantity: sources.usageSetQuantities[index],
+          quantitySemantics: sources.quantitySemantics[index],
           nutritionPerBase: NutritionSnapshot(
             calories: entry.calories.toDouble(),
             protein: entry.protein,
@@ -136,6 +154,7 @@ class DailyMealV2Editor {
       throw StateError('Incomplete FOOD nutrition snapshot is not editable.');
     }
     final quantity = item.quantity;
+    final basis = item.nutritionBasisQuantity ?? quantity;
     final baseUnit = quantity.unit == FoodQuantityUnit.milliliter
         ? FoodBaseUnit.ml
         : FoodBaseUnit.g;
@@ -145,10 +164,10 @@ class DailyMealV2Editor {
       protein: item.nutritionPerBase.protein!,
       fat: item.nutritionPerBase.fat!,
       carbohydrate: item.nutritionPerBase.carbohydrate!,
-      amount: 1,
-      baseAmount: quantity.value,
+      amount: quantity.value,
+      baseAmount: basis.value,
       baseUnit: baseUnit,
-      amountMode: FoodAmountMode.baseMultiplier,
+      amountMode: FoodAmountMode.physicalAmount,
     );
   }
 

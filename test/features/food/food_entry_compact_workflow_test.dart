@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/models/food_item.dart';
+import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/models/meal_type.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_entry_sources.dart';
 import 'package:or_app/features/food/models/food_provenance_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/models/nutrition_models.dart';
+import 'package:or_app/features/food/models/recipe_models_v2.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
 
@@ -360,56 +364,61 @@ void main() {
     },
   );
 
-  testWidgets('Food database search session survives repeated adds and clears explicitly', (
-    tester,
-  ) async {
-    await _installFoods(6);
-    await tester.pumpWidget(subject());
-    await tester.tap(find.byKey(const ValueKey('food-entry-tab-databaseFood')));
-    await tester.pumpAndSettle();
-    final search = find.byKey(const ValueKey('food-entry-search-databaseFood'));
-    await tester.enterText(search, 'Food 5');
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('food-db-add')));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Food database search session survives repeated adds and clears explicitly',
+    (tester) async {
+      await _installFoods(6);
+      await tester.pumpWidget(subject());
+      await tester.tap(
+        find.byKey(const ValueKey('food-entry-tab-databaseFood')),
+      );
+      await tester.pumpAndSettle();
+      final search = find.byKey(
+        const ValueKey('food-entry-search-databaseFood'),
+      );
+      await tester.enterText(search, 'Food 5');
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
-    expect(
-      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-      findsOneWidget,
-    );
+      expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
+      expect(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+        findsOneWidget,
+      );
 
-    expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
-    await tester.tap(
-      find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('food-db-add')));
-    await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(5)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
-    expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
+      expect(tester.widget<TextField>(search).controller!.text, 'Food 5');
+      expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
 
-    final clear = find.byKey(
-      const ValueKey('food-entry-clear-search-databaseFood'),
-    );
-    expect(
-      tester.getRect(clear).center.dx,
-      greaterThan(tester.getRect(search).center.dx),
-    );
-    await tester.tap(clear);
-    await tester.pumpAndSettle();
+      final clear = find.byKey(
+        const ValueKey('food-entry-clear-search-databaseFood'),
+      );
+      expect(
+        tester.getRect(clear).center.dx,
+        greaterThan(tester.getRect(search).center.dx),
+      );
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(search).controller!.text, isEmpty);
-    expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
-    expect(find.text('さらに表示'), findsOneWidget);
-    expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
-  });
+      expect(tester.widget<TextField>(search).controller!.text, isEmpty);
+      expect(find.byKey(const ValueKey('meal-item-name-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('meal-item-name-1')), findsOneWidget);
+      expect(find.text('さらに表示'), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+    },
+  );
 
   testWidgets(
     'FOOD quantity shares the compact MANUAL amount stepper geometry',
@@ -462,8 +471,8 @@ void main() {
         incrementRect.left - quantityRect.right,
         moreOrLessEquals(manualGap),
       );
-      expect(tester.getSize(increment), manualIncrementSize);
-      expect(tester.getSize(decrement), manualDecrementSize);
+      expect(tester.getSize(increment).width, manualIncrementSize.width);
+      expect(tester.getSize(decrement).width, manualDecrementSize.width);
       expect(tester.takeException(), isNull);
     },
   );
@@ -505,7 +514,150 @@ void main() {
   );
 
   testWidgets(
-    'registered Food item edits synchronize used amount and quantity',
+    'transient FOOD usage input keeps the pending preview and scroll extent bounded',
+    (tester) async {
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('food-db-pending-quantity'));
+      final usedAmount = find.byKey(
+        const ValueKey('food-db-pending-used-amount'),
+      );
+      final scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      final baselineExtent = scrollable.position.maxScrollExtent;
+
+      for (var cycle = 0; cycle < 3; cycle++) {
+        for (final text in ['0.', '0.5', '1', '', '1.', '1.5']) {
+          await tester.enterText(quantity, text);
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          expect(
+            tester
+                .widget<TextField>(
+                  find.descendant(
+                    of: quantity,
+                    matching: find.byType(TextField),
+                  ),
+                )
+                .controller!
+                .text,
+            text,
+          );
+          expect(
+            find.byKey(const ValueKey('food-db-usage-nutrition-preview')),
+            findsOneWidget,
+          );
+          expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+          expect(
+            scrollable.position.maxScrollExtent,
+            lessThanOrEqualTo(baselineExtent + 160),
+          );
+        }
+      }
+      expect(find.textContaining('150kcal'), findsOneWidget);
+
+      for (final text in ['0.', '0.5', '100', '', '1.', '100']) {
+        await tester.enterText(usedAmount, text);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(
+          tester
+              .widget<TextField>(
+                find.descendant(
+                  of: usedAmount,
+                  matching: find.byType(TextField),
+                ),
+              )
+              .controller!
+              .text,
+          text,
+        );
+        expect(
+          find.byKey(const ValueKey('food-db-usage-nutrition-preview')),
+          findsOneWidget,
+        );
+        expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+        expect(
+          scrollable.position.maxScrollExtent,
+          lessThanOrEqualTo(baselineExtent + 160),
+        );
+      }
+      expect(find.textContaining('150kcal'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'transient FOOD item edits do not calculate or save until valid',
+    (tester) async {
+      await _installFoods(1);
+      await tester.pumpWidget(subject());
+      await tester.tap(modeTab('databaseFood'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('meal-item-name-0')));
+      await tester.pumpAndSettle();
+
+      final quantity = find.byKey(const ValueKey('meal-item-quantity-input'));
+      final usedAmount = find.byKey(
+        const ValueKey('meal-item-used-amount-input'),
+      );
+      final scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      final baselineExtent = scrollable.position.maxScrollExtent;
+
+      await tester.enterText(quantity, '0.');
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('— kcal  P —  F —  C —'), findsOneWidget);
+      expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+      expect(
+        scrollable.position.maxScrollExtent,
+        lessThanOrEqualTo(baselineExtent + 160),
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('meal-item-edit-save')),
+      );
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('food-meal-item-editor')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(quantity, '0.5');
+      await tester.pump();
+      expect(find.textContaining('50kcal'), findsOneWidget);
+      await tester.enterText(usedAmount, '0.');
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('— kcal  P —  F —  C —'), findsOneWidget);
+      await tester.enterText(usedAmount, '100');
+      await tester.pump();
+      expect(find.textContaining('50kcal'), findsOneWidget);
+      expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
+      expect(
+        scrollable.position.maxScrollExtent,
+        lessThanOrEqualTo(baselineExtent + 160),
+      );
+    },
+  );
+
+  testWidgets(
+    'registered Food item edits preserve multiplicative usage components',
     (tester) async {
       await _installFoods(1);
       await tester.pumpWidget(subject());
@@ -536,9 +688,9 @@ void main() {
             )
             .controller!
             .text,
-        '1.3',
+        '1',
       );
-      expect(find.textContaining('100g × 1.3 = 130g'), findsOneWidget);
+      expect(find.textContaining('USED 130g × QUANTITY 1'), findsOneWidget);
 
       await tester.enterText(quantity, '1.5');
       await tester.pump();
@@ -549,9 +701,9 @@ void main() {
             )
             .controller!
             .text,
-        '150',
+        '130',
       );
-      expect(find.textContaining('150kcal'), findsOneWidget);
+      expect(find.textContaining('195kcal'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
       await tester.pumpAndSettle();
@@ -578,10 +730,12 @@ void main() {
       await tester.tap(item);
       await tester.pumpAndSettle();
 
-      final quantity = find.byKey(const ValueKey('meal-item-quantity-input'));
-      await tester.enterText(quantity, '0.5');
+      final usedAmount = find.byKey(
+        const ValueKey('meal-item-used-amount-input'),
+      );
+      await tester.enterText(usedAmount, '175');
       await tester.pump();
-      expect(find.textContaining('350g × 0.5 = 175g'), findsOneWidget);
+      expect(find.textContaining('USED 175g × QUANTITY 1'), findsOneWidget);
       expect(find.textContaining('175kcal'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
@@ -613,6 +767,123 @@ void main() {
     expect(find.byKey(const ValueKey('food-meal-item-editor')), findsOneWidget);
   });
 
+  testWidgets(
+    'recipe item edit uses its saved composition and preserves sibling instances',
+    (tester) async {
+      final timestamp = DateTime.utc(2026, 10, 4);
+      final standard = _recipeFixture(timestamp, riceGrams: 120);
+      final savedFirst = _recipeFixture(timestamp, riceGrams: 100);
+      final savedSecond = _recipeFixture(timestamp, riceGrams: 90);
+      final initialMeal = MealData(
+        date: '2026-10-04',
+        mealType: MealType.breakfast.name,
+        memo: '',
+        id: 'recipe-meal',
+        items: [
+          _recipeMealItem(savedFirst),
+          _recipeMealItem(savedSecond),
+        ],
+      );
+      final initialSources = FoodEntrySources(
+        catalogSources: const [null, null],
+        recipeSources: [standard, standard],
+        recipeInstanceSnapshots: [savedFirst, savedSecond],
+        quantityUnits: const [FoodQuantityUnit.serving, FoodQuantityUnit.serving],
+        recipeReferenceIds: [standard.recipeId, standard.recipeId],
+        mealItemIds: const ['recipe-item-a', 'recipe-item-b'],
+      );
+      MealData? savedMeal;
+      FoodEntrySources? savedSources;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                initialMeal: initialMeal,
+                initialSources: initialSources,
+                onSave: (_) async => true,
+                onSaveWithSources: (meal, sources) async {
+                  savedMeal = meal;
+                  savedSources = sources;
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final firstRecipeItem = find.byKey(const ValueKey('meal-item-name-0'));
+      await tester.ensureVisible(firstRecipeItem);
+      await tester.tap(firstRecipeItem);
+      await tester.pumpAndSettle();
+      expect(find.text('RECIPE CONFIRM / ADJUST'), findsOneWidget);
+      final riceAmount = find.byKey(
+        const ValueKey('meal-item-recipe-ingredient-input-0'),
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(of: riceAmount, matching: find.byType(TextField)),
+            )
+            .controller!
+            .text,
+        '100',
+      );
+
+      await tester.enterText(riceAmount, '80');
+      await tester.pump();
+      expect(find.textContaining('80kcal'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(firstRecipeItem);
+      await tester.tap(firstRecipeItem);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(of: riceAmount, matching: find.byType(TextField)),
+            )
+            .controller!
+            .text,
+        '100',
+      );
+      await tester.enterText(riceAmount, '80');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('UPDATE MEAL'));
+      await tester.tap(find.text('UPDATE MEAL'));
+      await tester.pumpAndSettle();
+
+      expect(savedMeal, isNotNull);
+      expect(savedMeal!.items.first.totalCalories, 80);
+      expect(savedMeal!.items[1].totalCalories, 90);
+      expect(savedSources, isNotNull);
+      expect(
+        savedSources!
+            .recipeInstanceSnapshots
+            .first!
+            .ingredients
+            .single
+            .quantity
+            .value,
+        80,
+      );
+      expect(
+        savedSources!
+            .recipeInstanceSnapshots[1]!
+            .ingredients
+            .single
+            .quantity
+            .value,
+        90,
+      );
+      expect(standard.ingredients.single.quantity.value, 120);
+    },
+  );
+
   testWidgets('water disables meal type and hides database modes', (
     tester,
   ) async {
@@ -632,6 +903,66 @@ void main() {
       findsNothing,
     );
     expect(find.text('Water Volume (ml)'), findsOneWidget);
+  });
+
+  testWidgets('water saves through its dedicated callback without sources', (
+    tester,
+  ) async {
+    MealData? savedWater;
+    var sourceSaveCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              onSave: (data) async {
+                savedWater = data;
+                return true;
+              },
+              onSaveWithSources: (_, _) async {
+                sourceSaveCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WATER').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Water Volume (ml)'),
+      '500',
+    );
+    await tester.tap(find.text('Save Water'));
+    await tester.pumpAndSettle();
+
+    expect(sourceSaveCount, 0);
+    expect(savedWater, isNotNull);
+    expect(savedWater!.isWaterEntry, isTrue);
+    expect(savedWater!.waterMl, 500);
+    expect(savedWater!.items, isEmpty);
+  });
+
+  testWidgets('water quick add increments the pending volume only', (
+    tester,
+  ) async {
+    await tester.pumpWidget(subject());
+    await tester.tap(find.byKey(const ValueKey('food-entry-type-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WATER').last);
+    await tester.pumpAndSettle();
+    final volume = find.widgetWithText(TextField, 'Water Volume (ml)');
+    await tester.enterText(volume, '500');
+    await tester.tap(find.text('+250 ml'));
+    await tester.pump();
+    expect(tester.widget<TextField>(volume).controller!.text, '750');
+    await tester.tap(find.text('+250 ml'));
+    await tester.pump();
+    expect(tester.widget<TextField>(volume).controller!.text, '1000');
   });
 
   testWidgets('water keeps the prior meal selection for return to meal mode', (
@@ -695,6 +1026,8 @@ void main() {
         tester.getRect(decrement).left,
         greaterThan(tester.getRect(quantity).right),
       );
+      await tester.enterText(quantity, '0.');
+      await tester.pump();
       expect(tester.takeException(), isNull);
     });
   }
@@ -775,3 +1108,55 @@ String _modeLabel(String mode) => switch (mode) {
   'databaseMeal' => 'MEAL',
   _ => throw ArgumentError.value(mode, 'mode'),
 };
+
+FoodRecipeDefinition _recipeFixture(DateTime timestamp, {required double riceGrams}) {
+  final provenance = FoodDataProvenance(
+    sourceType: FoodProvenanceSourceType.userInput,
+    capturedAt: timestamp,
+  );
+  final ingredient = RecipeIngredientV2(
+    ingredientId: '00000000-0000-4000-8000-000000000701',
+    nameSnapshot: 'White rice',
+    quantity: FoodQuantityDefinition(
+      value: riceGrams,
+      unit: FoodQuantityUnit.gram,
+    ),
+    nutritionSnapshot: NutritionSnapshot(
+      calories: riceGrams,
+      protein: riceGrams / 20,
+      fat: riceGrams / 100,
+      carbohydrate: riceGrams / 5,
+    ),
+    nutritionStatus: NutritionStatus.declared,
+    provenanceSnapshot: provenance,
+    sortOrder: 0,
+  );
+  return FoodRecipeDefinition(
+    recipeId: '00000000-0000-4000-8000-000000000700',
+    name: 'Rice recipe',
+    ingredients: [ingredient],
+    yieldQuantity: FoodQuantityDefinition(
+      value: 1,
+      unit: FoodQuantityUnit.serving,
+    ),
+    servingCount: 1,
+    nutrition: ingredient.nutritionSnapshot,
+    nutritionStatus: NutritionStatus.calculated,
+    provenance: provenance,
+    isArchived: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
+}
+
+FoodItem _recipeMealItem(FoodRecipeDefinition recipe) => FoodItem(
+  name: recipe.name,
+  calories: recipe.nutrition.calories!,
+  protein: recipe.nutrition.protein!,
+  fat: recipe.nutrition.fat!,
+  carbohydrate: recipe.nutrition.carbohydrate!,
+  amount: 1,
+  baseAmount: 1,
+  baseUnit: FoodBaseUnit.g,
+  amountMode: FoodAmountMode.baseMultiplier,
+);

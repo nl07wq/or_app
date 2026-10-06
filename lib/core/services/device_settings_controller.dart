@@ -1,0 +1,223 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// The explicit application preference for motion.  [off] still allows a
+/// platform accessibility requirement to win when one is supplied by Flutter.
+enum ReducedMotionPreference { system, on, off }
+
+enum DeviceFeedbackChannel { command, exit, rejected, ambient }
+
+/// OR-APP-local presentation and feedback preferences.
+///
+/// The defaults intentionally multiply the released feedback levels by 1.0
+/// and leave every existing visual effect enabled.
+@immutable
+class DeviceSettings {
+  const DeviceSettings({
+    this.masterVolume = 1,
+    this.muted = false,
+    this.commandVolume = 1,
+    this.exitVolume = 1,
+    this.rejectedVolume = 1,
+    this.ambientVolume = 1,
+    this.brightness = 1,
+    this.rippleEnabled = true,
+    this.ambientCircuitEnabled = true,
+    this.reducedMotion = ReducedMotionPreference.system,
+  });
+
+  static const minimumBrightness = .35;
+
+  final double masterVolume;
+  final bool muted;
+  final double commandVolume;
+  final double exitVolume;
+  final double rejectedVolume;
+  final double ambientVolume;
+  final double brightness;
+  final bool rippleEnabled;
+  final bool ambientCircuitEnabled;
+  final ReducedMotionPreference reducedMotion;
+
+  double volumeMultiplierFor(DeviceFeedbackChannel channel) {
+    if (muted) return 0;
+    final roleVolume = switch (channel) {
+      DeviceFeedbackChannel.ambient => ambientVolume,
+      DeviceFeedbackChannel.command => commandVolume,
+      DeviceFeedbackChannel.exit => exitVolume,
+      DeviceFeedbackChannel.rejected => rejectedVolume,
+    };
+    return masterVolume * roleVolume;
+  }
+
+  /// Platform accessibility remains authoritative, even when the app setting
+  /// asks for normal motion.
+  bool resolvesReducedMotion(bool platformReducedMotion) =>
+      switch (reducedMotion) {
+        ReducedMotionPreference.system => platformReducedMotion,
+        ReducedMotionPreference.on => true,
+        ReducedMotionPreference.off => platformReducedMotion,
+      };
+
+  DeviceSettings copyWith({
+    double? masterVolume,
+    bool? muted,
+    double? commandVolume,
+    double? exitVolume,
+    double? rejectedVolume,
+    double? ambientVolume,
+    double? brightness,
+    bool? rippleEnabled,
+    bool? ambientCircuitEnabled,
+    ReducedMotionPreference? reducedMotion,
+  }) => DeviceSettings(
+    masterVolume: masterVolume ?? this.masterVolume,
+    muted: muted ?? this.muted,
+    commandVolume: commandVolume ?? this.commandVolume,
+    exitVolume: exitVolume ?? this.exitVolume,
+    rejectedVolume: rejectedVolume ?? this.rejectedVolume,
+    ambientVolume: ambientVolume ?? this.ambientVolume,
+    brightness: brightness ?? this.brightness,
+    rippleEnabled: rippleEnabled ?? this.rippleEnabled,
+    ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
+    reducedMotion: reducedMotion ?? this.reducedMotion,
+  ).normalized();
+
+  DeviceSettings normalized() => DeviceSettings(
+    masterVolume: _unit(masterVolume),
+    muted: muted,
+    commandVolume: _unit(commandVolume),
+    exitVolume: _unit(exitVolume),
+    rejectedVolume: _unit(rejectedVolume),
+    ambientVolume: _unit(ambientVolume),
+    brightness: _brightness(brightness),
+    rippleEnabled: rippleEnabled,
+    ambientCircuitEnabled: ambientCircuitEnabled,
+    reducedMotion: reducedMotion,
+  );
+
+  Map<String, Object?> toJson() => {
+    'masterVolume': masterVolume,
+    'muted': muted,
+    'commandVolume': commandVolume,
+    'exitVolume': exitVolume,
+    'rejectedVolume': rejectedVolume,
+    'ambientVolume': ambientVolume,
+    'brightness': brightness,
+    'rippleEnabled': rippleEnabled,
+    'ambientCircuitEnabled': ambientCircuitEnabled,
+    'reducedMotion': reducedMotion.name,
+  };
+
+  factory DeviceSettings.fromJson(Object? raw) {
+    if (raw is! Map) return const DeviceSettings();
+    final json = Map<Object?, Object?>.from(raw);
+    double number(String key, double fallback) {
+      final value = json[key];
+      return value is num ? value.toDouble() : fallback;
+    }
+
+    bool flag(String key, bool fallback) {
+      final value = json[key];
+      return value is bool ? value : fallback;
+    }
+
+    final reducedName = json['reducedMotion'];
+    ReducedMotionPreference? reducedMotion;
+    for (final candidate in ReducedMotionPreference.values) {
+      if (candidate.name == reducedName) {
+        reducedMotion = candidate;
+        break;
+      }
+    }
+    return DeviceSettings(
+      masterVolume: number('masterVolume', 1),
+      muted: flag('muted', false),
+      commandVolume: number('commandVolume', 1),
+      exitVolume: number('exitVolume', 1),
+      rejectedVolume: number('rejectedVolume', 1),
+      ambientVolume: number('ambientVolume', 1),
+      brightness: number('brightness', 1),
+      rippleEnabled: flag('rippleEnabled', true),
+      ambientCircuitEnabled: flag('ambientCircuitEnabled', true),
+      reducedMotion: reducedMotion ?? ReducedMotionPreference.system,
+    ).normalized();
+  }
+
+  static double _unit(double value) =>
+      value.isFinite ? value.clamp(0, 1).toDouble() : 1;
+  static double _brightness(double value) =>
+      value.isFinite ? value.clamp(minimumBrightness, 1).toDouble() : 1;
+}
+
+/// A small, local-only preference store.  It intentionally does not share
+/// identity, health, schedule, or operation data stores.
+class DeviceSettingsController extends ValueNotifier<DeviceSettings> {
+  DeviceSettingsController({
+    Future<SharedPreferences> Function()? preferencesLoader,
+  }) : _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance,
+       super(const DeviceSettings());
+
+  static const storageKey = 'or_app_device_settings_v1';
+  static final instance = DeviceSettingsController();
+
+  final Future<SharedPreferences> Function() _preferencesLoader;
+  bool _initialized = false;
+  Future<void>? _initializing;
+  Future<void> _writeQueue = Future.value();
+
+  Future<void> initialize() {
+    if (_initialized) return Future.value();
+    return _initializing ??= _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final preferences = await _preferencesLoader();
+      final encoded = preferences.getString(storageKey);
+      if (encoded != null) value = DeviceSettings.fromJson(jsonDecode(encoded));
+    } catch (_) {
+      // Invalid or unavailable local preference storage must never block boot.
+      value = const DeviceSettings();
+    } finally {
+      _initialized = true;
+    }
+  }
+
+  void update(DeviceSettings next) {
+    value = next.normalized();
+    unawaited(_enqueuePersist(value));
+  }
+
+  Future<void> restore(Map<String, Object?> raw) async {
+    value = DeviceSettings.fromJson(raw);
+    await _enqueuePersist(value);
+  }
+
+  Map<String, Object?> snapshot() => value.toJson();
+
+  Future<void> _enqueuePersist(DeviceSettings settings) {
+    final write = _writeQueue.then((_) => _persist(settings));
+    _writeQueue = write;
+    return write;
+  }
+
+  Future<void> _persist(DeviceSettings settings) async {
+    try {
+      final preferences = await _preferencesLoader();
+      await preferences.setString(storageKey, jsonEncode(settings.toJson()));
+    } catch (_) {
+      // Settings are convenience data; retain the live choice if persistence
+      // is temporarily unavailable rather than failing the surrounding UI.
+    }
+  }
+
+  @visibleForTesting
+  void resetForTesting(DeviceSettings settings) {
+    value = settings.normalized();
+    _initialized = true;
+  }
+}

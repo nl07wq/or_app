@@ -101,7 +101,7 @@ void main() {
     },
   );
 
-  test('clearly future createdAt remains invalid before persistence', () async {
+  test('clearly future createdAt imports without changing local history time', () async {
     final fixture = await _fixture(
       operationDate: operationDate,
       createdAt: DateTime.utc(2026, 9, 6),
@@ -109,30 +109,20 @@ void main() {
       mealCount: 1,
     );
 
-    await expectLater(
-      fixture.service.importFoodMeals(
-        fixture.response,
-        meals: fixture.meals,
-        mealCounts: const ReportSyncMealCounts(
-          received: 1,
-          selected: 1,
-          imported: 1,
-          conflict: 0,
-        ),
-      ),
-      throwsA(
-        isA<ReportSyncImportFailure>()
-            .having((error) => error.code, 'code', 'history_record_invalid')
-            .having((error) => error.stage, 'stage', 'HISTORY RECORD MAPPING')
-            .having(
-              (error) => error.cause.toString(),
-              'cause',
-              contains('clock tolerance'),
-            ),
+    final history = await fixture.service.importFoodMeals(
+      fixture.response,
+      meals: fixture.meals,
+      mealCounts: const ReportSyncMealCounts(
+        received: 1,
+        selected: 1,
+        imported: 1,
+        conflict: 0,
       ),
     );
-    expect(await fixture.history.list(), isEmpty);
-    expect(await fixture.database.findAll('food_records'), isEmpty);
+    expect(history.startedAt, DateTime.utc(2026, 9, 5));
+    expect(history.completedAt, DateTime.utc(2026, 9, 5));
+    expect(await fixture.history.list(), hasLength(1));
+    expect(await fixture.database.findAll('food_records'), hasLength(1));
   });
 }
 

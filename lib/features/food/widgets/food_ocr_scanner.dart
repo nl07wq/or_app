@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -265,12 +267,12 @@ Future<void> showNutritionOcrDiagnostics(
                   TextButton(
                     onPressed: () => Navigator.pop(previewContext),
                     child: const Text('CLOSE'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ),
             child: const Text('VIEW STANDARD INPUT'),
-          ),
+          ).actionableFeedback(),
         if (_diagnosticPreview(diagnostics, 'nutritionLabelReader')
             case final preview?)
           TextButton(
@@ -284,12 +286,12 @@ Future<void> showNutritionOcrDiagnostics(
                   TextButton(
                     onPressed: () => Navigator.pop(previewContext),
                     child: const Text('CLOSE'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ),
             child: const Text('VIEW NUTRITION INPUT'),
-          ),
+          ).actionableFeedback(),
         TextButton(
           key: const ValueKey('copy-ocr-diagnostics'),
           onPressed: () async {
@@ -301,11 +303,11 @@ Future<void> showNutritionOcrDiagnostics(
             }
           },
           child: const Text('COPY OCR DIAGNOSTICS'),
-        ),
+        ).actionableFeedback(),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext),
           child: const Text('CLOSE'),
-        ),
+        ).actionableFeedback(),
       ],
     ),
   );
@@ -337,19 +339,19 @@ Future<FoodNutritionCaptureMode?> _chooseCaptureMode(BuildContext context) =>
               title: const Text('LIVE SCAN'),
               onTap: () =>
                   Navigator.pop(context, FoodNutritionCaptureMode.live),
-            ),
+            ).actionableFeedback(enabled: true),
             ListTile(
               leading: const Icon(Icons.photo_camera),
               title: const Text('CAMERA'),
               onTap: () =>
                   Navigator.pop(context, FoodNutritionCaptureMode.camera),
-            ),
+            ).actionableFeedback(enabled: true),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('PHOTO LIBRARY'),
               onTap: () =>
                   Navigator.pop(context, FoodNutritionCaptureMode.gallery),
-            ),
+            ).actionableFeedback(enabled: true),
           ],
         ),
       ),
@@ -515,7 +517,10 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
   Widget build(BuildContext context) => Dialog.fullscreen(
     child: SafeArea(
       child: Scaffold(
-        appBar: AppBar(title: const Text('OCR PREVIEW')),
+        appBar: AppBar(
+          leading: const ActionableBackButton(),
+          title: const Text('OCR PREVIEW'),
+        ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -609,14 +614,14 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('CANCEL'),
-                    ),
+                    ).actionableFeedback(),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: FilledButton(
                       onPressed: () => Navigator.pop(context, _result()),
                       child: const Text('APPLY'),
-                    ),
+                    ).actionableFeedback(),
                   ),
                 ],
               ),
@@ -686,7 +691,7 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
                         isDense: true,
                         border: InputBorder.none,
                       ),
-                    ),
+                    ).inputFeedback(),
                   ),
                   SizedBox(
                     width: unitWidth,
@@ -882,7 +887,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
           TextField(
             controller: _name,
             decoration: const InputDecoration(labelText: 'SELECTED NAME'),
-          ),
+          ).inputFeedback(),
           _candidateChoices(
             'NAME CANDIDATES',
             widget.draft.nameCandidates,
@@ -892,7 +897,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
           TextField(
             controller: _brand,
             decoration: const InputDecoration(labelText: 'SELECTED BRAND'),
-          ),
+          ).inputFeedback(),
           _candidateChoices(
             'BRAND CANDIDATES',
             widget.draft.brandCandidates,
@@ -910,7 +915,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
       TextButton(
         onPressed: () => Navigator.pop(context),
         child: const Text('CANCEL'),
-      ),
+      ).actionableFeedback(),
       FilledButton(
         onPressed: () => Navigator.pop(
           context,
@@ -924,7 +929,7 @@ class _PackageReviewDialogState extends State<_PackageReviewDialog> {
           ),
         ),
         child: const Text('APPLY TO FORM'),
-      ),
+      ).actionableFeedback(),
     ],
   );
 

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -246,14 +248,14 @@ class _PixelLabPageState extends State<PixelLabPage> {
                     onPressed: () => _copyParameters(json),
                     icon: const Icon(Icons.copy_outlined),
                     label: const Text('COPY PARAMETERS'),
-                  ),
+                  ).actionableFeedback(),
                   AppSpacing.gapSM,
                   OutlinedButton.icon(
                     key: const ValueKey('pixel-lab-reset'),
                     onPressed: _reset,
                     icon: const Icon(Icons.restart_alt_outlined),
                     label: const Text('RESET TO DEFAULT'),
-                  ),
+                  ).actionableFeedback(),
                 ],
               ),
             ),
@@ -463,7 +465,7 @@ class _AssetSelector extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
+              ).actionableFeedback(),
             ),
         ],
       );

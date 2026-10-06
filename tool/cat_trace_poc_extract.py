@@ -71,32 +71,76 @@ def largest_component(mask: np.ndarray) -> np.ndarray:
 
 
 def outer_contour(mask: np.ndarray) -> list[tuple[float, float]]:
-    """Build oriented grid boundary loops, then return the largest outer loop."""
+    """Return the largest deterministic outer grid loop.
+
+    The original single-edge map assumed that every boundary vertex has one
+    outgoing edge.  Anti-aliased fur and diagonal pixel contacts legitimately
+    violate that assumption.  Keep every edge and use a clockwise/right-hand
+    traversal at junctions instead; this changes no source pixels or mask.
+    """
     rows, cols = mask.shape
-    edges: dict[tuple[int, int], tuple[int, int]] = {}
+    edges: dict[tuple[int, int], list[tuple[int, int]]] = {}
+
+    def add_edge(start: tuple[int, int], end: tuple[int, int]) -> None:
+        edges.setdefault(start, []).append(end)
     for y in range(rows):
         for x in range(cols):
             if not mask[y, x]:
                 continue
             if y == 0 or not mask[y - 1, x]:
-                edges[(x, y)] = (x + 1, y)
+                add_edge((x, y), (x + 1, y))
             if x == cols - 1 or not mask[y, x + 1]:
-                edges[(x + 1, y)] = (x + 1, y + 1)
+                add_edge((x + 1, y), (x + 1, y + 1))
             if y == rows - 1 or not mask[y + 1, x]:
-                edges[(x + 1, y + 1)] = (x, y + 1)
+                add_edge((x + 1, y + 1), (x, y + 1))
             if x == 0 or not mask[y, x - 1]:
-                edges[(x, y + 1)] = (x, y)
+                add_edge((x, y + 1), (x, y))
+
+    def direction(start: tuple[int, int], end: tuple[int, int]) -> int:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        return {(1, 0): 0, (0, 1): 1, (-1, 0): 2, (0, -1): 3}[(dx, dy)]
+
+    def pop_next(start: tuple[int, int], incoming: int) -> tuple[int, int]:
+        candidates = edges[start]
+        # clockwise boundary winding: prefer right, then straight, left,
+        # then reverse. Stable coordinate tie-break is retained for safety.
+        priorities = {(incoming + offset) % 4: index
+                      for index, offset in enumerate((1, 0, 3, 2))}
+        end = min(
+            candidates,
+            key=lambda candidate: (priorities[direction(start, candidate)], candidate),
+        )
+        candidates.remove(end)
+        if not candidates:
+            del edges[start]
+        return end
     loops: list[list[tuple[float, float]]] = []
     while edges:
         start = next(iter(edges))
         point = start
-        loop = [point]
+        first_end = min(edges[start])
+        incoming = direction(start, first_end)
+        edges[start].remove(first_end)
+        if not edges[start]:
+            del edges[start]
+        point = first_end
+        loop = [start, point]
         while True:
-            point = edges.pop(point)
+            if point == start:
+                break
+            if point not in edges:
+                # A one-pixel diagonal touch can yield a small open spur under
+                # a local tie rule. It cannot represent the closed outer loop.
+                loop = []
+                break
+            next_point = pop_next(point, incoming)
+            incoming = direction(point, next_point)
+            point = next_point
             if point == start:
                 break
             loop.append(point)
-        loops.append(loop)
+        if len(loop) >= 3:
+            loops.append(loop)
     def area(loop: list[tuple[float, float]]) -> float:
         return abs(sum(
             x1 * y2 - x2 * y1

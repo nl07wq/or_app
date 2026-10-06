@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../global_touch_ripple.dart';
 import 'operation_time_picker.dart';
 
 class TimeInputCard extends StatefulWidget {
@@ -69,25 +70,30 @@ class _TimeInputCardState extends State<TimeInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ),
+              ).inputFeedback(),
 
             if (widget.headerAction != null) widget.headerAction!,
           ],
         ),
 
         if (expanded) ...[
-          OperationTimePicker(
-            controller: widget.controller,
-            minuteStep: widget.minuteStep,
-            initialHour: widget.initialHour,
-            initialMinute: widget.initialMinute,
+          InputFeedbackRegion(
+            child: OperationTimePicker(
+              controller: widget.controller,
+              minuteStep: widget.minuteStep,
+              initialHour: widget.initialHour,
+              initialMinute: widget.initialMinute,
+            ),
           ),
 
           const SizedBox(height: 12),
 
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton(onPressed: collapse, child: const Text("完了")),
+            child: FilledButton(
+              onPressed: collapse,
+              child: const Text("完了"),
+            ).inputFeedback(),
           ),
         ],
       ],

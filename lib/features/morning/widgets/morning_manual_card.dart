@@ -5,9 +5,14 @@ import '../../../core/state/app_initialization_state.dart';
 import '../morning_fact_page.dart';
 
 class MorningManualCard extends StatelessWidget {
-  const MorningManualCard({super.key, this.enabled = true});
+  const MorningManualCard({
+    super.key,
+    this.enabled = true,
+    this.reportUnavailableTap = false,
+  });
 
   final bool enabled;
+  final bool reportUnavailableTap;
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +20,7 @@ class MorningManualCard extends StatelessWidget {
       key: const ValueKey('status-entry-button'),
       icon: Icons.edit_note,
       text: "STATUS ENTRY",
+      reportUnavailableTap: reportUnavailableTap,
       onPressed: appInitializationController.value.isReadOnly || !enabled
           ? null
           : () {

@@ -2,8 +2,76 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/features/dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
+import 'package:or_app/features/system/pages/ambient_wildlife_v2.dart';
+import 'package:or_app/features/system/pages/cat_run_v23_production_preview.dart';
 
 void main() {
+  test('CAT motion profiles keep CURRENT as the production default', () {
+    for (final profile in AmbientWildlifeV2CatMotionProfile.values) {
+      expect(ambientWildlifeV2CatMotionCurve(profile), Curves.linear);
+    }
+    expect(
+      ambientWildlifeV2CatSmoothTuning(
+        AmbientWildlifeV2CatMotionProfile.current,
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('production preview keeps forced species and variant on replay', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: DashboardAmbientWildlifeProductionPreviewStage(
+              requestId: 1,
+              forcedSpecies: AmbientWildlifeV2Species.birds,
+              variant: AmbientWildlifeV2ForcedVariant.glitch10,
+              leftToRight: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final stage = tester.widget<AmbientWildlifeV2ProductionStage>(
+      find.byType(AmbientWildlifeV2ProductionStage),
+    );
+    expect(stage.forcedPlan!.species, AmbientWildlifeV2Species.birds);
+    expect(stage.forcedPlan!.birdInstances, hasLength(10));
+  });
+
+  testWidgets(
+    'production preview applies CAT GLITCH override only when forced',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              child: DashboardAmbientWildlifeProductionPreviewStage(
+                requestId: 1,
+                forcedSpecies: AmbientWildlifeV2Species.cat,
+                variant: AmbientWildlifeV2ForcedVariant.glitch10,
+                leftToRight: false,
+                catGlitchSpacingOverride: .10,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final stage = tester.widget<AmbientWildlifeV2ProductionStage>(
+        find.byType(AmbientWildlifeV2ProductionStage),
+      );
+      expect(stage.forcedPlan!.catPlan!.crossings[1].startedAtProgress, .10);
+      expect(CatRunProductionEventPolicy.glitchFollowerTriggerProgress, .025);
+    },
+  );
+
   Widget subject({
     DateTime Function()? now,
     int Function(int max)? nextInt,
@@ -35,6 +103,29 @@ void main() {
               )
               .painter!
           as DashboardAmbientWildlifePainter;
+
+  testWidgets('Dashboard consumes the Ambient V2 production runtime only', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        nextInt: (_) => 0,
+        minimumInterval: const Duration(milliseconds: 1),
+        maximumInterval: const Duration(milliseconds: 1),
+      ),
+    );
+    expect(find.byType(AmbientWildlifeV2ProductionStage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-stage')),
+      findsOneWidget,
+    );
+    expect(find.text('GROUND LINE'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(
+      find.byKey(const ValueKey('ambient-wildlife-v2-cat-stage')),
+      findsOneWidget,
+    );
+  });
 
   test('local clock boundaries select the correct wildlife period', () {
     expect(

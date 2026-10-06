@@ -191,6 +191,7 @@ class HistoricalTrainingWorkflowService implements HistoricalTrainingWorkflow {
   @override
   String buildPrompt({required String startDate, required String endDate}) {
     _validateRequestedRange(startDate, endDate);
+    final authoritativeCreatedAt = clock().toUtc().toIso8601String();
     final exampleRecord = Map<String, Object?>.from(
       const TrainingReportSyncPayloadSchemaV2().minimalResponseExample,
     );
@@ -225,7 +226,7 @@ class HistoricalTrainingWorkflowService implements HistoricalTrainingWorkflow {
       'direction': 'response',
       'exchangeType': 'historicalTraining',
       'exchangeId': '<UNIQUE_RESPONSE_ID>',
-      'createdAt': '<UTC_TIMESTAMP>',
+      'createdAt': authoritativeCreatedAt,
       'payload': {
         'recordType': 'trainingV2',
         'sourceMode': 'dateRange',
@@ -245,7 +246,7 @@ This prompt is not source data. Use only formal Training Records already retaine
 RESPONSE CONTRACT
 Return exactly one fenced Plain Text code block. Its opening fence must be ```text and its closing fence must be ```.
 Inside the code block return only one JSON object. Return no heading, explanation, greeting, note, marker, comment, or text outside the code block. Do not use a json fence. The copied code-block content must start with { and end with }.
-Use format "$_format", envelopeVersion 1, schemaVersion "$_schemaVersion", direction "response", exchangeType "historicalTraining", recordType "trainingV2", sourceMode "dateRange", importMode "missingRecordsOnly", requestedStartDate "$startDate", and requestedEndDate "$endDate" exactly. Create a unique exchangeId and UTC createdAt. Set packageDigest to null. Do not calculate a digest or replace null with a placeholder.
+Use format "$_format", envelopeVersion 1, schemaVersion "$_schemaVersion", direction "response", exchangeType "historicalTraining", recordType "trainingV2", sourceMode "dateRange", importMode "missingRecordsOnly", requestedStartDate "$startDate", and requestedEndDate "$endDate" exactly. Create a unique exchangeId. Copy the authoritative UTC timestamp "$authoritativeCreatedAt" to createdAt exactly; do not infer the current time or timezone, create a timestamp, or convert the supplied value. Set packageDigest to null. Do not calculate a digest or replace null with a placeholder.
 Do not add unknown fields, stringify numbers, or alter dates. recordId is the formal persisted Training Record ID. When the source contains recordId, return exactly the same value without changing it. When the source does not contain recordId, return null. Never generate, infer, or reconstruct recordId. sourceRecordId is the original external reference when known, otherwise null. It is not an app storage ID. Every record must contain exactly operationDate, recordId, sourceRecordId, and session. session.localDate must equal operationDate. The nested session name is optional metadata: preserve a recorded non-empty name, otherwise return null. Never infer or generate a session name. Preserve startTime and endTime only when formally recorded as offset ISO-8601 datetimes; otherwise return null for both and never infer either time. A Strength Calories Snapshot is all-or-null: estimatedStrengthCaloriesKcal, strengthWeightSnapshotKg, strengthCalculationMethod "strengthSessionMetsAcsmV1", and strengthCalculationVersion 1. Preserve a complete formal snapshot only; otherwise set all four fields to null. Never calculate or reconstruct a Strength Calories Snapshot.
 For each exercise, equipment must be either null when no equipment is recorded, or an object containing exactly id and a non-empty name. Never return an equipment object whose name is an empty string.
 For sets preserve exactly type, weightKg, reps, rpe, and restAfterSeconds. Set type is case-sensitive and must be only "warmUp" or "main". Map a retained "warmup" label to "warmUp"; never output "warmup". reps must be a JSON integer of 1 or greater, never a decimal number or String. rpe must be null or a JSON integer from 1 through 10. restAfterSeconds must be null or a non-negative JSON integer. weightKg must be a finite non-negative JSON number. legacyUnknown is forbidden.

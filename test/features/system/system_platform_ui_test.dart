@@ -352,7 +352,15 @@ void main() {
     expect(find.text(AppMetadata.backupSchemaVersion), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('NOT AVAILABLE'), findsNWidgets(3));
-    expect(find.text('未設定'), findsNWidgets(2));
+    expect(find.text('未設定'), findsOneWidget);
+    expect(
+      find.text(
+        'SE(Water_Drop02-1(Low-Reverb).mp3,Cyber03-1.mp3) by OtoLogic(https://otologic.jp)\n'
+        'SE(キャンセル1.mp3) by 効果音ラボ(https://soundeffect-lab.info/)\n'
+        'SE(ボタン音09.mp3) by On-Jin ～音人～(https://on-jin.com/)',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Version'), findsNothing);
   });
 

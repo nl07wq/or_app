@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -179,11 +181,11 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('CANCEL'),
-          ),
+          ).actionableFeedback(),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('IMPORT'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -252,7 +254,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
                     ? 'SELECT DATE RANGE'
                     : '$_startDate – $_endDate',
               ),
-            ),
+            ).actionableFeedback(),
             AppSpacing.gapSM,
             const Text('ChatGPTが保持する旧DNSを、選択期間のDaily Aggregateへ変換します。'),
             AppSpacing.gapMD,
@@ -264,7 +266,7 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
                     : null,
                 icon: const Icon(Icons.content_copy),
                 label: const Text('COPY CHATGPT PROMPT'),
-              ),
+              ).actionableFeedback(),
             ),
           ],
         ),
@@ -299,14 +301,14 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
                   onPressed: widget.workflow != null && !_busy ? _paste : null,
                   icon: const Icon(Icons.content_paste),
                   label: const Text('PASTE'),
-                ),
+                ).actionableFeedback(),
                 FilledButton.icon(
                   onPressed: widget.workflow != null && !_busy
                       ? _validate
                       : null,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: const Text('VALIDATE'),
-                ),
+                ).actionableFeedback(),
               ],
             ),
           ],
@@ -408,8 +410,14 @@ class _PreviewCard extends StatelessWidget {
         Wrap(
           spacing: AppSpacing.sm,
           children: [
-            TextButton(onPressed: onSelectAll, child: const Text('SELECT ALL')),
-            TextButton(onPressed: onClearAll, child: const Text('CLEAR ALL')),
+            TextButton(
+              onPressed: onSelectAll,
+              child: const Text('SELECT ALL'),
+            ).actionableFeedback(),
+            TextButton(
+              onPressed: onClearAll,
+              child: const Text('CLEAR ALL'),
+            ).actionableFeedback(),
           ],
         ),
         AppSpacing.gapMD,
@@ -430,7 +438,7 @@ class _PreviewCard extends StatelessWidget {
               'SOURCE TYPE ${item.aggregate?.sourceType.name ?? 'NOT AVAILABLE'}'
               '${item.issues.isEmpty ? '' : '\n${item.issues.map((issue) => '${issue.path ?? r'$'}: ${issue.code}: ${issue.message}').join('\n')}'}',
             ),
-          ),
+          ).inputFeedback(),
           if (item.differences.isNotEmpty)
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
@@ -465,7 +473,7 @@ class _PreviewCard extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 child: Text('選択したDNSをIMPORT', style: AppTextStyles.label),
               ),
-            ),
+            ).actionableFeedback(),
           )
         else
           Text(

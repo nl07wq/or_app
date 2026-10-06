@@ -92,6 +92,16 @@ class BackupPackageCodec {
     final countJson = _map(json, 'recordCounts');
     final digestJson = _map(json, 'digests');
     final dataJson = _map(json, 'data');
+    final deviceSettings = json['deviceSettings'];
+    if (deviceSettings != null && deviceSettings is! Map) {
+      throw const BackupException(
+        'invalid_structure',
+        'deviceSettings must be an object.',
+      );
+    }
+    final normalizedDeviceSettings = deviceSettings == null
+        ? null
+        : Map<String, Object?>.from(deviceSettings as Map);
     final auditArchiveId = schemaVersion >= 14
         ? _string(json, 'auditArchiveId')
         : null;
@@ -174,6 +184,7 @@ class BackupPackageCodec {
       'auditArchiveId': ?auditArchiveId,
       'recordCounts': counts,
       'digests': sectionDigests,
+      'deviceSettings': ?normalizedDeviceSettings,
       'data': data,
     };
     if (BackupCanonicalCodec.digest(digestPayload) != packageDigest) {
@@ -196,6 +207,7 @@ class BackupPackageCodec {
       digests: BackupDigests(package: packageDigest, sections: sectionDigests),
       data: data,
       auditArchiveId: auditArchiveId,
+      deviceSettings: normalizedDeviceSettings,
     );
   }
 

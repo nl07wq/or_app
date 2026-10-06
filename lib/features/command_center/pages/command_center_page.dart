@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/navigation/app_routes.dart';
@@ -20,7 +22,8 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../../operation_date/state/finalize_date_transition.dart';
-import '../../operation_date/widgets/operation_date_flip_calendar.dart';
+import '../../operation_date/widgets/operation_date_nixie_display.dart';
+import '../../operation_date/widgets/operation_date_presentation_switcher.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../training/models/training_summary_state.dart';
 import '../../training/services/training_status_weight_resolver.dart';
@@ -32,6 +35,7 @@ import '../services/daily_command_read_model_builder.dart';
 import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
+import '../widgets/command_center_hud_sign.dart';
 import '../widgets/semantic_help_popover.dart';
 import '../../report_sync/models/morning_brief_state.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
@@ -152,8 +156,18 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final route = ModalRoute.of(context);
+    final canPop = route?.canPop ?? Navigator.of(context).canPop();
     return Scaffold(
-      appBar: AppBar(title: const Text('COMMAND CENTER')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        toolbarHeight: CommandCenterHudSign.height + 4,
+        titleSpacing: 8,
+        title: CommandCenterHudSign(
+          canPop: canPop,
+          onBack: canPop ? () => Navigator.of(context).maybePop() : null,
+        ),
+      ),
       body: Column(
         children: [
           _WorkspaceHeader(
@@ -444,13 +458,6 @@ class _DailyCommandContent extends StatelessWidget {
           cycleState: model.cycleState,
         ),
         AppSpacing.gapXL,
-        const SectionHeader(
-          icon: Icons.assessment_outlined,
-          title: 'DAILY ASSESSMENT',
-        ),
-        AppSpacing.gapSM,
-        DailyAssessmentView(assessment: assessment),
-        AppSpacing.gapXL,
         DailyLogSection(
           morningFact: morningFact,
           foodSummary: foodSummary,
@@ -461,6 +468,13 @@ class _DailyCommandContent extends StatelessWidget {
           onFinalizePresentationReleased: onFinalizePresentationReleased,
           onReviewCompleted: onReviewCompleted,
         ),
+        AppSpacing.gapXL,
+        const SectionHeader(
+          icon: Icons.assessment_outlined,
+          title: 'DAILY ASSESSMENT',
+        ),
+        AppSpacing.gapSM,
+        DailyAssessmentView(assessment: assessment),
         AppSpacing.gapLG,
       ],
     );
@@ -477,107 +491,157 @@ class _CurrentOperationCard extends StatelessWidget {
   final DailyCommandCycleState cycleState;
   final GlobalKey _visibleAnchorKey;
 
+  static const _datePresentationNaturalWidth =
+      OperationDateNixieDisplay.dateTileWidth * 3 +
+      OperationDateNixieDisplay.tileGap * 2;
+  static const _datePresentationWidth = _datePresentationNaturalWidth * 1.2;
+  static const _dateTileWidth = OperationDateNixieDisplay.dateTileWidth * 1.2;
+  static const _dateTileGap = OperationDateNixieDisplay.tileGap * 1.2;
+  static const _datePresentationHeight = 36.0;
+
   @override
   Widget build(BuildContext context) => OperationCard(
-    child: Row(
-      key: const ValueKey('current-operation-card-content'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          key: const ValueKey('current-operation-date-group'),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 280;
+        // Keep the narrow fit while balancing the wider date presentation
+        // against CYCLE STATE at standard and wide widths.
+        final groupGap = narrow ? AppSpacing.sm : 16.32;
+        final dateGroupWidth = narrow
+            ? 168.0
+            : constraints.maxWidth < 600
+            ? 180.0
+            : 220.0;
+        final cycleGroupWidth = narrow ? 104.0 : 120.0;
+        final dateGroup = Column(
+          key: const ValueKey('current-operation-card-content'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
+            Column(
+              key: const ValueKey('current-operation-date-group'),
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Symbols.calendar_today,
-                  key: const ValueKey('current-operation-date-heading-icon'),
-                  size: 18,
-                  color: Theme.of(context).colorScheme.primary,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Symbols.calendar_today,
+                        key: const ValueKey(
+                          'current-operation-date-heading-icon',
+                        ),
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'OPERATION DATE',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'OPERATION DATE',
-                  style: Theme.of(context).textTheme.labelLarge,
+                AppSpacing.gapSM,
+                SizedBox(
+                  key: const ValueKey('current-operation-date-bounds'),
+                  width: _datePresentationWidth,
+                  height: _datePresentationHeight,
+                  child: OperationDatePresentationSwitcher(
+                    operationDateFuture: operationDateFuture,
+                    transitionToken: 0,
+                    finalizeTransition: null,
+                    contentMode: OperationDatePresentationContentMode.dateOnly,
+                    dateTileWidth: _dateTileWidth,
+                    dateTileGap: _dateTileGap,
+                    dateVerticalPadding: EdgeInsets.zero,
+                  ),
                 ),
               ],
             ),
-            AppSpacing.gapSM,
-            OperationDateFlipCalendar(
-              operationDateFuture: operationDateFuture,
-              transitionToken: 0,
-            ),
           ],
-        ),
-        const SizedBox(width: AppSpacing.xl),
-        Expanded(
-          child: Column(
-            key: const ValueKey('current-operation-cycle-group'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Symbols.page_info,
-                      key: const ValueKey(
-                        'current-operation-cycle-heading-icon',
-                      ),
-                      size: 18,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      'CYCLE STATE',
-                      maxLines: 1,
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ],
-                ),
+        );
+        final cycleGroup = Column(
+          key: const ValueKey('current-operation-cycle-group'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Symbols.page_info,
+                    key: const ValueKey('current-operation-cycle-heading-icon'),
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'CYCLE STATE',
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ],
               ),
-              AppSpacing.gapXS,
-              SemanticHelpPopover(
-                id: 'cycle-${cycleState.name}',
-                title: cycleStateShortLabelFor(cycleState),
-                description: cycleStateHelp(cycleState),
-                visibleAnchorKey: _visibleAnchorKey,
-                child: Semantics(
-                  button: true,
-                  label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
-                  child: FittedBox(
-                    key: const ValueKey('current-operation-cycle-value'),
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        KeyedSubtree(
-                          key: _visibleAnchorKey,
-                          child: Icon(
-                            cycleStateIconFor(cycleState),
-                            key: const ValueKey('current-operation-cycle-icon'),
-                          ),
+            ),
+            AppSpacing.gapXS,
+            SemanticHelpPopover(
+              id: 'cycle-${cycleState.name}',
+              title: cycleStateShortLabelFor(cycleState),
+              description: cycleStateHelp(cycleState),
+              visibleAnchorKey: _visibleAnchorKey,
+              child: Semantics(
+                button: true,
+                label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
+                child: FittedBox(
+                  key: const ValueKey('current-operation-cycle-value'),
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      KeyedSubtree(
+                        key: _visibleAnchorKey,
+                        child: Icon(
+                          cycleStateIconFor(cycleState),
+                          key: const ValueKey('current-operation-cycle-icon'),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Text(
-                          cycleStateShortLabelFor(cycleState),
-                          key: const ValueKey('current-operation-cycle-label'),
-                          maxLines: 1,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        cycleStateShortLabelFor(cycleState),
+                        key: const ValueKey('current-operation-cycle-label'),
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
                   ),
                 ),
               ),
+            ),
+          ],
+        );
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            key: const ValueKey('current-operation-date-cycle-row'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Keep the date's three 42px tiles as the stable left column in
+              // both FLIP and date-only NIXIE modes. The cycle group owns the
+              // remaining width and can compact its internal labels if needed.
+              SizedBox(width: dateGroupWidth, child: dateGroup),
+              SizedBox(width: groupGap),
+              SizedBox(width: cycleGroupWidth, child: cycleGroup),
             ],
           ),
-        ),
-      ],
+        );
+      },
     ),
   );
 }
@@ -720,7 +784,7 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
                     ),
                   ),
                 ),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
           ),
         ),

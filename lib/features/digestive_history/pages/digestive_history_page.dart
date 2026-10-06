@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/models/digestive_event.dart';
@@ -131,7 +133,10 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DIGESTIVE HISTORY')),
+    appBar: AppBar(
+      leading: const ActionableBackButton(),
+      title: const Text('DIGESTIVE HISTORY'),
+    ),
     body: FutureBuilder<_ViewModel>(
       future: _model,
       builder: (context, snapshot) {
@@ -297,7 +302,7 @@ class _PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: selected == period,
             onSelected: (_) => onSelected(period),
-          ),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),
   );
@@ -441,7 +446,7 @@ class _DailyStatusTrend extends StatelessWidget {
               key: const ValueKey('digestive-trend-toggle'),
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ],
       ),
     );
@@ -500,7 +505,13 @@ class _Metric extends StatelessWidget {
         ),
         if (detail.isNotEmpty) ...[
           AppSpacing.gapXS,
-          Text(detail, maxLines: 1, overflow: TextOverflow.fade, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall),
+          Text(
+            detail,
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
         ],
       ],
     ),
@@ -766,7 +777,7 @@ class _BucketSection extends StatelessWidget {
               ),
               onPressed: onToggle,
               child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-            ),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
       ],
     );
@@ -981,12 +992,12 @@ class _DailyHistoryWindowState extends State<_DailyHistoryWindow> {
                 onPressed: canBack ? () => widget.onMove(-7) : null,
                 icon: const Icon(Icons.chevron_left),
                 tooltip: '前の7日間',
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
               IconButton(
                 onPressed: canForward ? () => widget.onMove(7) : null,
                 icon: const Icon(Icons.chevron_right),
                 tooltip: '次の7日間',
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
           for (final date in dates)
@@ -1059,7 +1070,7 @@ class _DailyHistoryRow extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        ).actionableFeedback(role: ActionableFeedbackRole.silent),
         if (expanded)
           Padding(
             padding: const EdgeInsets.only(

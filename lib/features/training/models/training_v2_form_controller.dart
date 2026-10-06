@@ -6,6 +6,7 @@ import '../../../core/models/training_equipment_snapshot.dart';
 import '../../../core/models/training_exercise_v2.dart';
 import '../../../core/models/training_session_v2.dart';
 import '../../../core/models/training_set_v2.dart';
+import '../services/training_exercise_identity.dart';
 
 class TrainingTimeValidationException implements Exception {
   final String message;
@@ -57,8 +58,10 @@ class TrainingV2FormController {
   String? planSourceRecordId;
   String? planSourceOperationDate;
   String? planNote;
+  final List<TrainingV2PlanAuthorityItem> planAuthorityItems = [];
 
   bool get hasPlan => planExchangeId != null;
+  bool get hasPlanAuthority => planAuthorityItems.isNotEmpty;
 
   TrainingV2FormController.newSession({DateTime? now, String? localDate})
     : assert(now == null || localDate == null),
@@ -96,7 +99,29 @@ class TrainingV2FormController {
     cooldownStretchCompleted = session.cooldownStretchCompleted;
   }
 
-  void addExercise() => exercises.add(TrainingV2ExerciseFormController());
+  TrainingV2ExerciseFormController addExercise() {
+    final exercise = TrainingV2ExerciseFormController();
+    exercises.add(exercise);
+    return exercise;
+  }
+
+  bool attachDetachedPlanForNewExercise(
+    TrainingV2ExerciseFormController exercise,
+  ) {
+    if (!hasPlanAuthority || !exercises.contains(exercise)) return false;
+    final identity = exercise.planExerciseIdentity;
+    if (identity == null) return false;
+    for (final item in planAuthorityItems) {
+      if (item.attachedExerciseInstanceId == null &&
+          item.exerciseIdentity == identity &&
+          (item.detachedAtMicros == null ||
+              exercise.createdAtMicros > item.detachedAtMicros!)) {
+        item.attach(exercise);
+        return true;
+      }
+    }
+    return false;
+  }
 
   void startTraining(DateTime now) {
     startTime = TrainingSessionV2.formatOffsetDateTime(now);
@@ -166,9 +191,17 @@ class TrainingV2FormController {
             'note': planNote,
           }
         : null,
+    if (hasPlanAuthority) 'planAuthorityVersion': 2,
+    if (hasPlanAuthority)
+      'planAuthority': {
+        'items': [for (final item in planAuthorityItems) item.toDraftState()],
+      },
     'exercises': [
       for (final exercise in exercises)
         {
+          'instanceId': exercise.instanceId,
+          'createdAtMicros': exercise.createdAtMicros,
+          'exerciseIdentity': exercise.exerciseIdentity,
           'exerciseName': exercise.exerciseName.text,
           'equipment': exercise.equipment?.toJson(),
           'equipmentSelectionMade': exercise.equipmentSelectionMade,
@@ -261,6 +294,23 @@ class TrainingV2FormController {
     planNote = planMetadata == null
         ? null
         : _draftNullableString(planMetadata, 'note');
+    planAuthorityItems.clear();
+    final authorityVersion = state['planAuthorityVersion'];
+    final rawAuthority = state['planAuthority'];
+    if (authorityVersion != null || rawAuthority != null) {
+      if (authorityVersion != 2 || rawAuthority is! Map) {
+        throw const FormatException(
+          'Invalid Active Training Draft plan authority.',
+        );
+      }
+      final authority = Map<String, Object?>.from(rawAuthority);
+      planAuthorityItems.addAll(
+        _draftMaps(
+          authority,
+          'items',
+        ).map(TrainingV2PlanAuthorityItem.fromDraftState),
+      );
+    }
     final exerciseValues = _draftMaps(state, 'exercises');
     final cardioValues = _draftMaps(state, 'cardioEntries');
     for (final exercise in exercises) {
@@ -280,7 +330,12 @@ class TrainingV2FormController {
   static TrainingV2ExerciseFormController _exerciseFromDraft(
     Map<String, Object?> value,
   ) {
-    final exercise = TrainingV2ExerciseFormController();
+    final exercise = TrainingV2ExerciseFormController(
+      instanceId:
+          _draftNullableString(value, 'instanceId') ?? _newExerciseInstanceId(),
+      createdAtMicros: _draftNullableInt(value, 'createdAtMicros'),
+      exerciseIdentity: _draftNullableString(value, 'exerciseIdentity'),
+    );
     for (final set in exercise.sets) {
       set.dispose();
     }
@@ -454,6 +509,9 @@ class TrainingV2FormController {
   }
 
   void removeExercise(TrainingV2ExerciseFormController value) {
+    for (final item in planAuthorityItems) {
+      if (item.attachedExerciseInstanceId == value.instanceId) item.detach();
+    }
     value.dispose();
     exercises.remove(value);
   }
@@ -503,6 +561,9 @@ int? _tryParseDurationSeconds(String source) {
 }
 
 class TrainingV2ExerciseFormController {
+  final String instanceId;
+  final int createdAtMicros;
+  String? exerciseIdentity;
   final exerciseName = TextEditingController();
   TrainingEquipmentSnapshot? equipment;
   bool equipmentSelectionMade;
@@ -515,14 +576,22 @@ class TrainingV2ExerciseFormController {
   final targetNotes = TextEditingController();
 
   TrainingV2ExerciseFormController({
+    String? instanceId,
+    int? createdAtMicros,
+    this.exerciseIdentity,
     Iterable<TrainingV2PlannedSetSlot> planSlots = const [],
-  }) : equipmentSelectionMade = false,
+  }) : instanceId = instanceId ?? _newExerciseInstanceId(),
+       createdAtMicros =
+           createdAtMicros ?? DateTime.now().microsecondsSinceEpoch,
+       equipmentSelectionMade = false,
        sets = [TrainingV2SetFormController()],
        _planSlots = List.of(planSlots),
        targetReps = [];
 
   TrainingV2ExerciseFormController.fromDomain(TrainingExerciseV2 exercise)
-    : equipment = exercise.equipment,
+    : instanceId = _newExerciseInstanceId(),
+      createdAtMicros = DateTime.now().microsecondsSinceEpoch,
+      equipment = exercise.equipment,
       equipmentSelectionMade = true,
       sets = exercise.sets.map(TrainingV2SetFormController.fromDomain).toList(),
       _planSlots = [],
@@ -535,6 +604,20 @@ class TrainingV2ExerciseFormController {
     evaluation.text = exercise.evaluation ?? '';
     targetWeight.text = _number(exercise.nextTarget?.targetWeightKg);
     targetNotes.text = exercise.nextTarget?.notes ?? '';
+  }
+
+  String? get planExerciseIdentity {
+    final name = exerciseName.text.trim();
+    if (name.isEmpty) return null;
+    final identity = TrainingExerciseIdentity.v2(
+      TrainingExerciseV2(
+        order: 1,
+        exerciseName: name,
+        equipment: equipment,
+        sets: const [],
+      ),
+    );
+    return '${identity.exerciseKey}|${identity.equipmentKey}';
   }
 
   void addSet() {
@@ -696,6 +779,85 @@ class TrainingV2PlannedSetSlot {
     return set;
   }
 }
+
+/// Immutable prescribed payload plus its single active execution attachment.
+/// This is persisted only in the active draft; formal Training records retain
+/// their existing execution-only contract.
+class TrainingV2PlanAuthorityItem {
+  final String planItemId;
+  final String exerciseIdentity;
+  final String exerciseName;
+  final TrainingEquipmentSnapshot? equipment;
+  final List<TrainingV2PlannedSetSlot> planSlots;
+  String? attachedExerciseInstanceId;
+  int? detachedAtMicros;
+
+  TrainingV2PlanAuthorityItem({
+    required this.planItemId,
+    required this.exerciseIdentity,
+    required this.exerciseName,
+    required this.equipment,
+    required Iterable<TrainingV2PlannedSetSlot> planSlots,
+    this.attachedExerciseInstanceId,
+    this.detachedAtMicros,
+  }) : planSlots = List.unmodifiable(List.of(planSlots));
+
+  factory TrainingV2PlanAuthorityItem.fromDraftState(
+    Map<String, Object?> value,
+  ) => TrainingV2PlanAuthorityItem(
+    planItemId: _draftString(value, 'planItemId'),
+    exerciseIdentity: _draftString(value, 'exerciseIdentity'),
+    exerciseName: _draftString(value, 'exerciseName'),
+    equipment: _draftEquipment(value['equipment']),
+    planSlots: _draftMaps(
+      value,
+      'planSlots',
+    ).map(TrainingV2PlannedSetSlot.fromDraftState),
+    attachedExerciseInstanceId: _draftNullableString(
+      value,
+      'attachedExerciseInstanceId',
+    ),
+    detachedAtMicros: _draftNullableInt(value, 'detachedAtMicros'),
+  );
+
+  Map<String, Object?> toDraftState() => {
+    'planItemId': planItemId,
+    'exerciseIdentity': exerciseIdentity,
+    'exerciseName': exerciseName,
+    'equipment': equipment?.toJson(),
+    'planSlots': [for (final slot in planSlots) slot.toDraftState()],
+    'attachedExerciseInstanceId': attachedExerciseInstanceId,
+    'detachedAtMicros': detachedAtMicros,
+  };
+
+  void attach(TrainingV2ExerciseFormController exercise) {
+    attachedExerciseInstanceId = exercise.instanceId;
+    detachedAtMicros = null;
+    exercise.exerciseIdentity = exerciseIdentity;
+    exercise.exerciseName.text = exerciseName;
+    exercise.equipment = equipment;
+    exercise.equipmentSelectionMade = true;
+    for (final set in exercise.sets) {
+      set.dispose();
+    }
+    exercise.sets
+      ..clear()
+      ..addAll(planSlots.map((slot) => slot.createExecution()));
+    exercise._planSlots
+      ..clear()
+      ..addAll(planSlots);
+  }
+
+  void detach() {
+    attachedExerciseInstanceId = null;
+    detachedAtMicros = DateTime.now().microsecondsSinceEpoch;
+  }
+}
+
+int _exerciseInstanceSequence = 0;
+
+String _newExerciseInstanceId() =>
+    'exercise-${DateTime.now().microsecondsSinceEpoch}-${_exerciseInstanceSequence++}';
 
 class TrainingV2CardioFormController {
   CardioPurpose? purpose;

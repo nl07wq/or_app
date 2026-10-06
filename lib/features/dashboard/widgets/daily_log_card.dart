@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
@@ -27,6 +29,10 @@ import 'backup_prompt_dialog.dart';
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
 typedef DailyLogFinalizeCompleted = Future<void> Function();
+
+const finalizeDayConfirmationCopy =
+    'DAILY DEBRIEFを含むこの日の記録を確定して\n'
+    'OPERATION DATEを翌日へ進めますか？';
 
 /// The single post-finalize Backup presentation used by both Dashboard and
 /// Command Center. A completed finalize crosses asynchronous formal writes,
@@ -91,11 +97,11 @@ Future<bool> presentWeeklyReportInvitationForFinalizedDate({
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: const Text('NO'),
-        ),
+        ).actionableFeedback(),
         FilledButton(
           onPressed: () => Navigator.pop(context, true),
           child: const Text('YES'),
-        ),
+        ).actionableFeedback(),
       ],
     ),
   );
@@ -224,19 +230,16 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('FINALIZE DAY'),
-        content: const Text(
-          'Daily Debriefを含むこの日の記録を確定して\n'
-          'Operation Dateを翌日へ進めますか？',
-        ),
+        content: const Text(finalizeDayConfirmationCopy),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('YES'),
-          ),
+          ).actionableFeedback(),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('NO'),
-          ),
+          ).actionableFeedback(),
         ],
       ),
     );
@@ -580,7 +583,7 @@ class _DailyLogEntryStatus extends StatelessWidget {
               ),
             ),
           ),
-        ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -746,17 +749,23 @@ class _DailyCloseActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(text, style: AppTextStyles.label),
-        ),
-      ),
+      child:
+          ElevatedButton(
+            onPressed: onPressed,
+            style: ElevatedButton.styleFrom(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(text, style: AppTextStyles.label),
+            ),
+          ).actionableFeedback(
+            enabled: true,
+            result: onPressed == null
+                ? ActionableFeedbackResult.unavailable
+                : ActionableFeedbackResult.accepted,
+          ),
     );
   }
 }

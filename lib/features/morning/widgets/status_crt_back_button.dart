@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/global_touch_ripple.dart';
+
 /// A standard Back affordance rendered with the STATUS CRT phosphor language.
 /// System and browser navigation remain under Navigator's normal control.
 class StatusCrtBackButton extends StatefulWidget {
@@ -71,7 +73,7 @@ class _StatusCrtBackButtonState extends State<StatusCrtBackButton>
             },
           ),
         ),
-      ),
+      ).actionableFeedback(role: ActionableFeedbackRole.exit),
     );
   }
 }
