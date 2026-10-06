@@ -4,7 +4,11 @@ enum ReminderRecurrence {
   weekdays,
   weekends,
   weekly,
+
+  /// Historical every-14-days records. New editor selections use
+  /// [monthlyWeekday] so existing saved meaning is never reinterpreted.
   biweekly,
+  monthlyWeekday,
   monthly,
   yearly,
   customWeekdays,
@@ -23,10 +27,12 @@ class ReminderDefinition {
     required this.updatedAt,
     this.note,
     this.time,
+    this.endTime,
     this.recurrenceEnd,
     this.weekdays = const [],
     this.monthDays = const [],
     this.monthEnd = false,
+    this.monthWeek,
     this.effectiveFrom,
     this.retiredAt,
   });
@@ -37,11 +43,13 @@ class ReminderDefinition {
   final String startDate;
   final bool allDay;
   final String? time;
+  final String? endTime;
   final ReminderRecurrence recurrence;
   final String? recurrenceEnd;
   final List<int> weekdays;
   final List<int> monthDays;
   final bool monthEnd;
+  final int? monthWeek;
   final bool active;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -53,17 +61,19 @@ class ReminderDefinition {
 
   Map<String, Object?> toRecord() => {
     'id': id,
-    'recordVersion': 1,
+    'recordVersion': 2,
     'title': title,
     if (note != null) 'note': note,
     'startDate': startDate,
     'allDay': allDay,
     if (time != null) 'time': time,
+    if (endTime != null) 'endTime': endTime,
     'recurrence': recurrence.name,
     if (recurrenceEnd != null) 'recurrenceEnd': recurrenceEnd,
     if (weekdays.isNotEmpty) 'weekdays': weekdays,
     if (monthDays.isNotEmpty) 'monthDays': monthDays,
     if (monthEnd) 'monthEnd': true,
+    if (monthWeek != null) 'monthWeek': monthWeek,
     'active': active,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'updatedAt': updatedAt.toUtc().toIso8601String(),
@@ -101,6 +111,12 @@ class ReminderDefinition {
       return List.unmodifiable(raw.cast<int>().toSet().toList()..sort());
     }
 
+    final monthWeek = value['monthWeek'];
+    if (monthWeek != null &&
+        (monthWeek is! int || monthWeek < 1 || monthWeek > 5)) {
+      throw const FormatException('Invalid reminder month week.');
+    }
+
     return ReminderDefinition(
       id: id,
       title: title.trim(),
@@ -108,6 +124,7 @@ class ReminderDefinition {
       startDate: startDate,
       allDay: value['allDay'] != false,
       time: value['time'] as String?,
+      endTime: value['endTime'] as String?,
       recurrence: ReminderRecurrence.values.firstWhere(
         (item) => item.name == recurrence,
         orElse: () =>
@@ -117,6 +134,7 @@ class ReminderDefinition {
       weekdays: readInts(value['weekdays'], 1, 7),
       monthDays: readInts(value['monthDays'], 1, 31),
       monthEnd: value['monthEnd'] == true,
+      monthWeek: monthWeek as int?,
       active: value['active'] != false,
       createdAt: created.toUtc(),
       updatedAt: updated.toUtc(),

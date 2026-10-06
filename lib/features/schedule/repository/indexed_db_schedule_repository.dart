@@ -91,6 +91,7 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
               recurrenceWeekdays: record.recurrenceWeekdays,
               recurrenceMonthDays: record.recurrenceMonthDays,
               recurrenceMonthEnd: record.recurrenceMonthEnd,
+              recurrenceMonthWeek: record.recurrenceMonthWeek,
               seriesId: record.seriesId,
               occurrenceDate: record.occurrenceDate,
               occurrenceExcluded: record.occurrenceExcluded,

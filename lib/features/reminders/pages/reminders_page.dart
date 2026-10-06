@@ -6,6 +6,7 @@ import '../../../core/widgets/global_touch_ripple.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
+import '../../schedule/widgets/shared_date_time_recurrence_editor.dart';
 import '../models/reminder_definition.dart';
 import '../models/reminder_occurrence.dart';
 import '../services/legacy_reminder_migration_service.dart';
@@ -200,11 +201,15 @@ class _RemindersPageState extends State<RemindersPage>
         startDate: _dateKey(draft.date),
         allDay: !draft.timed,
         time: draft.timed ? _timeKey(draft.time) : null,
+        endTime: draft.timed && draft.endTime != null
+            ? _timeKey(draft.endTime!)
+            : null,
         recurrence: draft.recurrence,
         recurrenceEnd: draft.end == null ? null : _dateKey(draft.end!),
         weekdays: draft.weekdays,
         monthDays: draft.monthDays,
         monthEnd: draft.monthEnd,
+        monthWeek: draft.monthWeek,
         active: true,
         createdAt: now,
         updatedAt: now,
@@ -229,11 +234,13 @@ class _RemindersPageState extends State<RemindersPage>
         startDate: previous.startDate,
         allDay: previous.allDay,
         time: previous.time,
+        endTime: previous.endTime,
         recurrence: previous.recurrence,
         recurrenceEnd: previous.recurrenceEnd,
         weekdays: previous.weekdays,
         monthDays: previous.monthDays,
         monthEnd: previous.monthEnd,
+        monthWeek: previous.monthWeek,
         active: false,
         createdAt: previous.createdAt,
         updatedAt: boundary,
@@ -249,11 +256,15 @@ class _RemindersPageState extends State<RemindersPage>
         startDate: _dateKey(draft.date),
         allDay: !draft.timed,
         time: draft.timed ? _timeKey(draft.time) : null,
+        endTime: draft.timed && draft.endTime != null
+            ? _timeKey(draft.endTime!)
+            : null,
         recurrence: draft.recurrence,
         recurrenceEnd: draft.end == null ? null : _dateKey(draft.end!),
         weekdays: draft.weekdays,
         monthDays: draft.monthDays,
         monthEnd: draft.monthEnd,
+        monthWeek: draft.monthWeek,
         active: true,
         createdAt: boundary,
         updatedAt: boundary,
@@ -912,12 +923,14 @@ class _ReminderEditorState extends State<_ReminderEditor> {
   final _note = TextEditingController();
   DateTime _date = DateUtils.dateOnly(DateTime.now());
   TimeOfDay _time = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay? _endTime;
   bool _timed = false;
   ReminderRecurrence _recurrence = ReminderRecurrence.none;
   DateTime? _end;
   final Set<int> _weekdays = <int>{};
   final Set<int> _monthDays = <int>{};
   bool _monthEnd = false;
+  int? _monthWeek;
   String? _error;
   late final _ReminderEditorBaseline _baseline;
   bool _allowPop = false;
@@ -931,6 +944,9 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       _date = DateTime.parse(initial.startDate);
       _timed = !initial.allDay;
       _time = timeOfDayFromClock(initial.time);
+      _endTime = initial.endTime == null
+          ? null
+          : timeOfDayFromClock(initial.endTime);
       _recurrence = initial.recurrence;
       _end = initial.recurrenceEnd == null
           ? null
@@ -938,18 +954,21 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       _weekdays.addAll(initial.weekdays);
       _monthDays.addAll(initial.monthDays);
       _monthEnd = initial.monthEnd;
+      _monthWeek = initial.monthWeek;
     }
     _baseline = _ReminderEditorBaseline(
       title: _title.text,
       note: _note.text,
       date: _date,
       time: _time,
+      endTime: _endTime,
       timed: _timed,
       recurrence: _recurrence,
       end: _end,
       weekdays: _weekdays,
       monthDays: _monthDays,
       monthEnd: _monthEnd,
+      monthWeek: _monthWeek,
     );
   }
 
@@ -965,12 +984,14 @@ class _ReminderEditorState extends State<_ReminderEditor> {
     note: _note.text,
     date: _date,
     time: _time,
+    endTime: _endTime,
     timed: _timed,
     recurrence: _recurrence,
     end: _end,
     weekdays: _weekdays,
     monthDays: _monthDays,
     monthEnd: _monthEnd,
+    monthWeek: _monthWeek,
   );
 
   Future<void> _requestExit() async {
@@ -1031,23 +1052,24 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         date: _date,
         timed: _timed,
         time: _time,
+        endTime: _endTime,
         recurrence: _recurrence,
         end: _end,
         weekdays: weekdays,
         monthDays: monthDays,
         monthEnd:
             _recurrence == ReminderRecurrence.customMonthDays && _monthEnd,
+        monthWeek: _recurrence == ReminderRecurrence.monthlyWeekday
+            ? (_monthWeek ?? ((_date.day - 1) ~/ 7) + 1)
+            : null,
       ),
     );
   }
 
-  List<int> get _effectiveWeekdays => switch (_recurrence) {
-    ReminderRecurrence.weekly || ReminderRecurrence.biweekly =>
-      _weekdays.isEmpty ? [_date.weekday] : _weekdays.toList()
-        ..sort(),
-    ReminderRecurrence.customWeekdays => _weekdays.toList()..sort(),
-    _ => const [],
-  };
+  List<int> get _effectiveWeekdays =>
+      _recurrence == ReminderRecurrence.customWeekdays
+      ? (_weekdays.toList()..sort())
+      : const [];
 
   List<int> get _effectiveMonthDays => switch (_recurrence) {
     ReminderRecurrence.monthly =>
@@ -1056,16 +1078,6 @@ class _ReminderEditorState extends State<_ReminderEditor> {
     ReminderRecurrence.customMonthDays => _monthDays.toList()..sort(),
     _ => const [],
   };
-
-  Future<void> _pickDate({required bool end}) async {
-    final value = await showDatePicker(
-      context: context,
-      firstDate: _date,
-      lastDate: DateTime(2100),
-      initialDate: end ? (_end ?? _date) : _date,
-    );
-    if (value != null) setState(() => end ? _end = value : _date = value);
-  }
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -1114,61 +1126,42 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'メモ'),
               ).inputFeedback(),
-              ListTile(
-                title: Text('日付  ${_date.year}/${_date.month}/${_date.day}'),
-                onTap: () => _pickDate(end: false),
-              ).inputFeedback(),
-              SwitchListTile(
-                title: const Text('時刻'),
-                value: _timed,
-                onChanged: (value) => setState(() => _timed = value),
-              ).inputFeedback(),
-              if (_timed)
-                ListTile(
-                  title: Text('時刻  ${_time.format(context)}'),
-                  onTap: () async {
-                    final value = await showSharedTimePicker(
-                      context,
-                      initialTime: _time,
-                    );
-                    if (value != null) setState(() => _time = value);
-                  },
-                ).inputFeedback(),
-              DropdownButtonFormField<ReminderRecurrence>(
-                initialValue: _recurrence,
-                decoration: const InputDecoration(labelText: '繰り返し'),
-                items: ReminderRecurrence.values
-                    .map(
-                      (value) => DropdownMenuItem(
-                        value: value,
-                        child: Text(_recurrenceLabel(value)),
-                      ),
-                    )
-                    .toList(),
+              SharedDateTimeEditor(
+                date: _date,
+                allDay: !_timed,
+                startTime: _timed ? _time : null,
+                endTime: _timed ? _endTime : null,
+                onDateChanged: (value) => setState(() => _date = value),
+                onAllDayChanged: (value) => setState(() => _timed = !value),
+                onStartTimeChanged: (value) => setState(
+                  () => _time = value ?? const TimeOfDay(hour: 9, minute: 0),
+                ),
+                onEndTimeChanged: (value) => setState(() => _endTime = value),
+              ),
+              SharedRecurrenceEditor(
+                startDate: _date,
+                value: SharedRecurrenceValue(
+                  recurrence: _recurrence,
+                  end: _end,
+                  weekdays: _weekdays,
+                  monthDays: _monthDays,
+                  monthEnd: _monthEnd,
+                  monthWeek: _monthWeek,
+                ),
                 onChanged: (value) => setState(() {
-                  _recurrence = value!;
+                  _recurrence = value.recurrence;
+                  _end = value.end;
+                  _weekdays
+                    ..clear()
+                    ..addAll(value.weekdays);
+                  _monthDays
+                    ..clear()
+                    ..addAll(value.monthDays);
+                  _monthEnd = value.monthEnd;
+                  _monthWeek = value.monthWeek;
                   _error = null;
                 }),
-              ).inputFeedback(),
-              if (_recurrence != ReminderRecurrence.none) ...[
-                const SizedBox(height: 12),
-                Text('繰り返しの設定', style: Theme.of(context).textTheme.titleSmall),
-                _recurrenceSettings(),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('終了日を指定する'),
-                  value: _end != null,
-                  onChanged: (value) =>
-                      setState(() => _end = value ? _date : null),
-                ).inputFeedback(),
-                if (_end != null)
-                  ListTile(
-                    title: Text(
-                      '繰り返しの終了  ${_end!.year}/${_end!.month}/${_end!.day}',
-                    ),
-                    onTap: () => _pickDate(end: true),
-                  ).inputFeedback(),
-              ],
+              ),
               if (_error != null)
                 Text(
                   _error!,
@@ -1187,77 +1180,6 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       ),
     ),
   );
-
-  Widget _recurrenceSettings() {
-    final weekdayRule =
-        _recurrence == ReminderRecurrence.weekly ||
-        _recurrence == ReminderRecurrence.biweekly ||
-        _recurrence == ReminderRecurrence.customWeekdays;
-    final monthRule = _recurrence == ReminderRecurrence.customMonthDays;
-    if (weekdayRule) {
-      return Wrap(
-        spacing: 6,
-        children: List.generate(7, (index) {
-          final day = index + 1;
-          final selected =
-              (_weekdays.isEmpty &&
-                  _recurrence != ReminderRecurrence.customWeekdays
-              ? _date.weekday == day
-              : _weekdays.contains(day));
-          return FilterChip(
-            label: Text(_weekdayLabel(day)),
-            selected: selected,
-            onSelected: (value) => setState(() {
-              if (value) {
-                _weekdays.add(day);
-              } else {
-                _weekdays.remove(day);
-              }
-              _error = null;
-            }),
-          ).inputFeedback();
-        }),
-      );
-    }
-    if (monthRule) {
-      return Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        children: [
-          ...List.generate(31, (index) {
-            final day = index + 1;
-            final selected =
-                (_monthDays.isEmpty &&
-                    _recurrence != ReminderRecurrence.customMonthDays
-                ? _date.day == day
-                : _monthDays.contains(day));
-            return FilterChip(
-              label: Text('$day'),
-              selected: selected,
-              onSelected: (value) => setState(() {
-                if (value) {
-                  _monthDays.add(day);
-                } else {
-                  _monthDays.remove(day);
-                }
-                _error = null;
-              }),
-            ).inputFeedback();
-          }),
-          if (_recurrence == ReminderRecurrence.customMonthDays)
-            FilterChip(
-              label: const Text('月末'),
-              selected: _monthEnd,
-              onSelected: (value) => setState(() {
-                _monthEnd = value;
-                _error = null;
-              }),
-            ).inputFeedback(),
-        ],
-      );
-    }
-    return Text(_recurrenceDescription(_recurrence, _date));
-  }
 }
 
 class _ReminderDraft {
@@ -1267,22 +1189,26 @@ class _ReminderDraft {
     required this.date,
     required this.timed,
     required this.time,
+    this.endTime,
     required this.recurrence,
     this.end,
     this.weekdays = const [],
     this.monthDays = const [],
     this.monthEnd = false,
+    this.monthWeek,
   });
   final String title;
   final String? note;
   final DateTime date;
   final bool timed;
   final TimeOfDay time;
+  final TimeOfDay? endTime;
   final ReminderRecurrence recurrence;
   final DateTime? end;
   final List<int> weekdays;
   final List<int> monthDays;
   final bool monthEnd;
+  final int? monthWeek;
 }
 
 class _ReminderEditorBaseline {
@@ -1291,12 +1217,14 @@ class _ReminderEditorBaseline {
     required this.note,
     required this.date,
     required this.time,
+    required this.endTime,
     required this.timed,
     required this.recurrence,
     required this.end,
     required Set<int> weekdays,
     required Set<int> monthDays,
     required this.monthEnd,
+    required this.monthWeek,
   }) : weekdays = Set.unmodifiable(weekdays),
        monthDays = Set.unmodifiable(monthDays);
 
@@ -1304,35 +1232,41 @@ class _ReminderEditorBaseline {
   final String note;
   final DateTime date;
   final TimeOfDay time;
+  final TimeOfDay? endTime;
   final bool timed;
   final ReminderRecurrence recurrence;
   final DateTime? end;
   final Set<int> weekdays;
   final Set<int> monthDays;
   final bool monthEnd;
+  final int? monthWeek;
 
   bool matches({
     required String title,
     required String note,
     required DateTime date,
     required TimeOfDay time,
+    required TimeOfDay? endTime,
     required bool timed,
     required ReminderRecurrence recurrence,
     required DateTime? end,
     required Set<int> weekdays,
     required Set<int> monthDays,
     required bool monthEnd,
+    required int? monthWeek,
   }) =>
       this.title == title &&
       this.note == note &&
       this.date == date &&
       this.time == time &&
+      this.endTime == endTime &&
       this.timed == timed &&
       this.recurrence == recurrence &&
       this.end == end &&
       _sameValues(this.weekdays, weekdays) &&
       _sameValues(this.monthDays, monthDays) &&
-      this.monthEnd == monthEnd;
+      this.monthEnd == monthEnd &&
+      this.monthWeek == monthWeek;
 
   static bool _sameValues(Set<int> first, Set<int> second) =>
       first.length == second.length && first.containsAll(second);
@@ -1371,11 +1305,13 @@ ReminderDefinition _withRecurrenceEnd(
     startDate: definition.startDate,
     allDay: definition.allDay,
     time: definition.time,
+    endTime: definition.endTime,
     recurrence: definition.recurrence,
     recurrenceEnd: _dateKey(effectiveEnd),
     weekdays: definition.weekdays,
     monthDays: definition.monthDays,
     monthEnd: definition.monthEnd,
+    monthWeek: definition.monthWeek,
     active: definition.active,
     createdAt: definition.createdAt,
     updatedAt: updatedAt,
@@ -1391,6 +1327,7 @@ String _recurrenceLabel(ReminderRecurrence value) => switch (value) {
   ReminderRecurrence.weekends => '週末',
   ReminderRecurrence.weekly => '毎週',
   ReminderRecurrence.biweekly => '隔週',
+  ReminderRecurrence.monthlyWeekday => '隔週',
   ReminderRecurrence.monthly => '毎月',
   ReminderRecurrence.yearly => '毎年',
   ReminderRecurrence.customWeekdays => '曜日指定',
@@ -1414,6 +1351,8 @@ String _recurrenceSummary(ReminderDefinition definition) {
   return switch (definition.recurrence) {
     ReminderRecurrence.weekly => '$label  ${_weekdayLabel(start.weekday)}曜日',
     ReminderRecurrence.biweekly => '$label  ${_weekdayLabel(start.weekday)}曜日',
+    ReminderRecurrence.monthlyWeekday =>
+      '$label  第${definition.monthWeek ?? ((start.day - 1) ~/ 7) + 1}${_weekdayLabel(start.weekday)}曜日',
     ReminderRecurrence.monthly => '$label  ${start.day}日',
     ReminderRecurrence.yearly => '$label  ${start.month}月${start.day}日',
     _ => label,
@@ -1422,12 +1361,3 @@ String _recurrenceSummary(ReminderDefinition definition) {
 
 String _weekdayLabel(int day) =>
     const ['月', '火', '水', '木', '金', '土', '日'][day - 1];
-
-String _recurrenceDescription(ReminderRecurrence recurrence, DateTime date) =>
-    switch (recurrence) {
-      ReminderRecurrence.daily => '開始日から毎日',
-      ReminderRecurrence.weekdays => '月〜金',
-      ReminderRecurrence.weekends => '土・日',
-      ReminderRecurrence.yearly => '毎年 ${date.month}月${date.day}日',
-      _ => '',
-    };

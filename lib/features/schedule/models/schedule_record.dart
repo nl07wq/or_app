@@ -22,6 +22,7 @@ class ScheduleRecord {
     this.recurrenceWeekdays = const [],
     this.recurrenceMonthDays = const [],
     this.recurrenceMonthEnd = false,
+    this.recurrenceMonthWeek,
     this.seriesId,
     this.occurrenceDate,
     this.occurrenceExcluded = false,
@@ -45,6 +46,7 @@ class ScheduleRecord {
   final List<int> recurrenceWeekdays;
   final List<int> recurrenceMonthDays;
   final bool recurrenceMonthEnd;
+  final int? recurrenceMonthWeek;
 
   /// A recurring definition owns one logical series. Individual overrides and
   /// exclusions carry its id plus the original scheduled date.
@@ -61,7 +63,7 @@ class ScheduleRecord {
 
   Map<String, Object?> toRecord() => {
     'id': id,
-    'recordVersion': 3,
+    'recordVersion': 4,
     'localDate': localDate,
     'type': type.name,
     'title': title,
@@ -78,6 +80,7 @@ class ScheduleRecord {
     if (recurrenceMonthDays.isNotEmpty)
       'recurrenceMonthDays': recurrenceMonthDays,
     if (recurrenceMonthEnd) 'recurrenceMonthEnd': true,
+    if (recurrenceMonthWeek != null) 'recurrenceMonthWeek': recurrenceMonthWeek,
     if (seriesId != null) 'seriesId': seriesId,
     if (occurrenceDate != null) 'occurrenceDate': occurrenceDate,
     if (occurrenceExcluded) 'occurrenceExcluded': true,
@@ -117,6 +120,14 @@ class ScheduleRecord {
       return List.unmodifiable(raw.cast<int>().toSet().toList()..sort());
     }
 
+    final recurrenceMonthWeek = record['recurrenceMonthWeek'];
+    if (recurrenceMonthWeek != null &&
+        (recurrenceMonthWeek is! int ||
+            recurrenceMonthWeek < 1 ||
+            recurrenceMonthWeek > 5)) {
+      throw const FormatException('Invalid schedule recurrence month week.');
+    }
+
     final recurrenceName = record['recurrence'];
     return ScheduleRecord(
       id: id,
@@ -148,6 +159,7 @@ class ScheduleRecord {
       recurrenceWeekdays: ints(record['recurrenceWeekdays'], 1, 7),
       recurrenceMonthDays: ints(record['recurrenceMonthDays'], 1, 31),
       recurrenceMonthEnd: record['recurrenceMonthEnd'] == true,
+      recurrenceMonthWeek: recurrenceMonthWeek as int?,
       seriesId: record['seriesId'] as String?,
       occurrenceDate: record['occurrenceDate'] as String?,
       occurrenceExcluded: record['occurrenceExcluded'] == true,

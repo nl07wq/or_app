@@ -19,6 +19,7 @@ import '../../reminders/models/reminder_definition.dart';
 import '../../reminders/services/legacy_reminder_migration_service.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
 import '../widgets/shared_time_picker.dart';
+import '../widgets/shared_date_time_recurrence_editor.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
@@ -47,6 +48,7 @@ ScheduleRecord _projectReminder(ReminderOccurrence occurrence) =>
       kind: ScheduleEntryKind.reminder,
       allDay: occurrence.definition.allDay,
       startTime: occurrence.definition.time,
+      endTime: occurrence.definition.endTime,
       memo: occurrence.definition.note,
       completed: occurrence.status == ReminderOccurrenceStatus.completed,
       createdAt: occurrence.definition.createdAt,
@@ -59,19 +61,6 @@ String _scheduleTypeLabel(ScheduleType value) => switch (value) {
   ScheduleType.appointment => 'アポイント',
   ScheduleType.training => 'トレーニング',
   ScheduleType.other => 'その他',
-};
-
-String _scheduleRecurrenceLabel(ReminderRecurrence value) => switch (value) {
-  ReminderRecurrence.none => 'なし',
-  ReminderRecurrence.daily => '毎日',
-  ReminderRecurrence.weekdays => '平日',
-  ReminderRecurrence.weekends => '週末',
-  ReminderRecurrence.weekly => '毎週',
-  ReminderRecurrence.biweekly => '隔週',
-  ReminderRecurrence.monthly => '毎月',
-  ReminderRecurrence.yearly => '毎年',
-  ReminderRecurrence.customWeekdays => '曜日指定（開始曜日）',
-  ReminderRecurrence.customMonthDays => '日付指定（開始日）',
 };
 
 class _CalendarPageState extends State<CalendarPage> {
@@ -542,6 +531,7 @@ class _CalendarPageState extends State<CalendarPage> {
         recurrenceWeekdays: record.recurrenceWeekdays,
         recurrenceMonthDays: record.recurrenceMonthDays,
         recurrenceMonthEnd: record.recurrenceMonthEnd,
+        recurrenceMonthWeek: record.recurrenceMonthWeek,
         seriesId: record.seriesId,
         occurrenceDate: record.occurrenceDate,
         occurrenceExcluded: record.occurrenceExcluded,
@@ -579,6 +569,7 @@ class _CalendarPageState extends State<CalendarPage> {
         recurrenceWeekdays: record.recurrenceWeekdays,
         recurrenceMonthDays: record.recurrenceMonthDays,
         recurrenceMonthEnd: record.recurrenceMonthEnd,
+        recurrenceMonthWeek: record.recurrenceMonthWeek,
         seriesId: record.seriesId,
         occurrenceDate: record.occurrenceDate,
         occurrenceExcluded: record.occurrenceExcluded,
@@ -5392,6 +5383,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
     ...?widget.record?.recurrenceMonthDays,
   };
   late bool _recurrenceMonthEnd = widget.record?.recurrenceMonthEnd ?? false;
+  late int? _recurrenceMonthWeek = widget.record?.recurrenceMonthWeek;
   late DateTime _date =
       DateTime.tryParse(widget.record?.localDate ?? '') ?? widget.initialDate;
   late final _title = TextEditingController(text: widget.record?.title ?? '');
@@ -5407,6 +5399,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
             : ''),
   );
   late final _memo = TextEditingController(text: widget.record?.memo ?? '');
+  String? _error;
   @override
   void initState() {
     super.initState();
@@ -5454,73 +5447,55 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
               onChanged: (value) => setState(() => _type = value!),
             ).inputFeedback(),
             OperationTextField(controller: _title, label: 'タイトル'),
-            TextButton(
-              onPressed: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _date,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
-                );
-                if (picked != null) setState(() => _date = picked);
-              },
-              child: Text('日付 ${_key(_date)}'),
-            ).inputFeedback(),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('終日'),
-              value: _allDay,
-              onChanged: (value) => setState(() => _allDay = value),
-            ).inputFeedback(),
-            DropdownButtonFormField<ReminderRecurrence>(
-              initialValue: _recurrence,
-              decoration: const InputDecoration(labelText: '繰り返し'),
-              items: ReminderRecurrence.values
-                  .map(
-                    (value) => DropdownMenuItem(
-                      value: value,
-                      child: Text(_scheduleRecurrenceLabel(value)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _recurrence = value!),
-            ).inputFeedback(),
-            if (_recurrence != ReminderRecurrence.none) ...[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('終了日を指定する'),
-                value: _recurrenceEnd != null,
-                onChanged: (value) =>
-                    setState(() => _recurrenceEnd = value ? _date : null),
-              ).inputFeedback(),
-              if (_recurrenceEnd != null)
-                TextButton(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _recurrenceEnd!,
-                      firstDate: _date,
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) setState(() => _recurrenceEnd = picked);
-                  },
-                  child: Text('繰り返しの終了 ${_key(_recurrenceEnd!)}'),
-                ).inputFeedback(),
-              _ScheduleRecurrenceSettings(
+            SharedDateTimeEditor(
+              date: _date,
+              allDay: _allDay,
+              startTime: _start.text.isEmpty
+                  ? null
+                  : timeOfDayFromClock(_start.text),
+              endTime: _end.text.isEmpty ? null : timeOfDayFromClock(_end.text),
+              onDateChanged: (value) => setState(() => _date = value),
+              onAllDayChanged: (value) => setState(() => _allDay = value),
+              onStartTimeChanged: (value) => setState(
+                () => _start.text = value == null
+                    ? ''
+                    : clockFromTimeOfDay(value),
+              ),
+              onEndTimeChanged: (value) => setState(
+                () =>
+                    _end.text = value == null ? '' : clockFromTimeOfDay(value),
+              ),
+            ),
+            if (_type == ScheduleType.work && !_allDay)
+              _DurationControl(label: '休憩', controller: _break),
+            SharedRecurrenceEditor(
+              startDate: _date,
+              value: SharedRecurrenceValue(
                 recurrence: _recurrence,
-                date: _date,
+                end: _recurrenceEnd,
                 weekdays: _recurrenceWeekdays,
                 monthDays: _recurrenceMonthDays,
                 monthEnd: _recurrenceMonthEnd,
-                onChanged: () => setState(() {}),
-                onMonthEndChanged: (value) =>
-                    setState(() => _recurrenceMonthEnd = value),
+                monthWeek: _recurrenceMonthWeek,
               ),
-            ],
-            if (!_allDay) _TimeControl(label: '開始', controller: _start),
-            if (!_allDay) _TimeControl(label: '終了', controller: _end),
-            if (_type == ScheduleType.work && !_allDay)
-              _DurationControl(label: '休憩', controller: _break),
+              onChanged: (value) => setState(() {
+                _recurrence = value.recurrence;
+                _recurrenceEnd = value.end;
+                _recurrenceWeekdays
+                  ..clear()
+                  ..addAll(value.weekdays);
+                _recurrenceMonthDays
+                  ..clear()
+                  ..addAll(value.monthDays);
+                _recurrenceMonthEnd = value.monthEnd;
+                _recurrenceMonthWeek = value.monthWeek;
+              }),
+            ),
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             OperationTextField(controller: _memo, label: 'メモ', maxLines: 3),
             AppSpacing.gapLG,
             OperationButton(
@@ -5536,14 +5511,24 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   );
 
   void _save() {
-    if (_title.text.trim().isEmpty) return;
+    if (_title.text.trim().isEmpty) {
+      setState(() => _error = 'タイトルを入力してください。');
+      return;
+    }
+    if (_recurrenceEnd != null &&
+        DateUtils.dateOnly(_recurrenceEnd!).isBefore(_date)) {
+      setState(() => _error = '終了日は開始日以降にしてください。');
+      return;
+    }
     if (_recurrence == ReminderRecurrence.customWeekdays &&
         _recurrenceWeekdays.isEmpty) {
+      setState(() => _error = '曜日を1つ以上選択してください。');
       return;
     }
     if (_recurrence == ReminderRecurrence.customMonthDays &&
         _recurrenceMonthDays.isEmpty &&
         !_recurrenceMonthEnd) {
+      setState(() => _error = '日付を1つ以上選択してください。');
       return;
     }
     Navigator.pop(
@@ -5577,14 +5562,8 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         completed: false,
         recurrence: _recurrence,
         recurrenceEnd: _recurrenceEnd == null ? null : _key(_recurrenceEnd!),
-        recurrenceWeekdays:
-            _recurrence == ReminderRecurrence.weekly ||
-                _recurrence == ReminderRecurrence.biweekly ||
-                _recurrence == ReminderRecurrence.customWeekdays
-            ? (_recurrenceWeekdays.isEmpty
-                    ? [_date.weekday]
-                    : _recurrenceWeekdays.toList()
-                ..sort())
+        recurrenceWeekdays: _recurrence == ReminderRecurrence.customWeekdays
+            ? (_recurrenceWeekdays.toList()..sort())
             : const [],
         recurrenceMonthDays:
             _recurrence == ReminderRecurrence.monthly ||
@@ -5597,159 +5576,14 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         recurrenceMonthEnd:
             _recurrence == ReminderRecurrence.customMonthDays &&
             _recurrenceMonthEnd,
+        recurrenceMonthWeek: _recurrence == ReminderRecurrence.monthlyWeekday
+            ? (_recurrenceMonthWeek ?? ((_date.day - 1) ~/ 7) + 1)
+            : null,
         createdAt: widget.record?.createdAt ?? DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
       ),
     );
   }
-}
-
-class _ScheduleRecurrenceSettings extends StatelessWidget {
-  const _ScheduleRecurrenceSettings({
-    required this.recurrence,
-    required this.date,
-    required this.weekdays,
-    required this.monthDays,
-    required this.monthEnd,
-    required this.onChanged,
-    required this.onMonthEndChanged,
-  });
-
-  final ReminderRecurrence recurrence;
-  final DateTime date;
-  final Set<int> weekdays;
-  final Set<int> monthDays;
-  final bool monthEnd;
-  final VoidCallback onChanged;
-  final ValueChanged<bool> onMonthEndChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final weekdayRule =
-        recurrence == ReminderRecurrence.weekly ||
-        recurrence == ReminderRecurrence.biweekly ||
-        recurrence == ReminderRecurrence.customWeekdays;
-    if (weekdayRule) {
-      return Wrap(
-        spacing: 6,
-        children: List.generate(7, (index) {
-          final day = index + 1;
-          final selected =
-              weekdays.isEmpty &&
-                  recurrence != ReminderRecurrence.customWeekdays
-              ? date.weekday == day
-              : weekdays.contains(day);
-          return FilterChip(
-            label: Text(['月', '火', '水', '木', '金', '土', '日'][index]),
-            selected: selected,
-            onSelected: (value) {
-              if (value) {
-                weekdays.add(day);
-              } else {
-                weekdays.remove(day);
-              }
-              onChanged();
-            },
-          ).inputFeedback();
-        }),
-      );
-    }
-    if (recurrence == ReminderRecurrence.customMonthDays) {
-      return Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        children: [
-          ...List.generate(31, (index) {
-            final day = index + 1;
-            return FilterChip(
-              label: Text('$day'),
-              selected: monthDays.contains(day),
-              onSelected: (value) {
-                if (value) {
-                  monthDays.add(day);
-                } else {
-                  monthDays.remove(day);
-                }
-                onChanged();
-              },
-            ).inputFeedback();
-          }),
-          FilterChip(
-            label: const Text('月末'),
-            selected: monthEnd,
-            onSelected: onMonthEndChanged,
-          ).inputFeedback(),
-        ],
-      );
-    }
-    return const SizedBox.shrink();
-  }
-}
-
-class _TimeControl extends StatefulWidget {
-  const _TimeControl({required this.label, required this.controller});
-  final String label;
-  final TextEditingController controller;
-
-  @override
-  State<_TimeControl> createState() => _TimeControlState();
-}
-
-class _TimeControlState extends State<_TimeControl> {
-  void _step(int delta) {
-    final value = _parseClock(widget.controller.text) ?? 0;
-    widget.controller.text = _formatClock((value + delta) % 1440);
-    setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(widget.label, style: Theme.of(context).textTheme.labelSmall),
-      InputFeedbackRegion(
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: () => _step(-15),
-              icon: const Icon(Icons.remove),
-            ).actionableFeedback(),
-            Expanded(
-              child: InkWell(
-                onTap: () async {
-                  final result = await showSharedTimePicker(
-                    context,
-                    initialTime: timeOfDayFromClock(
-                      widget.controller.text,
-                      fallback: const TimeOfDay(hour: 9, minute: 0),
-                    ),
-                  );
-                  if (result != null) {
-                    widget.controller.text = clockFromTimeOfDay(result);
-                    setState(() {});
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    widget.controller.text.isEmpty
-                        ? '未設定'
-                        : widget.controller.text,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ).actionableFeedback(),
-            ),
-            IconButton(
-              onPressed: () => _step(15),
-              icon: const Icon(Icons.add),
-            ).actionableFeedback(),
-          ],
-        ),
-      ),
-      const Divider(height: 1),
-    ],
-  );
 }
 
 class _ClockDial extends StatefulWidget {

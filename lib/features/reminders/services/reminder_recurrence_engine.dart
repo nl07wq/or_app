@@ -43,6 +43,10 @@ class ReminderRecurrenceEngine {
       case ReminderRecurrence.biweekly:
         return date.weekday == start.weekday &&
             date.difference(start).inDays % 14 == 0;
+      case ReminderRecurrence.monthlyWeekday:
+        return date.weekday == start.weekday &&
+            ((date.day - 1) ~/ 7) + 1 ==
+                (definition.monthWeek ?? ((start.day - 1) ~/ 7) + 1);
       case ReminderRecurrence.monthly:
         return date.day == start.day;
       case ReminderRecurrence.yearly:

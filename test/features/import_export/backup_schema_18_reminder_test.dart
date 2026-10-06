@@ -26,6 +26,8 @@ void main() {
         title: 'Daily',
         startDate: '2026-10-01',
         allDay: true,
+        time: '09:00',
+        endTime: '10:30',
         recurrence: ReminderRecurrence.daily,
         recurrenceEnd: '2026-10-05',
         active: true,
@@ -128,6 +130,12 @@ void main() {
             .singleWhere((value) => value.id == definition.id)
             .recurrenceEnd,
         '2026-10-05',
+      );
+      expect(
+        restoredDefinitions
+            .singleWhere((value) => value.id == definition.id)
+            .endTime,
+        '10:30',
       );
       final restoredMonthSlots = restoredDefinitions.singleWhere(
         (value) => value.id == monthSlots.id,

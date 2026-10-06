@@ -167,6 +167,7 @@ class ScheduleRecurrenceService {
         weekdays: series.recurrenceWeekdays,
         monthDays: series.recurrenceMonthDays,
         monthEnd: series.recurrenceMonthEnd,
+        monthWeek: series.recurrenceMonthWeek,
       );
       for (final date in _engine.datesFor(definition, range)) {
         final override = overrides['${series.effectiveSeriesId}@$date'];
@@ -192,6 +193,7 @@ class ScheduleRecurrenceService {
                 recurrenceWeekdays: series.recurrenceWeekdays,
                 recurrenceMonthDays: series.recurrenceMonthDays,
                 recurrenceMonthEnd: series.recurrenceMonthEnd,
+                recurrenceMonthWeek: series.recurrenceMonthWeek,
                 createdAt: series.createdAt,
                 updatedAt: series.updatedAt,
               ),
@@ -256,6 +258,7 @@ class ScheduleRecurrenceService {
     weekdays: series.recurrenceWeekdays,
     monthDays: series.recurrenceMonthDays,
     monthEnd: series.recurrenceMonthEnd,
+    monthWeek: series.recurrenceMonthWeek,
   );
 
   ScheduleRecord _occurrenceOverride(
@@ -305,6 +308,7 @@ class ScheduleRecurrenceService {
     recurrenceWeekdays: draft.recurrenceWeekdays,
     recurrenceMonthDays: draft.recurrenceMonthDays,
     recurrenceMonthEnd: draft.recurrenceMonthEnd,
+    recurrenceMonthWeek: draft.recurrenceMonthWeek,
     createdAt: previous.createdAt,
     updatedAt: now,
   );
@@ -337,6 +341,7 @@ class ScheduleRecurrenceService {
       recurrenceWeekdays: series.recurrenceWeekdays,
       recurrenceMonthDays: series.recurrenceMonthDays,
       recurrenceMonthEnd: series.recurrenceMonthEnd,
+      recurrenceMonthWeek: series.recurrenceMonthWeek,
       createdAt: series.createdAt,
       updatedAt: now,
     );

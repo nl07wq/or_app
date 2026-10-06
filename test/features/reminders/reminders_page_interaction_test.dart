@@ -537,16 +537,19 @@ void main() {
         expect(find.text(label), findsOneWidget);
       }
 
-      await tester.tap(find.widgetWithText(SwitchListTile, '時刻'));
+      await tester.tap(find.widgetWithText(SwitchListTile, '終日'));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('時刻  '));
+      await tester.tap(find.textContaining('開始時刻'));
       await tester.pumpAndSettle();
       expect(find.byType(TimePickerDialog), findsOneWidget);
       Navigator.of(tester.element(find.byType(TimePickerDialog))).pop();
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('月'));
-      await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
+      final save = find.widgetWithText(ElevatedButton, '保存');
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      await tester.tap(save);
       await tester.pumpAndSettle();
       final saved = (await container.reminders.findDefinitions()).single;
       expect(saved.recurrence, ReminderRecurrence.customWeekdays);
@@ -568,8 +571,11 @@ void main() {
 
     expect(find.text('月末'), findsOneWidget);
     await tester.tap(find.text('1'));
+    await tester.pump();
     await tester.tap(find.text('15'));
+    await tester.pump();
     await tester.tap(find.text('月末'));
+    await tester.pump();
     final save = find.widgetWithText(ElevatedButton, '保存');
     await tester.ensureVisible(save);
     await tester.pumpAndSettle();

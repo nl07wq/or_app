@@ -11,6 +11,7 @@ void main() {
     List<int> weekdays = const [],
     List<int> monthDays = const [],
     bool monthEnd = false,
+    int? monthWeek,
   }) => ReminderDefinition(
     id: 'r',
     title: 'Reminder',
@@ -21,6 +22,7 @@ void main() {
     weekdays: weekdays,
     monthDays: monthDays,
     monthEnd: monthEnd,
+    monthWeek: monthWeek,
     active: true,
     createdAt: DateTime.utc(2026),
     updatedAt: DateTime.utc(2026),
@@ -128,5 +130,33 @@ void main() {
     expect(engine.datesFor(monthEndDefinition(days: [30]), month(2026, 4)), [
       '2026-04-30',
     ]);
+  });
+
+  test('new monthly weekday rule keeps legacy biweekly meaning intact', () {
+    final october = DateTimeRange(
+      start: DateTime(2026, 10, 1),
+      end: DateTime(2026, 10, 31),
+    );
+    expect(
+      engine.datesFor(
+        definition(
+          recurrence: ReminderRecurrence.monthlyWeekday,
+          start: '2026-10-09',
+          monthWeek: 2,
+        ),
+        october,
+      ),
+      ['2026-10-09'],
+    );
+    expect(
+      engine.datesFor(
+        definition(
+          recurrence: ReminderRecurrence.biweekly,
+          start: '2026-10-09',
+        ),
+        october,
+      ),
+      ['2026-10-09', '2026-10-23'],
+    );
   });
 }

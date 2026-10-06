@@ -100,4 +100,24 @@ void main() {
       expect(values.last.effectiveSeriesId, 'series');
     },
   );
+
+  test('new month-week recurrence metadata survives reload', () async {
+    final database = FakeIndexedDbDatabase();
+    final repository = IndexedDbScheduleRepository(database);
+    await repository.save(
+      ScheduleRecord(
+        id: 'monthly-week',
+        localDate: '2026-10-09',
+        type: ScheduleType.personal,
+        title: 'Second Friday',
+        recurrence: ReminderRecurrence.monthlyWeekday,
+        recurrenceMonthWeek: 2,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      ),
+    );
+    final restored = await IndexedDbScheduleRepository(database).findAll();
+    expect(restored.single.recurrence, ReminderRecurrence.monthlyWeekday);
+    expect(restored.single.recurrenceMonthWeek, 2);
+  });
 }
