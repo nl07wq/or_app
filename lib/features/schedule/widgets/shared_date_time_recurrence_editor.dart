@@ -237,64 +237,86 @@ class SharedRecurrenceEditor extends StatelessWidget {
   );
 
   Widget _settings() {
+    final summary = Text(recurrenceSettingsSummary(startDate, value));
     if (value.recurrence == ReminderRecurrence.monthlyWeekday) {
       final selected = value.monthWeek ?? ((startDate.day - 1) ~/ 7) + 1;
-      return Wrap(
-        spacing: 6,
-        children: List.generate(5, (index) {
-          final week = index + 1;
-          return FilterChip(
-            label: Text('第$week'),
-            selected: selected == week,
-            onSelected: (_) => onChanged(value.copyWith(monthWeek: week)),
-          ).inputFeedback();
-        }),
-      );
-    }
-    if (value.recurrence == ReminderRecurrence.customWeekdays) {
-      return Wrap(
-        spacing: 6,
-        children: List.generate(7, (index) {
-          final weekday = index + 1;
-          final next = Set<int>.of(value.weekdays);
-          return FilterChip(
-            label: Text(const ['月', '火', '水', '木', '金', '土', '日'][index]),
-            selected: next.contains(weekday),
-            onSelected: (selected) {
-              selected ? next.add(weekday) : next.remove(weekday);
-              onChanged(value.copyWith(weekdays: next));
-            },
-          ).inputFeedback();
-        }),
-      );
-    }
-    if (value.recurrence == ReminderRecurrence.customMonthDays) {
-      return Wrap(
-        spacing: 4,
-        runSpacing: 4,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ...List.generate(31, (index) {
-            final day = index + 1;
-            final next = Set<int>.of(value.monthDays);
-            return FilterChip(
-              label: Text('$day'),
-              selected: next.contains(day),
-              onSelected: (selected) {
-                selected ? next.add(day) : next.remove(day);
-                onChanged(value.copyWith(monthDays: next));
-              },
-            ).inputFeedback();
-          }),
-          FilterChip(
-            label: const Text('月末'),
-            selected: value.monthEnd,
-            onSelected: (selected) =>
-                onChanged(value.copyWith(monthEnd: selected)),
-          ).inputFeedback(),
+          summary,
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: List.generate(5, (index) {
+              final week = index + 1;
+              return FilterChip(
+                label: Text('第$week'),
+                selected: selected == week,
+                onSelected: (_) => onChanged(value.copyWith(monthWeek: week)),
+              ).inputFeedback();
+            }),
+          ),
         ],
       );
     }
-    return const SizedBox.shrink();
+    if (value.recurrence == ReminderRecurrence.customWeekdays) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          summary,
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: List.generate(7, (index) {
+              final weekday = index + 1;
+              final next = Set<int>.of(value.weekdays);
+              return FilterChip(
+                label: Text(_weekdayLabel(weekday)),
+                selected: next.contains(weekday),
+                onSelected: (selected) {
+                  selected ? next.add(weekday) : next.remove(weekday);
+                  onChanged(value.copyWith(weekdays: next));
+                },
+              ).inputFeedback();
+            }),
+          ),
+        ],
+      );
+    }
+    if (value.recurrence == ReminderRecurrence.customMonthDays) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          summary,
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              ...List.generate(31, (index) {
+                final day = index + 1;
+                final next = Set<int>.of(value.monthDays);
+                return FilterChip(
+                  label: Text('$day'),
+                  selected: next.contains(day),
+                  onSelected: (selected) {
+                    selected ? next.add(day) : next.remove(day);
+                    onChanged(value.copyWith(monthDays: next));
+                  },
+                ).inputFeedback();
+              }),
+              FilterChip(
+                label: const Text('月末'),
+                selected: value.monthEnd,
+                onSelected: (selected) =>
+                    onChanged(value.copyWith(monthEnd: selected)),
+              ).inputFeedback(),
+            ],
+          ),
+        ],
+      );
+    }
+    return summary;
   }
 }
 
@@ -311,3 +333,47 @@ String recurrenceLabel(ReminderRecurrence value) => switch (value) {
   ReminderRecurrence.customWeekdays => '曜日指定',
   ReminderRecurrence.customMonthDays => '日付指定',
 };
+
+/// The effective user-facing rule, shared by Schedule and Reminder editors.
+/// It is intentionally derived from the current start date so changing that
+/// date cannot leave a stale weekly, monthly, or yearly description behind.
+String recurrenceSettingsSummary(
+  DateTime startDate,
+  SharedRecurrenceValue value,
+) {
+  final weekday = _weekdayLabel(startDate.weekday);
+  final week = value.monthWeek ?? ((startDate.day - 1) ~/ 7) + 1;
+  switch (value.recurrence) {
+    case ReminderRecurrence.none:
+      return '';
+    case ReminderRecurrence.daily:
+      return '開始日から毎日';
+    case ReminderRecurrence.weekdays:
+      return '月・火・水・木・金';
+    case ReminderRecurrence.weekends:
+      return '土・日';
+    case ReminderRecurrence.weekly:
+      return weekday;
+    case ReminderRecurrence.biweekly:
+      return '14日ごと・$weekday';
+    case ReminderRecurrence.monthlyWeekday:
+      return '第$week・$weekday';
+    case ReminderRecurrence.monthly:
+      return '${startDate.day}日';
+    case ReminderRecurrence.yearly:
+      return '${startDate.month}月${startDate.day}日';
+    case ReminderRecurrence.customWeekdays:
+      return value.weekdays.isEmpty
+          ? '曜日を選択してください'
+          : (value.weekdays.toList()..sort()).map(_weekdayLabel).join('・');
+    case ReminderRecurrence.customMonthDays:
+      final details = <String>[
+        ...(value.monthDays.toList()..sort()).map((day) => '$day日'),
+        if (value.monthEnd) '月末',
+      ];
+      return details.isEmpty ? '日付を選択してください' : details.join('・');
+  }
+}
+
+String _weekdayLabel(int weekday) =>
+    const ['月', '火', '水', '木', '金', '土', '日'][weekday - 1];

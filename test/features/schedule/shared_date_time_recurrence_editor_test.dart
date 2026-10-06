@@ -87,4 +87,61 @@ void main() {
     expect(find.textContaining('開始時刻'), findsNothing);
     expect(find.textContaining('終了時刻'), findsNothing);
   });
+
+  test('retains every Reminder-authoritative effective rule summary', () {
+    final friday = DateTime(2026, 10, 9);
+    String summary(
+      ReminderRecurrence recurrence, {
+      Set<int> weekdays = const <int>{},
+      Set<int> monthDays = const <int>{},
+      bool monthEnd = false,
+      int? monthWeek,
+    }) => recurrenceSettingsSummary(
+      friday,
+      SharedRecurrenceValue(
+        recurrence: recurrence,
+        weekdays: weekdays,
+        monthDays: monthDays,
+        monthEnd: monthEnd,
+        monthWeek: monthWeek,
+      ),
+    );
+
+    expect(summary(ReminderRecurrence.daily), '開始日から毎日');
+    expect(summary(ReminderRecurrence.weekdays), '月・火・水・木・金');
+    expect(summary(ReminderRecurrence.weekends), '土・日');
+    expect(summary(ReminderRecurrence.weekly), '金');
+    expect(summary(ReminderRecurrence.monthly), '9日');
+    expect(summary(ReminderRecurrence.yearly), '10月9日');
+    expect(summary(ReminderRecurrence.customWeekdays, weekdays: {1, 5}), '月・金');
+    expect(
+      summary(
+        ReminderRecurrence.customMonthDays,
+        monthDays: {1, 15},
+        monthEnd: true,
+      ),
+      '1日・15日・月末',
+    );
+  });
+
+  test('derived summaries react to start-date changes and preserve legacy', () {
+    final weekly = SharedRecurrenceValue(recurrence: ReminderRecurrence.weekly);
+    expect(recurrenceSettingsSummary(DateTime(2026, 10, 9), weekly), '金');
+    expect(recurrenceSettingsSummary(DateTime(2026, 10, 12), weekly), '月');
+    final newBiweekly = SharedRecurrenceValue(
+      recurrence: ReminderRecurrence.monthlyWeekday,
+      monthWeek: 2,
+    );
+    expect(
+      recurrenceSettingsSummary(DateTime(2026, 10, 9), newBiweekly),
+      '第2・金',
+    );
+    expect(
+      recurrenceSettingsSummary(
+        DateTime(2026, 10, 9),
+        SharedRecurrenceValue(recurrence: ReminderRecurrence.biweekly),
+      ),
+      '14日ごと・金',
+    );
+  });
 }
