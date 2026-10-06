@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/features/notifications/models/notification_configuration.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
@@ -40,6 +41,7 @@ void main() {
           brightness: .8,
           rippleEnabled: false,
           ambientCircuitEnabled: false,
+          notificationPrivacyMode: NotificationPrivacyMode.titleVisible,
           reducedMotion: ReducedMotionPreference.on,
         ),
       );
@@ -54,6 +56,10 @@ void main() {
         );
         expect(decoded.deviceSettings?['masterVolume'], .7);
         expect(decoded.deviceSettings?['ambientCircuitEnabled'], isFalse);
+        expect(
+          decoded.deviceSettings?['notificationPrivacyMode'],
+          NotificationPrivacyMode.titleVisible.name,
+        );
 
         Map<String, Object?>? restored;
         final target = FakeIndexedDbDatabase();

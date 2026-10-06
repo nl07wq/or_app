@@ -6,6 +6,7 @@ import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/section_header.dart';
+import 'package:or_app/features/notifications/widgets/notification_settings_card.dart';
 
 class DeviceSettingsPage extends StatelessWidget {
   const DeviceSettingsPage({super.key, this.controller});
@@ -94,6 +95,16 @@ class DeviceSettingsPage extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(
+            icon: Icons.notifications_outlined,
+            title: 'NOTIFICATIONS',
+          ),
+          AppSpacing.gapSM,
+          NotificationSettingsCard(
+            settings: settings,
+            onSettingsChanged: _controller.update,
           ),
           AppSpacing.gapXL,
           const SectionHeader(

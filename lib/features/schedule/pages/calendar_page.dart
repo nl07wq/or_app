@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -18,6 +19,9 @@ import '../../reminders/models/reminder_occurrence.dart';
 import '../../reminders/models/reminder_definition.dart';
 import '../../reminders/services/legacy_reminder_migration_service.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
+import '../../notifications/models/notification_configuration.dart';
+import '../../notifications/services/notification_profile_controller.dart';
+import '../../notifications/widgets/shared_notification_editor.dart';
 import '../widgets/shared_time_picker.dart';
 import '../widgets/shared_date_time_recurrence_editor.dart';
 import '../../weather/weather_models.dart';
@@ -223,6 +227,9 @@ class _CalendarPageState extends State<CalendarPage> {
       _projectedReminders = projected;
       _loading = false;
     });
+    unawaited(
+      NotificationProfileController.instance.reconcileFromRepositories(),
+    );
   }
 
   String get _selectedKey => _key(_selected);
@@ -5384,6 +5391,18 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   };
   late bool _recurrenceMonthEnd = widget.record?.recurrenceMonthEnd ?? false;
   late int? _recurrenceMonthWeek = widget.record?.recurrenceMonthWeek;
+  late final Set<int> _recurrenceMonthWeeks = {
+    ...?widget.record?.recurrenceMonthWeeks,
+    if ((widget.record?.recurrenceMonthWeeks.isEmpty ?? true) &&
+        widget.record?.recurrenceMonthWeek != null)
+      widget.record!.recurrenceMonthWeek!,
+  };
+  late NotificationConfiguration _notification = NotificationConfiguration(
+    offsetsMinutes: widget.record?.notificationOffsetsMinutes ?? const [],
+    timeZone:
+        widget.record?.notificationTimeZone ??
+        NotificationProfileController.instance.timeZone,
+  );
   late DateTime _date =
       DateTime.tryParse(widget.record?.localDate ?? '') ?? widget.initialDate;
   late final _title = TextEditingController(text: widget.record?.title ?? '');
@@ -5477,6 +5496,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                 monthDays: _recurrenceMonthDays,
                 monthEnd: _recurrenceMonthEnd,
                 monthWeek: _recurrenceMonthWeek,
+                monthWeeks: _recurrenceMonthWeeks,
               ),
               onChanged: (value) => setState(() {
                 _recurrence = value.recurrence;
@@ -5489,7 +5509,14 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                   ..addAll(value.monthDays);
                 _recurrenceMonthEnd = value.monthEnd;
                 _recurrenceMonthWeek = value.monthWeek;
+                _recurrenceMonthWeeks
+                  ..clear()
+                  ..addAll(value.monthWeeks);
               }),
+            ),
+            SharedNotificationEditor(
+              value: _notification,
+              onChanged: (value) => setState(() => _notification = value),
             ),
             if (_error != null)
               Text(
@@ -5579,6 +5606,13 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         recurrenceMonthWeek: _recurrence == ReminderRecurrence.monthlyWeekday
             ? (_recurrenceMonthWeek ?? ((_date.day - 1) ~/ 7) + 1)
             : null,
+        recurrenceMonthWeeks: _recurrence == ReminderRecurrence.monthlyWeekday
+            ? (_recurrenceMonthWeeks.isEmpty
+                  ? [((_date.day - 1) ~/ 7) + 1]
+                  : (_recurrenceMonthWeeks.toList()..sort()))
+            : const [],
+        notificationOffsetsMinutes: _notification.offsetsMinutes,
+        notificationTimeZone: _notification.timeZone,
         createdAt: widget.record?.createdAt ?? DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
       ),

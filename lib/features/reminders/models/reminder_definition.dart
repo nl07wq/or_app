@@ -33,6 +33,9 @@ class ReminderDefinition {
     this.monthDays = const [],
     this.monthEnd = false,
     this.monthWeek,
+    this.monthWeeks = const [],
+    this.notificationOffsetsMinutes = const [],
+    this.notificationTimeZone = 'Etc/UTC',
     this.effectiveFrom,
     this.retiredAt,
   });
@@ -50,6 +53,9 @@ class ReminderDefinition {
   final List<int> monthDays;
   final bool monthEnd;
   final int? monthWeek;
+  final List<int> monthWeeks;
+  final List<int> notificationOffsetsMinutes;
+  final String notificationTimeZone;
   final bool active;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -61,7 +67,7 @@ class ReminderDefinition {
 
   Map<String, Object?> toRecord() => {
     'id': id,
-    'recordVersion': 2,
+    'recordVersion': 3,
     'title': title,
     if (note != null) 'note': note,
     'startDate': startDate,
@@ -74,6 +80,10 @@ class ReminderDefinition {
     if (monthDays.isNotEmpty) 'monthDays': monthDays,
     if (monthEnd) 'monthEnd': true,
     if (monthWeek != null) 'monthWeek': monthWeek,
+    if (monthWeeks.isNotEmpty) 'monthWeeks': monthWeeks,
+    if (notificationOffsetsMinutes.isNotEmpty)
+      'notificationOffsetsMinutes': notificationOffsetsMinutes,
+    'notificationTimeZone': notificationTimeZone,
     'active': active,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'updatedAt': updatedAt.toUtc().toIso8601String(),
@@ -135,6 +145,14 @@ class ReminderDefinition {
       monthDays: readInts(value['monthDays'], 1, 31),
       monthEnd: value['monthEnd'] == true,
       monthWeek: monthWeek as int?,
+      monthWeeks: readInts(value['monthWeeks'], 1, 5),
+      notificationOffsetsMinutes: readInts(
+        value['notificationOffsetsMinutes'],
+        0,
+        525600 * 10,
+      ),
+      notificationTimeZone:
+          value['notificationTimeZone'] as String? ?? 'Etc/UTC',
       active: value['active'] != false,
       createdAt: created.toUtc(),
       updatedAt: updated.toUtc(),

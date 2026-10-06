@@ -31,6 +31,8 @@ class LegacyReminderMigrationService {
         allDay: record.allDay || record.startTime == null,
         time: record.allDay ? null : record.startTime,
         recurrence: ReminderRecurrence.none,
+        notificationOffsetsMinutes: record.notificationOffsetsMinutes,
+        notificationTimeZone: record.notificationTimeZone,
         active: true,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,

@@ -23,6 +23,9 @@ class ScheduleRecord {
     this.recurrenceMonthDays = const [],
     this.recurrenceMonthEnd = false,
     this.recurrenceMonthWeek,
+    this.recurrenceMonthWeeks = const [],
+    this.notificationOffsetsMinutes = const [],
+    this.notificationTimeZone = 'Etc/UTC',
     this.seriesId,
     this.occurrenceDate,
     this.occurrenceExcluded = false,
@@ -47,6 +50,9 @@ class ScheduleRecord {
   final List<int> recurrenceMonthDays;
   final bool recurrenceMonthEnd;
   final int? recurrenceMonthWeek;
+  final List<int> recurrenceMonthWeeks;
+  final List<int> notificationOffsetsMinutes;
+  final String notificationTimeZone;
 
   /// A recurring definition owns one logical series. Individual overrides and
   /// exclusions carry its id plus the original scheduled date.
@@ -63,7 +69,7 @@ class ScheduleRecord {
 
   Map<String, Object?> toRecord() => {
     'id': id,
-    'recordVersion': 4,
+    'recordVersion': 5,
     'localDate': localDate,
     'type': type.name,
     'title': title,
@@ -81,6 +87,11 @@ class ScheduleRecord {
       'recurrenceMonthDays': recurrenceMonthDays,
     if (recurrenceMonthEnd) 'recurrenceMonthEnd': true,
     if (recurrenceMonthWeek != null) 'recurrenceMonthWeek': recurrenceMonthWeek,
+    if (recurrenceMonthWeeks.isNotEmpty)
+      'recurrenceMonthWeeks': recurrenceMonthWeeks,
+    if (notificationOffsetsMinutes.isNotEmpty)
+      'notificationOffsetsMinutes': notificationOffsetsMinutes,
+    'notificationTimeZone': notificationTimeZone,
     if (seriesId != null) 'seriesId': seriesId,
     if (occurrenceDate != null) 'occurrenceDate': occurrenceDate,
     if (occurrenceExcluded) 'occurrenceExcluded': true,
@@ -160,6 +171,14 @@ class ScheduleRecord {
       recurrenceMonthDays: ints(record['recurrenceMonthDays'], 1, 31),
       recurrenceMonthEnd: record['recurrenceMonthEnd'] == true,
       recurrenceMonthWeek: recurrenceMonthWeek as int?,
+      recurrenceMonthWeeks: ints(record['recurrenceMonthWeeks'], 1, 5),
+      notificationOffsetsMinutes: ints(
+        record['notificationOffsetsMinutes'],
+        0,
+        525600 * 10,
+      ),
+      notificationTimeZone:
+          record['notificationTimeZone'] as String? ?? 'Etc/UTC',
       seriesId: record['seriesId'] as String?,
       occurrenceDate: record['occurrenceDate'] as String?,
       occurrenceExcluded: record['occurrenceExcluded'] == true,

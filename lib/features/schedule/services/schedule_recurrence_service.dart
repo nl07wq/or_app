@@ -168,6 +168,7 @@ class ScheduleRecurrenceService {
         monthDays: series.recurrenceMonthDays,
         monthEnd: series.recurrenceMonthEnd,
         monthWeek: series.recurrenceMonthWeek,
+        monthWeeks: series.recurrenceMonthWeeks,
       );
       for (final date in _engine.datesFor(definition, range)) {
         final override = overrides['${series.effectiveSeriesId}@$date'];
@@ -194,6 +195,9 @@ class ScheduleRecurrenceService {
                 recurrenceMonthDays: series.recurrenceMonthDays,
                 recurrenceMonthEnd: series.recurrenceMonthEnd,
                 recurrenceMonthWeek: series.recurrenceMonthWeek,
+                recurrenceMonthWeeks: series.recurrenceMonthWeeks,
+                notificationOffsetsMinutes: series.notificationOffsetsMinutes,
+                notificationTimeZone: series.notificationTimeZone,
                 createdAt: series.createdAt,
                 updatedAt: series.updatedAt,
               ),
@@ -259,6 +263,7 @@ class ScheduleRecurrenceService {
     monthDays: series.recurrenceMonthDays,
     monthEnd: series.recurrenceMonthEnd,
     monthWeek: series.recurrenceMonthWeek,
+    monthWeeks: series.recurrenceMonthWeeks,
   );
 
   ScheduleRecord _occurrenceOverride(
@@ -280,6 +285,8 @@ class ScheduleRecurrenceService {
     breakDuration: draft.breakDuration,
     memo: draft.memo,
     completed: draft.completed,
+    notificationOffsetsMinutes: draft.notificationOffsetsMinutes,
+    notificationTimeZone: draft.notificationTimeZone,
     createdAt: series.createdAt,
     updatedAt: now,
   );
@@ -309,6 +316,9 @@ class ScheduleRecurrenceService {
     recurrenceMonthDays: draft.recurrenceMonthDays,
     recurrenceMonthEnd: draft.recurrenceMonthEnd,
     recurrenceMonthWeek: draft.recurrenceMonthWeek,
+    recurrenceMonthWeeks: draft.recurrenceMonthWeeks,
+    notificationOffsetsMinutes: draft.notificationOffsetsMinutes,
+    notificationTimeZone: draft.notificationTimeZone,
     createdAt: previous.createdAt,
     updatedAt: now,
   );
@@ -342,6 +352,9 @@ class ScheduleRecurrenceService {
       recurrenceMonthDays: series.recurrenceMonthDays,
       recurrenceMonthEnd: series.recurrenceMonthEnd,
       recurrenceMonthWeek: series.recurrenceMonthWeek,
+      recurrenceMonthWeeks: series.recurrenceMonthWeeks,
+      notificationOffsetsMinutes: series.notificationOffsetsMinutes,
+      notificationTimeZone: series.notificationTimeZone,
       createdAt: series.createdAt,
       updatedAt: now,
     );

@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/notifications/models/notification_configuration.dart';
+
 /// The explicit application preference for motion.  [off] still allows a
 /// platform accessibility requirement to win when one is supplied by Flutter.
 enum ReducedMotionPreference { system, on, off }
@@ -27,6 +29,7 @@ class DeviceSettings {
     this.rippleEnabled = true,
     this.ambientCircuitEnabled = true,
     this.reducedMotion = ReducedMotionPreference.system,
+    this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
   });
 
   static const minimumBrightness = .35;
@@ -41,6 +44,7 @@ class DeviceSettings {
   final bool rippleEnabled;
   final bool ambientCircuitEnabled;
   final ReducedMotionPreference reducedMotion;
+  final NotificationPrivacyMode notificationPrivacyMode;
 
   double volumeMultiplierFor(DeviceFeedbackChannel channel) {
     if (muted) return 0;
@@ -73,6 +77,7 @@ class DeviceSettings {
     bool? rippleEnabled,
     bool? ambientCircuitEnabled,
     ReducedMotionPreference? reducedMotion,
+    NotificationPrivacyMode? notificationPrivacyMode,
   }) => DeviceSettings(
     masterVolume: masterVolume ?? this.masterVolume,
     muted: muted ?? this.muted,
@@ -84,6 +89,8 @@ class DeviceSettings {
     rippleEnabled: rippleEnabled ?? this.rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
     reducedMotion: reducedMotion ?? this.reducedMotion,
+    notificationPrivacyMode:
+        notificationPrivacyMode ?? this.notificationPrivacyMode,
   ).normalized();
 
   DeviceSettings normalized() => DeviceSettings(
@@ -97,6 +104,7 @@ class DeviceSettings {
     rippleEnabled: rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled,
     reducedMotion: reducedMotion,
+    notificationPrivacyMode: notificationPrivacyMode,
   );
 
   Map<String, Object?> toJson() => {
@@ -110,6 +118,7 @@ class DeviceSettings {
     'rippleEnabled': rippleEnabled,
     'ambientCircuitEnabled': ambientCircuitEnabled,
     'reducedMotion': reducedMotion.name,
+    'notificationPrivacyMode': notificationPrivacyMode.name,
   };
 
   factory DeviceSettings.fromJson(Object? raw) {
@@ -133,6 +142,14 @@ class DeviceSettings {
         break;
       }
     }
+    final privacyName = json['notificationPrivacyMode'];
+    NotificationPrivacyMode? notificationPrivacyMode;
+    for (final candidate in NotificationPrivacyMode.values) {
+      if (candidate.name == privacyName) {
+        notificationPrivacyMode = candidate;
+        break;
+      }
+    }
     return DeviceSettings(
       masterVolume: number('masterVolume', 1),
       muted: flag('muted', false),
@@ -144,6 +161,8 @@ class DeviceSettings {
       rippleEnabled: flag('rippleEnabled', true),
       ambientCircuitEnabled: flag('ambientCircuitEnabled', true),
       reducedMotion: reducedMotion ?? ReducedMotionPreference.system,
+      notificationPrivacyMode:
+          notificationPrivacyMode ?? NotificationPrivacyMode.contentHidden,
     ).normalized();
   }
 

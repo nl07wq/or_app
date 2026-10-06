@@ -8,6 +8,7 @@ import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../notifications/services/notification_profile_controller.dart';
 import '../../dashboard/widgets/operation_ambient_animation.dart';
 import '../../report_sync/services/daily_brief_plantar_risk_review_service.dart';
 import '../../report_sync/services/daily_brief_traced_observation_review_service.dart';
@@ -34,6 +35,12 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
       InformationNoticeService();
   late Future<List<InformationNotice>> _informationHistory = _informationService
       .history();
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationProfileController.instance.refreshStatus();
+  }
 
   void _refreshInformation() => setState(() {
     _informationHistory = _informationService.history();
@@ -135,6 +142,8 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
           title: 'SYSTEM MONITORING',
         ),
         AppSpacing.gapSM,
+        const _NotificationRuntimeCard(),
+        AppSpacing.gapSM,
         FutureBuilder<_ShadowSnapshot>(
           future: _shadow,
           builder: (context, snapshot) {
@@ -209,6 +218,45 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
         ),
         AppSpacing.gapLG,
       ],
+    ),
+  );
+}
+
+class _NotificationRuntimeCard extends StatelessWidget {
+  const _NotificationRuntimeCard();
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => ValueListenableBuilder<NotificationRuntimeStatus>(
+    valueListenable: NotificationProfileController.instance,
+    builder: (context, status, _) => OperationCard(
+      key: const ValueKey('notification-runtime-status'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('WEB PUSH', style: Theme.of(context).textTheme.titleMedium),
+          Text('PERMISSION  ${status.permission.toUpperCase()}'),
+          Text('SUBSCRIPTION  ${status.subscription.toUpperCase()}'),
+          Text('PROFILE  ${status.profile.toUpperCase()}'),
+          Text('RECONCILIATION  ${status.reconciliation.name.toUpperCase()}'),
+          Text('PENDING SYNC  ${status.pendingSync ? 'YES' : 'NO'}'),
+          Text(
+            'NEXT TRIGGER  ${status.nextTrigger?.toUtc().toIso8601String() ?? 'NONE'}',
+          ),
+          Text('PENDING PROJECTIONS  ${status.pendingProjections}'),
+          Text('LAST PUSH  ${status.lastPushResult ?? 'NONE'}'),
+          Text('FAILED SUBSCRIPTIONS  ${status.failedSubscriptions}'),
+          Text('FREE QUOTA  ${status.quotaState.toUpperCase()}'),
+          if (status.error != null) const Text('SERVICE STATUS  UNAVAILABLE'),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: NotificationProfileController.instance.refreshStatus,
+            icon: const Icon(Icons.refresh_outlined),
+            label: const Text('REFRESH'),
+          ).actionableFeedback(),
+        ],
+      ),
     ),
   );
 }

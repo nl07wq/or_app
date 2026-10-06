@@ -114,16 +114,26 @@ class SharedRecurrenceValue {
     Set<int> weekdays = const <int>{},
     Set<int> monthDays = const <int>{},
     this.monthEnd = false,
-    this.monthWeek,
+    int? monthWeek,
+    Set<int> monthWeeks = const <int>{},
   }) : weekdays = Set.unmodifiable(weekdays),
-       monthDays = Set.unmodifiable(monthDays);
+       monthDays = Set.unmodifiable(monthDays),
+       monthWeeks = Set.unmodifiable(
+         monthWeeks.isNotEmpty
+             ? monthWeeks
+             : monthWeek == null
+             ? const <int>{}
+             : <int>{monthWeek},
+       );
 
   final ReminderRecurrence recurrence;
   final DateTime? end;
   final Set<int> weekdays;
   final Set<int> monthDays;
   final bool monthEnd;
-  final int? monthWeek;
+  final Set<int> monthWeeks;
+  int? get monthWeek =>
+      monthWeeks.isEmpty ? null : (monthWeeks.toList()..sort()).first;
 
   SharedRecurrenceValue copyWith({
     ReminderRecurrence? recurrence,
@@ -133,13 +143,15 @@ class SharedRecurrenceValue {
     Set<int>? monthDays,
     bool? monthEnd,
     int? monthWeek,
+    Set<int>? monthWeeks,
   }) => SharedRecurrenceValue(
     recurrence: recurrence ?? this.recurrence,
     end: clearEnd ? null : (end ?? this.end),
     weekdays: weekdays ?? this.weekdays,
     monthDays: monthDays ?? this.monthDays,
     monthEnd: monthEnd ?? this.monthEnd,
-    monthWeek: monthWeek ?? this.monthWeek,
+    monthWeeks:
+        monthWeeks ?? (monthWeek == null ? this.monthWeeks : <int>{monthWeek}),
   );
 }
 
@@ -239,7 +251,9 @@ class SharedRecurrenceEditor extends StatelessWidget {
   Widget _settings() {
     final summary = Text(recurrenceSettingsSummary(startDate, value));
     if (value.recurrence == ReminderRecurrence.monthlyWeekday) {
-      final selected = value.monthWeek ?? ((startDate.day - 1) ~/ 7) + 1;
+      final selected = value.monthWeeks.isEmpty
+          ? <int>{((startDate.day - 1) ~/ 7) + 1}
+          : value.monthWeeks;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -251,8 +265,16 @@ class SharedRecurrenceEditor extends StatelessWidget {
               final week = index + 1;
               return FilterChip(
                 label: Text('第$week'),
-                selected: selected == week,
-                onSelected: (_) => onChanged(value.copyWith(monthWeek: week)),
+                selected: selected.contains(week),
+                onSelected: (enabled) {
+                  final next = Set<int>.of(selected);
+                  if (enabled) {
+                    next.add(week);
+                  } else if (next.length > 1) {
+                    next.remove(week);
+                  }
+                  onChanged(value.copyWith(monthWeeks: next));
+                },
               ).inputFeedback();
             }),
           ),
@@ -342,7 +364,9 @@ String recurrenceSettingsSummary(
   SharedRecurrenceValue value,
 ) {
   final weekday = _weekdayLabel(startDate.weekday);
-  final week = value.monthWeek ?? ((startDate.day - 1) ~/ 7) + 1;
+  final weeks = value.monthWeeks.isEmpty
+      ? <int>{((startDate.day - 1) ~/ 7) + 1}
+      : value.monthWeeks;
   switch (value.recurrence) {
     case ReminderRecurrence.none:
       return '';
@@ -357,7 +381,7 @@ String recurrenceSettingsSummary(
     case ReminderRecurrence.biweekly:
       return '14日ごと・$weekday';
     case ReminderRecurrence.monthlyWeekday:
-      return '第$week・$weekday';
+      return '${(weeks.toList()..sort()).map((week) => '第$week').join('・')}・$weekday';
     case ReminderRecurrence.monthly:
       return '${startDate.day}日';
     case ReminderRecurrence.yearly:

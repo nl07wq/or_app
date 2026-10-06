@@ -44,9 +44,11 @@ class ReminderRecurrenceEngine {
         return date.weekday == start.weekday &&
             date.difference(start).inDays % 14 == 0;
       case ReminderRecurrence.monthlyWeekday:
-        return date.weekday == start.weekday &&
-            ((date.day - 1) ~/ 7) + 1 ==
-                (definition.monthWeek ?? ((start.day - 1) ~/ 7) + 1);
+        final ordinal = ((date.day - 1) ~/ 7) + 1;
+        final ordinals = definition.monthWeeks.isNotEmpty
+            ? definition.monthWeeks
+            : [definition.monthWeek ?? ((start.day - 1) ~/ 7) + 1];
+        return date.weekday == start.weekday && ordinals.contains(ordinal);
       case ReminderRecurrence.monthly:
         return date.day == start.day;
       case ReminderRecurrence.yearly:

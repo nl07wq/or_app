@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/holographic_ambient_background.dart';
@@ -7,6 +9,9 @@ import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 import '../../schedule/widgets/shared_date_time_recurrence_editor.dart';
+import '../../notifications/models/notification_configuration.dart';
+import '../../notifications/services/notification_profile_controller.dart';
+import '../../notifications/widgets/shared_notification_editor.dart';
 import '../models/reminder_definition.dart';
 import '../models/reminder_occurrence.dart';
 import '../services/legacy_reminder_migration_service.dart';
@@ -90,6 +95,9 @@ class _RemindersPageState extends State<RemindersPage>
           .toList();
       _loading = false;
     });
+    unawaited(
+      NotificationProfileController.instance.reconcileFromRepositories(),
+    );
   }
 
   List<ReminderOccurrence> _withTransientRetained(
@@ -210,6 +218,9 @@ class _RemindersPageState extends State<RemindersPage>
         monthDays: draft.monthDays,
         monthEnd: draft.monthEnd,
         monthWeek: draft.monthWeek,
+        monthWeeks: draft.monthWeeks,
+        notificationOffsetsMinutes: draft.notificationOffsetsMinutes,
+        notificationTimeZone: draft.notificationTimeZone,
         active: true,
         createdAt: now,
         updatedAt: now,
@@ -241,6 +252,9 @@ class _RemindersPageState extends State<RemindersPage>
         monthDays: previous.monthDays,
         monthEnd: previous.monthEnd,
         monthWeek: previous.monthWeek,
+        monthWeeks: previous.monthWeeks,
+        notificationOffsetsMinutes: previous.notificationOffsetsMinutes,
+        notificationTimeZone: previous.notificationTimeZone,
         active: false,
         createdAt: previous.createdAt,
         updatedAt: boundary,
@@ -265,6 +279,9 @@ class _RemindersPageState extends State<RemindersPage>
         monthDays: draft.monthDays,
         monthEnd: draft.monthEnd,
         monthWeek: draft.monthWeek,
+        monthWeeks: draft.monthWeeks,
+        notificationOffsetsMinutes: draft.notificationOffsetsMinutes,
+        notificationTimeZone: draft.notificationTimeZone,
         active: true,
         createdAt: boundary,
         updatedAt: boundary,
@@ -931,6 +948,13 @@ class _ReminderEditorState extends State<_ReminderEditor> {
   final Set<int> _monthDays = <int>{};
   bool _monthEnd = false;
   int? _monthWeek;
+  final Set<int> _monthWeeks = <int>{};
+  late NotificationConfiguration _notification = NotificationConfiguration(
+    offsetsMinutes: widget.initial?.notificationOffsetsMinutes ?? const [],
+    timeZone:
+        widget.initial?.notificationTimeZone ??
+        NotificationProfileController.instance.timeZone,
+  );
   String? _error;
   late final _ReminderEditorBaseline _baseline;
   bool _allowPop = false;
@@ -955,6 +979,13 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       _monthDays.addAll(initial.monthDays);
       _monthEnd = initial.monthEnd;
       _monthWeek = initial.monthWeek;
+      _monthWeeks.addAll(
+        initial.monthWeeks.isNotEmpty
+            ? initial.monthWeeks
+            : initial.monthWeek == null
+            ? const []
+            : [initial.monthWeek!],
+      );
     }
     _baseline = _ReminderEditorBaseline(
       title: _title.text,
@@ -969,6 +1000,9 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       monthDays: _monthDays,
       monthEnd: _monthEnd,
       monthWeek: _monthWeek,
+      monthWeeks: _monthWeeks,
+      notificationOffsetsMinutes: _notification.offsetsMinutes,
+      notificationTimeZone: _notification.timeZone,
     );
   }
 
@@ -992,6 +1026,9 @@ class _ReminderEditorState extends State<_ReminderEditor> {
     monthDays: _monthDays,
     monthEnd: _monthEnd,
     monthWeek: _monthWeek,
+    monthWeeks: _monthWeeks,
+    notificationOffsetsMinutes: _notification.offsetsMinutes,
+    notificationTimeZone: _notification.timeZone,
   );
 
   Future<void> _requestExit() async {
@@ -1062,6 +1099,13 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         monthWeek: _recurrence == ReminderRecurrence.monthlyWeekday
             ? (_monthWeek ?? ((_date.day - 1) ~/ 7) + 1)
             : null,
+        monthWeeks: _recurrence == ReminderRecurrence.monthlyWeekday
+            ? (_monthWeeks.isEmpty
+                  ? [((_date.day - 1) ~/ 7) + 1]
+                  : (_monthWeeks.toList()..sort()))
+            : const [],
+        notificationOffsetsMinutes: _notification.offsetsMinutes,
+        notificationTimeZone: _notification.timeZone,
       ),
     );
   }
@@ -1147,6 +1191,7 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                   monthDays: _monthDays,
                   monthEnd: _monthEnd,
                   monthWeek: _monthWeek,
+                  monthWeeks: _monthWeeks,
                 ),
                 onChanged: (value) => setState(() {
                   _recurrence = value.recurrence;
@@ -1159,8 +1204,15 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                     ..addAll(value.monthDays);
                   _monthEnd = value.monthEnd;
                   _monthWeek = value.monthWeek;
+                  _monthWeeks
+                    ..clear()
+                    ..addAll(value.monthWeeks);
                   _error = null;
                 }),
+              ),
+              SharedNotificationEditor(
+                value: _notification,
+                onChanged: (value) => setState(() => _notification = value),
               ),
               if (_error != null)
                 Text(
@@ -1196,6 +1248,9 @@ class _ReminderDraft {
     this.monthDays = const [],
     this.monthEnd = false,
     this.monthWeek,
+    this.monthWeeks = const [],
+    this.notificationOffsetsMinutes = const [],
+    this.notificationTimeZone = 'Etc/UTC',
   });
   final String title;
   final String? note;
@@ -1209,6 +1264,9 @@ class _ReminderDraft {
   final List<int> monthDays;
   final bool monthEnd;
   final int? monthWeek;
+  final List<int> monthWeeks;
+  final List<int> notificationOffsetsMinutes;
+  final String notificationTimeZone;
 }
 
 class _ReminderEditorBaseline {
@@ -1225,8 +1283,15 @@ class _ReminderEditorBaseline {
     required Set<int> monthDays,
     required this.monthEnd,
     required this.monthWeek,
+    required Set<int> monthWeeks,
+    required List<int> notificationOffsetsMinutes,
+    required this.notificationTimeZone,
   }) : weekdays = Set.unmodifiable(weekdays),
-       monthDays = Set.unmodifiable(monthDays);
+       monthDays = Set.unmodifiable(monthDays),
+       monthWeeks = Set.unmodifiable(monthWeeks),
+       notificationOffsetsMinutes = List.unmodifiable(
+         notificationOffsetsMinutes,
+       );
 
   final String title;
   final String note;
@@ -1240,6 +1305,9 @@ class _ReminderEditorBaseline {
   final Set<int> monthDays;
   final bool monthEnd;
   final int? monthWeek;
+  final Set<int> monthWeeks;
+  final List<int> notificationOffsetsMinutes;
+  final String notificationTimeZone;
 
   bool matches({
     required String title,
@@ -1254,6 +1322,9 @@ class _ReminderEditorBaseline {
     required Set<int> monthDays,
     required bool monthEnd,
     required int? monthWeek,
+    required Set<int> monthWeeks,
+    required List<int> notificationOffsetsMinutes,
+    required String notificationTimeZone,
   }) =>
       this.title == title &&
       this.note == note &&
@@ -1266,10 +1337,15 @@ class _ReminderEditorBaseline {
       _sameValues(this.weekdays, weekdays) &&
       _sameValues(this.monthDays, monthDays) &&
       this.monthEnd == monthEnd &&
-      this.monthWeek == monthWeek;
+      this.monthWeek == monthWeek &&
+      _sameValues(this.monthWeeks, monthWeeks) &&
+      _sameList(this.notificationOffsetsMinutes, notificationOffsetsMinutes) &&
+      this.notificationTimeZone == notificationTimeZone;
 
   static bool _sameValues(Set<int> first, Set<int> second) =>
       first.length == second.length && first.containsAll(second);
+  static bool _sameList(List<int> first, List<int> second) =>
+      first.length == second.length && first.toSet().containsAll(second);
 }
 
 String _dateKey(DateTime value) =>
@@ -1312,6 +1388,9 @@ ReminderDefinition _withRecurrenceEnd(
     monthDays: definition.monthDays,
     monthEnd: definition.monthEnd,
     monthWeek: definition.monthWeek,
+    monthWeeks: definition.monthWeeks,
+    notificationOffsetsMinutes: definition.notificationOffsetsMinutes,
+    notificationTimeZone: definition.notificationTimeZone,
     active: definition.active,
     createdAt: definition.createdAt,
     updatedAt: updatedAt,
@@ -1352,7 +1431,7 @@ String _recurrenceSummary(ReminderDefinition definition) {
     ReminderRecurrence.weekly => '$label  ${_weekdayLabel(start.weekday)}曜日',
     ReminderRecurrence.biweekly => '$label  ${_weekdayLabel(start.weekday)}曜日',
     ReminderRecurrence.monthlyWeekday =>
-      '$label  第${definition.monthWeek ?? ((start.day - 1) ~/ 7) + 1}${_weekdayLabel(start.weekday)}曜日',
+      '$label  ${(definition.monthWeeks.isEmpty ? [definition.monthWeek ?? ((start.day - 1) ~/ 7) + 1] : definition.monthWeeks).map((week) => '第$week').join('・')}・${_weekdayLabel(start.weekday)}',
     ReminderRecurrence.monthly => '$label  ${start.day}日',
     ReminderRecurrence.yearly => '$label  ${start.month}月${start.day}日',
     _ => label,
