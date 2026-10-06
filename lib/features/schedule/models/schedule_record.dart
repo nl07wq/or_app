@@ -1,3 +1,5 @@
+import '../../reminders/models/reminder_definition.dart';
+
 enum ScheduleType { work, personal, appointment, training, other }
 
 enum ScheduleEntryKind { schedule, reminder }
@@ -15,6 +17,14 @@ class ScheduleRecord {
     this.breakDuration,
     this.memo,
     this.completed = false,
+    this.recurrence = ReminderRecurrence.none,
+    this.recurrenceEnd,
+    this.recurrenceWeekdays = const [],
+    this.recurrenceMonthDays = const [],
+    this.recurrenceMonthEnd = false,
+    this.seriesId,
+    this.occurrenceDate,
+    this.occurrenceExcluded = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -30,12 +40,28 @@ class ScheduleRecord {
   final String? breakDuration;
   final String? memo;
   final bool completed;
+  final ReminderRecurrence recurrence;
+  final String? recurrenceEnd;
+  final List<int> recurrenceWeekdays;
+  final List<int> recurrenceMonthDays;
+  final bool recurrenceMonthEnd;
+
+  /// A recurring definition owns one logical series. Individual overrides and
+  /// exclusions carry its id plus the original scheduled date.
+  final String? seriesId;
+  final String? occurrenceDate;
+  final bool occurrenceExcluded;
+
+  bool get isRecurringSeries =>
+      recurrence != ReminderRecurrence.none && occurrenceDate == null;
+  bool get isOccurrenceOverride => occurrenceDate != null;
+  String get effectiveSeriesId => seriesId ?? id;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   Map<String, Object?> toRecord() => {
     'id': id,
-    'recordVersion': 2,
+    'recordVersion': 3,
     'localDate': localDate,
     'type': type.name,
     'title': title,
@@ -46,6 +72,15 @@ class ScheduleRecord {
     if (breakDuration != null) 'breakDuration': breakDuration,
     if (memo != null) 'memo': memo,
     if (completed) 'completed': true,
+    'recurrence': recurrence.name,
+    if (recurrenceEnd != null) 'recurrenceEnd': recurrenceEnd,
+    if (recurrenceWeekdays.isNotEmpty) 'recurrenceWeekdays': recurrenceWeekdays,
+    if (recurrenceMonthDays.isNotEmpty)
+      'recurrenceMonthDays': recurrenceMonthDays,
+    if (recurrenceMonthEnd) 'recurrenceMonthEnd': true,
+    if (seriesId != null) 'seriesId': seriesId,
+    if (occurrenceDate != null) 'occurrenceDate': occurrenceDate,
+    if (occurrenceExcluded) 'occurrenceExcluded': true,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'updatedAt': updatedAt.toUtc().toIso8601String(),
   };
@@ -73,6 +108,16 @@ class ScheduleRecord {
     if (created == null || updated == null) {
       throw const FormatException('Invalid schedule timestamp.');
     }
+    List<int> ints(Object? raw, int min, int max) {
+      if (raw == null) return const [];
+      if (raw is! List ||
+          raw.any((value) => value is! int || value < min || value > max)) {
+        throw const FormatException('Invalid schedule recurrence values.');
+      }
+      return List.unmodifiable(raw.cast<int>().toSet().toList()..sort());
+    }
+
+    final recurrenceName = record['recurrence'];
     return ScheduleRecord(
       id: id,
       localDate: localDate,
@@ -93,6 +138,19 @@ class ScheduleRecord {
       breakDuration: record['breakDuration'] as String?,
       memo: record['memo'] as String?,
       completed: record['completed'] == true,
+      recurrence: recurrenceName == null
+          ? ReminderRecurrence.none
+          : ReminderRecurrence.values.firstWhere(
+              (value) => value.name == recurrenceName,
+              orElse: () => throw const FormatException('Invalid recurrence.'),
+            ),
+      recurrenceEnd: record['recurrenceEnd'] as String?,
+      recurrenceWeekdays: ints(record['recurrenceWeekdays'], 1, 7),
+      recurrenceMonthDays: ints(record['recurrenceMonthDays'], 1, 31),
+      recurrenceMonthEnd: record['recurrenceMonthEnd'] == true,
+      seriesId: record['seriesId'] as String?,
+      occurrenceDate: record['occurrenceDate'] as String?,
+      occurrenceExcluded: record['occurrenceExcluded'] == true,
       createdAt: created.toUtc(),
       updatedAt: updated.toUtc(),
     );

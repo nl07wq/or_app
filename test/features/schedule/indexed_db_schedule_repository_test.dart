@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/reminders/models/reminder_definition.dart';
 import 'package:or_app/features/schedule/models/schedule_record.dart';
 import 'package:or_app/features/schedule/repository/indexed_db_schedule_repository.dart';
 
@@ -60,4 +61,43 @@ void main() {
       ['b'],
     );
   });
+
+  test(
+    'recurrence series metadata and occurrence exceptions survive reload',
+    () async {
+      final database = FakeIndexedDbDatabase();
+      final repository = IndexedDbScheduleRepository(database);
+      await repository.save(
+        ScheduleRecord(
+          id: 'series',
+          localDate: '2026-10-01',
+          type: ScheduleType.personal,
+          title: 'series',
+          recurrence: ReminderRecurrence.weekly,
+          recurrenceEnd: '2026-12-31',
+          recurrenceWeekdays: const [4],
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+      );
+      await repository.save(
+        ScheduleRecord(
+          id: 'series@2026-10-08',
+          seriesId: 'series',
+          occurrenceDate: '2026-10-08',
+          occurrenceExcluded: true,
+          localDate: '2026-10-08',
+          type: ScheduleType.personal,
+          title: 'series',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+      );
+      final values = await IndexedDbScheduleRepository(database).findAll();
+      expect(values.first.recurrence, ReminderRecurrence.weekly);
+      expect(values.first.recurrenceEnd, '2026-12-31');
+      expect(values.last.occurrenceExcluded, isTrue);
+      expect(values.last.effectiveSeriesId, 'series');
+    },
+  );
 }

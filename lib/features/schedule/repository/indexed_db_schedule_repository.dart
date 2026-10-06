@@ -86,6 +86,14 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
               breakDuration: record.breakDuration,
               memo: record.memo,
               completed: record.completed,
+              recurrence: record.recurrence,
+              recurrenceEnd: record.recurrenceEnd,
+              recurrenceWeekdays: record.recurrenceWeekdays,
+              recurrenceMonthDays: record.recurrenceMonthDays,
+              recurrenceMonthEnd: record.recurrenceMonthEnd,
+              seriesId: record.seriesId,
+              occurrenceDate: record.occurrenceDate,
+              occurrenceExcluded: record.occurrenceExcluded,
               createdAt: existing == null
                   ? timestamp
                   : ScheduleRecord.fromRecord(existing).createdAt,
