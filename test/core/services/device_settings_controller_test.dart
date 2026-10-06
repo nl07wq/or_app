@@ -8,6 +8,80 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('master and each role scale only the intended released levels', () {
+    const defaults = DeviceSettings();
+    final cases = <TouchFeedbackSound, DeviceSettings>{
+      TouchFeedbackSound.success: defaults.copyWith(commandVolume: .5),
+      TouchFeedbackSound.exit: defaults.copyWith(exitVolume: .5),
+      TouchFeedbackSound.failure: defaults.copyWith(rejectedVolume: .5),
+      TouchFeedbackSound.water: defaults.copyWith(ambientVolume: .5),
+    };
+    for (final sound in TouchFeedbackSound.values) {
+      final base = sound == TouchFeedbackSound.water ? .28 : .34;
+      expect(touchFeedbackEffectiveVolume(sound, defaults), base);
+      expect(
+        touchFeedbackEffectiveVolume(
+          sound,
+          defaults.copyWith(masterVolume: .5),
+        ),
+        base * .5,
+      );
+      for (final entry in cases.entries) {
+        expect(
+          touchFeedbackEffectiveVolume(sound, entry.value),
+          base * (sound == entry.key ? .5 : 1),
+        );
+      }
+      expect(
+        touchFeedbackEffectiveVolume(sound, defaults.copyWith(masterVolume: 0)),
+        0,
+      );
+      final selected = defaults.copyWith(masterVolume: .6, ambientVolume: .3);
+      final muted = selected.copyWith(muted: true);
+      expect(touchFeedbackEffectiveVolume(sound, muted), 0);
+      expect(
+        touchFeedbackEffectiveVolume(sound, muted.copyWith(muted: false)),
+        touchFeedbackEffectiveVolume(sound, selected),
+      );
+    }
+  });
+
+  test(
+    'missing, corrupt and non-finite preferences preserve safe defaults',
+    () async {
+      final missing = DeviceSettingsController();
+      await missing.initialize();
+      expect(missing.snapshot(), const DeviceSettings().toJson());
+      SharedPreferences.setMockInitialValues({
+        DeviceSettingsController.storageKey: '{broken',
+      });
+      final corrupt = DeviceSettingsController();
+      await corrupt.initialize();
+      expect(corrupt.snapshot(), const DeviceSettings().toJson());
+      expect(
+        DeviceSettings.fromJson({
+          'masterVolume': double.nan,
+          'brightness': double.infinity,
+          'muted': 'true',
+        }).toJson(),
+        const DeviceSettings().toJson(),
+      );
+    },
+  );
+
+  test('SYSTEM and OFF respect accessibility; ON forces reduced motion', () {
+    for (final platform in [false, true]) {
+      for (final preference in ReducedMotionPreference.values) {
+        expect(
+          DeviceSettings(
+            reducedMotion: preference,
+          ).resolvesReducedMotion(platform),
+          platform || preference == ReducedMotionPreference.on,
+        );
+      }
+    }
+  });
+
   test('defaults preserve the released base feedback volumes', () {
     const settings = DeviceSettings();
 

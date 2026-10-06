@@ -209,9 +209,14 @@ class BackupImportService {
           'Restored database failed startup-equivalent validation.',
         );
       }
-      final incomingSettings = approvedPlan.package.deviceSettings;
-      if (incomingSettings != null) {
-        await _restoreDeviceSettings(incomingSettings);
+      // A complete device restore also replaces local presentation choices.
+      // Older backups have no preference domain and use production defaults.
+      // Record merges deliberately leave the current device preferences alone.
+      if (approvedPlan.mode == BackupImportMode.replaceAll) {
+        await _restoreDeviceSettings(
+          approvedPlan.package.deviceSettings ??
+              const DeviceSettings().toJson(),
+        );
         deviceSettingsRestored = true;
       }
       _controller.markReady();

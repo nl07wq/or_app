@@ -1,5 +1,6 @@
 import 'touch_ripple_audio_stub.dart'
     if (dart.library.html) 'touch_ripple_audio_web.dart';
+import 'device_settings_controller.dart';
 
 const touchRippleAudioAssetUrl =
     'assets/assets/audio/touch/Water_Drop02-1(Low-Reverb).mp3';
@@ -22,6 +23,18 @@ double touchFeedbackBaseVolume(TouchFeedbackSound sound) =>
     sound == TouchFeedbackSound.water
     ? touchRippleWaterBaseVolume
     : touchRippleSemanticBaseVolume;
+
+double touchFeedbackEffectiveVolume(
+  TouchFeedbackSound sound,
+  DeviceSettings settings,
+) =>
+    touchFeedbackBaseVolume(sound) *
+    settings.normalized().volumeMultiplierFor(switch (sound) {
+      TouchFeedbackSound.water => DeviceFeedbackChannel.ambient,
+      TouchFeedbackSound.success => DeviceFeedbackChannel.command,
+      TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
+      TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
+    });
 
 abstract interface class TouchRippleAudio {
   void prepare();

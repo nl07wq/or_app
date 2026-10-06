@@ -114,8 +114,15 @@ class GlobalTouchRipple extends StatefulWidget {
 
   /// Settings previews reuse the live bounded backend, including mute and
   /// volume resolution, without creating a visual ripple.
-  static void previewFeedback(TouchFeedbackSound sound) =>
+  static void previewFeedback(TouchFeedbackSound sound) {
+    if (touchFeedbackEffectiveVolume(
+          sound,
+          DeviceSettingsController.instance.value,
+        ) >
+        0) {
       _activeState?._audio.playFromUserGesture(sound);
+    }
+  }
 
   static void _claimResolved(int pointer, TouchFeedbackSound sound) {
     final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();

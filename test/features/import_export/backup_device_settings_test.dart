@@ -3,6 +3,8 @@ import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/import_export/models/backup_package.dart';
+import 'package:or_app/features/import_export/models/backup_audit_package.dart';
+import 'package:or_app/features/import_export/services/backup_canonical_codec.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
 import 'package:or_app/features/import_export/services/backup_import_service.dart';
 import 'package:or_app/features/import_export/services/backup_package_codec.dart';
@@ -73,6 +75,50 @@ void main() {
         expect(result.success, isTrue);
         expect(restored?['masterVolume'], .7);
         expect(restored?['reducedMotion'], 'on');
+
+        final legacyPackage = BackupExportService.buildPackage(
+          exportId: hydrated.exportId,
+          exportedAt: hydrated.exportedAt,
+          source: hydrated.source,
+          data: bundle.normal.data,
+          schemaVersion: 17,
+          auditArchiveId: bundle.normal.auditArchiveId,
+        );
+        final legacy = const BackupPackageCodec().decode(
+          BackupExportService.encode(legacyPackage),
+        );
+        final legacyAuditPayload = bundle.audit.toJson()
+          ..['normalPackageDigest'] = legacy.digests.package
+          ..['digests'] = bundle.audit.digests.sections;
+        final legacyAudit = BackupAuditPackage(
+          archiveId: bundle.audit.archiveId,
+          normalExportId: bundle.audit.normalExportId,
+          normalPackageDigest: legacy.digests.package,
+          exportedAt: bundle.audit.exportedAt,
+          source: bundle.audit.source,
+          archiveComplete: bundle.audit.archiveComplete,
+          digests: BackupDigests(
+            package: BackupCanonicalCodec.digest(legacyAuditPayload),
+            sections: bundle.audit.digests.sections,
+          ),
+          data: bundle.audit.data,
+        );
+        restored = null;
+        final legacyResult = await importer.execute(
+          await importer.dryRun(
+            BackupV14Transform.hydratePackage(legacy, legacyAudit),
+            BackupImportMode.replaceAll,
+          ),
+        );
+        expect(legacyResult.success, isTrue);
+        expect(restored, const DeviceSettings().toJson());
+
+        restored = null;
+        final mergeResult = await importer.execute(
+          await importer.dryRun(hydrated, BackupImportMode.merge),
+        );
+        expect(mergeResult.success, isTrue);
+        expect(restored, isNull);
       } finally {
         DeviceSettingsController.instance.resetForTesting(original);
       }
