@@ -2015,7 +2015,7 @@ void main() {
     expect(find.byKey(const ValueKey('jeep-body')), findsNothing);
     expect(find.byKey(const ValueKey('jeep-dust')), findsNothing);
     expect(find.byKey(const ValueKey('jeep-headlight')), findsNothing);
-    expect(find.text('00:00 / 00:08'), findsOneWidget);
+    expect(find.text('00:00 / 00:10'), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const ValueKey('preview-scene-7')));
     await tester.tap(find.byKey(const ValueKey('preview-scene-7')));
@@ -2274,14 +2274,56 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
+      await tester.tap(
+        find.byKey(const ValueKey('open-scene-2-composite-test')),
+      );
+      await tester.pumpAndSettle();
+      var composite = _jsonFromSelectable(
+        tester,
+        const ValueKey('scene-2-composite-parameters-json'),
+      );
+      expect((composite['motion'] as Map)['camera'], {
+        'start': {'x': 0.0, 'y': 0.0, 'scale': 1.0},
+        'end': {'x': 0.186, 'y': -0.41, 'scale': 4.53},
+      });
+      expect((composite['motion'] as Map)['motion'], {
+        'travelDurationMs': 9000,
+        'holdDurationMs': 1000,
+        'curve': 'easeInOutCubic',
+      });
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('preview-scene-1')));
+      await tester.pump();
+      expect(find.text('00:00 / 00:10'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('open-boot-sequence-calibration')),
+      );
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byKey(const ValueKey('open-scene-2-zoom-test')));
       await tester.pumpAndSettle();
       var zoom = _jsonFromSelectable(
         tester,
         const ValueKey('scene-2-zoom-parameters-json'),
       );
-      expect((zoom['camera'] as Map)['start'], isNull);
-      expect((zoom['camera'] as Map)['end'], isNull);
+      expect((zoom['camera'] as Map)['start'], {
+        'x': 0.0,
+        'y': 0.0,
+        'scale': 1.0,
+      });
+      expect((zoom['camera'] as Map)['end'], {
+        'x': 0.186,
+        'y': -0.41,
+        'scale': 4.53,
+      });
+      expect(zoom['motion'], {
+        'travelDurationMs': 9000,
+        'holdDurationMs': 1000,
+        'curve': 'easeInOutCubic',
+      });
 
       final scaleSlider = tester.widget<Slider>(
         find.descendant(
@@ -2304,7 +2346,7 @@ void main() {
         tester,
         const ValueKey('scene-2-zoom-parameters-json'),
       );
-      expect((zoom['camera'] as Map)['start'], isNull);
+      expect(((zoom['camera'] as Map)['start'] as Map)['scale'], 1.0);
       await tester.tap(find.byKey(const ValueKey('scene-2-set-start')));
       await tester.pump();
 
@@ -2405,7 +2447,7 @@ void main() {
         findsOneWidget,
       );
       _expectCameraFrameNear(_cameraTransformFrame(tester), startFrame);
-      final composite = _jsonFromSelectable(
+      composite = _jsonFromSelectable(
         tester,
         const ValueKey('scene-2-composite-parameters-json'),
       );
@@ -2456,7 +2498,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    for (final width in [320.0, 1280.0]) {
+    for (final width in [320.0, 390.0, 1280.0]) {
       tester.view.physicalSize = Size(width, 6000);
       tester.view.devicePixelRatio = 1;
       await tester.pumpWidget(
