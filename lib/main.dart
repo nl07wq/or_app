@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'core/services/active_session_heartbeat.dart';
+import 'core/services/device_settings_controller.dart';
 import 'core/services/startup_diagnostic.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DeviceSettingsController.instance.initialize();
   final diagnostic = StartupDiagnostic.instance;
   diagnostic.beginRun();
   diagnostic.record(

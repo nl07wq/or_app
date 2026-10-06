@@ -52,6 +52,10 @@ class BackupPackage {
   final Set<String> includedSections;
   final String? auditArchiveId;
 
+  /// App-local presentation/feedback preferences. This is deliberately kept
+  /// outside formal operation records and included only by complete backups.
+  final Map<String, Object?>? deviceSettings;
+
   BackupPackage({
     this.schema = schemaName,
     this.schemaVersion = currentSchemaVersion,
@@ -65,6 +69,7 @@ class BackupPackage {
     required Map<String, List<Map<String, Object?>>> data,
     Set<String>? includedSections,
     this.auditArchiveId,
+    Map<String, Object?>? deviceSettings,
   }) : data = Map<String, List<Map<String, Object?>>>.unmodifiable({
          for (final entry in data.entries)
            entry.key: List<Map<String, Object?>>.unmodifiable(
@@ -73,7 +78,10 @@ class BackupPackage {
              ),
            ),
        }),
-       includedSections = Set.unmodifiable(includedSections ?? data.keys);
+       includedSections = Set.unmodifiable(includedSections ?? data.keys),
+       deviceSettings = deviceSettings == null
+           ? null
+           : Map<String, Object?>.unmodifiable(deviceSettings);
 
   bool get isLegacyConverted => schemaVersion == 1;
   bool get permitsReplaceAll =>
@@ -91,6 +99,7 @@ class BackupPackage {
     if (auditArchiveId != null) 'auditArchiveId': auditArchiveId,
     'recordCounts': recordCounts.toJson(),
     'digests': digests.toJson(),
+    if (deviceSettings != null) 'deviceSettings': deviceSettings,
     'data': data,
   };
 }

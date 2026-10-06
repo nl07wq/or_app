@@ -3,9 +3,8 @@
 import 'dart:html';
 
 import 'touch_ripple_audio.dart';
+import 'device_settings_controller.dart';
 
-const _touchRippleAudioVolume = .28;
-const _semanticAudioVolume = .34;
 const _maximumConcurrentTouchRippleSounds = 2;
 
 TouchRippleAudio createPlatformTouchRippleAudio() => _WebTouchRippleAudio();
@@ -23,6 +22,12 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
 
   @override
   void playFromUserGesture(TouchFeedbackSound sound) {
+    final volume =
+        touchFeedbackBaseVolume(sound) *
+        DeviceSettingsController.instance.value.volumeMultiplierFor(
+          _channelFor(sound),
+        );
+    if (volume <= 0) return;
     if (_active.length >= _maximumConcurrentTouchRippleSounds) {
       final genericIndex = _active.indexWhere(
         (entry) => entry.sound == TouchFeedbackSound.water,
@@ -43,6 +48,7 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     final entry = _ActiveSound(sound, audio);
     _active.add(entry);
     audio.currentTime = 0;
+    audio.volume = volume;
     audio.play().then<void>((_) {}, onError: (_) => _remove(entry));
     audio.onEnded.first.then((_) => _remove(entry));
     audio.onError.first.then((_) => _remove(entry));
@@ -53,9 +59,19 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
   AudioElement _newAudio(TouchFeedbackSound sound) =>
       AudioElement(Uri.base.resolve(_assetUrl(sound)).toString())
         ..preload = 'auto'
-        ..volume = sound == TouchFeedbackSound.water
-            ? _touchRippleAudioVolume
-            : _semanticAudioVolume;
+        ..volume =
+            touchFeedbackBaseVolume(sound) *
+            DeviceSettingsController.instance.value.volumeMultiplierFor(
+              _channelFor(sound),
+            );
+
+  DeviceFeedbackChannel _channelFor(TouchFeedbackSound sound) =>
+      switch (sound) {
+        TouchFeedbackSound.water => DeviceFeedbackChannel.ambient,
+        TouchFeedbackSound.success => DeviceFeedbackChannel.command,
+        TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
+        TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
+      };
 
   String _assetUrl(TouchFeedbackSound sound) => switch (sound) {
     TouchFeedbackSound.water => touchRippleAudioAssetUrl,

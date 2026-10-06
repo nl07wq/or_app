@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_schema.dart';
 import '../../../core/state/app_initialization_state.dart';
+import '../../../core/services/device_settings_controller.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../daily_log_confirmation/models/persisted_daily_log_confirmation_record.dart';
 import '../models/backup_package.dart';
@@ -80,6 +81,7 @@ class BackupExportService {
     final exportId = _idGenerator.generate();
     final archiveId = _idGenerator.generate();
     final source = BackupSource(platform: 'web', origin: origin);
+    final deviceSettings = DeviceSettingsController.instance.snapshot();
     final normal = buildPackage(
       exportId: exportId,
       exportedAt: exportedAt,
@@ -88,6 +90,7 @@ class BackupExportService {
       data: split.normal,
       schemaVersion: schemaVersion,
       auditArchiveId: archiveId,
+      deviceSettings: deviceSettings,
     );
     final sectionDigests = {
       for (final entry in split.audit.entries)
@@ -172,6 +175,7 @@ class BackupExportService {
     required Map<String, List<Map<String, Object?>>> data,
     int schemaVersion = BackupPackage.currentSchemaVersion,
     String? auditArchiveId,
+    Map<String, Object?>? deviceSettings,
   }) {
     final normalized = <String, List<Map<String, Object?>>>{};
     final counts = <String, int>{};
@@ -225,6 +229,7 @@ class BackupExportService {
       'auditArchiveId': ?auditArchiveId,
       'recordCounts': counts,
       'digests': sectionDigests,
+      'deviceSettings': ?deviceSettings,
       'data': normalized,
     };
     final packageDigest = BackupCanonicalCodec.digest(packagePayload);
@@ -239,6 +244,7 @@ class BackupExportService {
       digests: BackupDigests(package: packageDigest, sections: sectionDigests),
       data: normalized,
       auditArchiveId: auditArchiveId,
+      deviceSettings: deviceSettings,
     );
   }
 

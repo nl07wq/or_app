@@ -173,6 +173,15 @@ class _SystemPageState extends State<SystemPage> {
       padding: AppSpacing.cardPadding,
       children: [
         _SystemSection(
+          icon: Icons.tune_outlined,
+          title: 'DEVICE SETTINGS',
+          description: 'OR-APP内のサウンド、表示、演出を設定します。',
+          buttonText: 'OPEN DEVICE SETTINGS',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.deviceSettings),
+        ),
+        AppSpacing.gapXL,
+        _SystemSection(
           icon: Icons.devices_outlined,
           title: 'DEVICE TRANSFER',
           description:

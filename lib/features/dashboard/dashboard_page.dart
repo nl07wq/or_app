@@ -25,6 +25,7 @@ import '../../core/widgets/status_lamp.dart';
 import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
+import '../../core/services/device_settings_controller.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/holographic_ambient_background.dart';
 import '../../core/widgets/global_touch_ripple.dart';
@@ -851,18 +852,25 @@ class _DashboardPageState extends State<DashboardPage> {
                               return Stack(
                                 key: _dashboardViewportKey,
                                 children: [
-                                  Positioned.fill(
-                                    child: HolographicAmbientBackground(
-                                      key: const ValueKey(
-                                        'dashboard-page-ambient',
-                                      ),
-                                      painterKey: const ValueKey(
-                                        'dashboard-page-ambient-painter',
-                                      ),
-                                      routes: dashboardPageCircuitRoutes,
-                                      trafficScenarios:
-                                          dashboardPageCircuitTrafficScenarios,
-                                    ),
+                                  ValueListenableBuilder<DeviceSettings>(
+                                    valueListenable:
+                                        DeviceSettingsController.instance,
+                                    builder: (context, settings, _) =>
+                                        Positioned.fill(
+                                          child: HolographicAmbientBackground(
+                                            key: const ValueKey(
+                                              'dashboard-page-ambient',
+                                            ),
+                                            painterKey: const ValueKey(
+                                              'dashboard-page-ambient-painter',
+                                            ),
+                                            enabled:
+                                                settings.ambientCircuitEnabled,
+                                            routes: dashboardPageCircuitRoutes,
+                                            trafficScenarios:
+                                                dashboardPageCircuitTrafficScenarios,
+                                          ),
+                                        ),
                                   ),
                                   ListView(
                                     key: const ValueKey(

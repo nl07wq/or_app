@@ -15,6 +15,14 @@ const touchRippleExitAudioAssetUrl = 'assets/assets/audio/touch/button-09.mp3';
 
 enum TouchFeedbackSound { water, success, failure, exit }
 
+const touchRippleWaterBaseVolume = .28;
+const touchRippleSemanticBaseVolume = .34;
+
+double touchFeedbackBaseVolume(TouchFeedbackSound sound) =>
+    sound == TouchFeedbackSound.water
+    ? touchRippleWaterBaseVolume
+    : touchRippleSemanticBaseVolume;
+
 abstract interface class TouchRippleAudio {
   void prepare();
   void playFromUserGesture(TouchFeedbackSound sound);

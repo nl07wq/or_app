@@ -166,6 +166,7 @@ abstract final class BackupV14Transform {
       data: normalized,
       includedSections: fullSections.toSet(),
       auditArchiveId: audit.archiveId,
+      deviceSettings: normal.deviceSettings,
     );
   }
 

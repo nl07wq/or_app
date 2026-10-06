@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart' show kLongPressTimeout, kTouchSlop;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../services/device_settings_controller.dart';
 import '../services/touch_ripple_audio.dart';
 
 const touchRippleDuration = Duration(milliseconds: 900);
@@ -110,6 +111,11 @@ class GlobalTouchRipple extends StatefulWidget {
 
   static void claimFailure(int pointer) =>
       _claimResolved(pointer, TouchFeedbackSound.failure);
+
+  /// Settings previews reuse the live bounded backend, including mute and
+  /// volume resolution, without creating a visual ripple.
+  static void previewFeedback(TouchFeedbackSound sound) =>
+      _activeState?._audio.playFromUserGesture(sound);
 
   static void _claimResolved(int pointer, TouchFeedbackSound sound) {
     final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
@@ -302,7 +308,16 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
     _ticker = createTicker(_onFrame);
     _audio = widget.audio ?? createTouchRippleAudio();
     _audio.prepare();
+    DeviceSettingsController.instance.addListener(_onDeviceSettingsChanged);
     GlobalTouchRipple._activeState = this;
+  }
+
+  void _onDeviceSettingsChanged() {
+    if (!DeviceSettingsController.instance.value.rippleEnabled &&
+        _events.isNotEmpty) {
+      _events.clear();
+      _publishFrame();
+    }
   }
 
   @override
@@ -355,7 +370,10 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
       _audio.playFromUserGesture(TouchFeedbackSound.water);
       _pendingAudio.remove(pointer);
     });
-    if (!_motionEnabled) return;
+    if (!_motionEnabled ||
+        !DeviceSettingsController.instance.value.rippleEnabled) {
+      return;
+    }
     if (!_clock.isRunning) _clock.start();
     final nextEvents = boundedTouchRippleEvents(
       _events,
@@ -436,6 +454,7 @@ class _GlobalTouchRippleState extends State<GlobalTouchRipple>
 
   @override
   void dispose() {
+    DeviceSettingsController.instance.removeListener(_onDeviceSettingsChanged);
     _ticker.dispose();
     for (final pending in _pendingAudio.values) {
       pending.cancel();

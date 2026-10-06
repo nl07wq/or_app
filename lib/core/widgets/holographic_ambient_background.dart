@@ -177,11 +177,13 @@ class HolographicAmbientBackground extends StatefulWidget {
     this.routes = holographicCircuitRoutes,
     this.trafficScenarios = holographicCircuitTrafficScenarios,
     this.painterKey = const ValueKey('holographic-ambient-background'),
+    this.enabled = true,
   });
 
   final List<HolographicCircuitRoute> routes;
   final List<HolographicCircuitTrafficScenario> trafficScenarios;
   final Key painterKey;
+  final bool enabled;
 
   @override
   State<HolographicAmbientBackground> createState() =>
@@ -199,8 +201,20 @@ class _HolographicAmbientBackgroundState
   void didChangeDependencies() {
     super.didChangeDependencies();
     _configureMotion(
-      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false),
+      widget.enabled &&
+          !(MediaQuery.maybeOf(context)?.disableAnimations ?? false),
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant HolographicAmbientBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled) {
+      _configureMotion(
+        widget.enabled &&
+            !(MediaQuery.maybeOf(context)?.disableAnimations ?? false),
+      );
+    }
   }
 
   void _configureMotion(bool motionEnabled) {
@@ -231,21 +245,24 @@ class _HolographicAmbientBackgroundState
   }
 
   @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: RepaintBoundary(
-      child: CustomPaint(
-        key: widget.painterKey,
-        painter: _AmbientGeometryPainter(
-          color: Theme.of(context).colorScheme.primary,
-          seconds: _seconds,
-          motionEnabled: _motionEnabled,
-          routes: widget.routes,
-          trafficScenarios: widget.trafficScenarios,
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return const SizedBox.expand();
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: CustomPaint(
+          key: widget.painterKey,
+          painter: _AmbientGeometryPainter(
+            color: Theme.of(context).colorScheme.primary,
+            seconds: _seconds,
+            motionEnabled: _motionEnabled,
+            routes: widget.routes,
+            trafficScenarios: widget.trafficScenarios,
+          ),
+          child: const SizedBox.expand(),
         ),
-        child: const SizedBox.expand(),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AmbientGeometryPainter extends CustomPainter {
