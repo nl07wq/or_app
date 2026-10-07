@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../models/daily_assessment.dart';
 import 'daily_assessment_label_mapper.dart';
 import 'semantic_help_popover.dart';
@@ -90,7 +90,7 @@ class _ModuleAssessmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final level = _moduleLevel(items);
-    return OperationCard(
+    return DashboardGlassCard(
       key: ValueKey('daily-assessment-card-${module.name}'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,7 +390,7 @@ class _StringListCard extends StatelessWidget {
   final List<String> values;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => DashboardGlassCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

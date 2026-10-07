@@ -8,6 +8,7 @@ import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/widgets/dashboard_glass_card.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/section_header.dart';
@@ -138,6 +139,7 @@ void main() {
     await _pump(tester, width: 390);
     expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
     expect(find.byKey(const ValueKey('dashboard-page-ambient')), findsNothing);
+    expect(find.byType(DashboardGlassCard), findsWidgets);
 
     settings.update(settings.value.copyWith(ambientProcessingEnabled: false));
     await tester.pump();

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/engine/commander_analysis_snapshot.dart';
 import '../../../core/engine/operation_status.dart';
 import 'operation_status_card.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 
 class BriefSection extends StatelessWidget {
   final CommanderAnalysisSnapshot analysis;
@@ -47,7 +47,7 @@ class _DailyCommandCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

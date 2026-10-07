@@ -9,7 +9,7 @@ import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/status_lamp.dart';
 import '../../report_sync/models/morning_brief_record.dart';
@@ -203,7 +203,9 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
                   ),
                   AppSpacing.gapSM,
                   if (current == null)
-                    const OperationCard(child: Text('DAILY BRIEFはまだありません。'))
+                    const DashboardGlassCard(
+                      child: Text('DAILY BRIEFはまだありません。'),
+                    )
                   else
                     _MorningBriefCard(record: current),
                   AppSpacing.gapMD,
@@ -493,11 +495,11 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         ),
         AppSpacing.gapSM,
         if (snapshot.hasError)
-          OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
+          DashboardGlassCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
         else if (snapshot.data!.current == null)
-          const OperationCard(child: Text('DAILY DEBRIEFはまだありません。'))
+          const DashboardGlassCard(child: Text('DAILY DEBRIEFはまだありません。'))
         else
           _DailyDebriefDetail(
             key: const ValueKey('current-daily-debrief'),
@@ -520,11 +522,11 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         ),
         AppSpacing.gapSM,
         if (snapshot.hasError)
-          OperationCard(child: Text('LOAD FAILED: ${snapshot.error}'))
+          DashboardGlassCard(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
         else if (snapshot.data!.backNumbers.isEmpty)
-          const OperationCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
+          const DashboardGlassCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
         else ...[
           _DailyDebriefHistory(
             records: snapshot.data!.backNumbers
@@ -672,7 +674,7 @@ class _DailyDebriefDetail extends StatelessWidget {
                 ],
         ),
     ];
-    return OperationCard(
+    return DashboardGlassCard(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1058,7 +1060,7 @@ class _MorningBriefCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final analysis = record.situationAnalysisV2;
     final decision = record.strategicResourceDecisionV2;
-    return OperationCard(
+    return DashboardGlassCard(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1796,7 +1798,7 @@ class _MorningBriefHistory extends StatelessWidget {
   final List<MorningBriefRecord> records;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => DashboardGlassCard(
     child: records.isEmpty
         ? const Row(
             children: [
@@ -1838,7 +1840,7 @@ class _DailyDebriefHistory extends StatelessWidget {
   records;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => DashboardGlassCard(
     child: Column(
       children: [
         for (var index = 0; index < records.length; index++) ...[

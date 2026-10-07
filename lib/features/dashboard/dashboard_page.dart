@@ -20,6 +20,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/dashboard_glass_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_lamp.dart';
 import '../system/widgets/system_menu_button.dart';
@@ -1092,7 +1093,7 @@ class _OperationDateCard extends StatelessWidget {
   final FinalizeDateTransition? finalizeTransition;
 
   @override
-  Widget build(BuildContext context) => _DashboardWeatherGlassSurface(
+  Widget build(BuildContext context) => DashboardGlassCard(
     key: const ValueKey('dashboard-weather-glass-operation-date'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1120,68 +1121,6 @@ class _OperationDateCard extends StatelessWidget {
     ),
   );
 }
-
-/// Static Calendar-Weather-derived material used only by the Dashboard
-/// surfaces explicitly selected for this pilot. It deliberately contains no
-/// scanlines or ambient animation.
-class _DashboardWeatherGlassSurface extends StatelessWidget {
-  const _DashboardWeatherGlassSurface({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Theme(
-      data: Theme.of(context).copyWith(
-        cardColor: Colors.transparent,
-        cardTheme: Theme.of(context).cardTheme.copyWith(
-          color: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-        ),
-      ),
-      child: OperationCard(
-        padding: EdgeInsets.zero,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: AppRadius.large,
-            gradient: _dashboardWeatherGlassGradient(scheme),
-            border: Border.all(color: scheme.primary.withValues(alpha: .16)),
-            boxShadow: [
-              BoxShadow(
-                color: scheme.primary.withValues(alpha: .055),
-                blurRadius: 18,
-                offset: const Offset(-2, -2),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .34),
-                blurRadius: 18,
-                offset: const Offset(4, 8),
-              ),
-            ],
-          ),
-          child: Padding(padding: AppSpacing.cardPadding, child: child),
-        ),
-      ),
-    );
-  }
-}
-
-LinearGradient _dashboardWeatherGlassGradient(
-  ColorScheme scheme, {
-  Color? stateColor,
-  bool stateActive = false,
-}) => LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [
-    (stateColor ?? scheme.primary).withValues(
-      alpha: stateActive || stateColor != null ? .11 : .085,
-    ),
-    scheme.surface.withValues(alpha: .24),
-    scheme.surfaceContainerHigh.withValues(alpha: .13),
-  ],
-);
 
 /// The Progress grid keeps its Weather-glass base, with this deliberately
 /// low-strength wash carrying the same state colour already used by the tile.
@@ -1267,7 +1206,7 @@ class _DashboardHolographicOuterSurface extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             borderRadius: AppRadius.large,
-            gradient: _dashboardWeatherGlassGradient(scheme),
+            gradient: DashboardGlassCard.gradient(scheme),
             boxShadow: [
               BoxShadow(
                 color: scheme.primary.withValues(alpha: .07),

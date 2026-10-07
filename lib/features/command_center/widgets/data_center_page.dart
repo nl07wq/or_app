@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/section_header.dart';
 
@@ -20,7 +20,7 @@ class DataCenterPage extends StatelessWidget {
       AppSpacing.gapXL,
       const SectionHeader(icon: Icons.history, title: 'HISTORY'),
       AppSpacing.gapSM,
-      OperationCard(
+      DashboardGlassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -44,7 +44,7 @@ class DataCenterPage extends StatelessWidget {
         title: 'DAILY AGGREGATE RECORDS',
       ),
       AppSpacing.gapSM,
-      OperationCard(
+      DashboardGlassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

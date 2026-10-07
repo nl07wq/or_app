@@ -11,7 +11,7 @@ import '../../../core/engine/food_summary.dart';
 import '../../../core/engine/training_summary.dart';
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../activity/models/activity_summary_state.dart';
 import '../../dashboard/widgets/daily_log_card.dart';
@@ -515,7 +515,7 @@ class _CurrentOperationCard extends StatelessWidget {
   static const _datePresentationHeight = 36.0;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => DashboardGlassCard(
     child: LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 280;
@@ -666,7 +666,7 @@ class _ErrorContent extends StatelessWidget {
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) => Center(
-    child: OperationCard(
+    child: DashboardGlassCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

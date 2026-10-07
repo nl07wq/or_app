@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 
 class ModuleStatusCard extends StatelessWidget {
   final String module;
@@ -16,7 +16,7 @@ class ModuleStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Row(
         children: [
           CircleAvatar(radius: 6, backgroundColor: color),
