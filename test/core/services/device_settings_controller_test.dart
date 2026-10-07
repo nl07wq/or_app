@@ -96,17 +96,21 @@ void main() {
     },
   );
 
-  test('SYSTEM and OFF respect accessibility; ON forces reduced motion', () {
-    for (final platform in [false, true]) {
-      for (final preference in ReducedMotionPreference.values) {
-        expect(
-          DeviceSettings(
-            reducedMotion: preference,
-          ).resolvesReducedMotion(platform),
-          platform || preference == ReducedMotionPreference.on,
-        );
-      }
-    }
+  test('SYSTEM follows accessibility while ON and OFF are explicit', () {
+    expect(const DeviceSettings().resolvesReducedMotion(false), isFalse);
+    expect(const DeviceSettings().resolvesReducedMotion(true), isTrue);
+    expect(
+      const DeviceSettings(
+        reducedMotion: ReducedMotionPreference.on,
+      ).resolvesReducedMotion(false),
+      isTrue,
+    );
+    expect(
+      const DeviceSettings(
+        reducedMotion: ReducedMotionPreference.off,
+      ).resolvesReducedMotion(true),
+      isFalse,
+    );
   });
 
   test('defaults preserve the released base feedback volumes', () {
@@ -133,7 +137,7 @@ void main() {
       const DeviceSettings(
         reducedMotion: ReducedMotionPreference.off,
       ).resolvesReducedMotion(true),
-      isTrue,
+      isFalse,
     );
     expect(settings.rippleEnabled, isTrue);
     expect(settings.ambientCircuitEnabled, isTrue);

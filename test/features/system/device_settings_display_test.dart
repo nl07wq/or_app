@@ -120,4 +120,63 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'production OFF overrides web platform reduced motion immediately',
+    (tester) async {
+      final settings = DeviceSettingsController.instance;
+      final original = settings.value;
+      addTearDown(() {
+        settings.resetForTesting(original);
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+      });
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      settings.resetForTesting(
+        const DeviceSettings(reducedMotion: ReducedMotionPreference.system),
+      );
+      final controller = AppInitializationController()..markReady();
+      final service = StartupInitializationService(
+        controller: controller,
+        isWeb: false,
+        restore: () async {},
+      );
+      await tester.pumpWidget(
+        OperationRebootApp(initializationService: service),
+      );
+      final productionBuilder = tester
+          .widget<MaterialApp>(find.byType(MaterialApp))
+          .builder;
+      await tester.pumpWidget(const SizedBox.shrink());
+      const targetKey = ValueKey('reduced-motion-production-target');
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: productionBuilder,
+          home: const SizedBox.expand(key: targetKey),
+        ),
+      );
+      expect(
+        MediaQuery.of(tester.element(find.byKey(targetKey))).disableAnimations,
+        isTrue,
+      );
+
+      settings.update(
+        settings.value.copyWith(reducedMotion: ReducedMotionPreference.off),
+      );
+      await tester.pump();
+      expect(
+        MediaQuery.of(tester.element(find.byKey(targetKey))).disableAnimations,
+        isFalse,
+      );
+
+      settings.update(
+        settings.value.copyWith(reducedMotion: ReducedMotionPreference.on),
+      );
+      await tester.pump();
+      expect(
+        MediaQuery.of(tester.element(find.byKey(targetKey))).disableAnimations,
+        isTrue,
+      );
+    },
+  );
 }

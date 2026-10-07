@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/notifications/models/notification_configuration.dart';
 
-/// The explicit application preference for motion.  [off] still allows a
-/// platform accessibility requirement to win when one is supplied by Flutter.
+/// The explicit application preference for motion. [system] follows the
+/// platform, while [on] and [off] are explicit application overrides.
 enum ReducedMotionPreference { system, on, off }
 
 enum DeviceFeedbackChannel { command, exit, rejected, ambient }
@@ -59,13 +59,12 @@ class DeviceSettings {
     return masterVolume * roleVolume;
   }
 
-  /// Platform accessibility remains authoritative, even when the app setting
-  /// asks for normal motion.
+  /// Resolves the tri-state preference used by every OR-APP visual effect.
   bool resolvesReducedMotion(bool platformReducedMotion) =>
       switch (reducedMotion) {
         ReducedMotionPreference.system => platformReducedMotion,
         ReducedMotionPreference.on => true,
-        ReducedMotionPreference.off => platformReducedMotion,
+        ReducedMotionPreference.off => false,
       };
 
   DeviceSettings copyWith({
