@@ -46,6 +46,33 @@ void main() {
     }
   });
 
+  test('master and channel percentages remain continuously multiplicative', () {
+    const cases = <(double, double, double)>[
+      (1, 1, 1),
+      (.75, 1, .75),
+      (.5, 1, .5),
+      (.25, 1, .25),
+      (.1, 1, .1),
+      (.01, 1, .01),
+      (0, 1, 0),
+      (.5, .5, .25),
+      (.5, .4, .2),
+      (.25, .2, .05),
+    ];
+
+    for (final (master, channel, expected) in cases) {
+      final settings = DeviceSettings(
+        masterVolume: master,
+        commandVolume: channel,
+      );
+      expect(
+        settings.volumeMultiplierFor(DeviceFeedbackChannel.command),
+        closeTo(expected, .000001),
+        reason: 'MASTER $master × COMMAND $channel',
+      );
+    }
+  });
+
   test(
     'missing, corrupt and non-finite preferences preserve safe defaults',
     () async {
