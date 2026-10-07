@@ -493,8 +493,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('REMINDERを編集'), findsOneWidget);
       expect(find.text('毎日'), findsWidgets);
-      Navigator.of(tester.element(find.text('REMINDERを編集'))).pop();
+      await tester.enterText(find.byType(TextField).first, 'Daily edited');
+      await tester.tap(find.widgetWithText(TextButton, '保存'));
       await tester.pumpAndSettle();
+      final editedDefinitions = await container.reminders.findDefinitions();
+      expect(editedDefinitions, hasLength(1));
+      expect(editedDefinitions.single.id, 'daily');
+      expect(editedDefinitions.single.title, 'Daily edited');
+      expect(editedDefinitions.single.recurrence, ReminderRecurrence.daily);
 
       await _swipeLeft(tester, find.byKey(const ValueKey('recurring-daily')));
       expect(find.text('過去と完了履歴は保持します。'), findsOneWidget);
@@ -539,7 +545,7 @@ void main() {
 
       await tester.tap(find.widgetWithText(SwitchListTile, '終日'));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('開始時刻'));
+      await tester.tap(find.textContaining('開始時刻  ').first);
       await tester.pumpAndSettle();
       expect(find.byType(TimePickerDialog), findsOneWidget);
       Navigator.of(tester.element(find.byType(TimePickerDialog))).pop();
@@ -601,7 +607,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('月末'), findsNothing);
-      await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
+      final save = find.widgetWithText(ElevatedButton, '保存');
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      await tester.tap(save);
       await tester.pumpAndSettle();
       await tester.tap(find.text('RECURRING'));
       await tester.pumpAndSettle();
@@ -689,13 +698,163 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'Saved');
     await tester.tap(find.widgetWithText(TextButton, '保存'));
     await tester.pumpAndSettle();
-    expect(
-      (await container.reminders.findDefinitions())
-          .where((value) => value.active)
-          .single
-          .title,
-      'Saved',
+    final savedDefinitions = await container.reminders.findDefinitions();
+    expect(savedDefinitions, hasLength(1));
+    expect(savedDefinitions.single.id, 'edit');
+    expect(savedDefinitions.single.title, 'Saved');
+    expect(savedDefinitions.single.retiredAt, isNull);
+  });
+
+  testWidgets('editing 09:15 to 09:30 replaces the same persisted reminder', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    final createdAt = DateTime.utc(2026, 10, 7);
+    await container.reminders.saveDefinition(
+      _definition(
+        id: 'edit-time',
+        title: 'テスト',
+        startDate: today,
+        allDay: false,
+        time: '09:15',
+        endTime: '10:00',
+        notificationOffsetsMinutes: const [5],
+        createdAt: createdAt,
+      ),
     );
+    await _pumpPage(tester);
+
+    expect(find.text('$today  09:15'), findsOneWidget);
+    await tester.tap(find.text('テスト'));
+    await tester.pumpAndSettle();
+    await _enterTime(
+      tester,
+      find.textContaining('開始時刻  ').first,
+      hour: '09',
+      minute: '30',
+    );
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+
+    final definitions = await container.reminders.findDefinitions();
+    expect(definitions, hasLength(1));
+    expect(definitions.single.id, 'edit-time');
+    expect(definitions.single.time, '09:30');
+    expect(definitions.single.createdAt, createdAt);
+    expect(definitions.single.retiredAt, isNull);
+    expect(find.text('$today  09:15'), findsNothing);
+    expect(find.text('$today  09:30'), findsOneWidget);
+    expect(find.text('テスト'), findsOneWidget);
+
+    await tester.tap(find.text('ALL'));
+    await tester.pumpAndSettle();
+    expect(find.text('テスト'), findsOneWidget);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: RemindersPage(key: ValueKey('reload'))),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('$today  09:15'), findsNothing);
+    expect(find.text('$today  09:30'), findsOneWidget);
+    expect(await container.reminders.findDefinitions(), hasLength(1));
+  });
+
+  testWidgets('date edit migrates non-recurring occurrence state', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final yesterday = today.subtract(const Duration(days: 1));
+    final todayKey = _dateKey(today);
+    final yesterdayKey = _dateKey(yesterday);
+    await container.reminders.saveDefinition(
+      _definition(id: 'edit-date', title: 'Move date', startDate: yesterdayKey),
+    );
+    await container.reminders.saveState(
+      ReminderOccurrenceState(
+        id: 'edit-date@$yesterdayKey',
+        definitionId: 'edit-date',
+        localDate: yesterdayKey,
+        status: ReminderOccurrenceStatus.completed,
+        updatedAt: DateTime.now().toUtc(),
+        completedAt: DateTime.now().toUtc(),
+      ),
+    );
+    await _pumpPage(tester);
+    await tester.tap(find.text('COMPLETED'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('日付  ').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('${today.day}').last);
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+
+    final definitions = await container.reminders.findDefinitions();
+    expect(definitions, hasLength(1));
+    expect(definitions.single.id, 'edit-date');
+    expect(definitions.single.startDate, todayKey);
+    final states = await container.reminders.findStates();
+    expect(states, hasLength(1));
+    expect(states.single.id, 'edit-date@$todayKey');
+    expect(states.single.localDate, todayKey);
+    expect(states.single.status, ReminderOccurrenceStatus.completed);
+    expect(states.where((value) => value.localDate == yesterdayKey), isEmpty);
+  });
+
+  testWidgets('memo and all-day transitions update one reminder in place', (
+    tester,
+  ) async {
+    final today = _dateKey(DateTime.now());
+    await container.reminders.saveDefinition(
+      _definition(
+        id: 'edit-all-day',
+        title: 'Transitions',
+        startDate: today,
+        note: 'before',
+        allDay: false,
+        time: '08:00',
+        endTime: '09:00',
+      ),
+    );
+    await _pumpPage(tester);
+    await tester.tap(find.text('Transitions'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(1), 'after');
+    await tester.tap(find.widgetWithText(SwitchListTile, '終日'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+
+    var definitions = await container.reminders.findDefinitions();
+    expect(definitions, hasLength(1));
+    expect(definitions.single.id, 'edit-all-day');
+    expect(definitions.single.note, 'after');
+    expect(definitions.single.allDay, isTrue);
+    expect(definitions.single.time, isNull);
+    expect(definitions.single.endTime, isNull);
+
+    await tester.tap(find.text('Transitions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SwitchListTile, '終日'));
+    await tester.pumpAndSettle();
+    await _enterTime(
+      tester,
+      find.textContaining('終了時刻  ').first,
+      hour: '10',
+      minute: '30',
+    );
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+
+    definitions = await container.reminders.findDefinitions();
+    expect(definitions, hasLength(1));
+    expect(definitions.single.id, 'edit-all-day');
+    expect(definitions.single.allDay, isFalse);
+    expect(definitions.single.time, '09:00');
+    expect(definitions.single.endTime, '10:30');
   });
 }
 
@@ -706,6 +865,26 @@ Future<void> _pumpPage(WidgetTester tester) async {
 
 Future<void> _swipeLeft(WidgetTester tester, Finder finder) async {
   await tester.drag(finder, const Offset(-500, 0));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _enterTime(
+  WidgetTester tester,
+  Finder tile, {
+  required String hour,
+  required String minute,
+}) async {
+  await tester.tap(tile);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byIcon(Icons.keyboard_outlined));
+  await tester.pumpAndSettle();
+  final fields = find.descendant(
+    of: find.byType(TimePickerDialog),
+    matching: find.byType(TextField),
+  );
+  await tester.enterText(fields.at(0), hour);
+  await tester.enterText(fields.at(1), minute);
+  await tester.tap(find.widgetWithText(TextButton, 'OK'));
   await tester.pumpAndSettle();
 }
 
@@ -728,6 +907,11 @@ ReminderDefinition _definition({
   required String startDate,
   ReminderRecurrence recurrence = ReminderRecurrence.none,
   String? note,
+  bool allDay = true,
+  String? time,
+  String? endTime,
+  List<int> notificationOffsetsMinutes = const [],
+  DateTime? createdAt,
 }) {
   final now = DateTime.now().toUtc();
   return ReminderDefinition(
@@ -735,10 +919,14 @@ ReminderDefinition _definition({
     title: title,
     note: note,
     startDate: startDate,
-    allDay: true,
+    allDay: allDay,
+    time: time,
+    endTime: endTime,
     recurrence: recurrence,
+    notificationOffsetsMinutes: notificationOffsetsMinutes,
+    notificationTimeZone: 'Asia/Tokyo',
     active: true,
-    createdAt: now,
+    createdAt: createdAt ?? now,
     updatedAt: now,
   );
 }

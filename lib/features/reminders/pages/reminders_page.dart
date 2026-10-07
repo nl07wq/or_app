@@ -237,37 +237,13 @@ class _RemindersPageState extends State<RemindersPage>
     if (draft == null) return;
     final boundary = DateTime.now().toUtc();
     final repository = AppRepositoryRegistry.container.reminders;
+    final nextStartDate = _dateKey(draft.date);
     await repository.saveDefinition(
       ReminderDefinition(
         id: previous.id,
-        title: previous.title,
-        note: previous.note,
-        startDate: previous.startDate,
-        allDay: previous.allDay,
-        time: previous.time,
-        endTime: previous.endTime,
-        recurrence: previous.recurrence,
-        recurrenceEnd: previous.recurrenceEnd,
-        weekdays: previous.weekdays,
-        monthDays: previous.monthDays,
-        monthEnd: previous.monthEnd,
-        monthWeek: previous.monthWeek,
-        monthWeeks: previous.monthWeeks,
-        notificationOffsetsMinutes: previous.notificationOffsetsMinutes,
-        notificationTimeZone: previous.notificationTimeZone,
-        active: false,
-        createdAt: previous.createdAt,
-        updatedAt: boundary,
-        effectiveFrom: previous.effectiveFrom,
-        retiredAt: boundary,
-      ),
-    );
-    await repository.saveDefinition(
-      ReminderDefinition(
-        id: '${previous.id}-r${boundary.microsecondsSinceEpoch}',
         title: draft.title,
         note: draft.note,
-        startDate: _dateKey(draft.date),
+        startDate: nextStartDate,
         allDay: !draft.timed,
         time: draft.timed ? _timeKey(draft.time) : null,
         endTime: draft.timed && draft.endTime != null
@@ -283,11 +259,32 @@ class _RemindersPageState extends State<RemindersPage>
         notificationOffsetsMinutes: draft.notificationOffsetsMinutes,
         notificationTimeZone: draft.notificationTimeZone,
         active: true,
-        createdAt: boundary,
+        createdAt: previous.createdAt,
         updatedAt: boundary,
-        effectiveFrom: boundary,
+        effectiveFrom: previous.effectiveFrom,
       ),
     );
+    if (previous.recurrence == ReminderRecurrence.none &&
+        draft.recurrence == ReminderRecurrence.none &&
+        previous.startDate != nextStartDate) {
+      for (final state in await repository.findStates()) {
+        if (state.definitionId != previous.id ||
+            state.localDate != previous.startDate) {
+          continue;
+        }
+        await repository.saveState(
+          ReminderOccurrenceState(
+            id: '${previous.id}@$nextStartDate',
+            definitionId: previous.id,
+            localDate: nextStartDate,
+            status: state.status,
+            updatedAt: boundary,
+            completedAt: state.completedAt,
+          ),
+        );
+        await repository.deleteState(state.id);
+      }
+    }
     notifySchedulePlanChanged();
     await _load();
   }
