@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
@@ -103,6 +104,49 @@ void main() {
 
     expect(rippleEvents, 1);
     expect(audio.played, [TouchFeedbackSound.water]);
+  });
+
+  testWidgets('Ripple setting transitions apply to the next passive tap', (
+    tester,
+  ) async {
+    final settings = DeviceSettingsController.instance;
+    final original = settings.value;
+    addTearDown(() => settings.resetForTesting(original));
+    settings.resetForTesting(const DeviceSettings(rippleEnabled: false));
+    final audio = _RecordingTouchRippleAudio();
+    var rippleEvents = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          onRippleEventCreated: (_) => rippleEvents++,
+          child: const ColoredBox(color: Colors.black),
+        ),
+      ),
+    );
+
+    await tester.tapAt(const Offset(40, 40));
+    await tester.pump(const Duration(milliseconds: 32));
+    expect(rippleEvents, 0);
+    expect(audio.played, [TouchFeedbackSound.water]);
+
+    settings.update(settings.value.copyWith(rippleEnabled: true));
+    await tester.pump();
+    await tester.tapAt(const Offset(80, 80));
+    await tester.pump(const Duration(milliseconds: 32));
+    expect(rippleEvents, 1);
+    expect(audio.played, [TouchFeedbackSound.water, TouchFeedbackSound.water]);
+
+    settings.update(settings.value.copyWith(rippleEnabled: false));
+    await tester.pump();
+    await tester.tapAt(const Offset(120, 120));
+    await tester.pump(const Duration(milliseconds: 32));
+    expect(rippleEvents, 1);
+    expect(audio.played, [
+      TouchFeedbackSound.water,
+      TouchFeedbackSound.water,
+      TouchFeedbackSound.water,
+    ]);
   });
 
   testWidgets('passive drag and long press remain fully silent', (

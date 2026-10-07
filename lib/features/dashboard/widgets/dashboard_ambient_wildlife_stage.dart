@@ -140,6 +140,7 @@ class WildlifeEventPlan {
 class DashboardAmbientWildlifeStage extends StatefulWidget {
   const DashboardAmbientWildlifeStage({
     super.key,
+    this.enabled = true,
     this.productionStageKey,
     this.localNow = DateTime.now,
     this.nextInt,
@@ -176,6 +177,7 @@ class DashboardAmbientWildlifeStage extends StatefulWidget {
   static const double groundInset = 5;
 
   final GlobalKey<AmbientWildlifeV2ProductionStageState>? productionStageKey;
+  final bool enabled;
   final DateTime Function() localNow;
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
@@ -190,24 +192,32 @@ class _DashboardAmbientWildlifeStageState
     extends State<DashboardAmbientWildlifeStage> {
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: ExcludeSemantics(
-        child: RepaintBoundary(
-          child: SizedBox(
-            key: const ValueKey('dashboard-ambient-wildlife-stage'),
-            height: DashboardAmbientWildlifeStage.height,
-            width: double.infinity,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                const _DashboardAmbientWildlifeFrostedSurface(),
-                _DashboardAmbientWildlifeProductionViewport(
-                  stageKey: widget.productionStageKey,
-                  nextInt: widget.nextInt,
-                  minimumInterval: widget.minimumInterval,
-                  maximumInterval: widget.maximumInterval,
-                ),
-              ],
+    return Visibility(
+      key: const ValueKey('dashboard-ambient-wildlife-visibility'),
+      visible: widget.enabled,
+      maintainState: true,
+      maintainAnimation: true,
+      maintainSize: true,
+      child: IgnorePointer(
+        child: ExcludeSemantics(
+          child: RepaintBoundary(
+            child: SizedBox(
+              key: const ValueKey('dashboard-ambient-wildlife-stage'),
+              height: DashboardAmbientWildlifeStage.height,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const _DashboardAmbientWildlifeFrostedSurface(),
+                  _DashboardAmbientWildlifeProductionViewport(
+                    enabled: widget.enabled,
+                    stageKey: widget.productionStageKey,
+                    nextInt: widget.nextInt,
+                    minimumInterval: widget.minimumInterval,
+                    maximumInterval: widget.maximumInterval,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -314,6 +324,7 @@ class _DashboardAmbientWildlifeProductionPreviewStageState
 
 class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
   const _DashboardAmbientWildlifeProductionViewport({
+    this.enabled = true,
     this.stageKey,
     this.nextInt,
     this.minimumInterval = const Duration(seconds: 45),
@@ -327,6 +338,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
   });
 
   final GlobalKey<AmbientWildlifeV2ProductionStageState>? stageKey;
+  final bool enabled;
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
   final Duration maximumInterval;
@@ -346,6 +358,7 @@ class _DashboardAmbientWildlifeProductionViewport extends StatelessWidget {
       maxHeight: DashboardAmbientWildlifeStage.canonicalHeight,
       child: AmbientWildlifeV2ProductionStage(
         key: stageKey,
+        enabled: enabled,
         nextInt: nextInt,
         minimumInterval: minimumInterval,
         maximumInterval: maximumInterval,

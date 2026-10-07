@@ -133,26 +133,26 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
               );
           return MediaQuery(
             data: resolvedMediaQuery,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                GlobalTouchRipple(
-                  child: StartupGate(
+            child: GlobalTouchRipple(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  StartupGate(
                     service: _initializationService,
                     showBootSequence: true,
                     onBootEvent: widget.onBootEvent,
                     child: child ?? const SizedBox.shrink(),
                   ),
-                ),
-                if (settings.brightness < 1)
-                  IgnorePointer(
-                    child: ColoredBox(
-                      color: Colors.black.withValues(
-                        alpha: (1 - settings.brightness) * .55,
+                  if (settings.brightness < 1)
+                    IgnorePointer(
+                      child: ColoredBox(
+                        color: Colors.black.withValues(
+                          alpha: (1 - settings.brightness) * .55,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           );
         },

@@ -28,6 +28,7 @@ class DeviceSettings {
     this.brightness = 1,
     this.rippleEnabled = true,
     this.ambientCircuitEnabled = true,
+    this.ambientWildlifeEnabled = true,
     this.reducedMotion = ReducedMotionPreference.system,
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
   });
@@ -43,6 +44,7 @@ class DeviceSettings {
   final double brightness;
   final bool rippleEnabled;
   final bool ambientCircuitEnabled;
+  final bool ambientWildlifeEnabled;
   final ReducedMotionPreference reducedMotion;
   final NotificationPrivacyMode notificationPrivacyMode;
 
@@ -76,6 +78,7 @@ class DeviceSettings {
     double? brightness,
     bool? rippleEnabled,
     bool? ambientCircuitEnabled,
+    bool? ambientWildlifeEnabled,
     ReducedMotionPreference? reducedMotion,
     NotificationPrivacyMode? notificationPrivacyMode,
   }) => DeviceSettings(
@@ -88,6 +91,8 @@ class DeviceSettings {
     brightness: brightness ?? this.brightness,
     rippleEnabled: rippleEnabled ?? this.rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
+    ambientWildlifeEnabled:
+        ambientWildlifeEnabled ?? this.ambientWildlifeEnabled,
     reducedMotion: reducedMotion ?? this.reducedMotion,
     notificationPrivacyMode:
         notificationPrivacyMode ?? this.notificationPrivacyMode,
@@ -103,6 +108,7 @@ class DeviceSettings {
     brightness: _brightness(brightness),
     rippleEnabled: rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled,
+    ambientWildlifeEnabled: ambientWildlifeEnabled,
     reducedMotion: reducedMotion,
     notificationPrivacyMode: notificationPrivacyMode,
   );
@@ -117,6 +123,7 @@ class DeviceSettings {
     'brightness': brightness,
     'rippleEnabled': rippleEnabled,
     'ambientCircuitEnabled': ambientCircuitEnabled,
+    'ambientWildlifeEnabled': ambientWildlifeEnabled,
     'reducedMotion': reducedMotion.name,
     'notificationPrivacyMode': notificationPrivacyMode.name,
   };
@@ -160,6 +167,7 @@ class DeviceSettings {
       brightness: number('brightness', 1),
       rippleEnabled: flag('rippleEnabled', true),
       ambientCircuitEnabled: flag('ambientCircuitEnabled', true),
+      ambientWildlifeEnabled: flag('ambientWildlifeEnabled', true),
       reducedMotion: reducedMotion ?? ReducedMotionPreference.system,
       notificationPrivacyMode:
           notificationPrivacyMode ?? NotificationPrivacyMode.contentHidden,

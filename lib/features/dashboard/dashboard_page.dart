@@ -828,9 +828,16 @@ class _DashboardPageState extends State<DashboardPage> {
                             shadowColor: Colors.transparent,
                             scrolledUnderElevation: 0,
                             leadingWidth: 56,
-                            leading: _DashboardAmbientManualTrigger(
-                              onPressed: () => _ambientStageKey.currentState
-                                  ?.triggerManualSequence(),
+                            leading: ValueListenableBuilder<DeviceSettings>(
+                              valueListenable:
+                                  DeviceSettingsController.instance,
+                              builder: (context, settings, _) =>
+                                  _DashboardAmbientManualTrigger(
+                                    onPressed: settings.ambientWildlifeEnabled
+                                        ? () => _ambientStageKey.currentState
+                                              ?.triggerManualSequence()
+                                        : null,
+                                  ),
                             ),
                             title: const _DashboardNeonBrandMark(),
                             actions: const [SystemMenuButton()],
@@ -994,12 +1001,21 @@ class _DashboardPageState extends State<DashboardPage> {
                                       child:
                                           const _DashboardPinnedTopBandGlass(),
                                     ),
-                                  Positioned.fromRect(
-                                    rect:
-                                        _wildlifeStageRect ?? fallbackStageRect,
-                                    child: DashboardAmbientWildlifeStage(
-                                      productionStageKey: _ambientStageKey,
-                                    ),
+                                  ValueListenableBuilder<DeviceSettings>(
+                                    valueListenable:
+                                        DeviceSettingsController.instance,
+                                    builder: (context, settings, _) =>
+                                        Positioned.fromRect(
+                                          rect:
+                                              _wildlifeStageRect ??
+                                              fallbackStageRect,
+                                          child: DashboardAmbientWildlifeStage(
+                                            enabled:
+                                                settings.ambientWildlifeEnabled,
+                                            productionStageKey:
+                                                _ambientStageKey,
+                                          ),
+                                        ),
                                   ),
                                 ],
                               );
@@ -3997,7 +4013,7 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
 class _DashboardAmbientManualTrigger extends StatelessWidget {
   const _DashboardAmbientManualTrigger({required this.onPressed});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) => Center(

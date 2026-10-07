@@ -129,6 +129,30 @@ void main() {
       DeviceSettingsController.instance.resetForTesting(original);
     }
   });
+
+  testWidgets('Ambient Wildlife preference applies immediately', (
+    tester,
+  ) async {
+    final controller = DeviceSettingsController();
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceSettingsPage(controller: controller)),
+    );
+
+    final wildlife = find.byKey(
+      const ValueKey('device-settings-ambient-wildlife'),
+    );
+    await tester.scrollUntilVisible(wildlife, 300);
+    await tester.ensureVisible(wildlife);
+    await tester.pumpAndSettle();
+    await tester.tap(wildlife);
+    await tester.pump();
+    expect(controller.value.ambientWildlifeEnabled, isFalse);
+
+    await tester.tap(wildlife);
+    await tester.pump();
+    expect(controller.value.ambientWildlifeEnabled, isTrue);
+  });
 }
 
 class _RecordingAudio implements TouchRippleAudio {

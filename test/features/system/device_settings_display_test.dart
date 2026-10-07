@@ -5,6 +5,7 @@ import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/holographic_ambient_background.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -62,9 +63,14 @@ void main() {
     final dimmedMedia = MediaQuery.of(tester.element(find.byKey(targetKey)));
     expect(dimmedMedia.size, media.size);
     expect(dimmedMedia.textScaler, media.textScaler);
+    final brightnessLayer = find.byWidgetPredicate(
+      (w) => w is ColoredBox && w.color.a > 0 && w.color.a < 1,
+    );
+    expect(brightnessLayer, findsOneWidget);
     expect(
-      find.byWidgetPredicate(
-        (w) => w is ColoredBox && w.color.a > 0 && w.color.a < 1,
+      find.descendant(
+        of: find.byType(GlobalTouchRipple),
+        matching: brightnessLayer,
       ),
       findsOneWidget,
     );

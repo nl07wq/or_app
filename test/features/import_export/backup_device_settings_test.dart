@@ -41,6 +41,7 @@ void main() {
           brightness: .8,
           rippleEnabled: false,
           ambientCircuitEnabled: false,
+          ambientWildlifeEnabled: false,
           notificationPrivacyMode: NotificationPrivacyMode.titleVisible,
           reducedMotion: ReducedMotionPreference.on,
         ),
@@ -56,6 +57,7 @@ void main() {
         );
         expect(decoded.deviceSettings?['masterVolume'], .7);
         expect(decoded.deviceSettings?['ambientCircuitEnabled'], isFalse);
+        expect(decoded.deviceSettings?['ambientWildlifeEnabled'], isFalse);
         expect(
           decoded.deviceSettings?['notificationPrivacyMode'],
           NotificationPrivacyMode.titleVisible.name,

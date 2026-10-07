@@ -1105,6 +1105,7 @@ class AmbientWildlifeV2Stage extends StatefulWidget {
 class AmbientWildlifeV2ProductionStage extends StatefulWidget {
   const AmbientWildlifeV2ProductionStage({
     super.key,
+    this.enabled = true,
     this.nextInt,
     this.minimumInterval = const Duration(seconds: 45),
     this.maximumInterval = const Duration(seconds: 150),
@@ -1130,6 +1131,7 @@ class AmbientWildlifeV2ProductionStage extends StatefulWidget {
 
   static const height = BatV3ProductionFlight.stageHeight;
 
+  final bool enabled;
   final int Function(int max)? nextInt;
   final Duration minimumInterval;
   final Duration maximumInterval;
@@ -1190,7 +1192,7 @@ class AmbientWildlifeV2ProductionStageState
         _plan = null;
       }
       _manualSequenceQueued = false;
-    } else if (widget.forcedPlan == null) {
+    } else if (widget.enabled && widget.forcedPlan == null) {
       _schedule();
     }
   }
@@ -1198,6 +1200,15 @@ class AmbientWildlifeV2ProductionStageState
   @override
   void didUpdateWidget(covariant AmbientWildlifeV2ProductionStage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled) {
+      if (widget.enabled) {
+        _schedule();
+      } else {
+        _timer?.cancel();
+        _timer = null;
+        _manualSequenceQueued = false;
+      }
+    }
     if (oldWidget.forcedRequestId != widget.forcedRequestId ||
         oldWidget.forcedPlan != widget.forcedPlan) {
       _timer?.cancel();
@@ -1212,6 +1223,7 @@ class AmbientWildlifeV2ProductionStageState
 
   void _schedule() {
     if (!mounted ||
+        !widget.enabled ||
         _reducedMotion ||
         widget.forcedPlan != null ||
         _plan != null ||
@@ -1233,7 +1245,12 @@ class AmbientWildlifeV2ProductionStageState
   /// Starts a V2 plan immediately when idle. While a crossing is active this
   /// records exactly one follow-up request, preserving the active plan.
   bool triggerManualSequence() {
-    if (!mounted || _reducedMotion || widget.forcedPlan != null) return false;
+    if (!mounted ||
+        !widget.enabled ||
+        _reducedMotion ||
+        widget.forcedPlan != null) {
+      return false;
+    }
     _timer?.cancel();
     _timer = null;
     if (_plan != null) {
@@ -1247,6 +1264,7 @@ class AmbientWildlifeV2ProductionStageState
 
   void _startSequence() {
     if (!mounted ||
+        !widget.enabled ||
         _reducedMotion ||
         widget.forcedPlan != null ||
         _plan != null)
@@ -1284,28 +1302,31 @@ class AmbientWildlifeV2ProductionStageState
   }
 
   @override
-  Widget build(BuildContext context) => AmbientWildlifeV2Stage(
-    plan: _reducedMotion ? null : _plan,
-    requestId: _requestId,
-    neutral: false,
-    neutralSpecies: AmbientWildlifeV2Species.fox,
-    paused: widget.paused,
-    leftToRight: _plan?.leftToRight ?? true,
-    foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
-    speciesPresentationScale: widget.speciesPresentationScale,
-    catPresentationOffsetY: widget.catPresentationOffsetY,
-    batPresentationVerticalAnchor: widget.batPresentationVerticalAnchor,
-    batPresentationTopCrop: widget.batPresentationTopCrop,
-    batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
-    birdPresentationTopCrop: widget.birdPresentationTopCrop,
-    birdPresentationScaleMultiplier: widget.birdPresentationScaleMultiplier,
-    birdTravelSpeedMultiplier: widget.birdTravelSpeedMultiplier,
-    catFollowerSpacingMultiplier: widget.catFollowerSpacingMultiplier,
-    foxFollowerSpacingMultiplier: widget.foxFollowerSpacingMultiplier,
-    catMotionProfile: widget.catMotionProfile,
-    catPosePhaseMode: widget.catPosePhaseMode,
-    paintEnvironment: widget.paintEnvironment,
-    onCompleted: _complete,
+  Widget build(BuildContext context) => TickerMode(
+    enabled: widget.enabled,
+    child: AmbientWildlifeV2Stage(
+      plan: !widget.enabled || _reducedMotion ? null : _plan,
+      requestId: _requestId,
+      neutral: false,
+      neutralSpecies: AmbientWildlifeV2Species.fox,
+      paused: widget.paused,
+      leftToRight: _plan?.leftToRight ?? true,
+      foxCrossingDuration: AmbientWildlifeV2Fox.dashboardCrossingDuration,
+      speciesPresentationScale: widget.speciesPresentationScale,
+      catPresentationOffsetY: widget.catPresentationOffsetY,
+      batPresentationVerticalAnchor: widget.batPresentationVerticalAnchor,
+      batPresentationTopCrop: widget.batPresentationTopCrop,
+      batPresentationAltitudeOffsetY: widget.batPresentationAltitudeOffsetY,
+      birdPresentationTopCrop: widget.birdPresentationTopCrop,
+      birdPresentationScaleMultiplier: widget.birdPresentationScaleMultiplier,
+      birdTravelSpeedMultiplier: widget.birdTravelSpeedMultiplier,
+      catFollowerSpacingMultiplier: widget.catFollowerSpacingMultiplier,
+      foxFollowerSpacingMultiplier: widget.foxFollowerSpacingMultiplier,
+      catMotionProfile: widget.catMotionProfile,
+      catPosePhaseMode: widget.catPosePhaseMode,
+      paintEnvironment: widget.paintEnvironment,
+      onCompleted: _complete,
+    ),
   );
 }
 

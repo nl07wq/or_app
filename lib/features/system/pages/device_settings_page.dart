@@ -152,6 +152,17 @@ class DeviceSettingsPage extends StatelessWidget {
                   ),
                 ).inputFeedback(),
                 const Divider(),
+                SwitchListTile.adaptive(
+                  key: const ValueKey('device-settings-ambient-wildlife'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('AMBIENT WILDLIFE'),
+                  subtitle: const Text('DashboardのWildlifeを表示します。'),
+                  value: settings.ambientWildlifeEnabled,
+                  onChanged: (value) => _controller.update(
+                    settings.copyWith(ambientWildlifeEnabled: value),
+                  ),
+                ).inputFeedback(),
+                const Divider(),
                 _ReducedMotionSelector(
                   value: settings.reducedMotion,
                   onChanged: (value) => _controller.update(
