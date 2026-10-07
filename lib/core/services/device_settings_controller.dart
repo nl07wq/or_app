@@ -28,6 +28,7 @@ class DeviceSettings {
     this.brightness = 1,
     this.rippleEnabled = true,
     this.ambientCircuitEnabled = true,
+    this.ambientProcessingEnabled = true,
     this.ambientWildlifeEnabled = true,
     this.reducedMotion = ReducedMotionPreference.system,
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
@@ -44,6 +45,7 @@ class DeviceSettings {
   final double brightness;
   final bool rippleEnabled;
   final bool ambientCircuitEnabled;
+  final bool ambientProcessingEnabled;
   final bool ambientWildlifeEnabled;
   final ReducedMotionPreference reducedMotion;
   final NotificationPrivacyMode notificationPrivacyMode;
@@ -77,6 +79,7 @@ class DeviceSettings {
     double? brightness,
     bool? rippleEnabled,
     bool? ambientCircuitEnabled,
+    bool? ambientProcessingEnabled,
     bool? ambientWildlifeEnabled,
     ReducedMotionPreference? reducedMotion,
     NotificationPrivacyMode? notificationPrivacyMode,
@@ -90,6 +93,8 @@ class DeviceSettings {
     brightness: brightness ?? this.brightness,
     rippleEnabled: rippleEnabled ?? this.rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
+    ambientProcessingEnabled:
+        ambientProcessingEnabled ?? this.ambientProcessingEnabled,
     ambientWildlifeEnabled:
         ambientWildlifeEnabled ?? this.ambientWildlifeEnabled,
     reducedMotion: reducedMotion ?? this.reducedMotion,
@@ -107,6 +112,7 @@ class DeviceSettings {
     brightness: _brightness(brightness),
     rippleEnabled: rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled,
+    ambientProcessingEnabled: ambientProcessingEnabled,
     ambientWildlifeEnabled: ambientWildlifeEnabled,
     reducedMotion: reducedMotion,
     notificationPrivacyMode: notificationPrivacyMode,
@@ -122,6 +128,7 @@ class DeviceSettings {
     'brightness': brightness,
     'rippleEnabled': rippleEnabled,
     'ambientCircuitEnabled': ambientCircuitEnabled,
+    'ambientProcessingEnabled': ambientProcessingEnabled,
     'ambientWildlifeEnabled': ambientWildlifeEnabled,
     'reducedMotion': reducedMotion.name,
     'notificationPrivacyMode': notificationPrivacyMode.name,
@@ -166,6 +173,7 @@ class DeviceSettings {
       brightness: number('brightness', 1),
       rippleEnabled: flag('rippleEnabled', true),
       ambientCircuitEnabled: flag('ambientCircuitEnabled', true),
+      ambientProcessingEnabled: flag('ambientProcessingEnabled', true),
       ambientWildlifeEnabled: flag('ambientWildlifeEnabled', true),
       reducedMotion: reducedMotion ?? ReducedMotionPreference.system,
       notificationPrivacyMode:

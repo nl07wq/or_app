@@ -4,6 +4,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/navigation/app_routes.dart';
+import '../../../core/services/device_settings_controller.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/engine/activity_summary.dart';
 import '../../../core/engine/food_summary.dart';
@@ -36,6 +37,7 @@ import '../widgets/daily_assessment_card.dart';
 import '../widgets/data_center_page.dart';
 import '../widgets/brief_debrief_page.dart';
 import '../widgets/command_center_hud_sign.dart';
+import '../widgets/command_center_ambient_processing.dart';
 import '../widgets/semantic_help_popover.dart';
 import '../../report_sync/models/morning_brief_state.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
@@ -168,27 +170,40 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
           onBack: canPop ? () => Navigator.of(context).maybePop() : null,
         ),
       ),
-      body: Column(
+      body: Stack(
+        key: const ValueKey('command-center-presentation-stack'),
         children: [
-          _WorkspaceHeader(
-            currentPage: _currentPage,
-            onSelectPage: _selectPage,
-            scrollController: _tabScrollController,
-          ),
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (page) => setState(() => _currentPage = page),
-              children: [
-                const PeriodicReportWorkspace(),
-                BriefDebriefPage(initialTab: widget.initialBriefDebriefTab),
-                _DailyCommandPage(
-                  refreshToken: _refreshToken,
-                  onRefresh: _refresh,
-                ),
-                const DataCenterPage(),
-              ],
+          ValueListenableBuilder<DeviceSettings>(
+            valueListenable: DeviceSettingsController.instance,
+            builder: (context, settings, _) => Positioned.fill(
+              child: CommandCenterAmbientProcessing(
+                enabled: settings.ambientProcessingEnabled,
+              ),
             ),
+          ),
+          Column(
+            children: [
+              _WorkspaceHeader(
+                currentPage: _currentPage,
+                onSelectPage: _selectPage,
+                scrollController: _tabScrollController,
+              ),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: (page) => setState(() => _currentPage = page),
+                  children: [
+                    const PeriodicReportWorkspace(),
+                    BriefDebriefPage(initialTab: widget.initialBriefDebriefTab),
+                    _DailyCommandPage(
+                      refreshToken: _refreshToken,
+                      onRefresh: _refresh,
+                    ),
+                    const DataCenterPage(),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

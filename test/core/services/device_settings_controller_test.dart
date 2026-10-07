@@ -141,6 +141,7 @@ void main() {
     );
     expect(settings.rippleEnabled, isTrue);
     expect(settings.ambientCircuitEnabled, isTrue);
+    expect(settings.ambientProcessingEnabled, isTrue);
     expect(settings.ambientWildlifeEnabled, isTrue);
   });
 
@@ -159,6 +160,7 @@ void main() {
         'brightness': .6,
         'rippleEnabled': false,
         'ambientCircuitEnabled': false,
+        'ambientProcessingEnabled': false,
         'ambientWildlifeEnabled': false,
         'reducedMotion': 'on',
       });
@@ -175,6 +177,7 @@ void main() {
       expect(restored.value.brightness, .6);
       expect(restored.value.rippleEnabled, isFalse);
       expect(restored.value.ambientCircuitEnabled, isFalse);
+      expect(restored.value.ambientProcessingEnabled, isFalse);
       expect(restored.value.ambientWildlifeEnabled, isFalse);
       expect(restored.value.reducedMotion, ReducedMotionPreference.on);
     },
@@ -195,6 +198,7 @@ void main() {
     expect(controller.value.masterVolume, 1);
     expect(controller.value.commandVolume, 0);
     expect(controller.value.brightness, DeviceSettings.minimumBrightness);
+    expect(controller.value.ambientProcessingEnabled, isTrue);
     expect(controller.value.reducedMotion, ReducedMotionPreference.system);
   });
 

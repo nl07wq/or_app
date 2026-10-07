@@ -141,16 +141,16 @@ class DeviceSettingsPage extends StatelessWidget {
                   ),
                 ).inputFeedback(),
                 const Divider(),
-                SwitchListTile.adaptive(
-                  key: const ValueKey('device-settings-ambient-circuit'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('AMBIENT CIRCUIT'),
-                  subtitle: const Text('DashboardのAmbient Circuitを表示します。'),
-                  value: settings.ambientCircuitEnabled,
-                  onChanged: (value) => _controller.update(
+                _AmbientSystemControls(
+                  circuitEnabled: settings.ambientCircuitEnabled,
+                  processingEnabled: settings.ambientProcessingEnabled,
+                  onCircuitChanged: (value) => _controller.update(
                     settings.copyWith(ambientCircuitEnabled: value),
                   ),
-                ).inputFeedback(),
+                  onProcessingChanged: (value) => _controller.update(
+                    settings.copyWith(ambientProcessingEnabled: value),
+                  ),
+                ),
                 const Divider(),
                 SwitchListTile.adaptive(
                   key: const ValueKey('device-settings-ambient-wildlife'),
@@ -177,6 +177,89 @@ class DeviceSettingsPage extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _AmbientSystemControls extends StatelessWidget {
+  const _AmbientSystemControls({
+    required this.circuitEnabled,
+    required this.processingEnabled,
+    required this.onCircuitChanged,
+    required this.onProcessingChanged,
+  });
+
+  final bool circuitEnabled;
+  final bool processingEnabled;
+  final ValueChanged<bool> onCircuitChanged;
+  final ValueChanged<bool> onProcessingChanged;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final horizontal = constraints.maxWidth >= 620;
+      final circuit = _AmbientSystemToggle(
+        key: const ValueKey('device-settings-ambient-circuit'),
+        surface: 'DASHBOARD',
+        system: 'AMBIENT CIRCUIT',
+        subtitle: 'DashboardのAmbient Circuitを表示します。',
+        value: circuitEnabled,
+        onChanged: onCircuitChanged,
+      );
+      final processing = _AmbientSystemToggle(
+        key: const ValueKey('device-settings-ambient-processing'),
+        surface: 'COMMAND CENTER',
+        system: 'AMBIENT PROCESSING',
+        subtitle: 'Command Centerの処理背景を表示します。',
+        value: processingEnabled,
+        onChanged: onProcessingChanged,
+      );
+      if (!horizontal) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [circuit, const Divider(), processing],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: circuit),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(child: processing),
+        ],
+      );
+    },
+  );
+}
+
+class _AmbientSystemToggle extends StatelessWidget {
+  const _AmbientSystemToggle({
+    super.key,
+    required this.surface,
+    required this.system,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String surface;
+  final String system;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile.adaptive(
+    contentPadding: EdgeInsets.zero,
+    title: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(surface, style: Theme.of(context).textTheme.labelSmall),
+        Text(system),
+      ],
+    ),
+    subtitle: Text(subtitle),
+    value: value,
+    onChanged: onChanged,
+  ).inputFeedback();
 }
 
 class _SettingsSlider extends StatelessWidget {

@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
@@ -18,6 +19,7 @@ import 'package:or_app/features/command_center/models/daily_command_read_model.d
 import 'package:or_app/features/command_center/widgets/semantic_help_popover.dart';
 import 'package:or_app/features/command_center/widgets/brief_debrief_page.dart';
 import 'package:or_app/features/command_center/widgets/command_center_hud_sign.dart';
+import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
@@ -118,6 +120,36 @@ void main() {
       isFalse,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses only the Command Center ambient processing setting', (
+    tester,
+  ) async {
+    final settings = DeviceSettingsController.instance;
+    final original = settings.value;
+    addTearDown(() => settings.resetForTesting(original));
+    settings.resetForTesting(
+      const DeviceSettings(
+        ambientCircuitEnabled: false,
+        ambientProcessingEnabled: true,
+      ),
+    );
+
+    await _pump(tester, width: 390);
+    expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-page-ambient')), findsNothing);
+
+    settings.update(settings.value.copyWith(ambientProcessingEnabled: false));
+    await tester.pump();
+    expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsNothing);
+
+    settings.update(settings.value.copyWith(ambientCircuitEnabled: true));
+    await tester.pump();
+    expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsNothing);
+
+    settings.update(settings.value.copyWith(ambientProcessingEnabled: true));
+    await tester.pump();
+    expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
   });
 
   testWidgets('Dashboard push exposes Back and returns to Dashboard', (

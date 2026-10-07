@@ -130,29 +130,82 @@ void main() {
     }
   });
 
-  testWidgets('Ambient Wildlife preference applies immediately', (
-    tester,
-  ) async {
-    final controller = DeviceSettingsController();
-    await controller.initialize();
-    await tester.pumpWidget(
-      MaterialApp(home: DeviceSettingsPage(controller: controller)),
-    );
+  testWidgets(
+    'ambient system preferences apply independently and immediately',
+    (tester) async {
+      final controller = DeviceSettingsController();
+      await controller.initialize();
+      await tester.pumpWidget(
+        MaterialApp(home: DeviceSettingsPage(controller: controller)),
+      );
 
-    final wildlife = find.byKey(
-      const ValueKey('device-settings-ambient-wildlife'),
-    );
-    await tester.scrollUntilVisible(wildlife, 300);
-    await tester.ensureVisible(wildlife);
-    await tester.pumpAndSettle();
-    await tester.tap(wildlife);
-    await tester.pump();
-    expect(controller.value.ambientWildlifeEnabled, isFalse);
+      final circuit = find.byKey(
+        const ValueKey('device-settings-ambient-circuit'),
+      );
+      final processing = find.byKey(
+        const ValueKey('device-settings-ambient-processing'),
+      );
+      await tester.scrollUntilVisible(circuit, 300);
+      await tester.ensureVisible(circuit);
+      await tester.pumpAndSettle();
 
-    await tester.tap(wildlife);
-    await tester.pump();
-    expect(controller.value.ambientWildlifeEnabled, isTrue);
-  });
+      await tester.tap(circuit);
+      await tester.pump();
+      expect(controller.value.ambientCircuitEnabled, isFalse);
+      expect(controller.value.ambientProcessingEnabled, isTrue);
+
+      await tester.tap(processing);
+      await tester.pump();
+      expect(controller.value.ambientCircuitEnabled, isFalse);
+      expect(controller.value.ambientProcessingEnabled, isFalse);
+
+      await tester.tap(circuit);
+      await tester.pump();
+      expect(controller.value.ambientCircuitEnabled, isTrue);
+      expect(controller.value.ambientProcessingEnabled, isFalse);
+
+      await tester.tap(processing);
+      await tester.pump();
+      expect(controller.value.ambientCircuitEnabled, isTrue);
+      expect(controller.value.ambientProcessingEnabled, isTrue);
+    },
+  );
+
+  for (final width in [320.0, 390.0, 900.0]) {
+    testWidgets('ambient peer controls use the responsive layout at $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = DeviceSettingsController();
+      await controller.initialize();
+      await tester.pumpWidget(
+        MaterialApp(home: DeviceSettingsPage(controller: controller)),
+      );
+      final circuit = find.byKey(
+        const ValueKey('device-settings-ambient-circuit'),
+      );
+      final processing = find.byKey(
+        const ValueKey('device-settings-ambient-processing'),
+      );
+      await tester.scrollUntilVisible(circuit, 300);
+      await tester.ensureVisible(circuit);
+      await tester.ensureVisible(processing);
+      await tester.pumpAndSettle();
+
+      final circuitRect = tester.getRect(circuit);
+      final processingRect = tester.getRect(processing);
+      if (width >= 620) {
+        expect(processingRect.left, greaterThan(circuitRect.left));
+        expect(processingRect.top, closeTo(circuitRect.top, 1));
+      } else {
+        expect(processingRect.top, greaterThan(circuitRect.top));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 class _RecordingAudio implements TouchRippleAudio {

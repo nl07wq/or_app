@@ -41,6 +41,7 @@ void main() {
           brightness: .8,
           rippleEnabled: false,
           ambientCircuitEnabled: false,
+          ambientProcessingEnabled: false,
           ambientWildlifeEnabled: false,
           notificationPrivacyMode: NotificationPrivacyMode.titleVisible,
           reducedMotion: ReducedMotionPreference.on,
@@ -57,6 +58,7 @@ void main() {
         );
         expect(decoded.deviceSettings?['masterVolume'], .7);
         expect(decoded.deviceSettings?['ambientCircuitEnabled'], isFalse);
+        expect(decoded.deviceSettings?['ambientProcessingEnabled'], isFalse);
         expect(decoded.deviceSettings?['ambientWildlifeEnabled'], isFalse);
         expect(
           decoded.deviceSettings?['notificationPrivacyMode'],
@@ -82,6 +84,7 @@ void main() {
 
         expect(result.success, isTrue);
         expect(restored?['masterVolume'], .7);
+        expect(restored?['ambientProcessingEnabled'], isFalse);
         expect(restored?['reducedMotion'], 'on');
 
         final legacyPackage = BackupExportService.buildPackage(
