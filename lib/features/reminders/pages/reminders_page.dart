@@ -46,6 +46,7 @@ class _RemindersPageState extends State<RemindersPage>
   final Map<int, Map<String, ReminderOccurrence>> _retainedCompletedByTab =
       <int, Map<String, ReminderOccurrence>>{};
   bool _loading = true;
+  int _loadGeneration = 0;
 
   ReminderOccurrenceService get _occurrences =>
       ReminderOccurrenceService(AppRepositoryRegistry.container.reminders);
@@ -54,14 +55,21 @@ class _RemindersPageState extends State<RemindersPage>
   void initState() {
     super.initState();
     _tabs.addListener(_clearTransientCompleteRetention);
+    schedulePlanRevisionNotifier.addListener(_handlePlanRevision);
     _load();
   }
 
   @override
   void dispose() {
+    schedulePlanRevisionNotifier.removeListener(_handlePlanRevision);
     _tabs.removeListener(_clearTransientCompleteRetention);
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _handlePlanRevision() {
+    if (!mounted) return;
+    unawaited(_load(showLoading: false));
   }
 
   void _clearTransientCompleteRetention() {
@@ -70,8 +78,9 @@ class _RemindersPageState extends State<RemindersPage>
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool showLoading = true}) async {
+    final generation = ++_loadGeneration;
+    if (showLoading) setState(() => _loading = true);
     final container = AppRepositoryRegistry.container;
     await LegacyReminderMigrationService(
       container.schedules,
@@ -85,7 +94,7 @@ class _RemindersPageState extends State<RemindersPage>
     final allCompact = await _occurrences.nextPendingBySlot(today);
     final definitions = await container.reminders.findDefinitions();
     final completed = await _occurrences.completed();
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _today = _withTransientRetained(todayPending, 0);
       _all = _withTransientRetained(allCompact, 1);
@@ -134,7 +143,6 @@ class _RemindersPageState extends State<RemindersPage>
       }
     }
     notifySchedulePlanChanged();
-    await _load();
   }
 
   Future<void> _deleteOccurrence(ReminderOccurrence value) async {
@@ -192,7 +200,6 @@ class _RemindersPageState extends State<RemindersPage>
       }
     }
     notifySchedulePlanChanged();
-    await _load();
   }
 
   Future<void> _create() async {
@@ -227,7 +234,6 @@ class _RemindersPageState extends State<RemindersPage>
       ),
     );
     notifySchedulePlanChanged();
-    await _load();
   }
 
   Future<void> _edit(ReminderDefinition previous) async {
@@ -286,7 +292,6 @@ class _RemindersPageState extends State<RemindersPage>
       }
     }
     notifySchedulePlanChanged();
-    await _load();
   }
 
   Future<void> _deleteDefinitionFuture(ReminderDefinition definition) async {
@@ -314,7 +319,6 @@ class _RemindersPageState extends State<RemindersPage>
       _withRecurrenceEnd(definition, boundary, now.toUtc()),
     );
     notifySchedulePlanChanged();
-    await _load();
   }
 
   @override

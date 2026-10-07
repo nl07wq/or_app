@@ -8,6 +8,7 @@ import 'package:or_app/features/reminders/models/reminder_occurrence.dart';
 import 'package:or_app/features/reminders/pages/reminders_page.dart';
 import 'package:or_app/features/reminders/services/reminder_occurrence_service.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/schedule/models/schedule_plan_revision.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -42,6 +43,39 @@ void main() {
 
     expect(audio.played, isEmpty);
     expect(rippleEvents, 0);
+  });
+
+  testWidgets('mounted Reminder lists react to external completion changes', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final todayKey = _dateKey(today);
+    await container.reminders.saveDefinition(
+      _definition(id: 'external-complete', startDate: todayKey),
+    );
+    await _pumpPage(tester);
+    expect(find.text('Single'), findsOneWidget);
+
+    final service = ReminderOccurrenceService(container.reminders);
+    final occurrence = (await service.inRange(
+      DateTimeRange(start: today, end: today),
+    )).single;
+    await service.complete(occurrence, DateTime.now());
+    notifySchedulePlanChanged();
+    await tester.pumpAndSettle();
+    expect(find.text('Single'), findsNothing);
+
+    await tester.tap(find.text('COMPLETED'));
+    await tester.pumpAndSettle();
+    expect(find.text('Single'), findsOneWidget);
+
+    await service.restore(occurrence);
+    notifySchedulePlanChanged();
+    await tester.pumpAndSettle();
+    expect(find.text('Single'), findsNothing);
+    await tester.tap(find.text('TODAY'));
+    await tester.pumpAndSettle();
+    expect(find.text('Single'), findsOneWidget);
   });
 
   testWidgets(

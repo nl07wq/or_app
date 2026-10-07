@@ -73,6 +73,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Map<String, List<ScheduleRecord>> _byDate = const {};
   Map<String, ReminderOccurrence> _projectedReminders = const {};
   bool _loading = true;
+  int _loadGeneration = 0;
   final WeatherService _weatherService = WeatherService();
   WeatherLocationPreferences _weatherPreferences =
       const WeatherLocationPreferences(locations: [], activeLocationId: null);
@@ -92,8 +93,20 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
+    schedulePlanRevisionNotifier.addListener(_handlePlanRevision);
     _load();
     _loadWeather();
+  }
+
+  @override
+  void dispose() {
+    schedulePlanRevisionNotifier.removeListener(_handlePlanRevision);
+    super.dispose();
+  }
+
+  void _handlePlanRevision() {
+    if (!mounted) return;
+    unawaited(_load(showLoading: false));
   }
 
   Future<void> _loadWeather({
@@ -192,8 +205,9 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool showLoading = true}) async {
+    final generation = ++_loadGeneration;
+    if (showLoading) setState(() => _loading = true);
     final container = AppRepositoryRegistry.container;
     await LegacyReminderMigrationService(
       container.schedules,
@@ -214,7 +228,7 @@ class _CalendarPageState extends State<CalendarPage> {
       ...values.where((value) => value.kind == ScheduleEntryKind.schedule),
       ...occurrences.map(_projectReminder),
     ];
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _byDate = {
         for (final value in calendarValues)
@@ -292,7 +306,6 @@ class _CalendarPageState extends State<CalendarPage> {
         ).editOccurrence(occurrence: record, draft: result, scope: scope!);
       }
       notifySchedulePlanChanged();
-      await _load();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -517,7 +530,6 @@ class _CalendarPageState extends State<CalendarPage> {
         await service.complete(occurrence, DateTime.now());
       }
       notifySchedulePlanChanged();
-      await _load();
       return;
     }
     await AppRepositoryRegistry.container.schedules.save(
@@ -547,7 +559,6 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
     notifySchedulePlanChanged();
-    await _load();
   }
 
   Future<void> _moveTimed(ScheduleRecord record, int minutes) async {
@@ -585,7 +596,6 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
     notifySchedulePlanChanged();
-    await _load();
   }
 
   Future<bool> _confirmDelete(ScheduleRecord record) async {
@@ -622,7 +632,6 @@ class _CalendarPageState extends State<CalendarPage> {
       ).deleteOccurrence(occurrence: record, scope: scope);
     }
     notifySchedulePlanChanged();
-    await _load();
   }
 }
 
