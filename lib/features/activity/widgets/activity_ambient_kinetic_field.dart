@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 
 /// Activity-only kinetic measurement field.
 class ActivityAmbientKineticField extends StatefulWidget {
@@ -10,7 +11,41 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const cycleSeconds = 15.5;
   static const denseDiscStrokeCount = 240;
   static const denseDiscColorGroupCount = 6;
+  static const scopeTopInset = 16.0;
+  static const scopeBottomInset = 24.0;
   final bool enabled;
+
+  /// Test-only paint telemetry. It is assigned exclusively from an assert,
+  /// so release builds do not retain or update runtime instrumentation.
+  @visibleForTesting
+  static ActivityAmbientScopeGeometry? debugLastPaintGeometry;
+
+  @visibleForTesting
+  static ActivityAmbientScopeGeometry scopeGeometryFor({
+    required Size painterSize,
+    required double phase,
+  }) {
+    final radius = (painterSize.shortestSide * .34)
+        .clamp(92.0, 168.0)
+        .toDouble();
+    final angle = phase * math.pi * 2;
+    final topCenter = math
+        .min(painterSize.height / 2, radius + scopeTopInset)
+        .toDouble();
+    final bottomCenter = math
+        .max(topCenter, painterSize.height - radius - scopeBottomInset)
+        .toDouble();
+    final verticalProgress = .5 + .5 * math.sin(angle * 2 + .72);
+    final center = Offset(
+      painterSize.width * (.5 + .40 * math.sin(angle)),
+      topCenter + (bottomCenter - topCenter) * verticalProgress,
+    );
+    return ActivityAmbientScopeGeometry(
+      painterSize: painterSize,
+      center: center,
+      radius: radius,
+    );
+  }
 
   /// Deterministic, auditable measurement lifecycle used by the production
   /// painter: detection leads to tracking, then a measurement signal and an
@@ -96,6 +131,24 @@ class ActivityKineticSample {
   final double ringResponse;
   final double signalProgress;
   final double accumulationProgress;
+}
+
+@immutable
+class ActivityAmbientScopeGeometry {
+  const ActivityAmbientScopeGeometry({
+    required this.painterSize,
+    required this.center,
+    required this.radius,
+  });
+
+  final Size painterSize;
+  final Offset center;
+  final double radius;
+
+  Rect get scopeBounds => Rect.fromCircle(center: center, radius: radius);
+
+  Rect get visibleScopeBounds =>
+      scopeBounds.intersect(Offset.zero & painterSize);
 }
 
 class _ActivityAmbientKineticFieldState
@@ -207,16 +260,16 @@ class _MovingScopePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final angle = _t * 6.283185307179586;
-    final center = Offset(
-      size.width * (.5 + .40 * math.sin(angle)),
-      // The full-height route intentionally carries the instrument through
-      // the lower Activity viewport instead of concentrating it above RECORD.
-      size.height * (.51 + .43 * math.sin(angle * 2 + .72)),
+    final geometry = ActivityAmbientKineticField.scopeGeometryFor(
+      painterSize: size,
+      phase: _t,
     );
-    final radius = (size.shortestSide * .34).clamp(92.0, 168.0);
-    _field(canvas, size, center, radius);
-    _scope(canvas, center, radius);
+    assert(() {
+      ActivityAmbientKineticField.debugLastPaintGeometry = geometry;
+      return true;
+    }());
+    _field(canvas, size, geometry.center, geometry.radius);
+    _scope(canvas, geometry.center, geometry.radius);
   }
 
   void _field(Canvas canvas, Size size, Offset center, double radius) {

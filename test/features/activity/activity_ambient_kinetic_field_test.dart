@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_kinetic_field.dart';
 
 void main() {
@@ -54,6 +56,26 @@ void main() {
       expect(ActivityAmbientKineticField.denseDiscColorGroupCount, 6);
     },
   );
+
+  test('uses radius-aware viewport bounds for the complete scope', () {
+    const painterSize = Size(390, 788);
+    final samples = [
+      for (var index = 0; index <= 200; index++)
+        ActivityAmbientKineticField.scopeGeometryFor(
+          painterSize: painterSize,
+          phase: index / 200,
+        ),
+    ];
+    final lowest = samples.reduce(
+      (current, candidate) =>
+          candidate.center.dy > current.center.dy ? candidate : current,
+    );
+
+    expect(lowest.center.dy, greaterThan(painterSize.height * .75));
+    expect(lowest.scopeBounds.top, greaterThanOrEqualTo(0));
+    expect(lowest.scopeBounds.bottom, lessThanOrEqualTo(painterSize.height));
+    expect(lowest.visibleScopeBounds.bottom, lowest.scopeBounds.bottom);
+  });
 
   Future<void> pumpField(
     WidgetTester tester, {
@@ -158,6 +180,67 @@ void main() {
       ),
     );
   });
+
+  testWidgets(
+    'ActivityPage paints the scope below RECORD in its actual Scaffold body',
+    (tester) async {
+      final originalSettings = DeviceSettingsController.instance.value;
+      DeviceSettingsController.instance.resetForTesting(
+        const DeviceSettings(ambientKineticFieldEnabled: true),
+      );
+      addTearDown(
+        () =>
+            DeviceSettingsController.instance.resetForTesting(originalSettings),
+      );
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      ActivityAmbientKineticField.debugLastPaintGeometry = null;
+      addTearDown(
+        () => ActivityAmbientKineticField.debugLastPaintGeometry = null,
+      );
+
+      await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1100));
+
+      final field = tester.getRect(
+        find.byKey(ActivityAmbientKineticField.fieldKey),
+      );
+      final geometry = ActivityAmbientKineticField.debugLastPaintGeometry;
+      expect(geometry, isNotNull);
+      final activeGeometry = geometry!;
+      expect(activeGeometry.painterSize.width, closeTo(field.width, .1));
+      expect(activeGeometry.painterSize.height, closeTo(field.height, .1));
+      expect(field.height, greaterThan(700));
+      expect(activeGeometry.scopeBounds.top, greaterThanOrEqualTo(0));
+      expect(
+        activeGeometry.scopeBounds.bottom,
+        lessThanOrEqualTo(activeGeometry.painterSize.height),
+      );
+      expect(
+        activeGeometry.visibleScopeBounds.top,
+        activeGeometry.scopeBounds.top,
+      );
+      expect(
+        activeGeometry.visibleScopeBounds.bottom,
+        activeGeometry.scopeBounds.bottom,
+      );
+      expect(
+        field.top + activeGeometry.center.dy,
+        greaterThan(tester.getRect(find.text('RECORD').last).bottom),
+      );
+      expect(
+        field.top + activeGeometry.visibleScopeBounds.bottom,
+        closeTo(field.bottom - ActivityAmbientKineticField.scopeBottomInset, 1),
+      );
+      await expectLater(
+        find.byType(Scaffold),
+        matchesGoldenFile('goldens/activity_scope_below_record.png'),
+      );
+    },
+  );
 
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets('keeps a bounded field at $width px', (tester) async {

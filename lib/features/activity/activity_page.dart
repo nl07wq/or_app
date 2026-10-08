@@ -189,6 +189,7 @@ class _ActivityPageState extends State<ActivityPage> {
       title: const ActivityMechanicalCounterTitle(),
     ),
     body: Stack(
+      fit: StackFit.expand,
       children: [
         ValueListenableBuilder<DeviceSettings>(
           valueListenable: DeviceSettingsController.instance,
