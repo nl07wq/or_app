@@ -258,7 +258,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
-  testWidgets('Reminder occurrences use one measured daily timeline rail', (
+  testWidgets('Reminder occurrences use one measured full-list timeline rail', (
     tester,
   ) async {
     final today = _dateKey(DateTime.now());
@@ -293,18 +293,22 @@ void main() {
     );
     await tester.pump();
     expect(
-      find.byKey(ValueKey('reminder-daily-timeline-rail-$today')),
+      find.byKey(const ValueKey('reminder-full-list-timeline-rail')),
       findsOneWidget,
     );
     final markerRects = [
-      for (final marker in find.byKey(
-        const ValueKey('reminder-completion-circle'),
-      ).evaluate())
+      for (final marker
+          in find
+              .byKey(const ValueKey('reminder-completion-circle'))
+              .evaluate())
         tester.getRect(find.byWidget(marker.widget)),
     ];
     expect(markerRects, hasLength(2));
     expect(markerRects.first.size, const Size(16, 16));
-    expect(markerRects.first.center.dx, closeTo(markerRects.last.center.dx, .1));
+    expect(
+      markerRects.first.center.dx,
+      closeTo(markerRects.last.center.dx, .1),
+    );
     expect(markerRects.first.bottom, lessThan(markerRects.last.top));
     expect(
       find.byKey(ValueKey('reminder-circuit-rail-top-$firstId')),
@@ -374,6 +378,63 @@ void main() {
       expect(dashboard.entries, isEmpty);
     },
   );
+
+  testWidgets('ALL owns one measured rail across visible reminder dates', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final dates = <DateTime>[
+      today,
+      today.add(const Duration(days: 5)),
+      today.add(const Duration(days: 12)),
+    ];
+    for (var index = 0; index < dates.length; index++) {
+      await container.reminders.saveDefinition(
+        _definition(
+          id: 'cross-date-$index',
+          title: 'Cross date $index',
+          startDate: _dateKey(dates[index]),
+        ),
+      );
+    }
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpPage(tester);
+    await tester.tap(find.text('ALL'));
+    await tester.pumpAndSettle();
+
+    final rail = find.byKey(const ValueKey('reminder-full-list-timeline-rail'));
+    expect(rail, findsOneWidget);
+    final markers = find.byKey(const ValueKey('reminder-completion-circle'));
+    expect(markers, findsNWidgets(3));
+    final markerRects = [
+      for (final marker in markers.evaluate())
+        tester.getRect(find.byWidget(marker.widget)),
+    ];
+    expect(
+      markerRects.every((rect) => rect.size == const Size(16, 16)),
+      isTrue,
+    );
+    expect(
+      markerRects
+          .skip(1)
+          .every(
+            (rect) => (rect.center.dx - markerRects.first.center.dx).abs() < .1,
+          ),
+      isTrue,
+    );
+    for (var index = 0; index < markerRects.length - 1; index++) {
+      expect(markerRects[index].bottom, lessThan(markerRects[index + 1].top));
+    }
+    expect(find.textContaining(_dateKey(dates[0])), findsOneWidget);
+    expect(find.textContaining(_dateKey(dates[1])), findsOneWidget);
+    expect(find.textContaining(_dateKey(dates[2])), findsOneWidget);
+
+    await expectLater(
+      find.byKey(const ValueKey('reminder-full-list-timeline')),
+      matchesGoldenFile('goldens/reminders_full_list_cross_date.png'),
+    );
+  });
 
   testWidgets('vertical drag scrolls without editing or deleting', (
     tester,

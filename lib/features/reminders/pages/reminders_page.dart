@@ -27,7 +27,7 @@ const reminderCompletionVisibleDiameter = 14.0;
 const reminderCompletionIconSize = holographicTimelineNodeIconSize;
 const reminderCompletionTouchTarget = 48.0;
 // Timeline geometry is measured from the rendered marker positions by the
-// owning date group; it is deliberately not a per-row static fragment.
+// owning filtered list; it is deliberately not a per-row static fragment.
 const reminderCircuitRailIsStatic = false;
 const reminderCircuitRailWidth = holographicTimelineRailWidth;
 
@@ -533,18 +533,6 @@ class _OccurrenceList extends StatefulWidget {
 }
 
 class _OccurrenceListState extends State<_OccurrenceList> {
-  List<List<ReminderOccurrence>> get _groups {
-    final groups = <List<ReminderOccurrence>>[];
-    for (final value in widget.values) {
-      if (groups.isEmpty || groups.last.first.localDate != value.localDate) {
-        groups.add(<ReminderOccurrence>[value]);
-      } else {
-        groups.last.add(value);
-      }
-    }
-    return groups;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.values.isEmpty) {
@@ -563,24 +551,23 @@ class _OccurrenceListState extends State<_OccurrenceList> {
       key: const ValueKey('reminder-occurrence-hud-list'),
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 96),
       children: [
-        for (final group in _groups)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _ReminderTimelineGroup(
-              key: ValueKey(group.first.localDate),
-              values: group,
-              onToggle: widget.onToggle,
-              onEdit: widget.onEdit,
-              onDelete: widget.onDelete,
-            ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _ReminderTimelineList(
+            key: const ValueKey('reminder-full-list-timeline'),
+            values: widget.values,
+            onToggle: widget.onToggle,
+            onEdit: widget.onEdit,
+            onDelete: widget.onDelete,
           ),
+        ),
       ],
     );
   }
 }
 
-class _ReminderTimelineGroup extends StatefulWidget {
-  const _ReminderTimelineGroup({
+class _ReminderTimelineList extends StatefulWidget {
+  const _ReminderTimelineList({
     super.key,
     required this.values,
     required this.onToggle,
@@ -594,10 +581,10 @@ class _ReminderTimelineGroup extends StatefulWidget {
   final _OccurrenceAction onDelete;
 
   @override
-  State<_ReminderTimelineGroup> createState() => _ReminderTimelineGroupState();
+  State<_ReminderTimelineList> createState() => _ReminderTimelineListState();
 }
 
-class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
+class _ReminderTimelineListState extends State<_ReminderTimelineList> {
   final _timelineKey = GlobalKey();
   final _markerKeys = <String, GlobalKey>{};
   List<Rect> _markerBounds = const [];
@@ -639,9 +626,7 @@ class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
         Positioned.fill(
           child: IgnorePointer(
             child: CustomPaint(
-              key: ValueKey(
-                'reminder-daily-timeline-rail-${widget.values.first.localDate}',
-              ),
+              key: ValueKey('reminder-full-list-timeline-rail'),
               painter: _ReminderTimelineRailPainter(
                 color: Theme.of(context).colorScheme.primary,
                 markerBounds: _markerBounds,
