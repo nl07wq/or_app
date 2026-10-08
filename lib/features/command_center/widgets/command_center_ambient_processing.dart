@@ -27,7 +27,9 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const letterSlotsPerPeriod = 9;
   static const numberSlotsPerPeriod = 5;
   static const symbolSlotsPerPeriod = 6;
-  static const glyphScale = .9;
+
+  /// V2.1 dimensions were 90%; V2.1 acceptance uses an actual 80% scale.
+  static const glyphScale = .8;
   static const longStreamsPerPeriod = 15;
   static const mediumStreamsPerPeriod = 4;
   static const shortStreamsPerPeriod = 1;
@@ -142,7 +144,6 @@ class _CommandCenterAmbientProcessingState
   var _motionAllowed = false;
   var _running = false;
   var _cycle = 0;
-  var _initialEntry = true;
 
   @override
   void didChangeDependencies() {
@@ -164,7 +165,6 @@ class _CommandCenterAmbientProcessingState
     _nextCycle?.cancel();
     _controller.stop();
     _running = false;
-    if (!widget.enabled) _initialEntry = true;
     if (widget.enabled && _motionAllowed) {
       // Preserve the established quiet route-entry window. Once started,
       // cycles join immediately and streams never return to a global idle.
@@ -181,7 +181,6 @@ class _CommandCenterAmbientProcessingState
       if (!mounted || !widget.enabled || !_motionAllowed) return;
       setState(() {
         _cycle++;
-        _initialEntry = false;
       });
       _startCycle();
     });
@@ -242,7 +241,6 @@ class _CommandCenterAmbientProcessingState
       layer: layer,
       staticFrame: !_motionAllowed,
       running: _running,
-      initialEntry: _initialEntry && _motionAllowed,
       completedSeconds: completedSeconds,
     ),
   );
@@ -255,7 +253,6 @@ class _IndustrialDataRainPainter extends CustomPainter {
     required this.layer,
     required this.staticFrame,
     required this.running,
-    required this.initialEntry,
     required this.completedSeconds,
   }) : super(repaint: animation);
 
@@ -264,7 +261,6 @@ class _IndustrialDataRainPainter extends CustomPainter {
   final DataRainLayer layer;
   final bool staticFrame;
   final bool running;
-  final bool initialEntry;
   final double completedSeconds;
 
   double get _seconds => staticFrame || !running
@@ -313,18 +309,8 @@ class _IndustrialDataRainPainter extends CustomPainter {
     );
     final initial =
         _hash(streamIndex, 71 + layer.index * 11) % 1000 / 1000 * span;
-    final entryDelay =
-        (_hash(streamIndex, 181 + layer.index * 13) % 1000) / 1000 * 3.8;
-    final entryElapsed = _seconds - entryDelay;
-    if (initialEntry && entryElapsed <= 0) return;
-    final entryTravel = CommandCenterAmbientProcessing.constantSpeedOffset(
-      elapsed: initialEntry ? entryElapsed : _seconds,
-      pixelsPerSecond: CommandCenterAmbientProcessing.speeds[speed]!,
-    );
-    final recycleIndex = initialEntry ? 0 : ((initial + travel) / span).floor();
-    final head = initialEntry
-        ? -glyphSize + entryTravel
-        : (initial + travel) % span - trail;
+    final recycleIndex = ((initial + travel) / span).floor();
+    final head = (initial + travel) % span - trail;
     final glyphs = CommandCenterAmbientProcessing.glyphSequenceForStream(
       layer: layer,
       streamIndex: streamIndex,
@@ -448,7 +434,6 @@ class _IndustrialDataRainPainter extends CustomPainter {
       oldDelegate.layer != layer ||
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.running != running ||
-      oldDelegate.initialEntry != initialEntry ||
       oldDelegate.completedSeconds != completedSeconds;
 }
 

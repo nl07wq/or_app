@@ -163,7 +163,7 @@ void main() {
     expect(lengths[DataRainStreamLength.long], 15);
     expect(lengths[DataRainStreamLength.medium], 4);
     expect(lengths[DataRainStreamLength.short], 1);
-    expect(CommandCenterAmbientProcessing.glyphScale, .9);
+    expect(CommandCenterAmbientProcessing.glyphScale, .8);
   });
 
   Future<void> pumpProcessing(
