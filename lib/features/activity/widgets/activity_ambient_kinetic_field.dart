@@ -8,6 +8,8 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const fieldKey = ValueKey('activity-ambient-kinetic-field');
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
+  static const denseDiscStrokeCount = 240;
+  static const denseDiscColorGroupCount = 6;
   final bool enabled;
 
   /// Deterministic, auditable measurement lifecycle used by the production
@@ -163,7 +165,7 @@ class _ActivityAmbientKineticFieldState
 
 /// V4: one moving precision scope reveals the technical field it scans.
 class _MovingScopePainter extends CustomPainter {
-  const _MovingScopePainter({
+  _MovingScopePainter({
     required this.animation,
     required this.color,
     required this.staticFrame,
@@ -171,6 +173,34 @@ class _MovingScopePainter extends CustomPainter {
   final Animation<double> animation;
   final Color color;
   final bool staticFrame;
+  final Paint _discPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  /// Generated once: stroke placement is stable across frames while flow
+  /// parameters are evaluated from the shared animation clock.
+  static final List<_DiscStrokeGeometry> _discStrokes = List.unmodifiable(
+    List<_DiscStrokeGeometry>.generate(
+      ActivityAmbientKineticField.denseDiscStrokeCount,
+      (index) {
+        final normalized =
+            (index + .5) / ActivityAmbientKineticField.denseDiscStrokeCount;
+        return _DiscStrokeGeometry(
+          baseAngle: index * 2.399963229728653,
+          baseRadius: .04 + math.sqrt(normalized) * .80,
+          phase: index * .618033988749895,
+          angularVelocity: .16 + (index % 7) * .045,
+          radialAmplitude: .008 + (index % 5) * .004,
+          orientationOffset: ((index % 9) - 4) * .075,
+          lengthFactor: .034 + (index % 6) * .006,
+          colorGroup:
+              index % ActivityAmbientKineticField.denseDiscColorGroupCount,
+          reverse: index.isOdd,
+        );
+      },
+      growable: false,
+    ),
+  );
 
   double get _t => staticFrame ? .42 : animation.value;
 
@@ -270,34 +300,69 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xff56e7a5),
       Color(0xffffbb62),
     ];
-    // Bounded, deterministic short strokes form a vortex through placement
-    // and motion. They are never joined into ring outlines.
-    for (var index = 0; index < 84; index++) {
-      final group = index % 4;
-      final direction = group.isEven ? 1.0 : -1.0;
-      final phase = index * 2.399 +
-          _t * 6.283 * direction * (.45 + group * .22);
-      final radial =
-          (.18 + ((index * 37) % 71) / 100) * radius +
-          math.sin(_t * 6.283 * (1.2 + group * .17) + index) * radius * .045;
-      final position = center + Offset.fromDirection(phase, radial);
-      final tangent = phase + direction * math.pi / 2;
-      final length = radius * (.035 + (index % 5) * .009);
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .8 + (index % 3) * .28
-        ..strokeCap = StrokeCap.round
-        ..color = palette[index % palette.length].withValues(
-          alpha: .16 + (index % 5) * .045,
+    // A bounded sunflower distribution fills the whole interior, including
+    // the center. Strokes remain discrete diagonal segments; no circular
+    // outlines are produced by neighboring elements.
+    for (final stroke in _discStrokes) {
+      final direction = stroke.reverse ? -1.0 : 1.0;
+      final angle =
+          stroke.baseAngle +
+          _t * 6.283185307179586 * direction * stroke.angularVelocity +
+          math.sin(_t * 6.283185307179586 * .73 + stroke.phase) * .035;
+      final radialFactor =
+          stroke.baseRadius +
+          math.sin(
+                _t * 6.283185307179586 * (1.05 + stroke.angularVelocity) +
+                    stroke.phase,
+              ) *
+              stroke.radialAmplitude;
+      final position =
+          center + Offset.fromDirection(angle, radius * radialFactor);
+      final orientation =
+          -.72 +
+          stroke.orientationOffset +
+          math.sin(_t * 6.283185307179586 * .58 + stroke.phase) * .13;
+      final half = Offset.fromDirection(
+        orientation,
+        radius * stroke.lengthFactor / 2,
+      );
+      _discPaint
+        ..strokeWidth = .75 + (stroke.colorGroup % 3) * .24
+        ..color = palette[stroke.colorGroup].withValues(
+          alpha: .17 + (stroke.colorGroup % 4) * .035,
         );
-      final half = Offset.fromDirection(tangent, length / 2);
-      canvas.drawLine(position - half, position + half, paint);
+      canvas.drawLine(position - half, position + half, _discPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _MovingScopePainter old) =>
       old.color != color || old.staticFrame != staticFrame;
+}
+
+@immutable
+class _DiscStrokeGeometry {
+  const _DiscStrokeGeometry({
+    required this.baseAngle,
+    required this.baseRadius,
+    required this.phase,
+    required this.angularVelocity,
+    required this.radialAmplitude,
+    required this.orientationOffset,
+    required this.lengthFactor,
+    required this.colorGroup,
+    required this.reverse,
+  });
+
+  final double baseAngle;
+  final double baseRadius;
+  final double phase;
+  final double angularVelocity;
+  final double radialAmplitude;
+  final double orientationOffset;
+  final double lengthFactor;
+  final int colorGroup;
+  final bool reverse;
 }
 
 class _KineticMeasurementPainter extends CustomPainter {

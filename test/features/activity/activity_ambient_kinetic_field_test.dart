@@ -46,6 +46,15 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
+  test(
+    'uses a bounded dense multicolor disc instead of sparse orbit strokes',
+    () {
+      expect(ActivityAmbientKineticField.denseDiscStrokeCount, 240);
+      expect(ActivityAmbientKineticField.denseDiscStrokeCount, greaterThan(84));
+      expect(ActivityAmbientKineticField.denseDiscColorGroupCount, 6);
+    },
+  );
+
   Future<void> pumpField(
     WidgetTester tester, {
     required bool enabled,
@@ -105,6 +114,16 @@ void main() {
     );
   });
 
+  testWidgets('renders a dense short-stroke disc at the initial motion phase', (
+    tester,
+  ) async {
+    await pumpField(tester, enabled: true);
+    await expectLater(
+      find.byKey(ActivityAmbientKineticField.fieldKey),
+      matchesGoldenFile('goldens/activity_kinetic_measurement_dense_disc.png'),
+    );
+  });
+
   testWidgets('renders tracking state with target-derived trajectory history', (
     tester,
   ) async {
@@ -124,6 +143,19 @@ void main() {
     await expectLater(
       find.byKey(ActivityAmbientKineticField.fieldKey),
       matchesGoldenFile('goldens/activity_kinetic_measurement_accumulated.png'),
+    );
+  });
+
+  testWidgets('travels with the dense disc into the lower viewport', (
+    tester,
+  ) async {
+    await pumpField(tester, enabled: true);
+    await tester.pump(const Duration(seconds: 1));
+    await expectLater(
+      find.byKey(ActivityAmbientKineticField.fieldKey),
+      matchesGoldenFile(
+        'goldens/activity_kinetic_measurement_lower_viewport.png',
+      ),
     );
   });
 
