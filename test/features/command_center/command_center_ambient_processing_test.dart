@@ -44,6 +44,111 @@ void main() {
     expect(third, closeTo(6.6, .000001));
   });
 
+  test('uses a fixed industrial glyph sequence with the requested mix', () {
+    final sequence = CommandCenterAmbientProcessing.glyphSequenceForStream(
+      layer: DataRainLayer.foreground,
+      streamIndex: 7,
+      recycleIndex: 3,
+      length: CommandCenterAmbientProcessing.glyphCategoryPeriod,
+    );
+    final repeated = CommandCenterAmbientProcessing.glyphSequenceForStream(
+      layer: DataRainLayer.foreground,
+      streamIndex: 7,
+      recycleIndex: 3,
+      length: CommandCenterAmbientProcessing.glyphCategoryPeriod,
+    );
+
+    expect(repeated, sequence);
+    expect(
+      sequence
+          .where(
+            (glyph) =>
+                CommandCenterAmbientProcessing.glyphCategoryFor(glyph) ==
+                DataRainGlyphCategory.letter,
+          )
+          .length,
+      CommandCenterAmbientProcessing.letterSlotsPerPeriod,
+    );
+    expect(
+      sequence
+          .where(
+            (glyph) =>
+                CommandCenterAmbientProcessing.glyphCategoryFor(glyph) ==
+                DataRainGlyphCategory.number,
+          )
+          .length,
+      CommandCenterAmbientProcessing.numberSlotsPerPeriod,
+    );
+    expect(
+      sequence
+          .where(
+            (glyph) =>
+                CommandCenterAmbientProcessing.glyphCategoryFor(glyph) ==
+                DataRainGlyphCategory.symbol,
+          )
+          .length,
+      CommandCenterAmbientProcessing.symbolSlotsPerPeriod,
+    );
+  });
+
+  test('supports all industrial glyph categories and overlapping layers', () {
+    final glyphs = <String>{};
+    for (var streamIndex = 0; streamIndex < 200; streamIndex++) {
+      glyphs.addAll(
+        CommandCenterAmbientProcessing.glyphSequenceForStream(
+          layer: DataRainLayer.foreground,
+          streamIndex: streamIndex,
+          recycleIndex: streamIndex % 5,
+          length: 20,
+        ),
+      );
+    }
+    expect(glyphs, containsAll('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')));
+    expect(glyphs, containsAll('0123456789'.split('')));
+    expect(
+      glyphs,
+      containsAll(const ['+', '-', '/', '\\', '=', ':', '[', ']', '<', '>']),
+    );
+
+    var overlaps = false;
+    for (
+      var foreground = 0;
+      foreground < CommandCenterAmbientProcessing.foregroundColumnsAt390;
+      foreground++
+    ) {
+      final foregroundX = CommandCenterAmbientProcessing.columnXFraction(
+        layer: DataRainLayer.foreground,
+        streamIndex: foreground,
+        count: CommandCenterAmbientProcessing.foregroundColumnsAt390,
+      );
+      for (
+        var midground = 0;
+        midground < CommandCenterAmbientProcessing.midgroundColumnsAt390;
+        midground++
+      ) {
+        final midgroundX = CommandCenterAmbientProcessing.columnXFraction(
+          layer: DataRainLayer.midground,
+          streamIndex: midground,
+          count: CommandCenterAmbientProcessing.midgroundColumnsAt390,
+        );
+        overlaps |= (foregroundX - midgroundX).abs() < .012;
+      }
+    }
+    expect(overlaps, isTrue);
+  });
+
+  test('assigns both upward and downward independent light pulses', () {
+    final directions = <DataRainPulseDirection>{
+      for (var index = 0; index < 40; index++)
+        CommandCenterAmbientProcessing.pulseDirectionForStream(
+          layer: DataRainLayer.foreground,
+          streamIndex: index,
+        ),
+    };
+    expect(directions, contains(DataRainPulseDirection.upward));
+    expect(directions, contains(DataRainPulseDirection.downward));
+  });
+
   Future<void> pumpProcessing(
     WidgetTester tester, {
     required double width,
@@ -142,6 +247,21 @@ void main() {
       find.byKey(CommandCenterAmbientProcessing.rootKey),
       matchesGoldenFile(
         'goldens/command_center_data_rain_industrial_glyphs.png',
+      ),
+    );
+  });
+
+  testWidgets('renders active production glyph pulses independently', (
+    tester,
+  ) async {
+    await pumpProcessing(tester, width: 390, enabled: true);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+
+    await expectLater(
+      find.byKey(CommandCenterAmbientProcessing.rootKey),
+      matchesGoldenFile(
+        'goldens/command_center_data_rain_industrial_glyphs_active.png',
       ),
     );
   });
