@@ -1255,6 +1255,51 @@ class DashboardScheduleCard extends StatefulWidget {
 
 class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
   bool _expanded = false;
+  final _timelineKey = GlobalKey();
+  final _overflowKey = GlobalKey();
+  final _markerKeys = <String, GlobalKey>{};
+  List<Offset> _timelinePoints = const [];
+
+  void _measureTimeline(
+    List<DashboardPlanInformationEntry> entries,
+    bool tail,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final parent =
+          _timelineKey.currentContext?.findRenderObject() as RenderBox?;
+      if (parent == null) return;
+      final points = <Offset>[];
+      for (final entry in entries) {
+        final box =
+            _markerKeys[entry.record.id]?.currentContext?.findRenderObject()
+                as RenderBox?;
+        if (box != null)
+          points.add(
+            box.localToGlobal(box.size.center(Offset.zero), ancestor: parent),
+          );
+      }
+      if (tail && points.isNotEmpty) {
+        final box =
+            _overflowKey.currentContext?.findRenderObject() as RenderBox?;
+        if (box != null)
+          points.add(
+            Offset(
+              points.last.dx,
+              box
+                  .localToGlobal(box.size.center(Offset.zero), ancestor: parent)
+                  .dy,
+            ),
+          );
+      }
+      if (points.length != _timelinePoints.length ||
+          points.indexed.any(
+            (p) => (p.$2 - _timelinePoints[p.$1]).distance > .1,
+          )) {
+        setState(() => _timelinePoints = points);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1266,6 +1311,7 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                 : entries.take(DashboardScheduleCard._visibleRowLimit))
             .toList(growable: false);
     final hiddenCount = entries.length - visibleEntries.length;
+    _measureTimeline(visibleEntries, hiddenCount > 0 && !_expanded);
     return _DashboardSchedulePilotSurface(
       onTap: widget.information == null
           ? null
@@ -1284,36 +1330,57 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                   )
                 : entries.isEmpty
                 ? const _DashboardScheduleEmptyState()
-                : Column(
+                : Stack(
+                    key: _timelineKey,
                     children: [
-                      for (
-                        var index = 0;
-                        index < visibleEntries.length;
-                        index++
-                      )
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: index == 0 ? AppSpacing.xs : AppSpacing.sm,
-                          ),
-                          child: _DashboardScheduleRow(
-                            entry: visibleEntries[index],
-                            isFirst: index == 0,
-                            isLast: index == visibleEntries.length - 1,
-                            onTap: () => widget.onOpenDate(
-                              visibleEntries[index].record.localDate,
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _DashboardScheduleTimelineRailPainter(
+                              color: Theme.of(context).colorScheme.primary,
+                              points: _timelinePoints,
                             ),
                           ),
                         ),
-                      if (hiddenCount > 0 || _expanded)
-                        Center(
-                          child: TextButton(
-                            key: const ValueKey('dashboard-schedule-more'),
-                            onPressed: () =>
-                                setState(() => _expanded = !_expanded),
-                            child: Text(_expanded ? '折りたたむ' : '他$hiddenCount件'),
-                          ).actionableFeedback(),
-                        ),
-                      const SizedBox(height: AppSpacing.xs),
+                      ),
+                      Column(
+                        children: [
+                          for (
+                            var index = 0;
+                            index < visibleEntries.length;
+                            index++
+                          )
+                            Padding(
+                              padding: EdgeInsets.only(
+                                top: index == 0 ? AppSpacing.xs : AppSpacing.sm,
+                              ),
+                              child: _DashboardScheduleRow(
+                                entry: visibleEntries[index],
+                                isFirst: index == 0,
+                                isLast: index == visibleEntries.length - 1,
+                                markerKey: _markerKeys.putIfAbsent(
+                                  visibleEntries[index].record.id,
+                                  GlobalKey.new,
+                                ),
+                                onTap: () => widget.onOpenDate(
+                                  visibleEntries[index].record.localDate,
+                                ),
+                              ),
+                            ),
+                          if (hiddenCount > 0 || _expanded)
+                            Center(
+                              child: TextButton(
+                                key: _overflowKey,
+                                onPressed: () =>
+                                    setState(() => _expanded = !_expanded),
+                                child: Text(
+                                  _expanded ? '折りたたむ' : '他$hiddenCount件',
+                                ),
+                              ).actionableFeedback(),
+                            ),
+                          const SizedBox(height: AppSpacing.xs),
+                        ],
+                      ),
                     ],
                   ),
           ),
@@ -1678,18 +1745,42 @@ class _DashboardScheduleEmptyState extends StatelessWidget {
   );
 }
 
+class _DashboardScheduleTimelineRailPainter extends CustomPainter {
+  const _DashboardScheduleTimelineRailPainter({
+    required this.color,
+    required this.points,
+  });
+  final Color color;
+  final List<Offset> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+    final paint = Paint()
+      ..color = color.withValues(alpha: holographicTimelineRailOpacity)
+      ..strokeWidth = holographicTimelineRailWidth;
+    canvas.drawLine(points.first, points.last, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashboardScheduleTimelineRailPainter old) =>
+      old.color != color || old.points != points;
+}
+
 class _DashboardScheduleRow extends StatelessWidget {
   const _DashboardScheduleRow({
     required this.entry,
     required this.onTap,
     required this.isFirst,
     required this.isLast,
+    required this.markerKey,
   });
 
   final DashboardPlanInformationEntry entry;
   final VoidCallback onTap;
   final bool isFirst;
   final bool isLast;
+  final Key markerKey;
 
   @override
   Widget build(BuildContext context) {
@@ -1726,22 +1817,13 @@ class _DashboardScheduleRow extends StatelessWidget {
                   Column(
                     children: [
                       Icon(
-                        key: ValueKey('dashboard-schedule-anchor-${record.id}'),
+                        key: markerKey,
                         Icons.circle_outlined,
                         size: holographicTimelineNodeIconSize,
                         color: colorScheme.primary.withValues(
                           alpha: holographicTimelineNodeOpacity,
                         ),
                       ),
-                      if (!isLast)
-                        Container(
-                          key: ValueKey('dashboard-schedule-rail-${record.id}'),
-                          width: holographicTimelineRailWidth,
-                          height: 38,
-                          color: colorScheme.primary.withValues(
-                            alpha: holographicTimelineRailOpacity,
-                          ),
-                        ),
                     ],
                   ),
                   const SizedBox(width: 6),

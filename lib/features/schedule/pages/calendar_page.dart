@@ -460,45 +460,80 @@ class _CalendarPageState extends State<CalendarPage> {
                                         textAlign: TextAlign.center,
                                       ),
                                     ),
-                                  for (final entry
-                                      in _selectedSchedules.indexed)
-                                    Dismissible(
-                                      key: ValueKey(
-                                        'schedule-entry-${entry.$2.id}',
-                                      ),
-                                      direction: DismissDirection.endToStart,
-                                      background:
-                                          const _TimelineDeleteBackground(),
-                                      confirmDismiss: (_) async {
-                                        await _deleteRecord(entry.$2);
-                                        return false;
-                                      },
-                                      child: _TimelineEntry(
-                                        record: entry.$2,
-                                        isFirst: entry.$1 == 0,
-                                        isLast:
-                                            entry.$1 ==
-                                            _selectedSchedules.length - 1,
-                                        onTap: () {
-                                          _collapseWeatherForCalendarAction();
-                                          if (_projectedReminders.containsKey(
-                                            entry.$2.id,
-                                          )) {
-                                            Navigator.of(
-                                              context,
-                                            ).pushNamed(AppRoutes.reminders);
-                                            return;
-                                          }
-                                          _openEditor(entry.$2);
-                                        },
-                                        onReminderToggle:
-                                            entry.$2.kind ==
-                                                ScheduleEntryKind.reminder
-                                            ? () => _toggleReminder(entry.$2)
-                                            : null,
-                                        onMove: (minutes) =>
-                                            _moveTimed(entry.$2, minutes),
-                                      ),
+                                  if (_selectedSchedules.isNotEmpty)
+                                    Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: IgnorePointer(
+                                            child: CustomPaint(
+                                              painter:
+                                                  _DailyTimelineRailPainter(
+                                                    markerCenterX: 64,
+                                                    inset: 17,
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.primary,
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                        Column(
+                                          children: [
+                                            for (final entry
+                                                in _selectedSchedules.indexed)
+                                              Dismissible(
+                                                key: ValueKey(
+                                                  'schedule-entry-${entry.$2.id}',
+                                                ),
+                                                direction:
+                                                    DismissDirection.endToStart,
+                                                background:
+                                                    const _TimelineDeleteBackground(),
+                                                confirmDismiss: (_) async {
+                                                  await _deleteRecord(entry.$2);
+                                                  return false;
+                                                },
+                                                child: _TimelineEntry(
+                                                  record: entry.$2,
+                                                  isFirst: entry.$1 == 0,
+                                                  isLast:
+                                                      entry.$1 ==
+                                                      _selectedSchedules
+                                                              .length -
+                                                          1,
+                                                  onTap: () {
+                                                    _collapseWeatherForCalendarAction();
+                                                    if (_projectedReminders
+                                                        .containsKey(
+                                                          entry.$2.id,
+                                                        )) {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pushNamed(
+                                                        AppRoutes.reminders,
+                                                      );
+                                                      return;
+                                                    }
+                                                    _openEditor(entry.$2);
+                                                  },
+                                                  onReminderToggle:
+                                                      entry.$2.kind ==
+                                                          ScheduleEntryKind
+                                                              .reminder
+                                                      ? () => _toggleReminder(
+                                                          entry.$2,
+                                                        )
+                                                      : null,
+                                                  onMove: (minutes) =>
+                                                      _moveTimed(
+                                                        entry.$2,
+                                                        minutes,
+                                                      ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   AppSpacing.gapMD,
                                   Center(
@@ -4790,24 +4825,13 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                                 ? Icons.check_circle
                                 : Icons.notifications_none)
                           : Icons.circle_outlined,
-                      color: record.kind == ScheduleEntryKind.reminder
-                          ? null
-                          : colorScheme.primary.withValues(
-                              alpha: holographicTimelineNodeOpacity,
-                            ),
+                      color: colorScheme.primary.withValues(
+                        alpha: holographicTimelineNodeOpacity,
+                      ),
                       size: record.kind == ScheduleEntryKind.reminder
                           ? 16
                           : calendarTimelineScheduleAnchorSize,
                     ),
-                    if (!widget.isLast)
-                      Container(
-                        key: ValueKey('calendar-timeline-rail-${record.id}'),
-                        width: holographicTimelineRailWidth,
-                        height: 38,
-                        color: colorScheme.primary.withValues(
-                          alpha: holographicTimelineRailOpacity,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -4868,6 +4892,39 @@ const calendarTimelineUsesIndividualEntryCards = false;
 const calendarTimelineUsesHorizontalAnchorConnector = false;
 const calendarTimelineScheduleAnchorSize = holographicTimelineNodeIconSize;
 const calendarTimelineRailColumnWidth = holographicTimelineNodeIconSize;
+
+/// The selected-day list owns one rail, so variable-height rows cannot leave
+/// connector gaps between their marker centers.
+class _DailyTimelineRailPainter extends CustomPainter {
+  const _DailyTimelineRailPainter({
+    required this.markerCenterX,
+    required this.inset,
+    required this.color,
+  });
+  final double markerCenterX;
+  final double inset;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.height <= inset * 2) return;
+    final paint = Paint()
+      ..color = color.withValues(alpha: holographicTimelineRailOpacity)
+      ..strokeWidth = holographicTimelineRailWidth;
+    canvas.drawLine(
+      Offset(markerCenterX, inset),
+      Offset(markerCenterX, size.height - inset),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DailyTimelineRailPainter oldDelegate) =>
+      oldDelegate.markerCenterX != markerCenterX ||
+      oldDelegate.inset != inset ||
+      oldDelegate.color != color;
+}
+
 const calendarTimelineContentGap = 6.0;
 
 class _CalendarTimelineAddControl extends StatelessWidget {
