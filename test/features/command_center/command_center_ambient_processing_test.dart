@@ -3,73 +3,33 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
-  test('exposes the denser connected processing topology', () {
-    expect(CommandCenterAmbientProcessing.nodeCount, 14);
-    expect(CommandCenterAmbientProcessing.dataBusCount, 21);
-    expect(CommandCenterAmbientProcessing.memoryBankCount, 5);
-    expect(CommandCenterAmbientProcessing.memoryCellsPerBank, 6);
-    expect(
-      CommandCenterAmbientProcessing.geometryFamilies,
-      containsAll(<AmbientBusGeometry>[
-        AmbientBusGeometry.straight,
-        AmbientBusGeometry.stepped,
-        AmbientBusGeometry.curvedBypass,
-        AmbientBusGeometry.parallelLane,
-        AmbientBusGeometry.transport,
-      ]),
-    );
+  test('exposes dense independent data rain speed models', () {
+    expect(CommandCenterAmbientProcessing.streamCount, 48);
+    final speeds = CommandCenterAmbientProcessing.speeds;
+    expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
+    expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
+    expect(speeds[DataRainSpeed.fast], lessThan(speeds[DataRainSpeed.burst]!));
   });
 
-  test('keeps all V2 sequences and packet models deterministic', () {
-    const sequences = [
-      AmbientProcessingSequence.ingestRoute,
-      AmbientProcessingSequence.parallelProcessing,
-      AmbientProcessingSequence.bufferWriteFlush,
-      AmbientProcessingSequence.verifyAcknowledge,
-      AmbientProcessingSequence.routeBranch,
-      AmbientProcessingSequence.highLoadBurst,
-    ];
-
-    expect(sequences, hasLength(6));
-    expect(AmbientPacketModel.values, hasLength(4));
-    expect(AmbientPacketModel.values, contains(AmbientPacketModel.light));
-    expect(AmbientPacketModel.values, contains(AmbientPacketModel.standard));
-    expect(AmbientPacketModel.values, contains(AmbientPacketModel.heavy));
-    expect(AmbientPacketModel.values, contains(AmbientPacketModel.priority));
-    final durations = CommandCenterAmbientProcessing.packetTravelDurations;
-    expect(
-      durations[AmbientPacketModel.priority],
-      lessThan(durations[AmbientPacketModel.light]!),
-    );
-    expect(
-      durations[AmbientPacketModel.light],
-      lessThan(durations[AmbientPacketModel.standard]!),
-    );
-    expect(
-      durations[AmbientPacketModel.standard],
-      lessThan(durations[AmbientPacketModel.heavy]!),
-    );
-  });
-
-  test('uses linear constant-speed packet progress', () {
-    const duration = .4;
-    final first = CommandCenterAmbientProcessing.constantSpeedProgress(
+  test('uses linear constant-speed stream offsets', () {
+    const speed = 22.0;
+    final first = CommandCenterAmbientProcessing.constantSpeedOffset(
       elapsed: .1,
-      travelDuration: duration,
+      pixelsPerSecond: speed,
     );
-    final second = CommandCenterAmbientProcessing.constantSpeedProgress(
+    final second = CommandCenterAmbientProcessing.constantSpeedOffset(
       elapsed: .2,
-      travelDuration: duration,
+      pixelsPerSecond: speed,
     );
-    final third = CommandCenterAmbientProcessing.constantSpeedProgress(
+    final third = CommandCenterAmbientProcessing.constantSpeedOffset(
       elapsed: .3,
-      travelDuration: duration,
+      pixelsPerSecond: speed,
     );
 
     expect(second - first, closeTo(third - second, .000001));
-    expect(first, closeTo(.25, .000001));
-    expect(second, closeTo(.5, .000001));
-    expect(third, closeTo(.75, .000001));
+    expect(first, closeTo(2.2, .000001));
+    expect(second, closeTo(4.4, .000001));
+    expect(third, closeTo(6.6, .000001));
   });
 
   Future<void> pumpProcessing(
@@ -101,19 +61,12 @@ void main() {
     );
   }
 
-  testWidgets('renders the three processing layers behind content', (
-    tester,
-  ) async {
+  testWidgets('renders dense data rain behind content', (tester) async {
     await pumpProcessing(tester, width: 390, enabled: true);
 
     expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
-    expect(find.byKey(CommandCenterAmbientProcessing.nodesKey), findsOneWidget);
     expect(
-      find.byKey(CommandCenterAmbientProcessing.dataBusKey),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(CommandCenterAmbientProcessing.memoryBlocksKey),
+      find.byKey(CommandCenterAmbientProcessing.dataRainKey),
       findsOneWidget,
     );
     expect(find.text('OPERATIONAL CONTENT'), findsOneWidget);
@@ -124,10 +77,8 @@ void main() {
     await pumpProcessing(tester, width: 390, enabled: false);
 
     expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsNothing);
-    expect(find.byKey(CommandCenterAmbientProcessing.nodesKey), findsNothing);
-    expect(find.byKey(CommandCenterAmbientProcessing.dataBusKey), findsNothing);
     expect(
-      find.byKey(CommandCenterAmbientProcessing.memoryBlocksKey),
+      find.byKey(CommandCenterAmbientProcessing.dataRainKey),
       findsNothing,
     );
   });
@@ -147,9 +98,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders the production Data Bus as thin open traces', (
-    tester,
-  ) async {
+  testWidgets('renders the production Data Rain field', (tester) async {
     await pumpProcessing(
       tester,
       width: 390,
@@ -158,8 +107,8 @@ void main() {
     );
 
     await expectLater(
-      find.byKey(CommandCenterAmbientProcessing.dataBusKey),
-      matchesGoldenFile('goldens/command_center_data_bus_thin_traces.png'),
+      find.byKey(CommandCenterAmbientProcessing.dataRainKey),
+      matchesGoldenFile('goldens/command_center_data_rain_static.png'),
     );
   });
 

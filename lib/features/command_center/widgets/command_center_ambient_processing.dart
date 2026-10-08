@@ -1,52 +1,33 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// The Command Center's independent, low-intensity processing field.
+/// Command Center-only continuous data processing ambience.
 ///
-/// One timeline drives all layers: base traffic is always present while the
-/// screen is active, while a primary and a delayed secondary sequence create
-/// bounded overlapping processing events. It intentionally shares nothing
-/// with the Dashboard Ambient Circuit traffic model.
+/// The renderer deliberately avoids characters, code, and Matrix styling. It
+/// uses bounded blue/cyan vertical signal traces to imply asynchronous data
+/// movement behind the operational glass surfaces.
 class CommandCenterAmbientProcessing extends StatefulWidget {
   const CommandCenterAmbientProcessing({super.key, required this.enabled});
 
   static const rootKey = ValueKey('command-center-ambient-processing');
-  static const nodesKey = ValueKey('command-center-processing-nodes');
-  static const dataBusKey = ValueKey('command-center-data-bus');
-  static const memoryBlocksKey = ValueKey('command-center-memory-blocks');
-
-  static const nodeCount = 14;
-  static const dataBusCount = 21;
-  static const memoryBankCount = 5;
-  static const memoryCellsPerBank = 6;
-  static const geometryFamilies = <AmbientBusGeometry>{
-    AmbientBusGeometry.straight,
-    AmbientBusGeometry.diagonal,
-    AmbientBusGeometry.stepped,
-    AmbientBusGeometry.curvedBypass,
-    AmbientBusGeometry.parallelLane,
-    AmbientBusGeometry.local,
-    AmbientBusGeometry.transport,
-  };
+  static const dataRainKey = ValueKey('command-center-data-rain');
+  static const streamCount = 48;
 
   final bool enabled;
 
-  /// Linear progress deliberately has no easing: every packet's speed is
-  /// constant from its departure until its arrival, including at route bends.
-  static double constantSpeedProgress({
+  /// Linear distance for every stream: no easing or speed change exists
+  /// between recycling points.
+  static double constantSpeedOffset({
     required double elapsed,
-    required double travelDuration,
-  }) => (elapsed / travelDuration).clamp(0.0, 1.0);
+    required double pixelsPerSecond,
+  }) => elapsed * pixelsPerSecond;
 
-  /// Nominal route durations define the four simulated data characteristics.
-  /// Individual packets retain their selected duration for their whole trip.
-  static const packetTravelDurations = <AmbientPacketModel, double>{
-    AmbientPacketModel.light: .18,
-    AmbientPacketModel.standard: .28,
-    AmbientPacketModel.heavy: .42,
-    AmbientPacketModel.priority: .11,
+  static const speeds = <DataRainSpeed, double>{
+    DataRainSpeed.slow: 12,
+    DataRainSpeed.normal: 22,
+    DataRainSpeed.fast: 38,
+    DataRainSpeed.burst: 60,
   };
 
   @override
@@ -54,47 +35,20 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
       _CommandCenterAmbientProcessingState();
 }
 
-enum AmbientProcessingSequence {
-  ingestRoute,
-  parallelProcessing,
-  bufferWriteFlush,
-  verifyAcknowledge,
-  routeBranch,
-  highLoadBurst,
-}
-
-enum AmbientPacketModel { light, standard, heavy, priority }
-
-enum AmbientBusGeometry {
-  straight,
-  diagonal,
-  stepped,
-  curvedBypass,
-  parallelLane,
-  local,
-  transport,
-}
-
-const _sequenceLibrary = <AmbientProcessingSequence>[
-  AmbientProcessingSequence.ingestRoute,
-  AmbientProcessingSequence.parallelProcessing,
-  AmbientProcessingSequence.bufferWriteFlush,
-  AmbientProcessingSequence.verifyAcknowledge,
-  AmbientProcessingSequence.routeBranch,
-  AmbientProcessingSequence.highLoadBurst,
-];
+enum DataRainSpeed { slow, normal, fast, burst }
 
 class _CommandCenterAmbientProcessingState
     extends State<CommandCenterAmbientProcessing>
     with SingleTickerProviderStateMixin {
+  static const _cycleDuration = Duration(seconds: 8);
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 8),
+    duration: _cycleDuration,
   );
   Timer? _nextCycle;
   var _motionAllowed = false;
-  var _sequenceIndex = 0;
   var _running = false;
+  var _cycle = 0;
 
   @override
   void didChangeDependencies() {
@@ -117,8 +71,8 @@ class _CommandCenterAmbientProcessingState
     _controller.stop();
     _running = false;
     if (widget.enabled && _motionAllowed) {
-      // Let navigation settle first. Afterwards each short event hands off to
-      // the next one almost immediately, so base traffic never visually stops.
+      // The delayed start keeps route transitions quiet, then 80 ms handoffs
+      // preserve continuous motion without a permanently active page ticker.
       _nextCycle = Timer(const Duration(milliseconds: 900), _startCycle);
     } else {
       _controller.value = 0;
@@ -132,7 +86,7 @@ class _CommandCenterAmbientProcessingState
       if (!mounted || !widget.enabled || !_motionAllowed) return;
       setState(() {
         _running = false;
-        _sequenceIndex = (_sequenceIndex + 1) % _sequenceLibrary.length;
+        _cycle++;
       });
       _nextCycle = Timer(const Duration(milliseconds: 80), _startCycle);
     });
@@ -148,482 +102,166 @@ class _CommandCenterAmbientProcessingState
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return const SizedBox.shrink();
-    final color = Theme.of(context).colorScheme.primary;
     return IgnorePointer(
       child: RepaintBoundary(
         key: CommandCenterAmbientProcessing.rootKey,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CustomPaint(
-              key: CommandCenterAmbientProcessing.dataBusKey,
-              painter: _AmbientProcessingPainter(
-                animation: _controller,
-                color: color,
-                staticFrame: !_motionAllowed,
-                running: _running,
-                primary: _sequenceLibrary[_sequenceIndex],
-                secondary:
-                    _sequenceLibrary[(_sequenceIndex + 2) %
-                        _sequenceLibrary.length],
-                layer: _AmbientLayer.dataBus,
-              ),
-            ),
-            CustomPaint(
-              key: CommandCenterAmbientProcessing.nodesKey,
-              painter: _AmbientProcessingPainter(
-                animation: _controller,
-                color: color,
-                staticFrame: !_motionAllowed,
-                running: _running,
-                primary: _sequenceLibrary[_sequenceIndex],
-                secondary:
-                    _sequenceLibrary[(_sequenceIndex + 2) %
-                        _sequenceLibrary.length],
-                layer: _AmbientLayer.nodes,
-              ),
-            ),
-            CustomPaint(
-              key: CommandCenterAmbientProcessing.memoryBlocksKey,
-              painter: _AmbientProcessingPainter(
-                animation: _controller,
-                color: color,
-                staticFrame: !_motionAllowed,
-                running: _running,
-                primary: _sequenceLibrary[_sequenceIndex],
-                secondary:
-                    _sequenceLibrary[(_sequenceIndex + 2) %
-                        _sequenceLibrary.length],
-                layer: _AmbientLayer.memory,
-              ),
-            ),
-          ],
+        child: CustomPaint(
+          key: CommandCenterAmbientProcessing.dataRainKey,
+          painter: _DataRainPainter(
+            animation: _controller,
+            color: Theme.of(context).colorScheme.primary,
+            staticFrame: !_motionAllowed,
+            running: _running,
+            completedSeconds: _cycle * _cycleDuration.inMilliseconds / 1000,
+          ),
         ),
       ),
     );
   }
 }
 
-enum _AmbientLayer { dataBus, nodes, memory }
-
-class _AmbientProcessingPainter extends CustomPainter {
-  const _AmbientProcessingPainter({
+class _DataRainPainter extends CustomPainter {
+  const _DataRainPainter({
     required this.animation,
     required this.color,
     required this.staticFrame,
     required this.running,
-    required this.primary,
-    required this.secondary,
-    required this.layer,
+    required this.completedSeconds,
   }) : super(repaint: animation);
 
   final Animation<double> animation;
   final Color color;
   final bool staticFrame;
   final bool running;
-  final AmbientProcessingSequence primary;
-  final AmbientProcessingSequence secondary;
-  final _AmbientLayer layer;
+  final double completedSeconds;
 
-  static const _nodes = <Offset>[
-    Offset(.08, .16),
-    Offset(.24, .14),
-    Offset(.42, .20),
-    Offset(.62, .12),
-    Offset(.82, .20),
-    Offset(.13, .42),
-    Offset(.31, .38),
-    Offset(.51, .46),
-    Offset(.70, .37),
-    Offset(.90, .48),
-    Offset(.19, .74),
-    Offset(.43, .72),
-    Offset(.65, .69),
-    Offset(.86, .79),
-  ];
-
-  static const _routes = <_RouteSpec>[
-    _RouteSpec(0, 1, AmbientBusGeometry.straight),
-    _RouteSpec(1, 2, AmbientBusGeometry.diagonal),
-    _RouteSpec(
-      2,
-      3,
-      AmbientBusGeometry.stepped,
-      waypoints: [Offset(.52, .20), Offset(.52, .12)],
-    ),
-    _RouteSpec(
-      3,
-      4,
-      AmbientBusGeometry.parallelLane,
-      waypoints: [Offset(.72, .12)],
-    ),
-    _RouteSpec(0, 5, AmbientBusGeometry.transport),
-    _RouteSpec(5, 6, AmbientBusGeometry.local),
-    _RouteSpec(
-      6,
-      7,
-      AmbientBusGeometry.curvedBypass,
-      waypoints: [Offset(.40, .31)],
-    ),
-    _RouteSpec(7, 8, AmbientBusGeometry.local),
-    _RouteSpec(8, 9, AmbientBusGeometry.diagonal),
-    _RouteSpec(
-      5,
-      10,
-      AmbientBusGeometry.curvedBypass,
-      waypoints: [Offset(.08, .60)],
-    ),
-    _RouteSpec(
-      10,
-      11,
-      AmbientBusGeometry.parallelLane,
-      waypoints: [Offset(.31, .77)],
-    ),
-    _RouteSpec(11, 12, AmbientBusGeometry.straight),
-    _RouteSpec(12, 13, AmbientBusGeometry.diagonal),
-    _RouteSpec(2, 7, AmbientBusGeometry.transport),
-    _RouteSpec(
-      6,
-      11,
-      AmbientBusGeometry.stepped,
-      waypoints: [Offset(.31, .58), Offset(.43, .58)],
-    ),
-    _RouteSpec(7, 12, AmbientBusGeometry.transport),
-    _RouteSpec(
-      8,
-      12,
-      AmbientBusGeometry.stepped,
-      waypoints: [Offset(.70, .56), Offset(.65, .56)],
-    ),
-    _RouteSpec(3, 8, AmbientBusGeometry.local),
-    _RouteSpec(4, 9, AmbientBusGeometry.transport),
-    _RouteSpec(
-      9,
-      13,
-      AmbientBusGeometry.curvedBypass,
-      waypoints: [Offset(.96, .64)],
-    ),
-    _RouteSpec(1, 6, AmbientBusGeometry.transport),
-  ];
-
-  double get _progress => staticFrame || !running ? 0 : animation.value;
+  double get _seconds => staticFrame || !running
+      ? completedSeconds
+      : completedSeconds + animation.value * 8;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    switch (layer) {
-      case _AmbientLayer.dataBus:
-        _paintDataBus(canvas, size);
-      case _AmbientLayer.nodes:
-        _paintNodes(canvas, size);
-      case _AmbientLayer.memory:
-        _paintMemory(canvas, size);
+    for (
+      var index = 0;
+      index < CommandCenterAmbientProcessing.streamCount;
+      index++
+    ) {
+      _paintStream(canvas, size, _StreamSpec.forIndex(index));
     }
   }
 
-  Offset _point(Size size, Offset normalized) =>
-      Offset(normalized.dx * size.width, normalized.dy * size.height);
-
-  Path _routePath(Size size, int routeIndex) {
-    final route = _routes[routeIndex];
-    final points = <Offset>[_point(size, _nodes[route.from])];
-    points.addAll(route.waypoints.map((point) => _point(size, point)));
-    points.add(_point(size, _nodes[route.to]));
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    if (route.geometry == AmbientBusGeometry.curvedBypass &&
-        points.length == 3) {
-      path.quadraticBezierTo(
-        points[1].dx,
-        points[1].dy,
-        points[2].dx,
-        points[2].dy,
-      );
-    } else {
-      for (final point in points.skip(1)) {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    return path;
-  }
-
-  void _paintDataBus(Canvas canvas, Size size) {
-    final basePaint = Paint()
-      ..color = color.withValues(alpha: .075)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    for (var index = 0; index < _routes.length; index++) {
-      canvas.drawPath(_routePath(size, index), basePaint);
-    }
-    for (final packet in _packets) {
-      final local = _packetProgress(packet);
-      if (local == null) continue;
-      _paintPacket(canvas, _routePath(size, packet.route), packet, local);
-    }
-  }
-
-  void _paintPacket(
-    Canvas canvas,
-    Path path,
-    _PacketPlan packet,
-    double progress,
-  ) {
-    final metric = path.computeMetrics().first;
-    final travel = packet.reverse ? 1 - progress : progress;
-    final tangent = metric.getTangentForOffset(metric.length * travel);
-    if (tangent == null) return;
-    final (radius, alpha) = switch (packet.model) {
-      AmbientPacketModel.light => (1.3, .20),
-      AmbientPacketModel.standard => (1.8, .25),
-      AmbientPacketModel.heavy => (2.5, .29),
-      AmbientPacketModel.priority => (1.45, .31),
-    };
-    canvas.drawCircle(
-      tangent.position,
-      radius,
-      Paint()..color = color.withValues(alpha: alpha),
+  void _paintStream(Canvas canvas, Size size, _StreamSpec stream) {
+    final trail = size.height * stream.length;
+    final span = size.height + trail;
+    final offset = CommandCenterAmbientProcessing.constantSpeedOffset(
+      elapsed: _seconds,
+      pixelsPerSecond: CommandCenterAmbientProcessing.speeds[stream.speed]!,
     );
-  }
+    final head = (stream.initialOffset * span + offset) % span - trail;
+    final tail = head - trail;
+    final x = stream.x * size.width;
+    final visibleTop = tail.clamp(0.0, size.height);
+    final visibleBottom = head.clamp(0.0, size.height);
+    if (visibleBottom <= visibleTop) return;
 
-  void _paintNodes(Canvas canvas, Size size) {
-    final activations = _nodeActivations;
-    for (var index = 0; index < _nodes.length; index++) {
-      final point = _point(size, _nodes[index]);
-      final activation = activations[index];
-      canvas.drawCircle(
-        point,
-        8 + activation * 4,
-        Paint()..color = color.withValues(alpha: .025 + activation * .075),
-      );
-      canvas.drawCircle(
-        point,
-        3.5 + activation * 1.5,
-        Paint()
-          ..color = color.withValues(alpha: .16 + activation * .32)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
-      );
-      if (activation > .01) {
-        canvas.drawCircle(
-          point,
-          1.2 + activation,
-          Paint()..color = color.withValues(alpha: .24 + activation * .4),
-        );
-      }
-    }
-  }
+    final bright = _brightStrength(stream);
+    final baseAlpha = .018 + stream.opacity * .045;
+    final trailAlpha = baseAlpha + bright * .16;
+    final trailPaint = Paint()
+      ..shader =
+          LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color.withValues(alpha: baseAlpha * .2),
+              color.withValues(alpha: trailAlpha),
+            ],
+          ).createShader(
+            Rect.fromLTWH(x - 1, visibleTop, 2, visibleBottom - visibleTop),
+          );
+    canvas.drawRect(
+      Rect.fromLTWH(x - .65, visibleTop, 1.3, visibleBottom - visibleTop),
+      trailPaint,
+    );
 
-  void _paintMemory(Canvas canvas, Size size) {
-    final width = math.min(90.0, size.width * .16);
-    const height = 9.0;
-    final origins = [
-      Offset(size.width * .06, size.height * .84),
-      Offset(size.width * .27, size.height * .57),
-      Offset(size.width * .46, size.height * .84),
-      Offset(size.width * .66, size.height * .60),
-      Offset(size.width * .80, size.height * .86),
-    ];
-    final fills = _memoryFills;
-    for (var bank = 0; bank < origins.length; bank++) {
-      for (
-        var cell = 0;
-        cell < CommandCenterAmbientProcessing.memoryCellsPerBank;
-        cell++
-      ) {
-        final rect = Rect.fromLTWH(
-          origins[bank].dx +
-              cell *
-                  (width / CommandCenterAmbientProcessing.memoryCellsPerBank +
-                      2),
-          origins[bank].dy,
-          width / CommandCenterAmbientProcessing.memoryCellsPerBank,
-          height,
-        );
-        final fill = (fills[bank] - cell).clamp(0.0, 1.0);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(1.5)),
-          Paint()..color = color.withValues(alpha: .07 + fill * .18),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(1.5)),
-          Paint()
-            ..color = color.withValues(alpha: .1 + fill * .18)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = .7,
-        );
-      }
-    }
-  }
-
-  List<_PacketPlan> get _packets => [
-    ..._basePackets,
-    ..._sequencePackets(primary),
-    if (_progress > .24) ..._sequencePackets(secondary, secondary: true),
-  ];
-
-  // Base traffic is deliberately sparse and distributed across three regions.
-  // It continues underneath every processing event.
-  List<_PacketPlan> get _basePackets => const [
-    _PacketPlan(0, .00, .22, AmbientPacketModel.light),
-    _PacketPlan(8, .31, .28, AmbientPacketModel.standard),
-    _PacketPlan(10, .58, .30, AmbientPacketModel.light),
-    _PacketPlan(18, .14, .42, AmbientPacketModel.heavy),
-    _PacketPlan(20, .82, .18, AmbientPacketModel.priority),
-  ];
-
-  List<_PacketPlan> _sequencePackets(
-    AmbientProcessingSequence sequence, {
-    bool secondary = false,
-  }) {
-    // The sequence's start is moved into the local event timeline. Every
-    // packet has a fixed duration selected at creation, never an eased speed.
-    final offset = secondary ? .24 : 0.0;
-    return switch (sequence) {
-      AmbientProcessingSequence.ingestRoute => [
-        _PacketPlan(4, offset, .22, AmbientPacketModel.light),
-        _PacketPlan(5, offset + .20, .24, AmbientPacketModel.standard),
-        _PacketPlan(13, offset + .48, .34, AmbientPacketModel.heavy),
-      ],
-      AmbientProcessingSequence.parallelProcessing => [
-        _PacketPlan(2, offset, .30, AmbientPacketModel.standard),
-        _PacketPlan(9, offset + .08, .40, AmbientPacketModel.heavy),
-        _PacketPlan(15, offset + .42, .26, AmbientPacketModel.light),
-        _PacketPlan(12, offset + .50, .20, AmbientPacketModel.priority),
-      ],
-      AmbientProcessingSequence.bufferWriteFlush => [
-        _PacketPlan(14, offset + .12, .32, AmbientPacketModel.heavy),
-        _PacketPlan(10, offset + .54, .16, AmbientPacketModel.priority),
-        _PacketPlan(11, offset + .70, .18, AmbientPacketModel.priority),
-      ],
-      AmbientProcessingSequence.verifyAcknowledge => [
-        _PacketPlan(6, offset + .08, .28, AmbientPacketModel.standard),
-        _PacketPlan(
-          6,
-          offset + .48,
-          .18,
-          AmbientPacketModel.priority,
-          reverse: true,
+    // Head segments make the stream read as data, while retaining the same
+    // vertical trajectory and constant speed as its fading trail.
+    final headHeight = 3.5 + bright * 7;
+    final headTop = (head - headHeight).clamp(0.0, size.height);
+    final headBottom = head.clamp(0.0, size.height);
+    if (headBottom > headTop) {
+      final accent = Color.lerp(color, Colors.cyanAccent, .28)!;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            x - (1 + bright),
+            headTop,
+            2 + bright * 2,
+            headBottom - headTop,
+          ),
+          const Radius.circular(1),
         ),
-      ],
-      AmbientProcessingSequence.routeBranch => [
-        _PacketPlan(1, offset, .22, AmbientPacketModel.light),
-        _PacketPlan(2, offset + .22, .30, AmbientPacketModel.standard),
-        _PacketPlan(13, offset + .28, .30, AmbientPacketModel.standard),
-        _PacketPlan(7, offset + .52, .20, AmbientPacketModel.priority),
-      ],
-      AmbientProcessingSequence.highLoadBurst => [
-        _PacketPlan(3, offset, .13, AmbientPacketModel.priority),
-        _PacketPlan(7, offset + .10, .18, AmbientPacketModel.light),
-        _PacketPlan(17, offset + .20, .25, AmbientPacketModel.standard),
-        _PacketPlan(19, offset + .28, .34, AmbientPacketModel.heavy),
-        _PacketPlan(16, offset + .44, .16, AmbientPacketModel.priority),
-      ],
-    };
-  }
-
-  double? _packetProgress(_PacketPlan packet) {
-    final elapsed = _progress - packet.start;
-    if (elapsed < 0 || elapsed > packet.duration) return null;
-    return CommandCenterAmbientProcessing.constantSpeedProgress(
-      elapsed: elapsed,
-      travelDuration: packet.duration,
-    );
-  }
-
-  List<double> get _nodeActivations {
-    final values = List<double>.filled(
-      CommandCenterAmbientProcessing.nodeCount,
-      0,
-    );
-    for (final packet in _packets) {
-      final local = _packetProgress(packet);
-      if (local != null) continue;
-      final arrival = packet.start + packet.duration;
-      final elapsedSinceArrival = _progress - arrival;
-      // The target illuminates only after route completion, then decays. No
-      // proximity activation is used for either source or destination nodes.
-      if (elapsedSinceArrival < 0 || elapsedSinceArrival > .12) continue;
-      final target = packet.reverse
-          ? _routes[packet.route].from
-          : _routes[packet.route].to;
-      values[target] = math.max(values[target], 1 - elapsedSinceArrival / .12);
+        Paint()..color = accent.withValues(alpha: .18 + bright * .45),
+      );
     }
-    return values;
   }
 
-  List<double> get _memoryFills {
-    final fills = List<double>.filled(
-      CommandCenterAmbientProcessing.memoryBankCount,
-      0,
-    );
-    for (final packet in _packets) {
-      final local = _packetProgress(packet);
-      if (local != null) continue;
-      final arrival = packet.start + packet.duration;
-      final elapsed = _progress - arrival;
-      if (elapsed < 0 || elapsed > .34) continue;
-      final bank = _bankForRoute(packet.route);
-      final amount = packet.model == AmbientPacketModel.heavy
-          ? 3.5
-          : packet.model == AmbientPacketModel.priority
-          ? 1.5
-          : 1.0;
-      // WRITE -> HOLD -> TRANSFER -> CLEAR is causal: no bank changes before
-      // a packet has completed the matching route.
-      final fill = switch (elapsed) {
-        < .08 => amount * (elapsed / .08),
-        < .20 => amount,
-        < .28 => amount * (1 - (elapsed - .20) / .08),
-        _ => 0.0,
-      };
-      fills[bank] = math.max(fills[bank], fill);
-    }
-    return fills;
+  double _brightStrength(_StreamSpec stream) {
+    // Each stream owns a different interval, duration and phase. The modulo
+    // schedules localized emphasis without any synchronized global reset.
+    final local = (_seconds + stream.brightPhase) % stream.brightInterval;
+    if (local > stream.brightDuration) return 0;
+    final normalized = local / stream.brightDuration;
+    return normalized < .18
+        ? normalized / .18
+        : normalized > .78
+        ? (1 - normalized) / .22
+        : 1;
   }
-
-  int _bankForRoute(int route) => switch (route) {
-    4 || 5 || 9 => 0,
-    1 || 2 || 13 || 14 => 1,
-    6 || 7 || 15 => 2,
-    3 || 8 || 17 || 18 => 3,
-    _ => 4,
-  };
 
   @override
-  bool shouldRepaint(covariant _AmbientProcessingPainter oldDelegate) =>
+  bool shouldRepaint(covariant _DataRainPainter oldDelegate) =>
       oldDelegate.color != color ||
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.running != running ||
-      oldDelegate.primary != primary ||
-      oldDelegate.secondary != secondary ||
-      oldDelegate.layer != layer;
+      oldDelegate.completedSeconds != completedSeconds;
 }
 
-class _RouteSpec {
-  const _RouteSpec(
-    this.from,
-    this.to,
-    this.geometry, {
-    this.waypoints = const [],
+class _StreamSpec {
+  const _StreamSpec({
+    required this.x,
+    required this.initialOffset,
+    required this.length,
+    required this.opacity,
+    required this.speed,
+    required this.brightPhase,
+    required this.brightInterval,
+    required this.brightDuration,
   });
 
-  final int from;
-  final int to;
-  final AmbientBusGeometry geometry;
-  final List<Offset> waypoints;
-}
+  final double x;
+  final double initialOffset;
+  final double length;
+  final double opacity;
+  final DataRainSpeed speed;
+  final double brightPhase;
+  final double brightInterval;
+  final double brightDuration;
 
-class _PacketPlan {
-  const _PacketPlan(
-    this.route,
-    this.start,
-    this.duration,
-    this.model, {
-    this.reverse = false,
-  });
-
-  final int route;
-  final double start;
-  final double duration;
-  final AmbientPacketModel model;
-  final bool reverse;
+  factory _StreamSpec.forIndex(int index) {
+    // Coprime multipliers distribute starts, brightness and lengths without
+    // per-frame randomness or a synchronized master pattern.
+    final lane = ((index * 37) % 101) / 100;
+    return _StreamSpec(
+      x: .018 + lane * .964,
+      initialOffset: ((index * 29) % 97) / 97,
+      length: .10 + ((index * 17) % 19) / 100,
+      opacity: .35 + ((index * 11) % 13) / 20,
+      speed: DataRainSpeed.values[index % DataRainSpeed.values.length],
+      brightPhase: (index * 2.7) % 23,
+      brightInterval: 15 + (index % 6) * 3.5,
+      brightDuration: .7 + (index % 4) * .24,
+    );
+  }
 }
