@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 /// Activity-only kinetic measurement field.
 class ActivityAmbientKineticField extends StatefulWidget {
@@ -176,9 +177,10 @@ class _MovingScopePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
+    final angle = _t * 6.283185307179586;
     final center = Offset(
-      size.width * (.12 + .76 * _t),
-      size.height * (.18 + .64 * (0.5 - 0.5 * (2 * _t - 1) * (2 * _t - 1))),
+      size.width * (.5 + .37 * math.sin(angle)),
+      size.height * (.5 + .29 * math.sin(angle * 2 + .72)),
     );
     final radius = (size.shortestSide * .34).clamp(92.0, 168.0);
     _field(canvas, size, center, radius);
@@ -196,11 +198,18 @@ class _MovingScopePainter extends CustomPainter {
       ..color = color.withValues(alpha: .15);
     for (var y = 32.0; y < size.height; y += 52) {
       for (var x = 8.0; x < size.width; x += 42) {
-        final inside = (Offset(x, y) - center).distance < radius;
+        final distance = (Offset(x, y) - center).distance;
+        final reveal = (1 - ((distance - radius * .72) / (radius * .55))).clamp(
+          0.0,
+          1.0,
+        );
         canvas.drawLine(
           Offset(x, y),
           Offset(x + 15, y),
-          inside ? revealed : faint,
+          reveal > .01
+              ? (revealed
+                  ..color = color.withValues(alpha: .025 + .125 * reveal))
+              : faint,
         );
       }
     }
@@ -226,11 +235,11 @@ class _MovingScopePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.35
       ..color = Colors.cyanAccent.withValues(alpha: .42);
-    for (final factor in [.42, .66, 1.0]) {
+    for (final (index, factor) in [.42, .66, 1.0].indexed) {
       canvas.drawArc(
         Rect.fromCircle(center: c, radius: r * factor),
-        _t * 6.28 * (factor == .66 ? -1 : 1),
-        4.45,
+        _t * 6.283185307179586 * (index == 1 ? -1.7 : 1.15 + index),
+        3.3 + index * .58,
         false,
         base,
       );
