@@ -142,6 +142,10 @@ void main() {
     expect(settings.rippleEnabled, isTrue);
     expect(settings.ambientCircuitEnabled, isTrue);
     expect(settings.ambientProcessingEnabled, isTrue);
+    expect(
+      settings.commandCenterMidRearDensity,
+      CommandCenterMidRearDensity.low,
+    );
     expect(settings.ambientKineticFieldEnabled, isTrue);
     expect(settings.ambientWildlifeEnabled, isTrue);
   });
@@ -162,6 +166,7 @@ void main() {
         'rippleEnabled': false,
         'ambientCircuitEnabled': false,
         'ambientProcessingEnabled': false,
+        'commandCenterMidRearDensity': 'high',
         'ambientKineticFieldEnabled': false,
         'ambientWildlifeEnabled': false,
         'reducedMotion': 'on',
@@ -180,6 +185,10 @@ void main() {
       expect(restored.value.rippleEnabled, isFalse);
       expect(restored.value.ambientCircuitEnabled, isFalse);
       expect(restored.value.ambientProcessingEnabled, isFalse);
+      expect(
+        restored.value.commandCenterMidRearDensity,
+        CommandCenterMidRearDensity.high,
+      );
       expect(restored.value.ambientKineticFieldEnabled, isFalse);
       expect(restored.value.ambientWildlifeEnabled, isFalse);
       expect(restored.value.reducedMotion, ReducedMotionPreference.on);
@@ -202,6 +211,10 @@ void main() {
     expect(controller.value.commandVolume, 0);
     expect(controller.value.brightness, DeviceSettings.minimumBrightness);
     expect(controller.value.ambientProcessingEnabled, isTrue);
+    expect(
+      controller.value.commandCenterMidRearDensity,
+      CommandCenterMidRearDensity.low,
+    );
     expect(controller.value.reducedMotion, ReducedMotionPreference.system);
   });
 
@@ -220,5 +233,24 @@ void main() {
     }
     expect(settings.commandVolume, .4);
     expect(settings.ambientVolume, .1);
+  });
+
+  test('MID-REAR density serializes and safely falls back to LOW', () {
+    for (final density in CommandCenterMidRearDensity.values) {
+      final decoded = DeviceSettings.fromJson(
+        DeviceSettings(commandCenterMidRearDensity: density).toJson(),
+      );
+      expect(decoded.commandCenterMidRearDensity, density);
+    }
+    expect(
+      DeviceSettings.fromJson({
+        'commandCenterMidRearDensity': 'unsupported',
+      }).commandCenterMidRearDensity,
+      CommandCenterMidRearDensity.low,
+    );
+    expect(
+      DeviceSettings.fromJson({}).commandCenterMidRearDensity,
+      CommandCenterMidRearDensity.low,
+    );
   });
 }

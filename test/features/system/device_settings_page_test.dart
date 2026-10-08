@@ -171,6 +171,37 @@ void main() {
     },
   );
 
+  testWidgets('MID-REAR density changes immediately through Device Settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = DeviceSettingsController();
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceSettingsPage(controller: controller)),
+    );
+
+    final density = find.byKey(
+      const ValueKey('device-settings-mid-rear-density'),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('device-settings-content')),
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(density);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('HIGH — 31').last);
+    await tester.pumpAndSettle();
+    expect(
+      controller.value.commandCenterMidRearDensity,
+      CommandCenterMidRearDensity.high,
+    );
+  });
+
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets('ambient peer controls use the responsive layout at $width', (
       tester,

@@ -10,6 +10,19 @@ import '../../features/notifications/models/notification_configuration.dart';
 /// platform, while [on] and [off] are explicit application overrides.
 enum ReducedMotionPreference { system, on, off }
 
+/// MID-REAR is the only user-adjustable Command Center Data Rain layer.
+/// The exact 390px allocations are deliberately part of the preference
+/// contract so backup/restore preserves the requested visual comparison.
+enum CommandCenterMidRearDensity {
+  low(12),
+  medium(21),
+  high(31);
+
+  const CommandCenterMidRearDensity(this.streamsAt390);
+
+  final int streamsAt390;
+}
+
 enum DeviceFeedbackChannel { command, exit, rejected, ambient }
 
 /// OR-APP-local presentation and feedback preferences.
@@ -29,6 +42,7 @@ class DeviceSettings {
     this.rippleEnabled = true,
     this.ambientCircuitEnabled = true,
     this.ambientProcessingEnabled = true,
+    this.commandCenterMidRearDensity = CommandCenterMidRearDensity.low,
     this.ambientKineticFieldEnabled = true,
     this.ambientWildlifeEnabled = true,
     this.reducedMotion = ReducedMotionPreference.system,
@@ -47,6 +61,7 @@ class DeviceSettings {
   final bool rippleEnabled;
   final bool ambientCircuitEnabled;
   final bool ambientProcessingEnabled;
+  final CommandCenterMidRearDensity commandCenterMidRearDensity;
   final bool ambientKineticFieldEnabled;
   final bool ambientWildlifeEnabled;
   final ReducedMotionPreference reducedMotion;
@@ -82,6 +97,7 @@ class DeviceSettings {
     bool? rippleEnabled,
     bool? ambientCircuitEnabled,
     bool? ambientProcessingEnabled,
+    CommandCenterMidRearDensity? commandCenterMidRearDensity,
     bool? ambientKineticFieldEnabled,
     bool? ambientWildlifeEnabled,
     ReducedMotionPreference? reducedMotion,
@@ -98,6 +114,8 @@ class DeviceSettings {
     ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
     ambientProcessingEnabled:
         ambientProcessingEnabled ?? this.ambientProcessingEnabled,
+    commandCenterMidRearDensity:
+        commandCenterMidRearDensity ?? this.commandCenterMidRearDensity,
     ambientKineticFieldEnabled:
         ambientKineticFieldEnabled ?? this.ambientKineticFieldEnabled,
     ambientWildlifeEnabled:
@@ -118,6 +136,7 @@ class DeviceSettings {
     rippleEnabled: rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled,
     ambientProcessingEnabled: ambientProcessingEnabled,
+    commandCenterMidRearDensity: commandCenterMidRearDensity,
     ambientKineticFieldEnabled: ambientKineticFieldEnabled,
     ambientWildlifeEnabled: ambientWildlifeEnabled,
     reducedMotion: reducedMotion,
@@ -135,6 +154,7 @@ class DeviceSettings {
     'rippleEnabled': rippleEnabled,
     'ambientCircuitEnabled': ambientCircuitEnabled,
     'ambientProcessingEnabled': ambientProcessingEnabled,
+    'commandCenterMidRearDensity': commandCenterMidRearDensity.name,
     'ambientKineticFieldEnabled': ambientKineticFieldEnabled,
     'ambientWildlifeEnabled': ambientWildlifeEnabled,
     'reducedMotion': reducedMotion.name,
@@ -170,6 +190,14 @@ class DeviceSettings {
         break;
       }
     }
+    final densityName = json['commandCenterMidRearDensity'];
+    CommandCenterMidRearDensity? commandCenterMidRearDensity;
+    for (final candidate in CommandCenterMidRearDensity.values) {
+      if (candidate.name == densityName) {
+        commandCenterMidRearDensity = candidate;
+        break;
+      }
+    }
     return DeviceSettings(
       masterVolume: number('masterVolume', 1),
       muted: flag('muted', false),
@@ -181,6 +209,8 @@ class DeviceSettings {
       rippleEnabled: flag('rippleEnabled', true),
       ambientCircuitEnabled: flag('ambientCircuitEnabled', true),
       ambientProcessingEnabled: flag('ambientProcessingEnabled', true),
+      commandCenterMidRearDensity:
+          commandCenterMidRearDensity ?? CommandCenterMidRearDensity.low,
       ambientKineticFieldEnabled: flag('ambientKineticFieldEnabled', true),
       ambientWildlifeEnabled: flag('ambientWildlifeEnabled', true),
       reducedMotion: reducedMotion ?? ReducedMotionPreference.system,

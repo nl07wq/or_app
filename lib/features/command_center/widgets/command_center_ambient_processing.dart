@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/device_settings_controller.dart';
+
 /// Command Center-only industrial glyph Data Rain.
 ///
 /// The painter uses a compact programmatic 5×7 atlas instead of a platform
@@ -9,6 +11,7 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   const CommandCenterAmbientProcessing({
     super.key,
     required this.enabled,
+    this.midRearDensity = CommandCenterMidRearDensity.low,
     @visibleForTesting this.debugOnlyLayer,
   });
 
@@ -20,6 +23,8 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const foregroundColumnsAt390 = 30;
   static const midFrontColumnsAt390 = 33;
   static const midRearColumnsAt390 = 12;
+  static const midRearMediumColumnsAt390 = 21;
+  static const midRearHighColumnsAt390 = 31;
   static const totalColumnsAt390 =
       foregroundColumnsAt390 + midFrontColumnsAt390 + midRearColumnsAt390;
   static const leftColumnsAt390 = 32;
@@ -68,6 +73,7 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   );
 
   final bool enabled;
+  final CommandCenterMidRearDensity midRearDensity;
 
   /// Lets production-painter tests capture exactly one depth layer. Normal
   /// application construction leaves this null and paints all three layers.
@@ -87,27 +93,55 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     DataRainSpeed.burst: 60,
   };
 
-  static int totalColumnsFor(double width) =>
-      (totalColumnsAt390 * (width / 390).clamp(.82, 1.45)).round();
+  static int midRearColumnsAt390For(CommandCenterMidRearDensity density) =>
+      density.streamsAt390;
+
+  static int columnsAt390For({
+    required DataRainLayer layer,
+    required CommandCenterMidRearDensity midRearDensity,
+  }) => switch (layer) {
+    DataRainLayer.foreground => foregroundColumnsAt390,
+    DataRainLayer.midFront => midFrontColumnsAt390,
+    DataRainLayer.midRear => midRearColumnsAt390For(midRearDensity),
+  };
+
+  static int columnsFor({
+    required DataRainLayer layer,
+    required double width,
+    required CommandCenterMidRearDensity midRearDensity,
+  }) =>
+      (columnsAt390For(layer: layer, midRearDensity: midRearDensity) *
+              (width / 390).clamp(.82, 1.45))
+          .round();
+
+  static int totalColumnsFor(
+    double width, {
+    CommandCenterMidRearDensity midRearDensity =
+        CommandCenterMidRearDensity.low,
+  }) => DataRainLayer.values.fold(
+    0,
+    (total, layer) =>
+        total +
+        columnsFor(layer: layer, width: width, midRearDensity: midRearDensity),
+  );
 
   static List<DataRainStreamPlacement> streamPlacementsFor({
     required DataRainLayer layer,
     required double width,
+    CommandCenterMidRearDensity midRearDensity =
+        CommandCenterMidRearDensity.low,
   }) {
-    final total = totalColumnsFor(width);
+    final total = columnsFor(
+      layer: layer,
+      width: width,
+      midRearDensity: midRearDensity,
+    );
     final side = (total * leftColumnsAt390 / totalColumnsAt390).round();
     final bands = [side, total - side * 2, side];
-    const shares = {
-      DataRainLayer.foreground: [13, 4, 13],
-      DataRainLayer.midFront: [14, 5, 14],
-      DataRainLayer.midRear: [5, 2, 5],
-    };
-    final base = shares[layer]!;
     var index = 0;
     final result = <DataRainStreamPlacement>[];
     for (var band = 0; band < bands.length; band++) {
-      final denominator = [32, 11, 32][band];
-      final count = (bands[band] * base[band] / denominator).round();
+      final count = bands[band];
       for (var i = 0; i < count; i++) {
         result.add(
           DataRainStreamPlacement(
@@ -274,6 +308,7 @@ enum DataRainHorizontalBand { left, center, right }
 class DataRainPaintMetrics {
   const DataRainPaintMetrics({
     required this.activeStreams,
+    required this.streamIdentitySignature,
     required this.offscreenStreams,
     required this.visibleCells,
     required this.glyphDrawAttempts,
@@ -282,6 +317,10 @@ class DataRainPaintMetrics {
   });
 
   final int activeStreams;
+
+  /// Debug-only identity checksum used to prove that a MID-REAR density change
+  /// does not replace foreground or MID-FRONT stream metadata.
+  final int streamIdentitySignature;
   final int offscreenStreams;
   final int visibleCells;
   final int glyphDrawAttempts;
@@ -290,9 +329,12 @@ class DataRainPaintMetrics {
 }
 
 class _DataRainPaintMetricsBuilder {
-  _DataRainPaintMetricsBuilder(this.activeStreams);
+  _DataRainPaintMetricsBuilder(List<_PersistentDataRainStream> streams)
+    : activeStreams = streams.length,
+      streamIdentitySignature = Object.hashAll(streams.map(identityHashCode));
 
   final int activeStreams;
+  final int streamIdentitySignature;
   var offscreenStreams = 0;
   var visibleCells = 0;
   var glyphDrawAttempts = 0;
@@ -301,6 +343,7 @@ class _DataRainPaintMetricsBuilder {
 
   DataRainPaintMetrics build() => DataRainPaintMetrics(
     activeStreams: activeStreams,
+    streamIdentitySignature: streamIdentitySignature,
     offscreenStreams: offscreenStreams,
     visibleCells: visibleCells,
     glyphDrawAttempts: glyphDrawAttempts,
@@ -399,10 +442,18 @@ class _CommandCenterAmbientProcessingState
   var _running = false;
   var _cycle = 0;
   var _resolvedMotion = false;
+  Color? _color;
+  late final ValueNotifier<int> _configurationRevision = ValueNotifier(0);
+  final Map<DataRainLayer, _IndustrialDataRainPainter> _painters = {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final color = Theme.of(context).colorScheme.primary;
+    if (_color != color) {
+      _color = color;
+      _bumpPainterConfiguration();
+    }
     final motionAllowed =
         !(MediaQuery.maybeOf(context)?.disableAnimations ?? false) &&
         TickerMode.valuesOf(context).enabled;
@@ -413,6 +464,7 @@ class _CommandCenterAmbientProcessingState
       _motionAllowed = motionAllowed;
       _resolvedMotion = true;
       _syncAnimation(startsNewSession: startsNewSession);
+      _bumpPainterConfiguration();
     }
   }
 
@@ -422,7 +474,14 @@ class _CommandCenterAmbientProcessingState
     if (oldWidget.enabled != widget.enabled) {
       _syncAnimation(startsNewSession: widget.enabled);
     }
+    if (oldWidget.midRearDensity != widget.midRearDensity) {
+      // Only MID-REAR observes this revision. Its painter reallocates its
+      // stream metadata while foreground and MID-FRONT retain their objects.
+      _bumpPainterConfiguration();
+    }
   }
+
+  void _bumpPainterConfiguration() => _configurationRevision.value++;
 
   void _syncAnimation({required bool startsNewSession}) {
     if (!mounted) return;
@@ -456,14 +515,13 @@ class _CommandCenterAmbientProcessingState
   @override
   void dispose() {
     _controller.dispose();
+    _configurationRevision.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return const SizedBox.shrink();
-    final color = Theme.of(context).colorScheme.primary;
-    final completedSeconds = _cycle * _cycleDuration.inMilliseconds / 1000;
     return IgnorePointer(
       child: RepaintBoundary(
         key: CommandCenterAmbientProcessing.rootKey,
@@ -471,77 +529,87 @@ class _CommandCenterAmbientProcessingState
           fit: StackFit.expand,
           children: widget.debugOnlyLayer == null
               ? [
-                  _layer(DataRainLayer.midRear, color, completedSeconds),
-                  _layer(DataRainLayer.midFront, color, completedSeconds),
-                  _layer(DataRainLayer.foreground, color, completedSeconds),
+                  _layer(DataRainLayer.midRear),
+                  _layer(DataRainLayer.midFront),
+                  _layer(DataRainLayer.foreground),
                 ]
-              : [_layer(widget.debugOnlyLayer!, color, completedSeconds)],
+              : [_layer(widget.debugOnlyLayer!)],
         ),
       ),
     );
   }
 
-  Widget _layer(DataRainLayer layer, Color color, double completedSeconds) =>
-      CustomPaint(
-        key: switch (layer) {
-          DataRainLayer.foreground =>
-            CommandCenterAmbientProcessing.foregroundKey,
-          DataRainLayer.midFront => CommandCenterAmbientProcessing.midFrontKey,
-          DataRainLayer.midRear => CommandCenterAmbientProcessing.midRearKey,
-        },
-        painter: _IndustrialDataRainPainter(
-          animation: _controller,
-          color: color,
-          layer: layer,
-          staticFrame: !_motionAllowed,
-          running: _running,
-          completedSeconds: completedSeconds,
-          initialEntry: _motionAllowed,
-        ),
-      );
+  Widget _layer(DataRainLayer layer) => CustomPaint(
+    key: switch (layer) {
+      DataRainLayer.foreground => CommandCenterAmbientProcessing.foregroundKey,
+      DataRainLayer.midFront => CommandCenterAmbientProcessing.midFrontKey,
+      DataRainLayer.midRear => CommandCenterAmbientProcessing.midRearKey,
+    },
+    painter: _painters.putIfAbsent(
+      layer,
+      () => _IndustrialDataRainPainter(
+        animation: _controller,
+        repaint: Listenable.merge([_controller, _configurationRevision]),
+        color: () => _color ?? Colors.cyan,
+        layer: layer,
+        staticFrame: () => !_motionAllowed,
+        running: () => _running,
+        completedSeconds: () => _cycle * _cycleDuration.inMilliseconds / 1000,
+        initialEntry: () => _motionAllowed,
+        midRearDensity: () => widget.midRearDensity,
+      ),
+    ),
+  );
 }
 
 class _IndustrialDataRainPainter extends CustomPainter {
   _IndustrialDataRainPainter({
     required this.animation,
+    required Listenable repaint,
     required this.color,
     required this.layer,
     required this.staticFrame,
     required this.running,
     required this.completedSeconds,
     required this.initialEntry,
-  }) : super(repaint: animation);
+    required this.midRearDensity,
+  }) : super(repaint: repaint);
 
   final Animation<double> animation;
-  final Color color;
+  final Color Function() color;
   final DataRainLayer layer;
-  final bool staticFrame;
-  final bool running;
-  final double completedSeconds;
-  final bool initialEntry;
+  final bool Function() staticFrame;
+  final bool Function() running;
+  final double Function() completedSeconds;
+  final bool Function() initialEntry;
+  final CommandCenterMidRearDensity Function() midRearDensity;
   final Paint _glyphPaint = Paint();
   final Paint _segmentPaint = Paint()..strokeCap = StrokeCap.square;
   Size? _streamSize;
+  CommandCenterMidRearDensity? _streamDensity;
   List<_PersistentDataRainStream> _streams = const [];
 
-  double get _seconds => staticFrame || !running
-      ? completedSeconds
-      : completedSeconds + animation.value * 8;
+  double get _seconds => staticFrame() || !running()
+      ? completedSeconds()
+      : completedSeconds() + animation.value * 8;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    if (_streamSize != size) {
+    final density = midRearDensity();
+    if (_streamSize != size ||
+        (layer == DataRainLayer.midRear && _streamDensity != density)) {
       _streamSize = size;
-      _streams = _createStreams(size);
+      _streamDensity = density;
+      _streams = _createStreams(size, density);
     }
     _DataRainPaintMetricsBuilder? metrics;
     assert(() {
-      metrics = _DataRainPaintMetricsBuilder(_streams.length);
+      metrics = _DataRainPaintMetricsBuilder(_streams);
       return true;
     }());
     for (final stream in _streams) {
-      _paintStream(canvas, size, stream, metrics);
+      _paintStream(canvas, size, stream, metrics, color());
     }
     assert(() {
       CommandCenterAmbientProcessing._debugPaintMetrics[layer] = metrics!
@@ -550,7 +618,10 @@ class _IndustrialDataRainPainter extends CustomPainter {
     }());
   }
 
-  List<_PersistentDataRainStream> _createStreams(Size size) {
+  List<_PersistentDataRainStream> _createStreams(
+    Size size,
+    CommandCenterMidRearDensity density,
+  ) {
     final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
     final step = CommandCenterAmbientProcessing.glyphVerticalPitchFor(layer);
     return List.unmodifiable([
@@ -558,6 +629,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
           in CommandCenterAmbientProcessing.streamPlacementsFor(
             layer: layer,
             width: size.width,
+            midRearDensity: density,
           ))
         _PersistentDataRainStream.create(
           layer: layer,
@@ -574,6 +646,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
     Size size,
     _PersistentDataRainStream stream,
     _DataRainPaintMetricsBuilder? metrics,
+    Color baseColor,
   ) {
     final streamIndex = stream.streamIndex;
     final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
@@ -626,8 +699,8 @@ class _IndustrialDataRainPainter extends CustomPainter {
                       })
               .clamp(0.0, 1.0);
       final glyphColor = pulse > .08
-          ? Color.lerp(color, Colors.cyanAccent, .48)!
-          : color;
+          ? Color.lerp(baseColor, Colors.cyanAccent, .48)!
+          : baseColor;
       final cellColor = glyphColor.withValues(alpha: alpha);
       if (layer == DataRainLayer.midRear) {
         assert(() {
@@ -660,7 +733,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
     required double span,
     required double travel,
   }) {
-    if (!initialEntry || staticFrame) {
+    if (!initialEntry() || staticFrame()) {
       final initial =
           _hash(streamIndex, 71 + layer.index * 11) % 1000 / 1000 * span;
       final total = initial + travel;
@@ -696,7 +769,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
   /// A moving pulse follows glyph positions, independently of stream travel.
   /// It may begin in either direction and never draws detached light geometry.
   double _pulseStrength(int streamIndex, int glyphPosition, int length) {
-    if (staticFrame) return 0;
+    if (staticFrame()) return 0;
     final clustered = _hash(streamIndex, 131 + layer.index * 7) % 5 == 0;
     final pulseKey = clustered ? streamIndex ~/ 3 : streamIndex;
     final interval = 4.4 + (_hash(pulseKey, 137 + layer.index * 17) % 11) * .46;
@@ -756,12 +829,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _IndustrialDataRainPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.layer != layer ||
-      oldDelegate.staticFrame != staticFrame ||
-      oldDelegate.running != running ||
-      oldDelegate.completedSeconds != completedSeconds ||
-      oldDelegate.initialEntry != initialEntry;
+      oldDelegate.layer != layer;
 }
 
 class _DataRainStreamPosition {

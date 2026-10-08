@@ -152,6 +152,13 @@ class DeviceSettingsPage extends StatelessWidget {
                   ),
                 ),
                 const Divider(),
+                _MidRearDensitySelector(
+                  value: settings.commandCenterMidRearDensity,
+                  onChanged: (value) => _controller.update(
+                    settings.copyWith(commandCenterMidRearDensity: value),
+                  ),
+                ),
+                const Divider(),
                 SwitchListTile.adaptive(
                   key: const ValueKey('device-settings-ambient-kinetic-field'),
                   contentPadding: EdgeInsets.zero,
@@ -271,6 +278,45 @@ class _AmbientSystemToggle extends StatelessWidget {
     value: value,
     onChanged: onChanged,
   ).inputFeedback();
+}
+
+class _MidRearDensitySelector extends StatelessWidget {
+  const _MidRearDensitySelector({required this.value, required this.onChanged});
+
+  final CommandCenterMidRearDensity value;
+  final ValueChanged<CommandCenterMidRearDensity> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MID-REAR DENSITY'),
+            Text('Command Centerの遠景データ密度を切り替えます。'),
+          ],
+        ),
+      ),
+      AppSpacing.gapSM,
+      DropdownButton<CommandCenterMidRearDensity>(
+        key: const ValueKey('device-settings-mid-rear-density'),
+        value: value,
+        onChanged: (next) {
+          if (next != null) onChanged(next);
+        },
+        items: [
+          for (final density in CommandCenterMidRearDensity.values)
+            DropdownMenuItem(
+              value: density,
+              child: Text(
+                '${density.name.toUpperCase()} — ${density.streamsAt390}',
+              ),
+            ),
+        ],
+      ).inputFeedback(),
+    ],
+  );
 }
 
 class _SettingsSlider extends StatelessWidget {

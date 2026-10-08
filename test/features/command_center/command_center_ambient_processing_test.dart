@@ -1,51 +1,120 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
-  test('exposes V2.9 split-midground data rain speed models', () {
+  test('exposes V2.10 MID-REAR density and speed models', () {
     expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 30);
     expect(CommandCenterAmbientProcessing.midFrontColumnsAt390, 33);
     expect(CommandCenterAmbientProcessing.midRearColumnsAt390, 12);
     expect(CommandCenterAmbientProcessing.totalColumnsAt390, 75);
+    expect(
+      CommandCenterAmbientProcessing.midRearColumnsAt390For(
+        CommandCenterMidRearDensity.medium,
+      ),
+      21,
+    );
+    expect(
+      CommandCenterAmbientProcessing.midRearColumnsAt390For(
+        CommandCenterMidRearDensity.high,
+      ),
+      31,
+    );
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
     expect(speeds[DataRainSpeed.fast], lessThan(speeds[DataRainSpeed.burst]!));
   });
 
-  test(
-    'allocates only 75 real streams across left center and right at 390',
-    () {
+  test('allocates exact real streams for each MID-REAR density at 390', () {
+    for (final entry in const {
+      CommandCenterMidRearDensity.low: (12, 75),
+      CommandCenterMidRearDensity.medium: (21, 84),
+      CommandCenterMidRearDensity.high: (31, 94),
+    }.entries) {
+      final density = entry.key;
       final placements = [
         for (final layer in DataRainLayer.values)
           ...CommandCenterAmbientProcessing.streamPlacementsFor(
             layer: layer,
             width: 390,
+            midRearDensity: density,
           ),
       ];
       int count(DataRainHorizontalBand band) =>
           placements.where((placement) => placement.band == band).length;
-      expect(placements.length, 75);
-      expect(count(DataRainHorizontalBand.left), 32);
-      expect(count(DataRainHorizontalBand.center), 11);
-      expect(count(DataRainHorizontalBand.right), 32);
-      for (final layer in DataRainLayer.values) {
-        final layerCount = CommandCenterAmbientProcessing.streamPlacementsFor(
-          layer: layer,
-          width: 390,
-        ).length;
-        expect(layerCount, switch (layer) {
-          DataRainLayer.foreground => 30,
-          DataRainLayer.midFront => 33,
-          DataRainLayer.midRear => 12,
-        });
-      }
-      expect(CommandCenterAmbientProcessing.totalColumnsFor(320), lessThan(75));
+      expect(placements.length, entry.value.$2);
+      expect(count(DataRainHorizontalBand.left), greaterThan(0));
+      expect(count(DataRainHorizontalBand.center), greaterThan(0));
+      expect(count(DataRainHorizontalBand.right), greaterThan(0));
       expect(
-        CommandCenterAmbientProcessing.totalColumnsFor(900),
-        greaterThan(75),
+        CommandCenterAmbientProcessing.streamPlacementsFor(
+          layer: DataRainLayer.foreground,
+          width: 390,
+          midRearDensity: density,
+        ).length,
+        30,
       );
+      expect(
+        CommandCenterAmbientProcessing.streamPlacementsFor(
+          layer: DataRainLayer.midFront,
+          width: 390,
+          midRearDensity: density,
+        ).length,
+        33,
+      );
+      expect(
+        CommandCenterAmbientProcessing.streamPlacementsFor(
+          layer: DataRainLayer.midRear,
+          width: 390,
+          midRearDensity: density,
+        ).length,
+        entry.value.$1,
+      );
+    }
+  });
+
+  test(
+    'scales all three density levels responsively without surplus streams',
+    () {
+    final expected = {
+        320.0: {
+          CommandCenterMidRearDensity.low: (10, 62),
+          CommandCenterMidRearDensity.medium: (17, 69),
+          CommandCenterMidRearDensity.high: (25, 77),
+        },
+        390.0: {
+          CommandCenterMidRearDensity.low: (12, 75),
+          CommandCenterMidRearDensity.medium: (21, 84),
+          CommandCenterMidRearDensity.high: (31, 94),
+        },
+        900.0: {
+          CommandCenterMidRearDensity.low: (17, 109),
+          CommandCenterMidRearDensity.medium: (30, 122),
+          CommandCenterMidRearDensity.high: (45, 137),
+        },
+      };
+      for (final width in expected.keys) {
+        for (final entry in expected[width]!.entries) {
+          final density = entry.key;
+          expect(
+            CommandCenterAmbientProcessing.streamPlacementsFor(
+              layer: DataRainLayer.midRear,
+              width: width,
+              midRearDensity: density,
+            ).length,
+            entry.value.$1,
+          );
+          expect(
+            CommandCenterAmbientProcessing.totalColumnsFor(
+              width,
+              midRearDensity: density,
+            ),
+            entry.value.$2,
+          );
+        }
+      }
     },
   );
 
@@ -290,6 +359,8 @@ void main() {
     WidgetTester tester, {
     required double width,
     required bool enabled,
+    CommandCenterMidRearDensity midRearDensity =
+        CommandCenterMidRearDensity.low,
     bool reducedMotion = false,
     DataRainLayer? debugOnlyLayer,
   }) async {
@@ -307,6 +378,7 @@ void main() {
                 Positioned.fill(
                   child: CommandCenterAmbientProcessing(
                     enabled: enabled,
+                    midRearDensity: midRearDensity,
                     debugOnlyLayer: debugOnlyLayer,
                   ),
                 ),
@@ -412,6 +484,121 @@ void main() {
       );
     },
   );
+
+  testWidgets('switches only real MID-REAR stream allocation live', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    Future<void> pumpDensity(CommandCenterMidRearDensity density) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  Positioned.fill(
+                    child: CommandCenterAmbientProcessing(
+                      enabled: true,
+                      midRearDensity: density,
+                    ),
+                  ),
+                  const Center(child: Text('OPERATIONAL CONTENT')),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    await pumpDensity(CommandCenterMidRearDensity.low);
+    await tester.pump();
+    final foregroundBefore =
+        CommandCenterAmbientProcessing.debugPaintMetricsFor(
+          DataRainLayer.foreground,
+        );
+    final midFrontBefore = CommandCenterAmbientProcessing.debugPaintMetricsFor(
+      DataRainLayer.midFront,
+    );
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midRear,
+      )?.activeStreams,
+      12,
+    );
+
+    await pumpDensity(CommandCenterMidRearDensity.medium);
+    await tester.pump();
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midRear,
+      )?.activeStreams,
+      21,
+    );
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.foreground,
+      )?.activeStreams,
+      foregroundBefore?.activeStreams,
+    );
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midFront,
+      )?.activeStreams,
+      midFrontBefore?.activeStreams,
+    );
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.foreground,
+      )?.streamIdentitySignature,
+      foregroundBefore?.streamIdentitySignature,
+    );
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midFront,
+      )?.streamIdentitySignature,
+      midFrontBefore?.streamIdentitySignature,
+    );
+
+    await pumpDensity(CommandCenterMidRearDensity.high);
+    await tester.pump();
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midRear,
+      )?.activeStreams,
+      31,
+    );
+    await pumpDensity(CommandCenterMidRearDensity.low);
+    await tester.pump();
+    expect(
+      CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midRear,
+      )?.activeStreams,
+      12,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final density in CommandCenterMidRearDensity.values) {
+    testWidgets('renders deterministic MID-REAR ${density.name} density', (
+      tester,
+    ) async {
+      await pumpProcessing(
+        tester,
+        width: 390,
+        enabled: true,
+        reducedMotion: true,
+        debugOnlyLayer: DataRainLayer.midRear,
+        midRearDensity: density,
+      );
+      await expectLater(
+        find.byKey(CommandCenterAmbientProcessing.rootKey),
+        matchesGoldenFile(
+          'goldens/command_center_data_rain_mid_rear_${density.name}.png',
+        ),
+      );
+    });
+  }
 
   testWidgets('renders visible discrete MID-REAR data segments', (
     tester,

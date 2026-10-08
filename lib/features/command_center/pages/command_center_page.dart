@@ -178,6 +178,7 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
             builder: (context, settings, _) => Positioned.fill(
               child: CommandCenterAmbientProcessing(
                 enabled: settings.ambientProcessingEnabled,
+                midRearDensity: settings.commandCenterMidRearDensity,
               ),
             ),
           ),
