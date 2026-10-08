@@ -10,13 +10,13 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
 
-  /// A bounded, reusable set of curved strands.  Each is painted as a short
-  /// four-point filament, rather than as the V4.2 uniform diagonal dash.
-  static const luminousFilamentCount = 168;
-  static const luminousFilamentGroupCount = 6;
-  static const luminousFilamentSegments = 3;
+  /// A bounded layered swarm. Each filament is a deterministic Bezier strand
+  /// with a soft under-stroke and a fine illuminated core.
+  static const luminousFilamentCount = 288;
+  static const luminousFilamentGroupCount = 8;
+  static const luminousFilamentLayers = 2;
   static const luminousFilamentDrawOperationsPerFrame =
-      luminousFilamentCount * luminousFilamentSegments;
+      luminousFilamentCount * luminousFilamentLayers;
   static const scopeTopInset = 16.0;
   static const scopeBottomInset = 24.0;
   final bool enabled;
@@ -232,13 +232,16 @@ class _MovingScopePainter extends CustomPainter {
   final Animation<double> animation;
   final Color color;
   final bool staticFrame;
-  final Paint _filamentPaint = Paint()
+  final Paint _filamentGlowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final Paint _filamentCorePaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once: coherent spiral-band placement is stable across frames
-  /// while flow is evaluated from the shared animation clock.  The six groups
-  /// deliberately overlap, making one luminous mass rather than debris.
+  /// Generated once: eight overlapping vortex bands create a stable luminous
+  /// mass. Their geometry is never randomized during painting; only their
+  /// coordinated phases evolve from the shared animation clock.
   static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
     List<_LuminousFilamentGeometry>.generate(
       ActivityAmbientKineticField.luminousFilamentCount,
@@ -252,13 +255,14 @@ class _MovingScopePainter extends CustomPainter {
         return _LuminousFilamentGeometry(
           group: group,
           baseAngle:
-              group * math.pi * 2 / groups + bandProgress * math.pi * 2.34,
-          baseRadius: .075 + math.sqrt(bandProgress) * .73,
-          phase: index * .618033988749895 + group * .41,
-          angularVelocity: .13 + group * .034 + (groupIndex % 4) * .018,
-          radialAmplitude: .018 + (groupIndex % 5) * .008,
-          curvature: .022 + (groupIndex % 6) * .009,
-          lengthFactor: .095 + (groupIndex % 7) * .014,
+              group * math.pi * 2 / groups + bandProgress * math.pi * 2.18,
+          baseRadius: .035 + math.sqrt(bandProgress) * .79,
+          phase: index * .618033988749895 + group * .47,
+          angularVelocity: .11 + group * .022 + (groupIndex % 5) * .016,
+          radialAmplitude: .024 + (groupIndex % 6) * .009,
+          curvature: .045 + (groupIndex % 7) * .012,
+          lengthFactor: .13 + (groupIndex % 8) * .016,
+          depth: (groupIndex % 7) / 6,
           reverse: group.isOdd,
         );
       },
@@ -364,15 +368,15 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xff56e7a5),
       Color(0xffffbb62),
     ];
-    // Six overlapping spiral bands fill the interior, including the center.
-    // Each filament is an independently moving, short curved polyline. They
-    // are never joined into circular outlines or treated as a flat image.
+    // Eight overlapping vortex bands fill the interior, including its center.
+    // A soft under-stroke and a fine core make overlapping curves accumulate
+    // light without a solid fill, blur chain, or a rigid rotating image.
     for (final filament in _filaments) {
       final direction = filament.reverse ? -1.0 : 1.0;
       final angle =
           filament.baseAngle +
           _t * 6.283185307179586 * direction * filament.angularVelocity +
-          math.sin(_t * 6.283185307179586 * .73 + filament.phase) * .075;
+          math.sin(_t * 6.283185307179586 * .73 + filament.phase) * .11;
       final radialFactor =
           filament.baseRadius +
           math.sin(
@@ -389,49 +393,55 @@ class _MovingScopePainter extends CustomPainter {
       final curve =
           radius *
           filament.curvature *
-          math.sin(_t * 6.283185307179586 * .67 + filament.phase);
-      _filamentPaint
-        ..strokeWidth = .72 + (filament.group % 3) * .28
-        ..color = palette[filament.group].withValues(
-          alpha:
-              .16 +
-              (filament.group % 4) * .035 +
-              (math.sin(_t * 6.283185307179586 + filament.phase) + 1) * .025,
-        );
-      var previous = _filamentPoint(
+          math.sin(_t * 6.283185307179586 * .67 + filament.phase) *
+          (.62 + filament.depth * .38);
+      final shimmer =
+          .5 + .5 * math.sin(_t * 6.283185307179586 * 1.23 + filament.phase);
+      final path = _filamentPath(
         position,
         tangentVector,
         radialVector,
         length,
         curve,
-        -.5,
       );
-      for (final progress in const [-.16, .18, .5]) {
-        final current = _filamentPoint(
-          position,
-          tangentVector,
-          radialVector,
-          length,
-          curve,
-          progress,
-        );
-        canvas.drawLine(previous, current, _filamentPaint);
-        previous = current;
-      }
+      final color = palette[filament.group % palette.length];
+      _filamentGlowPaint
+        ..strokeWidth = 1.35 + filament.depth * .95
+        ..color = color.withValues(alpha: .055 + shimmer * .075);
+      _filamentCorePaint
+        ..strokeWidth = .42 + filament.depth * .52
+        ..color = color.withValues(alpha: .18 + shimmer * .19);
+      canvas.drawPath(path, _filamentGlowPaint);
+      canvas.drawPath(path, _filamentCorePaint);
     }
   }
 
-  Offset _filamentPoint(
+  Path _filamentPath(
     Offset position,
     Offset tangentVector,
     Offset radialVector,
     double length,
     double curve,
-    double progress,
-  ) =>
-      position +
-      tangentVector * (length * progress) +
-      radialVector * (curve * math.sin(progress * math.pi));
+  ) {
+    final start =
+        position - tangentVector * (length * .54) - radialVector * curve * .18;
+    final firstControl =
+        position - tangentVector * (length * .18) + radialVector * curve;
+    final secondControl =
+        position + tangentVector * (length * .18) + radialVector * curve * .92;
+    final end =
+        position + tangentVector * (length * .54) - radialVector * curve * .12;
+    return Path()
+      ..moveTo(start.dx, start.dy)
+      ..cubicTo(
+        firstControl.dx,
+        firstControl.dy,
+        secondControl.dx,
+        secondControl.dy,
+        end.dx,
+        end.dy,
+      );
+  }
 
   @override
   bool shouldRepaint(covariant _MovingScopePainter old) =>
@@ -449,6 +459,7 @@ class _LuminousFilamentGeometry {
     required this.radialAmplitude,
     required this.curvature,
     required this.lengthFactor,
+    required this.depth,
     required this.reverse,
   });
 
@@ -460,6 +471,7 @@ class _LuminousFilamentGeometry {
   final double radialAmplitude;
   final double curvature;
   final double lengthFactor;
+  final double depth;
   final bool reverse;
 }
 

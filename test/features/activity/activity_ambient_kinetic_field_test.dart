@@ -48,14 +48,14 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
-  test('uses a bounded six-group luminous filament swarm', () {
-    expect(ActivityAmbientKineticField.luminousFilamentCount, 168);
+  test('uses a dense, layered eight-group luminous filament swarm', () {
+    expect(ActivityAmbientKineticField.luminousFilamentCount, 288);
     expect(ActivityAmbientKineticField.luminousFilamentCount, greaterThan(84));
-    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 6);
-    expect(ActivityAmbientKineticField.luminousFilamentSegments, 3);
+    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 8);
+    expect(ActivityAmbientKineticField.luminousFilamentLayers, 2);
     expect(
       ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
-      504,
+      576,
     );
   });
 
@@ -138,14 +138,14 @@ void main() {
     );
   });
 
-  testWidgets('renders a luminous curved-filament swarm at the initial phase', (
+  testWidgets('renders a dense layered filament swarm at the initial phase', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
     await expectLater(
       find.byKey(ActivityAmbientKineticField.fieldKey),
       matchesGoldenFile(
-        'goldens/activity_kinetic_measurement_filament_swarm.png',
+        'goldens/activity_kinetic_measurement_vortex_prototype.png',
       ),
     );
   });
@@ -172,7 +172,7 @@ void main() {
     );
   });
 
-  testWidgets('travels with the filament swarm into the lower viewport', (
+  testWidgets('travels with the layered swarm into the lower viewport', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
