@@ -1258,7 +1258,8 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
   final _timelineKey = GlobalKey();
   final _overflowKey = GlobalKey();
   final _markerKeys = <String, GlobalKey>{};
-  List<Offset> _timelinePoints = const [];
+  List<Rect> _timelineMarkerBounds = const [];
+  Offset? _overflowTailEndpoint;
 
   void _measureTimeline(
     List<DashboardPlanInformationEntry> entries,
@@ -1269,34 +1270,43 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
       final parent =
           _timelineKey.currentContext?.findRenderObject() as RenderBox?;
       if (parent == null) return;
-      final points = <Offset>[];
+      final markerBounds = <Rect>[];
       for (final entry in entries) {
         final box =
             _markerKeys[entry.record.id]?.currentContext?.findRenderObject()
                 as RenderBox?;
-        if (box != null)
-          points.add(
-            box.localToGlobal(box.size.center(Offset.zero), ancestor: parent),
-          );
+        if (box != null) {
+          final origin = box.localToGlobal(Offset.zero, ancestor: parent);
+          markerBounds.add(origin & box.size);
+        }
       }
-      if (tail && points.isNotEmpty) {
+      Offset? overflowTailEndpoint;
+      if (tail && markerBounds.isNotEmpty) {
         final box =
             _overflowKey.currentContext?.findRenderObject() as RenderBox?;
-        if (box != null)
-          points.add(
-            Offset(
-              points.last.dx,
-              box
-                  .localToGlobal(box.size.center(Offset.zero), ancestor: parent)
-                  .dy,
-            ),
+        if (box != null) {
+          overflowTailEndpoint = Offset(
+            markerBounds.last.center.dx,
+            box
+                .localToGlobal(box.size.center(Offset.zero), ancestor: parent)
+                .dy,
           );
+        }
       }
-      if (points.length != _timelinePoints.length ||
-          points.indexed.any(
-            (p) => (p.$2 - _timelinePoints[p.$1]).distance > .1,
-          )) {
-        setState(() => _timelinePoints = points);
+      final boundsChanged =
+          markerBounds.length != _timelineMarkerBounds.length ||
+          markerBounds.indexed.any((entry) {
+            final previous = _timelineMarkerBounds[entry.$1];
+            return (entry.$2.center - previous.center).distance > .1 ||
+                (entry.$2.width - previous.width).abs() > .1 ||
+                (entry.$2.height - previous.height).abs() > .1;
+          });
+      final tailChanged = overflowTailEndpoint != _overflowTailEndpoint;
+      if (boundsChanged || tailChanged) {
+        setState(() {
+          _timelineMarkerBounds = markerBounds;
+          _overflowTailEndpoint = overflowTailEndpoint;
+        });
       }
     });
   }
@@ -1341,7 +1351,8 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                             ),
                             painter: _DashboardScheduleTimelineRailPainter(
                               color: Theme.of(context).colorScheme.primary,
-                              points: _timelinePoints,
+                              markerBounds: _timelineMarkerBounds,
+                              overflowTailEndpoint: _overflowTailEndpoint,
                             ),
                           ),
                         ),
@@ -1749,23 +1760,39 @@ class _DashboardScheduleEmptyState extends StatelessWidget {
 class _DashboardScheduleTimelineRailPainter extends CustomPainter {
   const _DashboardScheduleTimelineRailPainter({
     required this.color,
-    required this.points,
+    required this.markerBounds,
+    required this.overflowTailEndpoint,
   });
   final Color color;
-  final List<Offset> points;
+  final List<Rect> markerBounds;
+  final Offset? overflowTailEndpoint;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
     final paint = Paint()
       ..color = color.withValues(alpha: holographicTimelineRailOpacity)
-      ..strokeWidth = holographicTimelineRailWidth;
-    canvas.drawLine(points.first, points.last, paint);
+      ..strokeWidth = holographicTimelineRailWidth
+      ..strokeCap = StrokeCap.butt;
+    for (var index = 0; index < markerBounds.length - 1; index++) {
+      final upper = markerBounds[index];
+      final lower = markerBounds[index + 1];
+      canvas.drawLine(
+        Offset(upper.center.dx, upper.bottom),
+        Offset(lower.center.dx, lower.top),
+        paint,
+      );
+    }
+    if (overflowTailEndpoint case final endpoint?) {
+      final last = markerBounds.last;
+      canvas.drawLine(Offset(last.center.dx, last.bottom), endpoint, paint);
+    }
   }
 
   @override
   bool shouldRepaint(covariant _DashboardScheduleTimelineRailPainter old) =>
-      old.color != color || old.points != points;
+      old.color != color ||
+      old.markerBounds != markerBounds ||
+      old.overflowTailEndpoint != overflowTailEndpoint;
 }
 
 class _DashboardScheduleRow extends StatelessWidget {

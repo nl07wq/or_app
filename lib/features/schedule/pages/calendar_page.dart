@@ -74,7 +74,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Map<String, ReminderOccurrence> _projectedReminders = const {};
   final _dailyTimelineKey = GlobalKey();
   final _timelineMarkerKeys = <String, GlobalKey>{};
-  List<Offset> _dailyTimelinePoints = const [];
+  List<Rect> _dailyTimelineMarkerBounds = const [];
   bool _loading = true;
   int _loadGeneration = 0;
   final WeatherService _weatherService = WeatherService();
@@ -259,23 +259,24 @@ class _CalendarPageState extends State<CalendarPage> {
       final parent =
           _dailyTimelineKey.currentContext?.findRenderObject() as RenderBox?;
       if (parent == null) return;
-      final points = <Offset>[];
+      final markerBounds = <Rect>[];
       for (final record in records) {
         final box =
             _timelineMarkerKeys[record.id]?.currentContext?.findRenderObject()
                 as RenderBox?;
         if (box != null) {
-          points.add(
-            box.localToGlobal(box.size.center(Offset.zero), ancestor: parent),
-          );
+          final origin = box.localToGlobal(Offset.zero, ancestor: parent);
+          markerBounds.add(origin & box.size);
         }
       }
-      if (points.length != _dailyTimelinePoints.length ||
-          points.indexed.any(
-            (point) =>
-                (point.$2 - _dailyTimelinePoints[point.$1]).distance > .1,
-          )) {
-        setState(() => _dailyTimelinePoints = points);
+      if (markerBounds.length != _dailyTimelineMarkerBounds.length ||
+          markerBounds.indexed.any((entry) {
+            final previous = _dailyTimelineMarkerBounds[entry.$1];
+            return (entry.$2.center - previous.center).distance > .1 ||
+                (entry.$2.width - previous.width).abs() > .1 ||
+                (entry.$2.height - previous.height).abs() > .1;
+          })) {
+        setState(() => _dailyTimelineMarkerBounds = markerBounds);
       }
     });
   }
@@ -503,14 +504,13 @@ class _CalendarPageState extends State<CalendarPage> {
                                                 key: const ValueKey(
                                                   'calendar-daily-timeline-rail',
                                                 ),
-                                                painter:
-                                                    _DailyTimelineRailPainter(
-                                                      color: Theme.of(
-                                                        context,
-                                                      ).colorScheme.primary,
-                                                      points:
-                                                          _dailyTimelinePoints,
-                                                    ),
+                                                painter: _DailyTimelineRailPainter(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary,
+                                                  markerBounds:
+                                                      _dailyTimelineMarkerBounds,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -4935,24 +4935,35 @@ const calendarTimelineScheduleAnchorSize = holographicTimelineNodeIconSize;
 const calendarTimelineRailColumnWidth = holographicTimelineNodeIconSize;
 
 /// The selected-day list owns one rail, so variable-height rows cannot leave
-/// connector gaps between their marker centers.
+/// connector gaps between their measured marker bounds.
 class _DailyTimelineRailPainter extends CustomPainter {
-  const _DailyTimelineRailPainter({required this.color, required this.points});
+  const _DailyTimelineRailPainter({
+    required this.color,
+    required this.markerBounds,
+  });
   final Color color;
-  final List<Offset> points;
+  final List<Rect> markerBounds;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
     final paint = Paint()
       ..color = color.withValues(alpha: holographicTimelineRailOpacity)
-      ..strokeWidth = holographicTimelineRailWidth;
-    canvas.drawLine(points.first, points.last, paint);
+      ..strokeWidth = holographicTimelineRailWidth
+      ..strokeCap = StrokeCap.butt;
+    for (var index = 0; index < markerBounds.length - 1; index++) {
+      final upper = markerBounds[index];
+      final lower = markerBounds[index + 1];
+      canvas.drawLine(
+        Offset(upper.center.dx, upper.bottom),
+        Offset(lower.center.dx, lower.top),
+        paint,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _DailyTimelineRailPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.points != points;
+      oldDelegate.color != color || oldDelegate.markerBounds != markerBounds;
 }
 
 const calendarTimelineContentGap = 6.0;

@@ -371,6 +371,24 @@ void main() {
     );
     await tester.pump();
 
+    final markerRects = [
+      for (final id in ['morning', 'noon', 'evening'])
+        tester.getRect(
+          find.byKey(ValueKey('dashboard-schedule-anchor-$id')),
+        ),
+    ];
+    for (var index = 0; index < markerRects.length - 1; index++) {
+      expect(
+        markerRects[index].center.dx,
+        closeTo(markerRects[index + 1].center.dx, .1),
+      );
+      expect(markerRects[index].bottom, lessThan(markerRects[index + 1].top));
+    }
+    expect(
+      tester.getCenter(find.text('他1件')).dy,
+      greaterThan(markerRects.last.bottom),
+    );
+
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/dashboard_schedule_continuous_timeline.png'),

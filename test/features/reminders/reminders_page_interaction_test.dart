@@ -296,6 +296,16 @@ void main() {
       find.byKey(ValueKey('reminder-daily-timeline-rail-$today')),
       findsOneWidget,
     );
+    final markerRects = [
+      for (final marker in find.byKey(
+        const ValueKey('reminder-completion-circle'),
+      ).evaluate())
+        tester.getRect(find.byWidget(marker.widget)),
+    ];
+    expect(markerRects, hasLength(2));
+    expect(markerRects.first.size, const Size(16, 16));
+    expect(markerRects.first.center.dx, closeTo(markerRects.last.center.dx, .1));
+    expect(markerRects.first.bottom, lessThan(markerRects.last.top));
     expect(
       find.byKey(ValueKey('reminder-circuit-rail-top-$firstId')),
       findsNothing,

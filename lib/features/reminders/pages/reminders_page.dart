@@ -600,7 +600,7 @@ class _ReminderTimelineGroup extends StatefulWidget {
 class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
   final _timelineKey = GlobalKey();
   final _markerKeys = <String, GlobalKey>{};
-  List<Offset> _points = const [];
+  List<Rect> _markerBounds = const [];
 
   void _measure() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -608,22 +608,24 @@ class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
       final parent =
           _timelineKey.currentContext?.findRenderObject() as RenderBox?;
       if (parent == null) return;
-      final points = <Offset>[];
+      final markerBounds = <Rect>[];
       for (final value in widget.values) {
         final box =
             _markerKeys[value.id]?.currentContext?.findRenderObject()
                 as RenderBox?;
         if (box != null) {
-          points.add(
-            box.localToGlobal(box.size.center(Offset.zero), ancestor: parent),
-          );
+          final origin = box.localToGlobal(Offset.zero, ancestor: parent);
+          markerBounds.add(origin & box.size);
         }
       }
-      if (points.length != _points.length ||
-          points.indexed.any(
-            (point) => (point.$2 - _points[point.$1]).distance > .1,
-          )) {
-        setState(() => _points = points);
+      if (markerBounds.length != _markerBounds.length ||
+          markerBounds.indexed.any((entry) {
+            final previous = _markerBounds[entry.$1];
+            return (entry.$2.center - previous.center).distance > .1 ||
+                (entry.$2.width - previous.width).abs() > .1 ||
+                (entry.$2.height - previous.height).abs() > .1;
+          })) {
+        setState(() => _markerBounds = markerBounds);
       }
     });
   }
@@ -642,7 +644,7 @@ class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
               ),
               painter: _ReminderTimelineRailPainter(
                 color: Theme.of(context).colorScheme.primary,
-                points: _points,
+                markerBounds: _markerBounds,
               ),
             ),
           ),
@@ -685,24 +687,32 @@ class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
 class _ReminderTimelineRailPainter extends CustomPainter {
   const _ReminderTimelineRailPainter({
     required this.color,
-    required this.points,
+    required this.markerBounds,
   });
 
   final Color color;
-  final List<Offset> points;
+  final List<Rect> markerBounds;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
     final paint = Paint()
       ..color = color.withValues(alpha: holographicTimelineRailOpacity)
-      ..strokeWidth = reminderCircuitRailWidth;
-    canvas.drawLine(points.first, points.last, paint);
+      ..strokeWidth = reminderCircuitRailWidth
+      ..strokeCap = StrokeCap.butt;
+    for (var index = 0; index < markerBounds.length - 1; index++) {
+      final upper = markerBounds[index];
+      final lower = markerBounds[index + 1];
+      canvas.drawLine(
+        Offset(upper.center.dx, upper.bottom),
+        Offset(lower.center.dx, lower.top),
+        paint,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _ReminderTimelineRailPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.points != points;
+      oldDelegate.color != color || oldDelegate.markerBounds != markerBounds;
 }
 
 class _ReminderRowDivider extends StatelessWidget {
@@ -745,9 +755,9 @@ class _ReminderOccurrenceRow extends StatelessWidget {
             children: [
               _ReminderCircuitNode(
                 id: value.id,
-                markerKey: markerKey,
                 child: _HudCompletionControl(
                   key: ValueKey('reminder-toggle-${value.id}'),
+                  markerKey: markerKey,
                   completed: completed,
                   onPressed: onToggle,
                 ),
@@ -789,14 +799,9 @@ class _ReminderOccurrenceRow extends StatelessWidget {
 }
 
 class _ReminderCircuitNode extends StatelessWidget {
-  const _ReminderCircuitNode({
-    required this.id,
-    required this.markerKey,
-    required this.child,
-  });
+  const _ReminderCircuitNode({required this.id, required this.child});
 
   final String id;
-  final Key markerKey;
   final Widget child;
 
   @override
@@ -810,7 +815,7 @@ class _ReminderCircuitNode extends StatelessWidget {
         child: SizedBox(
           width: reminderCompletionTouchTarget,
           height: reminderCompletionTouchTarget,
-          child: KeyedSubtree(key: markerKey, child: child),
+          child: child,
         ),
       ),
     ),
@@ -820,9 +825,11 @@ class _ReminderCircuitNode extends StatelessWidget {
 class _HudCompletionControl extends StatelessWidget {
   const _HudCompletionControl({
     super.key,
+    required this.markerKey,
     required this.completed,
     required this.onPressed,
   });
+  final Key markerKey;
   final bool completed;
   final VoidCallback onPressed;
 
@@ -840,19 +847,22 @@ class _HudCompletionControl extends StatelessWidget {
           onTap: onPressed,
           customBorder: const CircleBorder(),
           child: Center(
-            child: Icon(
-              key: ValueKey(
-                completed
-                    ? 'reminder-completion-check-circle'
-                    : 'reminder-completion-circle',
+            child: KeyedSubtree(
+              key: markerKey,
+              child: Icon(
+                key: ValueKey(
+                  completed
+                      ? 'reminder-completion-check-circle'
+                      : 'reminder-completion-circle',
+                ),
+                completed ? Icons.check_circle : Icons.circle_outlined,
+                size: reminderCompletionIconSize,
+                color: completed
+                    ? accent
+                    : colorScheme.primary.withValues(
+                        alpha: holographicTimelineNodeOpacity,
+                      ),
               ),
-              completed ? Icons.check_circle : Icons.circle_outlined,
-              size: reminderCompletionIconSize,
-              color: completed
-                  ? accent
-                  : colorScheme.primary.withValues(
-                      alpha: holographicTimelineNodeOpacity,
-                    ),
             ),
           ),
         ).actionableFeedback(),

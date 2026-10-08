@@ -498,6 +498,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('selected-day rail measures marker bounds for adjacent events', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    for (final entry in [
+      ('edge-first', 'First measured event', '09:00', ScheduleType.work),
+      ('edge-second', 'Second measured event', '17:00', ScheduleType.personal),
+    ]) {
+      await AppRepositoryRegistry.container.schedules.save(
+        ScheduleRecord(
+          id: entry.$1,
+          localDate: _dateText(today),
+          type: entry.$4,
+          title: entry.$2,
+          startTime: entry.$3,
+          endTime: '18:00',
+          createdAt: DateTime.utc(2026, 10, 4),
+          updatedAt: DateTime.utc(2026, 10, 4),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(home: CalendarPage(initialDate: today)),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump();
+
+    final first = tester.getRect(
+      find.byKey(const ValueKey('calendar-timeline-anchor-edge-first')),
+    );
+    final second = tester.getRect(
+      find.byKey(const ValueKey('calendar-timeline-anchor-edge-second')),
+    );
+    expect(first.center.dx, closeTo(second.center.dx, .1));
+    expect(first.bottom, lessThan(second.top));
+    expect(
+      find.byKey(const ValueKey('calendar-daily-timeline-rail')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('calendar retains its English HUD telemetry legend', (
     tester,
   ) async {
