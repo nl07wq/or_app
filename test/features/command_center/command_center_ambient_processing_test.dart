@@ -4,10 +4,10 @@ import 'package:or_app/features/command_center/widgets/command_center_ambient_pr
 
 void main() {
   test('exposes high-density independent data rain speed models', () {
-    expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 37);
-    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 58);
-    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 55);
-    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 150);
+    expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 32);
+    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 51);
+    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 48);
+    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 131);
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
@@ -15,7 +15,7 @@ void main() {
   });
 
   test(
-    'allocates only 150 real streams across left center and right at 390',
+    'allocates only 131 real streams across left center and right at 390',
     () {
       final placements = [
         for (final layer in DataRainLayer.values)
@@ -26,17 +26,17 @@ void main() {
       ];
       int count(DataRainHorizontalBand band) =>
           placements.where((placement) => placement.band == band).length;
-      expect(placements.length, 150);
-      expect(count(DataRainHorizontalBand.left), 65);
-      expect(count(DataRainHorizontalBand.center), 20);
-      expect(count(DataRainHorizontalBand.right), 65);
+      expect(placements.length, 131);
+      expect(count(DataRainHorizontalBand.left), 57);
+      expect(count(DataRainHorizontalBand.center), 17);
+      expect(count(DataRainHorizontalBand.right), 57);
       expect(
         CommandCenterAmbientProcessing.totalColumnsFor(320),
-        lessThan(150),
+        lessThan(131),
       );
       expect(
         CommandCenterAmbientProcessing.totalColumnsFor(900),
-        greaterThan(150),
+        greaterThan(131),
       );
     },
   );

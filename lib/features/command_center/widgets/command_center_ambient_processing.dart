@@ -13,14 +13,14 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const midgroundKey = ValueKey('command-center-data-rain-midground');
   static const backgroundKey = ValueKey('command-center-data-rain-background');
 
-  static const foregroundColumnsAt390 = 37;
-  static const midgroundColumnsAt390 = 58;
-  static const backgroundColumnsAt390 = 55;
+  static const foregroundColumnsAt390 = 32;
+  static const midgroundColumnsAt390 = 51;
+  static const backgroundColumnsAt390 = 48;
   static const totalColumnsAt390 =
       foregroundColumnsAt390 + midgroundColumnsAt390 + backgroundColumnsAt390;
-  static const leftColumnsAt390 = 65;
-  static const centerColumnsAt390 = 20;
-  static const rightColumnsAt390 = 65;
+  static const leftColumnsAt390 = 57;
+  static const centerColumnsAt390 = 17;
+  static const rightColumnsAt390 = 57;
 
   /// The repeating 20-slot library gives exactly 45% letters, 25% numbers,
   /// and 30% technical symbols before its deterministic stream offset.
@@ -63,15 +63,15 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     final side = (total * leftColumnsAt390 / totalColumnsAt390).round();
     final bands = [side, total - side * 2, side];
     const shares = {
-      DataRainLayer.foreground: [16, 5, 16],
-      DataRainLayer.midground: [25, 8, 25],
-      DataRainLayer.background: [24, 7, 24],
+      DataRainLayer.foreground: [14, 4, 14],
+      DataRainLayer.midground: [22, 7, 22],
+      DataRainLayer.background: [21, 6, 21],
     };
     final base = shares[layer]!;
     var index = 0;
     final result = <DataRainStreamPlacement>[];
     for (var band = 0; band < bands.length; band++) {
-      final denominator = [65, 20, 65][band];
+      final denominator = [57, 17, 57][band];
       final count = (bands[band] * base[band] / denominator).round();
       for (var i = 0; i < count; i++) {
         result.add(
@@ -363,7 +363,7 @@ class _CommandCenterAmbientProcessingState
 }
 
 class _IndustrialDataRainPainter extends CustomPainter {
-  const _IndustrialDataRainPainter({
+  _IndustrialDataRainPainter({
     required this.animation,
     required this.color,
     required this.layer,
@@ -380,6 +380,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
   final bool running;
   final double completedSeconds;
   final bool initialEntry;
+  final Paint _glyphPaint = Paint();
 
   double get _seconds => staticFrame || !running
       ? completedSeconds
@@ -555,26 +556,18 @@ class _IndustrialDataRainPainter extends CustomPainter {
     required String glyph,
     required Color color,
   }) {
-    final rows = _IndustrialGlyphAtlas.rowsFor(glyph);
-    final pixel = size * .15;
-    final paint = Paint()..color = color;
-    for (var row = 0; row < rows.length; row++) {
-      final rowMask = rows[row];
-      for (var column = 0; column < 5; column++) {
-        if ((rowMask & (1 << (4 - column))) == 0) continue;
-        // Background uses deliberately sparse micro-glyph fragments only.
-        if (layer == DataRainLayer.background &&
-            (row + column + glyph.codeUnitAt(0)) % 3 != 0) {
-          continue;
-        }
-        final x = center.dx + (column - 2) * pixel * 1.45;
-        final y = center.dy + (row - 3) * pixel * 1.45;
-        canvas.drawRect(
-          Rect.fromCenter(center: Offset(x, y), width: pixel, height: pixel),
-          paint,
-        );
-      }
-    }
+    _glyphPaint.color = color;
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(size);
+    canvas.drawPath(
+      _IndustrialGlyphAtlas.pathFor(
+        glyph,
+        fragments: layer == DataRainLayer.background,
+      ),
+      _glyphPaint,
+    );
+    canvas.restore();
   }
 
   int _hash(int value, int salt) =>
@@ -674,4 +667,35 @@ class _IndustrialGlyphAtlas {
   };
 
   static List<int> rowsFor(String glyph) => _patterns[glyph]!;
+
+  static final _fullPaths = <String, Path>{};
+  static final _fragmentPaths = <String, Path>{};
+
+  static Path pathFor(String glyph, {required bool fragments}) {
+    final cache = fragments ? _fragmentPaths : _fullPaths;
+    return cache.putIfAbsent(glyph, () {
+      final path = Path();
+      final rows = rowsFor(glyph);
+      const pixel = .15;
+      for (var row = 0; row < rows.length; row++) {
+        for (var column = 0; column < 5; column++) {
+          if ((rows[row] & (1 << (4 - column))) == 0) continue;
+          if (fragments && (row + column + glyph.codeUnitAt(0)) % 3 != 0) {
+            continue;
+          }
+          path.addRect(
+            Rect.fromCenter(
+              center: Offset(
+                (column - 2) * pixel * 1.45,
+                (row - 3) * pixel * 1.45,
+              ),
+              width: pixel,
+              height: pixel,
+            ),
+          );
+        }
+      }
+      return path;
+    });
+  }
 }
