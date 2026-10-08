@@ -13,14 +13,14 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const midgroundKey = ValueKey('command-center-data-rain-midground');
   static const backgroundKey = ValueKey('command-center-data-rain-background');
 
-  static const foregroundColumnsAt390 = 32;
-  static const midgroundColumnsAt390 = 51;
-  static const backgroundColumnsAt390 = 48;
+  static const foregroundColumnsAt390 = 26;
+  static const midgroundColumnsAt390 = 41;
+  static const backgroundColumnsAt390 = 38;
   static const totalColumnsAt390 =
       foregroundColumnsAt390 + midgroundColumnsAt390 + backgroundColumnsAt390;
-  static const leftColumnsAt390 = 57;
-  static const centerColumnsAt390 = 17;
-  static const rightColumnsAt390 = 57;
+  static const leftColumnsAt390 = 46;
+  static const centerColumnsAt390 = 13;
+  static const rightColumnsAt390 = 46;
 
   /// The repeating 20-slot library gives exactly 45% letters, 25% numbers,
   /// and 30% technical symbols before its deterministic stream offset.
@@ -80,15 +80,15 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     final side = (total * leftColumnsAt390 / totalColumnsAt390).round();
     final bands = [side, total - side * 2, side];
     const shares = {
-      DataRainLayer.foreground: [14, 4, 14],
-      DataRainLayer.midground: [22, 7, 22],
-      DataRainLayer.background: [21, 6, 21],
+      DataRainLayer.foreground: [11, 4, 11],
+      DataRainLayer.midground: [18, 5, 18],
+      DataRainLayer.background: [17, 4, 17],
     };
     final base = shares[layer]!;
     var index = 0;
     final result = <DataRainStreamPlacement>[];
     for (var band = 0; band < bands.length; band++) {
-      final denominator = [57, 17, 57][band];
+      final denominator = [46, 13, 46][band];
       final count = (bands[band] * base[band] / denominator).round();
       for (var i = 0; i < count; i++) {
         result.add(
