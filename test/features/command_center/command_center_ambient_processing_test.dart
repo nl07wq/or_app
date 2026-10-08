@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
-  test('exposes high-density independent data rain speed models', () {
+  test('exposes V2.8 layered data rain speed models', () {
     expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 30);
-    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 47);
-    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 44);
-    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 121);
+    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 33);
+    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 31);
+    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 94);
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
@@ -15,7 +15,7 @@ void main() {
   });
 
   test(
-    'allocates only 121 real streams across left center and right at 390',
+    'allocates only 94 real streams across left center and right at 390',
     () {
       final placements = [
         for (final layer in DataRainLayer.values)
@@ -26,10 +26,10 @@ void main() {
       ];
       int count(DataRainHorizontalBand band) =>
           placements.where((placement) => placement.band == band).length;
-      expect(placements.length, 121);
-      expect(count(DataRainHorizontalBand.left), 52);
-      expect(count(DataRainHorizontalBand.center), 17);
-      expect(count(DataRainHorizontalBand.right), 52);
+      expect(placements.length, 94);
+      expect(count(DataRainHorizontalBand.left), 40);
+      expect(count(DataRainHorizontalBand.center), 14);
+      expect(count(DataRainHorizontalBand.right), 40);
       for (final layer in DataRainLayer.values) {
         final layerCount = CommandCenterAmbientProcessing.streamPlacementsFor(
           layer: layer,
@@ -37,17 +37,14 @@ void main() {
         ).length;
         expect(layerCount, switch (layer) {
           DataRainLayer.foreground => 30,
-          DataRainLayer.midground => 47,
-          DataRainLayer.background => 44,
+          DataRainLayer.midground => 33,
+          DataRainLayer.background => 31,
         });
       }
-      expect(
-        CommandCenterAmbientProcessing.totalColumnsFor(320),
-        lessThan(121),
-      );
+      expect(CommandCenterAmbientProcessing.totalColumnsFor(320), lessThan(94));
       expect(
         CommandCenterAmbientProcessing.totalColumnsFor(900),
-        greaterThan(121),
+        greaterThan(94),
       );
     },
   );
@@ -169,14 +166,57 @@ void main() {
   test('assigns both upward and downward independent light pulses', () {
     final directions = <DataRainPulseDirection>{
       for (var index = 0; index < 40; index++)
-        CommandCenterAmbientProcessing.pulseDirectionForStream(
-          layer: DataRainLayer.foreground,
-          streamIndex: index,
+        ...DataRainLayer.values.map(
+          (layer) => CommandCenterAmbientProcessing.pulseDirectionForStream(
+            layer: layer,
+            streamIndex: index,
+          ),
         ),
     };
     expect(directions, contains(DataRainPulseDirection.upward));
     expect(directions, contains(DataRainPulseDirection.downward));
   });
+
+  test(
+    'keeps background segment width and vertical pitch glyph-equivalent',
+    () {
+      final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(
+        DataRainLayer.background,
+      );
+      expect(
+        CommandCenterAmbientProcessing.backgroundSegmentWidth,
+        closeTo(glyphSize * 1.02, .000001),
+      );
+      expect(
+        CommandCenterAmbientProcessing.backgroundSegmentStrokeWidth,
+        closeTo(
+          CommandCenterAmbientProcessing.glyphDotSizeFor(
+            DataRainLayer.background,
+          ),
+          .000001,
+        ),
+      );
+      expect(
+        CommandCenterAmbientProcessing.glyphVerticalPitchFor(
+          DataRainLayer.background,
+        ),
+        closeTo(glyphSize * 2.06, .000001),
+      );
+      final lengths = <DataRainStreamLength, int>{
+        for (final kind in DataRainStreamLength.values) kind: 0,
+      };
+      for (var index = 0; index < 20; index++) {
+        final length = CommandCenterAmbientProcessing.streamLengthFor(
+          layer: DataRainLayer.background,
+          streamIndex: index,
+        );
+        lengths[length] = lengths[length]! + 1;
+      }
+      expect(lengths[DataRainStreamLength.long], 15);
+      expect(lengths[DataRainStreamLength.medium], 4);
+      expect(lengths[DataRainStreamLength.short], 1);
+    },
+  );
 
   test(
     'uses the V2.2 long-medium-short stream distribution and dimensions',
@@ -339,6 +379,22 @@ void main() {
       matchesGoldenFile(
         'goldens/command_center_data_rain_industrial_glyphs.png',
       ),
+    );
+  });
+
+  testWidgets('keeps the V2.7 foreground glyph pixels unchanged', (
+    tester,
+  ) async {
+    await pumpProcessing(
+      tester,
+      width: 390,
+      enabled: true,
+      reducedMotion: true,
+    );
+
+    await expectLater(
+      find.byKey(CommandCenterAmbientProcessing.foregroundKey),
+      matchesGoldenFile('goldens/command_center_data_rain_foreground_v27.png'),
     );
   });
 

@@ -14,13 +14,13 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const backgroundKey = ValueKey('command-center-data-rain-background');
 
   static const foregroundColumnsAt390 = 30;
-  static const midgroundColumnsAt390 = 47;
-  static const backgroundColumnsAt390 = 44;
+  static const midgroundColumnsAt390 = 33;
+  static const backgroundColumnsAt390 = 31;
   static const totalColumnsAt390 =
       foregroundColumnsAt390 + midgroundColumnsAt390 + backgroundColumnsAt390;
-  static const leftColumnsAt390 = 52;
-  static const centerColumnsAt390 = 17;
-  static const rightColumnsAt390 = 52;
+  static const leftColumnsAt390 = 40;
+  static const centerColumnsAt390 = 14;
+  static const rightColumnsAt390 = 40;
 
   /// The repeating 20-slot library gives exactly 45% letters, 25% numbers,
   /// and 30% technical symbols before its deterministic stream offset.
@@ -81,14 +81,14 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     final bands = [side, total - side * 2, side];
     const shares = {
       DataRainLayer.foreground: [13, 4, 13],
-      DataRainLayer.midground: [20, 7, 20],
-      DataRainLayer.background: [19, 6, 19],
+      DataRainLayer.midground: [14, 5, 14],
+      DataRainLayer.background: [13, 5, 13],
     };
     final base = shares[layer]!;
     var index = 0;
     final result = <DataRainStreamPlacement>[];
     for (var band = 0; band < bands.length; band++) {
-      final denominator = [52, 17, 52][band];
+      final denominator = [40, 14, 40][band];
       final count = (bands[band] * base[band] / denominator).round();
       for (var i = 0; i < count; i++) {
         result.add(
@@ -143,6 +143,14 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
         DataRainLayer.midground => 1.72,
         DataRainLayer.background => 2.06,
       };
+
+  /// Background streams retain their glyph pitch and width, but render each
+  /// glyph position as one distant data segment instead of a 5×7 path.
+  static double get backgroundSegmentWidth =>
+      glyphSizeFor(DataRainLayer.background) * 1.02;
+
+  static double get backgroundSegmentStrokeWidth =>
+      glyphDotSizeFor(DataRainLayer.background);
 
   /// Every moving session begins with the lead glyph above the viewport. The
   /// deterministic delay spreads physical top-down arrivals without changing
@@ -462,6 +470,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
   final double completedSeconds;
   final bool initialEntry;
   final Paint _glyphPaint = Paint();
+  final Paint _segmentPaint = Paint()..strokeCap = StrokeCap.square;
   Size? _streamSize;
   List<_PersistentDataRainStream> _streams = const [];
 
@@ -550,13 +559,18 @@ class _IndustrialDataRainPainter extends CustomPainter {
       final glyphColor = pulse > .08
           ? Color.lerp(color, Colors.cyanAccent, .48)!
           : color;
-      _paintGlyph(
-        canvas,
-        center: Offset(x, y),
-        size: glyphSize,
-        glyph: stream.pattern[glyphPosition % stream.pattern.length],
-        color: glyphColor.withValues(alpha: alpha),
-      );
+      final cellColor = glyphColor.withValues(alpha: alpha);
+      if (layer == DataRainLayer.background) {
+        _paintBackgroundSegment(canvas, center: Offset(x, y), color: cellColor);
+      } else {
+        _paintGlyph(
+          canvas,
+          center: Offset(x, y),
+          size: glyphSize,
+          glyph: stream.pattern[glyphPosition % stream.pattern.length],
+          color: cellColor,
+        );
+      }
     }
   }
 
@@ -647,6 +661,23 @@ class _IndustrialDataRainPainter extends CustomPainter {
       _glyphPaint,
     );
     canvas.restore();
+  }
+
+  void _paintBackgroundSegment(
+    Canvas canvas, {
+    required Offset center,
+    required Color color,
+  }) {
+    _segmentPaint
+      ..color = color
+      ..strokeWidth =
+          CommandCenterAmbientProcessing.backgroundSegmentStrokeWidth;
+    final halfWidth = CommandCenterAmbientProcessing.backgroundSegmentWidth / 2;
+    canvas.drawLine(
+      Offset(center.dx - halfWidth, center.dy),
+      Offset(center.dx + halfWidth, center.dy),
+      _segmentPaint,
+    );
   }
 
   int _hash(int value, int salt) =>
