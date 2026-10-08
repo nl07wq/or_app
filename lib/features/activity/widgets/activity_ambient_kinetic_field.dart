@@ -188,12 +188,39 @@ class _KineticMeasurementPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
+    _paintTrackingField(canvas, size);
     for (
       var region = 0;
       region < ActivityAmbientKineticField.trackingRegionCount;
       region++
     ) {
       _paintRegion(canvas, size, region);
+    }
+  }
+
+  void _paintTrackingField(Canvas canvas, Size size) {
+    final guide = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .55
+      ..color = color.withValues(alpha: .035);
+    // Calibrated reference bands cover the full viewport without becoming a
+    // wallpaper grid. Their interrupted marks establish an instrument field.
+    for (var y = 42.0; y < size.height; y += 74) {
+      for (var x = 12.0; x < size.width; x += 58) {
+        canvas.drawLine(
+          Offset(x, y),
+          Offset((x + 18).clamp(0, size.width).toDouble(), y),
+          guide,
+        );
+      }
+    }
+    for (var x = 28.0; x < size.width; x += 92) {
+      canvas.drawLine(Offset(x, 0), Offset(x, 13), guide);
+      canvas.drawLine(
+        Offset(x, size.height - 13),
+        Offset(x, size.height),
+        guide,
+      );
     }
   }
 
