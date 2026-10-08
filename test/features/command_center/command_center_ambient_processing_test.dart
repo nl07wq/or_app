@@ -3,8 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
-  test('exposes dense independent data rain speed models', () {
-    expect(CommandCenterAmbientProcessing.streamCount, 48);
+  test('exposes high-density independent data rain speed models', () {
+    expect(
+      CommandCenterAmbientProcessing.foregroundColumnsAt390,
+      inInclusiveRange(32, 48),
+    );
+    expect(
+      CommandCenterAmbientProcessing.midgroundColumnsAt390,
+      inInclusiveRange(48, 72),
+    );
+    expect(
+      CommandCenterAmbientProcessing.backgroundColumnsAt390,
+      inInclusiveRange(40, 80),
+    );
+    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 171);
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
@@ -61,12 +73,22 @@ void main() {
     );
   }
 
-  testWidgets('renders dense data rain behind content', (tester) async {
+  testWidgets('renders three industrial glyph layers behind content', (
+    tester,
+  ) async {
     await pumpProcessing(tester, width: 390, enabled: true);
 
     expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
     expect(
-      find.byKey(CommandCenterAmbientProcessing.dataRainKey),
+      find.byKey(CommandCenterAmbientProcessing.foregroundKey),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(CommandCenterAmbientProcessing.midgroundKey),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(CommandCenterAmbientProcessing.backgroundKey),
       findsOneWidget,
     );
     expect(find.text('OPERATIONAL CONTENT'), findsOneWidget);
@@ -78,7 +100,15 @@ void main() {
 
     expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsNothing);
     expect(
-      find.byKey(CommandCenterAmbientProcessing.dataRainKey),
+      find.byKey(CommandCenterAmbientProcessing.foregroundKey),
+      findsNothing,
+    );
+    expect(
+      find.byKey(CommandCenterAmbientProcessing.midgroundKey),
+      findsNothing,
+    );
+    expect(
+      find.byKey(CommandCenterAmbientProcessing.backgroundKey),
       findsNothing,
     );
   });
@@ -98,7 +128,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders the production Data Rain field', (tester) async {
+  testWidgets('renders the production industrial glyph Data Rain field', (
+    tester,
+  ) async {
     await pumpProcessing(
       tester,
       width: 390,
@@ -107,8 +139,10 @@ void main() {
     );
 
     await expectLater(
-      find.byKey(CommandCenterAmbientProcessing.dataRainKey),
-      matchesGoldenFile('goldens/command_center_data_rain_static.png'),
+      find.byKey(CommandCenterAmbientProcessing.rootKey),
+      matchesGoldenFile(
+        'goldens/command_center_data_rain_industrial_glyphs.png',
+      ),
     );
   });
 
