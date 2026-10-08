@@ -36,6 +36,23 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const longStreamsPerPeriod = 15;
   static const mediumStreamsPerPeriod = 4;
   static const shortStreamsPerPeriod = 1;
+  static const sharedPatternCount = 16;
+
+  /// Immutable, shared 48-glyph industrial patterns. Streams retain a pattern
+  /// reference instead of allocating a glyph list from inside paint().
+  static final List<List<String>> sharedPatterns = List.unmodifiable(
+    List<List<String>>.generate(
+      sharedPatternCount,
+      (pattern) => List.unmodifiable(
+        List<String>.generate(
+          48,
+          (position) => _IndustrialGlyphAtlas.glyphFor(pattern * 101, position),
+          growable: false,
+        ),
+      ),
+      growable: false,
+    ),
+  );
 
   final bool enabled;
 
@@ -236,6 +253,70 @@ class DataRainStreamPlacement {
   final int streamIndex;
 }
 
+@immutable
+class _PersistentDataRainStream {
+  const _PersistentDataRainStream({
+    required this.streamIndex,
+    required this.xFraction,
+    required this.length,
+    required this.speed,
+    required this.pattern,
+  });
+
+  factory _PersistentDataRainStream.create({
+    required DataRainLayer layer,
+    required DataRainStreamPlacement placement,
+    required double height,
+    required double glyphSize,
+    required double step,
+  }) {
+    final streamIndex = placement.streamIndex;
+    final kind = CommandCenterAmbientProcessing.streamLengthFor(
+      layer: layer,
+      streamIndex: streamIndex,
+    );
+    final variation =
+        CommandCenterAmbientProcessing._hash(
+          streamIndex,
+          191 + layer.index * 23,
+        ) %
+        1000 /
+        1000;
+    final fraction = switch (kind) {
+      DataRainStreamLength.long => .26 + variation * .18,
+      DataRainStreamLength.medium => .12 + variation * .09,
+      DataRainStreamLength.short => .055 + variation * .045,
+    };
+    return _PersistentDataRainStream(
+      streamIndex: streamIndex,
+      xFraction: CommandCenterAmbientProcessing.placementXFraction(
+        layer: layer,
+        placement: placement,
+      ),
+      length: (height * fraction / step).round().clamp(4, 42),
+      speed:
+          DataRainSpeed.values[CommandCenterAmbientProcessing._hash(
+                streamIndex,
+                29 + layer.index * 7,
+              ) %
+              DataRainSpeed.values.length],
+      pattern:
+          CommandCenterAmbientProcessing
+              .sharedPatterns[CommandCenterAmbientProcessing._hash(
+                streamIndex,
+                211 + layer.index * 41,
+              ) %
+              CommandCenterAmbientProcessing.sharedPatternCount],
+    );
+  }
+
+  final int streamIndex;
+  final double xFraction;
+  final int length;
+  final DataRainSpeed speed;
+  final List<String> pattern;
+}
+
 class _CommandCenterAmbientProcessingState
     extends State<CommandCenterAmbientProcessing>
     with SingleTickerProviderStateMixin {
@@ -381,6 +462,8 @@ class _IndustrialDataRainPainter extends CustomPainter {
   final double completedSeconds;
   final bool initialEntry;
   final Paint _glyphPaint = Paint();
+  Size? _streamSize;
+  List<_PersistentDataRainStream> _streams = const [];
 
   double get _seconds => staticFrame || !running
       ? completedSeconds
@@ -389,32 +472,48 @@ class _IndustrialDataRainPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final placements = CommandCenterAmbientProcessing.streamPlacementsFor(
-      layer: layer,
-      width: size.width,
-    );
-    for (final placement in placements) {
-      _paintStream(canvas, size, placement);
+    if (_streamSize != size) {
+      _streamSize = size;
+      _streams = _createStreams(size);
     }
+    for (final stream in _streams) {
+      _paintStream(canvas, size, stream);
+    }
+  }
+
+  List<_PersistentDataRainStream> _createStreams(Size size) {
+    final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
+    final step = CommandCenterAmbientProcessing.glyphVerticalPitchFor(layer);
+    return List.unmodifiable([
+      for (final placement
+          in CommandCenterAmbientProcessing.streamPlacementsFor(
+            layer: layer,
+            width: size.width,
+          ))
+        _PersistentDataRainStream.create(
+          layer: layer,
+          placement: placement,
+          height: size.height,
+          glyphSize: glyphSize,
+          step: step,
+        ),
+    ]);
   }
 
   void _paintStream(
     Canvas canvas,
     Size size,
-    DataRainStreamPlacement placement,
+    _PersistentDataRainStream stream,
   ) {
-    final streamIndex = placement.streamIndex;
+    final streamIndex = stream.streamIndex;
     final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
     final step = CommandCenterAmbientProcessing.glyphVerticalPitchFor(layer);
-    final length = _streamLength(streamIndex, size.height, step);
+    final length = stream.length;
     final trail = length * step;
     final span = size.height + trail;
-    final speed =
-        DataRainSpeed.values[_hash(streamIndex, 29 + layer.index * 7) %
-            DataRainSpeed.values.length];
     final travel = CommandCenterAmbientProcessing.constantSpeedOffset(
       elapsed: _seconds,
-      pixelsPerSecond: CommandCenterAmbientProcessing.speeds[speed]!,
+      pixelsPerSecond: CommandCenterAmbientProcessing.speeds[stream.speed]!,
     );
     final position = _streamPosition(
       size: size,
@@ -424,18 +523,12 @@ class _IndustrialDataRainPainter extends CustomPainter {
       span: span,
       travel: travel,
     );
-    final glyphs = CommandCenterAmbientProcessing.glyphSequenceForStream(
-      layer: layer,
-      streamIndex: streamIndex,
-      recycleIndex: position.recycleIndex,
-      length: length,
-    );
-    final x =
-        size.width *
-        CommandCenterAmbientProcessing.placementXFraction(
-          layer: layer,
-          placement: placement,
-        );
+    // A fully offscreen stream requires no glyph, pulse, color, or path work.
+    if (position.head < -glyphSize ||
+        position.head - trail > size.height + glyphSize) {
+      return;
+    }
+    final x = size.width * stream.xFraction;
     for (var glyphPosition = 0; glyphPosition < length; glyphPosition++) {
       final y = position.head - glyphPosition * step;
       if (y < -glyphSize || y > size.height + glyphSize) continue;
@@ -461,7 +554,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
         canvas,
         center: Offset(x, y),
         size: glyphSize,
-        glyph: glyphs[glyphPosition],
+        glyph: stream.pattern[glyphPosition % stream.pattern.length],
         color: glyphColor.withValues(alpha: alpha),
       );
     }
@@ -506,20 +599,6 @@ class _IndustrialDataRainPainter extends CustomPainter {
       head: afterFirstExit % span - trail,
       recycleIndex: 1 + afterFirstExit ~/ span,
     );
-  }
-
-  int _streamLength(int streamIndex, double height, double step) {
-    final kind = CommandCenterAmbientProcessing.streamLengthFor(
-      layer: layer,
-      streamIndex: streamIndex,
-    );
-    final variation = _hash(streamIndex, 191 + layer.index * 23) % 1000 / 1000;
-    final fraction = switch (kind) {
-      DataRainStreamLength.long => .26 + variation * .18,
-      DataRainStreamLength.medium => .12 + variation * .09,
-      DataRainStreamLength.short => .055 + variation * .045,
-    };
-    return (height * fraction / step).round().clamp(4, 42);
   }
 
   /// A moving pulse follows glyph positions, independently of stream travel.
