@@ -179,8 +179,10 @@ class _MovingScopePainter extends CustomPainter {
     if (size.isEmpty) return;
     final angle = _t * 6.283185307179586;
     final center = Offset(
-      size.width * (.5 + .37 * math.sin(angle)),
-      size.height * (.5 + .29 * math.sin(angle * 2 + .72)),
+      size.width * (.5 + .40 * math.sin(angle)),
+      // The full-height route intentionally carries the instrument through
+      // the lower Activity viewport instead of concentrating it above RECORD.
+      size.height * (.51 + .43 * math.sin(angle * 2 + .72)),
     );
     final radius = (size.shortestSide * .34).clamp(92.0, 168.0);
     _field(canvas, size, center, radius);
@@ -235,7 +237,9 @@ class _MovingScopePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.35
       ..color = Colors.cyanAccent.withValues(alpha: .42);
-    for (final (index, factor) in [.42, .66, 1.0].indexed) {
+    // The outer instrument remains cyan; its arcs and ticks are deliberately
+    // distinct from the independent short-stroke flow inside it.
+    for (final (index, factor) in [.66, 1.0].indexed) {
       canvas.drawArc(
         Rect.fromCircle(center: c, radius: r * factor),
         _t * 6.283185307179586 * (index == 1 ? -1.7 : 1.15 + index),
@@ -254,6 +258,41 @@ class _MovingScopePainter extends CustomPainter {
     canvas.drawLine(c, c + Offset.fromDirection(sweep, r * .92), hi);
     canvas.drawLine(c + Offset(-r * .18, 0), c + Offset(r * .18, 0), base);
     canvas.drawLine(c + Offset(0, -r * .18), c + Offset(0, r * .18), base);
+    _flow(canvas, c, r);
+  }
+
+  void _flow(Canvas canvas, Offset center, double radius) {
+    const palette = <Color>[
+      Colors.cyanAccent,
+      Color(0xff4aa3ff),
+      Color(0xff9b6dff),
+      Color(0xffff64bd),
+      Color(0xff56e7a5),
+      Color(0xffffbb62),
+    ];
+    // Bounded, deterministic short strokes form a vortex through placement
+    // and motion. They are never joined into ring outlines.
+    for (var index = 0; index < 84; index++) {
+      final group = index % 4;
+      final direction = group.isEven ? 1.0 : -1.0;
+      final phase = index * 2.399 +
+          _t * 6.283 * direction * (.45 + group * .22);
+      final radial =
+          (.18 + ((index * 37) % 71) / 100) * radius +
+          math.sin(_t * 6.283 * (1.2 + group * .17) + index) * radius * .045;
+      final position = center + Offset.fromDirection(phase, radial);
+      final tangent = phase + direction * math.pi / 2;
+      final length = radius * (.035 + (index % 5) * .009);
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8 + (index % 3) * .28
+        ..strokeCap = StrokeCap.round
+        ..color = palette[index % palette.length].withValues(
+          alpha: .16 + (index % 5) * .045,
+        );
+      final half = Offset.fromDirection(tangent, length / 2);
+      canvas.drawLine(position - half, position + half, paint);
+    }
   }
 
   @override
