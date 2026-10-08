@@ -1,15 +1,98 @@
 import 'package:flutter/material.dart';
 
-/// Lightweight, Activity-only kinetic trajectory field.
+/// Activity-only kinetic measurement field.
 class ActivityAmbientKineticField extends StatefulWidget {
   const ActivityAmbientKineticField({super.key, required this.enabled});
 
   static const fieldKey = ValueKey('activity-ambient-kinetic-field');
+  static const trackingRegionCount = 7;
+  static const cycleSeconds = 15.5;
   final bool enabled;
+
+  /// Deterministic, auditable measurement lifecycle used by the production
+  /// painter: detection leads to tracking, then a measurement signal and an
+  /// accumulation update. Regions use phase offsets rather than global resets.
+  static ActivityKineticSample sampleFor({
+    required int region,
+    required double elapsedSeconds,
+  }) {
+    assert(region >= 0 && region < trackingRegionCount);
+    const offsets = [.00, .14, .29, .43, .58, .72, .86];
+    final local = (elapsedSeconds / cycleSeconds + offsets[region]) % 1;
+    if (local < .10) {
+      return ActivityKineticSample(
+        phase: ActivityKineticPhase.detect,
+        pathProgress: 0,
+        ringResponse: 1 - local / .10,
+        signalProgress: 0,
+        accumulationProgress: 0,
+      );
+    }
+    if (local < .66) {
+      return ActivityKineticSample(
+        phase: ActivityKineticPhase.track,
+        pathProgress: (local - .10) / .56,
+        ringResponse: .22,
+        signalProgress: 0,
+        accumulationProgress: 0,
+      );
+    }
+    if (local < .79) {
+      final measurement = (local - .66) / .13;
+      return ActivityKineticSample(
+        phase: ActivityKineticPhase.measure,
+        pathProgress: 1,
+        ringResponse: 1 - measurement * .18,
+        signalProgress: measurement,
+        accumulationProgress: 0,
+      );
+    }
+    if (local < .94) {
+      return ActivityKineticSample(
+        phase: ActivityKineticPhase.accumulate,
+        pathProgress: 1,
+        ringResponse: .35,
+        signalProgress: 1,
+        accumulationProgress: (local - .79) / .15,
+      );
+    }
+    return const ActivityKineticSample(
+      phase: ActivityKineticPhase.continueMonitoring,
+      pathProgress: 1,
+      ringResponse: .14,
+      signalProgress: 1,
+      accumulationProgress: 1,
+    );
+  }
 
   @override
   State<ActivityAmbientKineticField> createState() =>
       _ActivityAmbientKineticFieldState();
+}
+
+enum ActivityKineticPhase {
+  detect,
+  track,
+  measure,
+  accumulate,
+  continueMonitoring,
+}
+
+@immutable
+class ActivityKineticSample {
+  const ActivityKineticSample({
+    required this.phase,
+    required this.pathProgress,
+    required this.ringResponse,
+    required this.signalProgress,
+    required this.accumulationProgress,
+  });
+
+  final ActivityKineticPhase phase;
+  final double pathProgress;
+  final double ringResponse;
+  final double signalProgress;
+  final double accumulationProgress;
 }
 
 class _ActivityAmbientKineticFieldState
@@ -17,27 +100,38 @@ class _ActivityAmbientKineticFieldState
     with SingleTickerProviderStateMixin {
   late final _controller = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 12),
+    duration: Duration(
+      milliseconds: (ActivityAmbientKineticField.cycleSeconds * 1000).round(),
+    ),
   );
+  var _motionAllowed = false;
+  var _resolvedMotion = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (widget.enabled && !reduced)
-      _controller.repeat();
-    else
-      _controller.stop();
+    final motionAllowed =
+        !(MediaQuery.maybeOf(context)?.disableAnimations ?? false) &&
+        TickerMode.valuesOf(context).enabled;
+    if (!_resolvedMotion || motionAllowed != _motionAllowed) {
+      _motionAllowed = motionAllowed;
+      _resolvedMotion = true;
+      _syncAnimation();
+    }
   }
 
   @override
   void didUpdateWidget(covariant ActivityAmbientKineticField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.enabled != oldWidget.enabled) {
-      if (widget.enabled)
-        _controller.repeat();
-      else
-        _controller.stop();
+    if (widget.enabled != oldWidget.enabled) _syncAnimation();
+  }
+
+  void _syncAnimation() {
+    if (!mounted) return;
+    if (widget.enabled && _motionAllowed) {
+      _controller.repeat();
+    } else {
+      _controller.stop();
     }
   }
 
@@ -54,9 +148,10 @@ class _ActivityAmbientKineticFieldState
       child: RepaintBoundary(
         key: ActivityAmbientKineticField.fieldKey,
         child: CustomPaint(
-          painter: _KineticPainter(
-            _controller,
-            Theme.of(context).colorScheme.primary,
+          painter: _KineticMeasurementPainter(
+            animation: _controller,
+            color: Theme.of(context).colorScheme.primary,
+            staticFrame: !_motionAllowed,
           ),
           child: const SizedBox.expand(),
         ),
@@ -65,46 +160,255 @@ class _ActivityAmbientKineticFieldState
   }
 }
 
-class _KineticPainter extends CustomPainter {
-  _KineticPainter(this.animation, this.color) : super(repaint: animation);
+class _KineticMeasurementPainter extends CustomPainter {
+  const _KineticMeasurementPainter({
+    required this.animation,
+    required this.color,
+    required this.staticFrame,
+  }) : super(repaint: animation);
+
   final Animation<double> animation;
   final Color color;
+  final bool staticFrame;
+
+  static const _anchors = <Offset>[
+    Offset(.18, .15),
+    Offset(.76, .23),
+    Offset(.30, .49),
+    Offset(.72, .61),
+    Offset(.46, .85),
+    Offset(.10, .72),
+    Offset(.89, .43),
+  ];
+
+  double get _elapsedSeconds => staticFrame
+      ? ActivityAmbientKineticField.cycleSeconds * .68
+      : animation.value * ActivityAmbientKineticField.cycleSeconds;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final t = animation.value;
+    if (size.isEmpty) return;
+    for (
+      var region = 0;
+      region < ActivityAmbientKineticField.trackingRegionCount;
+      region++
+    ) {
+      _paintRegion(canvas, size, region);
+    }
+  }
+
+  void _paintRegion(Canvas canvas, Size size, int region) {
+    final sample = ActivityAmbientKineticField.sampleFor(
+      region: region,
+      elapsedSeconds: _elapsedSeconds,
+    );
+    final geometry = _RegionGeometry.fromSize(size, region, _anchors[region]);
+    final target = geometry.pointAt(sample.pathProgress);
+    _paintGuide(canvas, geometry);
+    _paintHistory(canvas, geometry, sample.pathProgress);
+    _paintRing(canvas, target, geometry.radius, sample.ringResponse);
+    _paintTarget(canvas, target, sample.phase);
+    _paintSignal(canvas, geometry, sample.signalProgress);
+    _paintAccumulation(canvas, geometry, region, sample.accumulationProgress);
+  }
+
+  void _paintGuide(Canvas canvas, _RegionGeometry geometry) {
+    final guide = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .65
+      ..color = color.withValues(alpha: .055);
+    canvas.drawPath(geometry.pathSegment(0, 1), guide);
+    for (final progress in const [.2, .4, .6, .8]) {
+      canvas.drawCircle(geometry.pointAt(progress), 1.15, guide);
+    }
+  }
+
+  void _paintHistory(Canvas canvas, _RegionGeometry geometry, double progress) {
+    if (progress <= 0) return;
+    const segments = 11;
+    final start = (progress - .42).clamp(0.0, 1.0);
+    for (var index = 0; index < segments; index++) {
+      final from = start + (progress - start) * index / segments;
+      final to = start + (progress - start) * (index + 1) / segments;
+      final age = (index + 1) / segments;
+      canvas.drawPath(
+        geometry.pathSegment(from, to),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .8 + age * .7
+          ..strokeCap = StrokeCap.round
+          ..color = color.withValues(alpha: .025 + age * .18),
+      );
+    }
+  }
+
+  void _paintRing(
+    Canvas canvas,
+    Offset target,
+    double radius,
+    double response,
+  ) {
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = .8;
-    for (var i = 0; i < 12; i++) {
-      final x = size.width * ((i * 37 % 101) / 100);
-      final y = size.height * ((i * 53 % 97) / 100);
-      final r = 24.0 + (i % 4) * 19;
-      paint.color = color.withValues(alpha: .05 + (i % 3) * .025);
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(x, y), radius: r),
-        i * .43 + t * (i.isEven ? 1 : -1) * 2,
-        1.5 + (i % 3) * .28,
-        false,
-        paint,
-      );
-      final path = Path()
-        ..moveTo(x - r, y + r * .3)
-        ..quadraticBezierTo(x, y - r, x + r * 1.4, y + r * .5);
-      canvas.drawPath(path, paint);
-      final phase = (t * (12 + i % 4) + i * .17) % 1;
-      final point = Offset(
-        x - r + r * 2.4 * phase,
-        y + r * .3 - r * 1.3 * (phase - .5) * (phase - .5),
-      );
-      canvas.drawCircle(
-        point,
-        1.5 + (i % 2),
-        Paint()..color = color.withValues(alpha: .2 + (i % 4) * .08),
+      ..strokeWidth = .75 + response * .85
+      ..color = color.withValues(alpha: .055 + response * .22);
+    final ringRadius = radius * (.34 + response * .22);
+    canvas.drawArc(
+      Rect.fromCircle(center: target, radius: ringRadius),
+      -.8,
+      2.15 + response * .85,
+      false,
+      paint,
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: target, radius: ringRadius * .72),
+      2,
+      .9 + response * .55,
+      false,
+      paint,
+    );
+  }
+
+  void _paintTarget(Canvas canvas, Offset target, ActivityKineticPhase phase) {
+    final active =
+        phase == ActivityKineticPhase.track ||
+        phase == ActivityKineticPhase.measure;
+    canvas.drawCircle(
+      target,
+      active ? 2.7 : 2.05,
+      Paint()..color = color.withValues(alpha: active ? .74 : .44),
+    );
+    final reticle = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .75
+      ..color = color.withValues(alpha: active ? .48 : .22);
+    canvas.drawLine(
+      target + const Offset(-6, 0),
+      target + const Offset(-3, 0),
+      reticle,
+    );
+    canvas.drawLine(
+      target + const Offset(3, 0),
+      target + const Offset(6, 0),
+      reticle,
+    );
+    canvas.drawLine(
+      target + const Offset(0, -6),
+      target + const Offset(0, -3),
+      reticle,
+    );
+    canvas.drawLine(
+      target + const Offset(0, 3),
+      target + const Offset(0, 6),
+      reticle,
+    );
+  }
+
+  void _paintSignal(Canvas canvas, _RegionGeometry geometry, double progress) {
+    if (progress <= 0) return;
+    canvas.drawLine(
+      geometry.measurementPoint,
+      geometry.accumulator,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .75
+        ..color = color.withValues(alpha: .06 + progress * .14),
+    );
+    final pulse = Offset.lerp(
+      geometry.measurementPoint,
+      geometry.accumulator,
+      progress,
+    )!;
+    canvas.drawCircle(
+      pulse,
+      1.4 + progress * .9,
+      Paint()
+        ..color = Colors.cyanAccent.withValues(alpha: .22 + progress * .32),
+    );
+  }
+
+  void _paintAccumulation(
+    Canvas canvas,
+    _RegionGeometry geometry,
+    int region,
+    double progress,
+  ) {
+    const totalTicks = 6;
+    final completedCycles =
+        (_elapsedSeconds / ActivityAmbientKineticField.cycleSeconds).floor();
+    final stored = (completedCycles + region) % totalTicks;
+    final current = progress > 0
+        ? (progress * totalTicks).ceil().clamp(0, totalTicks)
+        : 0;
+    for (var tick = 0; tick < totalTicks; tick++) {
+      final filled = tick < stored || tick < current;
+      final x = geometry.accumulator.dx + (tick - (totalTicks - 1) / 2) * 4.2;
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(x, geometry.accumulator.dy),
+          width: 2,
+          height: 5,
+        ),
+        Paint()..color = color.withValues(alpha: filled ? .34 : .075),
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _KineticPainter old) => old.color != color;
+  bool shouldRepaint(covariant _KineticMeasurementPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.staticFrame != staticFrame;
+}
+
+class _RegionGeometry {
+  const _RegionGeometry({
+    required this.origin,
+    required this.radius,
+    required this.controlA,
+    required this.controlB,
+    required this.destination,
+    required this.accumulator,
+  });
+
+  factory _RegionGeometry.fromSize(Size size, int region, Offset anchor) {
+    final radius = 30.0 + (region % 3) * 9;
+    final origin = Offset(size.width * anchor.dx, size.height * anchor.dy);
+    final direction = region.isEven ? 1.0 : -1.0;
+    final destination =
+        origin + Offset(radius * direction * 1.55, radius * .54);
+    return _RegionGeometry(
+      origin: origin,
+      radius: radius,
+      controlA: origin + Offset(radius * direction * .36, -radius * .88),
+      controlB: origin + Offset(radius * direction * 1.16, radius * 1.1),
+      destination: destination,
+      accumulator: destination + Offset(radius * direction * .42, radius * .48),
+    );
+  }
+
+  final Offset origin;
+  final double radius;
+  final Offset controlA;
+  final Offset controlB;
+  final Offset destination;
+  final Offset accumulator;
+  Offset get measurementPoint => destination;
+
+  Offset pointAt(double progress) {
+    final t = progress.clamp(0.0, 1.0);
+    final inverse = 1 - t;
+    return origin * (inverse * inverse * inverse) +
+        controlA * (3 * inverse * inverse * t) +
+        controlB * (3 * inverse * t * t) +
+        destination * (t * t * t);
+  }
+
+  Path pathSegment(double from, double to) {
+    const pieces = 14;
+    final path = Path()..moveTo(pointAt(from).dx, pointAt(from).dy);
+    for (var piece = 1; piece <= pieces; piece++) {
+      final point = pointAt(from + (to - from) * piece / pieces);
+      path.lineTo(point.dx, point.dy);
+    }
+    return path;
+  }
 }
