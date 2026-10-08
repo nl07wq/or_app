@@ -147,6 +147,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('renders the production Data Bus as thin open traces', (
+    tester,
+  ) async {
+    await pumpProcessing(
+      tester,
+      width: 390,
+      enabled: true,
+      reducedMotion: true,
+    );
+
+    await expectLater(
+      find.byKey(CommandCenterAmbientProcessing.dataBusKey),
+      matchesGoldenFile('goldens/command_center_data_bus_thin_traces.png'),
+    );
+  });
+
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets('has bounded processing layers at width $width', (
       tester,

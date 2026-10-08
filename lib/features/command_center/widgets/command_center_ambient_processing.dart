@@ -349,6 +349,7 @@ class _AmbientProcessingPainter extends CustomPainter {
   void _paintDataBus(Canvas canvas, Size size) {
     final basePaint = Paint()
       ..color = color.withValues(alpha: .075)
+      ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (var index = 0; index < _routes.length; index++) {
       canvas.drawPath(_routePath(size, index), basePaint);
