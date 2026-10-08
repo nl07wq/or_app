@@ -27,6 +27,10 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const letterSlotsPerPeriod = 9;
   static const numberSlotsPerPeriod = 5;
   static const symbolSlotsPerPeriod = 6;
+  static const glyphScale = .9;
+  static const longStreamsPerPeriod = 15;
+  static const mediumStreamsPerPeriod = 4;
+  static const shortStreamsPerPeriod = 1;
 
   final bool enabled;
 
@@ -90,6 +94,18 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
       ? DataRainPulseDirection.downward
       : DataRainPulseDirection.upward;
 
+  static DataRainStreamLength streamLengthFor({
+    required DataRainLayer layer,
+    required int streamIndex,
+  }) {
+    final slot = (streamIndex * 7 + layer.index * 5) % 20;
+    if (slot < longStreamsPerPeriod) return DataRainStreamLength.long;
+    if (slot < longStreamsPerPeriod + mediumStreamsPerPeriod) {
+      return DataRainStreamLength.medium;
+    }
+    return DataRainStreamLength.short;
+  }
+
   static int _streamSeed(
     DataRainLayer layer,
     int streamIndex,
@@ -112,6 +128,8 @@ enum DataRainGlyphCategory { letter, number, symbol }
 
 enum DataRainPulseDirection { upward, downward }
 
+enum DataRainStreamLength { long, medium, short }
+
 class _CommandCenterAmbientProcessingState
     extends State<CommandCenterAmbientProcessing>
     with SingleTickerProviderStateMixin {
@@ -124,6 +142,7 @@ class _CommandCenterAmbientProcessingState
   var _motionAllowed = false;
   var _running = false;
   var _cycle = 0;
+  var _initialEntry = true;
 
   @override
   void didChangeDependencies() {
@@ -145,6 +164,7 @@ class _CommandCenterAmbientProcessingState
     _nextCycle?.cancel();
     _controller.stop();
     _running = false;
+    if (!widget.enabled) _initialEntry = true;
     if (widget.enabled && _motionAllowed) {
       // Preserve the established quiet route-entry window. Once started,
       // cycles join immediately and streams never return to a global idle.
@@ -159,7 +179,10 @@ class _CommandCenterAmbientProcessingState
     setState(() => _running = true);
     _controller.forward(from: 0).whenComplete(() {
       if (!mounted || !widget.enabled || !_motionAllowed) return;
-      setState(() => _cycle++);
+      setState(() {
+        _cycle++;
+        _initialEntry = false;
+      });
       _startCycle();
     });
   }
@@ -219,6 +242,7 @@ class _CommandCenterAmbientProcessingState
       layer: layer,
       staticFrame: !_motionAllowed,
       running: _running,
+      initialEntry: _initialEntry && _motionAllowed,
       completedSeconds: completedSeconds,
     ),
   );
@@ -231,6 +255,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
     required this.layer,
     required this.staticFrame,
     required this.running,
+    required this.initialEntry,
     required this.completedSeconds,
   }) : super(repaint: animation);
 
@@ -239,6 +264,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
   final DataRainLayer layer;
   final bool staticFrame;
   final bool running;
+  final bool initialEntry;
   final double completedSeconds;
 
   double get _seconds => staticFrame || !running
@@ -261,11 +287,13 @@ class _IndustrialDataRainPainter extends CustomPainter {
   };
 
   void _paintStream(Canvas canvas, Size size, int streamIndex, int count) {
-    final glyphSize = switch (layer) {
-      DataRainLayer.foreground => 8.0,
-      DataRainLayer.midground => 4.8,
-      DataRainLayer.background => 2.45,
-    };
+    final glyphSize =
+        switch (layer) {
+          DataRainLayer.foreground => 8.0,
+          DataRainLayer.midground => 4.8,
+          DataRainLayer.background => 2.45,
+        } *
+        CommandCenterAmbientProcessing.glyphScale;
     final step =
         glyphSize *
         switch (layer) {
@@ -273,11 +301,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
           DataRainLayer.midground => 1.72,
           DataRainLayer.background => 2.06,
         };
-    final length = switch (layer) {
-      DataRainLayer.foreground => 9 + _hash(streamIndex, 41) % 10,
-      DataRainLayer.midground => 7 + _hash(streamIndex, 53) % 8,
-      DataRainLayer.background => 8 + _hash(streamIndex, 61) % 8,
-    };
+    final length = _streamLength(streamIndex, size.height, step);
     final trail = length * step;
     final span = size.height + trail;
     final speed =
@@ -289,8 +313,18 @@ class _IndustrialDataRainPainter extends CustomPainter {
     );
     final initial =
         _hash(streamIndex, 71 + layer.index * 11) % 1000 / 1000 * span;
-    final recycleIndex = ((initial + travel) / span).floor();
-    final head = (initial + travel) % span - trail;
+    final entryDelay =
+        (_hash(streamIndex, 181 + layer.index * 13) % 1000) / 1000 * 3.8;
+    final entryElapsed = _seconds - entryDelay;
+    if (initialEntry && entryElapsed <= 0) return;
+    final entryTravel = CommandCenterAmbientProcessing.constantSpeedOffset(
+      elapsed: initialEntry ? entryElapsed : _seconds,
+      pixelsPerSecond: CommandCenterAmbientProcessing.speeds[speed]!,
+    );
+    final recycleIndex = initialEntry ? 0 : ((initial + travel) / span).floor();
+    final head = initialEntry
+        ? -glyphSize + entryTravel
+        : (initial + travel) % span - trail;
     final glyphs = CommandCenterAmbientProcessing.glyphSequenceForStream(
       layer: layer,
       streamIndex: streamIndex,
@@ -333,6 +367,20 @@ class _IndustrialDataRainPainter extends CustomPainter {
         color: glyphColor.withValues(alpha: alpha),
       );
     }
+  }
+
+  int _streamLength(int streamIndex, double height, double step) {
+    final kind = CommandCenterAmbientProcessing.streamLengthFor(
+      layer: layer,
+      streamIndex: streamIndex,
+    );
+    final variation = _hash(streamIndex, 191 + layer.index * 23) % 1000 / 1000;
+    final fraction = switch (kind) {
+      DataRainStreamLength.long => .26 + variation * .18,
+      DataRainStreamLength.medium => .12 + variation * .09,
+      DataRainStreamLength.short => .055 + variation * .045,
+    };
+    return (height * fraction / step).round().clamp(4, 42);
   }
 
   /// A moving pulse follows glyph positions, independently of stream travel.
@@ -400,6 +448,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
       oldDelegate.layer != layer ||
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.running != running ||
+      oldDelegate.initialEntry != initialEntry ||
       oldDelegate.completedSeconds != completedSeconds;
 }
 

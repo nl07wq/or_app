@@ -149,6 +149,23 @@ void main() {
     expect(directions, contains(DataRainPulseDirection.downward));
   });
 
+  test('uses the V2.1 long-medium-short stream distribution', () {
+    final lengths = <DataRainStreamLength, int>{
+      for (final kind in DataRainStreamLength.values) kind: 0,
+    };
+    for (var index = 0; index < 20; index++) {
+      final kind = CommandCenterAmbientProcessing.streamLengthFor(
+        layer: DataRainLayer.foreground,
+        streamIndex: index,
+      );
+      lengths[kind] = lengths[kind]! + 1;
+    }
+    expect(lengths[DataRainStreamLength.long], 15);
+    expect(lengths[DataRainStreamLength.medium], 4);
+    expect(lengths[DataRainStreamLength.short], 1);
+    expect(CommandCenterAmbientProcessing.glyphScale, .9);
+  });
+
   Future<void> pumpProcessing(
     WidgetTester tester, {
     required double width,
@@ -251,11 +268,35 @@ void main() {
     );
   });
 
+  testWidgets('starts a new ambient session with an empty production field', (
+    tester,
+  ) async {
+    await pumpProcessing(tester, width: 390, enabled: true);
+
+    await expectLater(
+      find.byKey(CommandCenterAmbientProcessing.rootKey),
+      matchesGoldenFile('goldens/command_center_data_rain_initial_empty.png'),
+    );
+  });
+
+  testWidgets('physically enters streams from above asynchronously', (
+    tester,
+  ) async {
+    await pumpProcessing(tester, width: 390, enabled: true);
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump(const Duration(seconds: 3));
+
+    await expectLater(
+      find.byKey(CommandCenterAmbientProcessing.rootKey),
+      matchesGoldenFile('goldens/command_center_data_rain_top_entry.png'),
+    );
+  });
+
   testWidgets('renders active production glyph pulses independently', (
     tester,
   ) async {
     await pumpProcessing(tester, width: 390, enabled: true);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
     await tester.pump(const Duration(seconds: 3));
 
     await expectLater(
