@@ -148,7 +148,7 @@ class _ActivityAmbientKineticFieldState
       child: RepaintBoundary(
         key: ActivityAmbientKineticField.fieldKey,
         child: CustomPaint(
-          painter: _KineticMeasurementPainter(
+          painter: _MovingScopePainter(
             animation: _controller,
             color: Theme.of(context).colorScheme.primary,
             staticFrame: !_motionAllowed,
@@ -158,6 +158,98 @@ class _ActivityAmbientKineticFieldState
       ),
     );
   }
+}
+
+/// V4: one moving precision scope reveals the technical field it scans.
+class _MovingScopePainter extends CustomPainter {
+  const _MovingScopePainter({
+    required this.animation,
+    required this.color,
+    required this.staticFrame,
+  }) : super(repaint: animation);
+  final Animation<double> animation;
+  final Color color;
+  final bool staticFrame;
+
+  double get _t => staticFrame ? .42 : animation.value;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final center = Offset(
+      size.width * (.12 + .76 * _t),
+      size.height * (.18 + .64 * (0.5 - 0.5 * (2 * _t - 1) * (2 * _t - 1))),
+    );
+    final radius = (size.shortestSide * .34).clamp(92.0, 168.0);
+    _field(canvas, size, center, radius);
+    _scope(canvas, center, radius);
+  }
+
+  void _field(Canvas canvas, Size size, Offset center, double radius) {
+    final faint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .55
+      ..color = color.withValues(alpha: .025);
+    final revealed = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .75
+      ..color = color.withValues(alpha: .15);
+    for (var y = 32.0; y < size.height; y += 52) {
+      for (var x = 8.0; x < size.width; x += 42) {
+        final inside = (Offset(x, y) - center).distance < radius;
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x + 15, y),
+          inside ? revealed : faint,
+        );
+      }
+    }
+    for (var i = 0; i < 9; i++) {
+      final p = Offset(
+        size.width * ((i * .137 + .08) % 1),
+        size.height * ((i * .191 + .12) % 1),
+      );
+      canvas.drawCircle(
+        p,
+        2,
+        (p - center).distance < radius ? revealed : faint,
+      );
+    }
+  }
+
+  void _scope(Canvas canvas, Offset c, double r) {
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = color.withValues(alpha: .26);
+    final hi = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35
+      ..color = Colors.cyanAccent.withValues(alpha: .42);
+    for (final factor in [.42, .66, 1.0]) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r * factor),
+        _t * 6.28 * (factor == .66 ? -1 : 1),
+        4.45,
+        false,
+        base,
+      );
+    }
+    for (var i = 0; i < 36; i++) {
+      final a = i * 6.283 / 36;
+      final outer = c + Offset.fromDirection(a, r);
+      final inner = c + Offset.fromDirection(a, r - (i % 3 == 0 ? 10 : 5));
+      canvas.drawLine(inner, outer, i % 7 == 0 ? hi : base);
+    }
+    final sweep = _t * 6.283 * 1.7;
+    canvas.drawLine(c, c + Offset.fromDirection(sweep, r * .92), hi);
+    canvas.drawLine(c + Offset(-r * .18, 0), c + Offset(r * .18, 0), base);
+    canvas.drawLine(c + Offset(0, -r * .18), c + Offset(0, r * .18), base);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MovingScopePainter old) =>
+      old.color != color || old.staticFrame != staticFrame;
 }
 
 class _KineticMeasurementPainter extends CustomPainter {
