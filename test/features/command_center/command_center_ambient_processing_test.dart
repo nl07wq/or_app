@@ -149,22 +149,67 @@ void main() {
     expect(directions, contains(DataRainPulseDirection.downward));
   });
 
-  test('uses the V2.1 long-medium-short stream distribution', () {
-    final lengths = <DataRainStreamLength, int>{
-      for (final kind in DataRainStreamLength.values) kind: 0,
-    };
-    for (var index = 0; index < 20; index++) {
-      final kind = CommandCenterAmbientProcessing.streamLengthFor(
-        layer: DataRainLayer.foreground,
-        streamIndex: index,
+  test(
+    'uses the V2.2 long-medium-short stream distribution and dimensions',
+    () {
+      final lengths = <DataRainStreamLength, int>{
+        for (final kind in DataRainStreamLength.values) kind: 0,
+      };
+      for (var index = 0; index < 20; index++) {
+        final kind = CommandCenterAmbientProcessing.streamLengthFor(
+          layer: DataRainLayer.foreground,
+          streamIndex: index,
+        );
+        lengths[kind] = lengths[kind]! + 1;
+      }
+      expect(lengths[DataRainStreamLength.long], 15);
+      expect(lengths[DataRainStreamLength.medium], 4);
+      expect(lengths[DataRainStreamLength.short], 1);
+      expect(CommandCenterAmbientProcessing.glyphScale, .65);
+      expect(
+        CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.foreground),
+        closeTo(5.2, .000001),
       );
-      lengths[kind] = lengths[kind]! + 1;
-    }
-    expect(lengths[DataRainStreamLength.long], 15);
-    expect(lengths[DataRainStreamLength.medium], 4);
-    expect(lengths[DataRainStreamLength.short], 1);
-    expect(CommandCenterAmbientProcessing.glyphScale, .8);
-  });
+      expect(
+        CommandCenterAmbientProcessing.glyphDotSizeFor(
+          DataRainLayer.foreground,
+        ),
+        closeTo(.78, .000001),
+      );
+      expect(
+        CommandCenterAmbientProcessing.glyphDotPitchFor(
+          DataRainLayer.foreground,
+        ),
+        closeTo(1.131, .000001),
+      );
+      expect(
+        CommandCenterAmbientProcessing.glyphVerticalPitchFor(
+          DataRainLayer.foreground,
+        ),
+        closeTo(7.904, .000001),
+      );
+      expect(
+        CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midground) /
+            CommandCenterAmbientProcessing.glyphSizeFor(
+              DataRainLayer.foreground,
+            ),
+        closeTo(.6, .000001),
+      );
+      for (final layer in DataRainLayer.values) {
+        for (var streamIndex = 0; streamIndex < 20; streamIndex++) {
+          expect(
+            CommandCenterAmbientProcessing.initialEntryHeadFor(
+              layer: layer,
+              streamIndex: streamIndex,
+            ),
+            lessThanOrEqualTo(
+              -CommandCenterAmbientProcessing.glyphSizeFor(layer),
+            ),
+          );
+        }
+      }
+    },
+  );
 
   Future<void> pumpProcessing(
     WidgetTester tester, {
@@ -283,7 +328,6 @@ void main() {
     tester,
   ) async {
     await pumpProcessing(tester, width: 390, enabled: true);
-    await tester.pump(const Duration(milliseconds: 900));
     await tester.pump(const Duration(seconds: 3));
 
     await expectLater(
@@ -296,8 +340,7 @@ void main() {
     tester,
   ) async {
     await pumpProcessing(tester, width: 390, enabled: true);
-    await tester.pump(const Duration(milliseconds: 900));
-    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 12));
 
     await expectLater(
       find.byKey(CommandCenterAmbientProcessing.rootKey),
@@ -305,6 +348,31 @@ void main() {
         'goldens/command_center_data_rain_industrial_glyphs_active.png',
       ),
     );
+  });
+
+  testWidgets('does not restart initial entry on an ordinary rebuild', (
+    tester,
+  ) async {
+    await pumpProcessing(tester, width: 390, enabled: true);
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: CommandCenterAmbientProcessing(enabled: true),
+              ),
+              Center(child: Text('OPERATIONAL CONTENT')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   for (final width in [320.0, 390.0, 900.0]) {

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 /// Command Center-only industrial glyph Data Rain.
@@ -28,8 +26,10 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const numberSlotsPerPeriod = 5;
   static const symbolSlotsPerPeriod = 6;
 
-  /// V2.1 dimensions were 90%; V2.1 acceptance uses an actual 80% scale.
-  static const glyphScale = .8;
+  /// V2.2 uses 65% of the original V2 dot-matrix geometry.  Every visible
+  /// glyph measurement derives from this one scale so the painter, pitch and
+  /// layer relationship cannot accidentally diverge.
+  static const glyphScale = .65;
   static const longStreamsPerPeriod = 15;
   static const mediumStreamsPerPeriod = 4;
   static const shortStreamsPerPeriod = 1;
@@ -48,6 +48,38 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     DataRainSpeed.fast: 38,
     DataRainSpeed.burst: 60,
   };
+
+  static double glyphSizeFor(DataRainLayer layer) =>
+      switch (layer) {
+        DataRainLayer.foreground => 8.0,
+        DataRainLayer.midground => 4.8,
+        DataRainLayer.background => 2.45,
+      } *
+      glyphScale;
+
+  static double glyphDotSizeFor(DataRainLayer layer) =>
+      glyphSizeFor(layer) * .15;
+
+  static double glyphDotPitchFor(DataRainLayer layer) =>
+      glyphDotSizeFor(layer) * 1.45;
+
+  static double glyphVerticalPitchFor(DataRainLayer layer) =>
+      glyphSizeFor(layer) *
+      switch (layer) {
+        DataRainLayer.foreground => 1.52,
+        DataRainLayer.midground => 1.72,
+        DataRainLayer.background => 2.06,
+      };
+
+  /// Every moving session begins with the lead glyph above the viewport. The
+  /// deterministic delay spreads physical top-down arrivals without changing
+  /// a stream's assigned speed or requiring a second startup timeline.
+  static double initialEntryHeadFor({
+    required DataRainLayer layer,
+    required int streamIndex,
+  }) =>
+      -glyphSizeFor(layer) -
+      (_hash(streamIndex, 211 + layer.index * 37) % 1000) / 1000 * 96;
 
   /// Exposed for deterministic regression coverage of the generated library.
   static List<String> glyphSequenceForStream({
@@ -140,35 +172,47 @@ class _CommandCenterAmbientProcessingState
     vsync: this,
     duration: _cycleDuration,
   );
-  Timer? _nextCycle;
   var _motionAllowed = false;
   var _running = false;
   var _cycle = 0;
+  var _resolvedMotion = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _motionAllowed =
+    final motionAllowed =
         !(MediaQuery.maybeOf(context)?.disableAnimations ?? false) &&
         TickerMode.valuesOf(context).enabled;
-    _syncAnimation();
+    if (!_resolvedMotion || motionAllowed != _motionAllowed) {
+      final startsNewSession =
+          !_resolvedMotion ||
+          (!_motionAllowed && motionAllowed && widget.enabled);
+      _motionAllowed = motionAllowed;
+      _resolvedMotion = true;
+      _syncAnimation(startsNewSession: startsNewSession);
+    }
   }
 
   @override
   void didUpdateWidget(covariant CommandCenterAmbientProcessing oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.enabled != widget.enabled) _syncAnimation();
+    if (oldWidget.enabled != widget.enabled) {
+      _syncAnimation(startsNewSession: widget.enabled);
+    }
   }
 
-  void _syncAnimation() {
+  void _syncAnimation({required bool startsNewSession}) {
     if (!mounted) return;
-    _nextCycle?.cancel();
     _controller.stop();
     _running = false;
+    if (startsNewSession || !widget.enabled) {
+      _cycle = 0;
+      _controller.value = 0;
+    }
     if (widget.enabled && _motionAllowed) {
-      // Preserve the established quiet route-entry window. Once started,
-      // cycles join immediately and streams never return to a global idle.
-      _nextCycle = Timer(const Duration(milliseconds: 900), _startCycle);
+      // Initial entry and steady-state use this exact controller and the same
+      // linear stream equation. Only each stream's initial Y position differs.
+      _startCycle();
     } else {
       _controller.value = 0;
     }
@@ -188,7 +232,6 @@ class _CommandCenterAmbientProcessingState
 
   @override
   void dispose() {
-    _nextCycle?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -242,6 +285,7 @@ class _CommandCenterAmbientProcessingState
       staticFrame: !_motionAllowed,
       running: _running,
       completedSeconds: completedSeconds,
+      initialEntry: _motionAllowed,
     ),
   );
 }
@@ -254,6 +298,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
     required this.staticFrame,
     required this.running,
     required this.completedSeconds,
+    required this.initialEntry,
   }) : super(repaint: animation);
 
   final Animation<double> animation;
@@ -262,6 +307,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
   final bool staticFrame;
   final bool running;
   final double completedSeconds;
+  final bool initialEntry;
 
   double get _seconds => staticFrame || !running
       ? completedSeconds
@@ -283,20 +329,8 @@ class _IndustrialDataRainPainter extends CustomPainter {
   };
 
   void _paintStream(Canvas canvas, Size size, int streamIndex, int count) {
-    final glyphSize =
-        switch (layer) {
-          DataRainLayer.foreground => 8.0,
-          DataRainLayer.midground => 4.8,
-          DataRainLayer.background => 2.45,
-        } *
-        CommandCenterAmbientProcessing.glyphScale;
-    final step =
-        glyphSize *
-        switch (layer) {
-          DataRainLayer.foreground => 1.52,
-          DataRainLayer.midground => 1.72,
-          DataRainLayer.background => 2.06,
-        };
+    final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
+    final step = CommandCenterAmbientProcessing.glyphVerticalPitchFor(layer);
     final length = _streamLength(streamIndex, size.height, step);
     final trail = length * step;
     final span = size.height + trail;
@@ -307,14 +341,18 @@ class _IndustrialDataRainPainter extends CustomPainter {
       elapsed: _seconds,
       pixelsPerSecond: CommandCenterAmbientProcessing.speeds[speed]!,
     );
-    final initial =
-        _hash(streamIndex, 71 + layer.index * 11) % 1000 / 1000 * span;
-    final recycleIndex = ((initial + travel) / span).floor();
-    final head = (initial + travel) % span - trail;
+    final position = _streamPosition(
+      size: size,
+      streamIndex: streamIndex,
+      glyphSize: glyphSize,
+      trail: trail,
+      span: span,
+      travel: travel,
+    );
     final glyphs = CommandCenterAmbientProcessing.glyphSequenceForStream(
       layer: layer,
       streamIndex: streamIndex,
-      recycleIndex: recycleIndex,
+      recycleIndex: position.recycleIndex,
       length: length,
     );
     final x =
@@ -325,7 +363,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
           count: count,
         );
     for (var glyphPosition = 0; glyphPosition < length; glyphPosition++) {
-      final y = head - glyphPosition * step;
+      final y = position.head - glyphPosition * step;
       if (y < -glyphSize || y > size.height + glyphSize) continue;
       final pulse = _pulseStrength(streamIndex, glyphPosition, length);
       final baseline = switch (layer) {
@@ -353,6 +391,47 @@ class _IndustrialDataRainPainter extends CustomPainter {
         color: glyphColor.withValues(alpha: alpha),
       );
     }
+  }
+
+  _DataRainStreamPosition _streamPosition({
+    required Size size,
+    required int streamIndex,
+    required double glyphSize,
+    required double trail,
+    required double span,
+    required double travel,
+  }) {
+    if (!initialEntry || staticFrame) {
+      final initial =
+          _hash(streamIndex, 71 + layer.index * 11) % 1000 / 1000 * span;
+      final total = initial + travel;
+      return _DataRainStreamPosition(
+        head: total % span - trail,
+        recycleIndex: total ~/ span,
+      );
+    }
+
+    // A new session differs from steady-state only by this negative initial
+    // position. The same stream object, constant speed and recycle path stay
+    // in use while it enters and thereafter. The lead glyph and its complete
+    // trail begin above the viewport; recycling is permitted only once the
+    // complete stream has left below the viewport.
+    final initialHead = CommandCenterAmbientProcessing.initialEntryHeadFor(
+      layer: layer,
+      streamIndex: streamIndex,
+    );
+    final firstExitDistance = size.height + trail + glyphSize - initialHead;
+    if (travel < firstExitDistance) {
+      return _DataRainStreamPosition(
+        head: initialHead + travel,
+        recycleIndex: 0,
+      );
+    }
+    final afterFirstExit = travel - firstExitDistance;
+    return _DataRainStreamPosition(
+      head: afterFirstExit % span - trail,
+      recycleIndex: 1 + afterFirstExit ~/ span,
+    );
   }
 
   int _streamLength(int streamIndex, double height, double step) {
@@ -434,7 +513,18 @@ class _IndustrialDataRainPainter extends CustomPainter {
       oldDelegate.layer != layer ||
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.running != running ||
-      oldDelegate.completedSeconds != completedSeconds;
+      oldDelegate.completedSeconds != completedSeconds ||
+      oldDelegate.initialEntry != initialEntry;
+}
+
+class _DataRainStreamPosition {
+  const _DataRainStreamPosition({
+    required this.head,
+    required this.recycleIndex,
+  });
+
+  final double head;
+  final int recycleIndex;
 }
 
 class _IndustrialGlyphAtlas {
