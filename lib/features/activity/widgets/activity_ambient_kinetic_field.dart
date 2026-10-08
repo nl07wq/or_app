@@ -10,16 +10,20 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
 
-  /// A bounded layered swarm. Each filament is a deterministic Bezier strand
-  /// with a soft under-stroke and a fine illuminated core.
-  static const luminousFilamentCount = 288;
-  static const luminousFilamentGroupCount = 8;
+  /// A dense coordinated swarm. Its non-repeating time field lets formations
+  /// emerge and evolve instead of returning to a fixed circular arrangement.
+  static const luminousFilamentCount = 480;
+  static const luminousFilamentGroupCount = 10;
   static const luminousFilamentLayers = 2;
   static const luminousFilamentDrawOperationsPerFrame =
       luminousFilamentCount * luminousFilamentLayers;
   static const scopeTopInset = 16.0;
   static const scopeBottomInset = 24.0;
   final bool enabled;
+
+  @visibleForTesting
+  static double swarmSecondsFor({required int cycle, required double phase}) =>
+      (cycle + phase) * cycleSeconds;
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
   /// so release builds do not retain or update runtime instrumentation.
@@ -168,6 +172,22 @@ class _ActivityAmbientKineticFieldState
   );
   var _motionAllowed = false;
   var _resolvedMotion = false;
+  late final ValueNotifier<int> _swarmCycle = ValueNotifier(0);
+  var _previousAnimationValue = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_advanceSwarmEpoch);
+  }
+
+  void _advanceSwarmEpoch() {
+    final value = _controller.value;
+    if (value < _previousAnimationValue && _previousAnimationValue > .8) {
+      _swarmCycle.value++;
+    }
+    _previousAnimationValue = value;
+  }
 
   @override
   void didChangeDependencies() {
@@ -199,7 +219,9 @@ class _ActivityAmbientKineticFieldState
 
   @override
   void dispose() {
+    _controller.removeListener(_advanceSwarmEpoch);
     _controller.dispose();
+    _swarmCycle.dispose();
     super.dispose();
   }
 
@@ -212,6 +234,11 @@ class _ActivityAmbientKineticFieldState
         child: CustomPaint(
           painter: _MovingScopePainter(
             animation: _controller,
+            swarmEpoch: _swarmCycle,
+            swarmSeconds: () => ActivityAmbientKineticField.swarmSecondsFor(
+              cycle: _swarmCycle.value,
+              phase: _controller.value,
+            ),
             color: Theme.of(context).colorScheme.primary,
             staticFrame: !_motionAllowed,
           ),
@@ -226,10 +253,13 @@ class _ActivityAmbientKineticFieldState
 class _MovingScopePainter extends CustomPainter {
   _MovingScopePainter({
     required this.animation,
+    required Listenable swarmEpoch,
+    required this.swarmSeconds,
     required this.color,
     required this.staticFrame,
-  }) : super(repaint: animation);
+  }) : super(repaint: Listenable.merge([animation, swarmEpoch]));
   final Animation<double> animation;
+  final double Function() swarmSeconds;
   final Color color;
   final bool staticFrame;
   final Paint _filamentGlowPaint = Paint()
@@ -239,9 +269,8 @@ class _MovingScopePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once: eight overlapping vortex bands create a stable luminous
-  /// mass. Their geometry is never randomized during painting; only their
-  /// coordinated phases evolve from the shared animation clock.
+  /// Generated once: coordinated flow bands retain identity while an unbounded
+  /// time field continuously reorganizes their density and silhouette.
   static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
     List<_LuminousFilamentGeometry>.generate(
       ActivityAmbientKineticField.luminousFilamentCount,
@@ -255,13 +284,13 @@ class _MovingScopePainter extends CustomPainter {
         return _LuminousFilamentGeometry(
           group: group,
           baseAngle:
-              group * math.pi * 2 / groups + bandProgress * math.pi * 2.18,
-          baseRadius: .035 + math.sqrt(bandProgress) * .79,
-          phase: index * .618033988749895 + group * .47,
-          angularVelocity: .11 + group * .022 + (groupIndex % 5) * .016,
-          radialAmplitude: .024 + (groupIndex % 6) * .009,
-          curvature: .045 + (groupIndex % 7) * .012,
-          lengthFactor: .13 + (groupIndex % 8) * .016,
+              group * math.pi * 2 / groups + bandProgress * math.pi * 2.31,
+          baseRadius: .018 + math.sqrt(bandProgress) * .75,
+          phase: index * .618033988749895 + group * .53,
+          angularVelocity: .24 + group * .027 + (groupIndex % 5) * .018,
+          radialAmplitude: .026 + (groupIndex % 6) * .010,
+          curvature: .060 + (groupIndex % 7) * .014,
+          lengthFactor: .105 + (groupIndex % 9) * .013,
           depth: (groupIndex % 7) / 6,
           reverse: group.isOdd,
         );
@@ -271,6 +300,10 @@ class _MovingScopePainter extends CustomPainter {
   );
 
   double get _t => staticFrame ? .42 : animation.value;
+
+  double get _swarmTime => staticFrame
+      ? ActivityAmbientKineticField.cycleSeconds * .42
+      : swarmSeconds();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -368,22 +401,27 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xff56e7a5),
       Color(0xffffbb62),
     ];
-    // Eight overlapping vortex bands fill the interior, including its center.
-    // A soft under-stroke and a fine core make overlapping curves accumulate
-    // light without a solid fill, blur chain, or a rigid rotating image.
+    // The swarm has no permanent circular mask. Its time-varying multi-lobed
+    // density field lets collective motion continuously form organic and
+    // polygon-like silhouettes while the filaments remain individually active.
+    final time = _swarmTime;
     for (final filament in _filaments) {
       final direction = filament.reverse ? -1.0 : 1.0;
       final angle =
           filament.baseAngle +
-          _t * 6.283185307179586 * direction * filament.angularVelocity +
-          math.sin(_t * 6.283185307179586 * .73 + filament.phase) * .11;
+          time * direction * filament.angularVelocity +
+          math.sin(time * .43 + filament.phase) * .18 +
+          math.sin(time * .071 + filament.group) * .09;
+      final formation =
+          1 +
+          math.sin(angle * 3 - time * .19 + filament.phase * .13) * .16 +
+          math.sin(angle * 5 + time * .11 + filament.group) * .10 +
+          math.sin(angle * 2 - time * .047) * .055;
       final radialFactor =
-          filament.baseRadius +
-          math.sin(
-                _t * 6.283185307179586 * (1.02 + filament.angularVelocity) +
-                    filament.phase,
-              ) *
-              filament.radialAmplitude;
+          filament.baseRadius * formation +
+          math.sin(time * (.51 + filament.angularVelocity) + filament.phase) *
+              filament.radialAmplitude +
+          math.sin(time * .09 + filament.group) * .018;
       final position =
           center + Offset.fromDirection(angle, radius * radialFactor);
       final tangent = angle + direction * math.pi / 2;
@@ -393,10 +431,9 @@ class _MovingScopePainter extends CustomPainter {
       final curve =
           radius *
           filament.curvature *
-          math.sin(_t * 6.283185307179586 * .67 + filament.phase) *
+          math.sin(time * .67 + filament.phase) *
           (.62 + filament.depth * .38);
-      final shimmer =
-          .5 + .5 * math.sin(_t * 6.283185307179586 * 1.23 + filament.phase);
+      final shimmer = .5 + .5 * math.sin(time * 1.23 + filament.phase);
       final path = _filamentPath(
         position,
         tangentVector,
@@ -406,11 +443,11 @@ class _MovingScopePainter extends CustomPainter {
       );
       final color = palette[filament.group % palette.length];
       _filamentGlowPaint
-        ..strokeWidth = 1.35 + filament.depth * .95
-        ..color = color.withValues(alpha: .055 + shimmer * .075);
+        ..strokeWidth = 1.45 + filament.depth * 1.05
+        ..color = color.withValues(alpha: .05 + shimmer * .085);
       _filamentCorePaint
         ..strokeWidth = .42 + filament.depth * .52
-        ..color = color.withValues(alpha: .18 + shimmer * .19);
+        ..color = color.withValues(alpha: .15 + shimmer * .23);
       canvas.drawPath(path, _filamentGlowPaint);
       canvas.drawPath(path, _filamentCorePaint);
     }

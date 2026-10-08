@@ -48,16 +48,32 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
-  test('uses a dense, layered eight-group luminous filament swarm', () {
-    expect(ActivityAmbientKineticField.luminousFilamentCount, 288);
+  test('uses a dense, layered coordinated luminous filament swarm', () {
+    expect(ActivityAmbientKineticField.luminousFilamentCount, 480);
     expect(ActivityAmbientKineticField.luminousFilamentCount, greaterThan(84));
-    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 8);
+    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 10);
     expect(ActivityAmbientKineticField.luminousFilamentLayers, 2);
     expect(
       ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
-      576,
+      960,
     );
   });
+
+  test(
+    'advances swarm time continuously across outer-scope cycle boundaries',
+    () {
+      final before = ActivityAmbientKineticField.swarmSecondsFor(
+        cycle: 0,
+        phase: .999,
+      );
+      final after = ActivityAmbientKineticField.swarmSecondsFor(
+        cycle: 1,
+        phase: 0,
+      );
+      expect(after, greaterThan(before));
+      expect(after - before, lessThan(.02));
+    },
+  );
 
   test('uses radius-aware viewport bounds for the complete scope', () {
     const painterSize = Size(390, 788);
