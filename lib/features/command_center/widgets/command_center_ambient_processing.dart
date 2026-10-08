@@ -13,11 +13,14 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const midgroundKey = ValueKey('command-center-data-rain-midground');
   static const backgroundKey = ValueKey('command-center-data-rain-background');
 
-  static const foregroundColumnsAt390 = 43;
-  static const midgroundColumnsAt390 = 65;
-  static const backgroundColumnsAt390 = 63;
+  static const foregroundColumnsAt390 = 37;
+  static const midgroundColumnsAt390 = 58;
+  static const backgroundColumnsAt390 = 55;
   static const totalColumnsAt390 =
       foregroundColumnsAt390 + midgroundColumnsAt390 + backgroundColumnsAt390;
+  static const leftColumnsAt390 = 65;
+  static const centerColumnsAt390 = 20;
+  static const rightColumnsAt390 = 65;
 
   /// The repeating 20-slot library gives exactly 45% letters, 25% numbers,
   /// and 30% technical symbols before its deterministic stream offset.
@@ -48,6 +51,59 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     DataRainSpeed.fast: 38,
     DataRainSpeed.burst: 60,
   };
+
+  static int totalColumnsFor(double width) =>
+      (totalColumnsAt390 * (width / 390).clamp(.82, 1.45)).round();
+
+  static List<DataRainStreamPlacement> streamPlacementsFor({
+    required DataRainLayer layer,
+    required double width,
+  }) {
+    final total = totalColumnsFor(width);
+    final side = (total * leftColumnsAt390 / totalColumnsAt390).round();
+    final bands = [side, total - side * 2, side];
+    const shares = {
+      DataRainLayer.foreground: [16, 5, 16],
+      DataRainLayer.midground: [25, 8, 25],
+      DataRainLayer.background: [24, 7, 24],
+    };
+    final base = shares[layer]!;
+    var index = 0;
+    final result = <DataRainStreamPlacement>[];
+    for (var band = 0; band < bands.length; band++) {
+      final denominator = [65, 20, 65][band];
+      final count = (bands[band] * base[band] / denominator).round();
+      for (var i = 0; i < count; i++) {
+        result.add(
+          DataRainStreamPlacement(
+            band: DataRainHorizontalBand.values[band],
+            bandIndex: i,
+            bandCount: count,
+            streamIndex: index++,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  static double placementXFraction({
+    required DataRainLayer layer,
+    required DataRainStreamPlacement placement,
+  }) {
+    const bounds = [(.0, .36), (.29, .71), (.64, 1.0)];
+    final range = bounds[placement.band.index];
+    final slot = (placement.bandIndex + .5) / placement.bandCount;
+    final jitter =
+        ((_hash(placement.streamIndex, 17 + layer.index * 19) % 1000) / 1000 -
+            .5) *
+        1.1 /
+        placement.bandCount;
+    return (range.$1 + (range.$2 - range.$1) * (slot + jitter)).clamp(
+      .006,
+      .994,
+    );
+  }
 
   static double glyphSizeFor(DataRainLayer layer) =>
       switch (layer) {
@@ -163,6 +219,22 @@ enum DataRainGlyphCategory { letter, number, symbol }
 enum DataRainPulseDirection { upward, downward }
 
 enum DataRainStreamLength { long, medium, short }
+
+enum DataRainHorizontalBand { left, center, right }
+
+@immutable
+class DataRainStreamPlacement {
+  const DataRainStreamPlacement({
+    required this.band,
+    required this.bandIndex,
+    required this.bandCount,
+    required this.streamIndex,
+  });
+  final DataRainHorizontalBand band;
+  final int bandIndex;
+  final int bandCount;
+  final int streamIndex;
+}
 
 class _CommandCenterAmbientProcessingState
     extends State<CommandCenterAmbientProcessing>
@@ -316,19 +388,21 @@ class _IndustrialDataRainPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final columns = _columnCount(size.width);
-    for (var streamIndex = 0; streamIndex < columns; streamIndex++) {
-      _paintStream(canvas, size, streamIndex, columns);
+    final placements = CommandCenterAmbientProcessing.streamPlacementsFor(
+      layer: layer,
+      width: size.width,
+    );
+    for (final placement in placements) {
+      _paintStream(canvas, size, placement);
     }
   }
 
-  int _columnCount(double width) => switch (layer) {
-    DataRainLayer.foreground => (width / 9).round().clamp(32, 48),
-    DataRainLayer.midground => (width / 6).round().clamp(48, 72),
-    DataRainLayer.background => (width / 6.2).round().clamp(40, 80),
-  };
-
-  void _paintStream(Canvas canvas, Size size, int streamIndex, int count) {
+  void _paintStream(
+    Canvas canvas,
+    Size size,
+    DataRainStreamPlacement placement,
+  ) {
+    final streamIndex = placement.streamIndex;
     final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
     final step = CommandCenterAmbientProcessing.glyphVerticalPitchFor(layer);
     final length = _streamLength(streamIndex, size.height, step);
@@ -357,10 +431,9 @@ class _IndustrialDataRainPainter extends CustomPainter {
     );
     final x =
         size.width *
-        CommandCenterAmbientProcessing.columnXFraction(
+        CommandCenterAmbientProcessing.placementXFraction(
           layer: layer,
-          streamIndex: streamIndex,
-          count: count,
+          placement: placement,
         );
     for (var glyphPosition = 0; glyphPosition < length; glyphPosition++) {
       final y = position.head - glyphPosition * step;

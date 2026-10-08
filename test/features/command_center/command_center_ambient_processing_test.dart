@@ -4,24 +4,42 @@ import 'package:or_app/features/command_center/widgets/command_center_ambient_pr
 
 void main() {
   test('exposes high-density independent data rain speed models', () {
-    expect(
-      CommandCenterAmbientProcessing.foregroundColumnsAt390,
-      inInclusiveRange(32, 48),
-    );
-    expect(
-      CommandCenterAmbientProcessing.midgroundColumnsAt390,
-      inInclusiveRange(48, 72),
-    );
-    expect(
-      CommandCenterAmbientProcessing.backgroundColumnsAt390,
-      inInclusiveRange(40, 80),
-    );
-    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 171);
+    expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 37);
+    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 58);
+    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 55);
+    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 150);
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
     expect(speeds[DataRainSpeed.fast], lessThan(speeds[DataRainSpeed.burst]!));
   });
+
+  test(
+    'allocates only 150 real streams across left center and right at 390',
+    () {
+      final placements = [
+        for (final layer in DataRainLayer.values)
+          ...CommandCenterAmbientProcessing.streamPlacementsFor(
+            layer: layer,
+            width: 390,
+          ),
+      ];
+      int count(DataRainHorizontalBand band) =>
+          placements.where((placement) => placement.band == band).length;
+      expect(placements.length, 150);
+      expect(count(DataRainHorizontalBand.left), 65);
+      expect(count(DataRainHorizontalBand.center), 20);
+      expect(count(DataRainHorizontalBand.right), 65);
+      expect(
+        CommandCenterAmbientProcessing.totalColumnsFor(320),
+        lessThan(150),
+      );
+      expect(
+        CommandCenterAmbientProcessing.totalColumnsFor(900),
+        greaterThan(150),
+      );
+    },
+  );
 
   test('uses linear constant-speed stream offsets', () {
     const speed = 22.0;
