@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
-  test('exposes V2.8 layered data rain speed models', () {
+  test('exposes V2.9 split-midground data rain speed models', () {
     expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 30);
-    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 33);
-    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 31);
-    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 94);
+    expect(CommandCenterAmbientProcessing.midFrontColumnsAt390, 33);
+    expect(CommandCenterAmbientProcessing.midRearColumnsAt390, 12);
+    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 75);
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
@@ -15,7 +15,7 @@ void main() {
   });
 
   test(
-    'allocates only 94 real streams across left center and right at 390',
+    'allocates only 75 real streams across left center and right at 390',
     () {
       final placements = [
         for (final layer in DataRainLayer.values)
@@ -26,10 +26,10 @@ void main() {
       ];
       int count(DataRainHorizontalBand band) =>
           placements.where((placement) => placement.band == band).length;
-      expect(placements.length, 94);
-      expect(count(DataRainHorizontalBand.left), 40);
-      expect(count(DataRainHorizontalBand.center), 14);
-      expect(count(DataRainHorizontalBand.right), 40);
+      expect(placements.length, 75);
+      expect(count(DataRainHorizontalBand.left), 32);
+      expect(count(DataRainHorizontalBand.center), 11);
+      expect(count(DataRainHorizontalBand.right), 32);
       for (final layer in DataRainLayer.values) {
         final layerCount = CommandCenterAmbientProcessing.streamPlacementsFor(
           layer: layer,
@@ -37,14 +37,14 @@ void main() {
         ).length;
         expect(layerCount, switch (layer) {
           DataRainLayer.foreground => 30,
-          DataRainLayer.midground => 33,
-          DataRainLayer.background => 31,
+          DataRainLayer.midFront => 33,
+          DataRainLayer.midRear => 12,
         });
       }
-      expect(CommandCenterAmbientProcessing.totalColumnsFor(320), lessThan(94));
+      expect(CommandCenterAmbientProcessing.totalColumnsFor(320), lessThan(75));
       expect(
         CommandCenterAmbientProcessing.totalColumnsFor(900),
-        greaterThan(94),
+        greaterThan(75),
       );
     },
   );
@@ -149,13 +149,13 @@ void main() {
       );
       for (
         var midground = 0;
-        midground < CommandCenterAmbientProcessing.midgroundColumnsAt390;
+        midground < CommandCenterAmbientProcessing.midFrontColumnsAt390;
         midground++
       ) {
         final midgroundX = CommandCenterAmbientProcessing.columnXFraction(
-          layer: DataRainLayer.midground,
+          layer: DataRainLayer.midFront,
           streamIndex: midground,
-          count: CommandCenterAmbientProcessing.midgroundColumnsAt390,
+          count: CommandCenterAmbientProcessing.midFrontColumnsAt390,
         );
         overlaps |= (foregroundX - midgroundX).abs() < .012;
       }
@@ -178,36 +178,42 @@ void main() {
   });
 
   test(
-    'keeps background segment width and vertical pitch glyph-equivalent',
+    'uses recognizable MID-REAR segments derived from MID-FRONT geometry',
     () {
-      final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(
-        DataRainLayer.background,
+      expect(
+        CommandCenterAmbientProcessing.midRearSegmentWidth,
+        closeTo(
+          CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midFront) *
+              .78,
+          .000001,
+        ),
       );
       expect(
-        CommandCenterAmbientProcessing.backgroundSegmentWidth,
-        closeTo(glyphSize * 1.02, .000001),
-      );
-      expect(
-        CommandCenterAmbientProcessing.backgroundSegmentStrokeWidth,
+        CommandCenterAmbientProcessing.midRearSegmentStrokeWidth,
         closeTo(
           CommandCenterAmbientProcessing.glyphDotSizeFor(
-            DataRainLayer.background,
-          ),
+                DataRainLayer.midFront,
+              ) *
+              .78,
           .000001,
         ),
       );
       expect(
         CommandCenterAmbientProcessing.glyphVerticalPitchFor(
-          DataRainLayer.background,
+          DataRainLayer.midRear,
         ),
-        closeTo(glyphSize * 2.06, .000001),
+        closeTo(
+          CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midRear) *
+              1.72,
+          .000001,
+        ),
       );
       final lengths = <DataRainStreamLength, int>{
         for (final kind in DataRainStreamLength.values) kind: 0,
       };
       for (var index = 0; index < 20; index++) {
         final length = CommandCenterAmbientProcessing.streamLengthFor(
-          layer: DataRainLayer.background,
+          layer: DataRainLayer.midRear,
           streamIndex: index,
         );
         lengths[length] = lengths[length]! + 1;
@@ -258,7 +264,7 @@ void main() {
         closeTo(7.904, .000001),
       );
       expect(
-        CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midground) /
+        CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midFront) /
             CommandCenterAmbientProcessing.glyphSizeFor(
               DataRainLayer.foreground,
             ),
@@ -285,6 +291,7 @@ void main() {
     required double width,
     required bool enabled,
     bool reducedMotion = false,
+    DataRainLayer? debugOnlyLayer,
   }) async {
     tester.view.physicalSize = Size(width, 700);
     tester.view.devicePixelRatio = 1;
@@ -298,7 +305,10 @@ void main() {
             body: Stack(
               children: [
                 Positioned.fill(
-                  child: CommandCenterAmbientProcessing(enabled: enabled),
+                  child: CommandCenterAmbientProcessing(
+                    enabled: enabled,
+                    debugOnlyLayer: debugOnlyLayer,
+                  ),
                 ),
                 const Center(child: Text('OPERATIONAL CONTENT')),
               ],
@@ -309,7 +319,7 @@ void main() {
     );
   }
 
-  testWidgets('renders three industrial glyph layers behind content', (
+  testWidgets('renders foreground, MID-FRONT glyphs and MID-REAR segments', (
     tester,
   ) async {
     await pumpProcessing(tester, width: 390, enabled: true);
@@ -320,12 +330,16 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(CommandCenterAmbientProcessing.midgroundKey),
+      find.byKey(CommandCenterAmbientProcessing.midFrontKey),
       findsOneWidget,
     );
     expect(
-      find.byKey(CommandCenterAmbientProcessing.backgroundKey),
+      find.byKey(CommandCenterAmbientProcessing.midRearKey),
       findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('command-center-data-rain-background')),
+      findsNothing,
     );
     expect(find.text('OPERATIONAL CONTENT'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -340,13 +354,10 @@ void main() {
       findsNothing,
     );
     expect(
-      find.byKey(CommandCenterAmbientProcessing.midgroundKey),
+      find.byKey(CommandCenterAmbientProcessing.midFrontKey),
       findsNothing,
     );
-    expect(
-      find.byKey(CommandCenterAmbientProcessing.backgroundKey),
-      findsNothing,
-    );
+    expect(find.byKey(CommandCenterAmbientProcessing.midRearKey), findsNothing);
   });
 
   testWidgets('remains valid as a static field for reduced motion', (
@@ -362,6 +373,61 @@ void main() {
 
     expect(find.byKey(CommandCenterAmbientProcessing.rootKey), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'uses segment-only MID-REAR drawing with bounded debug paint metrics',
+    (tester) async {
+      await pumpProcessing(
+        tester,
+        width: 390,
+        enabled: true,
+        reducedMotion: true,
+      );
+      await tester.pump();
+
+      final foreground = CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.foreground,
+      );
+      final midFront = CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midFront,
+      );
+      final midRear = CommandCenterAmbientProcessing.debugPaintMetricsFor(
+        DataRainLayer.midRear,
+      );
+      expect(foreground?.activeStreams, 30);
+      expect(midFront?.activeStreams, 33);
+      expect(midRear?.activeStreams, 12);
+      expect(midRear?.glyphDrawAttempts, 0);
+      expect(midRear?.canvasTransforms, 0);
+      expect(midRear?.segmentDrawAttempts, greaterThan(0));
+      expect(midRear?.visibleCells, midRear?.segmentDrawAttempts);
+      expect(foreground?.glyphDrawAttempts, greaterThan(0));
+      expect(midFront?.glyphDrawAttempts, greaterThan(0));
+      expect(
+        (foreground?.offscreenStreams ?? 0) +
+            (midFront?.offscreenStreams ?? 0) +
+            (midRear?.offscreenStreams ?? 0),
+        greaterThan(0),
+      );
+    },
+  );
+
+  testWidgets('renders visible discrete MID-REAR data segments', (
+    tester,
+  ) async {
+    await pumpProcessing(
+      tester,
+      width: 390,
+      enabled: true,
+      reducedMotion: true,
+      debugOnlyLayer: DataRainLayer.midRear,
+    );
+
+    await expectLater(
+      find.byKey(CommandCenterAmbientProcessing.rootKey),
+      matchesGoldenFile('goldens/command_center_data_rain_mid_rear.png'),
+    );
   });
 
   testWidgets('renders the production industrial glyph Data Rain field', (
@@ -382,7 +448,7 @@ void main() {
     );
   });
 
-  testWidgets('keeps the V2.7 foreground glyph pixels unchanged', (
+  testWidgets('renders the isolated unchanged foreground glyph layer', (
     tester,
   ) async {
     await pumpProcessing(
@@ -390,11 +456,12 @@ void main() {
       width: 390,
       enabled: true,
       reducedMotion: true,
+      debugOnlyLayer: DataRainLayer.foreground,
     );
 
     await expectLater(
-      find.byKey(CommandCenterAmbientProcessing.foregroundKey),
-      matchesGoldenFile('goldens/command_center_data_rain_foreground_v27.png'),
+      find.byKey(CommandCenterAmbientProcessing.rootKey),
+      matchesGoldenFile('goldens/command_center_data_rain_foreground_v29.png'),
     );
   });
 

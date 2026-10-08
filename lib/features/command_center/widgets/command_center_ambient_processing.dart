@@ -6,21 +6,25 @@ import 'package:flutter/material.dart';
 /// font. Glyph sequences are generated once per stream recycle, then remain
 /// fixed while their columns move at a constant speed.
 class CommandCenterAmbientProcessing extends StatefulWidget {
-  const CommandCenterAmbientProcessing({super.key, required this.enabled});
+  const CommandCenterAmbientProcessing({
+    super.key,
+    required this.enabled,
+    @visibleForTesting this.debugOnlyLayer,
+  });
 
   static const rootKey = ValueKey('command-center-ambient-processing');
   static const foregroundKey = ValueKey('command-center-data-rain-foreground');
-  static const midgroundKey = ValueKey('command-center-data-rain-midground');
-  static const backgroundKey = ValueKey('command-center-data-rain-background');
+  static const midFrontKey = ValueKey('command-center-data-rain-mid-front');
+  static const midRearKey = ValueKey('command-center-data-rain-mid-rear');
 
   static const foregroundColumnsAt390 = 30;
-  static const midgroundColumnsAt390 = 33;
-  static const backgroundColumnsAt390 = 31;
+  static const midFrontColumnsAt390 = 33;
+  static const midRearColumnsAt390 = 12;
   static const totalColumnsAt390 =
-      foregroundColumnsAt390 + midgroundColumnsAt390 + backgroundColumnsAt390;
-  static const leftColumnsAt390 = 40;
-  static const centerColumnsAt390 = 14;
-  static const rightColumnsAt390 = 40;
+      foregroundColumnsAt390 + midFrontColumnsAt390 + midRearColumnsAt390;
+  static const leftColumnsAt390 = 32;
+  static const centerColumnsAt390 = 11;
+  static const rightColumnsAt390 = 32;
 
   /// The repeating 20-slot library gives exactly 45% letters, 25% numbers,
   /// and 30% technical symbols before its deterministic stream offset.
@@ -37,6 +41,15 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static const mediumStreamsPerPeriod = 4;
   static const shortStreamsPerPeriod = 1;
   static const sharedPatternCount = 16;
+
+  static final Map<DataRainLayer, DataRainPaintMetrics> _debugPaintMetrics =
+      <DataRainLayer, DataRainPaintMetrics>{};
+
+  /// Available only to tests running with assertions. This keeps production
+  /// paint loops free of instrumentation allocation and mutation.
+  @visibleForTesting
+  static DataRainPaintMetrics? debugPaintMetricsFor(DataRainLayer layer) =>
+      _debugPaintMetrics[layer];
 
   /// Immutable, shared 48-glyph industrial patterns. Streams retain a pattern
   /// reference instead of allocating a glyph list from inside paint().
@@ -55,6 +68,11 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   );
 
   final bool enabled;
+
+  /// Lets production-painter tests capture exactly one depth layer. Normal
+  /// application construction leaves this null and paints all three layers.
+  @visibleForTesting
+  final DataRainLayer? debugOnlyLayer;
 
   /// Constant linear movement. A stream never eases between recycle points.
   static double constantSpeedOffset({
@@ -81,14 +99,14 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
     final bands = [side, total - side * 2, side];
     const shares = {
       DataRainLayer.foreground: [13, 4, 13],
-      DataRainLayer.midground: [14, 5, 14],
-      DataRainLayer.background: [13, 5, 13],
+      DataRainLayer.midFront: [14, 5, 14],
+      DataRainLayer.midRear: [5, 2, 5],
     };
     final base = shares[layer]!;
     var index = 0;
     final result = <DataRainStreamPlacement>[];
     for (var band = 0; band < bands.length; band++) {
-      final denominator = [40, 14, 40][band];
+      final denominator = [32, 11, 32][band];
       final count = (bands[band] * base[band] / denominator).round();
       for (var i = 0; i < count; i++) {
         result.add(
@@ -125,8 +143,10 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static double glyphSizeFor(DataRainLayer layer) =>
       switch (layer) {
         DataRainLayer.foreground => 8.0,
-        DataRainLayer.midground => 4.8,
-        DataRainLayer.background => 2.45,
+        DataRainLayer.midFront => 4.8,
+        // MID-REAR remains derived from the MID-FRONT geometry, rather than
+        // reviving the too-small V2.8 background cells.
+        DataRainLayer.midRear => 4.8 * .78,
       } *
       glyphScale;
 
@@ -140,17 +160,17 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
       glyphSizeFor(layer) *
       switch (layer) {
         DataRainLayer.foreground => 1.52,
-        DataRainLayer.midground => 1.72,
-        DataRainLayer.background => 2.06,
+        DataRainLayer.midFront => 1.72,
+        DataRainLayer.midRear => 1.72,
       };
 
-  /// Background streams retain their glyph pitch and width, but render each
-  /// glyph position as one distant data segment instead of a 5×7 path.
-  static double get backgroundSegmentWidth =>
-      glyphSizeFor(DataRainLayer.background) * 1.02;
+  /// MID-REAR reuses the MID-FRONT grid, but paints each position as one
+  /// lighter discrete data segment rather than a 5×7 glyph path.
+  static double get midRearSegmentWidth =>
+      glyphSizeFor(DataRainLayer.midFront) * .78;
 
-  static double get backgroundSegmentStrokeWidth =>
-      glyphDotSizeFor(DataRainLayer.background);
+  static double get midRearSegmentStrokeWidth =>
+      glyphDotSizeFor(DataRainLayer.midFront) * .78;
 
   /// Every moving session begins with the lead glyph above the viewport. The
   /// deterministic delay spreads physical top-down arrivals without changing
@@ -237,7 +257,7 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
 
 enum DataRainSpeed { slow, normal, fast, burst }
 
-enum DataRainLayer { foreground, midground, background }
+enum DataRainLayer { foreground, midFront, midRear }
 
 enum DataRainGlyphCategory { letter, number, symbol }
 
@@ -246,6 +266,48 @@ enum DataRainPulseDirection { upward, downward }
 enum DataRainStreamLength { long, medium, short }
 
 enum DataRainHorizontalBand { left, center, right }
+
+/// Debug-only paint counters for equivalent renderer comparisons. Production
+/// builds do not create or update these values because every mutation lives in
+/// an assert callback.
+@immutable
+class DataRainPaintMetrics {
+  const DataRainPaintMetrics({
+    required this.activeStreams,
+    required this.offscreenStreams,
+    required this.visibleCells,
+    required this.glyphDrawAttempts,
+    required this.segmentDrawAttempts,
+    required this.canvasTransforms,
+  });
+
+  final int activeStreams;
+  final int offscreenStreams;
+  final int visibleCells;
+  final int glyphDrawAttempts;
+  final int segmentDrawAttempts;
+  final int canvasTransforms;
+}
+
+class _DataRainPaintMetricsBuilder {
+  _DataRainPaintMetricsBuilder(this.activeStreams);
+
+  final int activeStreams;
+  var offscreenStreams = 0;
+  var visibleCells = 0;
+  var glyphDrawAttempts = 0;
+  var segmentDrawAttempts = 0;
+  var canvasTransforms = 0;
+
+  DataRainPaintMetrics build() => DataRainPaintMetrics(
+    activeStreams: activeStreams,
+    offscreenStreams: offscreenStreams,
+    visibleCells: visibleCells,
+    glyphDrawAttempts: glyphDrawAttempts,
+    segmentDrawAttempts: segmentDrawAttempts,
+    canvasTransforms: canvasTransforms,
+  );
+}
 
 @immutable
 class DataRainStreamPlacement {
@@ -407,48 +469,36 @@ class _CommandCenterAmbientProcessingState
         key: CommandCenterAmbientProcessing.rootKey,
         child: Stack(
           fit: StackFit.expand,
-          children: [
-            _layer(
-              CommandCenterAmbientProcessing.backgroundKey,
-              DataRainLayer.background,
-              color,
-              completedSeconds,
-            ),
-            _layer(
-              CommandCenterAmbientProcessing.midgroundKey,
-              DataRainLayer.midground,
-              color,
-              completedSeconds,
-            ),
-            _layer(
-              CommandCenterAmbientProcessing.foregroundKey,
-              DataRainLayer.foreground,
-              color,
-              completedSeconds,
-            ),
-          ],
+          children: widget.debugOnlyLayer == null
+              ? [
+                  _layer(DataRainLayer.midRear, color, completedSeconds),
+                  _layer(DataRainLayer.midFront, color, completedSeconds),
+                  _layer(DataRainLayer.foreground, color, completedSeconds),
+                ]
+              : [_layer(widget.debugOnlyLayer!, color, completedSeconds)],
         ),
       ),
     );
   }
 
-  Widget _layer(
-    Key key,
-    DataRainLayer layer,
-    Color color,
-    double completedSeconds,
-  ) => CustomPaint(
-    key: key,
-    painter: _IndustrialDataRainPainter(
-      animation: _controller,
-      color: color,
-      layer: layer,
-      staticFrame: !_motionAllowed,
-      running: _running,
-      completedSeconds: completedSeconds,
-      initialEntry: _motionAllowed,
-    ),
-  );
+  Widget _layer(DataRainLayer layer, Color color, double completedSeconds) =>
+      CustomPaint(
+        key: switch (layer) {
+          DataRainLayer.foreground =>
+            CommandCenterAmbientProcessing.foregroundKey,
+          DataRainLayer.midFront => CommandCenterAmbientProcessing.midFrontKey,
+          DataRainLayer.midRear => CommandCenterAmbientProcessing.midRearKey,
+        },
+        painter: _IndustrialDataRainPainter(
+          animation: _controller,
+          color: color,
+          layer: layer,
+          staticFrame: !_motionAllowed,
+          running: _running,
+          completedSeconds: completedSeconds,
+          initialEntry: _motionAllowed,
+        ),
+      );
 }
 
 class _IndustrialDataRainPainter extends CustomPainter {
@@ -485,9 +535,19 @@ class _IndustrialDataRainPainter extends CustomPainter {
       _streamSize = size;
       _streams = _createStreams(size);
     }
+    _DataRainPaintMetricsBuilder? metrics;
+    assert(() {
+      metrics = _DataRainPaintMetricsBuilder(_streams.length);
+      return true;
+    }());
     for (final stream in _streams) {
-      _paintStream(canvas, size, stream);
+      _paintStream(canvas, size, stream, metrics);
     }
+    assert(() {
+      CommandCenterAmbientProcessing._debugPaintMetrics[layer] = metrics!
+          .build();
+      return true;
+    }());
   }
 
   List<_PersistentDataRainStream> _createStreams(Size size) {
@@ -513,6 +573,7 @@ class _IndustrialDataRainPainter extends CustomPainter {
     Canvas canvas,
     Size size,
     _PersistentDataRainStream stream,
+    _DataRainPaintMetricsBuilder? metrics,
   ) {
     final streamIndex = stream.streamIndex;
     final glyphSize = CommandCenterAmbientProcessing.glyphSizeFor(layer);
@@ -535,34 +596,51 @@ class _IndustrialDataRainPainter extends CustomPainter {
     // A fully offscreen stream requires no glyph, pulse, color, or path work.
     if (position.head < -glyphSize ||
         position.head - trail > size.height + glyphSize) {
+      assert(() {
+        metrics?.offscreenStreams++;
+        return true;
+      }());
       return;
     }
     final x = size.width * stream.xFraction;
     for (var glyphPosition = 0; glyphPosition < length; glyphPosition++) {
       final y = position.head - glyphPosition * step;
       if (y < -glyphSize || y > size.height + glyphSize) continue;
+      assert(() {
+        metrics?.visibleCells++;
+        return true;
+      }());
       final pulse = _pulseStrength(streamIndex, glyphPosition, length);
       final baseline = switch (layer) {
         DataRainLayer.foreground => .34,
-        DataRainLayer.midground => .19,
-        DataRainLayer.background => .065,
+        DataRainLayer.midFront => .19,
+        DataRainLayer.midRear => .11,
       };
       final alpha =
           (baseline +
                   pulse *
                       switch (layer) {
                         DataRainLayer.foreground => .53,
-                        DataRainLayer.midground => .35,
-                        DataRainLayer.background => .16,
+                        DataRainLayer.midFront => .35,
+                        DataRainLayer.midRear => .22,
                       })
               .clamp(0.0, 1.0);
       final glyphColor = pulse > .08
           ? Color.lerp(color, Colors.cyanAccent, .48)!
           : color;
       final cellColor = glyphColor.withValues(alpha: alpha);
-      if (layer == DataRainLayer.background) {
-        _paintBackgroundSegment(canvas, center: Offset(x, y), color: cellColor);
+      if (layer == DataRainLayer.midRear) {
+        assert(() {
+          metrics?.segmentDrawAttempts++;
+          return true;
+        }());
+        _paintMidRearSegment(canvas, center: Offset(x, y), color: cellColor);
       } else {
+        assert(() {
+          metrics?.glyphDrawAttempts++;
+          metrics?.canvasTransforms++;
+          return true;
+        }());
         _paintGlyph(
           canvas,
           center: Offset(x, y),
@@ -653,26 +731,19 @@ class _IndustrialDataRainPainter extends CustomPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(size);
-    canvas.drawPath(
-      _IndustrialGlyphAtlas.pathFor(
-        glyph,
-        fragments: layer == DataRainLayer.background,
-      ),
-      _glyphPaint,
-    );
+    canvas.drawPath(_IndustrialGlyphAtlas.pathFor(glyph), _glyphPaint);
     canvas.restore();
   }
 
-  void _paintBackgroundSegment(
+  void _paintMidRearSegment(
     Canvas canvas, {
     required Offset center,
     required Color color,
   }) {
     _segmentPaint
       ..color = color
-      ..strokeWidth =
-          CommandCenterAmbientProcessing.backgroundSegmentStrokeWidth;
-    final halfWidth = CommandCenterAmbientProcessing.backgroundSegmentWidth / 2;
+      ..strokeWidth = CommandCenterAmbientProcessing.midRearSegmentStrokeWidth;
+    final halfWidth = CommandCenterAmbientProcessing.midRearSegmentWidth / 2;
     canvas.drawLine(
       Offset(center.dx - halfWidth, center.dy),
       Offset(center.dx + halfWidth, center.dy),
@@ -779,20 +850,15 @@ class _IndustrialGlyphAtlas {
   static List<int> rowsFor(String glyph) => _patterns[glyph]!;
 
   static final _fullPaths = <String, Path>{};
-  static final _fragmentPaths = <String, Path>{};
 
-  static Path pathFor(String glyph, {required bool fragments}) {
-    final cache = fragments ? _fragmentPaths : _fullPaths;
-    return cache.putIfAbsent(glyph, () {
+  static Path pathFor(String glyph) {
+    return _fullPaths.putIfAbsent(glyph, () {
       final path = Path();
       final rows = rowsFor(glyph);
       const pixel = .15;
       for (var row = 0; row < rows.length; row++) {
         for (var column = 0; column < 5; column++) {
           if ((rows[row] & (1 << (4 - column))) == 0) continue;
-          if (fragments && (row + column + glyph.codeUnitAt(0)) % 3 != 0) {
-            continue;
-          }
           path.addRect(
             Rect.fromCenter(
               center: Offset(
