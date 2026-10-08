@@ -762,7 +762,7 @@ class _HudCompletionControl extends StatelessWidget {
               size: reminderCompletionIconSize,
               color: completed
                   ? accent
-                  : colorScheme.onSurface.withValues(
+                  : colorScheme.primary.withValues(
                       alpha: holographicTimelineNodeOpacity,
                     ),
             ),
@@ -987,6 +987,11 @@ class _ReminderEditorState extends State<_ReminderEditor> {
             ? const []
             : [initial.monthWeek!],
       );
+    } else {
+      final now = DateTime.now();
+      final nextHour = DateTime(now.year, now.month, now.day, now.hour + 1);
+      _date = DateUtils.dateOnly(nextHour);
+      _time = TimeOfDay(hour: nextHour.hour, minute: 0);
     }
     _baseline = _ReminderEditorBaseline(
       title: _title.text,

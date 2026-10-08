@@ -1235,7 +1235,7 @@ class _DashboardHolographicOuterSurface extends StatelessWidget {
   }
 }
 
-class DashboardScheduleCard extends StatelessWidget {
+class DashboardScheduleCard extends StatefulWidget {
   const DashboardScheduleCard({
     super.key,
     required this.information,
@@ -1250,17 +1250,26 @@ class DashboardScheduleCard extends StatelessWidget {
   final ValueChanged<String> onOpenDate;
 
   @override
+  State<DashboardScheduleCard> createState() => _DashboardScheduleCardState();
+}
+
+class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final entries =
-        information?.entries ?? const <DashboardPlanInformationEntry>[];
-    final visibleEntries = entries
-        .take(_visibleRowLimit)
-        .toList(growable: false);
+        widget.information?.entries ?? const <DashboardPlanInformationEntry>[];
+    final visibleEntries =
+        (_expanded
+                ? entries
+                : entries.take(DashboardScheduleCard._visibleRowLimit))
+            .toList(growable: false);
     final hiddenCount = entries.length - visibleEntries.length;
     return _DashboardSchedulePilotSurface(
-      onTap: information == null
+      onTap: widget.information == null
           ? null
-          : () => onOpenDate(information!.operationDate),
+          : () => widget.onOpenDate(widget.information!.operationDate),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1268,7 +1277,7 @@ class DashboardScheduleCard extends StatelessWidget {
           AppSpacing.gapSM,
           Container(
             key: const ValueKey('dashboard-schedule-hud'),
-            child: loading
+            child: widget.loading
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
                     child: Center(child: Text('予定を確認しています…')),
@@ -1288,18 +1297,20 @@ class DashboardScheduleCard extends StatelessWidget {
                           ),
                           child: _DashboardScheduleRow(
                             entry: visibleEntries[index],
-                            onTap: () => onOpenDate(
+                            isFirst: index == 0,
+                            isLast: index == visibleEntries.length - 1,
+                            onTap: () => widget.onOpenDate(
                               visibleEntries[index].record.localDate,
                             ),
                           ),
                         ),
-                      if (hiddenCount > 0)
+                      if (hiddenCount > 0 || _expanded)
                         Center(
                           child: TextButton(
                             key: const ValueKey('dashboard-schedule-more'),
                             onPressed: () =>
-                                onOpenDate(information!.operationDate),
-                            child: Text('他$hiddenCount件'),
+                                setState(() => _expanded = !_expanded),
+                            child: Text(_expanded ? '折りたたむ' : '他$hiddenCount件'),
                           ).actionableFeedback(),
                         ),
                       const SizedBox(height: AppSpacing.xs),
@@ -1668,10 +1679,17 @@ class _DashboardScheduleEmptyState extends StatelessWidget {
 }
 
 class _DashboardScheduleRow extends StatelessWidget {
-  const _DashboardScheduleRow({required this.entry, required this.onTap});
+  const _DashboardScheduleRow({
+    required this.entry,
+    required this.onTap,
+    required this.isFirst,
+    required this.isLast,
+  });
 
   final DashboardPlanInformationEntry entry;
   final VoidCallback onTap;
+  final bool isFirst;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
@@ -1711,18 +1729,19 @@ class _DashboardScheduleRow extends StatelessWidget {
                         key: ValueKey('dashboard-schedule-anchor-${record.id}'),
                         Icons.circle_outlined,
                         size: holographicTimelineNodeIconSize,
-                        color: colorScheme.onSurface.withValues(
+                        color: colorScheme.primary.withValues(
                           alpha: holographicTimelineNodeOpacity,
                         ),
                       ),
-                      Container(
-                        key: ValueKey('dashboard-schedule-rail-${record.id}'),
-                        width: holographicTimelineRailWidth,
-                        height: 38,
-                        color: colorScheme.primary.withValues(
-                          alpha: holographicTimelineRailOpacity,
+                      if (!isLast)
+                        Container(
+                          key: ValueKey('dashboard-schedule-rail-${record.id}'),
+                          width: holographicTimelineRailWidth,
+                          height: 38,
+                          color: colorScheme.primary.withValues(
+                            alpha: holographicTimelineRailOpacity,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(width: 6),

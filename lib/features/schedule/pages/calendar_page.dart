@@ -460,39 +460,44 @@ class _CalendarPageState extends State<CalendarPage> {
                                         textAlign: TextAlign.center,
                                       ),
                                     ),
-                                  for (final record in _selectedSchedules)
+                                  for (final entry
+                                      in _selectedSchedules.indexed)
                                     Dismissible(
                                       key: ValueKey(
-                                        'schedule-entry-${record.id}',
+                                        'schedule-entry-${entry.$2.id}',
                                       ),
                                       direction: DismissDirection.endToStart,
                                       background:
                                           const _TimelineDeleteBackground(),
                                       confirmDismiss: (_) async {
-                                        await _deleteRecord(record);
+                                        await _deleteRecord(entry.$2);
                                         return false;
                                       },
                                       child: _TimelineEntry(
-                                        record: record,
+                                        record: entry.$2,
+                                        isFirst: entry.$1 == 0,
+                                        isLast:
+                                            entry.$1 ==
+                                            _selectedSchedules.length - 1,
                                         onTap: () {
                                           _collapseWeatherForCalendarAction();
                                           if (_projectedReminders.containsKey(
-                                            record.id,
+                                            entry.$2.id,
                                           )) {
                                             Navigator.of(
                                               context,
                                             ).pushNamed(AppRoutes.reminders);
                                             return;
                                           }
-                                          _openEditor(record);
+                                          _openEditor(entry.$2);
                                         },
                                         onReminderToggle:
-                                            record.kind ==
+                                            entry.$2.kind ==
                                                 ScheduleEntryKind.reminder
-                                            ? () => _toggleReminder(record)
+                                            ? () => _toggleReminder(entry.$2)
                                             : null,
                                         onMove: (minutes) =>
-                                            _moveTimed(record, minutes),
+                                            _moveTimed(entry.$2, minutes),
                                       ),
                                     ),
                                   AppSpacing.gapMD,
@@ -4707,11 +4712,15 @@ class _TimelineEntry extends StatefulWidget {
     required this.record,
     required this.onTap,
     required this.onMove,
+    required this.isFirst,
+    required this.isLast,
     this.onReminderToggle,
   });
   final ScheduleRecord record;
   final VoidCallback onTap;
   final ValueChanged<int> onMove;
+  final bool isFirst;
+  final bool isLast;
   final VoidCallback? onReminderToggle;
   @override
   State<_TimelineEntry> createState() => _TimelineEntryState();
@@ -4783,21 +4792,22 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                           : Icons.circle_outlined,
                       color: record.kind == ScheduleEntryKind.reminder
                           ? null
-                          : colorScheme.onSurface.withValues(
+                          : colorScheme.primary.withValues(
                               alpha: holographicTimelineNodeOpacity,
                             ),
                       size: record.kind == ScheduleEntryKind.reminder
                           ? 16
                           : calendarTimelineScheduleAnchorSize,
                     ),
-                    Container(
-                      key: ValueKey('calendar-timeline-rail-${record.id}'),
-                      width: holographicTimelineRailWidth,
-                      height: 38,
-                      color: colorScheme.primary.withValues(
-                        alpha: holographicTimelineRailOpacity,
+                    if (!widget.isLast)
+                      Container(
+                        key: ValueKey('calendar-timeline-rail-${record.id}'),
+                        width: holographicTimelineRailWidth,
+                        height: 38,
+                        color: colorScheme.primary.withValues(
+                          alpha: holographicTimelineRailOpacity,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -5432,6 +5442,13 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   void initState() {
     super.initState();
     _recurrenceEnd = DateTime.tryParse(widget.record?.recurrenceEnd ?? '');
+    if (widget.record == null) {
+      final now = DateTime.now();
+      final nextHour = DateTime(now.year, now.month, now.day, now.hour + 1);
+      _start.text = clockFromTimeOfDay(
+        TimeOfDay(hour: nextHour.hour, minute: 0),
+      );
+    }
   }
 
   @override
