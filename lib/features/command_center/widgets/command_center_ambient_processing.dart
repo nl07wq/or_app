@@ -203,8 +203,13 @@ class CommandCenterAmbientProcessing extends StatefulWidget {
   static double get midRearSegmentWidth =>
       glyphSizeFor(DataRainLayer.midFront) * .78;
 
-  static double get midRearSegmentStrokeWidth =>
-      glyphDotSizeFor(DataRainLayer.midFront) * .78;
+  /// Filled MID-REAR cells deliberately occupy only part of their pitch.
+  /// This is substantially thicker than V2.10's .365px line while retaining
+  /// a visible inter-cell gap at every supported viewport size.
+  static double get midRearSegmentHeight => midRearSegmentWidth * .82;
+
+  static double get midRearInterCellGap =>
+      glyphVerticalPitchFor(DataRainLayer.midRear) - midRearSegmentHeight;
 
   /// Every moving session begins with the lead glyph above the viewport. The
   /// deterministic delay spreads physical top-down arrivals without changing
@@ -815,11 +820,13 @@ class _IndustrialDataRainPainter extends CustomPainter {
   }) {
     _segmentPaint
       ..color = color
-      ..strokeWidth = CommandCenterAmbientProcessing.midRearSegmentStrokeWidth;
-    final halfWidth = CommandCenterAmbientProcessing.midRearSegmentWidth / 2;
-    canvas.drawLine(
-      Offset(center.dx - halfWidth, center.dy),
-      Offset(center.dx + halfWidth, center.dy),
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: center,
+        width: CommandCenterAmbientProcessing.midRearSegmentWidth,
+        height: CommandCenterAmbientProcessing.midRearSegmentHeight,
+      ),
       _segmentPaint,
     );
   }

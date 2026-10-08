@@ -78,7 +78,7 @@ void main() {
   test(
     'scales all three density levels responsively without surplus streams',
     () {
-    final expected = {
+      final expected = {
         320.0: {
           CommandCenterMidRearDensity.low: (10, 62),
           CommandCenterMidRearDensity.medium: (17, 69),
@@ -246,52 +246,62 @@ void main() {
     expect(directions, contains(DataRainPulseDirection.downward));
   });
 
-  test(
-    'uses recognizable MID-REAR segments derived from MID-FRONT geometry',
-    () {
-      expect(
-        CommandCenterAmbientProcessing.midRearSegmentWidth,
-        closeTo(
-          CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midFront) *
-              .78,
-          .000001,
-        ),
-      );
-      expect(
-        CommandCenterAmbientProcessing.midRearSegmentStrokeWidth,
-        closeTo(
-          CommandCenterAmbientProcessing.glyphDotSizeFor(
-                DataRainLayer.midFront,
-              ) *
-              .78,
-          .000001,
-        ),
-      );
-      expect(
+  test('uses thick rectangular MID-REAR blocks with clear inter-cell gaps', () {
+    expect(
+      CommandCenterAmbientProcessing.midRearSegmentWidth,
+      closeTo(
+        CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midFront) *
+            .78,
+        .000001,
+      ),
+    );
+    final previousThinLine =
+        CommandCenterAmbientProcessing.glyphDotSizeFor(DataRainLayer.midFront) *
+        .78;
+    expect(
+      CommandCenterAmbientProcessing.midRearSegmentHeight,
+      closeTo(
+        CommandCenterAmbientProcessing.midRearSegmentWidth * .82,
+        .000001,
+      ),
+    );
+    expect(
+      CommandCenterAmbientProcessing.midRearSegmentHeight,
+      greaterThan(previousThinLine * 4),
+    );
+    expect(CommandCenterAmbientProcessing.midRearInterCellGap, greaterThan(1));
+    expect(
+      CommandCenterAmbientProcessing.midRearInterCellGap,
+      lessThan(
         CommandCenterAmbientProcessing.glyphVerticalPitchFor(
           DataRainLayer.midRear,
         ),
-        closeTo(
-          CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midRear) *
-              1.72,
-          .000001,
-        ),
+      ),
+    );
+    expect(
+      CommandCenterAmbientProcessing.glyphVerticalPitchFor(
+        DataRainLayer.midRear,
+      ),
+      closeTo(
+        CommandCenterAmbientProcessing.glyphSizeFor(DataRainLayer.midRear) *
+            1.72,
+        .000001,
+      ),
+    );
+    final lengths = <DataRainStreamLength, int>{
+      for (final kind in DataRainStreamLength.values) kind: 0,
+    };
+    for (var index = 0; index < 20; index++) {
+      final length = CommandCenterAmbientProcessing.streamLengthFor(
+        layer: DataRainLayer.midRear,
+        streamIndex: index,
       );
-      final lengths = <DataRainStreamLength, int>{
-        for (final kind in DataRainStreamLength.values) kind: 0,
-      };
-      for (var index = 0; index < 20; index++) {
-        final length = CommandCenterAmbientProcessing.streamLengthFor(
-          layer: DataRainLayer.midRear,
-          streamIndex: index,
-        );
-        lengths[length] = lengths[length]! + 1;
-      }
-      expect(lengths[DataRainStreamLength.long], 15);
-      expect(lengths[DataRainStreamLength.medium], 4);
-      expect(lengths[DataRainStreamLength.short], 1);
-    },
-  );
+      lengths[length] = lengths[length]! + 1;
+    }
+    expect(lengths[DataRainStreamLength.long], 15);
+    expect(lengths[DataRainStreamLength.medium], 4);
+    expect(lengths[DataRainStreamLength.short], 1);
+  });
 
   test(
     'uses the V2.2 long-medium-short stream distribution and dimensions',
