@@ -142,6 +142,7 @@ void main() {
     expect(settings.rippleEnabled, isTrue);
     expect(settings.ambientCircuitEnabled, isTrue);
     expect(settings.ambientProcessingEnabled, isTrue);
+    expect(settings.ambientKineticFieldEnabled, isTrue);
     expect(settings.ambientWildlifeEnabled, isTrue);
   });
 
@@ -161,6 +162,7 @@ void main() {
         'rippleEnabled': false,
         'ambientCircuitEnabled': false,
         'ambientProcessingEnabled': false,
+        'ambientKineticFieldEnabled': false,
         'ambientWildlifeEnabled': false,
         'reducedMotion': 'on',
       });
@@ -178,6 +180,7 @@ void main() {
       expect(restored.value.rippleEnabled, isFalse);
       expect(restored.value.ambientCircuitEnabled, isFalse);
       expect(restored.value.ambientProcessingEnabled, isFalse);
+      expect(restored.value.ambientKineticFieldEnabled, isFalse);
       expect(restored.value.ambientWildlifeEnabled, isFalse);
       expect(restored.value.reducedMotion, ReducedMotionPreference.on);
     },

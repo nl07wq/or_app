@@ -153,6 +153,17 @@ class DeviceSettingsPage extends StatelessWidget {
                 ),
                 const Divider(),
                 SwitchListTile.adaptive(
+                  key: const ValueKey('device-settings-ambient-kinetic-field'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('AMBIENT KINETIC FIELD'),
+                  subtitle: const Text('ACTIVITYの運動軌跡背景を表示します。'),
+                  value: settings.ambientKineticFieldEnabled,
+                  onChanged: (value) => _controller.update(
+                    settings.copyWith(ambientKineticFieldEnabled: value),
+                  ),
+                ).inputFeedback(),
+                const Divider(),
+                SwitchListTile.adaptive(
                   key: const ValueKey('device-settings-ambient-wildlife'),
                   contentPadding: EdgeInsets.zero,
                   title: const Text('AMBIENT WILDLIFE'),

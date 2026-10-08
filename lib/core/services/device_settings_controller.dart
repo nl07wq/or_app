@@ -29,6 +29,7 @@ class DeviceSettings {
     this.rippleEnabled = true,
     this.ambientCircuitEnabled = true,
     this.ambientProcessingEnabled = true,
+    this.ambientKineticFieldEnabled = true,
     this.ambientWildlifeEnabled = true,
     this.reducedMotion = ReducedMotionPreference.system,
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
@@ -46,6 +47,7 @@ class DeviceSettings {
   final bool rippleEnabled;
   final bool ambientCircuitEnabled;
   final bool ambientProcessingEnabled;
+  final bool ambientKineticFieldEnabled;
   final bool ambientWildlifeEnabled;
   final ReducedMotionPreference reducedMotion;
   final NotificationPrivacyMode notificationPrivacyMode;
@@ -80,6 +82,7 @@ class DeviceSettings {
     bool? rippleEnabled,
     bool? ambientCircuitEnabled,
     bool? ambientProcessingEnabled,
+    bool? ambientKineticFieldEnabled,
     bool? ambientWildlifeEnabled,
     ReducedMotionPreference? reducedMotion,
     NotificationPrivacyMode? notificationPrivacyMode,
@@ -95,6 +98,8 @@ class DeviceSettings {
     ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
     ambientProcessingEnabled:
         ambientProcessingEnabled ?? this.ambientProcessingEnabled,
+    ambientKineticFieldEnabled:
+        ambientKineticFieldEnabled ?? this.ambientKineticFieldEnabled,
     ambientWildlifeEnabled:
         ambientWildlifeEnabled ?? this.ambientWildlifeEnabled,
     reducedMotion: reducedMotion ?? this.reducedMotion,
@@ -113,6 +118,7 @@ class DeviceSettings {
     rippleEnabled: rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled,
     ambientProcessingEnabled: ambientProcessingEnabled,
+    ambientKineticFieldEnabled: ambientKineticFieldEnabled,
     ambientWildlifeEnabled: ambientWildlifeEnabled,
     reducedMotion: reducedMotion,
     notificationPrivacyMode: notificationPrivacyMode,
@@ -129,6 +135,7 @@ class DeviceSettings {
     'rippleEnabled': rippleEnabled,
     'ambientCircuitEnabled': ambientCircuitEnabled,
     'ambientProcessingEnabled': ambientProcessingEnabled,
+    'ambientKineticFieldEnabled': ambientKineticFieldEnabled,
     'ambientWildlifeEnabled': ambientWildlifeEnabled,
     'reducedMotion': reducedMotion.name,
     'notificationPrivacyMode': notificationPrivacyMode.name,
@@ -174,6 +181,7 @@ class DeviceSettings {
       rippleEnabled: flag('rippleEnabled', true),
       ambientCircuitEnabled: flag('ambientCircuitEnabled', true),
       ambientProcessingEnabled: flag('ambientProcessingEnabled', true),
+      ambientKineticFieldEnabled: flag('ambientKineticFieldEnabled', true),
       ambientWildlifeEnabled: flag('ambientWildlifeEnabled', true),
       reducedMotion: reducedMotion ?? ReducedMotionPreference.system,
       notificationPrivacyMode:
