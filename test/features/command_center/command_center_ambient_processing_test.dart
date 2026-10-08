@@ -4,10 +4,10 @@ import 'package:or_app/features/command_center/widgets/command_center_ambient_pr
 
 void main() {
   test('exposes high-density independent data rain speed models', () {
-    expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 26);
-    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 41);
-    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 38);
-    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 105);
+    expect(CommandCenterAmbientProcessing.foregroundColumnsAt390, 30);
+    expect(CommandCenterAmbientProcessing.midgroundColumnsAt390, 47);
+    expect(CommandCenterAmbientProcessing.backgroundColumnsAt390, 44);
+    expect(CommandCenterAmbientProcessing.totalColumnsAt390, 121);
     final speeds = CommandCenterAmbientProcessing.speeds;
     expect(speeds[DataRainSpeed.slow], lessThan(speeds[DataRainSpeed.normal]!));
     expect(speeds[DataRainSpeed.normal], lessThan(speeds[DataRainSpeed.fast]!));
@@ -15,7 +15,7 @@ void main() {
   });
 
   test(
-    'allocates only 105 real streams across left center and right at 390',
+    'allocates only 121 real streams across left center and right at 390',
     () {
       final placements = [
         for (final layer in DataRainLayer.values)
@@ -26,17 +26,28 @@ void main() {
       ];
       int count(DataRainHorizontalBand band) =>
           placements.where((placement) => placement.band == band).length;
-      expect(placements.length, 105);
-      expect(count(DataRainHorizontalBand.left), 46);
-      expect(count(DataRainHorizontalBand.center), 13);
-      expect(count(DataRainHorizontalBand.right), 46);
+      expect(placements.length, 121);
+      expect(count(DataRainHorizontalBand.left), 52);
+      expect(count(DataRainHorizontalBand.center), 17);
+      expect(count(DataRainHorizontalBand.right), 52);
+      for (final layer in DataRainLayer.values) {
+        final layerCount = CommandCenterAmbientProcessing.streamPlacementsFor(
+          layer: layer,
+          width: 390,
+        ).length;
+        expect(layerCount, switch (layer) {
+          DataRainLayer.foreground => 30,
+          DataRainLayer.midground => 47,
+          DataRainLayer.background => 44,
+        });
+      }
       expect(
         CommandCenterAmbientProcessing.totalColumnsFor(320),
-        lessThan(105),
+        lessThan(121),
       );
       expect(
         CommandCenterAmbientProcessing.totalColumnsFor(900),
-        greaterThan(105),
+        greaterThan(121),
       );
     },
   );
