@@ -1336,6 +1336,9 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
+                            key: const ValueKey(
+                              'dashboard-schedule-continuous-rail',
+                            ),
                             painter: _DashboardScheduleTimelineRailPainter(
                               color: Theme.of(context).colorScheme.primary,
                               points: _timelinePoints,
@@ -1356,8 +1359,6 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                               ),
                               child: _DashboardScheduleRow(
                                 entry: visibleEntries[index],
-                                isFirst: index == 0,
-                                isLast: index == visibleEntries.length - 1,
                                 markerKey: _markerKeys.putIfAbsent(
                                   visibleEntries[index].record.id,
                                   GlobalKey.new,
@@ -1771,15 +1772,11 @@ class _DashboardScheduleRow extends StatelessWidget {
   const _DashboardScheduleRow({
     required this.entry,
     required this.onTap,
-    required this.isFirst,
-    required this.isLast,
     required this.markerKey,
   });
 
   final DashboardPlanInformationEntry entry;
   final VoidCallback onTap;
-  final bool isFirst;
-  final bool isLast;
   final Key markerKey;
 
   @override
@@ -1816,12 +1813,17 @@ class _DashboardScheduleRow extends StatelessWidget {
                   ),
                   Column(
                     children: [
-                      Icon(
+                      KeyedSubtree(
                         key: markerKey,
-                        Icons.circle_outlined,
-                        size: holographicTimelineNodeIconSize,
-                        color: colorScheme.primary.withValues(
-                          alpha: holographicTimelineNodeOpacity,
+                        child: Icon(
+                          key: ValueKey(
+                            'dashboard-schedule-anchor-${record.id}',
+                          ),
+                          Icons.circle_outlined,
+                          size: holographicTimelineNodeIconSize,
+                          color: colorScheme.primary.withValues(
+                            alpha: holographicTimelineNodeOpacity,
+                          ),
                         ),
                       ),
                     ],

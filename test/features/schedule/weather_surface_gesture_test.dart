@@ -477,8 +477,9 @@ void main() {
     );
     expect(anchor.size, calendarTimelineScheduleAnchorSize);
     expect(anchor.icon, Icons.circle_outlined);
+    await tester.pump();
     expect(
-      find.byKey(const ValueKey('calendar-timeline-rail-open-timeline-entry')),
+      find.byKey(const ValueKey('calendar-daily-timeline-rail')),
       findsOneWidget,
     );
     final add = find.byKey(const ValueKey('calendar-timeline-add-control'));

@@ -258,7 +258,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
-  testWidgets('Reminder occurrences form a static single-ring circuit rail', (
+  testWidgets('Reminder occurrences use one measured daily timeline rail', (
     tester,
   ) async {
     final today = _dateKey(DateTime.now());
@@ -276,7 +276,7 @@ void main() {
     expect(reminderCompletionVisibleDiameter, 14);
     expect(reminderCompletionIconSize, 16);
     expect(reminderCompletionTouchTarget, 48);
-    expect(reminderCircuitRailIsStatic, isTrue);
+    expect(reminderCircuitRailIsStatic, isFalse);
     expect(reminderCircuitRailWidth, 2);
     expect(find.byIcon(Icons.circle_outlined), findsNWidgets(2));
     expect(
@@ -291,17 +291,22 @@ void main() {
       tester.getSize(find.byKey(ValueKey('reminder-toggle-$firstId'))),
       const Size(48, 48),
     );
+    await tester.pump();
+    expect(
+      find.byKey(ValueKey('reminder-daily-timeline-rail-$today')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(ValueKey('reminder-circuit-rail-top-$firstId')),
       findsNothing,
     );
     expect(
       find.byKey(ValueKey('reminder-circuit-rail-bottom-$firstId')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(ValueKey('reminder-circuit-rail-top-$lastId')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(ValueKey('reminder-circuit-rail-bottom-$lastId')),

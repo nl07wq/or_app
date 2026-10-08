@@ -26,7 +26,9 @@ const reminderHudCompletionUsesOuterPolygon = false;
 const reminderCompletionVisibleDiameter = 14.0;
 const reminderCompletionIconSize = holographicTimelineNodeIconSize;
 const reminderCompletionTouchTarget = 48.0;
-const reminderCircuitRailIsStatic = true;
+// Timeline geometry is measured from the rendered marker positions by the
+// owning date group; it is deliberately not a per-row static fragment.
+const reminderCircuitRailIsStatic = false;
 const reminderCircuitRailWidth = holographicTimelineRailWidth;
 
 class RemindersPage extends StatefulWidget {
@@ -512,7 +514,7 @@ class _ReminderHudTabs extends StatelessWidget {
   );
 }
 
-class _OccurrenceList extends StatelessWidget {
+class _OccurrenceList extends StatefulWidget {
   const _OccurrenceList({
     required this.values,
     required this.empty,
@@ -525,87 +527,204 @@ class _OccurrenceList extends StatelessWidget {
   final _OccurrenceAction onToggle;
   final _DefinitionAction onEdit;
   final _OccurrenceAction onDelete;
+
   @override
-  Widget build(BuildContext context) => ListView.separated(
-    key: const ValueKey('reminder-occurrence-hud-list'),
-    padding: const EdgeInsets.fromLTRB(12, 14, 12, 96),
-    itemCount: values.isEmpty ? 1 : values.length,
-    itemBuilder: (context, index) {
-      if (values.isEmpty) {
-        return Padding(
-          padding: const EdgeInsets.only(top: 32),
-          child: Center(child: Text(empty)),
-        );
+  State<_OccurrenceList> createState() => _OccurrenceListState();
+}
+
+class _OccurrenceListState extends State<_OccurrenceList> {
+  List<List<ReminderOccurrence>> get _groups {
+    final groups = <List<ReminderOccurrence>>[];
+    for (final value in widget.values) {
+      if (groups.isEmpty || groups.last.first.localDate != value.localDate) {
+        groups.add(<ReminderOccurrence>[value]);
+      } else {
+        groups.last.add(value);
       }
-      final value = values[index];
-      return Dismissible(
-        key: ValueKey('reminder-${value.id}'),
-        direction: DismissDirection.endToStart,
-        confirmDismiss: (_) async {
-          await onDelete(value);
-          return false;
-        },
-        background: Container(
-          alignment: Alignment.centerRight,
-          color: Theme.of(context).colorScheme.error,
-          padding: const EdgeInsets.only(right: 20),
-          child: const Icon(Icons.delete_outline),
-        ),
-        child: _ReminderOccurrenceRow(
-          value: value,
-          isFirst: index == 0,
-          isLast: index == values.length - 1,
-          onToggle: () => onToggle(value),
-          onEdit: () => onEdit(value.definition),
-        ),
-      );
-    },
-    separatorBuilder: (_, _) => SizedBox(
-      height: 1,
-      child: Stack(
+    }
+    return groups;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.values.isEmpty) {
+      return ListView(
+        key: const ValueKey('reminder-occurrence-hud-list'),
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 96),
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              margin: EdgeInsets.only(
-                left:
-                    (reminderCompletionTouchTarget - reminderCircuitRailWidth) /
-                    2,
-              ),
-              width: reminderCircuitRailWidth,
-              height: 1,
-              color: Theme.of(context).colorScheme.primary.withValues(
-                alpha: holographicTimelineRailOpacity,
-              ),
-            ),
-          ),
-          Positioned(
-            left: 52,
-            right: 0,
-            child: Container(
-              height: 1,
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: .10),
-            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 32),
+            child: Center(child: Text(widget.empty)),
           ),
         ],
-      ),
-    ),
+      );
+    }
+    return ListView(
+      key: const ValueKey('reminder-occurrence-hud-list'),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 96),
+      children: [
+        for (final group in _groups)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _ReminderTimelineGroup(
+              key: ValueKey(group.first.localDate),
+              values: group,
+              onToggle: widget.onToggle,
+              onEdit: widget.onEdit,
+              onDelete: widget.onDelete,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ReminderTimelineGroup extends StatefulWidget {
+  const _ReminderTimelineGroup({
+    super.key,
+    required this.values,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<ReminderOccurrence> values;
+  final _OccurrenceAction onToggle;
+  final _DefinitionAction onEdit;
+  final _OccurrenceAction onDelete;
+
+  @override
+  State<_ReminderTimelineGroup> createState() => _ReminderTimelineGroupState();
+}
+
+class _ReminderTimelineGroupState extends State<_ReminderTimelineGroup> {
+  final _timelineKey = GlobalKey();
+  final _markerKeys = <String, GlobalKey>{};
+  List<Offset> _points = const [];
+
+  void _measure() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final parent =
+          _timelineKey.currentContext?.findRenderObject() as RenderBox?;
+      if (parent == null) return;
+      final points = <Offset>[];
+      for (final value in widget.values) {
+        final box =
+            _markerKeys[value.id]?.currentContext?.findRenderObject()
+                as RenderBox?;
+        if (box != null) {
+          points.add(
+            box.localToGlobal(box.size.center(Offset.zero), ancestor: parent),
+          );
+        }
+      }
+      if (points.length != _points.length ||
+          points.indexed.any(
+            (point) => (point.$2 - _points[point.$1]).distance > .1,
+          )) {
+        setState(() => _points = points);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _measure();
+    return Stack(
+      key: _timelineKey,
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              key: ValueKey(
+                'reminder-daily-timeline-rail-${widget.values.first.localDate}',
+              ),
+              painter: _ReminderTimelineRailPainter(
+                color: Theme.of(context).colorScheme.primary,
+                points: _points,
+              ),
+            ),
+          ),
+        ),
+        Column(
+          children: [
+            for (var index = 0; index < widget.values.length; index++) ...[
+              Dismissible(
+                key: ValueKey('reminder-${widget.values[index].id}'),
+                direction: DismissDirection.endToStart,
+                confirmDismiss: (_) async {
+                  await widget.onDelete(widget.values[index]);
+                  return false;
+                },
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  color: Theme.of(context).colorScheme.error,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete_outline),
+                ),
+                child: _ReminderOccurrenceRow(
+                  value: widget.values[index],
+                  markerKey: _markerKeys.putIfAbsent(
+                    widget.values[index].id,
+                    GlobalKey.new,
+                  ),
+                  onToggle: () => widget.onToggle(widget.values[index]),
+                  onEdit: () => widget.onEdit(widget.values[index].definition),
+                ),
+              ),
+              if (index < widget.values.length - 1) const _ReminderRowDivider(),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ReminderTimelineRailPainter extends CustomPainter {
+  const _ReminderTimelineRailPainter({
+    required this.color,
+    required this.points,
+  });
+
+  final Color color;
+  final List<Offset> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+    final paint = Paint()
+      ..color = color.withValues(alpha: holographicTimelineRailOpacity)
+      ..strokeWidth = reminderCircuitRailWidth;
+    canvas.drawLine(points.first, points.last, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReminderTimelineRailPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.points != points;
+}
+
+class _ReminderRowDivider extends StatelessWidget {
+  const _ReminderRowDivider();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(left: 52),
+    height: 1,
+    color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
   );
 }
 
 class _ReminderOccurrenceRow extends StatelessWidget {
   const _ReminderOccurrenceRow({
     required this.value,
-    required this.isFirst,
-    required this.isLast,
+    required this.markerKey,
     required this.onToggle,
     required this.onEdit,
   });
   final ReminderOccurrence value;
-  final bool isFirst;
-  final bool isLast;
+  final Key markerKey;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
 
@@ -626,8 +745,7 @@ class _ReminderOccurrenceRow extends StatelessWidget {
             children: [
               _ReminderCircuitNode(
                 id: value.id,
-                isFirst: isFirst,
-                isLast: isLast,
+                markerKey: markerKey,
                 child: _HudCompletionControl(
                   key: ValueKey('reminder-toggle-${value.id}'),
                   completed: completed,
@@ -673,60 +791,30 @@ class _ReminderOccurrenceRow extends StatelessWidget {
 class _ReminderCircuitNode extends StatelessWidget {
   const _ReminderCircuitNode({
     required this.id,
-    required this.isFirst,
-    required this.isLast,
+    required this.markerKey,
     required this.child,
   });
 
   final String id;
-  final bool isFirst;
-  final bool isLast;
+  final Key markerKey;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final railColor = Theme.of(
-      context,
-    ).colorScheme.primary.withValues(alpha: holographicTimelineRailOpacity);
-    const nodeTop = 12.0;
-    final ringRadius = reminderCompletionIconSize / 2;
-    final nodeCenter = nodeTop + reminderCompletionTouchTarget / 2;
-    return SizedBox(
-      key: ValueKey('reminder-circuit-node-$id'),
-      width: reminderCompletionTouchTarget,
-      child: Stack(
-        children: [
-          if (!isFirst)
-            Positioned(
-              top: 0,
-              left:
-                  (reminderCompletionTouchTarget - reminderCircuitRailWidth) /
-                  2,
-              width: reminderCircuitRailWidth,
-              height: nodeCenter - ringRadius,
-              child: Container(
-                key: ValueKey('reminder-circuit-rail-top-$id'),
-                color: railColor,
-              ),
-            ),
-          if (!isLast)
-            Positioned(
-              top: nodeCenter + ringRadius,
-              bottom: 0,
-              left:
-                  (reminderCompletionTouchTarget - reminderCircuitRailWidth) /
-                  2,
-              width: reminderCircuitRailWidth,
-              child: Container(
-                key: ValueKey('reminder-circuit-rail-bottom-$id'),
-                color: railColor,
-              ),
-            ),
-          Positioned(top: nodeTop, left: 0, child: child),
-        ],
+  Widget build(BuildContext context) => SizedBox(
+    key: ValueKey('reminder-circuit-node-$id'),
+    width: reminderCompletionTouchTarget,
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: SizedBox(
+          width: reminderCompletionTouchTarget,
+          height: reminderCompletionTouchTarget,
+          child: KeyedSubtree(key: markerKey, child: child),
+        ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _HudCompletionControl extends StatelessWidget {

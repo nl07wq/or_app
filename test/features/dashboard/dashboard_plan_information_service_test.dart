@@ -200,6 +200,7 @@ void main() {
           ),
         ),
       );
+      await tester.pump();
 
       expect(find.text('morning'), findsOneWidget);
       expect(find.text('evening'), findsOneWidget);
@@ -253,13 +254,17 @@ void main() {
         );
         expect(
           find.byKey(ValueKey('dashboard-schedule-rail-$id')),
-          findsOneWidget,
+          findsNothing,
         );
         expect(
           find.byKey(ValueKey('dashboard-schedule-anchor-connector-$id')),
           findsNothing,
         );
       }
+      expect(
+        find.byKey(const ValueKey('dashboard-schedule-continuous-rail')),
+        findsOneWidget,
+      );
       expect(
         tester.getCenter(find.text('morning')).dx,
         greaterThan(
@@ -320,6 +325,56 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('dashboard-schedule')));
     expect(openedDate, '2026-10-04');
+  });
+
+  testWidgets('renders the production continuous rail and overflow tail', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final information = DashboardPlanInformation(
+      operationDate: '2026-10-01',
+      entries: [
+        _entry(
+          'morning',
+          '2026-10-01',
+          DashboardPlanInformationGroup.todaySchedule,
+        ),
+        _entry(
+          'noon',
+          '2026-10-01',
+          DashboardPlanInformationGroup.todaySchedule,
+        ),
+        _entry(
+          'evening',
+          '2026-10-01',
+          DashboardPlanInformationGroup.todaySchedule,
+        ),
+        _entry(
+          'late',
+          '2026-10-01',
+          DashboardPlanInformationGroup.todaySchedule,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DashboardScheduleCard(
+            information: information,
+            loading: false,
+            onOpenDate: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/dashboard_schedule_continuous_timeline.png'),
+    );
   });
 }
 
