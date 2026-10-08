@@ -48,14 +48,16 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
-  test(
-    'uses a bounded dense multicolor disc instead of sparse orbit strokes',
-    () {
-      expect(ActivityAmbientKineticField.denseDiscStrokeCount, 240);
-      expect(ActivityAmbientKineticField.denseDiscStrokeCount, greaterThan(84));
-      expect(ActivityAmbientKineticField.denseDiscColorGroupCount, 6);
-    },
-  );
+  test('uses a bounded six-group luminous filament swarm', () {
+    expect(ActivityAmbientKineticField.luminousFilamentCount, 168);
+    expect(ActivityAmbientKineticField.luminousFilamentCount, greaterThan(84));
+    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 6);
+    expect(ActivityAmbientKineticField.luminousFilamentSegments, 3);
+    expect(
+      ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
+      504,
+    );
+  });
 
   test('uses radius-aware viewport bounds for the complete scope', () {
     const painterSize = Size(390, 788);
@@ -136,13 +138,15 @@ void main() {
     );
   });
 
-  testWidgets('renders a dense short-stroke disc at the initial motion phase', (
+  testWidgets('renders a luminous curved-filament swarm at the initial phase', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
     await expectLater(
       find.byKey(ActivityAmbientKineticField.fieldKey),
-      matchesGoldenFile('goldens/activity_kinetic_measurement_dense_disc.png'),
+      matchesGoldenFile(
+        'goldens/activity_kinetic_measurement_filament_swarm.png',
+      ),
     );
   });
 
@@ -168,7 +172,7 @@ void main() {
     );
   });
 
-  testWidgets('travels with the dense disc into the lower viewport', (
+  testWidgets('travels with the filament swarm into the lower viewport', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);

@@ -9,8 +9,14 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const fieldKey = ValueKey('activity-ambient-kinetic-field');
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
-  static const denseDiscStrokeCount = 240;
-  static const denseDiscColorGroupCount = 6;
+
+  /// A bounded, reusable set of curved strands.  Each is painted as a short
+  /// four-point filament, rather than as the V4.2 uniform diagonal dash.
+  static const luminousFilamentCount = 168;
+  static const luminousFilamentGroupCount = 6;
+  static const luminousFilamentSegments = 3;
+  static const luminousFilamentDrawOperationsPerFrame =
+      luminousFilamentCount * luminousFilamentSegments;
   static const scopeTopInset = 16.0;
   static const scopeBottomInset = 24.0;
   final bool enabled;
@@ -226,29 +232,34 @@ class _MovingScopePainter extends CustomPainter {
   final Animation<double> animation;
   final Color color;
   final bool staticFrame;
-  final Paint _discPaint = Paint()
+  final Paint _filamentPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once: stroke placement is stable across frames while flow
-  /// parameters are evaluated from the shared animation clock.
-  static final List<_DiscStrokeGeometry> _discStrokes = List.unmodifiable(
-    List<_DiscStrokeGeometry>.generate(
-      ActivityAmbientKineticField.denseDiscStrokeCount,
+  /// Generated once: coherent spiral-band placement is stable across frames
+  /// while flow is evaluated from the shared animation clock.  The six groups
+  /// deliberately overlap, making one luminous mass rather than debris.
+  static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
+    List<_LuminousFilamentGeometry>.generate(
+      ActivityAmbientKineticField.luminousFilamentCount,
       (index) {
-        final normalized =
-            (index + .5) / ActivityAmbientKineticField.denseDiscStrokeCount;
-        return _DiscStrokeGeometry(
-          baseAngle: index * 2.399963229728653,
-          baseRadius: .04 + math.sqrt(normalized) * .80,
-          phase: index * .618033988749895,
-          angularVelocity: .16 + (index % 7) * .045,
-          radialAmplitude: .008 + (index % 5) * .004,
-          orientationOffset: ((index % 9) - 4) * .075,
-          lengthFactor: .034 + (index % 6) * .006,
-          colorGroup:
-              index % ActivityAmbientKineticField.denseDiscColorGroupCount,
-          reverse: index.isOdd,
+        const groups = ActivityAmbientKineticField.luminousFilamentGroupCount;
+        final group = index % groups;
+        final groupIndex = index ~/ groups;
+        final groupLength =
+            ActivityAmbientKineticField.luminousFilamentCount ~/ groups;
+        final bandProgress = (groupIndex + .5) / groupLength;
+        return _LuminousFilamentGeometry(
+          group: group,
+          baseAngle:
+              group * math.pi * 2 / groups + bandProgress * math.pi * 2.34,
+          baseRadius: .075 + math.sqrt(bandProgress) * .73,
+          phase: index * .618033988749895 + group * .41,
+          angularVelocity: .13 + group * .034 + (groupIndex % 4) * .018,
+          radialAmplitude: .018 + (groupIndex % 5) * .008,
+          curvature: .022 + (groupIndex % 6) * .009,
+          lengthFactor: .095 + (groupIndex % 7) * .014,
+          reverse: group.isOdd,
         );
       },
       growable: false,
@@ -321,7 +332,7 @@ class _MovingScopePainter extends CustomPainter {
       ..strokeWidth = 1.35
       ..color = Colors.cyanAccent.withValues(alpha: .42);
     // The outer instrument remains cyan; its arcs and ticks are deliberately
-    // distinct from the independent short-stroke flow inside it.
+    // distinct from the multicolor filament swarm inside it.
     for (final (index, factor) in [.66, 1.0].indexed) {
       canvas.drawArc(
         Rect.fromCircle(center: c, radius: r * factor),
@@ -353,40 +364,74 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xff56e7a5),
       Color(0xffffbb62),
     ];
-    // A bounded sunflower distribution fills the whole interior, including
-    // the center. Strokes remain discrete diagonal segments; no circular
-    // outlines are produced by neighboring elements.
-    for (final stroke in _discStrokes) {
-      final direction = stroke.reverse ? -1.0 : 1.0;
+    // Six overlapping spiral bands fill the interior, including the center.
+    // Each filament is an independently moving, short curved polyline. They
+    // are never joined into circular outlines or treated as a flat image.
+    for (final filament in _filaments) {
+      final direction = filament.reverse ? -1.0 : 1.0;
       final angle =
-          stroke.baseAngle +
-          _t * 6.283185307179586 * direction * stroke.angularVelocity +
-          math.sin(_t * 6.283185307179586 * .73 + stroke.phase) * .035;
+          filament.baseAngle +
+          _t * 6.283185307179586 * direction * filament.angularVelocity +
+          math.sin(_t * 6.283185307179586 * .73 + filament.phase) * .075;
       final radialFactor =
-          stroke.baseRadius +
+          filament.baseRadius +
           math.sin(
-                _t * 6.283185307179586 * (1.05 + stroke.angularVelocity) +
-                    stroke.phase,
+                _t * 6.283185307179586 * (1.02 + filament.angularVelocity) +
+                    filament.phase,
               ) *
-              stroke.radialAmplitude;
+              filament.radialAmplitude;
       final position =
           center + Offset.fromDirection(angle, radius * radialFactor);
-      final orientation =
-          -.72 +
-          stroke.orientationOffset +
-          math.sin(_t * 6.283185307179586 * .58 + stroke.phase) * .13;
-      final half = Offset.fromDirection(
-        orientation,
-        radius * stroke.lengthFactor / 2,
-      );
-      _discPaint
-        ..strokeWidth = .75 + (stroke.colorGroup % 3) * .24
-        ..color = palette[stroke.colorGroup].withValues(
-          alpha: .17 + (stroke.colorGroup % 4) * .035,
+      final tangent = angle + direction * math.pi / 2;
+      final tangentVector = Offset.fromDirection(tangent, 1);
+      final radialVector = Offset.fromDirection(angle, 1);
+      final length = radius * filament.lengthFactor;
+      final curve =
+          radius *
+          filament.curvature *
+          math.sin(_t * 6.283185307179586 * .67 + filament.phase);
+      _filamentPaint
+        ..strokeWidth = .72 + (filament.group % 3) * .28
+        ..color = palette[filament.group].withValues(
+          alpha:
+              .16 +
+              (filament.group % 4) * .035 +
+              (math.sin(_t * 6.283185307179586 + filament.phase) + 1) * .025,
         );
-      canvas.drawLine(position - half, position + half, _discPaint);
+      var previous = _filamentPoint(
+        position,
+        tangentVector,
+        radialVector,
+        length,
+        curve,
+        -.5,
+      );
+      for (final progress in const [-.16, .18, .5]) {
+        final current = _filamentPoint(
+          position,
+          tangentVector,
+          radialVector,
+          length,
+          curve,
+          progress,
+        );
+        canvas.drawLine(previous, current, _filamentPaint);
+        previous = current;
+      }
     }
   }
+
+  Offset _filamentPoint(
+    Offset position,
+    Offset tangentVector,
+    Offset radialVector,
+    double length,
+    double curve,
+    double progress,
+  ) =>
+      position +
+      tangentVector * (length * progress) +
+      radialVector * (curve * math.sin(progress * math.pi));
 
   @override
   bool shouldRepaint(covariant _MovingScopePainter old) =>
@@ -394,27 +439,27 @@ class _MovingScopePainter extends CustomPainter {
 }
 
 @immutable
-class _DiscStrokeGeometry {
-  const _DiscStrokeGeometry({
+class _LuminousFilamentGeometry {
+  const _LuminousFilamentGeometry({
+    required this.group,
     required this.baseAngle,
     required this.baseRadius,
     required this.phase,
     required this.angularVelocity,
     required this.radialAmplitude,
-    required this.orientationOffset,
+    required this.curvature,
     required this.lengthFactor,
-    required this.colorGroup,
     required this.reverse,
   });
 
+  final int group;
   final double baseAngle;
   final double baseRadius;
   final double phase;
   final double angularVelocity;
   final double radialAmplitude;
-  final double orientationOffset;
+  final double curvature;
   final double lengthFactor;
-  final int colorGroup;
   final bool reverse;
 }
 
