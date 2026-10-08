@@ -3,6 +3,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
+  test('uses six deterministic processing sequences with quiet intervals', () {
+    const sequences = [
+      AmbientProcessingSequence.ingestRoute,
+      AmbientProcessingSequence.parallelProcessing,
+      AmbientProcessingSequence.bufferWriteFlush,
+      AmbientProcessingSequence.verifyAcknowledge,
+      AmbientProcessingSequence.routeBranch,
+      AmbientProcessingSequence.highLoadBurst,
+    ];
+
+    for (var index = 0; index < sequences.length; index++) {
+      final active = CommandCenterAmbientProcessing.frameAt(
+        (index + .35) / sequences.length,
+      );
+      final idle = CommandCenterAmbientProcessing.frameAt(
+        (index + .9) / sequences.length,
+      );
+      expect(active.sequence, sequences[index]);
+      expect(active.isIdle, isFalse);
+      expect(active.progress, inInclusiveRange(0.0, 1.0));
+      expect(idle.sequence, AmbientProcessingSequence.idle);
+      expect(idle.isIdle, isTrue);
+    }
+  });
+
   Future<void> pumpProcessing(
     WidgetTester tester, {
     required double width,

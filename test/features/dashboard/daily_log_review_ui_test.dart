@@ -13,6 +13,7 @@ import 'package:or_app/core/models/daily_log_confirmation_status.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/daily_log_confirmation_state.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/widgets/dashboard_glass_card.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
@@ -39,6 +40,15 @@ void obsoleteTestWidgets(String description, WidgetTesterCallback callback) {
 }
 
 void main() {
+  testWidgets('DAILY LOG uses the shared Dashboard glass surface', (
+    tester,
+  ) async {
+    await _pumpDailyLogCard(tester, width: 390);
+
+    expect(find.byType(DashboardGlassCard), findsOneWidget);
+    expect(find.byType(DailyLogCard), findsOneWidget);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     appInitializationController.markReady();

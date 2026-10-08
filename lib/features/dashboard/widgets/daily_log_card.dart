@@ -12,7 +12,7 @@ import '../../../core/state/app_initialization_state.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_export_service.dart';
 import '../../morning/models/morning_fact.dart';
@@ -401,7 +401,7 @@ class DailyLogCard extends StatelessWidget {
         ? _DailyLogEntryState.completed
         : _DailyLogEntryState.optionalMissing;
 
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
