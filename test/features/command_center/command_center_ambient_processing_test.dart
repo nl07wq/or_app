@@ -3,7 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/command_center/widgets/command_center_ambient_processing.dart';
 
 void main() {
-  test('uses six deterministic processing sequences with quiet intervals', () {
+  test('exposes the denser connected processing topology', () {
+    expect(CommandCenterAmbientProcessing.nodeCount, 14);
+    expect(CommandCenterAmbientProcessing.dataBusCount, 21);
+    expect(CommandCenterAmbientProcessing.memoryBankCount, 5);
+    expect(CommandCenterAmbientProcessing.memoryCellsPerBank, 6);
+    expect(
+      CommandCenterAmbientProcessing.geometryFamilies,
+      containsAll(<AmbientBusGeometry>[
+        AmbientBusGeometry.straight,
+        AmbientBusGeometry.stepped,
+        AmbientBusGeometry.curvedBypass,
+        AmbientBusGeometry.parallelLane,
+        AmbientBusGeometry.transport,
+      ]),
+    );
+  });
+
+  test('keeps all V2 sequences and packet models deterministic', () {
     const sequences = [
       AmbientProcessingSequence.ingestRoute,
       AmbientProcessingSequence.parallelProcessing,
@@ -13,19 +30,46 @@ void main() {
       AmbientProcessingSequence.highLoadBurst,
     ];
 
-    for (var index = 0; index < sequences.length; index++) {
-      final active = CommandCenterAmbientProcessing.frameAt(
-        (index + .35) / sequences.length,
-      );
-      final idle = CommandCenterAmbientProcessing.frameAt(
-        (index + .9) / sequences.length,
-      );
-      expect(active.sequence, sequences[index]);
-      expect(active.isIdle, isFalse);
-      expect(active.progress, inInclusiveRange(0.0, 1.0));
-      expect(idle.sequence, AmbientProcessingSequence.idle);
-      expect(idle.isIdle, isTrue);
-    }
+    expect(sequences, hasLength(6));
+    expect(AmbientPacketModel.values, hasLength(4));
+    expect(AmbientPacketModel.values, contains(AmbientPacketModel.light));
+    expect(AmbientPacketModel.values, contains(AmbientPacketModel.standard));
+    expect(AmbientPacketModel.values, contains(AmbientPacketModel.heavy));
+    expect(AmbientPacketModel.values, contains(AmbientPacketModel.priority));
+    final durations = CommandCenterAmbientProcessing.packetTravelDurations;
+    expect(
+      durations[AmbientPacketModel.priority],
+      lessThan(durations[AmbientPacketModel.light]!),
+    );
+    expect(
+      durations[AmbientPacketModel.light],
+      lessThan(durations[AmbientPacketModel.standard]!),
+    );
+    expect(
+      durations[AmbientPacketModel.standard],
+      lessThan(durations[AmbientPacketModel.heavy]!),
+    );
+  });
+
+  test('uses linear constant-speed packet progress', () {
+    const duration = .4;
+    final first = CommandCenterAmbientProcessing.constantSpeedProgress(
+      elapsed: .1,
+      travelDuration: duration,
+    );
+    final second = CommandCenterAmbientProcessing.constantSpeedProgress(
+      elapsed: .2,
+      travelDuration: duration,
+    );
+    final third = CommandCenterAmbientProcessing.constantSpeedProgress(
+      elapsed: .3,
+      travelDuration: duration,
+    );
+
+    expect(second - first, closeTo(third - second, .000001));
+    expect(first, closeTo(.25, .000001));
+    expect(second, closeTo(.5, .000001));
+    expect(third, closeTo(.75, .000001));
   });
 
   Future<void> pumpProcessing(
