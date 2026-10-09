@@ -305,10 +305,10 @@ class _MovingScopePainter extends CustomPainter {
           alongBand: alongBand,
           acrossBand: acrossBand,
           phase: index * .618033988749895 + group * .531,
-          angularVelocity: .12 + group * .011 + (groupIndex % 5) * .006,
+          angularVelocity: .075 + group * .004 + (groupIndex % 5) * .003,
           radialAmplitude: .012 + (groupIndex % 6) * .004,
           curvature: .055 + (groupIndex % 7) * .010,
-          lengthFactor: .130 + (groupIndex % 9) * .014,
+          lengthFactor: .190 + (groupIndex % 9) * .016,
           depth: (groupIndex % 7) / 6,
           reverse: group.isOdd,
         );
@@ -507,22 +507,25 @@ class _MovingScopePainter extends CustomPainter {
     double time,
   ) {
     final groupPhase = filament.group * .781;
+    // Screen-space positive angles progress clockwise. Every band shares this
+    // direction; phase differences only vary where it is on the flow.
     final flowAngle =
         groupPhase +
-        math.sin(time * .073 + groupPhase) * 1.04 +
-        math.sin(time * .023 + groupPhase * 1.9) * .47 +
-        time * (filament.reverse ? -.016 : .014);
+        time * (.070 + filament.angularVelocity * .12) +
+        math.sin(time * .041 + groupPhase) * .18;
+    final sides = 5 + filament.group % 2;
+    final polygonWave = math.cos(sides * flowAngle + groupPhase * .37);
     final flowDistance =
-        .06 +
-        (.11 + .10 * math.sin(time * .061 + groupPhase * 1.37)) *
-            (.5 + .5 * math.sin(time * .119 + groupPhase));
+        .17 + polygonWave * .060 + math.sin(time * .053 + groupPhase) * .026;
     final flowCenter = Offset.fromDirection(flowAngle, flowDistance);
     final tangent =
-        flowAngle + math.pi / 2 + math.sin(time * .101 + groupPhase) * .28;
+        flowAngle +
+        math.pi / 2 +
+        math.sin(sides * flowAngle + groupPhase * .37) * .25;
     final tangentVector = Offset.fromDirection(tangent, 1);
     final normalVector = Offset.fromDirection(tangent + math.pi / 2, 1);
     final longitudinal =
-        filament.alongBand * (.54 + .13 * math.sin(time * .137 + groupPhase)) +
+        filament.alongBand * (.78 + .10 * math.sin(time * .097 + groupPhase)) +
         math.sin(time * filament.angularVelocity + filament.phase * .17) * .045;
     final lateral =
         filament.acrossBand *

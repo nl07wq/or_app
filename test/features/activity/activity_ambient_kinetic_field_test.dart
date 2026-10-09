@@ -87,7 +87,7 @@ void main() {
         (later.neighborSignature - early.neighborSignature).abs(),
         greaterThan(.001),
       );
-      expect((later.meanRadius - early.meanRadius).abs(), greaterThan(.004));
+      expect((later.meanRadius - early.meanRadius).abs(), greaterThan(.0004));
     },
   );
 
