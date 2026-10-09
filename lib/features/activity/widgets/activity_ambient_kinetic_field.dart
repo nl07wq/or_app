@@ -12,8 +12,12 @@ class ActivityAmbientKineticField extends StatefulWidget {
 
   /// A dense coordinated swarm. Its non-repeating flow field lets formations
   /// emerge and evolve instead of returning to a fixed circular arrangement.
-  static const luminousFilamentCount = 720;
-  static const luminousFilamentGroupCount = 12;
+  static const polygonFamilyCount = 8;
+  static const polygonVariantsPerFamily = 4;
+  static const strandsPerPolygonVariant = 24;
+  static const luminousFilamentCount =
+      polygonFamilyCount * polygonVariantsPerFamily * strandsPerPolygonVariant;
+  static const luminousFilamentGroupCount = polygonFamilyCount;
   static const luminousFilamentLayers = 3;
   static const luminousFilamentDrawOperationsPerFrame =
       luminousFilamentCount * luminousFilamentLayers;
@@ -295,22 +299,26 @@ class _MovingScopePainter extends CustomPainter {
         const groups = ActivityAmbientKineticField.luminousFilamentGroupCount;
         final group = index % groups;
         final groupIndex = index ~/ groups;
-        final groupLength =
-            ActivityAmbientKineticField.luminousFilamentCount ~/ groups;
-        final alongBand = (groupIndex + .5) / groupLength - .5;
-        final acrossBand =
-            (((groupIndex * 17) % groupLength) + .5) / groupLength - .5;
+        final variant =
+            groupIndex ~/ ActivityAmbientKineticField.strandsPerPolygonVariant;
+        final lane =
+            groupIndex % ActivityAmbientKineticField.strandsPerPolygonVariant;
         return _LuminousFilamentGeometry(
           group: group,
-          alongBand: alongBand,
-          acrossBand: acrossBand,
+          alongBand:
+              (lane + .5) /
+              ActivityAmbientKineticField.strandsPerPolygonVariant,
+          acrossBand:
+              (variant + .5) /
+                  ActivityAmbientKineticField.polygonVariantsPerFamily -
+              .5,
           phase: index * .618033988749895 + group * .531,
-          angularVelocity: .075 + group * .004 + (groupIndex % 5) * .003,
+          angularVelocity: .040 + group * .004 + (lane % 5) * .002,
           radialAmplitude: .012 + (groupIndex % 6) * .004,
           curvature: .055 + (groupIndex % 7) * .010,
-          lengthFactor: .190 + (groupIndex % 9) * .016,
-          depth: (groupIndex % 7) / 6,
-          reverse: group.isOdd,
+          lengthFactor: .21 + (lane % 6) * .020,
+          depth: (lane % 7) / 6,
+          reverse: group < 3,
         );
       },
       growable: false,
@@ -452,29 +460,8 @@ class _MovingScopePainter extends CustomPainter {
     ];
     final time = _swarmTime;
     for (final filament in _filaments) {
-      final flow = _flowPositionFor(filament, time);
-      final position = center + flow.position * radius;
-      final tangentVector = Offset.fromDirection(flow.tangent, 1);
-      final radialVector = flow.position.distanceSquared < .0001
-          ? const Offset(1, 0)
-          : flow.position / flow.position.distance;
-      final length = radius * filament.lengthFactor;
-      final curve =
-          radius *
-          filament.curvature *
-          math.sin(time * .29 + filament.group * .781 + filament.phase * .12) *
-          (.62 + filament.depth * .38);
+      final path = _polygonStrandPath(filament, time, center, radius);
       final shimmer = .5 + .5 * math.sin(time * 1.23 + filament.phase);
-      final path = _filamentPath(
-        position,
-        tangentVector,
-        radialVector,
-        length,
-        curve,
-        time,
-        filament.phase,
-        filament.group,
-      );
       final color = palette[filament.group % palette.length];
       // A three-scale profile softens the hard strand boundary without
       // blurring the HUD or the rest of the Activity page. The halo and glow
@@ -534,6 +521,53 @@ class _MovingScopePainter extends CustomPainter {
     final position =
         flowCenter + tangentVector * longitudinal + normalVector * lateral;
     return _FilamentFlowPosition(position: position, tangent: tangent);
+  }
+
+  static Path _polygonStrandPath(
+    _LuminousFilamentGeometry filament,
+    double time,
+    Offset center,
+    double radius,
+  ) {
+    final sides = 5 + filament.group;
+    final direction = filament.reverse ? -1.0 : 1.0;
+    final pathRadius = radius * (.055 + (filament.acrossBand + .5) * .72);
+    final orientation = filament.group * .173 + filament.acrossBand * .31;
+    final lead =
+        (filament.alongBand + time * filament.angularVelocity * direction) % 1;
+    final path = Path();
+    const samples = 12;
+    for (var index = 0; index <= samples; index++) {
+      final progress =
+          lead - direction * filament.lengthFactor * index / samples;
+      final point = _polygonPoint(sides, progress, pathRadius, orientation);
+      final absolute = center + point;
+      if (index == 0) {
+        path.moveTo(absolute.dx, absolute.dy);
+      } else {
+        path.lineTo(absolute.dx, absolute.dy);
+      }
+    }
+    return path;
+  }
+
+  static Offset _polygonPoint(
+    int sides,
+    double progress,
+    double radius,
+    double orientation,
+  ) {
+    final wrapped = progress - progress.floorToDouble();
+    final scaled = wrapped * sides;
+    final edge = scaled.floor() % sides;
+    final local = scaled - edge;
+    final a = orientation + edge * math.pi * 2 / sides;
+    final b = orientation + (edge + 1) * math.pi * 2 / sides;
+    return Offset.lerp(
+      Offset.fromDirection(a, radius),
+      Offset.fromDirection(b, radius),
+      local,
+    )!;
   }
 
   Path _filamentPath(
