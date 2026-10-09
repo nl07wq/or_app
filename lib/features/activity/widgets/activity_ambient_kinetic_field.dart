@@ -38,18 +38,10 @@ class ActivityAmbientKineticField extends StatefulWidget {
     final radius = (painterSize.shortestSide * .34)
         .clamp(92.0, 168.0)
         .toDouble();
-    final angle = phase * math.pi * 2;
-    final topCenter = math
-        .min(painterSize.height / 2, radius + scopeTopInset)
-        .toDouble();
-    final bottomCenter = math
-        .max(topCenter, painterSize.height - radius - scopeBottomInset)
-        .toDouble();
-    final verticalProgress = .5 + .5 * math.sin(angle * 2 + .72);
-    final center = Offset(
-      painterSize.width * (.5 + .40 * math.sin(angle)),
-      topCenter + (bottomCenter - topCenter) * verticalProgress,
-    );
+    // V4.6 Phase 1 deliberately fixes the instrument and swarm center. The
+    // viewport remains expanded so Phase 2 can restore travel without another
+    // layout change.
+    final center = Offset(painterSize.width / 2, painterSize.height / 2);
     return ActivityAmbientScopeGeometry(
       painterSize: painterSize,
       center: center,
@@ -440,6 +432,8 @@ class _MovingScopePainter extends CustomPainter {
         radialVector,
         length,
         curve,
+        time,
+        filament.phase,
       );
       final color = palette[filament.group % palette.length];
       _filamentGlowPaint
@@ -459,15 +453,25 @@ class _MovingScopePainter extends CustomPainter {
     Offset radialVector,
     double length,
     double curve,
+    double time,
+    double phase,
   ) {
+    // Three independent wave terms give the head, body and tail different
+    // continuous bends. A filament therefore evolves rather than translating
+    // or rotating as one fixed path.
+    final headWave = math.sin(time * 1.31 + phase) * curve * .58;
+    final bodyWave = math.sin(time * .83 + phase * 1.71) * curve;
+    final tailWave = math.sin(time * 1.09 + phase * .63) * curve * .72;
     final start =
-        position - tangentVector * (length * .54) - radialVector * curve * .18;
+        position - tangentVector * (length * .54) - radialVector * headWave;
     final firstControl =
-        position - tangentVector * (length * .18) + radialVector * curve;
+        position - tangentVector * (length * .18) + radialVector * bodyWave;
     final secondControl =
-        position + tangentVector * (length * .18) + radialVector * curve * .92;
+        position +
+        tangentVector * (length * .18) -
+        radialVector * bodyWave * .72;
     final end =
-        position + tangentVector * (length * .54) - radialVector * curve * .12;
+        position + tangentVector * (length * .54) + radialVector * tailWave;
     return Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(

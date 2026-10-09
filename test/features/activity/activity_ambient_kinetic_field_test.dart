@@ -75,25 +75,29 @@ void main() {
     },
   );
 
-  test('uses radius-aware viewport bounds for the complete scope', () {
-    const painterSize = Size(390, 788);
-    final samples = [
-      for (var index = 0; index <= 200; index++)
-        ActivityAmbientKineticField.scopeGeometryFor(
-          painterSize: painterSize,
-          phase: index / 200,
-        ),
-    ];
-    final lowest = samples.reduce(
-      (current, candidate) =>
-          candidate.center.dy > current.center.dy ? candidate : current,
-    );
-
-    expect(lowest.center.dy, greaterThan(painterSize.height * .75));
-    expect(lowest.scopeBounds.top, greaterThanOrEqualTo(0));
-    expect(lowest.scopeBounds.bottom, lessThanOrEqualTo(painterSize.height));
-    expect(lowest.visibleScopeBounds.bottom, lowest.scopeBounds.bottom);
-  });
+  test(
+    'keeps the phase-one scope and swarm center stationary in its viewport',
+    () {
+      const painterSize = Size(390, 788);
+      final samples = [
+        for (var index = 0; index <= 200; index++)
+          ActivityAmbientKineticField.scopeGeometryFor(
+            painterSize: painterSize,
+            phase: index / 200,
+          ),
+      ];
+      for (final geometry in samples) {
+        expect(geometry.center.dx, closeTo(painterSize.width / 2, .001));
+        expect(geometry.center.dy, closeTo(painterSize.height / 2, .001));
+        expect(geometry.scopeBounds.top, greaterThanOrEqualTo(0));
+        expect(
+          geometry.scopeBounds.bottom,
+          lessThanOrEqualTo(painterSize.height),
+        );
+        expect(geometry.visibleScopeBounds, geometry.scopeBounds);
+      }
+    },
+  );
 
   Future<void> pumpField(
     WidgetTester tester, {
@@ -188,7 +192,7 @@ void main() {
     );
   });
 
-  testWidgets('travels with the layered swarm into the lower viewport', (
+  testWidgets('keeps the scope stationary while living filaments evolve', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
@@ -202,7 +206,7 @@ void main() {
   });
 
   testWidgets(
-    'ActivityPage paints the scope below RECORD in its actual Scaffold body',
+    'ActivityPage gives the stationary phase-one scope its full Scaffold body',
     (tester) async {
       final originalSettings = DeviceSettingsController.instance.value;
       DeviceSettingsController.instance.resetForTesting(
@@ -247,14 +251,8 @@ void main() {
         activeGeometry.visibleScopeBounds.bottom,
         activeGeometry.scopeBounds.bottom,
       );
-      expect(
-        field.top + activeGeometry.center.dy,
-        greaterThan(tester.getRect(find.text('RECORD').last).bottom),
-      );
-      expect(
-        field.top + activeGeometry.visibleScopeBounds.bottom,
-        closeTo(field.bottom - ActivityAmbientKineticField.scopeBottomInset, 1),
-      );
+      expect(activeGeometry.center, Offset(field.width / 2, field.height / 2));
+      expect(field.top + activeGeometry.center.dy, greaterThan(0));
       await expectLater(
         find.byType(Scaffold),
         matchesGoldenFile('goldens/activity_scope_below_record.png'),
