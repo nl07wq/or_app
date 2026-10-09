@@ -59,6 +59,17 @@ void main() {
     );
   });
 
+  test('puts visible thickness in the core and keeps the halo restrained', () {
+    expect(ActivityAmbientKineticField.filamentCoreBaseWidth, greaterThan(.56));
+    expect(
+      ActivityAmbientKineticField.filamentCoreBaseWidth +
+          ActivityAmbientKineticField.filamentCoreDepthWidth,
+      greaterThan(1.04),
+    );
+    expect(ActivityAmbientKineticField.filamentHaloBaseWidth, lessThan(3.9));
+    expect(ActivityAmbientKineticField.filamentHaloBlurSigma, lessThan(2.2));
+  });
+
   test(
     'redistributes a populated swarm instead of retaining an annular band',
     () {
