@@ -10,10 +10,10 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
 
-  /// A dense coordinated swarm. Its non-repeating time field lets formations
+  /// A dense coordinated swarm. Its non-repeating flow field lets formations
   /// emerge and evolve instead of returning to a fixed circular arrangement.
-  static const luminousFilamentCount = 480;
-  static const luminousFilamentGroupCount = 10;
+  static const luminousFilamentCount = 720;
+  static const luminousFilamentGroupCount = 12;
   static const luminousFilamentLayers = 2;
   static const luminousFilamentDrawOperationsPerFrame =
       luminousFilamentCount * luminousFilamentLayers;
@@ -24,6 +24,13 @@ class ActivityAmbientKineticField extends StatefulWidget {
   @visibleForTesting
   static double swarmSecondsFor({required int cycle, required double phase}) =>
       (cycle + phase) * cycleSeconds;
+
+  /// Production-flow telemetry for deterministic tests. The metric is derived
+  /// from the same agent positions used by the painter; it is never used while
+  /// painting a frame.
+  @visibleForTesting
+  static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) =>
+      _MovingScopePainter.swarmMetricsFor(elapsedSeconds);
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
   /// so release builds do not retain or update runtime instrumentation.
@@ -261,8 +268,9 @@ class _MovingScopePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once: coordinated flow bands retain identity while an unbounded
-  /// time field continuously reorganizes their density and silhouette.
+  /// Generated once: each agent starts in a compact local flock rather than a
+  /// ring. The flock centers and the agent flow continuously redistribute the
+  /// same identities into changing collective formations.
   static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
     List<_LuminousFilamentGeometry>.generate(
       ActivityAmbientKineticField.luminousFilamentCount,
@@ -272,17 +280,19 @@ class _MovingScopePainter extends CustomPainter {
         final groupIndex = index ~/ groups;
         final groupLength =
             ActivityAmbientKineticField.luminousFilamentCount ~/ groups;
-        final bandProgress = (groupIndex + .5) / groupLength;
+        // A sunflower disk fills each flock from its center outward. This is
+        // deliberately not a circular band: local density can converge and
+        // separate as the flock moves through the shared flow field.
+        final localProgress = math.sqrt((groupIndex + .5) / groupLength);
         return _LuminousFilamentGeometry(
           group: group,
-          baseAngle:
-              group * math.pi * 2 / groups + bandProgress * math.pi * 2.31,
-          baseRadius: .018 + math.sqrt(bandProgress) * .75,
-          phase: index * .618033988749895 + group * .53,
-          angularVelocity: .24 + group * .027 + (groupIndex % 5) * .018,
-          radialAmplitude: .026 + (groupIndex % 6) * .010,
-          curvature: .060 + (groupIndex % 7) * .014,
-          lengthFactor: .105 + (groupIndex % 9) * .013,
+          localAngle: groupIndex * 2.399963229728653 + group * .371,
+          localRadius: localProgress,
+          phase: index * .618033988749895 + group * .531,
+          angularVelocity: .17 + group * .013 + (groupIndex % 5) * .019,
+          radialAmplitude: .018 + (groupIndex % 6) * .009,
+          curvature: .035 + (groupIndex % 7) * .011,
+          lengthFactor: .082 + (groupIndex % 9) * .012,
           depth: (groupIndex % 7) / 6,
           reverse: group.isOdd,
         );
@@ -296,6 +306,38 @@ class _MovingScopePainter extends CustomPainter {
   double get _swarmTime => staticFrame
       ? ActivityAmbientKineticField.cycleSeconds * .42
       : swarmSeconds();
+
+  static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) {
+    final positions = [
+      for (final filament in _filaments)
+        _flowPositionFor(filament, elapsedSeconds).position,
+    ];
+    final radii = [for (final position in positions) position.distance];
+    final centerPopulation =
+        radii.where((radius) => radius < .30).length / positions.length;
+    final meanRadius =
+        radii.reduce((sum, radius) => sum + radius) / positions.length;
+    final radialSpread = math.sqrt(
+      radii
+              .map((radius) => math.pow(radius - meanRadius, 2))
+              .reduce((sum, value) => sum + value) /
+          positions.length,
+    );
+    // Sample real agent pairs from different and same flocks. This catches a
+    // frozen arrangement while avoiding a quadratic all-agent test helper.
+    var neighborSignature = 0.0;
+    for (var index = 0; index < 72; index++) {
+      neighborSignature +=
+          (positions[index] - positions[(index + 37) % positions.length])
+              .distance;
+    }
+    return ActivitySwarmMetrics(
+      centerPopulation: centerPopulation,
+      meanRadius: meanRadius,
+      radialSpread: radialSpread,
+      neighborSignature: neighborSignature / 72,
+    );
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -393,32 +435,14 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xff56e7a5),
       Color(0xffffbb62),
     ];
-    // The swarm has no permanent circular mask. Its time-varying multi-lobed
-    // density field lets collective motion continuously form organic and
-    // polygon-like silhouettes while the filaments remain individually active.
     final time = _swarmTime;
     for (final filament in _filaments) {
-      final direction = filament.reverse ? -1.0 : 1.0;
-      final angle =
-          filament.baseAngle +
-          time * direction * filament.angularVelocity +
-          math.sin(time * .43 + filament.phase) * .18 +
-          math.sin(time * .071 + filament.group) * .09;
-      final formation =
-          1 +
-          math.sin(angle * 3 - time * .19 + filament.phase * .13) * .16 +
-          math.sin(angle * 5 + time * .11 + filament.group) * .10 +
-          math.sin(angle * 2 - time * .047) * .055;
-      final radialFactor =
-          filament.baseRadius * formation +
-          math.sin(time * (.51 + filament.angularVelocity) + filament.phase) *
-              filament.radialAmplitude +
-          math.sin(time * .09 + filament.group) * .018;
-      final position =
-          center + Offset.fromDirection(angle, radius * radialFactor);
-      final tangent = angle + direction * math.pi / 2;
-      final tangentVector = Offset.fromDirection(tangent, 1);
-      final radialVector = Offset.fromDirection(angle, 1);
+      final flow = _flowPositionFor(filament, time);
+      final position = center + flow.position * radius;
+      final tangentVector = Offset.fromDirection(flow.tangent, 1);
+      final radialVector = flow.position.distanceSquared < .0001
+          ? const Offset(1, 0)
+          : flow.position / flow.position.distance;
       final length = radius * filament.lengthFactor;
       final curve =
           radius *
@@ -445,6 +469,53 @@ class _MovingScopePainter extends CustomPainter {
       canvas.drawPath(path, _filamentGlowPaint);
       canvas.drawPath(path, _filamentCorePaint);
     }
+  }
+
+  /// The flock center is a shared, continuously changing local target. Every
+  /// filament then follows its own rotating and breathing neighborhood. No
+  /// ring, shape mask, or predefined outline is used: the silhouette is the
+  /// union of the transient flock positions.
+  static _FilamentFlowPosition _flowPositionFor(
+    _LuminousFilamentGeometry filament,
+    double time,
+  ) {
+    final groupPhase = filament.group * .781;
+    final flockAngle =
+        groupPhase +
+        math.sin(time * .119 + groupPhase) * 1.16 +
+        math.sin(time * .037 + groupPhase * 1.9) * .64 +
+        time * (filament.reverse ? -.024 : .021);
+    final flockDistance =
+        .10 +
+        (.20 + .16 * math.sin(time * .083 + groupPhase * 1.37)) *
+            (.5 + .5 * math.sin(time * .157 + groupPhase));
+    final flockCenter = Offset.fromDirection(flockAngle, flockDistance);
+
+    final direction = filament.reverse ? -1.0 : 1.0;
+    final localAngle =
+        filament.localAngle +
+        time * direction * filament.angularVelocity +
+        math.sin(time * .43 + filament.phase) * .56 +
+        math.sin(time * .071 + groupPhase) * .31;
+    final breathing =
+        .50 +
+        .34 * math.sin(time * .173 + groupPhase * 1.71) +
+        .12 * math.sin(time * .397 + filament.phase);
+    final localRadius =
+        filament.localRadius * (.16 + breathing * .22) +
+        math.sin(time * (.51 + filament.angularVelocity) + filament.phase) *
+            filament.radialAmplitude;
+    final local = Offset.fromDirection(localAngle, localRadius);
+    final shear = Offset(
+      math.sin(time * .223 + filament.phase * .71) * .036,
+      math.sin(time * .181 + filament.phase * 1.17) * .031,
+    );
+    final position = flockCenter + local + shear;
+    final tangent =
+        localAngle +
+        direction * math.pi / 2 +
+        math.sin(time * .29 + filament.phase) * .24;
+    return _FilamentFlowPosition(position: position, tangent: tangent);
   }
 
   Path _filamentPath(
@@ -493,8 +564,8 @@ class _MovingScopePainter extends CustomPainter {
 class _LuminousFilamentGeometry {
   const _LuminousFilamentGeometry({
     required this.group,
-    required this.baseAngle,
-    required this.baseRadius,
+    required this.localAngle,
+    required this.localRadius,
     required this.phase,
     required this.angularVelocity,
     required this.radialAmplitude,
@@ -505,8 +576,8 @@ class _LuminousFilamentGeometry {
   });
 
   final int group;
-  final double baseAngle;
-  final double baseRadius;
+  final double localAngle;
+  final double localRadius;
   final double phase;
   final double angularVelocity;
   final double radialAmplitude;
@@ -514,6 +585,37 @@ class _LuminousFilamentGeometry {
   final double lengthFactor;
   final double depth;
   final bool reverse;
+}
+
+@immutable
+class _FilamentFlowPosition {
+  const _FilamentFlowPosition({required this.position, required this.tangent});
+
+  final Offset position;
+  final double tangent;
+}
+
+@immutable
+class ActivitySwarmMetrics {
+  const ActivitySwarmMetrics({
+    required this.centerPopulation,
+    required this.meanRadius,
+    required this.radialSpread,
+    required this.neighborSignature,
+  });
+
+  /// Proportion of agents within the central 30% of the swarm radius.
+  final double centerPopulation;
+
+  /// Mean normalized distance from the stationary swarm center.
+  final double meanRadius;
+
+  /// A non-zero spread distinguishes a populated mass from a thin ring.
+  final double radialSpread;
+
+  /// Deterministic sampled neighbor-distance metric. Its change over time
+  /// demonstrates that agents redistribute rather than rotate rigidly.
+  final double neighborSignature;
 }
 
 class _KineticMeasurementPainter extends CustomPainter {

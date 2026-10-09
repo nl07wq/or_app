@@ -49,15 +49,36 @@ void main() {
   });
 
   test('uses a dense, layered coordinated luminous filament swarm', () {
-    expect(ActivityAmbientKineticField.luminousFilamentCount, 480);
-    expect(ActivityAmbientKineticField.luminousFilamentCount, greaterThan(84));
-    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 10);
+    expect(ActivityAmbientKineticField.luminousFilamentCount, 720);
+    expect(ActivityAmbientKineticField.luminousFilamentCount, greaterThan(480));
+    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 12);
     expect(ActivityAmbientKineticField.luminousFilamentLayers, 2);
     expect(
       ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
-      960,
+      1440,
     );
   });
+
+  test(
+    'redistributes a populated swarm instead of retaining an annular band',
+    () {
+      final early = ActivityAmbientKineticField.swarmMetricsFor(0);
+      final later = ActivityAmbientKineticField.swarmMetricsFor(8.7);
+
+      // The center is occupied and the radius has a real spread, so this is not
+      // a hollow ring. Time-varying pair distances prove that agents exchange
+      // local relationships instead of rotating as a fixed arrangement.
+      expect(early.centerPopulation, greaterThan(.20));
+      expect(later.centerPopulation, greaterThan(.20));
+      expect(early.radialSpread, greaterThan(.12));
+      expect(later.radialSpread, greaterThan(.12));
+      expect(
+        (later.neighborSignature - early.neighborSignature).abs(),
+        greaterThan(.004),
+      );
+      expect((later.meanRadius - early.meanRadius).abs(), greaterThan(.008));
+    },
+  );
 
   test(
     'advances swarm time continuously across outer-scope cycle boundaries',
