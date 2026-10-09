@@ -49,7 +49,7 @@ void main() {
   });
 
   test('uses a dense, layered coordinated luminous filament swarm', () {
-    expect(ActivityAmbientKineticField.luminousFilamentCount, 384);
+    expect(ActivityAmbientKineticField.luminousFilamentCount, 192);
     expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 8);
     expect(ActivityAmbientKineticField.polygonFamilyCount, 8);
     expect(ActivityAmbientKineticField.polygonVariantsPerFamily, 4);
@@ -59,11 +59,11 @@ void main() {
         ActivityAmbientKineticField.minimumPathVariantsPerFamily,
       ),
     );
-    expect(ActivityAmbientKineticField.strandsPerPolygonVariant, 12);
+    expect(ActivityAmbientKineticField.strandsPerPolygonVariant, 6);
     expect(ActivityAmbientKineticField.luminousFilamentLayers, 3);
     expect(
       ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
-      1152,
+      576,
     );
   });
 

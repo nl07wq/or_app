@@ -14,7 +14,7 @@ class ActivityAmbientKineticField extends StatefulWidget {
   /// emerge and evolve instead of returning to a fixed circular arrangement.
   static const polygonFamilyCount = 8;
   static const polygonVariantsPerFamily = 4;
-  static const strandsPerPolygonVariant = 12;
+  static const strandsPerPolygonVariant = 6;
   static const luminousFilamentCount =
       polygonFamilyCount * polygonVariantsPerFamily * strandsPerPolygonVariant;
   static const luminousFilamentGroupCount = polygonFamilyCount;
