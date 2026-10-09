@@ -53,6 +53,12 @@ void main() {
     expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 8);
     expect(ActivityAmbientKineticField.polygonFamilyCount, 8);
     expect(ActivityAmbientKineticField.polygonVariantsPerFamily, 4);
+    expect(
+      ActivityAmbientKineticField.polygonVariantsPerFamily,
+      greaterThanOrEqualTo(
+        ActivityAmbientKineticField.minimumPathVariantsPerFamily,
+      ),
+    );
     expect(ActivityAmbientKineticField.strandsPerPolygonVariant, 24);
     expect(ActivityAmbientKineticField.luminousFilamentLayers, 3);
     expect(
@@ -60,6 +66,18 @@ void main() {
       2304,
     );
   });
+
+  test(
+    'keeps inner polygon guides counterclockwise and outer guides clockwise',
+    () {
+      for (var sides = 5; sides <= 12; sides++) {
+        expect(
+          ActivityAmbientKineticField.isCounterClockwisePolygonFamily(sides),
+          sides <= 7,
+        );
+      }
+    },
+  );
 
   test('puts visible thickness in the core and keeps the halo restrained', () {
     expect(ActivityAmbientKineticField.filamentCoreBaseWidth, greaterThan(.56));

@@ -21,6 +21,16 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const luminousFilamentLayers = 3;
   static const luminousFilamentDrawOperationsPerFrame =
       luminousFilamentCount * luminousFilamentLayers;
+
+  /// The invisible guide paths deliberately overlap.  The four baseline
+  /// variants provide coverage while each strand gets an additional continuous
+  /// radial displacement, so variants cannot read as four visible polygon
+  /// outlines.
+  static const minimumPathVariantsPerFamily = 4;
+
+  @visibleForTesting
+  static bool isCounterClockwisePolygonFamily(int sides) =>
+      sides >= 5 && sides <= 7;
   // V4.10 keeps the soft edge local to every moving strand while putting the
   // visible width back in the core instead of a large blurred halo.
   static const filamentCoreBaseWidth = 1.10;
@@ -531,22 +541,76 @@ class _MovingScopePainter extends CustomPainter {
   ) {
     final sides = 5 + filament.group;
     final direction = filament.reverse ? -1.0 : 1.0;
-    final pathRadius = radius * (.055 + (filament.acrossBand + .5) * .72);
-    final orientation = filament.group * .173 + filament.acrossBand * .31;
+    // V4.13 keeps the polygon families as invisible travel guides, but breaks
+    // their fixed radial lanes.  A path's baseline overlaps neighbours and
+    // every strand continuously drifts within it, preventing concentric
+    // polygon contours from becoming the visible composition.
+    final variantProgress = filament.acrossBand + .5;
+    final laneOffset = math.sin(filament.phase * 1.731 + filament.group) * .10;
+    final slowRadialDrift =
+        math.sin(time * .073 + filament.phase * .67) *
+        (.028 + filament.depth * .018);
+    final familyOffset = math.sin((filament.group + 1) * 2.173) * .036;
+    final normalizedRadius =
+        (.075 +
+                variantProgress * .69 +
+                laneOffset +
+                slowRadialDrift +
+                familyOffset)
+            .clamp(.035, .82)
+            .toDouble();
+    final pathRadius = radius * normalizedRadius;
+    final orientation =
+        filament.group * .173 +
+        filament.acrossBand * .31 +
+        math.sin(filament.phase * .83) * .24 +
+        math.sin(time * .017 + filament.phase) * .035;
     final lead =
-        (filament.alongBand + time * filament.angularVelocity * direction) % 1;
+        (filament.alongBand +
+            math.sin(filament.phase * .47) * .21 +
+            time * filament.angularVelocity * direction) %
+        1;
+    final strandLength =
+        (filament.lengthFactor * .72 +
+                .075 +
+                math.sin(filament.phase * 1.19) * .045)
+            .clamp(.12, .29)
+            .toDouble();
     final path = Path();
     const samples = 12;
+    Offset? previous;
     for (var index = 0; index <= samples; index++) {
-      final progress =
-          lead - direction * filament.lengthFactor * index / samples;
+      final progress = lead - direction * strandLength * index / samples;
       final point = _polygonPoint(sides, progress, pathRadius, orientation);
       final absolute = center + point;
       if (index == 0) {
         path.moveTo(absolute.dx, absolute.dy);
-      } else {
+      } else if (index == 1) {
         path.lineTo(absolute.dx, absolute.dy);
+      } else {
+        // The midpoint curve rounds a moving corner as its leading section
+        // arrives first and the tail follows, rather than rotating a rigid
+        // polygonal stroke.
+        final midpoint = Offset.lerp(previous!, absolute, .5)!;
+        path.quadraticBezierTo(
+          previous.dx,
+          previous.dy,
+          midpoint.dx,
+          midpoint.dy,
+        );
       }
+      previous = absolute;
+    }
+    if (previous != null) {
+      // Finish at the true tail so the final segment remains visible.
+      final tail = _polygonPoint(
+        sides,
+        lead - direction * strandLength,
+        pathRadius,
+        orientation,
+      );
+      final absoluteTail = center + tail;
+      path.lineTo(absoluteTail.dx, absoluteTail.dy);
     }
     return path;
   }
