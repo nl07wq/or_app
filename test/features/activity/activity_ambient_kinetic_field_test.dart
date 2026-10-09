@@ -52,10 +52,10 @@ void main() {
     expect(ActivityAmbientKineticField.luminousFilamentCount, 720);
     expect(ActivityAmbientKineticField.luminousFilamentCount, greaterThan(480));
     expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 12);
-    expect(ActivityAmbientKineticField.luminousFilamentLayers, 2);
+    expect(ActivityAmbientKineticField.luminousFilamentLayers, 3);
     expect(
       ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
-      1440,
+      2160,
     );
   });
 

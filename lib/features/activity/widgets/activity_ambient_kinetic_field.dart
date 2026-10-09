@@ -14,7 +14,7 @@ class ActivityAmbientKineticField extends StatefulWidget {
   /// emerge and evolve instead of returning to a fixed circular arrangement.
   static const luminousFilamentCount = 720;
   static const luminousFilamentGroupCount = 12;
-  static const luminousFilamentLayers = 2;
+  static const luminousFilamentLayers = 3;
   static const luminousFilamentDrawOperationsPerFrame =
       luminousFilamentCount * luminousFilamentLayers;
   static const scopeTopInset = 16.0;
@@ -261,9 +261,15 @@ class _MovingScopePainter extends CustomPainter {
   final double Function() swarmSeconds;
   final Color color;
   final bool staticFrame;
+  final Paint _filamentHaloPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..blendMode = BlendMode.plus
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.2);
   final Paint _filamentGlowPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
+    ..strokeCap = StrokeCap.round
+    ..blendMode = BlendMode.plus;
   final Paint _filamentCorePaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
@@ -432,8 +438,7 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xff4aa3ff),
       Color(0xff9b6dff),
       Color(0xffff64bd),
-      Color(0xff56e7a5),
-      Color(0xffffbb62),
+      Color(0xffff9ad9),
     ];
     final time = _swarmTime;
     for (final filament in _filaments) {
@@ -461,12 +466,19 @@ class _MovingScopePainter extends CustomPainter {
         filament.group,
       );
       final color = palette[filament.group % palette.length];
+      // A three-scale profile softens the hard strand boundary without
+      // blurring the HUD or the rest of the Activity page. The halo and glow
+      // accumulate only where moving filament paths overlap.
+      _filamentHaloPaint
+        ..strokeWidth = 3.9 + filament.depth * 1.45
+        ..color = color.withValues(alpha: .028 + shimmer * .055);
       _filamentGlowPaint
-        ..strokeWidth = 1.45 + filament.depth * 1.05
-        ..color = color.withValues(alpha: .05 + shimmer * .085);
+        ..strokeWidth = 1.85 + filament.depth * 1.10
+        ..color = color.withValues(alpha: .065 + shimmer * .115);
       _filamentCorePaint
-        ..strokeWidth = .42 + filament.depth * .52
-        ..color = color.withValues(alpha: .15 + shimmer * .23);
+        ..strokeWidth = .56 + filament.depth * .48
+        ..color = color.withValues(alpha: .16 + shimmer * .20);
+      canvas.drawPath(path, _filamentHaloPaint);
       canvas.drawPath(path, _filamentGlowPaint);
       canvas.drawPath(path, _filamentCorePaint);
     }
