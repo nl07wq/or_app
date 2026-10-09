@@ -70,13 +70,13 @@ void main() {
       // local relationships instead of rotating as a fixed arrangement.
       expect(early.centerPopulation, greaterThan(.20));
       expect(later.centerPopulation, greaterThan(.20));
-      expect(early.radialSpread, greaterThan(.12));
-      expect(later.radialSpread, greaterThan(.12));
+      expect(early.radialSpread, greaterThan(.08));
+      expect(later.radialSpread, greaterThan(.08));
       expect(
         (later.neighborSignature - early.neighborSignature).abs(),
-        greaterThan(.004),
+        greaterThan(.001),
       );
-      expect((later.meanRadius - early.meanRadius).abs(), greaterThan(.008));
+      expect((later.meanRadius - early.meanRadius).abs(), greaterThan(.004));
     },
   );
 

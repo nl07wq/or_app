@@ -268,9 +268,10 @@ class _MovingScopePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once: each agent starts in a compact local flock rather than a
-  /// ring. The flock centers and the agent flow continuously redistribute the
-  /// same identities into changing collective formations.
+  /// Generated once: every filament occupies a lane in a shared flow band.
+  /// Nearby lanes inherit a common tangent and curvature, so the painter reads
+  /// as overlapping luminous streams rather than independently wriggling
+  /// organisms.
   static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
     List<_LuminousFilamentGeometry>.generate(
       ActivityAmbientKineticField.luminousFilamentCount,
@@ -280,19 +281,18 @@ class _MovingScopePainter extends CustomPainter {
         final groupIndex = index ~/ groups;
         final groupLength =
             ActivityAmbientKineticField.luminousFilamentCount ~/ groups;
-        // A sunflower disk fills each flock from its center outward. This is
-        // deliberately not a circular band: local density can converge and
-        // separate as the flock moves through the shared flow field.
-        final localProgress = math.sqrt((groupIndex + .5) / groupLength);
+        final alongBand = (groupIndex + .5) / groupLength - .5;
+        final acrossBand =
+            (((groupIndex * 17) % groupLength) + .5) / groupLength - .5;
         return _LuminousFilamentGeometry(
           group: group,
-          localAngle: groupIndex * 2.399963229728653 + group * .371,
-          localRadius: localProgress,
+          alongBand: alongBand,
+          acrossBand: acrossBand,
           phase: index * .618033988749895 + group * .531,
-          angularVelocity: .17 + group * .013 + (groupIndex % 5) * .019,
-          radialAmplitude: .018 + (groupIndex % 6) * .009,
-          curvature: .035 + (groupIndex % 7) * .011,
-          lengthFactor: .082 + (groupIndex % 9) * .012,
+          angularVelocity: .12 + group * .011 + (groupIndex % 5) * .006,
+          radialAmplitude: .012 + (groupIndex % 6) * .004,
+          curvature: .055 + (groupIndex % 7) * .010,
+          lengthFactor: .130 + (groupIndex % 9) * .014,
           depth: (groupIndex % 7) / 6,
           reverse: group.isOdd,
         );
@@ -447,7 +447,7 @@ class _MovingScopePainter extends CustomPainter {
       final curve =
           radius *
           filament.curvature *
-          math.sin(time * .67 + filament.phase) *
+          math.sin(time * .29 + filament.group * .781 + filament.phase * .12) *
           (.62 + filament.depth * .38);
       final shimmer = .5 + .5 * math.sin(time * 1.23 + filament.phase);
       final path = _filamentPath(
@@ -458,6 +458,7 @@ class _MovingScopePainter extends CustomPainter {
         curve,
         time,
         filament.phase,
+        filament.group,
       );
       final color = palette[filament.group % palette.length];
       _filamentGlowPaint
@@ -471,50 +472,38 @@ class _MovingScopePainter extends CustomPainter {
     }
   }
 
-  /// The flock center is a shared, continuously changing local target. Every
-  /// filament then follows its own rotating and breathing neighborhood. No
-  /// ring, shape mask, or predefined outline is used: the silhouette is the
-  /// union of the transient flock positions.
+  /// Each flow band has a shared tangent and slowly evolving anchor. Individual
+  /// lanes use only restrained offsets, which creates aurora-like coherent
+  /// travel while still allowing crossings, convergence, and density changes.
+  /// No ring, shape mask, or prescribed outline is used.
   static _FilamentFlowPosition _flowPositionFor(
     _LuminousFilamentGeometry filament,
     double time,
   ) {
     final groupPhase = filament.group * .781;
-    final flockAngle =
+    final flowAngle =
         groupPhase +
-        math.sin(time * .119 + groupPhase) * 1.16 +
-        math.sin(time * .037 + groupPhase * 1.9) * .64 +
-        time * (filament.reverse ? -.024 : .021);
-    final flockDistance =
-        .10 +
-        (.20 + .16 * math.sin(time * .083 + groupPhase * 1.37)) *
-            (.5 + .5 * math.sin(time * .157 + groupPhase));
-    final flockCenter = Offset.fromDirection(flockAngle, flockDistance);
-
-    final direction = filament.reverse ? -1.0 : 1.0;
-    final localAngle =
-        filament.localAngle +
-        time * direction * filament.angularVelocity +
-        math.sin(time * .43 + filament.phase) * .56 +
-        math.sin(time * .071 + groupPhase) * .31;
-    final breathing =
-        .50 +
-        .34 * math.sin(time * .173 + groupPhase * 1.71) +
-        .12 * math.sin(time * .397 + filament.phase);
-    final localRadius =
-        filament.localRadius * (.16 + breathing * .22) +
-        math.sin(time * (.51 + filament.angularVelocity) + filament.phase) *
-            filament.radialAmplitude;
-    final local = Offset.fromDirection(localAngle, localRadius);
-    final shear = Offset(
-      math.sin(time * .223 + filament.phase * .71) * .036,
-      math.sin(time * .181 + filament.phase * 1.17) * .031,
-    );
-    final position = flockCenter + local + shear;
+        math.sin(time * .073 + groupPhase) * 1.04 +
+        math.sin(time * .023 + groupPhase * 1.9) * .47 +
+        time * (filament.reverse ? -.016 : .014);
+    final flowDistance =
+        .06 +
+        (.11 + .10 * math.sin(time * .061 + groupPhase * 1.37)) *
+            (.5 + .5 * math.sin(time * .119 + groupPhase));
+    final flowCenter = Offset.fromDirection(flowAngle, flowDistance);
     final tangent =
-        localAngle +
-        direction * math.pi / 2 +
-        math.sin(time * .29 + filament.phase) * .24;
+        flowAngle + math.pi / 2 + math.sin(time * .101 + groupPhase) * .28;
+    final tangentVector = Offset.fromDirection(tangent, 1);
+    final normalVector = Offset.fromDirection(tangent + math.pi / 2, 1);
+    final longitudinal =
+        filament.alongBand * (.54 + .13 * math.sin(time * .137 + groupPhase)) +
+        math.sin(time * filament.angularVelocity + filament.phase * .17) * .045;
+    final lateral =
+        filament.acrossBand *
+            (.29 + .08 * math.sin(time * .109 + groupPhase * 1.3)) +
+        math.sin(time * .167 + filament.phase) * filament.radialAmplitude * 1.3;
+    final position =
+        flowCenter + tangentVector * longitudinal + normalVector * lateral;
     return _FilamentFlowPosition(position: position, tangent: tangent);
   }
 
@@ -526,13 +515,16 @@ class _MovingScopePainter extends CustomPainter {
     double curve,
     double time,
     double phase,
+    int group,
   ) {
-    // Three independent wave terms give the head, body and tail different
-    // continuous bends. A filament therefore evolves rather than translating
-    // or rotating as one fixed path.
-    final headWave = math.sin(time * 1.31 + phase) * curve * .58;
-    final bodyWave = math.sin(time * .83 + phase * 1.71) * curve;
-    final tailWave = math.sin(time * 1.09 + phase * .63) * curve * .72;
+    // A shared low-frequency band wave controls the overall stream. Small
+    // per-lane offsets preserve fine moving detail without the high-amplitude
+    // head/body/tail wriggle that made V4.7 read as individual worms.
+    final groupWave = math.sin(time * .29 + group * .781);
+    final laneWave = math.sin(time * .41 + phase * .19);
+    final headWave = (groupWave * .70 + laneWave * .12) * curve;
+    final bodyWave = (groupWave + laneWave * .16) * curve;
+    final tailWave = (groupWave * .78 - laneWave * .11) * curve;
     final start =
         position - tangentVector * (length * .54) - radialVector * headWave;
     final firstControl =
@@ -564,8 +556,8 @@ class _MovingScopePainter extends CustomPainter {
 class _LuminousFilamentGeometry {
   const _LuminousFilamentGeometry({
     required this.group,
-    required this.localAngle,
-    required this.localRadius,
+    required this.alongBand,
+    required this.acrossBand,
     required this.phase,
     required this.angularVelocity,
     required this.radialAmplitude,
@@ -576,8 +568,8 @@ class _LuminousFilamentGeometry {
   });
 
   final int group;
-  final double localAngle;
-  final double localRadius;
+  final double alongBand;
+  final double acrossBand;
   final double phase;
   final double angularVelocity;
   final double radialAmplitude;
