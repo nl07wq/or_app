@@ -505,6 +505,16 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     setState(() {});
   }
 
+  void _adjustCarryOver(int delta) {
+    final current = _carryOver ?? 0;
+    final text = (current + delta).clamp(0, 1 << 31).toString();
+    _carryOverController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    setState(() {});
+  }
+
   void _addDigestiveEvent() {
     setState(() {
       _digestiveEvents = [..._digestiveEvents, _createDigestiveEvent()];
@@ -712,12 +722,18 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 onDecrement: () => _adjustMeasuredSteps(-1),
               ),
               AppSpacing.gapMD,
-              OperationTextField(
+              _MeasuredStepsField(
                 controller: _carryOverController,
                 focusNode: _carryOverFocusNode,
                 label: 'Carry Over',
-                keyboardType: TextInputType.number,
                 onChanged: (_) => setState(() {}),
+                enabled: !_isBusy,
+                incrementKey: const ValueKey('activity-carry-over-increment'),
+                incrementTooltip: 'Increase Carry Over by 1',
+                onIncrement: () => _adjustCarryOver(1),
+                decrementKey: const ValueKey('activity-carry-over-decrement'),
+                decrementTooltip: 'Decrease Carry Over by 1',
+                onDecrement: () => _adjustCarryOver(-1),
               ),
               AppSpacing.gapMD,
               _ReadOnlyStepDisplay(
@@ -928,6 +944,11 @@ class _MeasuredStepsField extends StatelessWidget {
     required this.onChanged,
     required this.onIncrement,
     required this.onDecrement,
+    this.label = 'Measured steps',
+    this.incrementKey = const ValueKey('activity-measured-steps-increment'),
+    this.incrementTooltip = 'Increase measured steps by 1',
+    this.decrementKey = const ValueKey('activity-measured-steps-decrement'),
+    this.decrementTooltip = 'Decrease measured steps by 1',
   });
 
   final TextEditingController controller;
@@ -936,6 +957,11 @@ class _MeasuredStepsField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final String label;
+  final Key incrementKey;
+  final String incrementTooltip;
+  final Key decrementKey;
+  final String decrementTooltip;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -945,7 +971,7 @@ class _MeasuredStepsField extends StatelessWidget {
         child: OperationTextField(
           controller: controller,
           focusNode: focusNode,
-          label: 'Measured steps',
+          label: label,
           keyboardType: TextInputType.number,
           onChanged: onChanged,
         ),
@@ -955,11 +981,11 @@ class _MeasuredStepsField extends StatelessWidget {
         height: 56,
         child: FoodNumericStepper(
           fillParent: true,
-          incrementKey: const ValueKey('activity-measured-steps-increment'),
-          incrementTooltip: 'Increase measured steps by 1',
+          incrementKey: incrementKey,
+          incrementTooltip: incrementTooltip,
           onIncrement: enabled ? onIncrement : null,
-          decrementKey: const ValueKey('activity-measured-steps-decrement'),
-          decrementTooltip: 'Decrease measured steps by 1',
+          decrementKey: decrementKey,
+          decrementTooltip: decrementTooltip,
           onDecrement: enabled ? onDecrement : null,
         ),
       ),

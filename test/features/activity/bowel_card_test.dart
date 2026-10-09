@@ -301,6 +301,92 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Carry Over uses the measured-steps stepper with shared input state',
+    (tester) async {
+      final date = DateTime(2026, 7, 27);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityEntryPage(
+            initialData: ActivityData(
+              date: date,
+              measuredSteps: 1000,
+              carryOver: 2,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final measuredIncrement = find.byKey(
+        const ValueKey('activity-measured-steps-increment'),
+      );
+      final measuredDecrement = find.byKey(
+        const ValueKey('activity-measured-steps-decrement'),
+      );
+      final carryIncrement = find.byKey(
+        const ValueKey('activity-carry-over-increment'),
+      );
+      final carryDecrement = find.byKey(
+        const ValueKey('activity-carry-over-decrement'),
+      );
+      expect(measuredIncrement, findsOneWidget);
+      expect(measuredDecrement, findsOneWidget);
+      expect(carryIncrement, findsOneWidget);
+      expect(carryDecrement, findsOneWidget);
+      expect(
+        tester.getRect(carryIncrement).size,
+        tester.getRect(measuredIncrement).size,
+      );
+      expect(
+        tester.getRect(carryDecrement).size,
+        tester.getRect(measuredDecrement).size,
+      );
+
+      final carryOverField = find.byType(TextField).at(1);
+      expect(tester.widget<TextField>(carryOverField).controller!.text, '2');
+      expect(find.text('1,002 steps'), findsOneWidget);
+
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.tap(carryIncrement);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(carryOverField).focusNode!.hasFocus,
+        isFalse,
+      );
+      await tester.tap(carryIncrement);
+      await tester.pump();
+      expect(tester.widget<TextField>(carryOverField).controller!.text, '4');
+      expect(find.text('1,004 steps'), findsOneWidget);
+
+      await tester.enterText(carryOverField, '1');
+      await tester.pump();
+      await tester.tap(carryDecrement);
+      await tester.pump();
+      expect(tester.widget<TextField>(carryOverField).controller!.text, '0');
+      expect(find.text('1,000 steps'), findsOneWidget);
+
+      await tester.tap(carryDecrement);
+      await tester.pump();
+      expect(tester.widget<TextField>(carryOverField).controller!.text, '0');
+
+      await tester.enterText(carryOverField, '8');
+      await tester.pump();
+      await tester.tap(carryIncrement);
+      await tester.pump();
+      expect(tester.widget<TextField>(carryOverField).controller!.text, '9');
+      expect(find.text('1,009 steps'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('SAVE ACTIVITY'));
+      await tester.tap(find.text('SAVE ACTIVITY'));
+      await tester.pumpAndSettle();
+      final saved = await const LocalActivityRepository().findByDate(date);
+      expect(saved?.carryOver, 9);
+      expect(saved?.officialStepsFor(0), 1009);
+    },
+  );
+
   testWidgets('Measured steps stepper and quick adds fit common widths', (
     tester,
   ) async {
@@ -324,6 +410,14 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('activity-measured-steps-decrement')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('activity-carry-over-increment')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('activity-carry-over-decrement')),
         findsOneWidget,
       );
       for (final value in quickStepValues) {
