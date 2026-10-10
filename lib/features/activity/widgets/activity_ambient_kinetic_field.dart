@@ -10,28 +10,26 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
 
-  /// A dense coordinated swarm. Its non-repeating flow field lets formations
-  /// emerge and evolve instead of returning to a fixed circular arrangement.
+  /// Eight nested polygon families, each rendered by four luminous lines.
   static const polygonFamilyCount = 8;
   static const polygonVariantsPerFamily = 4;
-  static const strandsPerPolygonVariant = 6;
-  static const luminousFilamentCount =
-      polygonFamilyCount * polygonVariantsPerFamily * strandsPerPolygonVariant;
-  static const luminousFilamentGroupCount = polygonFamilyCount;
-  static const luminousFilamentLayers = 3;
-  static const luminousFilamentDrawOperationsPerFrame =
-      luminousFilamentCount * luminousFilamentLayers;
-  static const luminousFilamentsPerFamily =
-      polygonVariantsPerFamily * strandsPerPolygonVariant;
+  static const luminousLinesPerFamily = polygonVariantsPerFamily;
+  static const luminousLineCount = polygonFamilyCount * luminousLinesPerFamily;
+  static const luminousLineLayers = 3;
+  static const luminousLineDrawOperationsPerFrame =
+      luminousLineCount * luminousLineLayers;
   static const partialStrandPerimeterFraction = 1 / 3;
-  static const polygonVariantTrackSpacing = .075;
-  static const strandLaneTrackSpacing = .013;
-  static const polygonFamilyBundleRadius = .42;
-
-  /// The invisible guide paths deliberately overlap.  The four baseline
-  /// variants provide coverage while each strand gets an additional continuous
-  /// radial displacement, so variants cannot read as four visible polygon
-  /// outlines.
+  static const polygonVariantTrackSpacing = .018;
+  static const polygonFamilyRadii = <double>[
+    .04,
+    .13,
+    .23,
+    .33,
+    .435,
+    .54,
+    .645,
+    .75,
+  ];
   static const minimumPathVariantsPerFamily = 4;
 
   @visibleForTesting
@@ -47,8 +45,13 @@ class ActivityAmbientKineticField extends StatefulWidget {
       (variant - (polygonVariantsPerFamily - 1) / 2) *
       polygonVariantTrackSpacing;
 
-  /// Every path variant in a family advances from this common leading point.
-  /// Radial lane separation remains local to a strand, never a phase offset.
+  @visibleForTesting
+  static double polygonLineRadiusFor({
+    required int family,
+    required int variant,
+  }) => polygonFamilyRadii[family] + polygonVariantOffsetFor(variant);
+
+  /// Every line in a family advances from this common leading point.
   @visibleForTesting
   static double familyBundleLeadFor({
     required int family,
@@ -327,36 +330,24 @@ class _MovingScopePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once. Each family's 24 strands share one leading phase and
-  /// direction while four parallel radial tracks keep the bundle visibly wide.
-  static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
-    List<_LuminousFilamentGeometry>.generate(
-      ActivityAmbientKineticField.luminousFilamentCount,
+  /// Generated once. A rendered line is exactly one family/variant pair.
+  static final List<_LuminousLineGeometry> _lines = List.unmodifiable(
+    List<_LuminousLineGeometry>.generate(
+      ActivityAmbientKineticField.luminousLineCount,
       (index) {
-        const groups = ActivityAmbientKineticField.luminousFilamentGroupCount;
-        final group = index % groups;
-        final groupIndex = index ~/ groups;
+        final family =
+            index ~/ ActivityAmbientKineticField.luminousLinesPerFamily;
         final variant =
-            groupIndex ~/ ActivityAmbientKineticField.strandsPerPolygonVariant;
-        final lane =
-            groupIndex % ActivityAmbientKineticField.strandsPerPolygonVariant;
-        return _LuminousFilamentGeometry(
-          group: group,
-          alongBand:
-              (lane + .5) /
-              ActivityAmbientKineticField.strandsPerPolygonVariant,
-          acrossBand:
-              (variant + .5) /
-                  ActivityAmbientKineticField.polygonVariantsPerFamily -
-              .5,
-          phase: index * .618033988749895 + group * .531,
-          angularVelocity: .040 + group * .004,
-          radialAmplitude: .012 + (groupIndex % 6) * .004,
-          curvature: .055 + (groupIndex % 7) * .010,
+            index % ActivityAmbientKineticField.luminousLinesPerFamily;
+        return _LuminousLineGeometry(
+          family: family,
+          variant: variant,
+          phase: index * .618033988749895 + family * .531,
+          angularVelocity: .040 + family * .004,
           lengthFactor:
               ActivityAmbientKineticField.partialStrandPerimeterFraction,
-          depth: (lane % 7) / 6,
-          reverse: group < 3,
+          depth: .5,
+          reverse: family < 3,
         );
       },
       growable: false,
@@ -371,8 +362,8 @@ class _MovingScopePainter extends CustomPainter {
 
   static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) {
     final positions = [
-      for (final filament in _filaments)
-        _flowPositionFor(filament, elapsedSeconds).position,
+      for (final line in _lines)
+        _flowPositionFor(line, elapsedSeconds).position,
     ];
     final radii = [for (final position in positions) position.distance];
     final centerPopulation =
@@ -388,7 +379,7 @@ class _MovingScopePainter extends CustomPainter {
     // Sample real agent pairs from different and same flocks. This catches a
     // frozen arrangement while avoiding a quadratic all-agent test helper.
     var neighborSignature = 0.0;
-    for (var index = 0; index < 72; index++) {
+    for (var index = 0; index < positions.length; index++) {
       neighborSignature +=
           (positions[index] - positions[(index + 37) % positions.length])
               .distance;
@@ -397,7 +388,7 @@ class _MovingScopePainter extends CustomPainter {
       centerPopulation: centerPopulation,
       meanRadius: meanRadius,
       radialSpread: radialSpread,
-      neighborSignature: neighborSignature / 72,
+      neighborSignature: neighborSignature / positions.length,
     );
   }
 
@@ -497,25 +488,25 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xffff9ad9),
     ];
     final time = _swarmTime;
-    for (final filament in _filaments) {
-      final path = _polygonStrandPath(filament, time, center, radius);
-      final shimmer = .5 + .5 * math.sin(time * 1.23 + filament.phase);
-      final color = palette[filament.group % palette.length];
+    for (final line in _lines) {
+      final path = _polygonStrandPath(line, time, center, radius);
+      final shimmer = .5 + .5 * math.sin(time * 1.23 + line.phase);
+      final color = palette[line.family % palette.length];
       // A three-scale profile softens the hard strand boundary without
       // blurring the HUD or the rest of the Activity page. The halo and glow
       // accumulate only where moving filament paths overlap.
       _filamentHaloPaint
         ..strokeWidth =
             ActivityAmbientKineticField.filamentHaloBaseWidth +
-            filament.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
+            line.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
         ..color = color.withValues(alpha: .015 + shimmer * .030);
       _filamentGlowPaint
-        ..strokeWidth = 1.48 + filament.depth * .78
+        ..strokeWidth = 1.48 + line.depth * .78
         ..color = color.withValues(alpha: .045 + shimmer * .070);
       _filamentCorePaint
         ..strokeWidth =
             ActivityAmbientKineticField.filamentCoreBaseWidth +
-            filament.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
+            line.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
         ..color = color.withValues(alpha: .18 + shimmer * .18);
       canvas.drawPath(path, _filamentHaloPaint);
       canvas.drawPath(path, _filamentGlowPaint);
@@ -528,17 +519,17 @@ class _MovingScopePainter extends CustomPainter {
   /// travel while still allowing crossings, convergence, and density changes.
   /// No ring, shape mask, or prescribed outline is used.
   static _FilamentFlowPosition _flowPositionFor(
-    _LuminousFilamentGeometry filament,
+    _LuminousLineGeometry line,
     double time,
   ) {
-    final groupPhase = filament.group * .781;
+    final groupPhase = line.family * .781;
     // Screen-space positive angles progress clockwise. Every band shares this
     // direction; phase differences only vary where it is on the flow.
     final flowAngle =
         groupPhase +
-        time * (.070 + filament.angularVelocity * .12) +
+        time * (.070 + line.angularVelocity * .12) +
         math.sin(time * .041 + groupPhase) * .18;
-    final sides = 5 + filament.group % 2;
+    final sides = 5 + line.family % 2;
     final polygonWave = math.cos(sides * flowAngle + groupPhase * .37);
     final flowDistance =
         .17 + polygonWave * .060 + math.sin(time * .053 + groupPhase) * .026;
@@ -550,65 +541,46 @@ class _MovingScopePainter extends CustomPainter {
     final tangentVector = Offset.fromDirection(tangent, 1);
     final normalVector = Offset.fromDirection(tangent + math.pi / 2, 1);
     final longitudinal =
-        filament.alongBand * (.78 + .10 * math.sin(time * .097 + groupPhase)) +
-        math.sin(time * filament.angularVelocity + filament.phase * .17) * .045;
+        ((line.variant + .5) /
+                ActivityAmbientKineticField.luminousLinesPerFamily) *
+            (.78 + .10 * math.sin(time * .097 + groupPhase)) +
+        math.sin(time * line.angularVelocity + line.phase * .17) * .045;
     final lateral =
-        filament.acrossBand *
-            (.29 + .08 * math.sin(time * .109 + groupPhase * 1.3)) +
-        math.sin(time * .167 + filament.phase) * filament.radialAmplitude * 1.3;
+        (line.variant - 1.5) *
+        (.08 + .02 * math.sin(time * .109 + groupPhase * 1.3));
     final position =
         flowCenter + tangentVector * longitudinal + normalVector * lateral;
     return _FilamentFlowPosition(position: position, tangent: tangent);
   }
 
   static Path _polygonStrandPath(
-    _LuminousFilamentGeometry filament,
+    _LuminousLineGeometry line,
     double time,
     Offset center,
     double radius,
   ) {
-    final sides = 5 + filament.group;
-    final direction = filament.reverse ? -1.0 : 1.0;
-    // A family has one advancing head. Four variants are adjacent radial
-    // tracks; six lanes are restrained offsets inside each track. Keeping the
-    // two spacings separate prevents both a collapsed thick stroke and the
-    // sparse concentric bands used by V4.16.
-    final variantProgress = filament.acrossBand + .5;
-    final variant =
-        (variantProgress *
-                    ActivityAmbientKineticField.polygonVariantsPerFamily -
-                .5)
-            .round();
-    final variantOffset = ActivityAmbientKineticField.polygonVariantOffsetFor(
-      variant,
+    final sides = 5 + line.family;
+    final direction = line.reverse ? -1.0 : 1.0;
+    // Fixed nested family radii and adjacent offsets keep all 32 line paths
+    // distinct. The line itself, not a duplicate strand population, emits
+    // halo, glow, and core passes.
+    final normalizedRadius = ActivityAmbientKineticField.polygonLineRadiusFor(
+      family: line.family,
+      variant: line.variant,
     );
-    final laneOffset =
-        (filament.alongBand - .5) *
-        ActivityAmbientKineticField.strandLaneTrackSpacing *
-        ActivityAmbientKineticField.strandsPerPolygonVariant;
-    final slowRadialDrift = math.sin(time * .073 + filament.group * .67) * .010;
-    final familyOffset = math.sin((filament.group + 1) * 2.173) * .036;
-    final normalizedRadius =
-        (ActivityAmbientKineticField.polygonFamilyBundleRadius +
-                variantOffset +
-                laneOffset +
-                slowRadialDrift +
-                familyOffset)
-            .clamp(.035, .82)
-            .toDouble();
     final pathRadius = radius * normalizedRadius;
     final groupStartLead =
-        ActivityAmbientKineticField.directionGroupStartLeadFor(filament.group);
-    final groupStartAngle = filament.reverse ? -math.pi / 2 : math.pi / 2;
+        ActivityAmbientKineticField.directionGroupStartLeadFor(line.family);
+    final groupStartAngle = line.reverse ? -math.pi / 2 : math.pi / 2;
     final orientation =
         groupStartAngle -
         groupStartLead * math.pi * 2 +
-        math.sin(time * .017 + (filament.reverse ? 0 : 1)) * .035;
+        math.sin(time * .017 + (line.reverse ? 0 : 1)) * .035;
     final lead = ActivityAmbientKineticField.familyBundleLeadFor(
-      family: filament.group,
+      family: line.family,
       elapsedSeconds: time,
     );
-    final strandLength = filament.lengthFactor;
+    final strandLength = line.lengthFactor;
     final path = Path();
     const samples = 12;
     Offset? previous;
@@ -713,27 +685,21 @@ class _MovingScopePainter extends CustomPainter {
 }
 
 @immutable
-class _LuminousFilamentGeometry {
-  const _LuminousFilamentGeometry({
-    required this.group,
-    required this.alongBand,
-    required this.acrossBand,
+class _LuminousLineGeometry {
+  const _LuminousLineGeometry({
+    required this.family,
+    required this.variant,
     required this.phase,
     required this.angularVelocity,
-    required this.radialAmplitude,
-    required this.curvature,
     required this.lengthFactor,
     required this.depth,
     required this.reverse,
   });
 
-  final int group;
-  final double alongBand;
-  final double acrossBand;
+  final int family;
+  final int variant;
   final double phase;
   final double angularVelocity;
-  final double radialAmplitude;
-  final double curvature;
   final double lengthFactor;
   final double depth;
   final bool reverse;

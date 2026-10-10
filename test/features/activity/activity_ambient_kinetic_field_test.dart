@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
@@ -48,9 +50,8 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
-  test('uses a dense, layered coordinated luminous filament swarm', () {
-    expect(ActivityAmbientKineticField.luminousFilamentCount, 192);
-    expect(ActivityAmbientKineticField.luminousFilamentGroupCount, 8);
+  test('uses exactly four luminous lines in each nested polygon family', () {
+    expect(ActivityAmbientKineticField.luminousLineCount, 32);
     expect(ActivityAmbientKineticField.polygonFamilyCount, 8);
     expect(ActivityAmbientKineticField.polygonVariantsPerFamily, 4);
     expect(
@@ -59,13 +60,9 @@ void main() {
         ActivityAmbientKineticField.minimumPathVariantsPerFamily,
       ),
     );
-    expect(ActivityAmbientKineticField.strandsPerPolygonVariant, 6);
-    expect(ActivityAmbientKineticField.luminousFilamentsPerFamily, 24);
-    expect(ActivityAmbientKineticField.luminousFilamentLayers, 3);
-    expect(
-      ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
-      576,
-    );
+    expect(ActivityAmbientKineticField.luminousLinesPerFamily, 4);
+    expect(ActivityAmbientKineticField.luminousLineLayers, 3);
+    expect(ActivityAmbientKineticField.luminousLineDrawOperationsPerFrame, 96);
   });
 
   test(
@@ -115,9 +112,8 @@ void main() {
     }
   });
 
-  test('uses four adjacent variant tracks with distinct six-strand lanes', () {
-    expect(ActivityAmbientKineticField.polygonVariantTrackSpacing, .075);
-    expect(ActivityAmbientKineticField.strandLaneTrackSpacing, .013);
+  test('uses four separate nested tracks per polygon family', () {
+    expect(ActivityAmbientKineticField.polygonVariantTrackSpacing, .018);
     final offsets = [
       for (
         var variant = 0;
@@ -126,10 +122,10 @@ void main() {
       )
         ActivityAmbientKineticField.polygonVariantOffsetFor(variant),
     ];
-    expect(offsets[0], closeTo(-.1125, .000001));
-    expect(offsets[1], closeTo(-.0375, .000001));
-    expect(offsets[2], closeTo(.0375, .000001));
-    expect(offsets[3], closeTo(.1125, .000001));
+    expect(offsets[0], closeTo(-.027, .000001));
+    expect(offsets[1], closeTo(-.009, .000001));
+    expect(offsets[2], closeTo(.009, .000001));
+    expect(offsets[3], closeTo(.027, .000001));
     for (var index = 1; index < offsets.length; index++) {
       expect(
         offsets[index] - offsets[index - 1],
@@ -139,13 +135,25 @@ void main() {
         ),
       );
     }
-    expect(
-      ActivityAmbientKineticField.polygonVariantTrackSpacing,
-      greaterThan(
-        ActivityAmbientKineticField.strandLaneTrackSpacing *
-            (ActivityAmbientKineticField.strandsPerPolygonVariant - 1),
-      ),
-    );
+  });
+
+  test('keeps every family strictly outside the preceding nested family', () {
+    for (
+      var family = 1;
+      family < ActivityAmbientKineticField.polygonFamilyCount;
+      family++
+    ) {
+      final innerOuterRadius = ActivityAmbientKineticField.polygonLineRadiusFor(
+        family: family - 1,
+        variant: ActivityAmbientKineticField.polygonVariantsPerFamily - 1,
+      );
+      final outerInnerRadius = ActivityAmbientKineticField.polygonLineRadiusFor(
+        family: family,
+        variant: 0,
+      );
+      final outerInradius = outerInnerRadius * math.cos(math.pi / (5 + family));
+      expect(outerInradius, greaterThan(innerOuterRadius));
+    }
   });
 
   test('aligns the start reference within each travel-direction group', () {
@@ -165,27 +173,6 @@ void main() {
     }
     expect(ccwStart, isNot(cwStart));
   });
-
-  test(
-    'redistributes a populated swarm instead of retaining an annular band',
-    () {
-      final early = ActivityAmbientKineticField.swarmMetricsFor(0);
-      final later = ActivityAmbientKineticField.swarmMetricsFor(8.7);
-
-      // The center is occupied and the radius has a real spread, so this is not
-      // a hollow ring. Time-varying pair distances prove that agents exchange
-      // local relationships instead of rotating as a fixed arrangement.
-      expect(early.centerPopulation, greaterThan(.20));
-      expect(later.centerPopulation, greaterThan(.20));
-      expect(early.radialSpread, greaterThan(.08));
-      expect(later.radialSpread, greaterThan(.08));
-      expect(
-        (later.neighborSignature - early.neighborSignature).abs(),
-        greaterThan(.001),
-      );
-      expect((later.meanRadius - early.meanRadius).abs(), greaterThan(.0004));
-    },
-  );
 
   test(
     'advances swarm time continuously across outer-scope cycle boundaries',
