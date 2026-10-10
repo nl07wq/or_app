@@ -527,14 +527,12 @@ class _MovingScopePainter extends CustomPainter {
       final shimmer = .5 + .5 * math.sin(time * .83 + stream.phase);
       final head = _flowPointFor(stream, time, 0).position;
       final headAngle = math.atan2(head.dy, head.dx);
-      final regionalFocus =
-          .58 +
-          .42 *
-              (.5 +
-                  .5 *
-                      math.cos(
-                        headAngle - time * .12 - stream.flowGroup * .31,
-                      ));
+      final colorMassAngle = stream.colorIndex >= 3 ? 2.62 : .18;
+      final concentration = math.pow(
+        .5 + .5 * math.cos(headAngle - time * .12 - colorMassAngle),
+        2.0,
+      );
+      final regionalFocus = .28 + .72 * concentration;
       final color = palette[stream.colorIndex % palette.length];
       // A three-scale profile softens the hard strand boundary without
       // blurring the HUD or the rest of the Activity page. The halo and glow
@@ -544,19 +542,19 @@ class _MovingScopePainter extends CustomPainter {
             ActivityAmbientKineticField.filamentHaloBaseWidth +
             stream.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
         ..color = color.withValues(
-          alpha: (.006 + shimmer * .014) * regionalFocus,
+          alpha: (.008 + shimmer * .018) * regionalFocus,
         );
       _filamentGlowPaint
         ..strokeWidth = 1.34 + stream.depth * .68
         ..color = color.withValues(
-          alpha: (.018 + shimmer * .030) * regionalFocus,
+          alpha: (.022 + shimmer * .040) * regionalFocus,
         );
       _filamentCorePaint
         ..strokeWidth =
             ActivityAmbientKineticField.filamentCoreBaseWidth +
             stream.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
         ..color = color.withValues(
-          alpha: (.075 + shimmer * .105) * regionalFocus,
+          alpha: (.085 + shimmer * .125) * regionalFocus,
         );
       canvas.drawPath(path, _filamentHaloPaint);
       canvas.drawPath(path, _filamentGlowPaint);
@@ -596,27 +594,47 @@ class _MovingScopePainter extends CustomPainter {
         sharedOrbitalAdvance +
         regionalOrbitalTurn +
         fineOrbitalTurn * .020;
+    // Every shared region has a slowly moving local centre.  Keeping all
+    // trajectories centred on the scope made the V4.22 field read as dark
+    // concentric rings.  This small, continuous eccentricity lets related
+    // streams converge into asymmetric masses and then redistribute, while
+    // the eight balanced regions keep the formation's overall centre fixed.
+    final lobeAngle =
+        regionPhase +
+        localTime * (.031 + stream.flowGroup * .0009) +
+        math.sin(localTime * .043 + regionPhase) * .14;
+    final lobeOffset = Offset.fromDirection(
+      lobeAngle,
+      .050 + math.sin(localTime * .061 + regionPhase) * .026,
+    );
     final breath =
         .95 +
         math.sin(localTime * .067) * .065 +
         math.sin(localTime * .021 + 1.8) * .035;
     final exchangePhase =
-        localTime * .109 + regionPhase * .73 + stream.phase * .037;
+        localTime * .109 + regionPhase * .73 + stream.phase * .011;
     final radialExchange =
-        math.sin(exchangePhase) * (.024 + (1 - centralAffinity) * .030);
+        math.sin(exchangePhase) * (.045 + (1 - centralAffinity) * .045);
+    // Each colour region shares a slowly travelling convergence wave. The
+    // wave creates a bright, irregular luminous mass from real path overlap
+    // instead of a uniform ring or a separate blurred overlay.
+    final regionalConvergence =
+        math.sin(localTime * .073 + regionPhase) *
+        (.042 + (1 - centralAffinity) * .028);
     final regionalRadialShift =
-        math.sin(localTime * .057 + regionPhase) * .021 +
-        math.sin(localTime * .029 + regionPhase * 1.9) * .011;
-    final fineRadial = math.sin(localTime * .087 + stream.phase * .23) * .011;
+        math.sin(localTime * .057 + regionPhase) * .030 +
+        math.sin(localTime * .029 + regionPhase * 1.9) * .018;
+    final fineRadial = math.sin(localTime * .087 + stream.phase * .23) * .017;
     final radial =
         (radialSeed * breath +
                 radialExchange +
+                regionalConvergence +
                 regionalRadialShift +
                 fineRadial)
             .clamp(.012, .75);
-    final position = Offset.fromDirection(angle, radial);
+    final position = Offset.fromDirection(angle, radial) + lobeOffset;
     final radialVelocity =
-        math.cos(exchangePhase) * (.024 + (1 - centralAffinity) * .030) * .109;
+        math.cos(exchangePhase) * (.045 + (1 - centralAffinity) * .045) * .109;
     final tangent =
         angle +
         math.atan2(orbitalDirection * .22, radialVelocity) +
