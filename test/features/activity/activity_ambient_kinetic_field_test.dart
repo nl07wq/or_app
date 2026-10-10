@@ -60,6 +60,7 @@ void main() {
       ),
     );
     expect(ActivityAmbientKineticField.strandsPerPolygonVariant, 6);
+    expect(ActivityAmbientKineticField.luminousFilamentsPerFamily, 24);
     expect(ActivityAmbientKineticField.luminousFilamentLayers, 3);
     expect(
       ActivityAmbientKineticField.luminousFilamentDrawOperationsPerFrame,
@@ -80,7 +81,8 @@ void main() {
   );
 
   test('puts visible thickness in the core and keeps the halo restrained', () {
-    expect(ActivityAmbientKineticField.filamentCoreBaseWidth, greaterThan(.56));
+    expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 2.20);
+    expect(ActivityAmbientKineticField.filamentCoreDepthWidth, 1.20);
     expect(
       ActivityAmbientKineticField.filamentCoreBaseWidth +
           ActivityAmbientKineticField.filamentCoreDepthWidth,
@@ -88,6 +90,29 @@ void main() {
     );
     expect(ActivityAmbientKineticField.filamentHaloBaseWidth, lessThan(3.9));
     expect(ActivityAmbientKineticField.filamentHaloBlurSigma, lessThan(2.2));
+  });
+
+  test('keeps each polygon family on one advancing partial-path bundle', () {
+    expect(
+      ActivityAmbientKineticField.partialStrandPerimeterFraction,
+      closeTo(1 / 3, .000001),
+    );
+    for (
+      var family = 0;
+      family < ActivityAmbientKineticField.polygonFamilyCount;
+      family++
+    ) {
+      final leadAtStart = ActivityAmbientKineticField.familyBundleLeadFor(
+        family: family,
+        elapsedSeconds: 0,
+      );
+      final leadLater = ActivityAmbientKineticField.familyBundleLeadFor(
+        family: family,
+        elapsedSeconds: 1,
+      );
+      expect(leadAtStart, inInclusiveRange(0, 1));
+      expect(leadLater, isNot(leadAtStart));
+    }
   });
 
   test(

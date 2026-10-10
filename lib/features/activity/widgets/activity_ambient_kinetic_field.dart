@@ -21,6 +21,9 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const luminousFilamentLayers = 3;
   static const luminousFilamentDrawOperationsPerFrame =
       luminousFilamentCount * luminousFilamentLayers;
+  static const luminousFilamentsPerFamily =
+      polygonVariantsPerFamily * strandsPerPolygonVariant;
+  static const partialStrandPerimeterFraction = 1 / 3;
 
   /// The invisible guide paths deliberately overlap.  The four baseline
   /// variants provide coverage while each strand gets an additional continuous
@@ -31,10 +34,24 @@ class ActivityAmbientKineticField extends StatefulWidget {
   @visibleForTesting
   static bool isCounterClockwisePolygonFamily(int sides) =>
       sides >= 5 && sides <= 7;
+
+  /// Every path variant in a family advances from this common leading point.
+  /// Radial lane separation remains local to a strand, never a phase offset.
+  @visibleForTesting
+  static double familyBundleLeadFor({
+    required int family,
+    required double elapsedSeconds,
+  }) {
+    final direction = isCounterClockwisePolygonFamily(5 + family) ? -1.0 : 1.0;
+    return (family * .618033988749895 +
+            elapsedSeconds * (.040 + family * .004) * direction) %
+        1;
+  }
+
   // V4.10 keeps the soft edge local to every moving strand while putting the
   // visible width back in the core instead of a large blurred halo.
-  static const filamentCoreBaseWidth = 1.10;
-  static const filamentCoreDepthWidth = .60;
+  static const filamentCoreBaseWidth = 2.20;
+  static const filamentCoreDepthWidth = 1.20;
   static const filamentHaloBaseWidth = 2.60;
   static const filamentHaloDepthWidth = 1.05;
   static const filamentHaloBlurSigma = 1.10;
@@ -298,10 +315,8 @@ class _MovingScopePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once: every filament occupies a lane in a shared flow band.
-  /// Nearby lanes inherit a common tangent and curvature, so the painter reads
-  /// as overlapping luminous streams rather than independently wriggling
-  /// organisms.
+  /// Generated once. Each family's 24 strands share one leading phase and
+  /// speed, making its four radial variants read as one advancing bundle.
   static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
     List<_LuminousFilamentGeometry>.generate(
       ActivityAmbientKineticField.luminousFilamentCount,
@@ -323,10 +338,11 @@ class _MovingScopePainter extends CustomPainter {
                   ActivityAmbientKineticField.polygonVariantsPerFamily -
               .5,
           phase: index * .618033988749895 + group * .531,
-          angularVelocity: .040 + group * .004 + (lane % 5) * .002,
+          angularVelocity: .040 + group * .004,
           radialAmplitude: .012 + (groupIndex % 6) * .004,
           curvature: .055 + (groupIndex % 7) * .010,
-          lengthFactor: .21 + (lane % 6) * .020,
+          lengthFactor:
+              ActivityAmbientKineticField.partialStrandPerimeterFraction,
           depth: (lane % 7) / 6,
           reverse: group < 3,
         );
@@ -541,14 +557,13 @@ class _MovingScopePainter extends CustomPainter {
   ) {
     final sides = 5 + filament.group;
     final direction = filament.reverse ? -1.0 : 1.0;
-    // V4.13 keeps the polygon families as invisible travel guides, but breaks
-    // their fixed radial lanes.  A path's baseline overlaps neighbours and
-    // every strand continuously drifts within it, preventing concentric
-    // polygon contours from becoming the visible composition.
+    // A family has one advancing head. The four variants and six lanes only
+    // separate radially, so they remain a coherent bundle instead of starting
+    // at scattered locations around their invisible polygon guides.
     final variantProgress = filament.acrossBand + .5;
-    final laneOffset = math.sin(filament.phase * 1.731 + filament.group) * .10;
+    final laneOffset = (filament.alongBand - .5) * .022;
     final slowRadialDrift =
-        math.sin(time * .073 + filament.phase * .67) *
+        math.sin(time * .073 + filament.group * .67) *
         (.028 + filament.depth * .018);
     final familyOffset = math.sin((filament.group + 1) * 2.173) * .036;
     final normalizedRadius =
@@ -562,20 +577,13 @@ class _MovingScopePainter extends CustomPainter {
     final pathRadius = radius * normalizedRadius;
     final orientation =
         filament.group * .173 +
-        filament.acrossBand * .31 +
-        math.sin(filament.phase * .83) * .24 +
-        math.sin(time * .017 + filament.phase) * .035;
-    final lead =
-        (filament.alongBand +
-            math.sin(filament.phase * .47) * .21 +
-            time * filament.angularVelocity * direction) %
-        1;
-    final strandLength =
-        (filament.lengthFactor * .72 +
-                .075 +
-                math.sin(filament.phase * 1.19) * .045)
-            .clamp(.12, .29)
-            .toDouble();
+        math.sin(filament.group * .83) * .035 +
+        math.sin(time * .017 + filament.group) * .035;
+    final lead = ActivityAmbientKineticField.familyBundleLeadFor(
+      family: filament.group,
+      elapsedSeconds: time,
+    );
+    final strandLength = filament.lengthFactor;
     final path = Path();
     const samples = 12;
     Offset? previous;
