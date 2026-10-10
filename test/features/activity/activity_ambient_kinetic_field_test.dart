@@ -73,6 +73,18 @@ void main() {
     }
   });
 
+  test('advects luminous streams tangentially without center crossings', () {
+    for (final seconds in [0.0, 4.53, 15.5, 17.2, 30.0]) {
+      final orbital = ActivityAmbientKineticField.orbitalFlowMetricsFor(
+        seconds,
+      );
+      expect(orbital.tangentialAlignment, greaterThan(.98));
+      expect(orbital.minimumTangentialAlignment, greaterThan(.99));
+      expect(orbital.minimumRadius, greaterThanOrEqualTo(.075));
+      expect(orbital.centerCrossingStreams, 0);
+    }
+  });
+
   test('puts visible thickness in the core and keeps the halo restrained', () {
     expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 1.10);
     expect(ActivityAmbientKineticField.filamentCoreDepthWidth, .60);

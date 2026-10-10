@@ -47,6 +47,14 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static ActivityFlowCoherence flowCoherenceFor(double elapsedSeconds) =>
       _MovingScopePainter.flowCoherenceFor(elapsedSeconds);
 
+  /// Deterministic orbital-flow telemetry derived from the same points used
+  /// by the production painter. It verifies that the luminous field advances
+  /// around, rather than through, the stationary scope center.
+  @visibleForTesting
+  static ActivityOrbitalFlowMetrics orbitalFlowMetricsFor(
+    double elapsedSeconds,
+  ) => _MovingScopePainter.orbitalFlowMetricsFor(elapsedSeconds);
+
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
   /// so release builds do not retain or update runtime instrumentation.
   @visibleForTesting
@@ -397,6 +405,34 @@ class _MovingScopePainter extends CustomPainter {
     );
   }
 
+  static ActivityOrbitalFlowMetrics orbitalFlowMetricsFor(
+    double elapsedSeconds,
+  ) {
+    var tangentialAlignment = 0.0;
+    var minimumTangentialAlignment = double.infinity;
+    var minimumRadius = double.infinity;
+    var centerCrossings = 0;
+    for (final stream in _streams) {
+      final point = _flowPointFor(stream, elapsedSeconds, 0);
+      final radius = point.position.distance;
+      final radialAngle = math.atan2(point.position.dy, point.position.dx);
+      final alignment = math.sin(point.tangent - radialAngle);
+      tangentialAlignment += alignment;
+      minimumTangentialAlignment = math.min(
+        minimumTangentialAlignment,
+        alignment,
+      );
+      minimumRadius = math.min(minimumRadius, radius);
+      if (radius < .075) centerCrossings++;
+    }
+    return ActivityOrbitalFlowMetrics(
+      tangentialAlignment: tangentialAlignment / _streams.length,
+      minimumTangentialAlignment: minimumTangentialAlignment,
+      minimumRadius: minimumRadius,
+      centerCrossingStreams: centerCrossings,
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
@@ -535,9 +571,10 @@ class _MovingScopePainter extends CustomPainter {
     }
   }
 
-  /// A long-lived advected point in one shared regional flow. Streams in the
-  /// same angular region intentionally share their turn, compression, and
-  /// colour clock; only their fine texture remains individual.
+  /// A long-lived advected point in one shared orbital flow. Every angular
+  /// term has a positive forward derivative, while radius remains positive,
+  /// so streams circulate tangentially around the stationary center instead
+  /// of tracing figure-eights or crossing through it.
   static _FilamentFlowPosition _flowPointFor(
     _LuminousFlowStream stream,
     double time,
@@ -545,42 +582,44 @@ class _MovingScopePainter extends CustomPainter {
   ) {
     final localTime = time - trailOffset;
     final regionPhase = stream.flowGroup * math.pi * 2 / 8;
-    final sharedTurn =
+    final sharedOrbitalAdvance =
         localTime * stream.speed +
-        math.sin(localTime * .071) * .34 +
-        math.sin(localTime * .017 + .9) * .16;
-    final regionalTurn =
-        math.sin(localTime * .093 + regionPhase) * .20 +
-        math.sin(localTime * .041 + regionPhase * 1.7) * .11;
-    final fineTurn = math.sin(
+        math.sin(localTime * .071) * .16 +
+        math.sin(localTime * .017 + .9) * .07;
+    final regionalOrbitalTurn =
+        math.sin(localTime * .067 + regionPhase) * .055 +
+        math.sin(localTime * .023 + regionPhase * 1.7) * .026;
+    final fineOrbitalTurn = math.sin(
       stream.seedAngle * 3.0 + localTime * .081 + stream.phase * .07,
     );
     final angle =
-        stream.seedAngle + sharedTurn + regionalTurn + fineTurn * .095;
+        stream.seedAngle +
+        sharedOrbitalAdvance +
+        regionalOrbitalTurn +
+        fineOrbitalTurn * .028;
     final breath =
-        .91 +
-        math.sin(localTime * .067) * .105 +
-        math.sin(localTime * .029 + 1.8) * .065;
-    final regionalCompression =
-        math.sin(localTime * .097 + regionPhase) * .062 +
-        math.sin(localTime * .037 + regionPhase * 1.9) * .030;
-    final convergence =
-        math.sin(angle * 3.0 + localTime * .151 + regionPhase) * .052;
-    final drift =
-        math.sin(angle * 5.0 - localTime * .097 + stream.phase) * .035;
-    final fineRadial = math.sin(localTime * .123 + stream.phase * .23) * .026;
+        .95 +
+        math.sin(localTime * .067) * .065 +
+        math.sin(localTime * .021 + 1.8) * .035;
+    final regionalRadialShift =
+        math.sin(localTime * .069 + regionPhase) * .028 +
+        math.sin(localTime * .031 + regionPhase * 1.9) * .014;
+    // This gentle six-sided ripple gives the flow its soft polygonal
+    // character without restoring visible polygon tracks or radial lanes.
+    final polygonalRipple =
+        math.sin(angle * 6.0 - localTime * .047 + regionPhase) * .018;
+    final fineRadial = math.sin(localTime * .101 + stream.phase * .23) * .014;
     final radial =
-        (stream.baseRadius * breath +
-                regionalCompression * (.35 + stream.baseRadius) +
-                convergence +
-                drift +
+        ((.12 + stream.baseRadius * .74) * breath +
+                regionalRadialShift +
+                polygonalRipple +
                 fineRadial)
-            .clamp(.025, .75);
+            .clamp(.075, .75);
     final position = Offset.fromDirection(angle, radial);
     final tangent =
         angle +
         math.pi / 2 +
-        math.sin(angle * 3.0 + localTime * .151 + stream.phase) * .24;
+        math.sin(angle * 6.0 - localTime * .047 + regionPhase) * .06;
     return _FilamentFlowPosition(position: position, tangent: tangent);
   }
 
@@ -688,6 +727,29 @@ class ActivityFlowCoherence {
   final double sameRegionDirection;
   final double adjacentRegionDirection;
   final int populatedRegions;
+}
+
+@immutable
+class ActivityOrbitalFlowMetrics {
+  const ActivityOrbitalFlowMetrics({
+    required this.tangentialAlignment,
+    required this.minimumTangentialAlignment,
+    required this.minimumRadius,
+    required this.centerCrossingStreams,
+  });
+
+  /// Mean signed tangential correlation. A value near one means all sampled
+  /// points advance counterclockwise around the scope center.
+  final double tangentialAlignment;
+
+  /// Lowest sampled forward tangential correlation across the stream field.
+  final double minimumTangentialAlignment;
+
+  /// Nearest normalized stream head distance from the stationary center.
+  final double minimumRadius;
+
+  /// Number of sampled stream heads inside the protected center disk.
+  final int centerCrossingStreams;
 }
 
 class _KineticMeasurementPainter extends CustomPainter {
