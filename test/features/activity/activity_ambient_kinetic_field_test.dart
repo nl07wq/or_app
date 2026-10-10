@@ -81,8 +81,8 @@ void main() {
   );
 
   test('puts visible thickness in the core and keeps the halo restrained', () {
-    expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 2.20);
-    expect(ActivityAmbientKineticField.filamentCoreDepthWidth, 1.20);
+    expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 1.10);
+    expect(ActivityAmbientKineticField.filamentCoreDepthWidth, .60);
     expect(
       ActivityAmbientKineticField.filamentCoreBaseWidth +
           ActivityAmbientKineticField.filamentCoreDepthWidth,
@@ -113,6 +113,36 @@ void main() {
       expect(leadAtStart, inInclusiveRange(0, 1));
       expect(leadLater, isNot(leadAtStart));
     }
+  });
+
+  test('uses four adjacent variant tracks with distinct six-strand lanes', () {
+    expect(ActivityAmbientKineticField.polygonVariantTrackSpacing, .075);
+    expect(ActivityAmbientKineticField.strandLaneTrackSpacing, .013);
+    expect(
+      ActivityAmbientKineticField.polygonVariantTrackSpacing,
+      greaterThan(
+        ActivityAmbientKineticField.strandLaneTrackSpacing *
+            (ActivityAmbientKineticField.strandsPerPolygonVariant - 1),
+      ),
+    );
+  });
+
+  test('aligns the start reference within each travel-direction group', () {
+    final ccwStart = ActivityAmbientKineticField.directionGroupStartLeadFor(0);
+    final cwStart = ActivityAmbientKineticField.directionGroupStartLeadFor(3);
+    for (var family = 0; family < 3; family++) {
+      expect(
+        ActivityAmbientKineticField.directionGroupStartLeadFor(family),
+        ccwStart,
+      );
+    }
+    for (var family = 3; family < 8; family++) {
+      expect(
+        ActivityAmbientKineticField.directionGroupStartLeadFor(family),
+        cwStart,
+      );
+    }
+    expect(ccwStart, isNot(cwStart));
   });
 
   test(

@@ -24,6 +24,9 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const luminousFilamentsPerFamily =
       polygonVariantsPerFamily * strandsPerPolygonVariant;
   static const partialStrandPerimeterFraction = 1 / 3;
+  static const polygonVariantTrackSpacing = .075;
+  static const strandLaneTrackSpacing = .013;
+  static const polygonFamilyBundleRadius = .42;
 
   /// The invisible guide paths deliberately overlap.  The four baseline
   /// variants provide coverage while each strand gets an additional continuous
@@ -35,6 +38,10 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static bool isCounterClockwisePolygonFamily(int sides) =>
       sides >= 5 && sides <= 7;
 
+  @visibleForTesting
+  static double directionGroupStartLeadFor(int family) =>
+      isCounterClockwisePolygonFamily(5 + family) ? .18 : .62;
+
   /// Every path variant in a family advances from this common leading point.
   /// Radial lane separation remains local to a strand, never a phase offset.
   @visibleForTesting
@@ -43,15 +50,15 @@ class ActivityAmbientKineticField extends StatefulWidget {
     required double elapsedSeconds,
   }) {
     final direction = isCounterClockwisePolygonFamily(5 + family) ? -1.0 : 1.0;
-    return (family * .618033988749895 +
+    return (directionGroupStartLeadFor(family) +
             elapsedSeconds * (.040 + family * .004) * direction) %
         1;
   }
 
   // V4.10 keeps the soft edge local to every moving strand while putting the
   // visible width back in the core instead of a large blurred halo.
-  static const filamentCoreBaseWidth = 2.20;
-  static const filamentCoreDepthWidth = 1.20;
+  static const filamentCoreBaseWidth = 1.10;
+  static const filamentCoreDepthWidth = .60;
   static const filamentHaloBaseWidth = 2.60;
   static const filamentHaloDepthWidth = 1.05;
   static const filamentHaloBlurSigma = 1.10;
@@ -316,7 +323,7 @@ class _MovingScopePainter extends CustomPainter {
     ..strokeCap = StrokeCap.round;
 
   /// Generated once. Each family's 24 strands share one leading phase and
-  /// speed, making its four radial variants read as one advancing bundle.
+  /// direction while four parallel radial tracks keep the bundle visibly wide.
   static final List<_LuminousFilamentGeometry> _filaments = List.unmodifiable(
     List<_LuminousFilamentGeometry>.generate(
       ActivityAmbientKineticField.luminousFilamentCount,
@@ -557,28 +564,36 @@ class _MovingScopePainter extends CustomPainter {
   ) {
     final sides = 5 + filament.group;
     final direction = filament.reverse ? -1.0 : 1.0;
-    // A family has one advancing head. The four variants and six lanes only
-    // separate radially, so they remain a coherent bundle instead of starting
-    // at scattered locations around their invisible polygon guides.
+    // A family has one advancing head. Four variants are adjacent radial
+    // tracks; six lanes are restrained offsets inside each track. Keeping the
+    // two spacings separate prevents both a collapsed thick stroke and the
+    // sparse concentric bands used by V4.16.
     final variantProgress = filament.acrossBand + .5;
-    final laneOffset = (filament.alongBand - .5) * .022;
-    final slowRadialDrift =
-        math.sin(time * .073 + filament.group * .67) *
-        (.028 + filament.depth * .018);
+    final variantOffset =
+        (variantProgress - .5) *
+        ActivityAmbientKineticField.polygonVariantTrackSpacing;
+    final laneOffset =
+        (filament.alongBand - .5) *
+        ActivityAmbientKineticField.strandLaneTrackSpacing *
+        ActivityAmbientKineticField.strandsPerPolygonVariant;
+    final slowRadialDrift = math.sin(time * .073 + filament.group * .67) * .010;
     final familyOffset = math.sin((filament.group + 1) * 2.173) * .036;
     final normalizedRadius =
-        (.075 +
-                variantProgress * .69 +
+        (ActivityAmbientKineticField.polygonFamilyBundleRadius +
+                variantOffset +
                 laneOffset +
                 slowRadialDrift +
                 familyOffset)
             .clamp(.035, .82)
             .toDouble();
     final pathRadius = radius * normalizedRadius;
+    final groupStartLead =
+        ActivityAmbientKineticField.directionGroupStartLeadFor(filament.group);
+    final groupStartAngle = filament.reverse ? -math.pi / 2 : math.pi / 2;
     final orientation =
-        filament.group * .173 +
-        math.sin(filament.group * .83) * .035 +
-        math.sin(time * .017 + filament.group) * .035;
+        groupStartAngle -
+        groupStartLead * math.pi * 2 +
+        math.sin(time * .017 + (filament.reverse ? 0 : 1)) * .035;
     final lead = ActivityAmbientKineticField.familyBundleLeadFor(
       family: filament.group,
       elapsedSeconds: time,
