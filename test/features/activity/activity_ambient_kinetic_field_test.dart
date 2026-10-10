@@ -50,12 +50,27 @@ void main() {
 
   test('uses a bounded reusable population of luminous flow streams', () {
     expect(ActivityAmbientKineticField.luminousStreamCount, 360);
+    expect(ActivityAmbientKineticField.luminousFlowRegionCount, 8);
     expect(ActivityAmbientKineticField.luminousStreamLayers, 3);
     expect(
       ActivityAmbientKineticField.luminousStreamDrawOperationsPerFrame,
       1080,
     );
     expect(ActivityAmbientKineticField.luminousStreamSamples, 16);
+  });
+
+  test('keeps neighboring streams directionally correlated by flow region', () {
+    for (final seconds in [0.0, 4.53, 17.2, 30.0]) {
+      final coherence = ActivityAmbientKineticField.flowCoherenceFor(seconds);
+      expect(
+        coherence.populatedRegions,
+        ActivityAmbientKineticField.luminousFlowRegionCount,
+      );
+      expect(
+        coherence.sameRegionDirection,
+        greaterThan(coherence.adjacentRegionDirection),
+      );
+    }
   });
 
   test('puts visible thickness in the core and keeps the halo restrained', () {

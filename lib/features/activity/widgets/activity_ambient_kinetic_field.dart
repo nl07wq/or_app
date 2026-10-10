@@ -14,6 +14,7 @@ class ActivityAmbientKineticField extends StatefulWidget {
   /// field. These are not polygon tracks: each stream is advected through a
   /// continuously evolving shared flow field.
   static const luminousStreamCount = 360;
+  static const luminousFlowRegionCount = 8;
   static const luminousStreamLayers = 3;
   static const luminousStreamDrawOperationsPerFrame =
       luminousStreamCount * luminousStreamLayers;
@@ -41,6 +42,10 @@ class ActivityAmbientKineticField extends StatefulWidget {
   @visibleForTesting
   static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) =>
       _MovingScopePainter.swarmMetricsFor(elapsedSeconds);
+
+  @visibleForTesting
+  static ActivityFlowCoherence flowCoherenceFor(double elapsedSeconds) =>
+      _MovingScopePainter.flowCoherenceFor(elapsedSeconds);
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
   /// so release builds do not retain or update runtime instrumentation.
@@ -296,19 +301,21 @@ class _MovingScopePainter extends CustomPainter {
       (index) {
         final radialUnit = (index * .7548776662466927) % 1;
         final seedAngle = (index * 2.399963229728653) % (math.pi * 2);
-        final directionalTone = math.cos(seedAngle);
+        final flowGroup =
+            (seedAngle /
+                    (math.pi * 2) *
+                    ActivityAmbientKineticField.luminousFlowRegionCount)
+                .floor() %
+            ActivityAmbientKineticField.luminousFlowRegionCount;
         return _LuminousFlowStream(
           seedAngle: seedAngle,
           baseRadius: .028 + math.pow(radialUnit, 1.30) * .62,
           phase: index * .618033988749895,
-          speed: .18 + (index % 9) * .013,
+          flowGroup: flowGroup,
+          speed: .218 + flowGroup * .0015,
           trailSeconds: 1.72 + (index % 9) * .095,
           depth: .20 + (index % 11) / 14,
-          colorIndex: directionalTone > .28
-              ? 0
-              : directionalTone < -.28
-              ? 4
-              : 1 + index % 3,
+          colorIndex: const [0, 1, 2, 3, 4, 4, 3, 1][flowGroup],
         );
       },
       growable: false,
@@ -350,6 +357,43 @@ class _MovingScopePainter extends CustomPainter {
       meanRadius: meanRadius,
       radialSpread: radialSpread,
       neighborSignature: neighborSignature / positions.length,
+    );
+  }
+
+  static ActivityFlowCoherence flowCoherenceFor(double elapsedSeconds) {
+    final groups = <int, List<_FilamentFlowPosition>>{};
+    for (final stream in _streams) {
+      groups
+          .putIfAbsent(stream.flowGroup, () => [])
+          .add(_flowPointFor(stream, elapsedSeconds, 0));
+    }
+    var sameDirection = 0.0;
+    var sameSamples = 0;
+    for (final points in groups.values) {
+      for (var index = 0; index < points.length - 1; index++) {
+        sameDirection += math.cos(
+          points[index].tangent - points[index + 1].tangent,
+        );
+        sameSamples++;
+      }
+    }
+    var crossDirection = 0.0;
+    for (
+      var group = 0;
+      group < ActivityAmbientKineticField.luminousFlowRegionCount;
+      group++
+    ) {
+      final current = groups[group]!;
+      final next =
+          groups[(group + 1) %
+              ActivityAmbientKineticField.luminousFlowRegionCount]!;
+      crossDirection += math.cos(current.first.tangent - next.first.tangent);
+    }
+    return ActivityFlowCoherence(
+      sameRegionDirection: sameDirection / sameSamples,
+      adjacentRegionDirection:
+          crossDirection / ActivityAmbientKineticField.luminousFlowRegionCount,
+      populatedRegions: groups.length,
     );
   }
 
@@ -452,6 +496,16 @@ class _MovingScopePainter extends CustomPainter {
     for (final stream in _streams) {
       final path = _flowPath(stream, time, center, radius);
       final shimmer = .5 + .5 * math.sin(time * .83 + stream.phase);
+      final head = _flowPointFor(stream, time, 0).position;
+      final headAngle = math.atan2(head.dy, head.dx);
+      final regionalFocus =
+          .58 +
+          .42 *
+              (.5 +
+                  .5 *
+                      math.cos(
+                        headAngle - time * .12 - stream.flowGroup * .31,
+                      ));
       final color = palette[stream.colorIndex % palette.length];
       // A three-scale profile softens the hard strand boundary without
       // blurring the HUD or the rest of the Activity page. The halo and glow
@@ -460,50 +514,68 @@ class _MovingScopePainter extends CustomPainter {
         ..strokeWidth =
             ActivityAmbientKineticField.filamentHaloBaseWidth +
             stream.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
-        ..color = color.withValues(alpha: .006 + shimmer * .014);
+        ..color = color.withValues(
+          alpha: (.006 + shimmer * .014) * regionalFocus,
+        );
       _filamentGlowPaint
         ..strokeWidth = 1.34 + stream.depth * .68
-        ..color = color.withValues(alpha: .018 + shimmer * .030);
+        ..color = color.withValues(
+          alpha: (.018 + shimmer * .030) * regionalFocus,
+        );
       _filamentCorePaint
         ..strokeWidth =
             ActivityAmbientKineticField.filamentCoreBaseWidth +
             stream.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
-        ..color = color.withValues(alpha: .075 + shimmer * .105);
+        ..color = color.withValues(
+          alpha: (.075 + shimmer * .105) * regionalFocus,
+        );
       canvas.drawPath(path, _filamentHaloPaint);
       canvas.drawPath(path, _filamentGlowPaint);
       canvas.drawPath(path, _filamentCorePaint);
     }
   }
 
-  /// A long-lived advected point in a shared evolving field. The incommensurate
-  /// frequencies intentionally avoid a short visible sequence boundary while
-  /// still giving adjacent streams related direction and density changes.
+  /// A long-lived advected point in one shared regional flow. Streams in the
+  /// same angular region intentionally share their turn, compression, and
+  /// colour clock; only their fine texture remains individual.
   static _FilamentFlowPosition _flowPointFor(
     _LuminousFlowStream stream,
     double time,
     double trailOffset,
   ) {
     final localTime = time - trailOffset;
+    final regionPhase = stream.flowGroup * math.pi * 2 / 8;
     final sharedTurn =
         localTime * stream.speed +
         math.sin(localTime * .071) * .34 +
         math.sin(localTime * .017 + .9) * .16;
-    final regionalTurn = math.sin(
-      localTime * .113 + stream.seedAngle * 2.0 + stream.phase,
+    final regionalTurn =
+        math.sin(localTime * .093 + regionPhase) * .20 +
+        math.sin(localTime * .041 + regionPhase * 1.7) * .11;
+    final fineTurn = math.sin(
+      stream.seedAngle * 3.0 + localTime * .081 + stream.phase * .07,
     );
-    final angle = stream.seedAngle + sharedTurn + regionalTurn * .18;
+    final angle =
+        stream.seedAngle + sharedTurn + regionalTurn + fineTurn * .095;
     final breath =
         .91 +
         math.sin(localTime * .067) * .105 +
         math.sin(localTime * .029 + 1.8) * .065;
+    final regionalCompression =
+        math.sin(localTime * .097 + regionPhase) * .062 +
+        math.sin(localTime * .037 + regionPhase * 1.9) * .030;
     final convergence =
-        math.sin(angle * 3.0 + localTime * .151 + stream.phase * .37) * .075;
+        math.sin(angle * 3.0 + localTime * .151 + regionPhase) * .052;
     final drift =
-        math.sin(angle * 5.0 - localTime * .097 + stream.phase) * .045;
-    final radial = (stream.baseRadius * breath + convergence + drift).clamp(
-      .025,
-      .75,
-    );
+        math.sin(angle * 5.0 - localTime * .097 + stream.phase) * .035;
+    final fineRadial = math.sin(localTime * .123 + stream.phase * .23) * .026;
+    final radial =
+        (stream.baseRadius * breath +
+                regionalCompression * (.35 + stream.baseRadius) +
+                convergence +
+                drift +
+                fineRadial)
+            .clamp(.025, .75);
     final position = Offset.fromDirection(angle, radial);
     final tangent =
         angle +
@@ -557,6 +629,7 @@ class _LuminousFlowStream {
     required this.seedAngle,
     required this.baseRadius,
     required this.phase,
+    required this.flowGroup,
     required this.speed,
     required this.trailSeconds,
     required this.depth,
@@ -566,6 +639,7 @@ class _LuminousFlowStream {
   final double seedAngle;
   final double baseRadius;
   final double phase;
+  final int flowGroup;
   final double speed;
   final double trailSeconds;
   final double depth;
@@ -601,6 +675,19 @@ class ActivitySwarmMetrics {
   /// Deterministic sampled neighbor-distance metric. Its change over time
   /// demonstrates that agents redistribute rather than rotate rigidly.
   final double neighborSignature;
+}
+
+@immutable
+class ActivityFlowCoherence {
+  const ActivityFlowCoherence({
+    required this.sameRegionDirection,
+    required this.adjacentRegionDirection,
+    required this.populatedRegions,
+  });
+
+  final double sameRegionDirection;
+  final double adjacentRegionDirection;
+  final int populatedRegions;
 }
 
 class _KineticMeasurementPainter extends CustomPainter {
