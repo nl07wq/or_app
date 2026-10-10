@@ -118,6 +118,27 @@ void main() {
   test('uses four adjacent variant tracks with distinct six-strand lanes', () {
     expect(ActivityAmbientKineticField.polygonVariantTrackSpacing, .075);
     expect(ActivityAmbientKineticField.strandLaneTrackSpacing, .013);
+    final offsets = [
+      for (
+        var variant = 0;
+        variant < ActivityAmbientKineticField.polygonVariantsPerFamily;
+        variant++
+      )
+        ActivityAmbientKineticField.polygonVariantOffsetFor(variant),
+    ];
+    expect(offsets[0], closeTo(-.1125, .000001));
+    expect(offsets[1], closeTo(-.0375, .000001));
+    expect(offsets[2], closeTo(.0375, .000001));
+    expect(offsets[3], closeTo(.1125, .000001));
+    for (var index = 1; index < offsets.length; index++) {
+      expect(
+        offsets[index] - offsets[index - 1],
+        closeTo(
+          ActivityAmbientKineticField.polygonVariantTrackSpacing,
+          .000001,
+        ),
+      );
+    }
     expect(
       ActivityAmbientKineticField.polygonVariantTrackSpacing,
       greaterThan(

@@ -42,6 +42,11 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static double directionGroupStartLeadFor(int family) =>
       isCounterClockwisePolygonFamily(5 + family) ? .18 : .62;
 
+  @visibleForTesting
+  static double polygonVariantOffsetFor(int variant) =>
+      (variant - (polygonVariantsPerFamily - 1) / 2) *
+      polygonVariantTrackSpacing;
+
   /// Every path variant in a family advances from this common leading point.
   /// Radial lane separation remains local to a strand, never a phase offset.
   @visibleForTesting
@@ -569,9 +574,14 @@ class _MovingScopePainter extends CustomPainter {
     // two spacings separate prevents both a collapsed thick stroke and the
     // sparse concentric bands used by V4.16.
     final variantProgress = filament.acrossBand + .5;
-    final variantOffset =
-        (variantProgress - .5) *
-        ActivityAmbientKineticField.polygonVariantTrackSpacing;
+    final variant =
+        (variantProgress *
+                    ActivityAmbientKineticField.polygonVariantsPerFamily -
+                .5)
+            .round();
+    final variantOffset = ActivityAmbientKineticField.polygonVariantOffsetFor(
+      variant,
+    );
     final laneOffset =
         (filament.alongBand - .5) *
         ActivityAmbientKineticField.strandLaneTrackSpacing *
