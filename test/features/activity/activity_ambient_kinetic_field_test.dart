@@ -59,31 +59,30 @@ void main() {
     expect(ActivityAmbientKineticField.luminousStreamSamples, 16);
   });
 
-  test('keeps neighboring streams directionally correlated by flow region', () {
-    for (final seconds in [0.0, 4.53, 17.2, 30.0]) {
-      final coherence = ActivityAmbientKineticField.flowCoherenceFor(seconds);
-      expect(
-        coherence.populatedRegions,
-        ActivityAmbientKineticField.luminousFlowRegionCount,
-      );
-      expect(
-        coherence.sameRegionDirection,
-        greaterThan(coherence.adjacentRegionDirection),
-      );
-    }
-  });
-
-  test('advects luminous streams tangentially without center crossings', () {
-    for (final seconds in [0.0, 4.53, 15.5, 17.2, 30.0]) {
-      final orbital = ActivityAmbientKineticField.orbitalFlowMetricsFor(
-        seconds,
-      );
-      expect(orbital.tangentialAlignment, greaterThan(.98));
-      expect(orbital.minimumTangentialAlignment, greaterThan(.99));
-      expect(orbital.minimumRadius, greaterThanOrEqualTo(.075));
-      expect(orbital.centerCrossingStreams, 0);
-    }
-  });
+  test(
+    'combines outer clockwise flow, central counterflow, and radial exchange',
+    () {
+      var greatestOutwardExchange = 0.0;
+      var greatestInwardExchange = 0.0;
+      for (final seconds in [0.0, 4.53, 15.5, 17.2, 30.0]) {
+        final flow = ActivityAmbientKineticField.multiDirectionalFlowMetricsFor(
+          seconds,
+        );
+        expect(flow.outerClockwiseAlignment, greaterThan(.65));
+        expect(flow.centralCounterclockwiseAlignment, greaterThan(.65));
+        expect(flow.centerPopulation, greaterThan(.15));
+        expect(flow.neighboringDirectionCoherence, greaterThan(.25));
+        greatestOutwardExchange = greatestOutwardExchange > flow.outwardExchange
+            ? greatestOutwardExchange
+            : flow.outwardExchange;
+        greatestInwardExchange = greatestInwardExchange > flow.inwardExchange
+            ? greatestInwardExchange
+            : flow.inwardExchange;
+      }
+      expect(greatestOutwardExchange, greaterThan(.08));
+      expect(greatestInwardExchange, greaterThan(.08));
+    },
+  );
 
   test('puts visible thickness in the core and keeps the halo restrained', () {
     expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 1.10);
