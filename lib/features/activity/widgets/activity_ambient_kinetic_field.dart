@@ -10,58 +10,15 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
 
-  /// Eight nested polygon families, each rendered by four luminous lines.
-  static const polygonFamilyCount = 8;
-  static const polygonVariantsPerFamily = 4;
-  static const luminousLinesPerFamily = polygonVariantsPerFamily;
-  static const luminousLineCount = polygonFamilyCount * luminousLinesPerFamily;
-  static const luminousLineLayers = 3;
-  static const luminousLineDrawOperationsPerFrame =
-      luminousLineCount * luminousLineLayers;
-  static const partialStrandPerimeterFraction = 1 / 3;
-  static const polygonVariantTrackSpacing = .018;
-  static const polygonFamilyRadii = <double>[
-    .04,
-    .13,
-    .23,
-    .33,
-    .435,
-    .54,
-    .645,
-    .75,
-  ];
-  static const minimumPathVariantsPerFamily = 4;
-
-  @visibleForTesting
-  static bool isCounterClockwisePolygonFamily(int sides) =>
-      sides >= 5 && sides <= 7;
-
-  @visibleForTesting
-  static double directionGroupStartLeadFor(int family) =>
-      isCounterClockwisePolygonFamily(5 + family) ? .18 : .62;
-
-  @visibleForTesting
-  static double polygonVariantOffsetFor(int variant) =>
-      (variant - (polygonVariantsPerFamily - 1) / 2) *
-      polygonVariantTrackSpacing;
-
-  @visibleForTesting
-  static double polygonLineRadiusFor({
-    required int family,
-    required int variant,
-  }) => polygonFamilyRadii[family] + polygonVariantOffsetFor(variant);
-
-  /// Every line in a family advances from this common leading point.
-  @visibleForTesting
-  static double familyBundleLeadFor({
-    required int family,
-    required double elapsedSeconds,
-  }) {
-    final direction = isCounterClockwisePolygonFamily(5 + family) ? -1.0 : 1.0;
-    return (directionGroupStartLeadFor(family) +
-            elapsedSeconds * (.040 + family * .004) * direction) %
-        1;
-  }
+  /// Bounded, reusable stream geometry for the reference-inspired luminous
+  /// field. These are not polygon tracks: each stream is advected through a
+  /// continuously evolving shared flow field.
+  static const luminousStreamCount = 360;
+  static const luminousStreamLayers = 3;
+  static const luminousStreamDrawOperationsPerFrame =
+      luminousStreamCount * luminousStreamLayers;
+  static const luminousStreamSamples = 16;
+  static const continuityEvidenceSeconds = 30.0;
 
   // V4.10 keeps the soft edge local to every moving strand while putting the
   // visible width back in the core instead of a large blurred halo.
@@ -301,7 +258,7 @@ class _ActivityAmbientKineticFieldState
   }
 }
 
-/// V4: one moving precision scope reveals the technical field it scans.
+/// V4 Phase 1: one stationary precision scope contains the living field.
 class _MovingScopePainter extends CustomPainter {
   _MovingScopePainter({
     required this.animation,
@@ -330,24 +287,28 @@ class _MovingScopePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Generated once. A rendered line is exactly one family/variant pair.
-  static final List<_LuminousLineGeometry> _lines = List.unmodifiable(
-    List<_LuminousLineGeometry>.generate(
-      ActivityAmbientKineticField.luminousLineCount,
+  /// Immutable seeds are built once. Runtime animation advances their flow
+  /// coordinates; it never reconstructs a polygon population or restarts a
+  /// finite sequence.
+  static final List<_LuminousFlowStream> _streams = List.unmodifiable(
+    List<_LuminousFlowStream>.generate(
+      ActivityAmbientKineticField.luminousStreamCount,
       (index) {
-        final family =
-            index ~/ ActivityAmbientKineticField.luminousLinesPerFamily;
-        final variant =
-            index % ActivityAmbientKineticField.luminousLinesPerFamily;
-        return _LuminousLineGeometry(
-          family: family,
-          variant: variant,
-          phase: index * .618033988749895 + family * .531,
-          angularVelocity: .040 + family * .004,
-          lengthFactor:
-              ActivityAmbientKineticField.partialStrandPerimeterFraction,
-          depth: .5,
-          reverse: family < 3,
+        final radialUnit = (index * .7548776662466927) % 1;
+        final seedAngle = (index * 2.399963229728653) % (math.pi * 2);
+        final directionalTone = math.cos(seedAngle);
+        return _LuminousFlowStream(
+          seedAngle: seedAngle,
+          baseRadius: .028 + math.pow(radialUnit, 1.30) * .62,
+          phase: index * .618033988749895,
+          speed: .18 + (index % 9) * .013,
+          trailSeconds: 1.72 + (index % 9) * .095,
+          depth: .20 + (index % 11) / 14,
+          colorIndex: directionalTone > .28
+              ? 0
+              : directionalTone < -.28
+              ? 4
+              : 1 + index % 3,
         );
       },
       growable: false,
@@ -362,8 +323,8 @@ class _MovingScopePainter extends CustomPainter {
 
   static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) {
     final positions = [
-      for (final line in _lines)
-        _flowPositionFor(line, elapsedSeconds).position,
+      for (final stream in _streams)
+        _flowPointFor(stream, elapsedSeconds, 0).position,
     ];
     final radii = [for (final position in positions) position.distance];
     final centerPopulation =
@@ -376,8 +337,8 @@ class _MovingScopePainter extends CustomPainter {
               .reduce((sum, value) => sum + value) /
           positions.length,
     );
-    // Sample real agent pairs from different and same flocks. This catches a
-    // frozen arrangement while avoiding a quadratic all-agent test helper.
+    // A deterministic sample catches a frozen or globally rigid arrangement
+    // without retaining any per-frame instrumentation in release builds.
     var neighborSignature = 0.0;
     for (var index = 0; index < positions.length; index++) {
       neighborSignature +=
@@ -488,106 +449,82 @@ class _MovingScopePainter extends CustomPainter {
       Color(0xffff9ad9),
     ];
     final time = _swarmTime;
-    for (final line in _lines) {
-      final path = _polygonStrandPath(line, time, center, radius);
-      final shimmer = .5 + .5 * math.sin(time * 1.23 + line.phase);
-      final color = palette[line.family % palette.length];
+    for (final stream in _streams) {
+      final path = _flowPath(stream, time, center, radius);
+      final shimmer = .5 + .5 * math.sin(time * .83 + stream.phase);
+      final color = palette[stream.colorIndex % palette.length];
       // A three-scale profile softens the hard strand boundary without
       // blurring the HUD or the rest of the Activity page. The halo and glow
       // accumulate only where moving filament paths overlap.
       _filamentHaloPaint
         ..strokeWidth =
             ActivityAmbientKineticField.filamentHaloBaseWidth +
-            line.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
-        ..color = color.withValues(alpha: .015 + shimmer * .030);
+            stream.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
+        ..color = color.withValues(alpha: .006 + shimmer * .014);
       _filamentGlowPaint
-        ..strokeWidth = 1.48 + line.depth * .78
-        ..color = color.withValues(alpha: .045 + shimmer * .070);
+        ..strokeWidth = 1.34 + stream.depth * .68
+        ..color = color.withValues(alpha: .018 + shimmer * .030);
       _filamentCorePaint
         ..strokeWidth =
             ActivityAmbientKineticField.filamentCoreBaseWidth +
-            line.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
-        ..color = color.withValues(alpha: .18 + shimmer * .18);
+            stream.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
+        ..color = color.withValues(alpha: .075 + shimmer * .105);
       canvas.drawPath(path, _filamentHaloPaint);
       canvas.drawPath(path, _filamentGlowPaint);
       canvas.drawPath(path, _filamentCorePaint);
     }
   }
 
-  /// Each flow band has a shared tangent and slowly evolving anchor. Individual
-  /// lanes use only restrained offsets, which creates aurora-like coherent
-  /// travel while still allowing crossings, convergence, and density changes.
-  /// No ring, shape mask, or prescribed outline is used.
-  static _FilamentFlowPosition _flowPositionFor(
-    _LuminousLineGeometry line,
+  /// A long-lived advected point in a shared evolving field. The incommensurate
+  /// frequencies intentionally avoid a short visible sequence boundary while
+  /// still giving adjacent streams related direction and density changes.
+  static _FilamentFlowPosition _flowPointFor(
+    _LuminousFlowStream stream,
     double time,
+    double trailOffset,
   ) {
-    final groupPhase = line.family * .781;
-    // Screen-space positive angles progress clockwise. Every band shares this
-    // direction; phase differences only vary where it is on the flow.
-    final flowAngle =
-        groupPhase +
-        time * (.070 + line.angularVelocity * .12) +
-        math.sin(time * .041 + groupPhase) * .18;
-    final sides = 5 + line.family % 2;
-    final polygonWave = math.cos(sides * flowAngle + groupPhase * .37);
-    final flowDistance =
-        .17 + polygonWave * .060 + math.sin(time * .053 + groupPhase) * .026;
-    final flowCenter = Offset.fromDirection(flowAngle, flowDistance);
+    final localTime = time - trailOffset;
+    final sharedTurn =
+        localTime * stream.speed +
+        math.sin(localTime * .071) * .34 +
+        math.sin(localTime * .017 + .9) * .16;
+    final regionalTurn = math.sin(
+      localTime * .113 + stream.seedAngle * 2.0 + stream.phase,
+    );
+    final angle = stream.seedAngle + sharedTurn + regionalTurn * .18;
+    final breath =
+        .91 +
+        math.sin(localTime * .067) * .105 +
+        math.sin(localTime * .029 + 1.8) * .065;
+    final convergence =
+        math.sin(angle * 3.0 + localTime * .151 + stream.phase * .37) * .075;
+    final drift =
+        math.sin(angle * 5.0 - localTime * .097 + stream.phase) * .045;
+    final radial = (stream.baseRadius * breath + convergence + drift).clamp(
+      .025,
+      .75,
+    );
+    final position = Offset.fromDirection(angle, radial);
     final tangent =
-        flowAngle +
+        angle +
         math.pi / 2 +
-        math.sin(sides * flowAngle + groupPhase * .37) * .25;
-    final tangentVector = Offset.fromDirection(tangent, 1);
-    final normalVector = Offset.fromDirection(tangent + math.pi / 2, 1);
-    final longitudinal =
-        ((line.variant + .5) /
-                ActivityAmbientKineticField.luminousLinesPerFamily) *
-            (.78 + .10 * math.sin(time * .097 + groupPhase)) +
-        math.sin(time * line.angularVelocity + line.phase * .17) * .045;
-    final lateral =
-        (line.variant - 1.5) *
-        (.08 + .02 * math.sin(time * .109 + groupPhase * 1.3));
-    final position =
-        flowCenter + tangentVector * longitudinal + normalVector * lateral;
+        math.sin(angle * 3.0 + localTime * .151 + stream.phase) * .24;
     return _FilamentFlowPosition(position: position, tangent: tangent);
   }
 
-  static Path _polygonStrandPath(
-    _LuminousLineGeometry line,
+  static Path _flowPath(
+    _LuminousFlowStream stream,
     double time,
     Offset center,
     double radius,
   ) {
-    final sides = 5 + line.family;
-    final direction = line.reverse ? -1.0 : 1.0;
-    // Fixed nested family radii and adjacent offsets keep all 32 line paths
-    // distinct. The line itself, not a duplicate strand population, emits
-    // halo, glow, and core passes.
-    final normalizedRadius = ActivityAmbientKineticField.polygonLineRadiusFor(
-      family: line.family,
-      variant: line.variant,
-    );
-    final pathRadius = radius * normalizedRadius;
-    final groupStartLead =
-        ActivityAmbientKineticField.directionGroupStartLeadFor(line.family);
-    final groupStartAngle = line.reverse ? -math.pi / 2 : math.pi / 2;
-    final orientation =
-        groupStartAngle -
-        groupStartLead * math.pi * 2 +
-        math.sin(time * .017 + (line.reverse ? 0 : 1)) * .035;
-    final lead = ActivityAmbientKineticField.familyBundleLeadFor(
-      family: line.family,
-      elapsedSeconds: time,
-    );
-    final strandLength = line.lengthFactor;
     final path = Path();
-    const samples = 12;
+    const samples = ActivityAmbientKineticField.luminousStreamSamples;
     Offset? previous;
     for (var index = 0; index <= samples; index++) {
-      final progress = lead - direction * strandLength * index / samples;
-      final point = _polygonPoint(sides, progress, pathRadius, orientation);
-      final absolute = center + point;
+      final trailOffset = stream.trailSeconds * index / samples;
+      final point = _flowPointFor(stream, time, trailOffset).position;
+      final absolute = center + point * radius;
       if (index == 0) {
         path.moveTo(absolute.dx, absolute.dy);
       } else if (index == 1) {
@@ -606,77 +543,7 @@ class _MovingScopePainter extends CustomPainter {
       }
       previous = absolute;
     }
-    if (previous != null) {
-      // Finish at the true tail so the final segment remains visible.
-      final tail = _polygonPoint(
-        sides,
-        lead - direction * strandLength,
-        pathRadius,
-        orientation,
-      );
-      final absoluteTail = center + tail;
-      path.lineTo(absoluteTail.dx, absoluteTail.dy);
-    }
     return path;
-  }
-
-  static Offset _polygonPoint(
-    int sides,
-    double progress,
-    double radius,
-    double orientation,
-  ) {
-    final wrapped = progress - progress.floorToDouble();
-    final scaled = wrapped * sides;
-    final edge = scaled.floor() % sides;
-    final local = scaled - edge;
-    final a = orientation + edge * math.pi * 2 / sides;
-    final b = orientation + (edge + 1) * math.pi * 2 / sides;
-    return Offset.lerp(
-      Offset.fromDirection(a, radius),
-      Offset.fromDirection(b, radius),
-      local,
-    )!;
-  }
-
-  Path _filamentPath(
-    Offset position,
-    Offset tangentVector,
-    Offset radialVector,
-    double length,
-    double curve,
-    double time,
-    double phase,
-    int group,
-  ) {
-    // A shared low-frequency band wave controls the overall stream. Small
-    // per-lane offsets preserve fine moving detail without the high-amplitude
-    // head/body/tail wriggle that made V4.7 read as individual worms.
-    final groupWave = math.sin(time * .29 + group * .781);
-    final laneWave = math.sin(time * .41 + phase * .19);
-    final headWave = (groupWave * .70 + laneWave * .12) * curve;
-    final bodyWave = (groupWave + laneWave * .16) * curve;
-    final tailWave = (groupWave * .78 - laneWave * .11) * curve;
-    final start =
-        position - tangentVector * (length * .54) - radialVector * headWave;
-    final firstControl =
-        position - tangentVector * (length * .18) + radialVector * bodyWave;
-    final secondControl =
-        position +
-        tangentVector * (length * .18) -
-        radialVector * bodyWave * .72;
-    final end =
-        position + tangentVector * (length * .54) + radialVector * tailWave;
-    return Path()
-      ..moveTo(start.dx, start.dy)
-      ..cubicTo(
-        firstControl.dx,
-        firstControl.dy,
-        secondControl.dx,
-        secondControl.dy,
-        end.dx,
-        end.dy,
-      );
   }
 
   @override
@@ -685,24 +552,24 @@ class _MovingScopePainter extends CustomPainter {
 }
 
 @immutable
-class _LuminousLineGeometry {
-  const _LuminousLineGeometry({
-    required this.family,
-    required this.variant,
+class _LuminousFlowStream {
+  const _LuminousFlowStream({
+    required this.seedAngle,
+    required this.baseRadius,
     required this.phase,
-    required this.angularVelocity,
-    required this.lengthFactor,
+    required this.speed,
+    required this.trailSeconds,
     required this.depth,
-    required this.reverse,
+    required this.colorIndex,
   });
 
-  final int family;
-  final int variant;
+  final double seedAngle;
+  final double baseRadius;
   final double phase;
-  final double angularVelocity;
-  final double lengthFactor;
+  final double speed;
+  final double trailSeconds;
   final double depth;
-  final bool reverse;
+  final int colorIndex;
 }
 
 @immutable

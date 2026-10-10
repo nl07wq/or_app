@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
@@ -50,32 +48,15 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
-  test('uses exactly four luminous lines in each nested polygon family', () {
-    expect(ActivityAmbientKineticField.luminousLineCount, 32);
-    expect(ActivityAmbientKineticField.polygonFamilyCount, 8);
-    expect(ActivityAmbientKineticField.polygonVariantsPerFamily, 4);
+  test('uses a bounded reusable population of luminous flow streams', () {
+    expect(ActivityAmbientKineticField.luminousStreamCount, 360);
+    expect(ActivityAmbientKineticField.luminousStreamLayers, 3);
     expect(
-      ActivityAmbientKineticField.polygonVariantsPerFamily,
-      greaterThanOrEqualTo(
-        ActivityAmbientKineticField.minimumPathVariantsPerFamily,
-      ),
+      ActivityAmbientKineticField.luminousStreamDrawOperationsPerFrame,
+      1080,
     );
-    expect(ActivityAmbientKineticField.luminousLinesPerFamily, 4);
-    expect(ActivityAmbientKineticField.luminousLineLayers, 3);
-    expect(ActivityAmbientKineticField.luminousLineDrawOperationsPerFrame, 96);
+    expect(ActivityAmbientKineticField.luminousStreamSamples, 16);
   });
-
-  test(
-    'keeps inner polygon guides counterclockwise and outer guides clockwise',
-    () {
-      for (var sides = 5; sides <= 12; sides++) {
-        expect(
-          ActivityAmbientKineticField.isCounterClockwisePolygonFamily(sides),
-          sides <= 7,
-        );
-      }
-    },
-  );
 
   test('puts visible thickness in the core and keeps the halo restrained', () {
     expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 1.10);
@@ -89,93 +70,36 @@ void main() {
     expect(ActivityAmbientKineticField.filamentHaloBlurSigma, lessThan(2.2));
   });
 
-  test('keeps each polygon family on one advancing partial-path bundle', () {
-    expect(
-      ActivityAmbientKineticField.partialStrandPerimeterFraction,
-      closeTo(1 / 3, .000001),
-    );
-    for (
-      var family = 0;
-      family < ActivityAmbientKineticField.polygonFamilyCount;
-      family++
-    ) {
-      final leadAtStart = ActivityAmbientKineticField.familyBundleLeadFor(
-        family: family,
-        elapsedSeconds: 0,
-      );
-      final leadLater = ActivityAmbientKineticField.familyBundleLeadFor(
-        family: family,
-        elapsedSeconds: 1,
-      );
-      expect(leadAtStart, inInclusiveRange(0, 1));
-      expect(leadLater, isNot(leadAtStart));
-    }
-  });
-
-  test('uses four separate nested tracks per polygon family', () {
-    expect(ActivityAmbientKineticField.polygonVariantTrackSpacing, .018);
-    final offsets = [
-      for (
-        var variant = 0;
-        variant < ActivityAmbientKineticField.polygonVariantsPerFamily;
-        variant++
-      )
-        ActivityAmbientKineticField.polygonVariantOffsetFor(variant),
-    ];
-    expect(offsets[0], closeTo(-.027, .000001));
-    expect(offsets[1], closeTo(-.009, .000001));
-    expect(offsets[2], closeTo(.009, .000001));
-    expect(offsets[3], closeTo(.027, .000001));
-    for (var index = 1; index < offsets.length; index++) {
+  test(
+    'continuously redistributes density beyond the reference GIF duration',
+    () {
+      final samples = [
+        for (final seconds in [0.0, 4.53, 9.06, 17.2, 30.0])
+          ActivityAmbientKineticField.swarmMetricsFor(seconds),
+      ];
+      final densityStates = {
+        for (final sample in samples)
+          sample.centerPopulation.toStringAsFixed(3),
+      };
+      final silhouetteStates = {
+        for (final sample in samples) sample.meanRadius.toStringAsFixed(3),
+      };
+      final neighborStates = {
+        for (final sample in samples)
+          sample.neighborSignature.toStringAsFixed(3),
+      };
+      expect(densityStates.length, greaterThan(2));
+      expect(silhouetteStates.length, greaterThan(2));
+      expect(neighborStates.length, greaterThan(2));
       expect(
-        offsets[index] - offsets[index - 1],
-        closeTo(
-          ActivityAmbientKineticField.polygonVariantTrackSpacing,
-          .000001,
-        ),
+        ActivityAmbientKineticField.continuityEvidenceSeconds,
+        greaterThanOrEqualTo(30),
       );
-    }
-  });
-
-  test('keeps every family strictly outside the preceding nested family', () {
-    for (
-      var family = 1;
-      family < ActivityAmbientKineticField.polygonFamilyCount;
-      family++
-    ) {
-      final innerOuterRadius = ActivityAmbientKineticField.polygonLineRadiusFor(
-        family: family - 1,
-        variant: ActivityAmbientKineticField.polygonVariantsPerFamily - 1,
-      );
-      final outerInnerRadius = ActivityAmbientKineticField.polygonLineRadiusFor(
-        family: family,
-        variant: 0,
-      );
-      final outerInradius = outerInnerRadius * math.cos(math.pi / (5 + family));
-      expect(outerInradius, greaterThan(innerOuterRadius));
-    }
-  });
-
-  test('aligns the start reference within each travel-direction group', () {
-    final ccwStart = ActivityAmbientKineticField.directionGroupStartLeadFor(0);
-    final cwStart = ActivityAmbientKineticField.directionGroupStartLeadFor(3);
-    for (var family = 0; family < 3; family++) {
-      expect(
-        ActivityAmbientKineticField.directionGroupStartLeadFor(family),
-        ccwStart,
-      );
-    }
-    for (var family = 3; family < 8; family++) {
-      expect(
-        ActivityAmbientKineticField.directionGroupStartLeadFor(family),
-        cwStart,
-      );
-    }
-    expect(ccwStart, isNot(cwStart));
-  });
+    },
+  );
 
   test(
-    'advances swarm time continuously across outer-scope cycle boundaries',
+    'advances flow time continuously across animation-controller boundaries',
     () {
       final before = ActivityAmbientKineticField.swarmSecondsFor(
         cycle: 0,
@@ -273,7 +197,7 @@ void main() {
     );
   });
 
-  testWidgets('renders a dense layered filament swarm at the initial phase', (
+  testWidgets('renders a dense nonuniform luminous flow at the initial phase', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
@@ -317,6 +241,20 @@ void main() {
       matchesGoldenFile(
         'goldens/activity_kinetic_measurement_lower_viewport.png',
       ),
+    );
+  });
+
+  testWidgets('renders uninterrupted luminous flow through 30 seconds', (
+    tester,
+  ) async {
+    await pumpField(tester, enabled: true);
+    for (var second = 0; second < 30; second++) {
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.takeException(), isNull);
+    }
+    await expectLater(
+      find.byKey(ActivityAmbientKineticField.fieldKey),
+      matchesGoldenFile('goldens/activity_kinetic_measurement_30_seconds.png'),
     );
   });
 
