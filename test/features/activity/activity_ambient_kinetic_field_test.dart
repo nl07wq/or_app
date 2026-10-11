@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_kinetic_field.dart';
+import 'package:or_app/features/activity/widgets/activity_ambient_reference_media.dart';
 
 void main() {
   test('coordinates detect track measure and accumulation causally', () {
@@ -48,112 +51,35 @@ void main() {
     expect(phases.length, greaterThan(2));
   });
 
-  test('uses a bounded reusable population of luminous flow streams', () {
-    expect(ActivityAmbientKineticField.luminousStreamCount, 360);
-    expect(ActivityAmbientKineticField.luminousFlowRegionCount, 8);
-    expect(ActivityAmbientKineticField.luminousStreamLayers, 3);
+  test('declares the supplied authoritative reference media', () {
     expect(
-      ActivityAmbientKineticField.luminousStreamDrawOperationsPerFrame,
-      1080,
+      ActivityAmbientReferenceMedia.videoAsset,
+      'assets/animations/activity/reference_motion/'
+      'activity_reference_motion_activity_h264.mp4',
     );
-    expect(ActivityAmbientKineticField.luminousStreamSamples, 16);
+    expect(
+      ActivityAmbientReferenceMedia.staticAsset,
+      'assets/animations/activity/reference_motion/'
+      'activity_reference_motion_v1_frame.png',
+    );
+    expect(File(ActivityAmbientReferenceMedia.videoAsset).lengthSync(), 997266);
+    expect(
+      File(ActivityAmbientReferenceMedia.staticAsset).lengthSync(),
+      119457,
+    );
   });
 
-  test(
-    'combines outer clockwise flow, central counterflow, and radial exchange',
-    () {
-      var greatestOuterClockwiseAlignment = 0.0;
-      var greatestCentralCounterclockwiseAlignment = 0.0;
-      var greatestOutwardExchange = 0.0;
-      var greatestInwardExchange = 0.0;
-      for (final seconds in [0.0, 4.53, 15.5, 17.2, 30.0]) {
-        final flow = ActivityAmbientKineticField.multiDirectionalFlowMetricsFor(
-          seconds,
-        );
-        // V4.23 keeps the outer clockwise tendency while allowing actual
-        // convergence and radial exchange to interrupt a perfectly circular
-        // orbit. A high pure-tangent threshold would reject that intended
-        // broad shared flow as if it were a rigid ring.
-        greatestOuterClockwiseAlignment =
-            greatestOuterClockwiseAlignment > flow.outerClockwiseAlignment
-            ? greatestOuterClockwiseAlignment
-            : flow.outerClockwiseAlignment;
-        greatestCentralCounterclockwiseAlignment =
-            greatestCentralCounterclockwiseAlignment >
-                flow.centralCounterclockwiseAlignment
-            ? greatestCentralCounterclockwiseAlignment
-            : flow.centralCounterclockwiseAlignment;
-        expect(flow.centerPopulation, greaterThan(.15));
-        expect(flow.neighboringDirectionCoherence, greaterThan(.25));
-        greatestOutwardExchange = greatestOutwardExchange > flow.outwardExchange
-            ? greatestOutwardExchange
-            : flow.outwardExchange;
-        greatestInwardExchange = greatestInwardExchange > flow.inwardExchange
-            ? greatestInwardExchange
-            : flow.inwardExchange;
-      }
-      expect(greatestOuterClockwiseAlignment, greaterThan(.40));
-      expect(greatestCentralCounterclockwiseAlignment, greaterThan(.30));
-      expect(greatestOutwardExchange, greaterThan(.08));
-      expect(greatestInwardExchange, greaterThan(.08));
-    },
-  );
-
-  test('puts visible thickness in the core and keeps the halo restrained', () {
-    expect(ActivityAmbientKineticField.filamentCoreBaseWidth, 1.10);
-    expect(ActivityAmbientKineticField.filamentCoreDepthWidth, .60);
-    expect(
-      ActivityAmbientKineticField.filamentCoreBaseWidth +
-          ActivityAmbientKineticField.filamentCoreDepthWidth,
-      greaterThan(1.04),
-    );
-    expect(ActivityAmbientKineticField.filamentHaloBaseWidth, lessThan(3.9));
-    expect(ActivityAmbientKineticField.filamentHaloBlurSigma, lessThan(2.2));
+  test('web playback declares muted inline looping without controls', () {
+    final source = File(
+      'lib/features/activity/widgets/activity_ambient_reference_media_web.dart',
+    ).readAsStringSync();
+    expect(source, contains('..autoplay = true'));
+    expect(source, contains('..loop = true'));
+    expect(source, contains('..muted = true'));
+    expect(source, contains('..playsInline = true'));
+    expect(source, contains('..controls = false'));
+    expect(source, contains("setAttribute('webkit-playsinline', '')"));
   });
-
-  test(
-    'continuously redistributes density beyond the reference GIF duration',
-    () {
-      final samples = [
-        for (final seconds in [0.0, 4.53, 9.06, 17.2, 30.0])
-          ActivityAmbientKineticField.swarmMetricsFor(seconds),
-      ];
-      final densityStates = {
-        for (final sample in samples)
-          sample.centerPopulation.toStringAsFixed(3),
-      };
-      final silhouetteStates = {
-        for (final sample in samples) sample.meanRadius.toStringAsFixed(3),
-      };
-      final neighborStates = {
-        for (final sample in samples)
-          sample.neighborSignature.toStringAsFixed(3),
-      };
-      expect(densityStates.length, greaterThan(2));
-      expect(silhouetteStates.length, greaterThan(2));
-      expect(neighborStates.length, greaterThan(2));
-      expect(
-        ActivityAmbientKineticField.continuityEvidenceSeconds,
-        greaterThanOrEqualTo(30),
-      );
-    },
-  );
-
-  test(
-    'advances flow time continuously across animation-controller boundaries',
-    () {
-      final before = ActivityAmbientKineticField.swarmSecondsFor(
-        cycle: 0,
-        phase: .999,
-      );
-      final after = ActivityAmbientKineticField.swarmSecondsFor(
-        cycle: 1,
-        phase: 0,
-      );
-      expect(after, greaterThan(before));
-      expect(after - before, lessThan(.02));
-    },
-  );
 
   test(
     'keeps the phase-one scope and swarm center stationary in its viewport',
@@ -238,19 +164,20 @@ void main() {
     );
   });
 
-  testWidgets('renders a dense nonuniform luminous flow at the initial phase', (
-    tester,
-  ) async {
-    await pumpField(tester, enabled: true);
-    await expectLater(
-      find.byKey(ActivityAmbientKineticField.fieldKey),
-      matchesGoldenFile(
-        'goldens/activity_kinetic_measurement_vortex_prototype.png',
-      ),
-    );
-  });
+  testWidgets(
+    'renders the supplied reference composition at the initial phase',
+    (tester) async {
+      await pumpField(tester, enabled: true);
+      await expectLater(
+        find.byKey(ActivityAmbientKineticField.fieldKey),
+        matchesGoldenFile(
+          'goldens/activity_kinetic_measurement_vortex_prototype.png',
+        ),
+      );
+    },
+  );
 
-  testWidgets('renders tracking state with target-derived trajectory history', (
+  testWidgets('keeps the supplied composition aligned with the scanning HUD', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
@@ -261,7 +188,7 @@ void main() {
     );
   });
 
-  testWidgets('renders measurement signal and accumulated activity ticks', (
+  testWidgets('keeps the supplied composition within the stationary scope', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
@@ -272,7 +199,7 @@ void main() {
     );
   });
 
-  testWidgets('keeps the scope stationary while living filaments evolve', (
+  testWidgets('keeps the static fallback aligned while the HUD scans', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);
@@ -285,7 +212,7 @@ void main() {
     );
   });
 
-  testWidgets('renders uninterrupted luminous flow through 30 seconds', (
+  testWidgets('keeps the ambient composition stable through 30 seconds', (
     tester,
   ) async {
     await pumpField(tester, enabled: true);

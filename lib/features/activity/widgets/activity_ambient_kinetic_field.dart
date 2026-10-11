@@ -1,6 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+
+import 'activity_ambient_reference_media.dart';
 
 /// Activity-only kinetic measurement field.
 class ActivityAmbientKineticField extends StatefulWidget {
@@ -10,47 +10,9 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const trackingRegionCount = 7;
   static const cycleSeconds = 15.5;
 
-  /// Bounded, reusable stream geometry for the reference-inspired luminous
-  /// field. These are not polygon tracks: each stream is advected through a
-  /// continuously evolving shared flow field.
-  static const luminousStreamCount = 360;
-  static const luminousFlowRegionCount = 8;
-  static const luminousStreamLayers = 3;
-  static const luminousStreamDrawOperationsPerFrame =
-      luminousStreamCount * luminousStreamLayers;
-  static const luminousStreamSamples = 16;
-  static const continuityEvidenceSeconds = 30.0;
-
-  // V4.10 keeps the soft edge local to every moving strand while putting the
-  // visible width back in the core instead of a large blurred halo.
-  static const filamentCoreBaseWidth = 1.10;
-  static const filamentCoreDepthWidth = .60;
-  static const filamentHaloBaseWidth = 2.60;
-  static const filamentHaloDepthWidth = 1.05;
-  static const filamentHaloBlurSigma = 1.10;
   static const scopeTopInset = 16.0;
   static const scopeBottomInset = 24.0;
   final bool enabled;
-
-  @visibleForTesting
-  static double swarmSecondsFor({required int cycle, required double phase}) =>
-      (cycle + phase) * cycleSeconds;
-
-  /// Production-flow telemetry for deterministic tests. The metric is derived
-  /// from the same agent positions used by the painter; it is never used while
-  /// painting a frame.
-  @visibleForTesting
-  static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) =>
-      _MovingScopePainter.swarmMetricsFor(elapsedSeconds);
-
-  @visibleForTesting
-  /// Deterministic telemetry derived from the same advected positions used by
-  /// the production painter. It describes the continuous outer orbital,
-  /// central counterflow, and radial exchange in the one shared field.
-  @visibleForTesting
-  static ActivityMultiDirectionalFlowMetrics multiDirectionalFlowMetricsFor(
-    double elapsedSeconds,
-  ) => _MovingScopePainter.multiDirectionalFlowMetricsFor(elapsedSeconds);
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
   /// so release builds do not retain or update runtime instrumentation.
@@ -191,23 +153,6 @@ class _ActivityAmbientKineticFieldState
   );
   var _motionAllowed = false;
   var _resolvedMotion = false;
-  late final ValueNotifier<int> _swarmCycle = ValueNotifier(0);
-  var _previousAnimationValue = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_advanceSwarmEpoch);
-  }
-
-  void _advanceSwarmEpoch() {
-    final value = _controller.value;
-    if (value < _previousAnimationValue && _previousAnimationValue > .8) {
-      _swarmCycle.value++;
-    }
-    _previousAnimationValue = value;
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -238,9 +183,7 @@ class _ActivityAmbientKineticFieldState
 
   @override
   void dispose() {
-    _controller.removeListener(_advanceSwarmEpoch);
     _controller.dispose();
-    _swarmCycle.dispose();
     super.dispose();
   }
 
@@ -250,181 +193,58 @@ class _ActivityAmbientKineticFieldState
     return IgnorePointer(
       child: RepaintBoundary(
         key: ActivityAmbientKineticField.fieldKey,
-        child: CustomPaint(
-          painter: _MovingScopePainter(
-            animation: _controller,
-            swarmEpoch: _swarmCycle,
-            swarmSeconds: () => ActivityAmbientKineticField.swarmSecondsFor(
-              cycle: _swarmCycle.value,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final geometry = ActivityAmbientKineticField.scopeGeometryFor(
+              painterSize: Size(constraints.maxWidth, constraints.maxHeight),
               phase: _controller.value,
-            ),
-            color: Theme.of(context).colorScheme.primary,
-            staticFrame: !_motionAllowed,
-          ),
-          child: const SizedBox.expand(),
+            );
+            // The supplied square media occupies the original inner scope;
+            // its own rounded DOM surface prevents a rectangular platform-view
+            // overlay from extending into the surrounding technical HUD.
+            final mediaBounds = geometry.scopeBounds.deflate(
+              geometry.radius * .11,
+            );
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fromRect(
+                  rect: mediaBounds,
+                  child: ClipOval(
+                    child: ActivityAmbientReferenceMedia(
+                      reducedMotion: !_motionAllowed,
+                    ),
+                  ),
+                ),
+                CustomPaint(
+                  painter: _MovingScopePainter(
+                    animation: _controller,
+                    color: Theme.of(context).colorScheme.primary,
+                    staticFrame: !_motionAllowed,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-/// V4 Phase 1: one stationary precision scope contains the living field.
+/// A stationary precision scope surrounds the supplied reference media.
 class _MovingScopePainter extends CustomPainter {
   _MovingScopePainter({
     required this.animation,
-    required Listenable swarmEpoch,
-    required this.swarmSeconds,
     required this.color,
     required this.staticFrame,
-  }) : super(repaint: Listenable.merge([animation, swarmEpoch]));
+  }) : super(repaint: animation);
   final Animation<double> animation;
-  final double Function() swarmSeconds;
   final Color color;
   final bool staticFrame;
-  final Paint _filamentHaloPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round
-    ..blendMode = BlendMode.plus
-    ..maskFilter = const MaskFilter.blur(
-      BlurStyle.normal,
-      ActivityAmbientKineticField.filamentHaloBlurSigma,
-    );
-  final Paint _filamentGlowPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round
-    ..blendMode = BlendMode.plus;
-  final Paint _filamentCorePaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
-
-  /// Immutable seeds are built once. Runtime animation advances their flow
-  /// coordinates; it never reconstructs a polygon population or restarts a
-  /// finite sequence.
-  static final List<_LuminousFlowStream> _streams = List.unmodifiable(
-    List<_LuminousFlowStream>.generate(
-      ActivityAmbientKineticField.luminousStreamCount,
-      (index) {
-        final radialUnit = (index * .7548776662466927) % 1;
-        final seedAngle = (index * 2.399963229728653) % (math.pi * 2);
-        final flowGroup =
-            (seedAngle /
-                    (math.pi * 2) *
-                    ActivityAmbientKineticField.luminousFlowRegionCount)
-                .floor() %
-            ActivityAmbientKineticField.luminousFlowRegionCount;
-        return _LuminousFlowStream(
-          seedAngle: seedAngle,
-          baseRadius: .028 + math.pow(radialUnit, 1.30) * .62,
-          phase: index * .618033988749895,
-          flowGroup: flowGroup,
-          speed: .218 + flowGroup * .0015,
-          trailSeconds: 1.72 + (index % 9) * .095,
-          depth: .20 + (index % 11) / 14,
-          colorIndex: const [0, 1, 2, 3, 4, 4, 3, 1][flowGroup],
-        );
-      },
-      growable: false,
-    ),
-  );
 
   double get _t => staticFrame ? .42 : animation.value;
-
-  double get _swarmTime => staticFrame
-      ? ActivityAmbientKineticField.cycleSeconds * .42
-      : swarmSeconds();
-
-  static ActivitySwarmMetrics swarmMetricsFor(double elapsedSeconds) {
-    final positions = [
-      for (final stream in _streams)
-        _flowPointFor(stream, elapsedSeconds, 0).position,
-    ];
-    final radii = [for (final position in positions) position.distance];
-    final centerPopulation =
-        radii.where((radius) => radius < .30).length / positions.length;
-    final meanRadius =
-        radii.reduce((sum, radius) => sum + radius) / positions.length;
-    final radialSpread = math.sqrt(
-      radii
-              .map((radius) => math.pow(radius - meanRadius, 2))
-              .reduce((sum, value) => sum + value) /
-          positions.length,
-    );
-    // A deterministic sample catches a frozen or globally rigid arrangement
-    // without retaining any per-frame instrumentation in release builds.
-    var neighborSignature = 0.0;
-    for (var index = 0; index < positions.length; index++) {
-      neighborSignature +=
-          (positions[index] - positions[(index + 37) % positions.length])
-              .distance;
-    }
-    return ActivitySwarmMetrics(
-      centerPopulation: centerPopulation,
-      meanRadius: meanRadius,
-      radialSpread: radialSpread,
-      neighborSignature: neighborSignature / positions.length,
-    );
-  }
-
-  static ActivityMultiDirectionalFlowMetrics multiDirectionalFlowMetricsFor(
-    double elapsedSeconds,
-  ) {
-    var outerClockwiseAlignment = 0.0;
-    var outerCount = 0;
-    var centralCounterclockwiseAlignment = 0.0;
-    var centralCount = 0;
-    var centerPopulation = 0;
-    var outwardExchange = 0;
-    var inwardExchange = 0;
-    var neighboringDirectionCoherence = 0.0;
-    var neighboringSamples = 0;
-    final regionalLanes = <int, List<_FilamentFlowPosition>>{};
-    for (final stream in _streams) {
-      final point = _flowPointFor(stream, elapsedSeconds, 0);
-      final radialLane = (stream.baseRadius / .22).floor().clamp(0, 2).toInt();
-      regionalLanes
-          .putIfAbsent(stream.flowGroup * 3 + radialLane, () => [])
-          .add(point);
-      final radius = point.position.distance;
-      final radialAngle = math.atan2(point.position.dy, point.position.dx);
-      final alignment = math.sin(point.tangent - radialAngle);
-      if (radius > .40) {
-        outerClockwiseAlignment += alignment;
-        outerCount++;
-      }
-      if (radius < .24) {
-        centralCounterclockwiseAlignment -= alignment;
-        centralCount++;
-      }
-      if (radius < .28) centerPopulation++;
-      final previousRadius = _flowPointFor(
-        stream,
-        elapsedSeconds - .35,
-        0,
-      ).position.distance;
-      if (radius - previousRadius > .002) outwardExchange++;
-      if (radius - previousRadius < -.002) inwardExchange++;
-    }
-    for (final lane in regionalLanes.values) {
-      for (var index = 0; index < lane.length - 1; index++) {
-        final current = lane[index];
-        final next = lane[index + 1];
-        neighboringDirectionCoherence += math.cos(
-          current.tangent - next.tangent,
-        );
-        neighboringSamples++;
-      }
-    }
-    return ActivityMultiDirectionalFlowMetrics(
-      outerClockwiseAlignment: outerClockwiseAlignment / outerCount,
-      centralCounterclockwiseAlignment:
-          centralCounterclockwiseAlignment / centralCount,
-      centerPopulation: centerPopulation / _streams.length,
-      outwardExchange: outwardExchange / _streams.length,
-      inwardExchange: inwardExchange / _streams.length,
-      neighboringDirectionCoherence:
-          neighboringDirectionCoherence / neighboringSamples,
-    );
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -510,257 +330,11 @@ class _MovingScopePainter extends CustomPainter {
     canvas.drawLine(c, c + Offset.fromDirection(sweep, r * .92), hi);
     canvas.drawLine(c + Offset(-r * .18, 0), c + Offset(r * .18, 0), base);
     canvas.drawLine(c + Offset(0, -r * .18), c + Offset(0, r * .18), base);
-    _flow(canvas, c, r);
-  }
-
-  void _flow(Canvas canvas, Offset center, double radius) {
-    const palette = <Color>[
-      Colors.cyanAccent,
-      Color(0xff4aa3ff),
-      Color(0xff9b6dff),
-      Color(0xffff64bd),
-      Color(0xffff9ad9),
-    ];
-    final time = _swarmTime;
-    for (final stream in _streams) {
-      final path = _flowPath(stream, time, center, radius);
-      final shimmer = .5 + .5 * math.sin(time * .83 + stream.phase);
-      final head = _flowPointFor(stream, time, 0).position;
-      final headAngle = math.atan2(head.dy, head.dx);
-      final colorMassAngle = stream.colorIndex >= 3 ? 2.62 : .18;
-      final concentration = math.pow(
-        .5 + .5 * math.cos(headAngle - time * .12 - colorMassAngle),
-        2.0,
-      );
-      final regionalFocus = .28 + .72 * concentration;
-      final color = palette[stream.colorIndex % palette.length];
-      // A three-scale profile softens the hard strand boundary without
-      // blurring the HUD or the rest of the Activity page. The halo and glow
-      // accumulate only where moving filament paths overlap.
-      _filamentHaloPaint
-        ..strokeWidth =
-            ActivityAmbientKineticField.filamentHaloBaseWidth +
-            stream.depth * ActivityAmbientKineticField.filamentHaloDepthWidth
-        ..color = color.withValues(
-          alpha: (.008 + shimmer * .018) * regionalFocus,
-        );
-      _filamentGlowPaint
-        ..strokeWidth = 1.34 + stream.depth * .68
-        ..color = color.withValues(
-          alpha: (.022 + shimmer * .040) * regionalFocus,
-        );
-      _filamentCorePaint
-        ..strokeWidth =
-            ActivityAmbientKineticField.filamentCoreBaseWidth +
-            stream.depth * ActivityAmbientKineticField.filamentCoreDepthWidth
-        ..color = color.withValues(
-          alpha: (.085 + shimmer * .125) * regionalFocus,
-        );
-      canvas.drawPath(path, _filamentHaloPaint);
-      canvas.drawPath(path, _filamentGlowPaint);
-      canvas.drawPath(path, _filamentCorePaint);
-    }
-  }
-
-  /// A long-lived point in one continuous orbital flow field. Its outer
-  /// component advances clockwise, its central component counterclockwise,
-  /// and an evolving radial term moves streams between both tendencies.
-  static _FilamentFlowPosition _flowPointFor(
-    _LuminousFlowStream stream,
-    double time,
-    double trailOffset,
-  ) {
-    final localTime = time - trailOffset;
-    final regionPhase = stream.flowGroup * math.pi * 2 / 8;
-    final radialSeed = .018 + stream.baseRadius * 1.10;
-    final centralAffinity = math.exp(-math.pow(radialSeed / .25, 2));
-    final orbitalDirection = 1 - centralAffinity * 2;
-    final sharedOrbitalAdvance =
-        orbitalDirection *
-        (localTime * (.15 + stream.speed * .56) +
-            math.sin(localTime * .071) * .11 +
-            math.sin(localTime * .017 + .9) * .05);
-    final regionalOrbitalTurn =
-        orbitalDirection *
-        (math.sin(localTime * .067 + regionPhase) * .048 +
-            math.sin(localTime * .023 + regionPhase * 1.7) * .021);
-    final fineOrbitalTurn =
-        orbitalDirection *
-        math.sin(
-          stream.seedAngle * 3.0 + localTime * .081 + stream.phase * .07,
-        );
-    final angle =
-        stream.seedAngle +
-        sharedOrbitalAdvance +
-        regionalOrbitalTurn +
-        fineOrbitalTurn * .020;
-    // Every shared region has a slowly moving local centre.  Keeping all
-    // trajectories centred on the scope made the V4.22 field read as dark
-    // concentric rings.  This small, continuous eccentricity lets related
-    // streams converge into asymmetric masses and then redistribute, while
-    // the eight balanced regions keep the formation's overall centre fixed.
-    final lobeAngle =
-        regionPhase +
-        localTime * (.031 + stream.flowGroup * .0009) +
-        math.sin(localTime * .043 + regionPhase) * .14;
-    final lobeOffset = Offset.fromDirection(
-      lobeAngle,
-      .050 + math.sin(localTime * .061 + regionPhase) * .026,
-    );
-    final breath =
-        .95 +
-        math.sin(localTime * .067) * .065 +
-        math.sin(localTime * .021 + 1.8) * .035;
-    final exchangePhase =
-        localTime * .109 + regionPhase * .73 + stream.phase * .011;
-    final radialExchange =
-        math.sin(exchangePhase) * (.045 + (1 - centralAffinity) * .045);
-    // Each colour region shares a slowly travelling convergence wave. The
-    // wave creates a bright, irregular luminous mass from real path overlap
-    // instead of a uniform ring or a separate blurred overlay.
-    final regionalConvergence =
-        math.sin(localTime * .073 + regionPhase) *
-        (.042 + (1 - centralAffinity) * .028);
-    final regionalRadialShift =
-        math.sin(localTime * .057 + regionPhase) * .030 +
-        math.sin(localTime * .029 + regionPhase * 1.9) * .018;
-    final fineRadial = math.sin(localTime * .087 + stream.phase * .23) * .017;
-    final radial =
-        (radialSeed * breath +
-                radialExchange +
-                regionalConvergence +
-                regionalRadialShift +
-                fineRadial)
-            .clamp(.012, .75);
-    final position = Offset.fromDirection(angle, radial) + lobeOffset;
-    final radialVelocity =
-        math.cos(exchangePhase) * (.045 + (1 - centralAffinity) * .045) * .109;
-    final tangent =
-        angle +
-        math.atan2(orbitalDirection * .22, radialVelocity) +
-        math.sin(angle * 4.0 + localTime * .041 + regionPhase) * .035;
-    return _FilamentFlowPosition(position: position, tangent: tangent);
-  }
-
-  static Path _flowPath(
-    _LuminousFlowStream stream,
-    double time,
-    Offset center,
-    double radius,
-  ) {
-    final path = Path();
-    const samples = ActivityAmbientKineticField.luminousStreamSamples;
-    Offset? previous;
-    for (var index = 0; index <= samples; index++) {
-      final trailOffset = stream.trailSeconds * index / samples;
-      final point = _flowPointFor(stream, time, trailOffset).position;
-      final absolute = center + point * radius;
-      if (index == 0) {
-        path.moveTo(absolute.dx, absolute.dy);
-      } else if (index == 1) {
-        path.lineTo(absolute.dx, absolute.dy);
-      } else {
-        // The midpoint curve rounds a moving corner as its leading section
-        // arrives first and the tail follows, rather than rotating a rigid
-        // polygonal stroke.
-        final midpoint = Offset.lerp(previous!, absolute, .5)!;
-        path.quadraticBezierTo(
-          previous.dx,
-          previous.dy,
-          midpoint.dx,
-          midpoint.dy,
-        );
-      }
-      previous = absolute;
-    }
-    return path;
   }
 
   @override
   bool shouldRepaint(covariant _MovingScopePainter old) =>
       old.color != color || old.staticFrame != staticFrame;
-}
-
-@immutable
-class _LuminousFlowStream {
-  const _LuminousFlowStream({
-    required this.seedAngle,
-    required this.baseRadius,
-    required this.phase,
-    required this.flowGroup,
-    required this.speed,
-    required this.trailSeconds,
-    required this.depth,
-    required this.colorIndex,
-  });
-
-  final double seedAngle;
-  final double baseRadius;
-  final double phase;
-  final int flowGroup;
-  final double speed;
-  final double trailSeconds;
-  final double depth;
-  final int colorIndex;
-}
-
-@immutable
-class _FilamentFlowPosition {
-  const _FilamentFlowPosition({required this.position, required this.tangent});
-
-  final Offset position;
-  final double tangent;
-}
-
-@immutable
-class ActivitySwarmMetrics {
-  const ActivitySwarmMetrics({
-    required this.centerPopulation,
-    required this.meanRadius,
-    required this.radialSpread,
-    required this.neighborSignature,
-  });
-
-  /// Proportion of agents within the central 30% of the swarm radius.
-  final double centerPopulation;
-
-  /// Mean normalized distance from the stationary swarm center.
-  final double meanRadius;
-
-  /// A non-zero spread distinguishes a populated mass from a thin ring.
-  final double radialSpread;
-
-  /// Deterministic sampled neighbor-distance metric. Its change over time
-  /// demonstrates that agents redistribute rather than rotate rigidly.
-  final double neighborSignature;
-}
-
-@immutable
-class ActivityMultiDirectionalFlowMetrics {
-  const ActivityMultiDirectionalFlowMetrics({
-    required this.outerClockwiseAlignment,
-    required this.centralCounterclockwiseAlignment,
-    required this.centerPopulation,
-    required this.outwardExchange,
-    required this.inwardExchange,
-    required this.neighboringDirectionCoherence,
-  });
-
-  /// Mean clockwise tangential alignment outside the central field.
-  final double outerClockwiseAlignment;
-
-  /// Mean counterclockwise tangential alignment in the populated center.
-  final double centralCounterclockwiseAlignment;
-
-  /// Proportion of actual moving stream heads in the central 28% radius.
-  final double centerPopulation;
-
-  /// Proportions moving outward and inward over the local sample interval.
-  final double outwardExchange;
-  final double inwardExchange;
-
-  /// Directional agreement among streams close enough to share local flow.
-  final double neighboringDirectionCoherence;
 }
 
 class _KineticMeasurementPainter extends CustomPainter {

@@ -87,6 +87,8 @@ flutter:
     - assets/images/food_category/
     - assets/data/
     - assets/body_map/
+    - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4
+    - assets/animations/activity/reference_motion/activity_reference_motion_v1_frame.png
 
   fonts:
     - family: ShareTechMono
