@@ -13,7 +13,7 @@ class ActivityAmbientNativeCandidate extends StatelessWidget {
   });
 
   static const fieldKey = ValueKey('activity-ambient-native-candidate');
-  static const filamentCount = 180;
+  static const filamentCount = 900;
 
   final Animation<double> animation;
   final bool reducedMotion;
