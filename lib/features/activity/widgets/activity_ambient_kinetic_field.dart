@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'activity_ambient_native_candidate.dart';
 import 'activity_ambient_reference_media.dart';
 
 /// Activity-only kinetic measurement field.
@@ -12,6 +13,13 @@ class ActivityAmbientKineticField extends StatefulWidget {
 
   static const scopeTopInset = 16.0;
   static const scopeBottomInset = 24.0;
+
+  /// Development-only comparison switch. Production builds retain the
+  /// authoritative MP4 unless explicitly requested with the compile-time
+  /// define or `?activityAmbientNativeCandidate=true`.
+  static bool get useNativeCandidate =>
+      const bool.fromEnvironment('ACTIVITY_AMBIENT_NATIVE_CANDIDATE') ||
+      Uri.base.queryParameters['activityAmbientNativeCandidate'] == 'true';
   final bool enabled;
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
@@ -211,9 +219,14 @@ class _ActivityAmbientKineticFieldState
                 Positioned.fromRect(
                   rect: mediaBounds,
                   child: ClipOval(
-                    child: ActivityAmbientReferenceMedia(
-                      reducedMotion: !_motionAllowed,
-                    ),
+                    child: ActivityAmbientKineticField.useNativeCandidate
+                        ? ActivityAmbientNativeCandidate(
+                            animation: _controller,
+                            reducedMotion: !_motionAllowed,
+                          )
+                        : ActivityAmbientReferenceMedia(
+                            reducedMotion: !_motionAllowed,
+                          ),
                   ),
                 ),
                 CustomPaint(

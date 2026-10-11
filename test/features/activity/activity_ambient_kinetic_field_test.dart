@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_kinetic_field.dart';
+import 'package:or_app/features/activity/widgets/activity_ambient_native_candidate.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_reference_media.dart';
 
 void main() {
@@ -81,6 +82,17 @@ void main() {
     expect(source, contains("setAttribute('webkit-playsinline', '')"));
   });
 
+  test('keeps the native renderer opt-in and asset-independent', () {
+    expect(ActivityAmbientKineticField.useNativeCandidate, isFalse);
+    expect(ActivityAmbientNativeCandidate.filamentCount, 180);
+    final source = File(
+      'lib/features/activity/widgets/activity_ambient_native_candidate.dart',
+    ).readAsStringSync();
+    expect(source, contains('class _NativeLuminousFlowPainter'));
+    expect(source, isNot(contains('ActivityAmbientReferenceMedia')));
+    expect(source, isNot(contains('HtmlElementView')));
+  });
+
   test(
     'keeps the phase-one scope and swarm center stationary in its viewport',
     () {
@@ -152,6 +164,85 @@ void main() {
   testWidgets('suppresses the field immediately when disabled', (tester) async {
     await pumpField(tester, enabled: false);
     expect(find.byKey(ActivityAmbientKineticField.fieldKey), findsNothing);
+  });
+
+  testWidgets('native candidate renders a static reduced-motion frame', (
+    tester,
+  ) async {
+    final controller = AnimationController(
+      vsync: tester,
+      duration: const Duration(seconds: 15),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 240,
+          height: 240,
+          child: ActivityAmbientNativeCandidate(
+            animation: controller,
+            reducedMotion: true,
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(ActivityAmbientNativeCandidate.fieldKey), findsOneWidget);
+  });
+
+  testWidgets('native candidate has a deterministic static composition', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = AnimationController(
+      vsync: tester,
+      duration: const Duration(seconds: 15),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.expand(
+          child: ActivityAmbientNativeCandidate(
+            animation: controller,
+            reducedMotion: true,
+          ),
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(ActivityAmbientNativeCandidate.fieldKey),
+      matchesGoldenFile('goldens/activity_native_candidate_static.png'),
+    );
+  });
+
+  testWidgets('native candidate evolves at an equivalent active phase', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = AnimationController(
+      vsync: tester,
+      duration: const Duration(seconds: 15),
+    )..value = .5;
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.expand(
+          child: ActivityAmbientNativeCandidate(
+            animation: controller,
+            reducedMotion: false,
+          ),
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(ActivityAmbientNativeCandidate.fieldKey),
+      matchesGoldenFile('goldens/activity_native_candidate_phase_06.png'),
+    );
   });
 
   testWidgets('renders a valid static measurement field for reduced motion', (
