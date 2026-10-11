@@ -84,7 +84,7 @@ void main() {
 
   test('keeps the native renderer opt-in and asset-independent', () {
     expect(ActivityAmbientKineticField.useNativeCandidate, isFalse);
-    expect(ActivityAmbientNativeCandidate.filamentCount, 360);
+    expect(ActivityAmbientNativeCandidate.filamentCount, 180);
     expect(ActivityAmbientNativeCandidate.filamentStrokeWidthMultiplier, 3.0);
     expect(
       ActivityAmbientNativeCandidate.afterglowDuration,

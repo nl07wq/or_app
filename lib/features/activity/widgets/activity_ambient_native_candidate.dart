@@ -13,7 +13,7 @@ class ActivityAmbientNativeCandidate extends StatelessWidget {
   });
 
   static const fieldKey = ValueKey('activity-ambient-native-candidate');
-  static const filamentCount = 360;
+  static const filamentCount = 180;
   static const filamentStrokeWidthMultiplier = 3.0;
   static const afterglowDuration = Duration(seconds: 2);
   static const afterglowSegments = 4;
