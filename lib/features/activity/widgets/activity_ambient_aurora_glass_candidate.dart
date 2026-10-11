@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 
 /// Opt-in, Flutter-native reconstruction of the Aurora Glass V8 reference.
 ///
-/// The field is built from a responsive grid of translucent rectangular glass
-/// fragments. Time-varying partial arc bands decide which grid cells assemble,
-/// shift, and dissolve; no media, image, platform-view, or texture is used.
+/// It ports the recovered V6 tile state, geometry, and RGB foundations, then
+/// adds the V8-like frosted material and localized aurora restoration inferred
+/// from the supplied V8 comparison videos. It has no media dependency.
 class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   const ActivityAmbientAuroraGlassCandidate({
     super.key,
@@ -15,8 +15,9 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   });
 
   static const fieldKey = ValueKey('activity-ambient-aurora-glass-candidate');
-  static const gridColumns = 34;
-  static const ribbonCount = 7;
+  static const gridColumns = 30;
+  static const referenceFrameCount = 344;
+  static const referenceFramesPerSecond = 30;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -32,29 +33,6 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   );
 }
 
-@immutable
-class _GlassRibbon {
-  const _GlassRibbon({
-    required this.center,
-    required this.radius,
-    required this.width,
-    required this.startAngle,
-    required this.arcLength,
-    required this.speed,
-    required this.cyanWeight,
-    required this.magentaWeight,
-  });
-
-  final Offset center;
-  final double radius;
-  final double width;
-  final double startAngle;
-  final double arcLength;
-  final double speed;
-  final double cyanWeight;
-  final double magentaWeight;
-}
-
 class _AuroraGlassPainter extends CustomPainter {
   _AuroraGlassPainter({required this.animation, required this.staticFrame})
     : super(repaint: animation);
@@ -63,95 +41,24 @@ class _AuroraGlassPainter extends CustomPainter {
   final bool staticFrame;
 
   static const _cyan = Color(0xFF56E2EA);
-  static const _magenta = Color(0xFFE69AD8);
-
-  // These are moving density bands, rather than independent particle orbits.
-  // Their overlapping portions make the larger connected glass structures.
-  static const _ribbons = <_GlassRibbon>[
-    _GlassRibbon(
-      center: Offset(.10, .18),
-      radius: .31,
-      width: .132,
-      startAngle: -.25,
-      arcLength: 3.08,
-      speed: .22,
-      cyanWeight: 1,
-      magentaWeight: .08,
-    ),
-    _GlassRibbon(
-      center: Offset(.72, .13),
-      radius: .30,
-      width: .124,
-      startAngle: 1.82,
-      arcLength: 3.16,
-      speed: -.19,
-      cyanWeight: .05,
-      magentaWeight: 1,
-    ),
-    _GlassRibbon(
-      center: Offset(.42, .43),
-      radius: .34,
-      width: .152,
-      startAngle: -2.55,
-      arcLength: 3.08,
-      speed: .16,
-      cyanWeight: .86,
-      magentaWeight: .36,
-    ),
-    _GlassRibbon(
-      center: Offset(.94, .47),
-      radius: .36,
-      width: .138,
-      startAngle: 2.22,
-      arcLength: 3.18,
-      speed: -.14,
-      cyanWeight: .12,
-      magentaWeight: .95,
-    ),
-    _GlassRibbon(
-      center: Offset(.20, .80),
-      radius: .32,
-      width: .144,
-      startAngle: -.88,
-      arcLength: 3.1,
-      speed: .18,
-      cyanWeight: .94,
-      magentaWeight: .12,
-    ),
-    _GlassRibbon(
-      center: Offset(.66, .83),
-      radius: .35,
-      width: .158,
-      startAngle: -2.78,
-      arcLength: 3.16,
-      speed: -.17,
-      cyanWeight: .25,
-      magentaWeight: .88,
-    ),
-    _GlassRibbon(
-      center: Offset(.52, .58),
-      radius: .18,
-      width: .17,
-      startAngle: .32,
-      arcLength: 3.7,
-      speed: .11,
-      cyanWeight: .62,
-      magentaWeight: .62,
-    ),
-  ];
+  static const _magenta = Color(0xFFE19AD2);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final cell = size.width / ActivityAmbientAuroraGlassCandidate.gridColumns;
     final rows = (size.height / cell).ceil();
-    final phase = staticFrame ? math.pi * .74 : animation.value * math.pi * 2;
-    final glow = Paint()..maskFilter = MaskFilter.blur(BlurStyle.normal, cell);
-    final glass = Paint();
-    final reflection = Paint();
-    final edge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = (cell * .075).clamp(.35, 1.1);
+    final frame = staticFrame
+        ? ActivityAmbientAuroraGlassCandidate.referenceFrameCount ~/ 3
+        : (animation.value *
+                  ActivityAmbientAuroraGlassCandidate.referenceFrameCount)
+              .floor();
+    final phase =
+        math.pi *
+        2 *
+        frame /
+        ActivityAmbientAuroraGlassCandidate.referenceFrameCount;
+    final material = _GlassMaterial(cell);
 
     for (var row = 0; row < rows; row++) {
       for (
@@ -159,124 +66,108 @@ class _AuroraGlassPainter extends CustomPainter {
         column < ActivityAmbientAuroraGlassCandidate.gridColumns;
         column++
       ) {
-        final position = Offset(
-          (column + .5) / ActivityAmbientAuroraGlassCandidate.gridColumns,
-          (row + .5) / rows,
+        final intensity = _tileState(row, column, rows, phase);
+        if (intensity < .10) continue;
+        final geometry = _tileGeometry(row, column, cell, intensity);
+        final color = _tileRgb(row, column, rows, phase);
+        final edgeEnergy = _edgeEnergy(row, column, rows, phase, intensity);
+        material.paint(
+          canvas: canvas,
+          rect: geometry,
+          color: color,
+          intensity: intensity,
+          edgeEnergy: edgeEnergy,
         );
-        final field = _fieldAt(position, size, phase, column, row);
-        if (field.density < .105) continue;
-
-        final flicker =
-            .73 +
-            .27 *
-                math.sin(
-                  phase * (field.layer + 1.2) + column * .81 + row * .47,
-                );
-        final intensity = (field.density * flicker).clamp(0.0, 1.0);
-        if (intensity < .1) continue;
-
-        final fragmentScale = (.42 + intensity * .48 + (field.layer % 3) * .045)
-            .clamp(.38, .96);
-        final fragmentSize = cell * fragmentScale;
-        final center = Offset((column + .5) * cell, (row + .5) * cell);
-        final rect = Rect.fromCenter(
-          center: center,
-          width: fragmentSize,
-          height: fragmentSize,
-        );
-        final aurora = Color.lerp(
-          _cyan,
-          _magenta,
-          field.magenta / (field.cyan + field.magenta),
-        )!;
-        final alpha = (.12 + intensity * .66).clamp(0.0, 1.0);
-
-        glow.color = aurora.withValues(alpha: alpha * .13);
-        glass.color = aurora.withValues(alpha: alpha);
-        reflection.color = const Color(
-          0xFFF1FCFF,
-        ).withValues(alpha: alpha * (.13 + intensity * .17));
-        edge.color = aurora.withValues(alpha: alpha * .62);
-
-        canvas
-          ..drawRect(rect.inflate(cell * .08), glow)
-          ..drawRect(rect, glass)
-          ..drawRect(
-            Rect.fromLTWH(
-              rect.left,
-              rect.top,
-              rect.width,
-              rect.height * (.16 + .11 * intensity),
-            ),
-            reflection,
-          )
-          ..drawLine(
-            Offset(rect.left, rect.bottom),
-            Offset(rect.right, rect.top),
-            edge,
-          )
-          ..drawRect(rect, edge);
       }
     }
   }
 
-  _GlassField _fieldAt(
-    Offset position,
-    Size size,
-    double phase,
-    int column,
-    int row,
-  ) {
-    var density = 0.0;
-    var cyan = 0.0;
-    var magenta = 0.0;
-    var layer = 0;
-    final aspect = size.height / size.width;
-    for (var index = 0; index < _ribbons.length; index++) {
-      final ribbon = _ribbons[index];
-      final wobble = Offset(
-        math.sin(phase * .71 + index * 1.7) * .026,
-        math.cos(phase * .63 + index * 1.1) * .023,
-      );
-      final delta = position - ribbon.center - wobble;
-      final x = delta.dx;
-      final y = delta.dy * aspect;
-      final radius = math.sqrt(x * x + y * y);
-      final angle = math.atan2(y, x);
-      final start = ribbon.startAngle + phase * ribbon.speed;
-      final angularDistance = _angularDistance(
-        angle,
-        start + ribbon.arcLength / 2,
-      );
-      final arc = (1 - angularDistance / (ribbon.arcLength / 2)).clamp(
-        0.0,
-        1.0,
-      );
-      final radial = (1 - (radius - ribbon.radius).abs() / ribbon.width).clamp(
-        0.0,
-        1.0,
-      );
-      final structuralTexture =
-          .62 +
-          .38 *
-              math.sin(column * .72 + row * .51 + phase * (1.3 + index * .07));
-      final contribution = arc * radial * structuralTexture;
-      density += contribution;
-      cyan += contribution * ribbon.cyanWeight;
-      magenta += contribution * ribbon.magentaWeight;
-      if (contribution > .25) layer += index + 1;
-    }
-    return _GlassField(
-      density: density.clamp(0.0, 1.0),
-      cyan: cyan,
-      magenta: magenta,
-      layer: layer,
+  /// Recovered V6 tile_state() port: center-origin formation waves plus a
+  /// diagonal assembly component. The dynamic row count preserves the field
+  /// across portrait and landscape viewports.
+  double _tileState(int row, int column, int rows, double phase) {
+    final centerX = (ActivityAmbientAuroraGlassCandidate.gridColumns - 1) / 2;
+    final centerY = (rows - 1) / 2;
+    final normalizedY =
+        (row - centerY) *
+        ActivityAmbientAuroraGlassCandidate.gridColumns /
+        rows;
+    final distance = math.sqrt(
+      math.pow(column - centerX, 2) + math.pow(normalizedY, 2),
+    );
+    final wave = math.sin(
+      2 * phase - distance * .37 + _phaseAt(row, column) * .32,
+    );
+    final active = ((wave - .06) * 2).clamp(0.0, 1.0);
+    final diagonal = (math.sin(.37 * column + .22 * row - 2 * phase) + .35)
+        .clamp(0.0, 1.0);
+    return active * (.40 + .60 * diagonal);
+  }
+
+  /// Recovered V6 tile_geometry() port, scaled from the 720px source grid.
+  Rect _tileGeometry(int row, int column, double cell, double intensity) {
+    final extent = (cell * (.167 + .75 * intensity)).clamp(cell * .167, cell);
+    return Rect.fromCenter(
+      center: Offset((column + .5) * cell, (row + .5) * cell),
+      width: extent,
+      height: extent,
     );
   }
 
-  double _angularDistance(double a, double b) {
-    final raw = (a - b + math.pi) % (math.pi * 2) - math.pi;
-    return raw.abs();
+  /// Recovered V6 tile_rgb() port, with V8's coherent cyan/magenta spatial
+  /// restoration blended over the recovered changing RGB base.
+  Color _tileRgb(int row, int column, int rows, double phase) {
+    final hue =
+        _unitNoise(row, column, 17) + .16 * math.sin(phase + column * .14);
+    final recovered = Color.fromRGBO(
+      ((.2 + .8 * math.max(0, math.sin(math.pi * 2 * hue))) * 255).round(),
+      ((.30 + .65 * math.max(0, math.sin(math.pi * 2 * hue + 2.1))) * 255)
+          .round(),
+      ((.48 + .5 * math.max(0, math.sin(math.pi * 2 * hue + 4.2))) * 255)
+          .round(),
+      255,
+    );
+    final region =
+        .5 +
+        .5 * math.sin(column * .24 - row * .17 + phase * .68 + rows * .013);
+    final aurora = Color.lerp(_cyan, _magenta, region)!;
+    return Color.lerp(recovered, aurora, .86)!;
+  }
+
+  double _edgeEnergy(
+    int row,
+    int column,
+    int rows,
+    double phase,
+    double intensity,
+  ) {
+    double neighbor(int r, int c) {
+      if (r < 0 ||
+          r >= rows ||
+          c < 0 ||
+          c >= ActivityAmbientAuroraGlassCandidate.gridColumns) {
+        return 0;
+      }
+      return _tileState(r, c, rows, phase);
+    }
+
+    final laplacian =
+        4 * intensity -
+        neighbor(row - 1, column) -
+        neighbor(row + 1, column) -
+        neighbor(row, column - 1) -
+        neighbor(row, column + 1);
+    return laplacian.abs().clamp(0.0, 1.0);
+  }
+
+  double _phaseAt(int row, int column) =>
+      _unitNoise(row, column, 51) * math.pi * 2;
+
+  double _unitNoise(int row, int column, int salt) {
+    var value = row * 73856093 ^ column * 19349663 ^ salt * 83492791;
+    value ^= value >> 13;
+    value *= 1274126177;
+    return (value & 0x7fffffff) / 0x7fffffff;
   }
 
   @override
@@ -285,17 +176,84 @@ class _AuroraGlassPainter extends CustomPainter {
       oldDelegate.animation != animation;
 }
 
-@immutable
-class _GlassField {
-  const _GlassField({
-    required this.density,
-    required this.cyan,
-    required this.magenta,
-    required this.layer,
-  });
+class _GlassMaterial {
+  _GlassMaterial(double cell)
+    : _nearHalo = Paint()
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * .125),
+      _middleHalo = Paint()
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * .35),
+      _outerHalo = Paint()
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * .83),
+      _fill = Paint(),
+      _frost = Paint(),
+      _edge = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (cell * .045).clamp(.35, 1.05),
+      _reflection = Paint(),
+      _glint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (cell * .055).clamp(.4, 1.2);
 
-  final double density;
-  final double cyan;
-  final double magenta;
-  final int layer;
+  final Paint _nearHalo;
+  final Paint _middleHalo;
+  final Paint _outerHalo;
+  final Paint _fill;
+  final Paint _frost;
+  final Paint _edge;
+  final Paint _reflection;
+  final Paint _glint;
+
+  void paint({
+    required Canvas canvas,
+    required Rect rect,
+    required Color color,
+    required double intensity,
+    required double edgeEnergy,
+  }) {
+    final alpha = (.06 + intensity * .39).clamp(0.0, 1.0);
+    _outerHalo.color = color.withValues(alpha: alpha * .008);
+    _middleHalo.color = color.withValues(alpha: alpha * .018);
+    _nearHalo.color = color.withValues(alpha: alpha * .042);
+    _fill.color = color.withValues(alpha: alpha);
+    _frost.color = const Color(
+      0xFFDDF7FA,
+    ).withValues(alpha: alpha * (.08 + intensity * .10));
+    _edge.color = color.withValues(alpha: alpha * (.17 + edgeEnergy * .42));
+
+    if (intensity > .78) {
+      canvas
+        ..drawRect(rect.inflate(rect.width * .13), _outerHalo)
+        ..drawRect(rect.inflate(rect.width * .08), _middleHalo);
+    }
+    if (intensity > .48) {
+      canvas.drawRect(rect.inflate(rect.width * .035), _nearHalo);
+    }
+    canvas
+      ..drawRect(rect, _fill)
+      ..drawRect(
+        Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * .56),
+        _frost,
+      )
+      ..drawRect(rect, _edge);
+
+    if (intensity > .67) {
+      _reflection.color = const Color(
+        0xFFF4FEFF,
+      ).withValues(alpha: alpha * .24);
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * .16),
+        _reflection,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left, rect.top, rect.width * .12, rect.height),
+        _reflection,
+      );
+    }
+    if (intensity > .48) {
+      _glint.color = Colors.white.withValues(
+        alpha: alpha * (.16 + edgeEnergy * .34),
+      );
+      canvas.drawLine(rect.topLeft, rect.topRight, _glint);
+    }
+  }
 }

@@ -104,15 +104,18 @@ void main() {
 
   test('keeps Aurora Glass V8 opt-in and programmatic', () {
     expect(ActivityAmbientKineticField.useAuroraGlassCandidate, isFalse);
-    expect(ActivityAmbientAuroraGlassCandidate.gridColumns, 34);
-    expect(ActivityAmbientAuroraGlassCandidate.ribbonCount, 7);
+    expect(ActivityAmbientAuroraGlassCandidate.gridColumns, 30);
+    expect(ActivityAmbientAuroraGlassCandidate.referenceFrameCount, 344);
+    expect(ActivityAmbientAuroraGlassCandidate.referenceFramesPerSecond, 30);
     final source = File(
       'lib/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart',
     ).readAsStringSync();
     expect(source, contains('class _AuroraGlassPainter'));
-    expect(source, contains('class _GlassRibbon'));
+    expect(source, contains('double _tileState'));
+    expect(source, contains('Rect _tileGeometry'));
+    expect(source, contains('Color _tileRgb'));
+    expect(source, contains('class _GlassMaterial'));
     expect(source, contains('drawRect'));
-    expect(source, isNot(contains('drawCircle')));
     expect(source, isNot(contains('HtmlElementView')));
     expect(source, isNot(contains('.mp4')));
   });
