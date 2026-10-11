@@ -2,10 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Opt-in, Flutter-native Aurora Glass V8 comparison field.
+/// Opt-in, Flutter-native reconstruction of the Aurora Glass V8 reference.
 ///
-/// It draws deterministic translucent digital fragments directly; it has no
-/// video, image, platform-view, or asset dependency.
+/// The field is built from a responsive grid of translucent rectangular glass
+/// fragments. Time-varying partial arc bands decide which grid cells assemble,
+/// shift, and dissolve; no media, image, platform-view, or texture is used.
 class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   const ActivityAmbientAuroraGlassCandidate({
     super.key,
@@ -14,7 +15,8 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   });
 
   static const fieldKey = ValueKey('activity-ambient-aurora-glass-candidate');
-  static const fragmentCount = 576;
+  static const gridColumns = 34;
+  static const ribbonCount = 7;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -31,24 +33,26 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
 }
 
 @immutable
-class _AuroraFragment {
-  const _AuroraFragment({
-    required this.seed,
-    required this.cluster,
-    required this.origin,
-    required this.localAngle,
-    required this.localRadius,
-    required this.depth,
-    required this.color,
+class _GlassRibbon {
+  const _GlassRibbon({
+    required this.center,
+    required this.radius,
+    required this.width,
+    required this.startAngle,
+    required this.arcLength,
+    required this.speed,
+    required this.cyanWeight,
+    required this.magentaWeight,
   });
 
-  final int seed;
-  final int cluster;
-  final Offset origin;
-  final double localAngle;
-  final double localRadius;
-  final double depth;
-  final Color color;
+  final Offset center;
+  final double radius;
+  final double width;
+  final double startAngle;
+  final double arcLength;
+  final double speed;
+  final double cyanWeight;
+  final double magentaWeight;
 }
 
 class _AuroraGlassPainter extends CustomPainter {
@@ -58,114 +62,240 @@ class _AuroraGlassPainter extends CustomPainter {
   final Animation<double> animation;
   final bool staticFrame;
 
-  static final _fragments = List<_AuroraFragment>.unmodifiable(
-    List<_AuroraFragment>.generate(
-      ActivityAmbientAuroraGlassCandidate.fragmentCount,
-      _fragmentFor,
-    ),
-  );
+  static const _cyan = Color(0xFF56E2EA);
+  static const _magenta = Color(0xFFE69AD8);
 
-  static _AuroraFragment _fragmentFor(int index) {
-    final cluster = index % 8;
-    final lane = (index ~/ 8) % 18;
-    final layer = (index ~/ 144) % 4;
-    const origins = <Offset>[
-      Offset(.12, .16),
-      Offset(.48, .12),
-      Offset(.84, .20),
-      Offset(.20, .47),
-      Offset(.55, .45),
-      Offset(.86, .56),
-      Offset(.23, .80),
-      Offset(.65, .84),
-    ];
-    final color = switch (cluster) {
-      0 || 3 || 6 => const Color(0xFF57E6EF),
-      1 || 4 || 7 => const Color(0xFFE69AD8),
-      2 => const Color(0xFF69CFE0),
-      _ => const Color(0xFFD587C8),
-    };
-    return _AuroraFragment(
-      seed: index,
-      cluster: cluster,
-      origin: origins[cluster],
-      localAngle: lane * math.pi * 2 / 18 + layer * .31 + (index % 5) * .043,
-      localRadius: .025 + layer * .026 + ((index * 37) % 11) / 1000,
-      depth: .35 + ((index * 19) % 61) / 100,
-      color: color,
-    );
-  }
+  // These are moving density bands, rather than independent particle orbits.
+  // Their overlapping portions make the larger connected glass structures.
+  static const _ribbons = <_GlassRibbon>[
+    _GlassRibbon(
+      center: Offset(.10, .18),
+      radius: .31,
+      width: .132,
+      startAngle: -.25,
+      arcLength: 3.08,
+      speed: .22,
+      cyanWeight: 1,
+      magentaWeight: .08,
+    ),
+    _GlassRibbon(
+      center: Offset(.72, .13),
+      radius: .30,
+      width: .124,
+      startAngle: 1.82,
+      arcLength: 3.16,
+      speed: -.19,
+      cyanWeight: .05,
+      magentaWeight: 1,
+    ),
+    _GlassRibbon(
+      center: Offset(.42, .43),
+      radius: .34,
+      width: .152,
+      startAngle: -2.55,
+      arcLength: 3.08,
+      speed: .16,
+      cyanWeight: .86,
+      magentaWeight: .36,
+    ),
+    _GlassRibbon(
+      center: Offset(.94, .47),
+      radius: .36,
+      width: .138,
+      startAngle: 2.22,
+      arcLength: 3.18,
+      speed: -.14,
+      cyanWeight: .12,
+      magentaWeight: .95,
+    ),
+    _GlassRibbon(
+      center: Offset(.20, .80),
+      radius: .32,
+      width: .144,
+      startAngle: -.88,
+      arcLength: 3.1,
+      speed: .18,
+      cyanWeight: .94,
+      magentaWeight: .12,
+    ),
+    _GlassRibbon(
+      center: Offset(.66, .83),
+      radius: .35,
+      width: .158,
+      startAngle: -2.78,
+      arcLength: 3.16,
+      speed: -.17,
+      cyanWeight: .25,
+      magentaWeight: .88,
+    ),
+    _GlassRibbon(
+      center: Offset(.52, .58),
+      radius: .18,
+      width: .17,
+      startAngle: .32,
+      arcLength: 3.7,
+      speed: .11,
+      cyanWeight: .62,
+      magentaWeight: .62,
+    ),
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final seconds = _seconds();
-    for (final fragment in _fragments) {
-      final phase = seconds * (.36 + fragment.depth * .16) + fragment.cluster;
-      final assemble = .5 + .5 * math.sin(phase + fragment.seed * .071);
-      final dissolve = .32 + .68 * assemble * assemble;
-      final angle =
-          fragment.localAngle +
-          seconds * (fragment.cluster.isEven ? .19 : -.16) +
-          math.sin(phase * .82 + fragment.seed * .11) * .34;
-      final localRadius =
-          fragment.localRadius * (.7 + assemble * .9) +
-          math.sin(phase * 1.31 + fragment.seed * .043) * .013;
-      final origin = Offset(
-        size.width * fragment.origin.dx,
-        size.height * fragment.origin.dy,
-      );
-      final drift = Offset(
-        math.sin(phase * .51 + fragment.cluster) * size.width * .045,
-        math.cos(phase * .47 + fragment.cluster) * size.height * .05,
-      );
-      final rawPoint =
-          origin +
-          drift +
-          Offset(
-            math.cos(angle) * size.shortestSide * localRadius,
-            math.sin(angle) * size.shortestSide * localRadius,
-          );
-      // Integer alignment retains the reference's visible digital-square
-      // texture rather than soft circular particle silhouettes.
-      final point = Offset(
-        rawPoint.dx.roundToDouble(),
-        rawPoint.dy.roundToDouble(),
-      );
-      final tile = .8 + fragment.depth * 2.0;
-      final alpha =
-          (.10 + .58 * dissolve) *
-          (.62 + .38 * math.sin(phase * .57 + fragment.seed) * .5 + .19);
-      final rect = Rect.fromCenter(center: point, width: tile, height: tile);
-      final glow = Paint()
-        ..color = fragment.color.withValues(alpha: alpha * .11)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, tile * .9);
-      final glass = Paint()
-        ..color = fragment.color.withValues(alpha: alpha)
-        ..style = PaintingStyle.fill;
-      final reflection = Paint()
-        ..color = const Color(0xFFEFFBFF).withValues(alpha: alpha * .32);
-      canvas
-        ..drawRect(rect.inflate(tile * .35), glow)
-        ..drawRect(rect, glass)
-        ..drawRect(
-          Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * .22),
-          reflection,
+    final cell = size.width / ActivityAmbientAuroraGlassCandidate.gridColumns;
+    final rows = (size.height / cell).ceil();
+    final phase = staticFrame ? math.pi * .74 : animation.value * math.pi * 2;
+    final glow = Paint()..maskFilter = MaskFilter.blur(BlurStyle.normal, cell);
+    final glass = Paint();
+    final reflection = Paint();
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (cell * .075).clamp(.35, 1.1);
+
+    for (var row = 0; row < rows; row++) {
+      for (
+        var column = 0;
+        column < ActivityAmbientAuroraGlassCandidate.gridColumns;
+        column++
+      ) {
+        final position = Offset(
+          (column + .5) / ActivityAmbientAuroraGlassCandidate.gridColumns,
+          (row + .5) / rows,
         );
+        final field = _fieldAt(position, size, phase, column, row);
+        if (field.density < .105) continue;
+
+        final flicker =
+            .73 +
+            .27 *
+                math.sin(
+                  phase * (field.layer + 1.2) + column * .81 + row * .47,
+                );
+        final intensity = (field.density * flicker).clamp(0.0, 1.0);
+        if (intensity < .1) continue;
+
+        final fragmentScale = (.42 + intensity * .48 + (field.layer % 3) * .045)
+            .clamp(.38, .96);
+        final fragmentSize = cell * fragmentScale;
+        final center = Offset((column + .5) * cell, (row + .5) * cell);
+        final rect = Rect.fromCenter(
+          center: center,
+          width: fragmentSize,
+          height: fragmentSize,
+        );
+        final aurora = Color.lerp(
+          _cyan,
+          _magenta,
+          field.magenta / (field.cyan + field.magenta),
+        )!;
+        final alpha = (.12 + intensity * .66).clamp(0.0, 1.0);
+
+        glow.color = aurora.withValues(alpha: alpha * .13);
+        glass.color = aurora.withValues(alpha: alpha);
+        reflection.color = const Color(
+          0xFFF1FCFF,
+        ).withValues(alpha: alpha * (.13 + intensity * .17));
+        edge.color = aurora.withValues(alpha: alpha * .62);
+
+        canvas
+          ..drawRect(rect.inflate(cell * .08), glow)
+          ..drawRect(rect, glass)
+          ..drawRect(
+            Rect.fromLTWH(
+              rect.left,
+              rect.top,
+              rect.width,
+              rect.height * (.16 + .11 * intensity),
+            ),
+            reflection,
+          )
+          ..drawLine(
+            Offset(rect.left, rect.bottom),
+            Offset(rect.right, rect.top),
+            edge,
+          )
+          ..drawRect(rect, edge);
+      }
     }
   }
 
-  double _seconds() {
-    if (staticFrame) return 4.5;
-    final elapsed = animation is AnimationController
-        ? (animation as AnimationController).lastElapsedDuration
-        : null;
-    if (elapsed == null) return animation.value * 12;
-    return elapsed.inMicroseconds / Duration.microsecondsPerSecond * .8;
+  _GlassField _fieldAt(
+    Offset position,
+    Size size,
+    double phase,
+    int column,
+    int row,
+  ) {
+    var density = 0.0;
+    var cyan = 0.0;
+    var magenta = 0.0;
+    var layer = 0;
+    final aspect = size.height / size.width;
+    for (var index = 0; index < _ribbons.length; index++) {
+      final ribbon = _ribbons[index];
+      final wobble = Offset(
+        math.sin(phase * .71 + index * 1.7) * .026,
+        math.cos(phase * .63 + index * 1.1) * .023,
+      );
+      final delta = position - ribbon.center - wobble;
+      final x = delta.dx;
+      final y = delta.dy * aspect;
+      final radius = math.sqrt(x * x + y * y);
+      final angle = math.atan2(y, x);
+      final start = ribbon.startAngle + phase * ribbon.speed;
+      final angularDistance = _angularDistance(
+        angle,
+        start + ribbon.arcLength / 2,
+      );
+      final arc = (1 - angularDistance / (ribbon.arcLength / 2)).clamp(
+        0.0,
+        1.0,
+      );
+      final radial = (1 - (radius - ribbon.radius).abs() / ribbon.width).clamp(
+        0.0,
+        1.0,
+      );
+      final structuralTexture =
+          .62 +
+          .38 *
+              math.sin(column * .72 + row * .51 + phase * (1.3 + index * .07));
+      final contribution = arc * radial * structuralTexture;
+      density += contribution;
+      cyan += contribution * ribbon.cyanWeight;
+      magenta += contribution * ribbon.magentaWeight;
+      if (contribution > .25) layer += index + 1;
+    }
+    return _GlassField(
+      density: density.clamp(0.0, 1.0),
+      cyan: cyan,
+      magenta: magenta,
+      layer: layer,
+    );
+  }
+
+  double _angularDistance(double a, double b) {
+    final raw = (a - b + math.pi) % (math.pi * 2) - math.pi;
+    return raw.abs();
   }
 
   @override
   bool shouldRepaint(covariant _AuroraGlassPainter oldDelegate) =>
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.animation != animation;
+}
+
+@immutable
+class _GlassField {
+  const _GlassField({
+    required this.density,
+    required this.cyan,
+    required this.magenta,
+    required this.layer,
+  });
+
+  final double density;
+  final double cyan;
+  final double magenta;
+  final int layer;
 }
