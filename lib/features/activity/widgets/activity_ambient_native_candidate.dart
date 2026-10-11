@@ -14,7 +14,9 @@ class ActivityAmbientNativeCandidate extends StatelessWidget {
 
   static const fieldKey = ValueKey('activity-ambient-native-candidate');
   static const filamentCount = 360;
-  static const filamentStrokeWidthMultiplier = 1.5;
+  static const filamentStrokeWidthMultiplier = 3.0;
+  static const afterglowDuration = Duration(seconds: 2);
+  static const afterglowSegments = 4;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -99,9 +101,7 @@ class _NativeLuminousFlowPainter extends CustomPainter {
     if (size.isEmpty) return;
     final center = size.center(Offset.zero);
     final radius = size.shortestSide * .49;
-    // The source is twelve seconds. Mapping the existing controller phase to
-    // those seconds makes native/reference captures comparable at a phase.
-    final sourceSeconds = (staticFrame ? .5 : animation.value) * 12;
+    final sourceSeconds = _sourceSeconds();
     final breathing = 1 + .055 * math.sin(sourceSeconds * .63);
     for (final filament in _filaments) {
       final path = _pathFor(
@@ -127,10 +127,116 @@ class _NativeLuminousFlowPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeWidth = core.strokeWidth * 3.2
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .9);
+      if (!staticFrame) {
+        _paintAfterglow(
+          canvas: canvas,
+          filament: filament,
+          center: center,
+          radius: radius,
+          seconds: sourceSeconds,
+          opacity: opacity,
+          coreWidth: core.strokeWidth,
+        );
+      }
       canvas
         ..drawPath(path, halo)
         ..drawPath(path, core);
     }
+  }
+
+  double _sourceSeconds() {
+    if (staticFrame) return .5;
+    // The existing fifteen-second controller advances the source at 12/15x.
+    // `lastElapsedDuration` remains continuous across repeat boundaries, so
+    // the trail cannot disappear when the controller value returns to zero.
+    final elapsed = animation is AnimationController
+        ? (animation as AnimationController).lastElapsedDuration
+        : null;
+    if (elapsed == null) return animation.value * 12;
+    return elapsed.inMicroseconds / Duration.microsecondsPerSecond * .8;
+  }
+
+  void _paintAfterglow({
+    required Canvas canvas,
+    required _NativeFilament filament,
+    required Offset center,
+    required double radius,
+    required double seconds,
+    required double opacity,
+    required double coreWidth,
+  }) {
+    const samplesPerSegment = 3;
+    final duration =
+        ActivityAmbientNativeCandidate.afterglowDuration.inMilliseconds / 1000;
+    final segmentDuration =
+        duration / ActivityAmbientNativeCandidate.afterglowSegments;
+    for (
+      var segment = ActivityAmbientNativeCandidate.afterglowSegments;
+      segment > 0;
+      segment--
+    ) {
+      final oldestAge = segment * segmentDuration;
+      final newestAge = (segment - 1) * segmentDuration;
+      final ageProgress =
+          1 - (segment - 1) / ActivityAmbientNativeCandidate.afterglowSegments;
+      final segmentOpacity = opacity * (.035 + .095 * ageProgress);
+      final path = Path();
+      for (var sample = 0; sample <= samplesPerSegment; sample++) {
+        final sampleAge =
+            oldestAge + (newestAge - oldestAge) * sample / samplesPerSegment;
+        final point = _headPointFor(
+          filament: filament,
+          center: center,
+          radius: radius,
+          seconds: seconds - sampleAge,
+          breathing: 1 + .055 * math.sin((seconds - sampleAge) * .63),
+        );
+        if (sample == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+      final core = Paint()
+        ..color = filament.color.withValues(alpha: segmentOpacity)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = coreWidth;
+      final halo = Paint()
+        ..color = filament.color.withValues(alpha: segmentOpacity * .22)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = coreWidth * 3.2
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .9);
+      canvas
+        ..drawPath(path, halo)
+        ..drawPath(path, core);
+    }
+  }
+
+  Offset _headPointFor({
+    required _NativeFilament filament,
+    required Offset center,
+    required double radius,
+    required double seconds,
+    required double breathing,
+  }) {
+    final direction = filament.counterFlow ? -1.0 : 1.0;
+    final angle = filament.phase + direction * seconds * filament.speed;
+    final irregularity =
+        math.sin(angle * 2.7 + filament.phase * 1.9 + seconds * .36) * .030 +
+        math.sin(angle * 5.1 - seconds * .22 + filament.seed) * .010;
+    final radialDrift =
+        math.sin(
+              seconds * (.31 + filament.radius * .23) + filament.phase * 2.4,
+            ) *
+            .038 +
+        irregularity;
+    final localRadius = radius * (filament.radius * breathing + radialDrift);
+    final warpedAngle =
+        angle + math.sin(angle * 3.0 + seconds * .28 + filament.phase) * .045;
+    return center +
+        Offset(math.cos(warpedAngle), math.sin(warpedAngle)) * localRadius;
   }
 
   Path _pathFor({
