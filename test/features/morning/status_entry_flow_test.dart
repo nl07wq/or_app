@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
@@ -22,8 +23,13 @@ import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   late FakeIndexedDbDatabase database;
+  late DeviceSettings originalDeviceSettings;
 
   setUp(() {
+    originalDeviceSettings = DeviceSettingsController.instance.value;
+    DeviceSettingsController.instance.resetForTesting(
+      originalDeviceSettings.copyWith(ambientKineticFieldEnabled: false),
+    );
     database = FakeIndexedDbDatabase();
     seedOperationState(database, '2026-08-15');
     final controller = AppInitializationController()..markReady();
@@ -31,7 +37,10 @@ void main() {
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
   });
 
-  tearDown(AppRepositoryRegistry.resetForTesting);
+  tearDown(() {
+    DeviceSettingsController.instance.resetForTesting(originalDeviceSettings);
+    AppRepositoryRegistry.resetForTesting();
+  });
 
   testWidgets('STATUS ENTRY is enabled only before the current-day save', (
     tester,

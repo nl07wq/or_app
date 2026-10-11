@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/device_settings_controller.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/state/app_initialization_state.dart';
 
@@ -14,6 +15,7 @@ import 'widgets/morning_history_button.dart';
 import 'widgets/morning_manual_card.dart';
 import 'widgets/status_crt_back_button.dart';
 import 'widgets/status_crt_monitor_title.dart';
+import 'widgets/status_radial_spectrum_ambient.dart';
 
 class MorningPage extends StatefulWidget {
   const MorningPage({super.key});
@@ -47,85 +49,109 @@ class _MorningPageState extends State<MorningPage> {
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
         title: const StatusCrtMonitorTitle(),
       ),
-      body: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SectionHeader(icon: Icons.edit_note, title: 'STATUS ENTRY'),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(
-              text:
-                  '体重・睡眠・勤務情報など\n'
-                  '本日の状態を記録します。',
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          ValueListenableBuilder<DeviceSettings>(
+            valueListenable: DeviceSettingsController.instance,
+            builder: (context, settings, _) => Positioned.fill(
+              child: StatusRadialSpectrumAmbient(
+                enabled: settings.ambientKineticFieldEnabled,
+                reducedMotion: settings.resolvesReducedMotion(
+                  MediaQuery.disableAnimationsOf(context),
+                ),
+              ),
             ),
+          ),
+          SingleChildScrollView(
+            padding: AppSpacing.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader(
+                  icon: Icons.edit_note,
+                  title: 'STATUS ENTRY',
+                ),
 
-            AppSpacing.gapMD,
+                AppSpacing.gapSM,
 
-            FutureBuilder<bool>(
-              future: _statusExists,
-              builder: (context, snapshot) {
-                final statusExists = snapshot.data ?? false;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    MorningManualCard(
-                      enabled:
-                          snapshot.connectionState == ConnectionState.done &&
-                          !snapshot.hasError &&
-                          !statusExists,
-                      reportUnavailableTap:
-                          snapshot.connectionState == ConnectionState.done &&
-                          !snapshot.hasError &&
-                          statusExists &&
-                          !appInitializationController.value.isReadOnly,
-                    ),
-                    if (statusExists) ...[
-                      AppSpacing.gapSM,
-                      const OperationDescription(
-                        text:
-                            '本日のSTATUSは登録済みです。\n'
-                            '編集する場合はRECORDから行ってください。',
-                      ),
-                    ],
-                  ],
-                );
-              },
+                const OperationDescription(
+                  text:
+                      '体重・睡眠・勤務情報など\n'
+                      '本日の状態を記録します。',
+                ),
+
+                AppSpacing.gapMD,
+
+                FutureBuilder<bool>(
+                  future: _statusExists,
+                  builder: (context, snapshot) {
+                    final statusExists = snapshot.data ?? false;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        MorningManualCard(
+                          enabled:
+                              snapshot.connectionState ==
+                                  ConnectionState.done &&
+                              !snapshot.hasError &&
+                              !statusExists,
+                          reportUnavailableTap:
+                              snapshot.connectionState ==
+                                  ConnectionState.done &&
+                              !snapshot.hasError &&
+                              statusExists &&
+                              !appInitializationController.value.isReadOnly,
+                        ),
+                        if (statusExists) ...[
+                          AppSpacing.gapSM,
+                          const OperationDescription(
+                            text:
+                                '本日のSTATUSは登録済みです。\n'
+                                '編集する場合はRECORDから行ってください。',
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+
+                AppSpacing.gapXL,
+
+                const SectionHeader(
+                  icon: Icons.calendar_month,
+                  title: 'SCHEDULE',
+                ),
+
+                AppSpacing.gapSM,
+
+                OperationButton(
+                  icon: Icons.calendar_month,
+                  text: 'OPEN CALENDAR',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CalendarPage()),
+                  ),
+                ),
+
+                AppSpacing.gapXL,
+
+                const SectionHeader(icon: Icons.history, title: 'RECORD'),
+
+                AppSpacing.gapSM,
+
+                const OperationDescription(
+                  text:
+                      '保存済みの状態履歴を\n'
+                      '確認できます。',
+                ),
+
+                AppSpacing.gapMD,
+
+                MorningHistoryButton(onReturn: _refreshStatusEntry),
+              ],
             ),
-
-            AppSpacing.gapXL,
-
-            const SectionHeader(icon: Icons.calendar_month, title: 'SCHEDULE'),
-
-            AppSpacing.gapSM,
-
-            OperationButton(
-              icon: Icons.calendar_month,
-              text: 'OPEN CALENDAR',
-              onPressed: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const CalendarPage())),
-            ),
-
-            AppSpacing.gapXL,
-
-            const SectionHeader(icon: Icons.history, title: 'RECORD'),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(
-              text:
-                  '保存済みの状態履歴を\n'
-                  '確認できます。',
-            ),
-
-            AppSpacing.gapMD,
-
-            MorningHistoryButton(onReturn: _refreshStatusEntry),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

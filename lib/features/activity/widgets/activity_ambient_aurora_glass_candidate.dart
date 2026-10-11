@@ -98,9 +98,14 @@ class _AuroraGlassPainter extends CustomPainter {
       (row - centerY).abs(),
     );
     final timing = _spatialTimingVariation(row, column, rows);
+    // Keep the recovered square front intact while moving whole neighboring
+    // tile groups slightly ahead of or behind it.  This is a position offset,
+    // rather than a brightness-only effect, so tiles genuinely assemble and
+    // dissolve at different moments along the front.
+    final localSquareDistance = squareDistance - timing * 1.45;
     final localRate = 1 + timing * .075;
     final wave = math.sin(
-      2 * phase * localRate - squareDistance * .37 + timing,
+      2 * phase * localRate - localSquareDistance * .37 + timing,
     );
     final active = ((wave - .06) * 2).clamp(0.0, 1.0);
     final diagonal =

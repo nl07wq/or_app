@@ -140,6 +140,8 @@ void main() {
     expect(source, contains('class _GlassMaterial'));
     expect(source, contains('double _spatialTimingVariation'));
     expect(source, contains('final squareDistance = math.max('));
+    expect(source, contains('final localSquareDistance ='));
+    expect(source, contains('timing * 1.45'));
     expect(source, isNot(contains('math.sqrt(')));
     expect(source, contains('drawRect'));
     expect(source, isNot(contains('HtmlElementView')));
