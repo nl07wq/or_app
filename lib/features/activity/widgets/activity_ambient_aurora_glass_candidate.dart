@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Opt-in, Flutter-native reconstruction of the Aurora Glass V8 reference.
+/// Production Flutter-native reconstruction of the Aurora Glass V8 reference.
 ///
 /// It ports the recovered V6 tile state, geometry, and RGB foundations, then
 /// adds the V8-like frosted material and localized aurora restoration inferred
@@ -83,8 +83,10 @@ class _AuroraGlassPainter extends CustomPainter {
   }
 
   /// Recovered V6 tile_state() port: center-origin formation waves plus a
-  /// diagonal assembly component. The dynamic row count preserves the field
-  /// across portrait and landscape viewports.
+  /// diagonal assembly component. A deterministic, low-frequency spatial
+  /// timing field breaks synchronized bands while retaining coherent clusters.
+  /// The dynamic row count preserves the field across portrait and landscape
+  /// viewports.
   double _tileState(int row, int column, int rows, double phase) {
     final centerX = (ActivityAmbientAuroraGlassCandidate.gridColumns - 1) / 2;
     final centerY = (rows - 1) / 2;
@@ -95,12 +97,14 @@ class _AuroraGlassPainter extends CustomPainter {
     final distance = math.sqrt(
       math.pow(column - centerX, 2) + math.pow(normalizedY, 2),
     );
-    final wave = math.sin(
-      2 * phase - distance * .37 + _phaseAt(row, column) * .32,
-    );
+    final timing = _spatialTimingVariation(row, column, rows);
+    final localRate = 1 + timing * .075;
+    final wave = math.sin(2 * phase * localRate - distance * .37 + timing);
     final active = ((wave - .06) * 2).clamp(0.0, 1.0);
-    final diagonal = (math.sin(.37 * column + .22 * row - 2 * phase) + .35)
-        .clamp(0.0, 1.0);
+    final diagonal =
+        (math.sin(.37 * column + .22 * row - 2 * phase * localRate + timing) +
+                .35)
+            .clamp(0.0, 1.0);
     return active * (.40 + .60 * diagonal);
   }
 
@@ -160,8 +164,16 @@ class _AuroraGlassPainter extends CustomPainter {
     return laplacian.abs().clamp(0.0, 1.0);
   }
 
-  double _phaseAt(int row, int column) =>
-      _unitNoise(row, column, 51) * math.pi * 2;
+  /// Smoothly correlated timing variation: nearby tiles share timing and
+  /// lifecycle changes, while distant groups assemble and dissolve at subtly
+  /// different moments. This stays deterministic and never flickers.
+  double _spatialTimingVariation(int row, int column, int rows) {
+    final x = column / ActivityAmbientAuroraGlassCandidate.gridColumns;
+    final y = row / rows;
+    return .44 * math.sin(x * math.pi * 2.1 + y * math.pi * .72 + .34) +
+        .27 * math.sin(x * math.pi * .78 - y * math.pi * 2.45 + 1.18) +
+        .16 * math.cos(x * math.pi * 3.15 + y * math.pi * 1.36 - .62);
+  }
 
   double _unitNoise(int row, int column, int salt) {
     var value = row * 73856093 ^ column * 19349663 ^ salt * 83492791;

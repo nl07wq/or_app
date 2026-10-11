@@ -83,7 +83,7 @@ void main() {
     expect(source, contains("setAttribute('webkit-playsinline', '')"));
   });
 
-  test('keeps the native renderer opt-in and asset-independent', () {
+  test('keeps the native filament comparison opt-in and asset-independent', () {
     expect(ActivityAmbientKineticField.useNativeCandidate, isFalse);
     expect(ActivityAmbientNativeCandidate.filamentCount, 180);
     expect(ActivityAmbientNativeCandidate.filamentStrokeWidthMultiplier, 3.0);
@@ -102,8 +102,30 @@ void main() {
     expect(source, isNot(contains('HtmlElementView')));
   });
 
-  test('keeps Aurora Glass V8 opt-in and programmatic', () {
-    expect(ActivityAmbientKineticField.useAuroraGlassCandidate, isFalse);
+  test('uses programmatic Aurora Glass by default and retains all renderers', () {
+    expect(
+      ActivityAmbientKineticField.rendererFor(const {}),
+      ActivityAmbientRenderer.auroraGlass,
+    );
+    expect(
+      ActivityAmbientKineticField.rendererFor(const {
+        'activityAmbientAuroraGlassCandidate': 'true',
+      }),
+      ActivityAmbientRenderer.auroraGlass,
+    );
+    expect(
+      ActivityAmbientKineticField.rendererFor(const {
+        'activityAmbientNativeCandidate': 'true',
+      }),
+      ActivityAmbientRenderer.nativeFilament,
+    );
+    expect(
+      ActivityAmbientKineticField.rendererFor(const {
+        'activityAmbientLegacyReferenceMedia': 'true',
+      }),
+      ActivityAmbientRenderer.legacyReferenceMedia,
+    );
+    expect(ActivityAmbientKineticField.useAuroraGlassCandidate, isTrue);
     expect(ActivityAmbientAuroraGlassCandidate.gridColumns, 30);
     expect(ActivityAmbientAuroraGlassCandidate.referenceFrameCount, 344);
     expect(ActivityAmbientAuroraGlassCandidate.referenceFramesPerSecond, 30);
@@ -115,6 +137,7 @@ void main() {
     expect(source, contains('Rect _tileGeometry'));
     expect(source, contains('Color _tileRgb'));
     expect(source, contains('class _GlassMaterial'));
+    expect(source, contains('double _spatialTimingVariation'));
     expect(source, contains('drawRect'));
     expect(source, isNot(contains('HtmlElementView')));
     expect(source, isNot(contains('.mp4')));
@@ -417,7 +440,7 @@ void main() {
   });
 
   testWidgets(
-    'ActivityPage gives the stationary phase-one scope its full Scaffold body',
+    'ActivityPage gives default Aurora Glass its full Scaffold body',
     (tester) async {
       final originalSettings = DeviceSettingsController.instance.value;
       DeviceSettingsController.instance.resetForTesting(
@@ -431,11 +454,6 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      ActivityAmbientKineticField.debugLastPaintGeometry = null;
-      addTearDown(
-        () => ActivityAmbientKineticField.debugLastPaintGeometry = null,
-      );
-
       await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1100));
@@ -443,27 +461,13 @@ void main() {
       final field = tester.getRect(
         find.byKey(ActivityAmbientKineticField.fieldKey),
       );
-      final geometry = ActivityAmbientKineticField.debugLastPaintGeometry;
-      expect(geometry, isNotNull);
-      final activeGeometry = geometry!;
-      expect(activeGeometry.painterSize.width, closeTo(field.width, .1));
-      expect(activeGeometry.painterSize.height, closeTo(field.height, .1));
       expect(field.height, greaterThan(700));
-      expect(activeGeometry.scopeBounds.top, greaterThanOrEqualTo(0));
+      expect(field.top, greaterThanOrEqualTo(0));
+      expect(field.bottom, lessThanOrEqualTo(tester.view.physicalSize.height));
       expect(
-        activeGeometry.scopeBounds.bottom,
-        lessThanOrEqualTo(activeGeometry.painterSize.height),
+        find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
+        findsOneWidget,
       );
-      expect(
-        activeGeometry.visibleScopeBounds.top,
-        activeGeometry.scopeBounds.top,
-      );
-      expect(
-        activeGeometry.visibleScopeBounds.bottom,
-        activeGeometry.scopeBounds.bottom,
-      );
-      expect(activeGeometry.center, Offset(field.width / 2, field.height / 2));
-      expect(field.top + activeGeometry.center.dy, greaterThan(0));
       await expectLater(
         find.byType(Scaffold),
         matchesGoldenFile('goldens/activity_scope_below_record.png'),
@@ -472,12 +476,19 @@ void main() {
   );
 
   for (final width in [320.0, 390.0, 900.0]) {
-    testWidgets('keeps a bounded field at $width px', (tester) async {
+    testWidgets('keeps a full-height Aurora field at $width px', (
+      tester,
+    ) async {
       await pumpField(tester, enabled: true, width: width);
-      expect(
-        tester.getRect(find.byKey(ActivityAmbientKineticField.fieldKey)).width,
-        closeTo(width, 1),
+      final field = tester.getRect(
+        find.byKey(ActivityAmbientKineticField.fieldKey),
       );
+      final aurora = tester.getRect(
+        find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
+      );
+      expect(field.width, closeTo(width, 1));
+      expect(field.height, closeTo(700, 1));
+      expect(aurora, field);
       expect(tester.takeException(), isNull);
     });
   }

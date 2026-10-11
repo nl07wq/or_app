@@ -4,6 +4,12 @@ import 'activity_ambient_aurora_glass_candidate.dart';
 import 'activity_ambient_native_candidate.dart';
 import 'activity_ambient_reference_media.dart';
 
+enum ActivityAmbientRenderer {
+  auroraGlass,
+  nativeFilament,
+  legacyReferenceMedia,
+}
+
 /// Activity-only kinetic measurement field.
 class ActivityAmbientKineticField extends StatefulWidget {
   const ActivityAmbientKineticField({super.key, required this.enabled});
@@ -15,18 +21,39 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static const scopeTopInset = 16.0;
   static const scopeBottomInset = 24.0;
 
-  /// Development-only comparison switch. Production builds retain the
-  /// authoritative MP4 unless explicitly requested with the compile-time
-  /// define or `?activityAmbientNativeCandidate=true`.
-  static bool get useNativeCandidate =>
-      const bool.fromEnvironment('ACTIVITY_AMBIENT_NATIVE_CANDIDATE') ||
-      Uri.base.queryParameters['activityAmbientNativeCandidate'] == 'true';
+  /// Aurora Glass is the production default. The prior MP4 and the native
+  /// filament reconstruction remain available as deliberate comparisons.
+  static ActivityAmbientRenderer rendererFor(
+    Map<String, String> queryParameters,
+  ) {
+    if (const bool.fromEnvironment('ACTIVITY_AMBIENT_LEGACY_REFERENCE_MEDIA') ||
+        queryParameters['activityAmbientLegacyReferenceMedia'] == 'true') {
+      return ActivityAmbientRenderer.legacyReferenceMedia;
+    }
+    if (const bool.fromEnvironment('ACTIVITY_AMBIENT_NATIVE_CANDIDATE') ||
+        queryParameters['activityAmbientNativeCandidate'] == 'true') {
+      return ActivityAmbientRenderer.nativeFilament;
+    }
+    // Retain the former comparison query for bookmarks and visual review.
+    // Aurora Glass is also selected when it is absent because it is default.
+    if (const bool.fromEnvironment('ACTIVITY_AMBIENT_AURORA_GLASS_CANDIDATE') ||
+        queryParameters['activityAmbientAuroraGlassCandidate'] == 'true') {
+      return ActivityAmbientRenderer.auroraGlass;
+    }
+    return ActivityAmbientRenderer.auroraGlass;
+  }
 
-  /// A separately selectable programmatic reconstruction of the approved
-  /// Aurora Glass V8 reference. It never replaces the production MP4.
+  static ActivityAmbientRenderer get activeRenderer =>
+      rendererFor(Uri.base.queryParameters);
+
+  static bool get useNativeCandidate =>
+      activeRenderer == ActivityAmbientRenderer.nativeFilament;
+
   static bool get useAuroraGlassCandidate =>
-      const bool.fromEnvironment('ACTIVITY_AMBIENT_AURORA_GLASS_CANDIDATE') ||
-      Uri.base.queryParameters['activityAmbientAuroraGlassCandidate'] == 'true';
+      activeRenderer == ActivityAmbientRenderer.auroraGlass;
+
+  static bool get useLegacyReferenceMedia =>
+      activeRenderer == ActivityAmbientRenderer.legacyReferenceMedia;
   final bool enabled;
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
