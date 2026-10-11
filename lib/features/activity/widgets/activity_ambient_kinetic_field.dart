@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'activity_ambient_aurora_glass_candidate.dart';
 import 'activity_ambient_native_candidate.dart';
 import 'activity_ambient_reference_media.dart';
 
@@ -20,6 +21,12 @@ class ActivityAmbientKineticField extends StatefulWidget {
   static bool get useNativeCandidate =>
       const bool.fromEnvironment('ACTIVITY_AMBIENT_NATIVE_CANDIDATE') ||
       Uri.base.queryParameters['activityAmbientNativeCandidate'] == 'true';
+
+  /// A separately selectable programmatic reconstruction of the approved
+  /// Aurora Glass V8 reference. It never replaces the production MP4.
+  static bool get useAuroraGlassCandidate =>
+      const bool.fromEnvironment('ACTIVITY_AMBIENT_AURORA_GLASS_CANDIDATE') ||
+      Uri.base.queryParameters['activityAmbientAuroraGlassCandidate'] == 'true';
   final bool enabled;
 
   /// Test-only paint telemetry. It is assigned exclusively from an assert,
@@ -219,7 +226,12 @@ class _ActivityAmbientKineticFieldState
                 Positioned.fromRect(
                   rect: mediaBounds,
                   child: ClipOval(
-                    child: ActivityAmbientKineticField.useNativeCandidate
+                    child: ActivityAmbientKineticField.useAuroraGlassCandidate
+                        ? ActivityAmbientAuroraGlassCandidate(
+                            animation: _controller,
+                            reducedMotion: !_motionAllowed,
+                          )
+                        : ActivityAmbientKineticField.useNativeCandidate
                         ? ActivityAmbientNativeCandidate(
                             animation: _controller,
                             reducedMotion: !_motionAllowed,

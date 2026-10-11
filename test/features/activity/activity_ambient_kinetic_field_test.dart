@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_kinetic_field.dart';
+import 'package:or_app/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_native_candidate.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_reference_media.dart';
 
@@ -99,6 +100,17 @@ void main() {
     expect(source, contains('lastElapsedDuration'));
     expect(source, isNot(contains('ActivityAmbientReferenceMedia')));
     expect(source, isNot(contains('HtmlElementView')));
+  });
+
+  test('keeps Aurora Glass V8 opt-in and programmatic', () {
+    expect(ActivityAmbientKineticField.useAuroraGlassCandidate, isFalse);
+    expect(ActivityAmbientAuroraGlassCandidate.fragmentCount, 576);
+    final source = File(
+      'lib/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart',
+    ).readAsStringSync();
+    expect(source, contains('class _AuroraGlassPainter'));
+    expect(source, isNot(contains('HtmlElementView')));
+    expect(source, isNot(contains('.mp4')));
   });
 
   test(
@@ -250,6 +262,62 @@ void main() {
     await expectLater(
       find.byKey(ActivityAmbientNativeCandidate.fieldKey),
       matchesGoldenFile('goldens/activity_native_candidate_phase_06.png'),
+    );
+  });
+
+  testWidgets('Aurora Glass candidate renders a static reduced-motion field', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = AnimationController(
+      vsync: tester,
+      duration: const Duration(seconds: 15),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.expand(
+          child: ActivityAmbientAuroraGlassCandidate(
+            animation: controller,
+            reducedMotion: true,
+          ),
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
+      matchesGoldenFile('goldens/activity_aurora_glass_static.png'),
+    );
+  });
+
+  testWidgets('Aurora Glass candidate reorganizes at an active phase', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = AnimationController(
+      vsync: tester,
+      duration: const Duration(seconds: 15),
+    )..value = .5;
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.expand(
+          child: ActivityAmbientAuroraGlassCandidate(
+            animation: controller,
+            reducedMotion: false,
+          ),
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
+      matchesGoldenFile('goldens/activity_aurora_glass_phase_06.png'),
     );
   });
 
