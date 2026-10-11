@@ -35,16 +35,18 @@ class _AuroraFragment {
   const _AuroraFragment({
     required this.seed,
     required this.cluster,
-    required this.angle,
-    required this.radius,
+    required this.origin,
+    required this.localAngle,
+    required this.localRadius,
     required this.depth,
     required this.color,
   });
 
   final int seed;
   final int cluster;
-  final double angle;
-  final double radius;
+  final Offset origin;
+  final double localAngle;
+  final double localRadius;
   final double depth;
   final Color color;
 }
@@ -64,22 +66,31 @@ class _AuroraGlassPainter extends CustomPainter {
   );
 
   static _AuroraFragment _fragmentFor(int index) {
-    final cluster = index % 6;
-    final lane = (index ~/ 6) % 16;
-    final layer = (index ~/ 96) % 6;
-    final clusterAngle = cluster * math.pi / 3 + .18;
-    final angle = clusterAngle + (lane - 7.5) * .047 + layer * .018;
+    final cluster = index % 8;
+    final lane = (index ~/ 8) % 18;
+    final layer = (index ~/ 144) % 4;
+    const origins = <Offset>[
+      Offset(.12, .16),
+      Offset(.48, .12),
+      Offset(.84, .20),
+      Offset(.20, .47),
+      Offset(.55, .45),
+      Offset(.86, .56),
+      Offset(.23, .80),
+      Offset(.65, .84),
+    ];
     final color = switch (cluster) {
-      0 || 4 => const Color(0xFF57E6EF),
-      1 || 5 => const Color(0xFFE69AD8),
+      0 || 3 || 6 => const Color(0xFF57E6EF),
+      1 || 4 || 7 => const Color(0xFFE69AD8),
       2 => const Color(0xFF69CFE0),
       _ => const Color(0xFFD587C8),
     };
     return _AuroraFragment(
       seed: index,
       cluster: cluster,
-      angle: angle,
-      radius: .24 + layer * .085 + ((index * 37) % 13) / 100,
+      origin: origins[cluster],
+      localAngle: lane * math.pi * 2 / 18 + layer * .31 + (index % 5) * .043,
+      localRadius: .025 + layer * .026 + ((index * 37) % 11) / 1000,
       depth: .35 + ((index * 19) % 61) / 100,
       color: color,
     );
@@ -88,23 +99,33 @@ class _AuroraGlassPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final center = size.center(Offset.zero);
-    final fieldRadius = size.shortestSide * .49;
     final seconds = _seconds();
     for (final fragment in _fragments) {
       final phase = seconds * (.36 + fragment.depth * .16) + fragment.cluster;
       final assemble = .5 + .5 * math.sin(phase + fragment.seed * .071);
       final dissolve = .32 + .68 * assemble * assemble;
       final angle =
-          fragment.angle +
-          math.sin(phase * .82 + fragment.seed * .11) * .16 +
-          seconds * (fragment.cluster.isEven ? .055 : -.048);
-      final radial =
-          fieldRadius *
-          (fragment.radius +
-              math.sin(phase * 1.31 + fragment.seed * .043) * .085);
+          fragment.localAngle +
+          seconds * (fragment.cluster.isEven ? .19 : -.16) +
+          math.sin(phase * .82 + fragment.seed * .11) * .34;
+      final localRadius =
+          fragment.localRadius * (.7 + assemble * .9) +
+          math.sin(phase * 1.31 + fragment.seed * .043) * .013;
+      final origin = Offset(
+        size.width * fragment.origin.dx,
+        size.height * fragment.origin.dy,
+      );
+      final drift = Offset(
+        math.sin(phase * .51 + fragment.cluster) * size.width * .045,
+        math.cos(phase * .47 + fragment.cluster) * size.height * .05,
+      );
       final rawPoint =
-          center + Offset(math.cos(angle), math.sin(angle)) * radial;
+          origin +
+          drift +
+          Offset(
+            math.cos(angle) * size.shortestSide * localRadius,
+            math.sin(angle) * size.shortestSide * localRadius,
+          );
       // Integer alignment retains the reference's visible digital-square
       // texture rather than soft circular particle silhouettes.
       final point = Offset(

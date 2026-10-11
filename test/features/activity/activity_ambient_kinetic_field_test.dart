@@ -113,6 +113,20 @@ void main() {
     expect(source, isNot(contains('.mp4')));
   });
 
+  test('Aurora Glass bypasses the scope HUD and circular clip', () {
+    final source = File(
+      'lib/features/activity/widgets/activity_ambient_kinetic_field.dart',
+    ).readAsStringSync();
+    final start = source.indexOf(
+      'if (ActivityAmbientKineticField.useAuroraGlassCandidate)',
+    );
+    final end = source.indexOf('final geometry =', start);
+    final auroraBranch = source.substring(start, end);
+    expect(auroraBranch, contains('ActivityAmbientAuroraGlassCandidate'));
+    expect(auroraBranch, isNot(contains('ClipOval')));
+    expect(auroraBranch, isNot(contains('_MovingScopePainter')));
+  });
+
   test(
     'keeps the phase-one scope and swarm center stationary in its viewport',
     () {
@@ -265,10 +279,10 @@ void main() {
     );
   });
 
-  testWidgets('Aurora Glass candidate renders a static reduced-motion field', (
+  testWidgets('Aurora Glass candidate fills a static reduced-motion viewport', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 390);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -289,14 +303,14 @@ void main() {
     );
     await expectLater(
       find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
-      matchesGoldenFile('goldens/activity_aurora_glass_static.png'),
+      matchesGoldenFile('goldens/activity_aurora_glass_fullscreen_static.png'),
     );
   });
 
-  testWidgets('Aurora Glass candidate reorganizes at an active phase', (
+  testWidgets('Aurora Glass candidate reorganizes across a full viewport', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 390);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -317,7 +331,9 @@ void main() {
     );
     await expectLater(
       find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
-      matchesGoldenFile('goldens/activity_aurora_glass_phase_06.png'),
+      matchesGoldenFile(
+        'goldens/activity_aurora_glass_fullscreen_phase_06.png',
+      ),
     );
   });
 

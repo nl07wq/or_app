@@ -210,6 +210,15 @@ class _ActivityAmbientKineticFieldState
         key: ActivityAmbientKineticField.fieldKey,
         child: LayoutBuilder(
           builder: (context, constraints) {
+            // Aurora Glass is intentionally a full viewport background. It
+            // bypasses the instrument geometry entirely: no scope clip,
+            // reticle, scanner, or other HUD painter remains active here.
+            if (ActivityAmbientKineticField.useAuroraGlassCandidate) {
+              return ActivityAmbientAuroraGlassCandidate(
+                animation: _controller,
+                reducedMotion: !_motionAllowed,
+              );
+            }
             final geometry = ActivityAmbientKineticField.scopeGeometryFor(
               painterSize: Size(constraints.maxWidth, constraints.maxHeight),
               phase: _controller.value,
@@ -226,12 +235,7 @@ class _ActivityAmbientKineticFieldState
                 Positioned.fromRect(
                   rect: mediaBounds,
                   child: ClipOval(
-                    child: ActivityAmbientKineticField.useAuroraGlassCandidate
-                        ? ActivityAmbientAuroraGlassCandidate(
-                            animation: _controller,
-                            reducedMotion: !_motionAllowed,
-                          )
-                        : ActivityAmbientKineticField.useNativeCandidate
+                    child: ActivityAmbientKineticField.useNativeCandidate
                         ? ActivityAmbientNativeCandidate(
                             animation: _controller,
                             reducedMotion: !_motionAllowed,
