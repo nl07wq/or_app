@@ -97,12 +97,12 @@ class _AuroraGlassPainter extends CustomPainter {
       (column - centerX).abs(),
       (row - centerY).abs(),
     );
-    final timing = _spatialTimingVariation(row, column, rows);
+    final timing = _spatialTimingVariation(row, column, rows, phase);
     // Keep the recovered square front intact while moving whole neighboring
     // tile groups slightly ahead of or behind it.  This is a position offset,
     // rather than a brightness-only effect, so tiles genuinely assemble and
     // dissolve at different moments along the front.
-    final localSquareDistance = squareDistance - timing * 1.45;
+    final localSquareDistance = squareDistance - timing * 1.75;
     final localRate = 1 + timing * .075;
     final wave = math.sin(
       2 * phase * localRate - localSquareDistance * .37 + timing,
@@ -173,13 +173,42 @@ class _AuroraGlassPainter extends CustomPainter {
 
   /// Smoothly correlated timing variation: nearby tiles share timing and
   /// lifecycle changes, while distant groups assemble and dissolve at subtly
-  /// different moments. This stays deterministic and never flickers.
-  double _spatialTimingVariation(int row, int column, int rows) {
+  /// different moments. Five broad, continuously evolving cluster fields add
+  /// distributed advance/lag without replacing the center-origin square wave.
+  double _spatialTimingVariation(int row, int column, int rows, double phase) {
     final x = column / ActivityAmbientAuroraGlassCandidate.gridColumns;
     final y = row / rows;
-    return .44 * math.sin(x * math.pi * 2.1 + y * math.pi * .72 + .34) +
+    final broadField =
+        .44 * math.sin(x * math.pi * 2.1 + y * math.pi * .72 + .34) +
         .27 * math.sin(x * math.pi * .78 - y * math.pi * 2.45 + 1.18) +
         .16 * math.cos(x * math.pi * 3.15 + y * math.pi * 1.36 - .62);
+    return broadField + _distributedClusterTiming(x, y, phase);
+  }
+
+  /// The cluster centers describe regions, rather than steps in a sequence:
+  /// their independent rates continuously overlap and merge as the square
+  /// reconstruction front reaches them.
+  double _distributedClusterTiming(double x, double y, double phase) {
+    const clusters = <(double, double, double, double, double)>[
+      (.50, .20, .17, 1.17, .18), // upper center
+      (.76, .74, .19, .83, 2.06), // lower right
+      (.22, .51, .18, 1.39, 4.08), // middle left
+      (.28, .79, .16, 1.01, 5.24), // lower left
+      (.78, .25, .17, 1.29, 3.12), // upper right
+    ];
+
+    var timing = 0.0;
+    for (final cluster in clusters) {
+      final dx = (x - cluster.$1) / cluster.$3;
+      final dy = (y - cluster.$2) / cluster.$3;
+      final influence = math.exp(-(dx * dx + dy * dy) * 1.8);
+      final localPhase = phase * cluster.$4 + cluster.$5;
+      timing +=
+          influence *
+          (.44 * math.sin(localPhase) +
+              .18 * math.cos(localPhase * 1.73 + dx * .8 - dy * .5));
+    }
+    return timing;
   }
 
   double _unitNoise(int row, int column, int salt) {

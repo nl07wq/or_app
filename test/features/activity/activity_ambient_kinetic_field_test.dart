@@ -139,9 +139,14 @@ void main() {
     expect(source, contains('Color _tileRgb'));
     expect(source, contains('class _GlassMaterial'));
     expect(source, contains('double _spatialTimingVariation'));
+    expect(source, contains('double _distributedClusterTiming'));
+    expect(
+      source,
+      contains('const clusters = <(double, double, double, double, double)>'),
+    );
     expect(source, contains('final squareDistance = math.max('));
     expect(source, contains('final localSquareDistance ='));
-    expect(source, contains('timing * 1.45'));
+    expect(source, contains('timing * 1.75'));
     expect(source, isNot(contains('math.sqrt(')));
     expect(source, contains('drawRect'));
     expect(source, isNot(contains('HtmlElementView')));
