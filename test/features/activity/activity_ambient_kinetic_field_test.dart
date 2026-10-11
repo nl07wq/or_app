@@ -85,6 +85,7 @@ void main() {
   test('keeps the native renderer opt-in and asset-independent', () {
     expect(ActivityAmbientKineticField.useNativeCandidate, isFalse);
     expect(ActivityAmbientNativeCandidate.filamentCount, 360);
+    expect(ActivityAmbientNativeCandidate.filamentStrokeWidthMultiplier, 1.5);
     final source = File(
       'lib/features/activity/widgets/activity_ambient_native_candidate.dart',
     ).readAsStringSync();

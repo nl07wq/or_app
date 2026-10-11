@@ -14,6 +14,7 @@ class ActivityAmbientNativeCandidate extends StatelessWidget {
 
   static const fieldKey = ValueKey('activity-ambient-native-candidate');
   static const filamentCount = 360;
+  static const filamentStrokeWidthMultiplier = 1.5;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -117,7 +118,9 @@ class _NativeLuminousFlowPainter extends CustomPainter {
         ..color = filament.color.withValues(alpha: opacity)
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = .34 + (1 - filament.radius) * .22;
+        ..strokeWidth =
+            (.34 + (1 - filament.radius) * .22) *
+            ActivityAmbientNativeCandidate.filamentStrokeWidthMultiplier;
       final halo = Paint()
         ..color = filament.color.withValues(alpha: opacity * .22)
         ..style = PaintingStyle.stroke
