@@ -16,12 +16,16 @@ class DashboardGlassCard extends StatelessWidget {
     this.onTap,
     this.selectable = false,
     this.padding = AppSpacing.cardPadding,
+    this.margin = AppSpacing.cardMargin,
+    this.borderRadius,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final bool selectable;
   final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -38,24 +42,10 @@ class DashboardGlassCard extends StatelessWidget {
         onTap: onTap,
         selectable: selectable,
         padding: EdgeInsets.zero,
+        margin: margin,
+        borderRadius: borderRadius,
         child: Container(
-          decoration: BoxDecoration(
-            borderRadius: AppRadius.large,
-            gradient: gradient(scheme),
-            border: Border.all(color: scheme.primary.withValues(alpha: .16)),
-            boxShadow: [
-              BoxShadow(
-                color: scheme.primary.withValues(alpha: .055),
-                blurRadius: 18,
-                offset: const Offset(-2, -2),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .34),
-                blurRadius: 18,
-                offset: const Offset(4, 8),
-              ),
-            ],
-          ),
+          decoration: decoration(scheme, borderRadius: borderRadius),
           child: Padding(padding: padding, child: child),
         ),
       ),
@@ -75,6 +65,27 @@ class DashboardGlassCard extends StatelessWidget {
       ),
       scheme.surface.withValues(alpha: .24),
       scheme.surfaceContainerHigh.withValues(alpha: .13),
+    ],
+  );
+
+  static BoxDecoration decoration(
+    ColorScheme scheme, {
+    BorderRadius? borderRadius,
+  }) => BoxDecoration(
+    borderRadius: borderRadius ?? AppRadius.large,
+    gradient: gradient(scheme),
+    border: Border.all(color: scheme.primary.withValues(alpha: .16)),
+    boxShadow: [
+      BoxShadow(
+        color: scheme.primary.withValues(alpha: .055),
+        blurRadius: 18,
+        offset: const Offset(-2, -2),
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: .34),
+        blurRadius: 18,
+        offset: const Offset(4, 8),
+      ),
     ],
   );
 }

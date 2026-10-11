@@ -90,16 +90,18 @@ class _AuroraGlassPainter extends CustomPainter {
   double _tileState(int row, int column, int rows, double phase) {
     final centerX = (ActivityAmbientAuroraGlassCandidate.gridColumns - 1) / 2;
     final centerY = (rows - 1) / 2;
-    final normalizedY =
-        (row - centerY) *
-        ActivityAmbientAuroraGlassCandidate.gridColumns /
-        rows;
-    final distance = math.sqrt(
-      math.pow(column - centerX, 2) + math.pow(normalizedY, 2),
+    // Grid-aligned Chebyshev distance creates an expanding square formation
+    // front. The tile state still carries the same low-frequency variation,
+    // so clusters reorganize organically instead of blinking in rigid bands.
+    final squareDistance = math.max(
+      (column - centerX).abs(),
+      (row - centerY).abs(),
     );
     final timing = _spatialTimingVariation(row, column, rows);
     final localRate = 1 + timing * .075;
-    final wave = math.sin(2 * phase * localRate - distance * .37 + timing);
+    final wave = math.sin(
+      2 * phase * localRate - squareDistance * .37 + timing,
+    );
     final active = ((wave - .06) * 2).clamp(0.0, 1.0);
     final diagonal =
         (math.sin(.37 * column + .22 * row - 2 * phase * localRate + timing) +

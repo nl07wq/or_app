@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/device_settings_controller.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/state/app_initialization_state.dart';
 import '../../core/widgets/operation_button.dart';
+import '../../core/widgets/dashboard_glass_card.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/section_header.dart';
 import '../repositories/app_repository_container.dart';
@@ -226,23 +228,27 @@ class _ActivityPageState extends State<ActivityPage> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      OperationButton(
-                        key: const ValueKey('activity-entry-button'),
-                        icon: Icons.edit_outlined,
-                        text: 'ACTIVITY ENTRY',
-                        reportUnavailableTap:
-                            !appInitializationController.value.isReadOnly &&
-                            snapshot.connectionState == ConnectionState.done &&
-                            !snapshot.hasError &&
-                            activityExists,
-                        onPressed:
-                            appInitializationController.value.isReadOnly ||
-                                snapshot.connectionState !=
-                                    ConnectionState.done ||
-                                snapshot.hasError ||
-                                activityExists
-                            ? null
-                            : _openEntry,
+                      _ActivityGlassAction(
+                        child: OperationButton(
+                          key: const ValueKey('activity-entry-button'),
+                          icon: Icons.edit_outlined,
+                          text: 'ACTIVITY ENTRY',
+                          transparentSurface: true,
+                          reportUnavailableTap:
+                              !appInitializationController.value.isReadOnly &&
+                              snapshot.connectionState ==
+                                  ConnectionState.done &&
+                              !snapshot.hasError &&
+                              activityExists,
+                          onPressed:
+                              appInitializationController.value.isReadOnly ||
+                                  snapshot.connectionState !=
+                                      ConnectionState.done ||
+                                  snapshot.hasError ||
+                                  activityExists
+                              ? null
+                              : _openEntry,
+                        ),
                       ),
                       if (activityExists) ...[
                         AppSpacing.gapSM,
@@ -271,23 +277,43 @@ class _ActivityPageState extends State<ActivityPage> {
 
               AppSpacing.gapMD,
 
-              OperationButton(
-                icon: Icons.history_outlined,
-                text: 'RECORD',
-                onPressed: () async {
-                  await Navigator.push<void>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ActivityHistoryPage(),
-                    ),
-                  );
-                  if (mounted) _refreshActivityEntry();
-                },
+              _ActivityGlassAction(
+                child: OperationButton(
+                  icon: Icons.history_outlined,
+                  text: 'RECORD',
+                  transparentSurface: true,
+                  onPressed: () async {
+                    await Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ActivityHistoryPage(),
+                      ),
+                    );
+                    if (mounted) _refreshActivityEntry();
+                  },
+                ),
               ),
             ],
           ),
         ),
       ],
     ),
+  );
+}
+
+/// Reuses Dashboard's accepted glass surface without changing Activity's
+/// action geometry. The button itself becomes transparent so the Aurora Glass
+/// background remains visible through the established material treatment.
+class _ActivityGlassAction extends StatelessWidget {
+  const _ActivityGlassAction({required this.child});
+
+  final OperationButton child;
+
+  @override
+  Widget build(BuildContext context) => DashboardGlassCard(
+    padding: EdgeInsets.zero,
+    margin: EdgeInsets.zero,
+    borderRadius: AppRadius.medium,
+    child: child,
   );
 }

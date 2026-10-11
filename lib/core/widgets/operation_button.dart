@@ -25,6 +25,10 @@ class OperationButton extends StatelessWidget {
   /// [ActionableFeedbackRegion] API, never by choosing a sound asset.
   final bool deferFeedback;
 
+  /// Allows an enclosing production glass surface to remain visible while
+  /// retaining the button's established size, text, and interaction contract.
+  final bool transparentSurface;
+
   const OperationButton({
     super.key,
     required this.text,
@@ -33,6 +37,7 @@ class OperationButton extends StatelessWidget {
     this.role = OperationActionRole.secondary,
     this.reportUnavailableTap = false,
     this.deferFeedback = false,
+    this.transparentSurface = false,
   });
 
   @override
@@ -51,7 +56,10 @@ class OperationButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          elevation: 4,
+          elevation: transparentSurface ? 0 : 4,
+          backgroundColor: transparentSurface ? Colors.transparent : null,
+          shadowColor: transparentSurface ? Colors.transparent : null,
+          surfaceTintColor: transparentSurface ? Colors.transparent : null,
           foregroundColor: foregroundColor,
           disabledForegroundColor: Theme.of(context).disabledColor,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),

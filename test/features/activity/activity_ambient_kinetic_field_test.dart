@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/dashboard_glass_card.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_kinetic_field.dart';
@@ -138,6 +139,8 @@ void main() {
     expect(source, contains('Color _tileRgb'));
     expect(source, contains('class _GlassMaterial'));
     expect(source, contains('double _spatialTimingVariation'));
+    expect(source, contains('final squareDistance = math.max('));
+    expect(source, isNot(contains('math.sqrt(')));
     expect(source, contains('drawRect'));
     expect(source, isNot(contains('HtmlElementView')));
     expect(source, isNot(contains('.mp4')));
@@ -155,6 +158,19 @@ void main() {
     expect(auroraBranch, contains('ActivityAmbientAuroraGlassCandidate'));
     expect(auroraBranch, isNot(contains('ClipOval')));
     expect(auroraBranch, isNot(contains('_MovingScopePainter')));
+  });
+
+  test('Activity action surfaces reuse the Dashboard glass material', () {
+    final activitySource = File(
+      'lib/features/activity/activity_page.dart',
+    ).readAsStringSync();
+    final buttonSource = File(
+      'lib/core/widgets/operation_button.dart',
+    ).readAsStringSync();
+    expect(activitySource, contains('DashboardGlassCard'));
+    expect(activitySource, contains('transparentSurface: true'));
+    expect(buttonSource, contains('final bool transparentSurface'));
+    expect(buttonSource, contains('backgroundColor: transparentSurface'));
   });
 
   test(
@@ -468,6 +484,7 @@ void main() {
         find.byKey(ActivityAmbientAuroraGlassCandidate.fieldKey),
         findsOneWidget,
       );
+      expect(find.byType(DashboardGlassCard), findsNWidgets(2));
       await expectLater(
         find.byType(Scaffold),
         matchesGoldenFile('goldens/activity_scope_below_record.png'),
