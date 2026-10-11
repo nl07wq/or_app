@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/dashboard_glass_card.dart';
+
 enum ActivityMechanicalCounterMode { normal, entry }
 
 /// A compact mechanical totalizer used as the shared Activity AppBar title.
@@ -230,6 +232,7 @@ class _ActivityMechanicalCounterTitleState
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(5);
     return Semantics(
       label: ActivityMechanicalCounterTitle.word,
       child: ExcludeSemantics(
@@ -238,17 +241,10 @@ class _ActivityMechanicalCounterTitleState
           width: ActivityMechanicalCounterTitle.width,
           height: ActivityMechanicalCounterTitle.height,
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: const Color(0xFF111315),
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: const Color(0xFF596066), width: .8),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x66000000),
-                  blurRadius: 3,
-                  offset: Offset(0, 1),
-                ),
-              ],
+            key: const ValueKey('activity-mechanical-counter-title-glass'),
+            decoration: DashboardGlassCard.decoration(
+              Theme.of(context).colorScheme,
+              borderRadius: borderRadius,
             ),
             child: Padding(
               padding: const EdgeInsets.all(2),

@@ -42,6 +42,11 @@ void main() {
     }
     expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
     expect(find.bySemanticsLabel('A'), findsNothing);
+    final glass = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('activity-mechanical-counter-title-glass')),
+    );
+    expect(glass.decoration, isA<BoxDecoration>());
+    expect((glass.decoration as BoxDecoration).gradient, isNotNull);
   });
 
   testWidgets('normal index settles once and remains static after rebuild', (
