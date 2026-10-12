@@ -19,6 +19,9 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   static const eventFrequency = 2.09;
   static const globalSeed = 51;
 
+  /// Multiplies the monotonic ambient clock without changing event coverage.
+  static const motionSpeed = .65;
+
   final Animation<double> animation;
   final bool reducedMotion;
 
@@ -82,9 +85,12 @@ class _AuroraGlassPainter extends CustomPainter {
   double get _elapsedSeconds {
     if (staticFrame) return _staticElapsedSeconds;
     // This timestamp is monotonic for the app process. Unlike animation.value,
-    // it does not restart when the upstream controller repeats.
+    // it does not restart when the upstream controller repeats. Scaling this
+    // one clock slows formation, propagation, reorganization and dissolution
+    // proportionally while leaving the event model and amplitude unchanged.
     return SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds /
-        Duration.microsecondsPerSecond;
+        Duration.microsecondsPerSecond *
+        ActivityAmbientAuroraGlassCandidate.motionSpeed;
   }
 
   List<double> _statesFor({
