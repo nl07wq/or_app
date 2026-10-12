@@ -25,16 +25,27 @@ void main() {
     );
     expect(
       StatusRadialSpectrumAmbient.pulseMinimumInterval,
-      const Duration(seconds: 5),
+      const Duration(seconds: 3),
     );
     expect(
       StatusRadialSpectrumAmbient.pulseMaximumInterval,
-      const Duration(seconds: 10),
+      const Duration(seconds: 6),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseAttack,
+      const Duration(milliseconds: 70),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseRecovery,
+      const Duration(milliseconds: 180),
     );
     expect(
       StatusRadialSpectrumAmbient.pulseDuration,
-      const Duration(milliseconds: 900),
+      const Duration(milliseconds: 250),
     );
+    expect(StatusRadialSpectrumAmbient.pulseMaximumScale, 1.10);
+    expect(StatusRadialSpectrumAmbient.pulseMaximumDisplacement, 5.0);
+    expect(StatusRadialSpectrumAmbient.flameSampleCount, 216);
 
     final source = File(
       'lib/features/morning/widgets/status_radial_spectrum_ambient.dart',
@@ -64,6 +75,11 @@ void main() {
     expect(source, contains('_pulseMotion.intensityFor'));
     expect(source, contains('_pulseMotion.jitterFor'));
     expect(source, contains('canvas.scale(scale, scale)'));
+    expect(source, contains('void _paintFlameEdge'));
+    expect(source, contains('final _flamePath = Path()'));
+    expect(source, contains('StatusRadialSpectrumAmbient.flameSampleCount'));
+    expect(source, contains('path.close()'));
+    expect(source, contains('double _flameExtension'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));
@@ -140,7 +156,8 @@ void main() {
     'renders the deterministic ambient pulse without moving STATUS UI',
     (tester) async {
       await pumpAmbient(tester, width: 390);
-      await tester.pump(const Duration(milliseconds: 6100));
+      // The first V2 power pulse begins at 3.42 seconds.
+      await tester.pump(const Duration(milliseconds: 3500));
       expect(find.text('STATUS CONTENT'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

@@ -21,9 +21,14 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const amplitudeTargetUpdatesPerSecond = 10;
   static const amplitudeAttack = Duration(milliseconds: 60);
   static const amplitudeRelease = Duration(milliseconds: 140);
-  static const pulseMinimumInterval = Duration(seconds: 5);
-  static const pulseMaximumInterval = Duration(seconds: 10);
-  static const pulseDuration = Duration(milliseconds: 900);
+  static const pulseMinimumInterval = Duration(seconds: 3);
+  static const pulseMaximumInterval = Duration(seconds: 6);
+  static const pulseAttack = Duration(milliseconds: 70);
+  static const pulseRecovery = Duration(milliseconds: 180);
+  static const pulseDuration = Duration(milliseconds: 250);
+  static const pulseMaximumScale = 1.10;
+  static const pulseMaximumDisplacement = 5.0;
+  static const flameSampleCount = 216;
 
   final bool enabled;
   final bool reducedMotion;
@@ -134,6 +139,19 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   final _donutCore = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+  final _flamePath = Path();
+  final _flameBroadHalo = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
+  final _flameNearHalo = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
+  final _flameCore = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
 
   static const _palette = <Color>[
     Color(0xFF5DECF2),
@@ -174,12 +192,14 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       layout.center.dx + jitter.dx,
       layout.center.dy + jitter.dy,
     );
-    final scale = 1 + pulse * .055;
+    final scale =
+        1 + pulse * (StatusRadialSpectrumAmbient.pulseMaximumScale - 1);
     canvas.scale(scale, scale);
     canvas.translate(-layout.center.dx, -layout.center.dy);
 
     _paintBubbles(canvas, size, layout, time, colorTime, pulse);
     _paintDonut(canvas, layout, colorTime, pulse);
+    _paintFlameEdge(canvas, layout, colorTime, time, pulse);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
     _barBroadHalo.maskFilter = pulse == 0
         ? const MaskFilter.blur(BlurStyle.normal, 4.2)
@@ -370,6 +390,77 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       );
   }
 
+  /// A continuous, independently evolving aurora contour just beyond the
+  /// donut. It deliberately uses a single closed path rather than a second
+  /// population of radial bars, so the plasma reads as liquid light at the
+  /// circular edge without obscuring the hollow center.
+  void _paintFlameEdge(
+    Canvas canvas,
+    _SpectrumLayout layout,
+    double colorTime,
+    double time,
+    double pulse,
+  ) {
+    final path = _flamePath..reset();
+    final sampleCount = StatusRadialSpectrumAmbient.flameSampleCount;
+    for (var index = 0; index < sampleCount; index++) {
+      final angle = math.pi * 2 * index / sampleCount;
+      final extension = _flameExtension(angle, time);
+      final point =
+          layout.center +
+          Offset.fromDirection(angle, layout.donutOuterRadius + extension);
+      if (index == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+
+    final shader =
+        SweepGradient(
+          colors: _donutPalette,
+          transform: GradientRotation(colorTime + time * .035),
+        ).createShader(
+          Rect.fromCircle(
+            center: layout.center,
+            radius: layout.donutOuterRadius + 12,
+          ),
+        );
+    final glowMultiplier = 1 + pulse * .8;
+    _flameBroadHalo
+      ..shader = shader
+      ..strokeWidth = 3.8 + pulse * 1.1
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4.4 + pulse * 2.2)
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .22 * glowMultiplier);
+    _flameNearHalo
+      ..shader = shader
+      ..strokeWidth = 1.65 + pulse * .45
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.45 + pulse * .7)
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .52 * glowMultiplier);
+    _flameCore
+      ..shader = shader
+      ..strokeWidth = .58 + pulse * .16
+      ..maskFilter = null
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .90);
+    canvas
+      ..drawPath(path, _flameBroadHalo)
+      ..drawPath(path, _flameNearHalo)
+      ..drawPath(path, _flameCore);
+  }
+
+  double _flameExtension(double angle, double time) {
+    // Low-frequency angular fields give neighboring samples related motion,
+    // while their incommensurate rates prevent a rigid travelling wave.
+    final broad =
+        .5 +
+        .5 * math.sin(angle * 3 + time * .61 + .37) * .52 +
+        .5 * math.sin(angle * 7 - time * .39 + 1.83) * .30 +
+        .5 * math.sin(angle * 13 + time * .23 + .91) * .18;
+    final peak = math.pow(.5 + .5 * math.sin(angle * 5 - time * .47 + 2.41), 7);
+    return (3 + broad.clamp(0.0, 1.0) * 5 + peak * 4).clamp(3.0, 12.0);
+  }
+
   double _smoothStep(double lower, double upper, double value) {
     final t = ((value - lower) / (upper - lower)).clamp(0.0, 1.0);
     return t * t * (3 - 2 * t);
@@ -391,23 +482,32 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       oldDelegate.animation != animation;
 }
 
-/// Three short, seeded impact moments occur per color cycle. Their start
-/// gaps remain between five and ten seconds, but their duration, strength,
-/// and two-axis jitter are intentionally nonuniform. The values are stable
-/// for deterministic tests and Reduced Motion simply bypasses them.
+/// Five short, seeded impact moments occur per color cycle. Their start gaps
+/// remain between three and six seconds. The 70ms attack and 180ms recovery
+/// produce a quick power surge without moving any foreground STATUS control.
 class _StatusPulseMotion {
   static const _cycleSeconds = 24.0;
-  static const _durationSeconds = .9;
-  static const _starts = <double>[5.64, 12.37, 19.78];
+  static const _attackSeconds = .070;
+  static const _recoverySeconds = .180;
+  static const _starts = <double>[3.42, 7.63, 12.76, 17.08, 21.45];
 
   double intensityFor(double cycleProgress) {
     final seconds = cycleProgress * _cycleSeconds;
     var intensity = 0.0;
     for (var index = 0; index < _starts.length; index++) {
-      final localProgress = (seconds - _starts[index]) / _durationSeconds;
-      if (localProgress <= 0 || localProgress >= 1) continue;
-      final attack = _smoothStep(0, .14, localProgress);
-      final release = 1 - _smoothStep(.42, 1, localProgress);
+      final localSeconds = seconds - _starts[index];
+      if (localSeconds <= 0 ||
+          localSeconds >= _attackSeconds + _recoverySeconds) {
+        continue;
+      }
+      final attack = _smoothStep(0, _attackSeconds, localSeconds);
+      final release =
+          1 -
+          _smoothStep(
+            _attackSeconds,
+            _attackSeconds + _recoverySeconds,
+            localSeconds,
+          );
       final strength = .72 + _seededNoise(index, 911) * .28;
       intensity = math.max(intensity, attack * release * strength);
     }
@@ -416,9 +516,11 @@ class _StatusPulseMotion {
 
   Offset jitterFor(double cycleProgress, double shortestSide) {
     final seconds = cycleProgress * _cycleSeconds;
-    return Offset(
-      math.sin(seconds * 53.7 + .4) * shortestSide * .009,
-      math.sin(seconds * 41.3 + 1.7) * shortestSide * .006,
+    final direction =
+        math.sin(seconds * 31.7 + .4) * 1.4 + math.sin(seconds * 19.3 + 1.7);
+    return Offset.fromDirection(
+      direction,
+      StatusRadialSpectrumAmbient.pulseMaximumDisplacement,
     );
   }
 
