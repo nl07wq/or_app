@@ -1,0 +1,28 @@
+name: Validate Aurora Glass V8
+
+on:
+  push:
+    branches:
+      - codex/aurora-v8-ci-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter test test/features/activity/activity_ambient_kinetic_field_test.dart
+      - run: flutter analyze --no-fatal-infos
+      - run: git diff --check
+      - run: flutter build web --pwa-strategy=none
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aurora-v8-web-build
+          path: build/web
