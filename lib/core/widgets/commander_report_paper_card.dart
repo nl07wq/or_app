@@ -84,18 +84,21 @@ class CommanderReportDocumentSection extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(AppSpacing.lg),
     this.margin,
+    this.width,
     this.tint,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
+  final double? width;
   final Color? tint;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
+      width: width,
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
