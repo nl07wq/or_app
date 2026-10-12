@@ -110,6 +110,8 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   _SpectrumLayout? _layout;
   static final _spectrumMotion = _FastSpectrumMotion();
   static final _pulseMotion = _StatusPulseMotion();
+  static const _flameMotionSpeed = .65;
+  static const _flameMotionAmplitude = .55;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -451,14 +453,20 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
   double _flameExtension(double angle, double time) {
     // Low-frequency angular fields give neighboring samples related motion,
-    // while their incommensurate rates prevent a rigid travelling wave.
+    // while their incommensurate rates prevent a rigid travelling wave. Keep
+    // the 3px base contour intact, then slow and soften only the animated
+    // displacement for a gentler aurora-like flicker.
     final broad =
         .5 +
-        .5 * math.sin(angle * 3 + time * .61 + .37) * .52 +
-        .5 * math.sin(angle * 7 - time * .39 + 1.83) * .30 +
-        .5 * math.sin(angle * 13 + time * .23 + .91) * .18;
-    final peak = math.pow(.5 + .5 * math.sin(angle * 5 - time * .47 + 2.41), 7);
-    return (3 + broad.clamp(0.0, 1.0) * 5 + peak * 4).clamp(3.0, 12.0);
+        .5 * math.sin(angle * 3 + time * .61 * _flameMotionSpeed + .37) * .52 +
+        .5 * math.sin(angle * 7 - time * .39 * _flameMotionSpeed + 1.83) * .30 +
+        .5 * math.sin(angle * 13 + time * .23 * _flameMotionSpeed + .91) * .18;
+    final peak = math.pow(
+      .5 + .5 * math.sin(angle * 5 - time * .47 * _flameMotionSpeed + 2.41),
+      7,
+    );
+    final animatedDisplacement = broad.clamp(0.0, 1.0) * 5 + peak * 4;
+    return (3 + animatedDisplacement * _flameMotionAmplitude).clamp(3.0, 12.0);
   }
 
   double _smoothStep(double lower, double upper, double value) {

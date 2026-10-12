@@ -80,6 +80,13 @@ void main() {
     expect(source, contains('StatusRadialSpectrumAmbient.flameSampleCount'));
     expect(source, contains('path.close()'));
     expect(source, contains('double _flameExtension'));
+    expect(source, contains('static const _flameMotionSpeed = .65'));
+    expect(source, contains('static const _flameMotionAmplitude = .55'));
+    expect(source, contains('time * .61 * _flameMotionSpeed'));
+    expect(source, contains('time * .39 * _flameMotionSpeed'));
+    expect(source, contains('time * .23 * _flameMotionSpeed'));
+    expect(source, contains('time * .47 * _flameMotionSpeed'));
+    expect(source, contains('animatedDisplacement * _flameMotionAmplitude'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));
