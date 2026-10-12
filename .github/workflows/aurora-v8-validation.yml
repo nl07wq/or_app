@@ -18,7 +18,28 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter test test/features/activity/activity_ambient_kinetic_field_test.dart
+      - name: Run focused Activity tests with diagnostics
+        id: activity_tests
+        shell: bash
+        run: |
+          flutter --version | tee ci-flutter-version.log
+          dart --version 2>&1 | tee ci-dart-version.log
+          set +e
+          flutter test test/features/activity/activity_ambient_kinetic_field_test.dart > ci-activity-test.log 2>&1
+          code=$?
+          echo "exit_code=$code" | tee ci-activity-test-exit-code.txt
+          tail -n 160 ci-activity-test.log >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
+      - name: Upload Activity test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurora-v8-activity-test-diagnostics
+          path: |
+            ci-flutter-version.log
+            ci-dart-version.log
+            ci-activity-test.log
+            ci-activity-test-exit-code.txt
       - run: flutter analyze --no-fatal-infos
       - run: git diff --check
       - run: flutter build web --pwa-strategy=none
