@@ -157,7 +157,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     // Preserve the established physical motion rate while color completes a
     // separate, continuous 24-second revolution.
     final time =
-        colorTime * (cycleDuration.inMilliseconds / 1000) / _motionCycleSeconds;
+        colorTime *
+        (StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000) /
+        StatusRadialSpectrumAmbient._motionCycleSeconds;
     final spectrumTime =
         time * StatusRadialSpectrumAmbient.equalizerSpeedMultiplier;
 
