@@ -5,8 +5,8 @@ import 'package:flutter/scheduler.dart';
 
 /// Production Flutter-native Aurora Glass V8 ambient.
 ///
-/// The glass material is intentionally stable; continuous, deformed ripple
-/// events control only when each square tile forms, reorganizes and dissolves.
+/// The glass material is intentionally stable; continuous, irregular square
+/// ripples control only when each square tile forms, reorganizes and dissolves.
 class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   const ActivityAmbientAuroraGlassCandidate({
     super.key,
@@ -20,12 +20,12 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   static const globalSeed = 51;
 
   /// Current production values are applied once, from the deployed baseline.
-  static const _deployedMotionSpeed = .40;
-  static const motionSpeed = _deployedMotionSpeed * .50;
+  static const _deployedMotionSpeed = .20;
+  static const motionSpeed = _deployedMotionSpeed * 1.10;
 
   /// Reduces only dynamic activation and spatial-deviation amplitude.
-  static const _deployedMotionVariation = .50;
-  static const motionVariation = _deployedMotionVariation * .40;
+  static const _deployedMotionVariation = .20;
+  static const motionVariation = _deployedMotionVariation * 1.20;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -328,24 +328,31 @@ class _CurvedFragmentEvent {
 
     final relative = point - center;
     final theta = math.atan2(relative.dy, relative.dx);
-    final radius = relative.distance;
+    // Chebyshev distance provides the square-based expansion. The advancing
+    // edge is subsequently deformed and selectively fragmented, so it never
+    // presents as a uniform square, diamond, circle, or synchronized ring.
+    final squareDistance = math.max(relative.dx.abs(), relative.dy.abs());
     final smoothNoise = _smoothSpatialNoise(theta, localTime, noisePhase);
-    final deformedFront =
+    final deformedSquareFront =
         waveSpeed * localTime +
         variation *
-            (.043 * math.sin(3 * theta + .7 * localTime + phase1) +
-                .024 * math.sin(7 * theta - .5 * localTime + phase2) +
-                .048 * (smoothNoise - .5));
+            (.052 * math.sin(4 * theta + .7 * localTime + phase1) +
+                .031 * math.sin(8 * theta - .5 * localTime + phase2) +
+                .056 * (smoothNoise - .5));
 
     // A correlated fragment field moves some neighboring cells slightly
     // before or after the main front. This breaks a uniform annulus without
     // turning the tile lifecycle into independent random flicker.
     final fragment = _fragmentNoise(point, theta, localTime, fragmentPhase);
-    final localFront = deformedFront + (fragment - .5) * .095 * variation;
+    final localFront = deformedSquareFront + (fragment - .5) * .115 * variation;
     final localWidth =
         halfWidth * (1.03 + ((.72 + fragment * .62) - 1.03) * variation);
-    final leadingDistance = math.max(0.0, radius - localFront).toDouble();
-    final trailingDistance = math.max(0.0, localFront - radius).toDouble();
+    final leadingDistance = math
+        .max(0.0, squareDistance - localFront)
+        .toDouble();
+    final trailingDistance = math
+        .max(0.0, localFront - squareDistance)
+        .toDouble();
     final leading =
         1 - _smoothStep(.12 * localWidth, localWidth, leadingDistance);
     final trailing =

@@ -245,15 +245,15 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     _impactFlash.shader =
         RadialGradient(
           colors: [
-            flashColor.withValues(alpha: impact * .17),
-            flashColor.withValues(alpha: impact * .052),
+            flashColor.withValues(alpha: impact * .21),
+            flashColor.withValues(alpha: impact * .070),
             flashColor.withValues(alpha: 0),
           ],
           stops: const [.0, .58, 1],
         ).createShader(
           Rect.fromCircle(
             center: layout.center,
-            radius: size.longestSide * .96,
+            radius: size.longestSide * 1.08,
           ),
         );
     canvas.drawRect(Offset.zero & size, _impactFlash);
@@ -491,7 +491,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     _hudMarkingCore
       ..shader = null
       ..strokeWidth = (layout.donutThickness * .075).clamp(.8, 1.4)
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: .56)
+      // The markings erase narrow sections from the luminous band instead
+      // of adding a second color or a separate ornament layer.
+      ..color = const Color(0xFF03060D)
       ..maskFilter = null;
     canvas.drawPath(markings, _hudMarkingCore);
   }
