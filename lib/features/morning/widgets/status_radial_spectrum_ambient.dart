@@ -457,35 +457,28 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     double nominalOuter,
   ) {
     final markings = _hudMarkingPath..reset();
-    const segmentCount = 19;
     final ringMid = nominalOuter - layout.donutThickness * .31;
-    for (var index = 0; index < segmentCount; index++) {
-      final baseAngle =
-          math.pi * 2 * index / segmentCount + _seededNoise(index, 811) * .12;
-      final span = .055 + _seededNoise(index, 812) * .105;
-      final steps = 4 + (_seededNoise(index, 813) * 3).floor();
-      for (var step = 0; step <= steps; step++) {
-        final angle = baseAngle + (step / steps - .5) * span;
-        final radius = ringMid + _flameContourExtension(angle, time);
-        final point = layout.center + Offset.fromDirection(angle, radius);
-        if (step == 0) {
-          markings.moveTo(point.dx, point.dy);
-        } else {
-          markings.lineTo(point.dx, point.dy);
+    // Fine interrupted grooves remain inside the existing rainbow band. They
+    // are cutouts, not separately visible concentric rings or ornaments.
+    for (var track = 0; track < 3; track++) {
+      final grooveRadius = ringMid + (track - 1) * layout.donutThickness * .13;
+      const segmentCount = 13;
+      for (var index = 0; index < segmentCount; index++) {
+        final key = track * 37 + index;
+        final baseAngle =
+            math.pi * 2 * index / segmentCount + _seededNoise(key, 811) * .17;
+        final span = .035 + _seededNoise(key, 812) * .085;
+        final steps = 3 + (_seededNoise(key, 813) * 3).floor();
+        for (var step = 0; step <= steps; step++) {
+          final angle = baseAngle + (step / steps - .5) * span;
+          final radius = grooveRadius + _flameContourExtension(angle, time);
+          final point = layout.center + Offset.fromDirection(angle, radius);
+          if (step == 0) {
+            markings.moveTo(point.dx, point.dy);
+          } else {
+            markings.lineTo(point.dx, point.dy);
+          }
         }
-      }
-      if (index % 2 == 0) {
-        final angle = baseAngle + span * .75;
-        final radius = ringMid + _flameContourExtension(angle, time);
-        final tickStart =
-            layout.center +
-            Offset.fromDirection(angle, radius - layout.donutThickness * .12);
-        final tickEnd =
-            layout.center +
-            Offset.fromDirection(angle, radius + layout.donutThickness * .12);
-        markings
-          ..moveTo(tickStart.dx, tickStart.dy)
-          ..lineTo(tickEnd.dx, tickEnd.dy);
       }
     }
     _hudMarkingCore
@@ -501,15 +494,15 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   double _flameContourExtension(double angle, double time) {
     final broad =
         .5 +
-        .5 * math.sin(angle * 3 + time * .61 * _flameMotionSpeed + .37) * .52 +
-        .5 * math.sin(angle * 7 - time * .39 * _flameMotionSpeed + 1.83) * .30 +
-        .5 * math.sin(angle * 13 + time * .23 * _flameMotionSpeed + .91) * .18;
+        .5 * math.sin(angle * 2 + time * .61 * _flameMotionSpeed + .37) * .50 +
+        .5 * math.sin(angle * 5 - time * .39 * _flameMotionSpeed + 1.83) * .33 +
+        .5 * math.sin(angle * 9 + time * .23 * _flameMotionSpeed + .91) * .17;
     final peak = math.pow(
-      .5 + .5 * math.sin(angle * 5 - time * .47 * _flameMotionSpeed + 2.41),
-      7,
+      .5 + .5 * math.sin(angle * 4 - time * .47 * _flameMotionSpeed + 2.41),
+      5,
     );
-    final animatedDisplacement = broad.clamp(0.0, 1.0) * 2.5 + peak * 2.4;
-    return (.8 + animatedDisplacement * _flameMotionAmplitude).clamp(.8, 5.0);
+    final animatedDisplacement = broad.clamp(0.0, 1.0) * 4.4 + peak * 4.8;
+    return (.7 + animatedDisplacement * _flameMotionAmplitude).clamp(.7, 7.0);
   }
 
   double _smoothStep(double lower, double upper, double value) {

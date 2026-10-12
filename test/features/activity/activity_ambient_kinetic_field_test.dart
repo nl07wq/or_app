@@ -165,6 +165,8 @@ void main() {
     expect(source, contains('final double halfWidth;'));
     expect(source, contains('double _selectedFragment'));
     expect(source, contains('double _directionalWeight'));
+    expect(source, contains('final sideSegments ='));
+    expect(source, contains('required double sideCoordinate'));
     expect(source, contains('final deformedSquareFront ='));
     expect(source, contains('final squareDistance ='));
     expect(source, contains('double _smoothSpatialNoise'));

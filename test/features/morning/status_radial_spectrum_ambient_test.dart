@@ -88,6 +88,7 @@ void main() {
     expect(source, contains('void _appendDeformedRingContour'));
     expect(source, contains('void _paintHudRingPattern'));
     expect(source, contains('const Color(0xFF03060D)'));
+    expect(source, contains('for (var track = 0; track < 3; track++)'));
     expect(source, contains('double _flameContourExtension'));
     expect(source, isNot(contains('_flameTonguePath')));
     expect(source, isNot(contains('flameTongueCount')));

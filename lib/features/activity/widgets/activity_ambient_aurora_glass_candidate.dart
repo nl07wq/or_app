@@ -365,7 +365,14 @@ class _CurvedFragmentEvent {
     final activation =
         leading * trailing * (.76 + (fragment - .5) * .48 * variation);
     final selected = selectFragments
-        ? _selectedFragment(point: point, theta: theta, localTime: localTime)
+        ? _selectedFragment(
+            point: point,
+            theta: theta,
+            sideCoordinate: relative.dx.abs() >= relative.dy.abs()
+                ? relative.dy
+                : relative.dx,
+            localTime: localTime,
+          )
         : 1.0;
     return envelope * activation * selected;
   }
@@ -375,6 +382,7 @@ class _CurvedFragmentEvent {
   double _selectedFragment({
     required Offset point,
     required double theta,
+    required double sideCoordinate,
     required double localTime,
   }) {
     final primary = _directionalWeight(theta, direction, directionWidth);
@@ -389,8 +397,21 @@ class _CurvedFragmentEvent {
       localTime * variation,
       candidatePhase,
     );
-    final candidates = .58 * math.max(primary, secondary) + .42 * localPattern;
-    return _smoothStep(.42, .66, candidates);
+    // Adjacent positions on each square side share a gently changing segment
+    // field. A few segments lead, lag, or leave a gap, preventing a complete
+    // outline while preserving a coherent outward-moving square ripple.
+    final sideSegments =
+        .52 +
+        .29 * math.sin(sideCoordinate * 29 + localTime * .41 + candidatePhase) +
+        .19 *
+            math.sin(
+              sideCoordinate * 13 - localTime * .23 + fragmentPhase * 1.7,
+            );
+    final candidates =
+        .46 * math.max(primary, secondary) +
+        .34 * localPattern +
+        .20 * sideSegments;
+    return _smoothStep(.48, .70, candidates);
   }
 }
 
