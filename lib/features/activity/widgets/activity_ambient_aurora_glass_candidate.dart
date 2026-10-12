@@ -12,6 +12,7 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
     super.key,
     required this.animation,
     required this.reducedMotion,
+    this.elapsedSecondsForTesting,
   });
 
   static const fieldKey = ValueKey('activity-ambient-aurora-glass-candidate');
@@ -22,23 +23,40 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   final Animation<double> animation;
   final bool reducedMotion;
 
+  /// Injects an exact elapsed timestamp for reproducible widget goldens.
+  /// Production callers leave this null and retain monotonic frame time.
+  @visibleForTesting
+  final double? elapsedSecondsForTesting;
+
+  /// Lets an enclosing production widget test control the child painter
+  /// without changing ActivityPage's public production API.
+  @visibleForTesting
+  static double? debugElapsedSeconds;
+
   @override
   Widget build(BuildContext context) => CustomPaint(
     key: fieldKey,
     painter: _AuroraGlassPainter(
       animation: animation,
       staticFrame: reducedMotion,
+      elapsedSecondsForTesting:
+          elapsedSecondsForTesting ?? debugElapsedSeconds,
     ),
     child: const SizedBox.expand(),
   );
 }
 
 class _AuroraGlassPainter extends CustomPainter {
-  _AuroraGlassPainter({required this.animation, required this.staticFrame})
+  _AuroraGlassPainter({
+    required this.animation,
+    required this.staticFrame,
+    required this.elapsedSecondsForTesting,
+  })
     : super(repaint: animation);
 
   final Animation<double> animation;
   final bool staticFrame;
+  final double? elapsedSecondsForTesting;
 
   static const _cyan = Color(0xFF56E2EA);
   static const _magenta = Color(0xFFE19AD2);
@@ -81,6 +99,8 @@ class _AuroraGlassPainter extends CustomPainter {
 
   double get _elapsedSeconds {
     if (staticFrame) return _staticElapsedSeconds;
+    final controlled = elapsedSecondsForTesting;
+    if (controlled != null) return controlled;
     // This timestamp is monotonic for the app process. Unlike animation.value,
     // it does not restart when the upstream controller repeats.
     return SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds /
@@ -228,6 +248,7 @@ class _AuroraGlassPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AuroraGlassPainter oldDelegate) =>
       oldDelegate.staticFrame != staticFrame ||
+      oldDelegate.elapsedSecondsForTesting != elapsedSecondsForTesting ||
       oldDelegate.animation != animation;
 }
 

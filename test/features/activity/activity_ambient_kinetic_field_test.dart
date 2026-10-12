@@ -403,6 +403,7 @@ void main() {
           child: ActivityAmbientAuroraGlassCandidate(
             animation: controller,
             reducedMotion: false,
+            elapsedSecondsForTesting: 8.0,
           ),
         ),
       ),
@@ -490,6 +491,13 @@ void main() {
   testWidgets(
     'ActivityPage gives default Aurora Glass its full Scaffold body',
     (tester) async {
+      final originalElapsed =
+          ActivityAmbientAuroraGlassCandidate.debugElapsedSeconds;
+      ActivityAmbientAuroraGlassCandidate.debugElapsedSeconds = 8.0;
+      addTearDown(
+        () => ActivityAmbientAuroraGlassCandidate.debugElapsedSeconds =
+            originalElapsed,
+      );
       final originalSettings = DeviceSettingsController.instance.value;
       DeviceSettingsController.instance.resetForTesting(
         const DeviceSettings(ambientKineticFieldEnabled: true),
