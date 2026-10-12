@@ -42,25 +42,13 @@ jobs:
           echo "last_updated=$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST')" >> "$GITHUB_OUTPUT"
           echo "title=$(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Build Flutter Web
-        shell: bash
-        run: |
-          set -o pipefail
-          flutter build web --release --base-href /or_app/ \
-            --pwa-strategy=none \
-            --dart-define=OR_APP_NOTIFICATION_API=https://or-app-notifications.or-app-notifications.workers.dev \
-            --dart-define=OR_APP_RELEASE_COMMIT=${{ steps.release_metadata.outputs.commit }} \
-            --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}" \
-            --dart-define="OR_APP_RELEASE_TITLE=${{ steps.release_metadata.outputs.title }}" 2>&1 | tee web-build.log
-
-      - name: Summarize failed web build
-        if: failure()
-        shell: bash
-        run: |
-          tail -n 160 web-build.log >> "$GITHUB_STEP_SUMMARY"
-          grep -E '^(Error:|.+\.dart:[0-9]+:[0-9]+:)' web-build.log | tail -n 40 | while IFS= read -r line; do
-            echo "::error::$line"
-          done
+      - run: >-
+          flutter build web --release --base-href /or_app/
+          --pwa-strategy=none
+          --dart-define=OR_APP_NOTIFICATION_API=https://or-app-notifications.or-app-notifications.workers.dev
+          --dart-define=OR_APP_RELEASE_COMMIT=${{ steps.release_metadata.outputs.commit }}
+          --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}"
+          --dart-define="OR_APP_RELEASE_TITLE=${{ steps.release_metadata.outputs.title }}"
 
       - uses: actions/upload-pages-artifact@v3
         with:

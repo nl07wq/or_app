@@ -991,7 +991,7 @@ class _DebriefPanel extends StatelessWidget {
         _DebriefPanelTone.secondary => const Color(0xCCF8F3D8),
         _DebriefPanelTone.neutral => const Color(0xD9FFFDF7),
         _DebriefPanelTone.subtle => const Color(0xD9F3F0E8),
-      ),
+      },
       child: child,
     );
   }
