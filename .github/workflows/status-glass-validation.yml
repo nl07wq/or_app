@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -17,6 +17,15 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - name: Update approved STATUS goldens on Linux
+        if: "!contains(github.event.head_commit.message, '[golden-update]')"
+        run: |
+          flutter test test/features/morning/status_radial_spectrum_ambient_test.dart --update-goldens
+          git add test/features/morning/goldens/status_radial_spectrum_static.png test/features/morning/goldens/status_radial_spectrum_phase.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet || git commit -m "[golden-update] Update STATUS CI goldens"
+          git push
       - run: flutter test test/features/morning/status_radial_spectrum_ambient_test.dart test/features/morning/status_crt_monitor_title_test.dart
       - run: flutter analyze --no-fatal-infos
       - run: git diff --check
