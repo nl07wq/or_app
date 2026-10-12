@@ -130,7 +130,8 @@ void main() {
     expect(ActivityAmbientAuroraGlassCandidate.gridColumns, 30);
     expect(ActivityAmbientAuroraGlassCandidate.eventFrequency, 2.09);
     expect(ActivityAmbientAuroraGlassCandidate.globalSeed, 51);
-    expect(ActivityAmbientAuroraGlassCandidate.motionSpeed, .65);
+    expect(ActivityAmbientAuroraGlassCandidate.motionSpeed, .40);
+    expect(ActivityAmbientAuroraGlassCandidate.motionVariation, .50);
     final source = File(
       'lib/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart',
     ).readAsStringSync();
@@ -143,7 +144,8 @@ void main() {
     expect(source, contains('double activationAt'));
     expect(source, contains('static const eventFrequency = 2.09'));
     expect(source, contains('static const globalSeed = 51'));
-    expect(source, contains('static const motionSpeed = .65'));
+    expect(source, contains('static const motionSpeed = .40'));
+    expect(source, contains('static const motionVariation = .50'));
     expect(source, contains('final double waveSpeed;'));
     expect(source, contains('final double phase1;'));
     expect(source, contains('final double phase2;'));

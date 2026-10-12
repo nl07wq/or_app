@@ -20,7 +20,10 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   static const globalSeed = 51;
 
   /// Multiplies the monotonic ambient clock without changing event coverage.
-  static const motionSpeed = .65;
+  static const motionSpeed = .40;
+
+  /// Scales only deviations around the established event-model averages.
+  static const motionVariation = .50;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -56,7 +59,7 @@ class _AuroraGlassPainter extends CustomPainter {
     final pitch = size.width / ActivityAmbientAuroraGlassCandidate.gridColumns;
     final rows = (size.height / pitch).ceil() + 2;
     final elapsed = _elapsedSeconds;
-    final events = _activeEvents(elapsed);
+    final events = _activeEvents(elapsed, variation: _motionVariation);
     final states = _statesFor(rows: rows, elapsed: elapsed, events: events);
     final material = _GlassMaterial(pitch);
 
@@ -141,8 +144,9 @@ class _AuroraGlassPainter extends CustomPainter {
       (row + .5) / (rows - 2),
     );
     final tileNoise = _tileNoise(row, column);
-    final activationDelay = tileNoise * .28 - .14;
-    final thresholdOffset = (_cellNoise(row, column, 23) * .20) - .10;
+    final activationDelay = (tileNoise - .5) * .28 * _motionVariation;
+    final thresholdOffset =
+        (_cellNoise(row, column, 23) - .5) * .20 * _motionVariation;
     var remaining = 1.0;
 
     for (final event in events) {
@@ -157,7 +161,13 @@ class _AuroraGlassPainter extends CustomPainter {
     return (1 - remaining).clamp(0.0, 1.0);
   }
 
-  List<_CurvedFragmentEvent> _activeEvents(double elapsed) {
+  double get _motionVariation =>
+      staticFrame ? 1 : ActivityAmbientAuroraGlassCandidate.motionVariation;
+
+  List<_CurvedFragmentEvent> _activeEvents(
+    double elapsed, {
+    required double variation,
+  }) {
     // The lifetime is bounded to 3.6 seconds, plus jitter/delay margins;
     // this window remains bounded at any elapsed time.
     final first = math.max(
@@ -170,7 +180,7 @@ class _AuroraGlassPainter extends CustomPainter {
             .ceil();
     return [
       for (var index = first; index <= last; index++)
-        _CurvedFragmentEvent.fromIndex(index),
+        _CurvedFragmentEvent.fromIndex(index, variation: variation),
     ];
   }
 
@@ -248,21 +258,26 @@ class _CurvedFragmentEvent {
     required this.noisePhase,
     required this.halfWidth,
     required this.fragmentPhase,
+    required this.variation,
   });
 
-  factory _CurvedFragmentEvent.fromIndex(int index) {
+  factory _CurvedFragmentEvent.fromIndex(
+    int index, {
+    required double variation,
+  }) {
     return _CurvedFragmentEvent(
       start:
           index / ActivityAmbientAuroraGlassCandidate.eventFrequency +
-          (_eventNoise(index, 1) * 2 - 1) * .11,
-      lifetime: 2.4 + _eventNoise(index, 2) * 1.2,
-      center: _eventCenter(index),
-      waveSpeed: .38 + _eventNoise(index, 3) * .16,
+          (_eventNoise(index, 1) * 2 - 1) * .11 * variation,
+      lifetime: 3 + (_eventNoise(index, 2) - .5) * 1.2 * variation,
+      center: _eventCenter(index, variation: variation),
+      waveSpeed: .46 + (_eventNoise(index, 3) - .5) * .16 * variation,
       phase1: _eventNoise(index, 4) * math.pi * 2,
       phase2: _eventNoise(index, 5) * math.pi * 2,
       noisePhase: _eventNoise(index, 6) * math.pi * 2,
-      halfWidth: .072 + _eventNoise(index, 7) * .085,
+      halfWidth: .1145 + (_eventNoise(index, 7) - .5) * .085 * variation,
       fragmentPhase: _eventNoise(index, 8) * math.pi * 2,
+      variation: variation,
     );
   }
 
@@ -275,6 +290,7 @@ class _CurvedFragmentEvent {
   final double noisePhase;
   final double halfWidth;
   final double fragmentPhase;
+  final double variation;
 
   double activationAt({required Offset point, required double elapsed}) {
     final localTime = elapsed - start;
@@ -289,16 +305,18 @@ class _CurvedFragmentEvent {
     final smoothNoise = _smoothSpatialNoise(theta, localTime, noisePhase);
     final deformedFront =
         waveSpeed * localTime +
-        .043 * math.sin(3 * theta + .7 * localTime + phase1) +
-        .024 * math.sin(7 * theta - .5 * localTime + phase2) +
-        .048 * (smoothNoise - .5);
+        variation *
+            (.043 * math.sin(3 * theta + .7 * localTime + phase1) +
+                .024 * math.sin(7 * theta - .5 * localTime + phase2) +
+                .048 * (smoothNoise - .5));
 
     // A correlated fragment field moves some neighboring cells slightly
     // before or after the main front. This breaks a uniform annulus without
     // turning the tile lifecycle into independent random flicker.
     final fragment = _fragmentNoise(point, theta, localTime, fragmentPhase);
-    final localFront = deformedFront + (fragment - .5) * .095;
-    final localWidth = halfWidth * (.72 + fragment * .62);
+    final localFront = deformedFront + (fragment - .5) * .095 * variation;
+    final localWidth =
+        halfWidth * (1.03 + ((.72 + fragment * .62) - 1.03) * variation);
     final leadingDistance = math.max(0.0, radius - localFront).toDouble();
     final trailingDistance = math.max(0.0, localFront - radius).toDouble();
     final leading =
@@ -307,19 +325,20 @@ class _CurvedFragmentEvent {
         1 -
         _smoothStep(
           .18 * localWidth,
-          localWidth * (1.0 + fragment * .75),
+          localWidth * (1.375 + (fragment - .5) * .75 * variation),
           trailingDistance,
         );
-    final activation = leading * trailing * (.52 + fragment * .48);
+    final activation =
+        leading * trailing * (.76 + (fragment - .5) * .48 * variation);
     return envelope * activation;
   }
 }
 
-Offset _eventCenter(int index) {
+Offset _eventCenter(int index, {required double variation}) {
   final angle = _eventNoise(index, 101) * math.pi * 2;
   // Successive waves share the viewport center while retaining a small,
   // deterministic origin drift so their fronts can split and reconnect.
-  final radius = .004 + _eventNoise(index, 102) * .078;
+  final radius = .043 + (_eventNoise(index, 102) - .5) * .078 * variation;
   return Offset(.5 + math.cos(angle) * radius, .5 + math.sin(angle) * radius);
 }
 
