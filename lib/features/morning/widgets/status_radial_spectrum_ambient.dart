@@ -113,7 +113,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   static final _spectrumMotion = _FastSpectrumMotion();
   static final _pulseMotion = _StatusPulseMotion();
   static const _flameMotionSpeed = .65;
-  static const _flameMotionAmplitude = .55;
+  static const _flameMotionAmplitude = 1.0;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -378,6 +378,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       nominalOuter - visibleThickness,
       sampleCount,
       reverse: true,
+      deformed: false,
     );
     band.close();
     final oval = Rect.fromCircle(
@@ -411,12 +412,12 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       ..drawPath(outer, _donutBroadHalo)
       ..drawPath(outer, _donutNearHalo)
       ..drawPath(band, _donutCore);
-    _paintHudRingPattern(canvas, layout, time, nominalOuter);
+    _paintHudRingPattern(canvas, layout, nominalOuter, visibleThickness);
   }
 
-  /// The same organic contour defines the visible ring edge, its glow, and
-  /// its technical markings. There is no stable circular donut under it and
-  /// no detached flame or membrane layer.
+  /// The ring's actual outer edge controls its luminous core and glow. The
+  /// inner contour intentionally remains circular to keep the hollow center
+  /// stable while the visible outer boundary flows in and out.
   void _appendDeformedRingContour(
     Path path,
     _SpectrumLayout layout,
@@ -424,12 +425,13 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     double radius,
     int sampleCount, {
     bool reverse = false,
+    bool deformed = true,
   }) {
     Offset? previous;
     for (var step = 0; step <= sampleCount; step++) {
       final index = reverse ? sampleCount - step : step;
       final angle = math.pi * 2 * index / sampleCount;
-      final extension = _flameContourExtension(angle, time);
+      final extension = deformed ? _flameContourExtension(angle, time) : 0.0;
       final point =
           layout.center + Offset.fromDirection(angle, radius + extension);
       if (step == 0) {
@@ -453,33 +455,19 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   void _paintHudRingPattern(
     Canvas canvas,
     _SpectrumLayout layout,
-    double time,
     double nominalOuter,
+    double visibleThickness,
   ) {
     final markings = _hudMarkingPath..reset();
-    final ringMid = nominalOuter - layout.donutThickness * .31;
-    // Fine interrupted grooves remain inside the existing rainbow band. They
-    // are cutouts, not separately visible concentric rings or ornaments.
+    final innerRadius = nominalOuter - visibleThickness;
+    // Continuous background-colored grooves are engraved into the existing
+    // rainbow band. Their radii remain safely inside the hollow and outer
+    // boundaries, so this does not add separate decorative rings.
     for (var track = 0; track < 3; track++) {
-      final grooveRadius = ringMid + (track - 1) * layout.donutThickness * .13;
-      const segmentCount = 13;
-      for (var index = 0; index < segmentCount; index++) {
-        final key = track * 37 + index;
-        final baseAngle =
-            math.pi * 2 * index / segmentCount + _seededNoise(key, 811) * .17;
-        final span = .035 + _seededNoise(key, 812) * .085;
-        final steps = 3 + (_seededNoise(key, 813) * 3).floor();
-        for (var step = 0; step <= steps; step++) {
-          final angle = baseAngle + (step / steps - .5) * span;
-          final radius = grooveRadius + _flameContourExtension(angle, time);
-          final point = layout.center + Offset.fromDirection(angle, radius);
-          if (step == 0) {
-            markings.moveTo(point.dx, point.dy);
-          } else {
-            markings.lineTo(point.dx, point.dy);
-          }
-        }
-      }
+      final grooveRadius = innerRadius + visibleThickness * (.18 + track * .22);
+      markings.addOval(
+        Rect.fromCircle(center: layout.center, radius: grooveRadius),
+      );
     }
     _hudMarkingCore
       ..shader = null
@@ -493,16 +481,10 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
   double _flameContourExtension(double angle, double time) {
     final broad =
-        .5 +
-        .5 * math.sin(angle * 2 + time * .61 * _flameMotionSpeed + .37) * .50 +
-        .5 * math.sin(angle * 5 - time * .39 * _flameMotionSpeed + 1.83) * .33 +
-        .5 * math.sin(angle * 9 + time * .23 * _flameMotionSpeed + .91) * .17;
-    final peak = math.pow(
-      .5 + .5 * math.sin(angle * 4 - time * .47 * _flameMotionSpeed + 2.41),
-      5,
-    );
-    final animatedDisplacement = broad.clamp(0.0, 1.0) * 4.4 + peak * 4.8;
-    return (.7 + animatedDisplacement * _flameMotionAmplitude).clamp(.7, 7.0);
+        math.sin(angle * 2 + time * .53 * _flameMotionSpeed + .37) * 2.5 +
+        math.sin(angle * 3 - time * .31 * _flameMotionSpeed + 1.83) * 1.45 +
+        math.sin(angle * 6 + time * .19 * _flameMotionSpeed + .91) * .75;
+    return (broad * _flameMotionAmplitude).clamp(-3.4, 3.4);
   }
 
   double _smoothStep(double lower, double upper, double value) {
