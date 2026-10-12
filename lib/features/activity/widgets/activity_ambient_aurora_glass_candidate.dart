@@ -156,8 +156,14 @@ class _AuroraGlassPainter extends CustomPainter {
     var remaining = 1.0;
 
     for (final event in events) {
+      final dx =
+          column +
+          .5 -
+          event.center.dx * ActivityAmbientAuroraGlassCandidate.gridColumns;
+      final dy = row + .5 - event.center.dy * (rows - 2);
       final activation = event.activationAt(
-        point: point,
+        dx: dx,
+        dy: dy,
         elapsed: elapsed - activationDelay,
       );
       if (activation <= 0) continue;
@@ -264,16 +270,9 @@ class _CurvedFragmentEvent {
     required this.lifetime,
     required this.center,
     required this.waveSpeed,
-    required this.phase1,
-    required this.phase2,
-    required this.noisePhase,
     required this.halfWidth,
     required this.fragmentPhase,
     required this.variation,
-    required this.direction,
-    required this.directionWidth,
-    required this.secondaryOffset,
-    required this.candidatePhase,
     required this.selectFragments,
   });
 
@@ -289,16 +288,9 @@ class _CurvedFragmentEvent {
       lifetime: 3 + (_eventNoise(index, 2) - .5) * 1.2 * variation,
       center: _eventCenter(index, variation: variation),
       waveSpeed: .46 + (_eventNoise(index, 3) - .5) * .16 * variation,
-      phase1: _eventNoise(index, 4) * math.pi * 2,
-      phase2: _eventNoise(index, 5) * math.pi * 2,
-      noisePhase: _eventNoise(index, 6) * math.pi * 2,
       halfWidth: .1145 + (_eventNoise(index, 7) - .5) * .085 * variation,
       fragmentPhase: _eventNoise(index, 8) * math.pi * 2,
       variation: variation,
-      direction: _eventNoise(index, 9) * math.pi * 2,
-      directionWidth: .52 + _eventNoise(index, 10) * .34,
-      secondaryOffset: math.pi * (.46 + _eventNoise(index, 11) * .22),
-      candidatePhase: _eventNoise(index, 12) * math.pi * 2,
       selectFragments: selectFragments,
     );
   }
@@ -307,117 +299,69 @@ class _CurvedFragmentEvent {
   final double lifetime;
   final Offset center;
   final double waveSpeed;
-  final double phase1;
-  final double phase2;
-  final double noisePhase;
   final double halfWidth;
   final double fragmentPhase;
   final double variation;
-  final double direction;
-  final double directionWidth;
-  final double secondaryOffset;
-  final double candidatePhase;
   final bool selectFragments;
 
-  double activationAt({required Offset point, required double elapsed}) {
+  double activationAt({
+    required double dx,
+    required double dy,
+    required double elapsed,
+  }) {
     final localTime = elapsed - start;
     final q = (localTime / lifetime).clamp(0.0, 1.0);
     if (localTime <= 0 || q >= 1) return 0;
     final envelope = _smoothStep(0, .16, q) * (1 - _smoothStep(.66, 1, q));
     if (envelope <= 0) return 0;
 
-    final relative = point - center;
-    final theta = math.atan2(relative.dy, relative.dx);
-    // Chebyshev distance provides the square-based expansion. The advancing
-    // edge is subsequently deformed and selectively fragmented, so it never
-    // presents as a uniform square, diamond, circle, or synchronized ring.
-    final squareDistance = math.max(relative.dx.abs(), relative.dy.abs());
-    final smoothNoise = _smoothSpatialNoise(theta, localTime, noisePhase);
-    final deformedSquareFront =
-        waveSpeed * localTime +
-        variation *
-            (.052 * math.sin(4 * theta + .7 * localTime + phase1) +
-                .031 * math.sin(8 * theta - .5 * localTime + phase2) +
-                .056 * (smoothNoise - .5));
+    // Grid-space Chebyshev distance is the square-based ripple metric. The
+    // deformation is deliberately bounded so it roughens the front without
+    // replacing its unmistakable center-to-outside progression.
+    final squareDistance = math.max(dx.abs(), dy.abs());
+    final spatialVariation = _smoothSquareVariation(
+      dx,
+      dy,
+      localTime,
+      fragmentPhase,
+    );
+    final irregularDistance =
+        squareDistance + spatialVariation * 1.20 * variation;
+    final frontRadius =
+        waveSpeed * ActivityAmbientAuroraGlassCandidate.gridColumns * localTime;
+    final distanceFromFront = (irregularDistance - frontRadius).abs();
+    final frontWidth =
+        halfWidth * ActivityAmbientAuroraGlassCandidate.gridColumns * .62;
+    final frontActivation =
+        1 - _smoothStep(frontWidth * .20, frontWidth, distanceFromFront);
+    if (frontActivation <= 0) return 0;
 
-    // A correlated fragment field moves some neighboring cells slightly
-    // before or after the main front. This breaks a uniform annulus without
-    // turning the tile lifecycle into independent random flicker.
-    final fragment = _fragmentNoise(point, theta, localTime, fragmentPhase);
-    final localFront = deformedSquareFront + (fragment - .5) * .115 * variation;
-    final localWidth =
-        halfWidth * (1.03 + ((.72 + fragment * .62) - 1.03) * variation);
-    final leadingDistance = math
-        .max(0.0, squareDistance - localFront)
-        .toDouble();
-    final trailingDistance = math
-        .max(0.0, localFront - squareDistance)
-        .toDouble();
-    final leading =
-        1 - _smoothStep(.12 * localWidth, localWidth, leadingDistance);
-    final trailing =
-        1 -
-        _smoothStep(
-          .18 * localWidth,
-          localWidth * (1.375 + (fragment - .5) * .75 * variation),
-          trailingDistance,
-        );
-    final activation =
-        leading * trailing * (.76 + (fragment - .5) * .48 * variation);
-    final selected = selectFragments
-        ? _selectedFragment(
-            point: point,
-            theta: theta,
-            sideCoordinate: relative.dx.abs() >= relative.dy.abs()
-                ? relative.dy
-                : relative.dx,
-            localTime: localTime,
-          )
+    // Correlated grid-space gaps leave delayed and partial side segments.
+    // They evolve with the event but cannot form stationary vertical bands.
+    final fragments = _squareFragmentField(dx, dy, localTime, fragmentPhase);
+    final partialFront = selectFragments
+        ? (squareDistance < 1.35
+              ? .78 + fragments * .22
+              : .46 + _smoothStep(.30, .70, fragments) * .54)
         : 1.0;
-    return envelope * activation * selected;
-  }
-
-  /// Chooses a few smooth, event-local directions from the advancing front.
-  /// This preserves center-outward progress while preventing a uniform ring.
-  double _selectedFragment({
-    required Offset point,
-    required double theta,
-    required double sideCoordinate,
-    required double localTime,
-  }) {
-    final primary = _directionalWeight(theta, direction, directionWidth);
-    final secondary = _directionalWeight(
-      theta,
-      direction + secondaryOffset,
-      directionWidth * .72,
-    );
-    final localPattern = _fragmentNoise(
-      point,
-      theta,
-      localTime * variation,
-      candidatePhase,
-    );
-    // Adjacent positions on each square side share a gently changing segment
-    // field. A few segments lead, lag, or leave a gap, preventing a complete
-    // outline while preserving a coherent outward-moving square ripple.
-    final sideSegments =
-        .52 +
-        .29 * math.sin(sideCoordinate * 29 + localTime * .41 + candidatePhase) +
-        .19 *
-            math.sin(
-              sideCoordinate * 13 - localTime * .23 + fragmentPhase * 1.7,
-            );
-    final candidates =
-        .46 * math.max(primary, secondary) +
-        .34 * localPattern +
-        .20 * sideSegments;
-    return _smoothStep(.48, .70, candidates);
+    return envelope * frontActivation * partialFront;
   }
 }
 
-double _directionalWeight(double theta, double direction, double width) {
-  final delta = (theta - direction + math.pi) % (math.pi * 2) - math.pi;
-  return 1 - _smoothStep(width * .52, width, delta.abs());
+double _smoothSquareVariation(double dx, double dy, double time, double phase) {
+  final signal =
+      .52 * math.sin(dx * .51 + dy * .27 + time * .29 + phase) +
+      .31 * math.sin(dx * .19 - dy * .43 - time * .17 + phase * 1.6) +
+      .17 * math.sin(dx * .73 + dy * .68 + phase * .62);
+  return signal.clamp(-1.0, 1.0);
+}
+
+double _squareFragmentField(double dx, double dy, double time, double phase) {
+  final field =
+      .48 * math.sin(dx * .39 + dy * .21 + time * .33 + phase) +
+      .32 * math.sin(dx * .16 - dy * .47 - time * .19 + phase * 1.3) +
+      .20 * math.sin(dx * .62 + dy * .54 + time * .11 + phase * .71);
+  return (.5 + field * .5).clamp(0.0, 1.0);
 }
 
 Offset _eventCenter(int index, {required double variation}) {
@@ -426,25 +370,6 @@ Offset _eventCenter(int index, {required double variation}) {
   // deterministic origin drift so their fronts can split and reconnect.
   final radius = .043 + (_eventNoise(index, 102) - .5) * .078 * variation;
   return Offset(.5 + math.cos(angle) * radius, .5 + math.sin(angle) * radius);
-}
-
-double _smoothSpatialNoise(double theta, double time, double phase) {
-  final signal =
-      .48 * math.sin(2 * theta + time * .31 + phase) +
-      .32 * math.sin(5 * theta - time * .19 + phase * 1.7) +
-      .20 * math.sin(11 * theta + time * .13 + phase * .61);
-  return (.5 + signal * .5).clamp(0.0, 1.0);
-}
-
-double _fragmentNoise(Offset point, double theta, double time, double phase) {
-  final signal =
-      .46 * math.sin(point.dx * 15.7 + point.dy * 11.3 + time * .42 + phase) +
-      .34 *
-          math.sin(
-            point.dx * 7.1 - point.dy * 13.9 - time * .27 + phase * 1.4,
-          ) +
-      .20 * math.sin(theta * 6 + time * .18 + phase * .58);
-  return (.5 + signal * .5).clamp(0.0, 1.0);
 }
 
 double _eventNoise(int eventIndex, int parameterId) => _hash01(

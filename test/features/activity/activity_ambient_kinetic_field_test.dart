@@ -160,19 +160,13 @@ void main() {
       ),
     );
     expect(source, contains('final double waveSpeed;'));
-    expect(source, contains('final double phase1;'));
-    expect(source, contains('final double phase2;'));
     expect(source, contains('final double halfWidth;'));
-    expect(source, contains('double _selectedFragment'));
-    expect(source, contains('double _directionalWeight'));
-    expect(source, contains('final sideSegments ='));
-    expect(source, contains('required double sideCoordinate'));
-    expect(source, contains('final deformedSquareFront ='));
     expect(source, contains('final squareDistance ='));
-    expect(source, contains('double _smoothSpatialNoise'));
-    expect(source, contains('double _fragmentNoise'));
-    expect(source, contains('final localFront ='));
-    expect(source, contains('final localWidth ='));
+    expect(source, contains('final irregularDistance ='));
+    expect(source, contains('final frontRadius ='));
+    expect(source, contains('final distanceFromFront ='));
+    expect(source, contains('double _smoothSquareVariation'));
+    expect(source, contains('double _squareFragmentField'));
     expect(source, contains('var remaining = 1.0'));
     expect(source, contains('remaining *= 1 - contribution'));
     expect(source, contains('final activationDelay'));
