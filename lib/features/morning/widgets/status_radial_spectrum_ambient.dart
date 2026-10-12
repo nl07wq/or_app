@@ -160,9 +160,6 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
         colorTime *
         (StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000) /
         StatusRadialSpectrumAmbient._motionCycleSeconds;
-    final spectrumTime =
-        time * StatusRadialSpectrumAmbient.equalizerSpeedMultiplier;
-
     _paintBubbles(canvas, size, layout, time, colorTime);
     _paintDonut(canvas, layout, colorTime);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
