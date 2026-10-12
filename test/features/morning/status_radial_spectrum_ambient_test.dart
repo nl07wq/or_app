@@ -7,11 +7,13 @@ import 'package:or_app/features/morning/widgets/status_radial_spectrum_ambient.d
 void main() {
   test('declares a dense native radial spectrum without media assets', () {
     expect(StatusRadialSpectrumAmbient.barCount, 144);
-    expect(StatusRadialSpectrumAmbient.bubbleCount, 64);
+    expect(StatusRadialSpectrumAmbient.bubbleCount, 96);
     expect(
       StatusRadialSpectrumAmbient.cycleDuration,
       const Duration(seconds: 13),
     );
+    expect(StatusRadialSpectrumAmbient.equalizerSpeedMultiplier, 1.5);
+    expect(StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier, 1.3);
 
     final source = File(
       'lib/features/morning/widgets/status_radial_spectrum_ambient.dart',
@@ -26,6 +28,10 @@ void main() {
     expect(source, contains('static const _donutPalette'));
     expect(source, contains('final edgeFade ='));
     expect(source, contains('StatusRadialSpectrumAmbient.bubbleCount'));
+    expect(source, contains('equalizerSpeedMultiplier'));
+    expect(source, contains('equalizerAmplitudeMultiplier'));
+    expect(source, contains('class _SpectrumLayout'));
+    expect(source, contains('final _barBroadHalo'));
     expect(source, contains('drawCircle(point'));
     expect(source, isNot(contains('HtmlElementView')));
     expect(source, isNot(contains('.mp4')));

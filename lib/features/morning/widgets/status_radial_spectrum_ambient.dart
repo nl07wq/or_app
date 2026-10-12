@@ -13,8 +13,10 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
 
   static const fieldKey = ValueKey('status-radial-spectrum-ambient');
   static const barCount = 144;
-  static const bubbleCount = 64;
+  static const bubbleCount = 96;
   static const cycleDuration = Duration(seconds: 13);
+  static const equalizerSpeedMultiplier = 1.5;
+  static const equalizerAmplitudeMultiplier = 1.3;
 
   final bool enabled;
   final bool reducedMotion;
@@ -93,6 +95,36 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
   final Animation<double> animation;
   final bool staticFrame;
+  _SpectrumLayout? _layout;
+
+  // These paints are mutable drawing resources, deliberately retained by the
+  // painter rather than allocated for every animation frame.
+  final _coreFill = Paint()..color = const Color(0xEE03060D);
+  final _barBroadHalo = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.2);
+  final _barNearHalo = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6);
+  final _barCore = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final _bubbleHalo = Paint()
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.2);
+  final _bubbleNearHalo = Paint()
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.1);
+  final _bubbleCore = Paint();
+  final _donutBroadHalo = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final _donutNearHalo = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final _donutCore = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
 
   static const _palette = <Color>[
     Color(0xFF5DECF2),
@@ -115,54 +147,78 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final center = Offset(size.width / 2, size.height * .46);
-    final shortest = size.shortestSide;
-    final donutOuterRadius = (shortest * .185).clamp(48.0, 96.0);
-    final donutThickness = (shortest * .045).clamp(12.0, 20.0);
-    final coreRadius = donutOuterRadius - donutThickness;
-    final maxLength = (shortest * .105).clamp(22.0, 60.0);
+    final layout = _layoutFor(size);
     final time = _time * math.pi * 2;
+    final spectrumTime =
+        time * StatusRadialSpectrumAmbient.equalizerSpeedMultiplier;
 
-    final core = Paint()..color = const Color(0xEE03060D);
-    _paintBubbles(canvas, size, center, shortest, time);
-    _paintDonut(canvas, center, donutOuterRadius, donutThickness, time);
-    canvas.drawCircle(center, coreRadius, core);
-
-    final broadHalo = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4.2);
-    final nearHalo = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.6);
-    final corePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    _paintBubbles(canvas, size, layout, time);
+    _paintDonut(canvas, layout, time);
+    canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
 
     for (var index = 0; index < StatusRadialSpectrumAmbient.barCount; index++) {
-      final angle = math.pi * 2 * index / StatusRadialSpectrumAmbient.barCount;
-      final amplitude = _amplitude(index, angle, time);
-      final length = 5 + maxLength * amplitude;
-      final start = center + Offset.fromDirection(angle, donutOuterRadius + 4);
-      final end =
-          center + Offset.fromDirection(angle, donutOuterRadius + 4 + length);
-      final color = _colorFor(angle, time, index);
+      final angle = layout.angles[index];
+      final amplitude = _amplitude(index, angle, spectrumTime);
+      final length =
+          5 +
+          layout.maxBarLength *
+              amplitude *
+              StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier;
+      final start = layout.barStarts[index];
+      final end = start + layout.barDirections[index] * length;
+      final color = _colorFor(angle, spectrumTime, index);
 
-      broadHalo
+      _barBroadHalo
         ..strokeWidth = 1.25 + amplitude * 1.65
         ..color = color.withValues(alpha: .010 + amplitude * .030);
-      nearHalo
+      _barNearHalo
         ..strokeWidth = .55 + amplitude * .68
         ..color = color.withValues(alpha: .030 + amplitude * .070);
-      corePaint
+      _barCore
         ..strokeWidth = .20 + amplitude * .32
         ..color = color.withValues(alpha: .18 + amplitude * .38);
       canvas
-        ..drawLine(start, end, broadHalo)
-        ..drawLine(start, end, nearHalo)
-        ..drawLine(start, end, corePaint);
+        ..drawLine(start, end, _barBroadHalo)
+        ..drawLine(start, end, _barNearHalo)
+        ..drawLine(start, end, _barCore);
     }
+  }
+
+  _SpectrumLayout _layoutFor(Size size) {
+    final current = _layout;
+    if (current != null && current.size == size) return current;
+    final shortest = size.shortestSide;
+    final center = Offset(size.width / 2, size.height * .46);
+    final donutOuterRadius = (shortest * .185).clamp(48.0, 96.0);
+    final donutThickness = (shortest * .045).clamp(12.0, 20.0);
+    final angles = List<double>.generate(
+      StatusRadialSpectrumAmbient.barCount,
+      (index) => math.pi * 2 * index / StatusRadialSpectrumAmbient.barCount,
+      growable: false,
+    );
+    final directions = List<Offset>.generate(
+      StatusRadialSpectrumAmbient.barCount,
+      (index) => Offset(math.cos(angles[index]), math.sin(angles[index])),
+      growable: false,
+    );
+    return _layout = _SpectrumLayout(
+      size: size,
+      center: center,
+      shortest: shortest,
+      donutOuterRadius: donutOuterRadius,
+      donutThickness: donutThickness,
+      coreRadius: donutOuterRadius - donutThickness,
+      maxBarLength: (shortest * .105).clamp(22.0, 60.0),
+      donutBroadBlur: MaskFilter.blur(BlurStyle.normal, donutThickness * 1.1),
+      donutNearBlur: MaskFilter.blur(BlurStyle.normal, donutThickness * .34),
+      angles: angles,
+      barDirections: directions,
+      barStarts: List<Offset>.generate(
+        StatusRadialSpectrumAmbient.barCount,
+        (index) => center + directions[index] * (donutOuterRadius + 4),
+        growable: false,
+      ),
+    );
   }
 
   /// V22's bubbles are independent of the spectrum envelopes: each starts
@@ -172,16 +228,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   void _paintBubbles(
     Canvas canvas,
     Size size,
-    Offset center,
-    double shortest,
+    _SpectrumLayout layout,
     double time,
   ) {
-    final halo = Paint()
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.2);
-    final nearHalo = Paint()
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.1);
-    final core = Paint();
-
     for (
       var index = 0;
       index < StatusRadialSpectrumAmbient.bubbleCount;
@@ -196,72 +245,72 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
       final baseAngle = _noise(index, 3) * math.pi * 2;
       final angle = baseAngle + math.sin(time * .31 + index * .73) * .18;
-      final origin = shortest * (.18 + _noise(index, 4) * .20);
+      final origin = layout.shortest * (.18 + _noise(index, 4) * .20);
       final radius =
-          origin + shortest * (.44 + _noise(index, 5) * .22) * progress;
-      final point = center + Offset.fromDirection(angle, radius);
+          origin + layout.shortest * (.44 + _noise(index, 5) * .22) * progress;
+      final point = layout.center + Offset.fromDirection(angle, radius);
       // Let edge-bound bubbles dissolve naturally rather than clipping into
       // a line at a particular viewport boundary.
       final edgeDistance = math.min(
         math.min(point.dx, size.width - point.dx),
         math.min(point.dy, size.height - point.dy),
       );
-      final edgeFade = _smoothStep(0, shortest * .095, edgeDistance);
+      final edgeFade = _smoothStep(0, layout.shortest * .095, edgeDistance);
       final visibility = alpha * edgeFade;
       if (visibility < .01) continue;
 
       final color = _colorFor(angle, time * .34, index);
       final radiusPx =
           .8 +
-          shortest *
+          layout.shortest *
               (.0015 + _noise(index, 6) * .0035) *
               (.72 + .28 * math.sin(progress * math.pi));
-      halo.color = color.withValues(alpha: visibility * .035);
-      nearHalo.color = color.withValues(alpha: visibility * .12);
-      core.color = color.withValues(alpha: visibility * .42);
+      _bubbleHalo.color = color.withValues(alpha: visibility * .035);
+      _bubbleNearHalo.color = color.withValues(alpha: visibility * .12);
+      _bubbleCore.color = color.withValues(alpha: visibility * .42);
       canvas
-        ..drawCircle(point, radiusPx * 2.5, halo)
-        ..drawCircle(point, radiusPx * 1.35, nearHalo)
-        ..drawCircle(point, radiusPx, core);
+        ..drawCircle(point, radiusPx * 2.5, _bubbleHalo)
+        ..drawCircle(point, radiusPx * 1.35, _bubbleNearHalo)
+        ..drawCircle(point, radiusPx, _bubbleCore);
     }
   }
 
-  void _paintDonut(
-    Canvas canvas,
-    Offset center,
-    double outerRadius,
-    double thickness,
-    double time,
-  ) {
+  void _paintDonut(Canvas canvas, _SpectrumLayout layout, double time) {
     final oval = Rect.fromCircle(
-      center: center,
-      radius: outerRadius - thickness / 2,
+      center: layout.center,
+      radius: layout.donutOuterRadius - layout.donutThickness / 2,
     );
     final shader = SweepGradient(
       colors: _donutPalette,
       transform: GradientRotation(time * .035),
     ).createShader(oval);
-    final broadHalo = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, thickness * 1.1)
+    _donutBroadHalo
+      ..maskFilter = layout.donutBroadBlur
       ..shader = shader
-      ..strokeWidth = thickness * 1.7;
-    final nearHalo = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, thickness * .34)
+      ..strokeWidth = layout.donutThickness * 1.7;
+    _donutNearHalo
+      ..maskFilter = layout.donutNearBlur
       ..shader = shader
-      ..strokeWidth = thickness * 1.12;
-    final core = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
+      ..strokeWidth = layout.donutThickness * 1.12;
+    _donutCore
       ..shader = shader
-      ..strokeWidth = thickness * .62;
+      ..strokeWidth = layout.donutThickness * .62;
     canvas
-      ..drawCircle(center, outerRadius - thickness / 2, broadHalo)
-      ..drawCircle(center, outerRadius - thickness / 2, nearHalo)
-      ..drawCircle(center, outerRadius - thickness / 2, core);
+      ..drawCircle(
+        layout.center,
+        layout.donutOuterRadius - layout.donutThickness / 2,
+        _donutBroadHalo,
+      )
+      ..drawCircle(
+        layout.center,
+        layout.donutOuterRadius - layout.donutThickness / 2,
+        _donutNearHalo,
+      )
+      ..drawCircle(
+        layout.center,
+        layout.donutOuterRadius - layout.donutThickness / 2,
+        _donutCore,
+      );
   }
 
   double _smoothStep(double lower, double upper, double value) {
@@ -305,4 +354,37 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   bool shouldRepaint(covariant _StatusRadialSpectrumPainter oldDelegate) =>
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.animation != animation;
+}
+
+/// Geometry that is invariant until the ambient viewport changes size.
+/// Keeping it in the painter removes per-frame angle and start-position
+/// allocation while retaining the exact bar layout.
+class _SpectrumLayout {
+  const _SpectrumLayout({
+    required this.size,
+    required this.center,
+    required this.shortest,
+    required this.donutOuterRadius,
+    required this.donutThickness,
+    required this.coreRadius,
+    required this.maxBarLength,
+    required this.donutBroadBlur,
+    required this.donutNearBlur,
+    required this.angles,
+    required this.barDirections,
+    required this.barStarts,
+  });
+
+  final Size size;
+  final Offset center;
+  final double shortest;
+  final double donutOuterRadius;
+  final double donutThickness;
+  final double coreRadius;
+  final double maxBarLength;
+  final MaskFilter donutBroadBlur;
+  final MaskFilter donutNearBlur;
+  final List<double> angles;
+  final List<Offset> barDirections;
+  final List<Offset> barStarts;
 }
