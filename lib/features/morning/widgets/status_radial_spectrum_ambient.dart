@@ -21,6 +21,9 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const amplitudeTargetUpdatesPerSecond = 10;
   static const amplitudeAttack = Duration(milliseconds: 60);
   static const amplitudeRelease = Duration(milliseconds: 140);
+  static const pulseMinimumInterval = Duration(seconds: 5);
+  static const pulseMaximumInterval = Duration(seconds: 10);
+  static const pulseDuration = Duration(milliseconds: 900);
 
   final bool enabled;
   final bool reducedMotion;
@@ -101,6 +104,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   final bool staticFrame;
   _SpectrumLayout? _layout;
   static final _spectrumMotion = _FastSpectrumMotion();
+  static final _pulseMotion = _StatusPulseMotion();
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -154,15 +158,32 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     if (size.isEmpty) return;
     final layout = _layoutFor(size);
     final colorTime = _time * math.pi * 2;
+    final pulse = staticFrame ? 0.0 : _pulseMotion.intensityFor(_time);
     // Preserve the established physical motion rate while color completes a
     // separate, continuous 24-second revolution.
     final time =
         colorTime *
         (StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000) /
         StatusRadialSpectrumAmbient._motionCycleSeconds;
-    _paintBubbles(canvas, size, layout, time, colorTime);
-    _paintDonut(canvas, layout, colorTime);
+
+    // Pulse only the ambient field. STATUS controls remain spatially stable,
+    // while the donut, indicators, and bubbles get a brief, organic impact.
+    final jitter = _pulseMotion.jitterFor(_time, layout.shortest) * pulse;
+    canvas.save();
+    canvas.translate(
+      layout.center.dx + jitter.dx,
+      layout.center.dy + jitter.dy,
+    );
+    final scale = 1 + pulse * .055;
+    canvas.scale(scale, scale);
+    canvas.translate(-layout.center.dx, -layout.center.dy);
+
+    _paintBubbles(canvas, size, layout, time, colorTime, pulse);
+    _paintDonut(canvas, layout, colorTime, pulse);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
+    _barBroadHalo.maskFilter = pulse == 0
+        ? const MaskFilter.blur(BlurStyle.normal, 4.2)
+        : MaskFilter.blur(BlurStyle.normal, 4.2 + pulse * 2.2);
 
     for (var index = 0; index < StatusRadialSpectrumAmbient.barCount; index++) {
       final angle = layout.angles[index];
@@ -178,10 +199,14 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
       _barBroadHalo
         ..strokeWidth = 1.25 + amplitude * 1.65
-        ..color = color.withValues(alpha: .010 + amplitude * .030);
+        ..color = color.withValues(
+          alpha: (.010 + amplitude * .030) * (1 + pulse * .85),
+        );
       _barNearHalo
         ..strokeWidth = .55 + amplitude * .68
-        ..color = color.withValues(alpha: .030 + amplitude * .070);
+        ..color = color.withValues(
+          alpha: (.030 + amplitude * .070) * (1 + pulse * .45),
+        );
       _barCore
         ..strokeWidth = .20 + amplitude * .32
         ..color = color.withValues(alpha: .18 + amplitude * .38);
@@ -190,6 +215,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
         ..drawLine(start, end, _barNearHalo)
         ..drawLine(start, end, _barCore);
     }
+    canvas.restore();
   }
 
   _SpectrumLayout _layoutFor(Size size) {
@@ -239,6 +265,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     _SpectrumLayout layout,
     double time,
     double colorTime,
+    double pulse,
   ) {
     for (
       var index = 0;
@@ -276,8 +303,12 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
           layout.shortest *
               (.0015 + _seededNoise(index, 6) * .0035) *
               (.72 + .28 * math.sin(progress * math.pi));
-      _bubbleHalo.color = color.withValues(alpha: visibility * .035);
-      _bubbleNearHalo.color = color.withValues(alpha: visibility * .12);
+      _bubbleHalo.color = color.withValues(
+        alpha: visibility * .035 * (1 + pulse * .7),
+      );
+      _bubbleNearHalo.color = color.withValues(
+        alpha: visibility * .12 * (1 + pulse * .35),
+      );
       _bubbleCore.color = color.withValues(alpha: visibility * .42);
       canvas
         ..drawCircle(point, radiusPx * 2.5, _bubbleHalo)
@@ -286,7 +317,12 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     }
   }
 
-  void _paintDonut(Canvas canvas, _SpectrumLayout layout, double colorTime) {
+  void _paintDonut(
+    Canvas canvas,
+    _SpectrumLayout layout,
+    double colorTime,
+    double pulse,
+  ) {
     final oval = Rect.fromCircle(
       center: layout.center,
       radius: layout.donutOuterRadius - layout.donutThickness / 2,
@@ -296,13 +332,23 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       transform: GradientRotation(colorTime),
     ).createShader(oval);
     _donutBroadHalo
-      ..maskFilter = layout.donutBroadBlur
+      ..maskFilter = pulse == 0
+          ? layout.donutBroadBlur
+          : MaskFilter.blur(
+              BlurStyle.normal,
+              layout.donutThickness * (1.1 + pulse * .45),
+            )
       ..shader = shader
-      ..strokeWidth = layout.donutThickness * 1.7;
+      ..strokeWidth = layout.donutThickness * (1.7 + pulse * .22);
     _donutNearHalo
-      ..maskFilter = layout.donutNearBlur
+      ..maskFilter = pulse == 0
+          ? layout.donutNearBlur
+          : MaskFilter.blur(
+              BlurStyle.normal,
+              layout.donutThickness * (.34 + pulse * .12),
+            )
       ..shader = shader
-      ..strokeWidth = layout.donutThickness * 1.12;
+      ..strokeWidth = layout.donutThickness * (1.12 + pulse * .10);
     _donutCore
       ..shader = shader
       ..strokeWidth = layout.donutThickness * .62;
@@ -343,6 +389,43 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   bool shouldRepaint(covariant _StatusRadialSpectrumPainter oldDelegate) =>
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.animation != animation;
+}
+
+/// Three short, seeded impact moments occur per color cycle. Their start
+/// gaps remain between five and ten seconds, but their duration, strength,
+/// and two-axis jitter are intentionally nonuniform. The values are stable
+/// for deterministic tests and Reduced Motion simply bypasses them.
+class _StatusPulseMotion {
+  static const _cycleSeconds = 24.0;
+  static const _durationSeconds = .9;
+  static const _starts = <double>[5.64, 12.37, 19.78];
+
+  double intensityFor(double cycleProgress) {
+    final seconds = cycleProgress * _cycleSeconds;
+    var intensity = 0.0;
+    for (var index = 0; index < _starts.length; index++) {
+      final localProgress = (seconds - _starts[index]) / _durationSeconds;
+      if (localProgress <= 0 || localProgress >= 1) continue;
+      final attack = _smoothStep(0, .14, localProgress);
+      final release = 1 - _smoothStep(.42, 1, localProgress);
+      final strength = .72 + _seededNoise(index, 911) * .28;
+      intensity = math.max(intensity, attack * release * strength);
+    }
+    return intensity;
+  }
+
+  Offset jitterFor(double cycleProgress, double shortestSide) {
+    final seconds = cycleProgress * _cycleSeconds;
+    return Offset(
+      math.sin(seconds * 53.7 + .4) * shortestSide * .009,
+      math.sin(seconds * 41.3 + 1.7) * shortestSide * .006,
+    );
+  }
+
+  static double _smoothStep(double lower, double upper, double value) {
+    final t = ((value - lower) / (upper - lower)).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
 }
 
 /// Deterministic audio-spectrum targets. Targets are refreshed at 10 Hz;

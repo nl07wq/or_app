@@ -23,6 +23,18 @@ void main() {
       StatusRadialSpectrumAmbient.amplitudeRelease,
       const Duration(milliseconds: 140),
     );
+    expect(
+      StatusRadialSpectrumAmbient.pulseMinimumInterval,
+      const Duration(seconds: 5),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseMaximumInterval,
+      const Duration(seconds: 10),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseDuration,
+      const Duration(milliseconds: 900),
+    );
 
     final source = File(
       'lib/features/morning/widgets/status_radial_spectrum_ambient.dart',
@@ -48,6 +60,10 @@ void main() {
     expect(source, contains('final neighborhood ='));
     expect(source, contains('final tallPeak ='));
     expect(source, contains('_spectrumMotion.amplitudeFor'));
+    expect(source, contains('class _StatusPulseMotion'));
+    expect(source, contains('_pulseMotion.intensityFor'));
+    expect(source, contains('_pulseMotion.jitterFor'));
+    expect(source, contains('canvas.scale(scale, scale)'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));
@@ -119,6 +135,16 @@ void main() {
       matchesGoldenFile('goldens/status_radial_spectrum_phase.png'),
     );
   });
+
+  testWidgets(
+    'renders the deterministic ambient pulse without moving STATUS UI',
+    (tester) async {
+      await pumpAmbient(tester, width: 390);
+      await tester.pump(const Duration(milliseconds: 6100));
+      expect(find.text('STATUS CONTENT'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('hides immediately when the ambient setting is disabled', (
     tester,
