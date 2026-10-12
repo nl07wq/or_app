@@ -128,8 +128,8 @@ void main() {
     );
     expect(ActivityAmbientKineticField.useAuroraGlassCandidate, isTrue);
     expect(ActivityAmbientAuroraGlassCandidate.gridColumns, 30);
-    expect(ActivityAmbientAuroraGlassCandidate.referenceFrameCount, 344);
-    expect(ActivityAmbientAuroraGlassCandidate.referenceFramesPerSecond, 30);
+    expect(ActivityAmbientAuroraGlassCandidate.eventFrequency, 2.09);
+    expect(ActivityAmbientAuroraGlassCandidate.globalSeed, 51);
     final source = File(
       'lib/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart',
     ).readAsStringSync();
@@ -138,24 +138,29 @@ void main() {
     expect(source, contains('Rect _tileGeometry'));
     expect(source, contains('Color _tileRgb'));
     expect(source, contains('class _GlassMaterial'));
-    expect(source, contains('static const _activationEventCount = 37'));
-    expect(source, contains('static const _activationEpochCount = 7'));
-    expect(source, contains('double _eventSignal'));
-    expect(source, contains('Offset _eventPosition'));
-    expect(source, contains('Offset _eventAnchor'));
-    expect(source, contains('double _eventOrientation'));
+    expect(source, contains('class _CurvedFragmentEvent'));
+    expect(source, contains('double activationAt'));
+    expect(source, contains('static const eventFrequency = 2.09'));
+    expect(source, contains('static const globalSeed = 51'));
+    expect(source, contains('final double arcSpan;'));
+    expect(source, contains('final double halfWidth;'));
+    expect(source, contains('final nearest ='));
+    expect(source, contains('final distance ='));
+    expect(source, contains('var remaining = 1.0'));
+    expect(source, contains('remaining *= 1 - contribution'));
+    expect(source, contains('final activationDelay'));
+    expect(source, contains('final thresholdOffset'));
+    expect(source, contains('SchedulerBinding.instance.currentFrameTimeStamp'));
     expect(source, contains('double _eventNoise'));
     expect(source, contains('double _smoothStep'));
-    expect(
-      source,
-      contains('for (var event = 0; event < _activationEventCount;'),
-    );
-    expect(source, contains('final signal = _eventSignal(event, phase)'));
-    expect(source, contains('final position = _eventPosition(event, phase)'));
-    expect(source, contains('final curvedLateral ='));
-    expect(source, contains('final local ='));
-    expect(source, contains('final forming = _smoothStep('));
-    expect(source, contains('final dissolving = 1 - _smoothStep('));
+    expect(source, contains('final first = math.max('));
+    expect(source, contains('elapsed - 3.9'));
+    expect(source, contains('ceil() + 2'));
+    expect(source, contains('clamp(4.0, 22.0) / 24'));
+    expect(source, isNot(contains('referenceFrameCount')));
+    expect(source, isNot(contains('referenceFramesPerSecond')));
+    expect(source, isNot(contains('_activationEventCount')));
+    expect(source, isNot(contains('_activationEpochCount')));
     expect(source, isNot(contains('_spatialTimingVariation')));
     expect(source, isNot(contains('_activationOriginCount')));
     expect(source, isNot(contains('_originLifecycle')));
@@ -532,5 +537,30 @@ void main() {
       expect(aurora, field);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+      'aurora remains continuous across the former reference boundary',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 390,
+                height: 844,
+                child: ActivityAmbientAuroraGlassCandidate(
+                  animation: AlwaysStoppedAnimation<double>(0),
+                  reducedMotion: false,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump(const Duration(milliseconds: 11460));
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }
