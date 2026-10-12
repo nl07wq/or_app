@@ -9,6 +9,7 @@ import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/operation_button.dart';
+import '../../../core/widgets/commander_report_paper_card.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/status_lamp.dart';
@@ -674,7 +675,7 @@ class _DailyDebriefDetail extends StatelessWidget {
                 ],
         ),
     ];
-    return DashboardGlassCard(
+    return CommanderReportPaperCard(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1060,7 +1061,7 @@ class _MorningBriefCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final analysis = record.situationAnalysisV2;
     final decision = record.strategicResourceDecisionV2;
-    return DashboardGlassCard(
+    return CommanderReportPaperCard(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(

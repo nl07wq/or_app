@@ -8,6 +8,7 @@ import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/commander_report_paper_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/theme/history_metric_color_registry.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
@@ -880,7 +881,7 @@ class _ReportViewer extends StatelessWidget {
   }) {
     final visibleChildren = children.where(_hasContent).toList();
     if (text.trim().isEmpty && visibleChildren.isEmpty) return null;
-    return OperationCard(
+    return CommanderReportPaperCard(
       key: ValueKey('periodic-report-section-$key'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

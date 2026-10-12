@@ -85,6 +85,7 @@ flutter:
     - assets/animations/sandbox/fox_v1/canonical/
     - assets/animations/sandbox/fox_v1/source_manifest.json
     - assets/images/food_category/
+    - assets/images/textures/commander_report_paper.jpg
     - assets/data/
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4
