@@ -55,7 +55,12 @@ jobs:
 
       - name: Summarize failed web build
         if: failure()
-        run: tail -n 160 web-build.log >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        run: |
+          tail -n 160 web-build.log >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(Error:|.+\.dart:[0-9]+:[0-9]+:)' web-build.log | tail -n 40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
 
       - uses: actions/upload-pages-artifact@v3
         with:
