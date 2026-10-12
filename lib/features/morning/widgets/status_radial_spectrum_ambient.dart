@@ -23,12 +23,15 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const amplitudeRelease = Duration(milliseconds: 140);
   static const pulseMinimumInterval = Duration(seconds: 3);
   static const pulseMaximumInterval = Duration(seconds: 6);
-  static const pulseAttack = Duration(milliseconds: 70);
+  static const pulseAttack = Duration(milliseconds: 65);
+  static const pulseCompression = Duration(milliseconds: 90);
   static const pulseRecovery = Duration(milliseconds: 180);
-  static const pulseDuration = Duration(milliseconds: 250);
-  static const pulseMaximumScale = 1.10;
-  static const pulseMaximumDisplacement = 5.0;
+  static const pulseDuration = Duration(milliseconds: 335);
+  static const pulseMaximumScale = 1.13;
+  static const pulseCompressionScale = .97;
+  static const pulseMaximumDisplacement = 8.0;
   static const flameSampleCount = 216;
+  static const flameTongueCount = 72;
 
   final bool enabled;
   final bool reducedMotion;
@@ -141,7 +144,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   final _donutCore = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
-  final _flamePath = Path();
+  final _flameContourPath = Path();
+  final _flameTonguePath = Path();
+  final _impactFlash = Paint();
   final _flameBroadHalo = Paint()
     ..style = PaintingStyle.stroke
     ..strokeJoin = StrokeJoin.round
@@ -178,7 +183,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     if (size.isEmpty) return;
     final layout = _layoutFor(size);
     final colorTime = _time * math.pi * 2;
-    final pulse = staticFrame ? 0.0 : _pulseMotion.intensityFor(_time);
+    final pulse = staticFrame
+        ? const _StatusPulseState.rest()
+        : _pulseMotion.stateFor(_time);
     // Preserve the established physical motion rate while color completes a
     // separate, continuous 24-second revolution.
     final time =
@@ -188,24 +195,23 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
     // Pulse only the ambient field. STATUS controls remain spatially stable,
     // while the donut, indicators, and bubbles get a brief, organic impact.
-    final jitter = _pulseMotion.jitterFor(_time, layout.shortest) * pulse;
+    final jitter = _pulseMotion.jitterFor(_time) * pulse.impact;
     canvas.save();
     canvas.translate(
       layout.center.dx + jitter.dx,
       layout.center.dy + jitter.dy,
     );
-    final scale =
-        1 + pulse * (StatusRadialSpectrumAmbient.pulseMaximumScale - 1);
-    canvas.scale(scale, scale);
+    canvas.scale(pulse.scale, pulse.scale);
     canvas.translate(-layout.center.dx, -layout.center.dy);
 
-    _paintBubbles(canvas, size, layout, time, colorTime, pulse);
-    _paintDonut(canvas, layout, colorTime, pulse);
-    _paintFlameEdge(canvas, layout, colorTime, time, pulse);
+    _paintImpactFlash(canvas, size, layout, colorTime, pulse.impact);
+    _paintBubbles(canvas, size, layout, time, colorTime, pulse.impact);
+    _paintDonut(canvas, layout, colorTime, pulse.impact);
+    _paintFlameEdge(canvas, layout, colorTime, time, pulse.impact);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
-    _barBroadHalo.maskFilter = pulse == 0
+    _barBroadHalo.maskFilter = pulse.impact == 0
         ? const MaskFilter.blur(BlurStyle.normal, 4.2)
-        : MaskFilter.blur(BlurStyle.normal, 4.2 + pulse * 2.2);
+        : MaskFilter.blur(BlurStyle.normal, 4.2 + pulse.impact * 2.2);
 
     for (var index = 0; index < StatusRadialSpectrumAmbient.barCount; index++) {
       final angle = layout.angles[index];
@@ -222,12 +228,12 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       _barBroadHalo
         ..strokeWidth = 1.25 + amplitude * 1.65
         ..color = color.withValues(
-          alpha: (.010 + amplitude * .030) * (1 + pulse * .85),
+          alpha: (.010 + amplitude * .030) * (1 + pulse.impact * .85),
         );
       _barNearHalo
         ..strokeWidth = .55 + amplitude * .68
         ..color = color.withValues(
-          alpha: (.030 + amplitude * .070) * (1 + pulse * .45),
+          alpha: (.030 + amplitude * .070) * (1 + pulse.impact * .45),
         );
       _barCore
         ..strokeWidth = .20 + amplitude * .32
@@ -238,6 +244,32 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
         ..drawLine(start, end, _barCore);
     }
     canvas.restore();
+  }
+
+  void _paintImpactFlash(
+    Canvas canvas,
+    Size size,
+    _SpectrumLayout layout,
+    double colorTime,
+    double impact,
+  ) {
+    if (impact <= 0) return;
+    final flashColor = _colorFor(colorTime, colorTime, 0);
+    _impactFlash.shader =
+        RadialGradient(
+          colors: [
+            flashColor.withValues(alpha: impact * .105),
+            flashColor.withValues(alpha: impact * .028),
+            flashColor.withValues(alpha: 0),
+          ],
+          stops: const [.0, .42, 1],
+        ).createShader(
+          Rect.fromCircle(
+            center: layout.center,
+            radius: size.longestSide * .78,
+          ),
+        );
+    canvas.drawRect(Offset.zero & size, _impactFlash);
   }
 
   _SpectrumLayout _layoutFor(Size size) {
@@ -392,10 +424,10 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       );
   }
 
-  /// A continuous, independently evolving aurora contour just beyond the
-  /// donut. It deliberately uses a single closed path rather than a second
-  /// population of radial bars, so the plasma reads as liquid light at the
-  /// circular edge without obscuring the hollow center.
+  /// The donut's outer rim is the flame origin. A thin connected contour
+  /// keeps the core continuous, while short, curved tongue paths emerge and
+  /// dissolve independently so this reads as fire rather than an annular
+  /// translucent membrane.
   void _paintFlameEdge(
     Canvas canvas,
     _SpectrumLayout layout,
@@ -403,21 +435,65 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     double time,
     double pulse,
   ) {
-    final path = _flamePath..reset();
+    final contour = _flameContourPath..reset();
+    final tongues = _flameTonguePath..reset();
     final sampleCount = StatusRadialSpectrumAmbient.flameSampleCount;
+    Offset? previous;
     for (var index = 0; index < sampleCount; index++) {
       final angle = math.pi * 2 * index / sampleCount;
-      final extension = _flameExtension(angle, time);
+      final extension = _flameContourExtension(angle, time);
       final point =
           layout.center +
           Offset.fromDirection(angle, layout.donutOuterRadius + extension);
       if (index == 0) {
-        path.moveTo(point.dx, point.dy);
+        contour.moveTo(point.dx, point.dy);
       } else {
-        path.lineTo(point.dx, point.dy);
+        final midpoint = Offset(
+          (previous!.dx + point.dx) / 2,
+          (previous.dy + point.dy) / 2,
+        );
+        contour.quadraticBezierTo(
+          previous.dx,
+          previous.dy,
+          midpoint.dx,
+          midpoint.dy,
+        );
       }
+      previous = point;
     }
-    path.close();
+    contour.close();
+
+    for (
+      var index = 0;
+      index < StatusRadialSpectrumAmbient.flameTongueCount;
+      index++
+    ) {
+      final angle =
+          math.pi *
+          2 *
+          (index + _seededNoise(index, 701)) /
+          StatusRadialSpectrumAmbient.flameTongueCount;
+      final envelope = _flameTongueEnvelope(index, time);
+      if (envelope < .08) continue;
+      final startRadius =
+          layout.donutOuterRadius + _flameContourExtension(angle, time);
+      final start = layout.center + Offset.fromDirection(angle, startRadius);
+      final reach = 1.5 + envelope * (4.8 + _seededNoise(index, 702) * 6.2);
+      final bend =
+          math.sin(
+            time * (.46 + _seededNoise(index, 703) * .38) + index * 1.71,
+          ) *
+          (.018 + envelope * .052);
+      final control =
+          layout.center +
+          Offset.fromDirection(angle + bend * .45, startRadius + reach * .52);
+      final end =
+          layout.center +
+          Offset.fromDirection(angle + bend, startRadius + reach);
+      tongues
+        ..moveTo(start.dx, start.dy)
+        ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+    }
 
     final shader =
         SweepGradient(
@@ -432,30 +508,28 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     final glowMultiplier = 1 + pulse * .8;
     _flameBroadHalo
       ..shader = shader
-      ..strokeWidth = 3.8 + pulse * 1.1
+      ..strokeWidth = 2.9 + pulse * 1.1
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4.4 + pulse * 2.2)
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: .22 * glowMultiplier);
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .20 * glowMultiplier);
     _flameNearHalo
       ..shader = shader
-      ..strokeWidth = 1.65 + pulse * .45
+      ..strokeWidth = 1.15 + pulse * .45
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.45 + pulse * .7)
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: .52 * glowMultiplier);
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .48 * glowMultiplier);
     _flameCore
       ..shader = shader
-      ..strokeWidth = .58 + pulse * .16
+      ..strokeWidth = .48 + pulse * .16
       ..maskFilter = null
       ..color = const Color(0xFFFFFFFF).withValues(alpha: .90);
     canvas
-      ..drawPath(path, _flameBroadHalo)
-      ..drawPath(path, _flameNearHalo)
-      ..drawPath(path, _flameCore);
+      ..drawPath(tongues, _flameBroadHalo)
+      ..drawPath(tongues, _flameNearHalo)
+      ..drawPath(contour, _flameNearHalo)
+      ..drawPath(tongues, _flameCore)
+      ..drawPath(contour, _flameCore);
   }
 
-  double _flameExtension(double angle, double time) {
-    // Low-frequency angular fields give neighboring samples related motion,
-    // while their incommensurate rates prevent a rigid travelling wave. Keep
-    // the 3px base contour intact, then slow and soften only the animated
-    // displacement for a gentler aurora-like flicker.
+  double _flameContourExtension(double angle, double time) {
     final broad =
         .5 +
         .5 * math.sin(angle * 3 + time * .61 * _flameMotionSpeed + .37) * .52 +
@@ -465,8 +539,17 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       .5 + .5 * math.sin(angle * 5 - time * .47 * _flameMotionSpeed + 2.41),
       7,
     );
-    final animatedDisplacement = broad.clamp(0.0, 1.0) * 5 + peak * 4;
-    return (3 + animatedDisplacement * _flameMotionAmplitude).clamp(3.0, 12.0);
+    final animatedDisplacement = broad.clamp(0.0, 1.0) * 2.5 + peak * 2.4;
+    return (.8 + animatedDisplacement * _flameMotionAmplitude).clamp(.8, 5.0);
+  }
+
+  double _flameTongueEnvelope(int index, double time) {
+    final phase =
+        time * (.34 + _seededNoise(index, 704) * .26) +
+        _seededNoise(index, 705) * math.pi * 2;
+    final slow = .5 + .5 * math.sin(phase);
+    final flicker = .5 + .5 * math.sin(phase * 2.17 + index * .83);
+    return _smoothStep(.34, .74, slow * .72 + flicker * .28);
   }
 
   double _smoothStep(double lower, double upper, double value) {
@@ -491,38 +574,68 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 }
 
 /// Five short, seeded impact moments occur per color cycle. Their start gaps
-/// remain between three and six seconds. The 70ms attack and 180ms recovery
-/// produce a quick power surge without moving any foreground STATUS control.
+/// remain between three and six seconds. Each is a fast expansion, a brief
+/// compression, then a recovery; only the ambient painter is transformed.
 class _StatusPulseMotion {
   static const _cycleSeconds = 24.0;
-  static const _attackSeconds = .070;
+  static const _attackSeconds = .065;
+  static const _compressionSeconds = .090;
   static const _recoverySeconds = .180;
   static const _starts = <double>[3.42, 7.63, 12.76, 17.08, 21.45];
 
-  double intensityFor(double cycleProgress) {
+  _StatusPulseState stateFor(double cycleProgress) {
     final seconds = cycleProgress * _cycleSeconds;
-    var intensity = 0.0;
     for (var index = 0; index < _starts.length; index++) {
       final localSeconds = seconds - _starts[index];
-      if (localSeconds <= 0 ||
-          localSeconds >= _attackSeconds + _recoverySeconds) {
+      if (localSeconds < 0 ||
+          localSeconds >=
+              _attackSeconds + _compressionSeconds + _recoverySeconds) {
         continue;
       }
-      final attack = _smoothStep(0, _attackSeconds, localSeconds);
-      final release =
-          1 -
-          _smoothStep(
-            _attackSeconds,
-            _attackSeconds + _recoverySeconds,
-            localSeconds,
-          );
-      final strength = .72 + _seededNoise(index, 911) * .28;
-      intensity = math.max(intensity, attack * release * strength);
+      if (localSeconds < _attackSeconds) {
+        final progress = _smoothStep(0, _attackSeconds, localSeconds);
+        return _StatusPulseState(
+          scale: _lerp(
+            1,
+            StatusRadialSpectrumAmbient.pulseMaximumScale,
+            progress,
+          ),
+          impact: progress,
+        );
+      }
+      if (localSeconds < _attackSeconds + _compressionSeconds) {
+        final progress = _smoothStep(
+          _attackSeconds,
+          _attackSeconds + _compressionSeconds,
+          localSeconds,
+        );
+        return _StatusPulseState(
+          scale: _lerp(
+            StatusRadialSpectrumAmbient.pulseMaximumScale,
+            StatusRadialSpectrumAmbient.pulseCompressionScale,
+            progress,
+          ),
+          impact: 1 - progress * .45,
+        );
+      }
+      final progress = _smoothStep(
+        _attackSeconds + _compressionSeconds,
+        _attackSeconds + _compressionSeconds + _recoverySeconds,
+        localSeconds,
+      );
+      return _StatusPulseState(
+        scale: _lerp(
+          StatusRadialSpectrumAmbient.pulseCompressionScale,
+          1,
+          progress,
+        ),
+        impact: (1 - progress) * .55,
+      );
     }
-    return intensity;
+    return const _StatusPulseState.rest();
   }
 
-  Offset jitterFor(double cycleProgress, double shortestSide) {
+  Offset jitterFor(double cycleProgress) {
     final seconds = cycleProgress * _cycleSeconds;
     final direction =
         math.sin(seconds * 31.7 + .4) * 1.4 + math.sin(seconds * 19.3 + 1.7);
@@ -532,10 +645,22 @@ class _StatusPulseMotion {
     );
   }
 
+  static double _lerp(double begin, double end, double progress) =>
+      begin + (end - begin) * progress;
+
   static double _smoothStep(double lower, double upper, double value) {
     final t = ((value - lower) / (upper - lower)).clamp(0.0, 1.0);
     return t * t * (3 - 2 * t);
   }
+}
+
+class _StatusPulseState {
+  const _StatusPulseState({required this.scale, required this.impact});
+
+  const _StatusPulseState.rest() : scale = 1, impact = 0;
+
+  final double scale;
+  final double impact;
 }
 
 /// Deterministic audio-spectrum targets. Targets are refreshed at 10 Hz;

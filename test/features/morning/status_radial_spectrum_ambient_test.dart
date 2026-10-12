@@ -33,7 +33,11 @@ void main() {
     );
     expect(
       StatusRadialSpectrumAmbient.pulseAttack,
-      const Duration(milliseconds: 70),
+      const Duration(milliseconds: 65),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseCompression,
+      const Duration(milliseconds: 90),
     );
     expect(
       StatusRadialSpectrumAmbient.pulseRecovery,
@@ -41,11 +45,13 @@ void main() {
     );
     expect(
       StatusRadialSpectrumAmbient.pulseDuration,
-      const Duration(milliseconds: 250),
+      const Duration(milliseconds: 335),
     );
-    expect(StatusRadialSpectrumAmbient.pulseMaximumScale, 1.10);
-    expect(StatusRadialSpectrumAmbient.pulseMaximumDisplacement, 5.0);
+    expect(StatusRadialSpectrumAmbient.pulseMaximumScale, 1.13);
+    expect(StatusRadialSpectrumAmbient.pulseCompressionScale, .97);
+    expect(StatusRadialSpectrumAmbient.pulseMaximumDisplacement, 8.0);
     expect(StatusRadialSpectrumAmbient.flameSampleCount, 216);
+    expect(StatusRadialSpectrumAmbient.flameTongueCount, 72);
 
     final source = File(
       'lib/features/morning/widgets/status_radial_spectrum_ambient.dart',
@@ -72,14 +78,18 @@ void main() {
     expect(source, contains('final tallPeak ='));
     expect(source, contains('_spectrumMotion.amplitudeFor'));
     expect(source, contains('class _StatusPulseMotion'));
-    expect(source, contains('_pulseMotion.intensityFor'));
+    expect(source, contains('_pulseMotion.stateFor'));
     expect(source, contains('_pulseMotion.jitterFor'));
-    expect(source, contains('canvas.scale(scale, scale)'));
+    expect(source, contains('canvas.scale(pulse.scale, pulse.scale)'));
+    expect(source, contains('void _paintImpactFlash'));
     expect(source, contains('void _paintFlameEdge'));
-    expect(source, contains('final _flamePath = Path()'));
+    expect(source, contains('final _flameContourPath = Path()'));
+    expect(source, contains('final _flameTonguePath = Path()'));
     expect(source, contains('StatusRadialSpectrumAmbient.flameSampleCount'));
-    expect(source, contains('path.close()'));
-    expect(source, contains('double _flameExtension'));
+    expect(source, contains('contour.close()'));
+    expect(source, contains('double _flameContourExtension'));
+    expect(source, contains('double _flameTongueEnvelope'));
+    expect(source, contains('StatusRadialSpectrumAmbient.flameTongueCount'));
     expect(source, contains('static const _flameMotionSpeed = .65'));
     expect(source, contains('static const _flameMotionAmplitude = .55'));
     expect(source, contains('time * .61 * _flameMotionSpeed'));
