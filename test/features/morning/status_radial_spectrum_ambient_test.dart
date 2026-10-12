@@ -7,6 +7,7 @@ import 'package:or_app/features/morning/widgets/status_radial_spectrum_ambient.d
 void main() {
   test('declares a dense native radial spectrum without media assets', () {
     expect(StatusRadialSpectrumAmbient.barCount, 144);
+    expect(StatusRadialSpectrumAmbient.bubbleCount, 64);
     expect(
       StatusRadialSpectrumAmbient.cycleDuration,
       const Duration(seconds: 13),
@@ -19,6 +20,13 @@ void main() {
     expect(source, contains('Offset.fromDirection'));
     expect(source, contains('localBand'));
     expect(source, contains('travelingPeak'));
+    expect(source, contains('void _paintDonut'));
+    expect(source, contains('void _paintBubbles'));
+    expect(source, contains('SweepGradient'));
+    expect(source, contains('static const _donutPalette'));
+    expect(source, contains('final edgeFade ='));
+    expect(source, contains('StatusRadialSpectrumAmbient.bubbleCount'));
+    expect(source, contains('drawCircle(point'));
     expect(source, isNot(contains('HtmlElementView')));
     expect(source, isNot(contains('.mp4')));
   });
