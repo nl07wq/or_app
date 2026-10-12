@@ -19,11 +19,13 @@ class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   static const eventFrequency = 2.09;
   static const globalSeed = 51;
 
-  /// Multiplies the monotonic ambient clock without changing event coverage.
-  static const motionSpeed = .40;
+  /// Current production values are applied once, from the deployed baseline.
+  static const _deployedMotionSpeed = .40;
+  static const motionSpeed = _deployedMotionSpeed * .50;
 
-  /// Scales only deviations around the established event-model averages.
-  static const motionVariation = .50;
+  /// Reduces only dynamic activation and spatial-deviation amplitude.
+  static const _deployedMotionVariation = .50;
+  static const motionVariation = _deployedMotionVariation * .40;
 
   final Animation<double> animation;
   final bool reducedMotion;
@@ -59,7 +61,11 @@ class _AuroraGlassPainter extends CustomPainter {
     final pitch = size.width / ActivityAmbientAuroraGlassCandidate.gridColumns;
     final rows = (size.height / pitch).ceil() + 2;
     final elapsed = _elapsedSeconds;
-    final events = _activeEvents(elapsed, variation: _motionVariation);
+    final events = _activeEvents(
+      elapsed,
+      variation: _motionVariation,
+      selectFragments: !staticFrame,
+    );
     final states = _statesFor(rows: rows, elapsed: elapsed, events: events);
     final material = _GlassMaterial(pitch);
 
@@ -167,6 +173,7 @@ class _AuroraGlassPainter extends CustomPainter {
   List<_CurvedFragmentEvent> _activeEvents(
     double elapsed, {
     required double variation,
+    required bool selectFragments,
   }) {
     // The lifetime is bounded to 3.6 seconds, plus jitter/delay margins;
     // this window remains bounded at any elapsed time.
@@ -180,7 +187,11 @@ class _AuroraGlassPainter extends CustomPainter {
             .ceil();
     return [
       for (var index = first; index <= last; index++)
-        _CurvedFragmentEvent.fromIndex(index, variation: variation),
+        _CurvedFragmentEvent.fromIndex(
+          index,
+          variation: variation,
+          selectFragments: selectFragments,
+        ),
     ];
   }
 
@@ -259,11 +270,17 @@ class _CurvedFragmentEvent {
     required this.halfWidth,
     required this.fragmentPhase,
     required this.variation,
+    required this.direction,
+    required this.directionWidth,
+    required this.secondaryOffset,
+    required this.candidatePhase,
+    required this.selectFragments,
   });
 
   factory _CurvedFragmentEvent.fromIndex(
     int index, {
     required double variation,
+    required bool selectFragments,
   }) {
     return _CurvedFragmentEvent(
       start:
@@ -278,6 +295,11 @@ class _CurvedFragmentEvent {
       halfWidth: .1145 + (_eventNoise(index, 7) - .5) * .085 * variation,
       fragmentPhase: _eventNoise(index, 8) * math.pi * 2,
       variation: variation,
+      direction: _eventNoise(index, 9) * math.pi * 2,
+      directionWidth: .52 + _eventNoise(index, 10) * .34,
+      secondaryOffset: math.pi * (.46 + _eventNoise(index, 11) * .22),
+      candidatePhase: _eventNoise(index, 12) * math.pi * 2,
+      selectFragments: selectFragments,
     );
   }
 
@@ -291,6 +313,11 @@ class _CurvedFragmentEvent {
   final double halfWidth;
   final double fragmentPhase;
   final double variation;
+  final double direction;
+  final double directionWidth;
+  final double secondaryOffset;
+  final double candidatePhase;
+  final bool selectFragments;
 
   double activationAt({required Offset point, required double elapsed}) {
     final localTime = elapsed - start;
@@ -330,8 +357,39 @@ class _CurvedFragmentEvent {
         );
     final activation =
         leading * trailing * (.76 + (fragment - .5) * .48 * variation);
-    return envelope * activation;
+    final selected = selectFragments
+        ? _selectedFragment(point: point, theta: theta, localTime: localTime)
+        : 1.0;
+    return envelope * activation * selected;
   }
+
+  /// Chooses a few smooth, event-local directions from the advancing front.
+  /// This preserves center-outward progress while preventing a uniform ring.
+  double _selectedFragment({
+    required Offset point,
+    required double theta,
+    required double localTime,
+  }) {
+    final primary = _directionalWeight(theta, direction, directionWidth);
+    final secondary = _directionalWeight(
+      theta,
+      direction + secondaryOffset,
+      directionWidth * .72,
+    );
+    final localPattern = _fragmentNoise(
+      point,
+      theta,
+      localTime * variation,
+      candidatePhase,
+    );
+    final candidates = .58 * math.max(primary, secondary) + .42 * localPattern;
+    return _smoothStep(.42, .66, candidates);
+  }
+}
+
+double _directionalWeight(double theta, double direction, double width) {
+  final delta = (theta - direction + math.pi) % (math.pi * 2) - math.pi;
+  return 1 - _smoothStep(width * .52, width, delta.abs());
 }
 
 Offset _eventCenter(int index, {required double variation}) {
