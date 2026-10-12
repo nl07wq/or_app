@@ -1706,25 +1706,34 @@ class _FoodInputFormState extends State<FoodInputForm> {
       usageSetQuantities: usageSetQuantities,
       quantitySemantics: quantitySemantics,
     );
-    final saved = isWaterEntry
-        ? await widget.onSave(meal)
-        : widget.onSaveWithSources != null
-        ? await widget.onSaveWithSources!(meal, entrySources)
-        : (sources.any((entry) => entry != null) ||
-                  recipeSources.any((entry) => entry != null) ||
-                  quantityUnits.any((unit) => !unit.isPhysical)) &&
-              widget.onSaveWithCatalog != null
-        ? await widget.onSaveWithCatalog!(
-            meal,
-            sources,
-            recipeSources,
-            quantityUnits,
-          )
-        : await widget.onSave(meal);
+    var saved = false;
+    try {
+      saved = isWaterEntry
+          ? await widget.onSave(meal)
+          : widget.onSaveWithSources != null
+          ? await widget.onSaveWithSources!(meal, entrySources)
+          : (sources.any((entry) => entry != null) ||
+                    recipeSources.any((entry) => entry != null) ||
+                    quantityUnits.any((unit) => !unit.isPhysical)) &&
+                widget.onSaveWithCatalog != null
+          ? await widget.onSaveWithCatalog!(
+              meal,
+              sources,
+              recipeSources,
+              quantityUnits,
+            )
+          : await widget.onSave(meal);
+    } catch (_) {
+      if (mounted) {
+        setState(() => inputError = 'MEAL SAVE FAILED');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
 
     if (!mounted) return;
-
-    setState(() => _isSaving = false);
     if (!saved) return;
     _clearForm();
   }

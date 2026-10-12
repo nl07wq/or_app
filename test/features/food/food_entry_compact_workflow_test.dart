@@ -992,6 +992,80 @@ void main() {
     );
   });
 
+  testWidgets(
+    'database selections do not leave Food Entry locked after cancellation or save failure',
+    (tester) async {
+      await _installFoods(2);
+      var saveAttempts = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FoodInputForm(
+                onSave: (_) async => false,
+                onSaveWithSources: (_, _) async {
+                  saveAttempts++;
+                  if (saveAttempts == 1) {
+                    throw StateError('simulated database save failure');
+                  }
+                  return false;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Future<void> switchTo(String mode) async {
+        final tab = modeTab(mode);
+        await tester.ensureVisible(tab);
+        await tester.tap(tab);
+        await tester.pumpAndSettle();
+      }
+
+      await switchTo('databaseFood');
+      await tester.tap(
+        find.byKey(ValueKey('food-entry-inline-food-${_foodId(0)}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('food-db-cancel')));
+      await tester.pumpAndSettle();
+
+      await switchTo('databaseRecipe');
+      expectActiveMode(tester, 'databaseRecipe');
+      await switchTo('databaseFood');
+
+      for (final index in [0, 1]) {
+        await tester.tap(
+          find.byKey(ValueKey('food-entry-inline-food-${_foodId(index)}')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('food-db-add')));
+        await tester.pumpAndSettle();
+      }
+
+      final saveMeal = find.widgetWithText(ElevatedButton, 'SAVE MEAL');
+      await tester.ensureVisible(saveMeal);
+      await tester.tap(saveMeal);
+      await tester.pumpAndSettle();
+
+      expect(saveAttempts, 1);
+      expect(find.text('MEAL SAVE FAILED'), findsOneWidget);
+      expect(tester.widget<ElevatedButton>(saveMeal).onPressed, isNotNull);
+
+      await switchTo('databaseRecipe');
+      expectActiveMode(tester, 'databaseRecipe');
+      await switchTo('databaseFood');
+      expectActiveMode(tester, 'databaseFood');
+
+      await tester.ensureVisible(saveMeal);
+      await tester.tap(saveMeal);
+      await tester.pumpAndSettle();
+      expect(saveAttempts, 2);
+      expect(tester.widget<ElevatedButton>(saveMeal).onPressed, isNotNull);
+    },
+  );
+
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets('compact Food Entry does not overflow at ${width.toInt()}px', (
       tester,
