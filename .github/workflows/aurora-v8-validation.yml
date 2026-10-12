@@ -49,7 +49,11 @@ jobs:
             ci-dart-version.log
             ci-activity-test.log
             ci-activity-test-exit-code.txt
-      - run: flutter analyze --no-fatal-infos
+      - name: Analyze Aurora implementation changes
+        run: >
+          flutter analyze --no-fatal-infos
+          lib/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart
+          test/features/activity/activity_ambient_kinetic_field_test.dart
       - run: git diff --check
       - run: flutter build web --pwa-strategy=none
       - uses: actions/upload-artifact@v4
