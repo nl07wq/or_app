@@ -72,3 +72,45 @@ class CommanderReportPaperCard extends StatelessWidget {
     );
   }
 }
+
+/// A readable, translucent section placed on top of a [CommanderReportPaperCard].
+///
+/// Keeping this material separate from the paper surface lets the document
+/// texture remain present while preserving a dependable dark-ink contrast for
+/// report content.
+class CommanderReportDocumentSection extends StatelessWidget {
+  const CommanderReportDocumentSection({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.margin,
+    this.tint,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+  final Color? tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: margin,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: tint ?? const Color(0xD9FFFDF7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .52)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF514A3F).withValues(alpha: .06),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}

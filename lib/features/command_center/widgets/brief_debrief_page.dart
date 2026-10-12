@@ -714,12 +714,9 @@ class _DailyDebriefHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outcome = record.analysis.commanderIntentEvaluation?.outcome;
-    return Container(
+    return CommanderReportDocumentSection(
+      tint: const Color(0xD8FFFDF7),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-      ),
       child: Row(
         children: [
           Icon(
@@ -776,30 +773,30 @@ class _CommanderIntentEvaluationSection extends StatelessWidget {
         _BriefSectionTitle(
           icon: Icons.flag_outlined,
           title: 'COMMANDER INTENT EVALUATION',
-          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          color: const Color(0xFF17384A),
         ),
         const SizedBox(height: 16),
         _CommanderIntentOutcomeIndicator(outcome: evaluation.outcome),
         const SizedBox(height: 18),
         _DebriefSubsectionLabel(
           '評価理由',
-          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          color: const Color(0xFF17384A),
         ),
         const SizedBox(height: 8),
         _ReadableText(
           evaluation.rationale,
-          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          color: const Color(0xFF17384A),
         ),
         if (evaluation.evidence.isNotEmpty) ...[
           const SizedBox(height: 18),
           _DebriefSubsectionLabel(
             '判定根拠',
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            color: const Color(0xFF17384A),
           ),
           const SizedBox(height: 8),
           _DebriefBulletList(
             values: evaluation.evidence,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            color: const Color(0xFF17384A),
           ),
         ],
       ],
@@ -987,19 +984,13 @@ class _DebriefPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
+    return CommanderReportDocumentSection(
       padding: padding,
-      decoration: BoxDecoration(
-        color: switch (tone) {
-          _DebriefPanelTone.primary => colors.primaryContainer,
-          _DebriefPanelTone.secondary => colors.secondaryContainer.withValues(
-            alpha: 0.55,
-          ),
-          _DebriefPanelTone.neutral => colors.surfaceContainerLow,
-          _DebriefPanelTone.subtle => colors.surfaceContainerHighest,
-        },
-        borderRadius: BorderRadius.circular(14),
+      tint: switch (tone) {
+        _DebriefPanelTone.primary => const Color(0xCCDBF2FF),
+        _DebriefPanelTone.secondary => const Color(0xCCF8F3D8),
+        _DebriefPanelTone.neutral => const Color(0xD9FFFDF7),
+        _DebriefPanelTone.subtle => const Color(0xD9F3F0E8),
       ),
       child: child,
     );
@@ -1142,12 +1133,8 @@ class _BriefHeader extends StatelessWidget {
   final int revision;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => CommanderReportDocumentSection(
     padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
-    ),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final title = Row(
@@ -1399,17 +1386,10 @@ class _BriefSection extends StatelessWidget {
   final bool emphasized;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => CommanderReportDocumentSection(
     margin: const EdgeInsets.only(bottom: 16),
     padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: emphasized
-          ? Theme.of(
-              context,
-            ).colorScheme.secondaryContainer.withValues(alpha: 0.55)
-          : Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(14),
-    ),
+    tint: emphasized ? const Color(0xCCF5F1E4) : const Color(0xD9FFFDF7),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1484,7 +1464,7 @@ class _ReadableText extends StatelessWidget {
                         ? Theme.of(context).textTheme.bodyMedium
                         : Theme.of(context).textTheme.bodyLarge)
                     ?.copyWith(
-                      fontFamily: 'ZenKurenaido',
+                      fontFamily: 'KleeOne',
                       color: color,
                       height: 1.65,
                       fontSize: emphasized ? 17 : null,
@@ -1677,13 +1657,10 @@ class _CommanderIntentBlock extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => CommanderReportDocumentSection(
     width: double.infinity,
     padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      borderRadius: BorderRadius.circular(12),
-    ),
+    tint: const Color(0xCCD8F1FF),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1692,14 +1669,14 @@ class _CommanderIntentBlock extends StatelessWidget {
             Icon(
               Icons.flag_outlined,
               size: 24,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+              color: const Color(0xFF17384A),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'COMMANDER INTENT',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: const Color(0xFF17384A),
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
@@ -1708,7 +1685,12 @@ class _CommanderIntentBlock extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        _ReadableText(text, emphasized: true),
+        const SizedBox(height: 4),
+        _ReadableText(
+          text,
+          emphasized: true,
+          color: const Color(0xFF17384A),
+        ),
       ],
     ),
   );
@@ -1722,19 +1704,40 @@ class _PriorityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = priority.toLowerCase();
-    final color = switch (normalized) {
-      'critical' => Colors.red.shade800,
-      'high' => Colors.deepOrange,
-      'medium' => Colors.amber.shade800,
-      'low' => Colors.blue,
-      _ => Theme.of(context).colorScheme.outline,
+    final marker = switch (normalized) {
+      'critical' || 'high' => const Color(0x99FF9B88),
+      'medium' => const Color(0x99FFE186),
+      'low' => const Color(0x997DD7E8),
+      _ => const Color(0x99D7D2C5),
     };
-    return Chip(
-      label: Text(priority.toUpperCase()),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700),
-      side: BorderSide(color: color),
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
+    final angle = switch (normalized) {
+      'critical' || 'high' => -.018,
+      'medium' => .012,
+      'low' => -.01,
+      _ => 0.0,
+    };
+    return Transform.rotate(
+      angle: angle,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: marker,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(4),
+            topRight: Radius.circular(7),
+            bottomRight: Radius.circular(3),
+            bottomLeft: Radius.circular(6),
+          ),
+        ),
+        child: Text(
+          priority.toUpperCase(),
+          style: const TextStyle(
+            color: Color(0xFF302B25),
+            fontWeight: FontWeight.w800,
+            letterSpacing: .35,
+          ),
+        ),
+      ),
     );
   }
 }

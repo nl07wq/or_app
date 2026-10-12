@@ -1463,6 +1463,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.textContaining('Morning intent')).style?.fontFamily,
+      'KleeOne',
+    );
     expect(find.text('DB-2026-08-01'), findsOneWidget);
     expect(find.textContaining('Rev1'), findsNothing);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);

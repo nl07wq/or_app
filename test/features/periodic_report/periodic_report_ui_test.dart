@@ -226,9 +226,10 @@ void main() {
         expect(header, findsOneWidget);
         final headerContainer = tester.widget<Container>(header);
         final headerDecoration = headerContainer.decoration! as BoxDecoration;
+        expect(headerDecoration.color, const Color(0xD9FFFDF7));
         expect(
-          headerDecoration.color,
-          Theme.of(tester.element(header)).colorScheme.surfaceContainerHighest,
+          find.byKey(const ValueKey('periodic-report-document')),
+          findsOneWidget,
         );
         expect(
           find.descendant(
