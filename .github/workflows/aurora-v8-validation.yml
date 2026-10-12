@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -18,6 +18,13 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - name: Update approved Aurora golden on Linux
+        if: "!contains(github.event.head_commit.message, '[golden-update]')"
+        run: |
+          flutter test test/features/activity/activity_ambient_kinetic_field_test.dart --plain-name "ActivityPage gives default Aurora Glass its full Scaffold body" --update-goldens
+          git add test/features/activity/goldens/activity_scope_below_record.png
+          git diff --cached --quiet || git commit -m "[golden-update] Update Aurora CI golden"
+          git push
       - name: Run focused Activity tests with diagnostics
         id: activity_tests
         shell: bash
