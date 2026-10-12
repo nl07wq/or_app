@@ -23,6 +23,8 @@ jobs:
         run: |
           flutter test test/features/activity/activity_ambient_kinetic_field_test.dart --plain-name "ActivityPage gives default Aurora Glass its full Scaffold body" --update-goldens
           git add test/features/activity/goldens/activity_scope_below_record.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git diff --cached --quiet || git commit -m "[golden-update] Update Aurora CI golden"
           git push
       - name: Run focused Activity tests with diagnostics
