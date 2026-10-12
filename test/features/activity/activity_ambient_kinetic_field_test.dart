@@ -146,6 +146,9 @@ void main() {
     expect(source, contains('final double halfWidth;'));
     expect(source, contains('final nearest ='));
     expect(source, contains('final distance ='));
+    expect(source, contains('Offset _outwardCenterCandidate'));
+    expect(source, contains('const eventsPerCohort = 8'));
+    expect(source, contains('center-to-outside propagation'));
     expect(source, contains('var remaining = 1.0'));
     expect(source, contains('remaining *= 1 - contribution'));
     expect(source, contains('final activationDelay'));

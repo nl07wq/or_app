@@ -14,6 +14,7 @@ void main() {
     );
     expect(StatusRadialSpectrumAmbient.equalizerSpeedMultiplier, 1.5);
     expect(StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier, 1.3);
+    expect(StatusRadialSpectrumAmbient.indicatorStrokeWidthMultiplier, 1.5);
     expect(StatusRadialSpectrumAmbient.amplitudeTargetUpdatesPerSecond, 10);
     expect(
       StatusRadialSpectrumAmbient.amplitudeAttack,
@@ -22,6 +23,14 @@ void main() {
     expect(
       StatusRadialSpectrumAmbient.amplitudeRelease,
       const Duration(milliseconds: 140),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseIntervalMinimum,
+      const Duration(seconds: 3),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.pulseIntervalMaximum,
+      const Duration(seconds: 10),
     );
 
     final source = File(
@@ -42,6 +51,10 @@ void main() {
     expect(source, contains('equalizerSpeedMultiplier'));
     expect(source, contains('equalizerAmplitudeMultiplier'));
     expect(source, contains('class _FastSpectrumMotion'));
+    expect(source, contains('class _StatusPulse'));
+    expect(source, contains('StatusRadialSpectrumAmbient.pulseIntervalMinimum'));
+    expect(source, contains('StatusRadialSpectrumAmbient.pulseIntervalMaximum'));
+    expect(source, contains('indicatorStrokeWidthMultiplier'));
     expect(source, contains('static const _updateHz'));
     expect(source, contains('static const _attackSeconds = .060'));
     expect(source, contains('static const _releaseSeconds = .140'));

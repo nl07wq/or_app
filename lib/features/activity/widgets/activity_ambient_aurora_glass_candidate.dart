@@ -294,23 +294,39 @@ class _CurvedFragmentEvent {
 }
 
 Offset _eventCenter(int index) {
-  final previous = index == 0 ? null : _centerCandidate(index - 1, 0);
+  final previous = index == 0 ? null : _outwardCenterCandidate(index - 1, 0);
   for (var attempt = 0; attempt < 6; attempt++) {
-    final candidate = _centerCandidate(index, attempt);
+    final candidate = _outwardCenterCandidate(index, attempt);
     if (previous == null || (candidate - previous).distance >= .13) {
       return candidate;
     }
   }
-  return _centerCandidate(index, 6);
+  return _outwardCenterCandidate(index, 6);
 }
 
-Offset _centerCandidate(int index, int attempt) {
-  final angle = _eventNoise(index, 101 + attempt * 3) * math.pi * 2;
-  // Linear radius gives a weak center bias while still reaching the viewport.
-  final radius = .06 + _eventNoise(index, 102 + attempt * 3) * .59;
+/// Each short event cohort progresses from the center toward the perimeter.
+/// The cohort's angular direction and each member's timing are seeded, so the
+/// field retains a clear outward tendency without producing a clean ring,
+/// square front, or repeated diagonal band.
+Offset _outwardCenterCandidate(int index, int attempt) {
+  const eventsPerCohort = 8;
+  final cohort = index ~/ eventsPerCohort;
+  final positionInCohort = index % eventsPerCohort;
+  final progress = (positionInCohort + _eventNoise(index, 101 + attempt * 5)) /
+      eventsPerCohort;
+  final direction =
+      _eventNoise(cohort, 102) * math.pi * 2 +
+      (_eventNoise(index, 103 + attempt * 5) - .5) * 1.55;
+  // A small radial offset lets neighboring curved fragments lead or lag one
+  // another while preserving center-to-outside propagation as their shared
+  // direction.
+  final radius = (.055 + progress * .61 +
+          (_eventNoise(index, 104 + attempt * 5) - .5) * .115)
+      .clamp(.045, .70)
+      .toDouble();
   return Offset(
-    (.5 + math.cos(angle) * radius).clamp(.04, .96).toDouble(),
-    (.5 + math.sin(angle) * radius).clamp(.04, .96).toDouble(),
+    (.5 + math.cos(direction) * radius).clamp(.04, .96).toDouble(),
+    (.5 + math.sin(direction) * radius).clamp(.04, .96).toDouble(),
   );
 }
 

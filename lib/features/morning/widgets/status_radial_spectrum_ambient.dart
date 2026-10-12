@@ -18,9 +18,12 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const _motionCycleSeconds = 13.0;
   static const equalizerSpeedMultiplier = 1.5;
   static const equalizerAmplitudeMultiplier = 1.3;
+  static const indicatorStrokeWidthMultiplier = 1.5;
   static const amplitudeTargetUpdatesPerSecond = 10;
   static const amplitudeAttack = Duration(milliseconds: 60);
   static const amplitudeRelease = Duration(milliseconds: 140);
+  static const pulseIntervalMinimum = Duration(seconds: 3);
+  static const pulseIntervalMaximum = Duration(seconds: 10);
 
   final bool enabled;
   final bool reducedMotion;
@@ -154,6 +157,11 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     if (size.isEmpty) return;
     final layout = _layoutFor(size);
     final colorTime = _time * math.pi * 2;
+    final pulse = _StatusPulse.at(
+      seconds: _time *
+          (StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000),
+      staticFrame: staticFrame,
+    );
     // Preserve the established physical motion rate while color completes a
     // separate, continuous 24-second revolution.
     final time =
@@ -161,6 +169,18 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
         (StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000) /
         StatusRadialSpectrumAmbient._motionCycleSeconds;
     _paintBubbles(canvas, size, layout, time, colorTime);
+    // The rare pulse affects the donut and its attached bars as a single
+    // object. Bubbles deliberately stay independent and keep their existing
+    // slow outward diffusion.
+    canvas
+      ..save()
+      ..translate(
+        layout.center.dx + pulse.offset.dx,
+        layout.center.dy + pulse.offset.dy,
+      )
+      ..rotate(pulse.rotation)
+      ..scale(pulse.scale)
+      ..translate(-layout.center.dx, -layout.center.dy);
     _paintDonut(canvas, layout, colorTime);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
 
@@ -171,25 +191,33 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
           5 +
           layout.maxBarLength *
               amplitude *
-              StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier;
+              StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier *
+              pulse.barLengthMultiplier(index);
       final start = layout.barStarts[index];
       final end = start + layout.barDirections[index] * length;
       final color = _colorFor(angle, colorTime, index);
 
       _barBroadHalo
-        ..strokeWidth = 1.25 + amplitude * 1.65
+        ..strokeWidth =
+            (1.25 + amplitude * 1.65) *
+                StatusRadialSpectrumAmbient.indicatorStrokeWidthMultiplier
         ..color = color.withValues(alpha: .010 + amplitude * .030);
       _barNearHalo
-        ..strokeWidth = .55 + amplitude * .68
+        ..strokeWidth =
+            (.55 + amplitude * .68) *
+                StatusRadialSpectrumAmbient.indicatorStrokeWidthMultiplier
         ..color = color.withValues(alpha: .030 + amplitude * .070);
       _barCore
-        ..strokeWidth = .20 + amplitude * .32
+        ..strokeWidth =
+            (.20 + amplitude * .32) *
+                StatusRadialSpectrumAmbient.indicatorStrokeWidthMultiplier
         ..color = color.withValues(alpha: .18 + amplitude * .38);
       canvas
         ..drawLine(start, end, _barBroadHalo)
         ..drawLine(start, end, _barNearHalo)
         ..drawLine(start, end, _barCore);
     }
+    canvas.restore();
   }
 
   _SpectrumLayout _layoutFor(Size size) {
@@ -343,6 +371,83 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   bool shouldRepaint(covariant _StatusRadialSpectrumPainter oldDelegate) =>
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.animation != animation;
+}
+
+/// Short, deterministic pulses make the donut and its attached indicator
+/// field briefly breathe and sway. The schedule has no per-frame random work:
+/// each 24-second ambient cycle uses seeded intervals of 3–10 seconds.
+class _StatusPulse {
+  const _StatusPulse({
+    required this.energy,
+    required this.offset,
+    required this.rotation,
+  });
+
+  static const none = _StatusPulse(
+    energy: 0,
+    offset: Offset.zero,
+    rotation: 0,
+  );
+
+  final double energy;
+  final Offset offset;
+  final double rotation;
+
+  double get scale => 1 + energy * .052;
+
+  double barLengthMultiplier(int index) {
+    if (energy == 0) return 1;
+    // Four-bar neighborhoods share the pulse slightly, so the disturbance
+    // reads as a physical wobble rather than a perfectly uniform resize.
+    final local = .11 + _seededNoise(index ~/ 4, 887) * .16;
+    return 1 + energy * local;
+  }
+
+  static _StatusPulse at({required double seconds, required bool staticFrame}) {
+    if (staticFrame) return none;
+    final duration =
+        StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000;
+    final current = seconds % duration;
+    var start = 0.0;
+    var eventIndex = 0;
+    _StatusPulse? result;
+
+    // The final scheduled pulse may carry across the controller boundary, so
+    // the opening frames remain continuous rather than abruptly settling.
+    while (start < duration) {
+      final minimum =
+          StatusRadialSpectrumAmbient.pulseIntervalMinimum.inMilliseconds /
+          Duration.millisecondsPerSecond;
+      final maximum =
+          StatusRadialSpectrumAmbient.pulseIntervalMaximum.inMilliseconds /
+          Duration.millisecondsPerSecond;
+      final interval =
+          minimum + _seededNoise(eventIndex, 811) * (maximum - minimum);
+      final lifetime = .82 + _seededNoise(eventIndex, 823) * .72;
+      var local = current - start;
+      // Carry only a pulse that genuinely began at the end of the preceding
+      // cycle into its opening frames. Future pulses must not appear early.
+      if (local < 0 && start + lifetime > duration) {
+        local += duration;
+      }
+      if (local >= 0 && local < lifetime) {
+        final progress = local / lifetime;
+        final envelope = math.sin(progress * math.pi);
+        final strength = .58 + _seededNoise(eventIndex, 827) * .42;
+        final energy = envelope * strength;
+        final direction = _seededNoise(eventIndex, 829) * math.pi * 2;
+        result = _StatusPulse(
+          energy: energy,
+          offset: Offset.fromDirection(direction, energy * 2.6),
+          rotation:
+              math.sin(progress * math.pi * 2 + direction) * energy * .018,
+        );
+      }
+      start += interval;
+      eventIndex++;
+    }
+    return result ?? none;
+  }
 }
 
 /// Deterministic audio-spectrum targets. Targets are refreshed at 10 Hz;
