@@ -138,10 +138,30 @@ void main() {
     expect(source, contains('Rect _tileGeometry'));
     expect(source, contains('Color _tileRgb'));
     expect(source, contains('class _GlassMaterial'));
-    expect(source, contains('double _spatialTimingVariation'));
-    expect(source, contains('final distance = math.sqrt('));
-    expect(source, contains('final normalizedY ='));
-    expect(source, isNot(contains('Chebyshev distance')));
+    expect(source, contains('static const _activationOriginCount = 13'));
+    expect(source, contains('double _originLifecycle'));
+    expect(source, contains('Offset _originPosition'));
+    expect(source, contains('double _originNoise'));
+    expect(source, contains('double _smoothStep'));
+    expect(
+      source,
+      contains('for (var origin = 0; origin < _activationOriginCount;'),
+    );
+    expect(
+      source,
+      contains('final lifecycle = _originLifecycle(origin, phase)'),
+    );
+    expect(
+      source,
+      contains('final position = _originPosition(origin, phase, lifecycle)'),
+    );
+    expect(source, contains('final local = 1 - _smoothStep('));
+    expect(source, contains('final forming = _smoothStep('));
+    expect(source, contains('final dissolving = 1 - _smoothStep('));
+    expect(source, isNot(contains('_spatialTimingVariation')));
+    expect(source, isNot(contains('final diagonal =')));
+    expect(source, isNot(contains('final wave =')));
+    expect(source, isNot(contains('final centerX =')));
     expect(source, isNot(contains('squareDistance')));
     expect(source, isNot(contains('_distributedClusterTiming')));
     expect(source, contains('drawRect'));

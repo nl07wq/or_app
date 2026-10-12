@@ -42,6 +42,7 @@ class _AuroraGlassPainter extends CustomPainter {
 
   static const _cyan = Color(0xFF56E2EA);
   static const _magenta = Color(0xFFE19AD2);
+  static const _activationOriginCount = 13;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -82,31 +83,73 @@ class _AuroraGlassPainter extends CustomPainter {
     }
   }
 
-  /// Recovered V6 tile_state() port: a softly center-biased formation field
-  /// plus a diagonal assembly component. A deterministic, low-frequency
-  /// spatial timing field breaks synchronized bands without imposing a
-  /// geometric propagation front.
-  /// The dynamic row count preserves the field across portrait and landscape
-  /// viewports.
+  /// Deterministic, moving activation origins create actual local formation
+  /// and dissolution. Their independent lifecycles overlap, so neighboring
+  /// tiles remain coherent without a global distance, diagonal, or fixed
+  /// cluster ordering.
   double _tileState(int row, int column, int rows, double phase) {
-    final centerX = (ActivityAmbientAuroraGlassCandidate.gridColumns - 1) / 2;
-    final centerY = (rows - 1) / 2;
-    final normalizedY =
-        (row - centerY) *
-        ActivityAmbientAuroraGlassCandidate.gridColumns /
-        rows;
-    final distance = math.sqrt(
-      math.pow(column - centerX, 2) + math.pow(normalizedY, 2),
+    final point = Offset(
+      (column + .5) / ActivityAmbientAuroraGlassCandidate.gridColumns,
+      (row + .5) / rows,
     );
-    final timing = _spatialTimingVariation(row, column, rows);
-    final localRate = 1 + timing * .075;
-    final wave = math.sin(2 * phase * localRate - distance * .37 + timing);
-    final active = ((wave - .06) * 2).clamp(0.0, 1.0);
-    final diagonal =
-        (math.sin(.37 * column + .22 * row - 2 * phase * localRate + timing) +
-                .35)
-            .clamp(0.0, 1.0);
-    return active * (.40 + .60 * diagonal);
+    var intensity = 0.0;
+
+    for (var origin = 0; origin < _activationOriginCount; origin++) {
+      final lifecycle = _originLifecycle(origin, phase);
+      if (lifecycle <= 0) continue;
+
+      final position = _originPosition(origin, phase, lifecycle);
+      final dx = point.dx - position.dx;
+      final dy = point.dy - position.dy;
+      final distance = math.sqrt(dx * dx + dy * dy);
+      final reach = .055 + lifecycle * (.13 + _originNoise(origin, 5) * .10);
+      final local = 1 - _smoothStep(reach * .45, reach, distance);
+      intensity = math.max(intensity, lifecycle * local).toDouble();
+    }
+
+    return intensity.clamp(0.0, 1.0).toDouble();
+  }
+
+  /// Origins are seeded once but move continuously. Their base radii are
+  /// center-biased statistically, while their phase, direction, and lifetime
+  /// differ so they neither recur at fixed points nor form a global front.
+  Offset _originPosition(int origin, double phase, double lifecycle) {
+    final direction = _originNoise(origin, 1) * math.pi * 2;
+    final baseRadius =
+        .08 + math.pow(_originNoise(origin, 2), 1.8).toDouble() * .58;
+    final radialDrift = lifecycle * (.04 + _originNoise(origin, 3) * .10);
+    final motionPhase =
+        phase * (1 + (origin % 3)) + _originNoise(origin, 4) * math.pi * 2;
+    final lateral =
+        (.025 + _originNoise(origin, 6) * .045) *
+        math.sin(motionPhase * 1.37 + direction);
+    final longitudinal =
+        (.018 + _originNoise(origin, 7) * .032) *
+        math.cos(motionPhase * .83 + direction * .61);
+    final radius = baseRadius + radialDrift + longitudinal;
+
+    return Offset(
+      (.5 + math.cos(direction) * radius - math.sin(direction) * lateral)
+          .clamp(0.0, 1.0)
+          .toDouble(),
+      (.5 + math.sin(direction) * radius + math.cos(direction) * lateral)
+          .clamp(0.0, 1.0)
+          .toDouble(),
+    );
+  }
+
+  double _originLifecycle(int origin, double phase) {
+    final speed = 1 + (origin % 3);
+    final offset = _originNoise(origin, 8) * math.pi * 2;
+    final cycle = .5 + .5 * math.sin(phase * speed + offset);
+    final forming = _smoothStep(.16, .49, cycle);
+    final dissolving = 1 - _smoothStep(.57, .92, cycle);
+    return forming * dissolving;
+  }
+
+  double _smoothStep(double lower, double upper, double value) {
+    final t = ((value - lower) / (upper - lower)).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
   }
 
   /// Recovered V6 tile_geometry() port, scaled from the 720px source grid.
@@ -165,16 +208,11 @@ class _AuroraGlassPainter extends CustomPainter {
     return laplacian.abs().clamp(0.0, 1.0);
   }
 
-  /// Smoothly correlated timing variation: nearby tiles share timing and
-  /// lifecycle changes, while distant groups assemble and dissolve at subtly
-  /// different moments. This is a stable source-model timing perturbation,
-  /// rather than a fixed spatial cluster or a wavefront offset.
-  double _spatialTimingVariation(int row, int column, int rows) {
-    final x = column / ActivityAmbientAuroraGlassCandidate.gridColumns;
-    final y = row / rows;
-    return .44 * math.sin(x * math.pi * 2.1 + y * math.pi * .72 + .34) +
-        .27 * math.sin(x * math.pi * .78 - y * math.pi * 2.45 + 1.18) +
-        .16 * math.cos(x * math.pi * 3.15 + y * math.pi * 1.36 - .62);
+  double _originNoise(int origin, int salt) {
+    var value = origin * 73856093 ^ salt * 19349663 ^ 51 * 83492791;
+    value ^= value >> 13;
+    value *= 1274126177;
+    return (value & 0x7fffffff) / 0x7fffffff;
   }
 
   double _unitNoise(int row, int column, int salt) {
