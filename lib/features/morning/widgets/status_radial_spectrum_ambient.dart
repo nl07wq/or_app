@@ -31,7 +31,6 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const pulseCompressionScale = .97;
   static const pulseMaximumDisplacement = 8.0;
   static const flameSampleCount = 216;
-  static const flameTongueCount = 72;
 
   final bool enabled;
   final bool reducedMotion;
@@ -141,24 +140,14 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   final _donutNearHalo = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
-  final _donutCore = Paint()
+  final _ringBandPath = Path();
+  final _ringOuterPath = Path();
+  final _hudMarkingPath = Path();
+  final _donutCore = Paint()..style = PaintingStyle.fill;
+  final _hudMarkingCore = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
-  final _flameContourPath = Path();
-  final _flameTonguePath = Path();
   final _impactFlash = Paint();
-  final _flameBroadHalo = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeJoin = StrokeJoin.round
-    ..strokeCap = StrokeCap.round;
-  final _flameNearHalo = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeJoin = StrokeJoin.round
-    ..strokeCap = StrokeCap.round;
-  final _flameCore = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeJoin = StrokeJoin.round
-    ..strokeCap = StrokeCap.round;
 
   static const _palette = <Color>[
     Color(0xFF5DECF2),
@@ -196,6 +185,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     // Pulse only the ambient field. STATUS controls remain spatially stable,
     // while the donut, indicators, and bubbles get a brief, organic impact.
     final jitter = _pulseMotion.jitterFor(_time) * pulse.impact;
+    _paintImpactField(canvas, size, layout, colorTime, pulse.impact);
     canvas.save();
     canvas.translate(
       layout.center.dx + jitter.dx,
@@ -203,11 +193,8 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     );
     canvas.scale(pulse.scale, pulse.scale);
     canvas.translate(-layout.center.dx, -layout.center.dy);
-
-    _paintImpactFlash(canvas, size, layout, colorTime, pulse.impact);
     _paintBubbles(canvas, size, layout, time, colorTime, pulse.impact);
-    _paintDonut(canvas, layout, colorTime, pulse.impact);
-    _paintFlameEdge(canvas, layout, colorTime, time, pulse.impact);
+    _paintDonut(canvas, layout, colorTime, time, pulse.impact);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
     _barBroadHalo.maskFilter = pulse.impact == 0
         ? const MaskFilter.blur(BlurStyle.normal, 4.2)
@@ -246,7 +233,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _paintImpactFlash(
+  void _paintImpactField(
     Canvas canvas,
     Size size,
     _SpectrumLayout layout,
@@ -258,15 +245,15 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     _impactFlash.shader =
         RadialGradient(
           colors: [
-            flashColor.withValues(alpha: impact * .105),
-            flashColor.withValues(alpha: impact * .028),
+            flashColor.withValues(alpha: impact * .17),
+            flashColor.withValues(alpha: impact * .052),
             flashColor.withValues(alpha: 0),
           ],
-          stops: const [.0, .42, 1],
+          stops: const [.0, .58, 1],
         ).createShader(
           Rect.fromCircle(
             center: layout.center,
-            radius: size.longestSide * .78,
+            radius: size.longestSide * .96,
           ),
         );
     canvas.drawRect(Offset.zero & size, _impactFlash);
@@ -297,8 +284,6 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       donutThickness: donutThickness,
       coreRadius: donutOuterRadius - donutThickness,
       maxBarLength: (shortest * .105).clamp(22.0, 60.0),
-      donutBroadBlur: MaskFilter.blur(BlurStyle.normal, donutThickness * 1.1),
-      donutNearBlur: MaskFilter.blur(BlurStyle.normal, donutThickness * .34),
       angles: angles,
       barDirections: directions,
       barStarts: List<Offset>.generate(
@@ -375,11 +360,29 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     Canvas canvas,
     _SpectrumLayout layout,
     double colorTime,
+    double time,
     double pulse,
   ) {
+    final outer = _ringOuterPath..reset();
+    final band = _ringBandPath..reset();
+    final sampleCount = StatusRadialSpectrumAmbient.flameSampleCount;
+    final visibleThickness = layout.donutThickness * .62;
+    final nominalOuter = layout.donutOuterRadius - layout.donutThickness * .19;
+    _appendDeformedRingContour(outer, layout, time, nominalOuter, sampleCount);
+    outer.close();
+    _appendDeformedRingContour(band, layout, time, nominalOuter, sampleCount);
+    _appendDeformedRingContour(
+      band,
+      layout,
+      time,
+      nominalOuter - visibleThickness,
+      sampleCount,
+      reverse: true,
+    );
+    band.close();
     final oval = Rect.fromCircle(
       center: layout.center,
-      radius: layout.donutOuterRadius - layout.donutThickness / 2,
+      radius: layout.donutOuterRadius + 10,
     );
     final shader = SweepGradient(
       colors: _donutPalette,
@@ -387,72 +390,56 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     ).createShader(oval);
     _donutBroadHalo
       ..maskFilter = pulse == 0
-          ? layout.donutBroadBlur
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .72)
           : MaskFilter.blur(
               BlurStyle.normal,
-              layout.donutThickness * (1.1 + pulse * .45),
+              visibleThickness * (.72 + pulse * .30),
             )
       ..shader = shader
-      ..strokeWidth = layout.donutThickness * (1.7 + pulse * .22);
+      ..strokeWidth = visibleThickness * (1.35 + pulse * .18);
     _donutNearHalo
       ..maskFilter = pulse == 0
-          ? layout.donutNearBlur
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .22)
           : MaskFilter.blur(
               BlurStyle.normal,
-              layout.donutThickness * (.34 + pulse * .12),
+              visibleThickness * (.22 + pulse * .08),
             )
       ..shader = shader
-      ..strokeWidth = layout.donutThickness * (1.12 + pulse * .10);
-    _donutCore
-      ..shader = shader
-      ..strokeWidth = layout.donutThickness * .62;
+      ..strokeWidth = visibleThickness * (1.05 + pulse * .08);
+    _donutCore..shader = shader;
     canvas
-      ..drawCircle(
-        layout.center,
-        layout.donutOuterRadius - layout.donutThickness / 2,
-        _donutBroadHalo,
-      )
-      ..drawCircle(
-        layout.center,
-        layout.donutOuterRadius - layout.donutThickness / 2,
-        _donutNearHalo,
-      )
-      ..drawCircle(
-        layout.center,
-        layout.donutOuterRadius - layout.donutThickness / 2,
-        _donutCore,
-      );
+      ..drawPath(outer, _donutBroadHalo)
+      ..drawPath(outer, _donutNearHalo)
+      ..drawPath(band, _donutCore);
+    _paintHudRingPattern(canvas, layout, time, nominalOuter);
   }
 
-  /// The donut's outer rim is the flame origin. A thin connected contour
-  /// keeps the core continuous, while short, curved tongue paths emerge and
-  /// dissolve independently so this reads as fire rather than an annular
-  /// translucent membrane.
-  void _paintFlameEdge(
-    Canvas canvas,
+  /// The same organic contour defines the visible ring edge, its glow, and
+  /// its technical markings. There is no stable circular donut under it and
+  /// no detached flame or membrane layer.
+  void _appendDeformedRingContour(
+    Path path,
     _SpectrumLayout layout,
-    double colorTime,
     double time,
-    double pulse,
-  ) {
-    final contour = _flameContourPath..reset();
-    final tongues = _flameTonguePath..reset();
-    final sampleCount = StatusRadialSpectrumAmbient.flameSampleCount;
+    double radius,
+    int sampleCount, {
+    bool reverse = false,
+  }) {
     Offset? previous;
-    for (var index = 0; index < sampleCount; index++) {
+    for (var step = 0; step <= sampleCount; step++) {
+      final index = reverse ? sampleCount - step : step;
       final angle = math.pi * 2 * index / sampleCount;
       final extension = _flameContourExtension(angle, time);
       final point =
-          layout.center +
-          Offset.fromDirection(angle, layout.donutOuterRadius + extension);
-      if (index == 0) {
-        contour.moveTo(point.dx, point.dy);
+          layout.center + Offset.fromDirection(angle, radius + extension);
+      if (step == 0) {
+        path.moveTo(point.dx, point.dy);
       } else {
         final midpoint = Offset(
           (previous!.dx + point.dx) / 2,
           (previous.dy + point.dy) / 2,
         );
-        contour.quadraticBezierTo(
+        path.quadraticBezierTo(
           previous.dx,
           previous.dy,
           midpoint.dx,
@@ -461,72 +448,52 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       }
       previous = point;
     }
-    contour.close();
+  }
 
-    for (
-      var index = 0;
-      index < StatusRadialSpectrumAmbient.flameTongueCount;
-      index++
-    ) {
-      final angle =
-          math.pi *
-          2 *
-          (index + _seededNoise(index, 701)) /
-          StatusRadialSpectrumAmbient.flameTongueCount;
-      final envelope = _flameTongueEnvelope(index, time);
-      if (envelope < .08) continue;
-      final startRadius =
-          layout.donutOuterRadius + _flameContourExtension(angle, time);
-      final start = layout.center + Offset.fromDirection(angle, startRadius);
-      final reach = 1.5 + envelope * (4.8 + _seededNoise(index, 702) * 6.2);
-      final bend =
-          math.sin(
-            time * (.46 + _seededNoise(index, 703) * .38) + index * 1.71,
-          ) *
-          (.018 + envelope * .052);
-      final control =
-          layout.center +
-          Offset.fromDirection(angle + bend * .45, startRadius + reach * .52);
-      final end =
-          layout.center +
-          Offset.fromDirection(angle + bend, startRadius + reach);
-      tongues
-        ..moveTo(start.dx, start.dy)
-        ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+  void _paintHudRingPattern(
+    Canvas canvas,
+    _SpectrumLayout layout,
+    double time,
+    double nominalOuter,
+  ) {
+    final markings = _hudMarkingPath..reset();
+    const segmentCount = 19;
+    final ringMid = nominalOuter - layout.donutThickness * .31;
+    for (var index = 0; index < segmentCount; index++) {
+      final baseAngle =
+          math.pi * 2 * index / segmentCount + _seededNoise(index, 811) * .12;
+      final span = .055 + _seededNoise(index, 812) * .105;
+      final steps = 4 + (_seededNoise(index, 813) * 3).floor();
+      for (var step = 0; step <= steps; step++) {
+        final angle = baseAngle + (step / steps - .5) * span;
+        final radius = ringMid + _flameContourExtension(angle, time);
+        final point = layout.center + Offset.fromDirection(angle, radius);
+        if (step == 0) {
+          markings.moveTo(point.dx, point.dy);
+        } else {
+          markings.lineTo(point.dx, point.dy);
+        }
+      }
+      if (index % 2 == 0) {
+        final angle = baseAngle + span * .75;
+        final radius = ringMid + _flameContourExtension(angle, time);
+        final tickStart =
+            layout.center +
+            Offset.fromDirection(angle, radius - layout.donutThickness * .12);
+        final tickEnd =
+            layout.center +
+            Offset.fromDirection(angle, radius + layout.donutThickness * .12);
+        markings
+          ..moveTo(tickStart.dx, tickStart.dy)
+          ..lineTo(tickEnd.dx, tickEnd.dy);
+      }
     }
-
-    final shader =
-        SweepGradient(
-          colors: _donutPalette,
-          transform: GradientRotation(colorTime + time * .035),
-        ).createShader(
-          Rect.fromCircle(
-            center: layout.center,
-            radius: layout.donutOuterRadius + 12,
-          ),
-        );
-    final glowMultiplier = 1 + pulse * .8;
-    _flameBroadHalo
-      ..shader = shader
-      ..strokeWidth = 2.9 + pulse * 1.1
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4.4 + pulse * 2.2)
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: .20 * glowMultiplier);
-    _flameNearHalo
-      ..shader = shader
-      ..strokeWidth = 1.15 + pulse * .45
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.45 + pulse * .7)
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: .48 * glowMultiplier);
-    _flameCore
-      ..shader = shader
-      ..strokeWidth = .48 + pulse * .16
-      ..maskFilter = null
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: .90);
-    canvas
-      ..drawPath(tongues, _flameBroadHalo)
-      ..drawPath(tongues, _flameNearHalo)
-      ..drawPath(contour, _flameNearHalo)
-      ..drawPath(tongues, _flameCore)
-      ..drawPath(contour, _flameCore);
+    _hudMarkingCore
+      ..shader = null
+      ..strokeWidth = (layout.donutThickness * .075).clamp(.8, 1.4)
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .56)
+      ..maskFilter = null;
+    canvas.drawPath(markings, _hudMarkingCore);
   }
 
   double _flameContourExtension(double angle, double time) {
@@ -541,15 +508,6 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     );
     final animatedDisplacement = broad.clamp(0.0, 1.0) * 2.5 + peak * 2.4;
     return (.8 + animatedDisplacement * _flameMotionAmplitude).clamp(.8, 5.0);
-  }
-
-  double _flameTongueEnvelope(int index, double time) {
-    final phase =
-        time * (.34 + _seededNoise(index, 704) * .26) +
-        _seededNoise(index, 705) * math.pi * 2;
-    final slow = .5 + .5 * math.sin(phase);
-    final flicker = .5 + .5 * math.sin(phase * 2.17 + index * .83);
-    return _smoothStep(.34, .74, slow * .72 + flicker * .28);
   }
 
   double _smoothStep(double lower, double upper, double value) {
@@ -763,8 +721,6 @@ class _SpectrumLayout {
     required this.donutThickness,
     required this.coreRadius,
     required this.maxBarLength,
-    required this.donutBroadBlur,
-    required this.donutNearBlur,
     required this.angles,
     required this.barDirections,
     required this.barStarts,
@@ -777,8 +733,6 @@ class _SpectrumLayout {
   final double donutThickness;
   final double coreRadius;
   final double maxBarLength;
-  final MaskFilter donutBroadBlur;
-  final MaskFilter donutNearBlur;
   final List<double> angles;
   final List<Offset> barDirections;
   final List<Offset> barStarts;

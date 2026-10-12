@@ -51,7 +51,6 @@ void main() {
     expect(StatusRadialSpectrumAmbient.pulseCompressionScale, .97);
     expect(StatusRadialSpectrumAmbient.pulseMaximumDisplacement, 8.0);
     expect(StatusRadialSpectrumAmbient.flameSampleCount, 216);
-    expect(StatusRadialSpectrumAmbient.flameTongueCount, 72);
 
     final source = File(
       'lib/features/morning/widgets/status_radial_spectrum_ambient.dart',
@@ -81,15 +80,16 @@ void main() {
     expect(source, contains('_pulseMotion.stateFor'));
     expect(source, contains('_pulseMotion.jitterFor'));
     expect(source, contains('canvas.scale(pulse.scale, pulse.scale)'));
-    expect(source, contains('void _paintImpactFlash'));
-    expect(source, contains('void _paintFlameEdge'));
-    expect(source, contains('final _flameContourPath = Path()'));
-    expect(source, contains('final _flameTonguePath = Path()'));
+    expect(source, contains('void _paintImpactField'));
+    expect(source, contains('final _ringBandPath = Path()'));
+    expect(source, contains('final _ringOuterPath = Path()'));
+    expect(source, contains('final _hudMarkingPath = Path()'));
     expect(source, contains('StatusRadialSpectrumAmbient.flameSampleCount'));
-    expect(source, contains('contour.close()'));
+    expect(source, contains('void _appendDeformedRingContour'));
+    expect(source, contains('void _paintHudRingPattern'));
     expect(source, contains('double _flameContourExtension'));
-    expect(source, contains('double _flameTongueEnvelope'));
-    expect(source, contains('StatusRadialSpectrumAmbient.flameTongueCount'));
+    expect(source, isNot(contains('_flameTonguePath')));
+    expect(source, isNot(contains('flameTongueCount')));
     expect(source, contains('static const _flameMotionSpeed = .65'));
     expect(source, contains('static const _flameMotionAmplitude = .55'));
     expect(source, contains('time * .61 * _flameMotionSpeed'));
