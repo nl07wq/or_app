@@ -1,0 +1,62 @@
+name: Validate Aurora Glass V8
+
+on:
+  push:
+    branches:
+      - codex/aurora-v8-ci-validation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Update approved Aurora golden on Linux
+        if: "!contains(github.event.head_commit.message, '[golden-update]')"
+        run: |
+          flutter test test/features/activity/activity_ambient_kinetic_field_test.dart --plain-name "ActivityPage gives default Aurora Glass its full Scaffold body" --update-goldens
+          git add test/features/activity/goldens/activity_scope_below_record.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet || git commit -m "[golden-update] Update Aurora CI golden"
+          git push
+      - name: Run focused Activity tests with diagnostics
+        id: activity_tests
+        shell: bash
+        run: |
+          flutter --version | tee ci-flutter-version.log
+          dart --version 2>&1 | tee ci-dart-version.log
+          set +e
+          flutter test test/features/activity/activity_ambient_kinetic_field_test.dart > ci-activity-test.log 2>&1
+          code=$?
+          echo "exit_code=$code" | tee ci-activity-test-exit-code.txt
+          tail -n 160 ci-activity-test.log >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
+      - name: Upload Activity test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurora-v8-activity-test-diagnostics
+          path: |
+            ci-flutter-version.log
+            ci-dart-version.log
+            ci-activity-test.log
+            ci-activity-test-exit-code.txt
+      - name: Analyze Aurora implementation changes
+        run: >
+          flutter analyze --no-fatal-infos
+          lib/features/activity/widgets/activity_ambient_aurora_glass_candidate.dart
+          test/features/activity/activity_ambient_kinetic_field_test.dart
+      - run: git diff --check
+      - run: flutter build web --pwa-strategy=none
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aurora-v8-web-build
+          path: build/web
