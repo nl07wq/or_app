@@ -1315,6 +1315,94 @@ void main() {
       },
     );
 
+    testWidgets(
+      'catalog save, manual add, database add, and meal save recover controls',
+      (tester) async {
+        final secondaryCatalogFood = _catalogEntry();
+        await AppRepositoryRegistry.container.foodCatalog.create(
+          secondaryCatalogFood,
+        );
+
+        await _pumpFoodModule(tester);
+        await tester.tap(find.text('FOOD ENTRY'));
+        await tester.pumpAndSettle();
+        await _enterNavigationMeal(tester);
+
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('food-save-to-catalog')),
+        );
+        await tester.tap(find.byKey(const ValueKey('food-save-to-catalog')));
+        await tester.pumpAndSettle();
+        expect(find.byType(FoodCatalogEditorPage), findsOneWidget);
+        await tester.ensureVisible(find.text('SAVE'));
+        await tester.tap(find.text('SAVE'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('food-meal-item-action')),
+        );
+        await tester.tap(find.byKey(const ValueKey('food-meal-item-action')));
+        await tester.pumpAndSettle();
+
+        final databaseFoodTab = find.byKey(
+          const ValueKey('food-entry-tab-databaseFood'),
+        );
+        await tester.ensureVisible(databaseFoodTab);
+        await tester.tap(databaseFoodTab);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(
+            ValueKey('food-entry-inline-food-${secondaryCatalogFood.foodId}'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('food-db-add')));
+        await tester.pumpAndSettle();
+
+        final operationState = database.rawRecord('operation_state', 'current')!;
+        final lockedOperationState = {
+          ...operationState,
+          'phase': OperationPhase.finalizing.name,
+          'activeAttempt': {
+            'idempotencyKey': 'food-entry-lock-recovery',
+            'targetLocalDate': operationState['operationDate'],
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+            'confirmationId': null,
+            'confirmationDigest': null,
+            'backupPackageDigest': null,
+            'backupGeneratedAt': null,
+            'failureCode': null,
+          },
+        };
+        database.seed('operation_state', 'current', lockedOperationState);
+
+        final saveMeal = find.widgetWithText(OperationButton, 'SAVE MEAL');
+        await tester.ensureVisible(saveMeal);
+        await tester.tap(saveMeal);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(FoodEntryPage), findsOneWidget);
+        expect(tester.widget<OperationButton>(saveMeal).onPressed, isNotNull);
+        for (final mode in ['databaseFood', 'databaseRecipe', 'databaseMeal']) {
+          final tab = find.byKey(ValueKey('food-entry-tab-$mode'));
+          await tester.ensureVisible(tab);
+          await tester.tap(tab);
+          await tester.pumpAndSettle();
+        }
+
+        database.seed('operation_state', 'current', operationState);
+        await tester.ensureVisible(saveMeal);
+        await tester.tap(saveMeal);
+        await tester.pumpAndSettle();
+
+        _expectFoodModule();
+        expect(
+          await AppRepositoryRegistry.container.dailyMealsV2.findAll(),
+          hasLength(1),
+        );
+      },
+    );
+
     testWidgets('SAVE WATER returns once to the FOOD module after success', (
       tester,
     ) async {

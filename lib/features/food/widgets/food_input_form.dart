@@ -560,6 +560,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _brandSnapshots.clear();
       _categories.clear();
       _itemMemos.clear();
+      _usageSetAmounts.clear();
+      _usageSetQuantities.clear();
+      _quantitySemantics.clear();
       mealType = MealType.breakfast;
       memoController.clear();
       waterVolumeController.clear();
@@ -606,6 +609,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _brandSnapshots.add(_currentCatalogSource?.brand);
       _categories.add(_currentCatalogSource?.category);
       _itemMemos.add(null);
+      _usageSetAmounts.add(null);
+      _usageSetQuantities.add(null);
+      _quantitySemantics.add(null);
       inputError = null;
       _clearFoodInputs();
     });
@@ -1650,64 +1656,66 @@ class _FoodInputFormState extends State<FoodInputForm> {
       waterMl: isWaterEntry ? waterMl : null,
     );
 
-    setState(() => _isSaving = true);
-    final sources = List<FoodCatalogEntry?>.from(_catalogSources);
-    final recipeSources = List<FoodRecipeDefinition?>.from(_recipeSources);
-    final recipeInstances = List<FoodRecipeDefinition?>.from(
-      _recipeInstanceSnapshots,
-    );
-    final quantityUnits = List<FoodQuantityUnit>.from(_quantityUnits);
-    final foodReferenceIds = List<String?>.from(_foodReferenceIds);
-    final recipeReferenceIds = List<String?>.from(_recipeReferenceIds);
-    final mealItemIds = List<String?>.from(_mealItemIds);
-    final provenanceSnapshots = List<FoodDataProvenance?>.from(
-      _provenanceSnapshots,
-    );
-    final nutritionStatuses = List<NutritionStatus?>.from(_nutritionStatuses);
-    final brandSnapshots = List<String?>.from(_brandSnapshots);
-    final categories = List<FoodCatalogCategory?>.from(_categories);
-    final itemMemos = List<String?>.from(_itemMemos);
-    final usageSetAmounts = List<double?>.from(_usageSetAmounts);
-    final usageSetQuantities = List<double?>.from(_usageSetQuantities);
-    final quantitySemantics = List<FoodMealQuantitySemantics?>.from(
-      _quantitySemantics,
-    );
-    if (_currentFoodItem() != null) {
-      sources.add(_currentCatalogSource);
-      recipeSources.add(_currentRecipeSource);
-      recipeInstances.add(null);
-      quantityUnits.add(baseUnit);
-      foodReferenceIds.add(_currentCatalogSource?.foodId);
-      recipeReferenceIds.add(_currentRecipeSource?.recipeId);
-      mealItemIds.add(null);
-      provenanceSnapshots.add(null);
-      nutritionStatuses.add(null);
-      brandSnapshots.add(_currentCatalogSource?.brand);
-      categories.add(_currentCatalogSource?.category);
-      itemMemos.add(null);
-      usageSetAmounts.add(null);
-      usageSetQuantities.add(null);
-      quantitySemantics.add(null);
-    }
-    final entrySources = FoodEntrySources(
-      catalogSources: sources,
-      recipeSources: recipeSources,
-      recipeInstanceSnapshots: recipeInstances,
-      quantityUnits: quantityUnits,
-      foodReferenceIds: foodReferenceIds,
-      recipeReferenceIds: recipeReferenceIds,
-      mealItemIds: mealItemIds,
-      provenanceSnapshots: provenanceSnapshots,
-      nutritionStatuses: nutritionStatuses,
-      brandSnapshots: brandSnapshots,
-      categories: categories,
-      memos: itemMemos,
-      usageSetAmounts: usageSetAmounts,
-      usageSetQuantities: usageSetQuantities,
-      quantitySemantics: quantitySemantics,
-    );
     var saved = false;
+    setState(() => _isSaving = true);
     try {
+      final sources = List<FoodCatalogEntry?>.from(_catalogSources);
+      final recipeSources = List<FoodRecipeDefinition?>.from(_recipeSources);
+      final recipeInstances = List<FoodRecipeDefinition?>.from(
+        _recipeInstanceSnapshots,
+      );
+      final quantityUnits = List<FoodQuantityUnit>.from(_quantityUnits);
+      final foodReferenceIds = List<String?>.from(_foodReferenceIds);
+      final recipeReferenceIds = List<String?>.from(_recipeReferenceIds);
+      final mealItemIds = List<String?>.from(_mealItemIds);
+      final provenanceSnapshots = List<FoodDataProvenance?>.from(
+        _provenanceSnapshots,
+      );
+      final nutritionStatuses = List<NutritionStatus?>.from(
+        _nutritionStatuses,
+      );
+      final brandSnapshots = List<String?>.from(_brandSnapshots);
+      final categories = List<FoodCatalogCategory?>.from(_categories);
+      final itemMemos = List<String?>.from(_itemMemos);
+      final usageSetAmounts = List<double?>.from(_usageSetAmounts);
+      final usageSetQuantities = List<double?>.from(_usageSetQuantities);
+      final quantitySemantics = List<FoodMealQuantitySemantics?>.from(
+        _quantitySemantics,
+      );
+      if (_currentFoodItem() != null) {
+        sources.add(_currentCatalogSource);
+        recipeSources.add(_currentRecipeSource);
+        recipeInstances.add(null);
+        quantityUnits.add(baseUnit);
+        foodReferenceIds.add(_currentCatalogSource?.foodId);
+        recipeReferenceIds.add(_currentRecipeSource?.recipeId);
+        mealItemIds.add(null);
+        provenanceSnapshots.add(null);
+        nutritionStatuses.add(null);
+        brandSnapshots.add(_currentCatalogSource?.brand);
+        categories.add(_currentCatalogSource?.category);
+        itemMemos.add(null);
+        usageSetAmounts.add(null);
+        usageSetQuantities.add(null);
+        quantitySemantics.add(null);
+      }
+      final entrySources = FoodEntrySources(
+        catalogSources: sources,
+        recipeSources: recipeSources,
+        recipeInstanceSnapshots: recipeInstances,
+        quantityUnits: quantityUnits,
+        foodReferenceIds: foodReferenceIds,
+        recipeReferenceIds: recipeReferenceIds,
+        mealItemIds: mealItemIds,
+        provenanceSnapshots: provenanceSnapshots,
+        nutritionStatuses: nutritionStatuses,
+        brandSnapshots: brandSnapshots,
+        categories: categories,
+        memos: itemMemos,
+        usageSetAmounts: usageSetAmounts,
+        usageSetQuantities: usageSetQuantities,
+        quantitySemantics: quantitySemantics,
+      );
       saved = isWaterEntry
           ? await widget.onSave(meal)
           : widget.onSaveWithSources != null
