@@ -92,6 +92,10 @@ flutter:
     - assets/animations/activity/reference_motion/activity_reference_motion_v1_frame.png
 
   fonts:
+    - family: ZenKurenaido
+      fonts:
+        - asset: assets/fonts/ZenKurenaido-Regular.ttf
+          weight: 400
     - family: ShareTechMono
       fonts:
         - asset: assets/fonts/ShareTechMono-Regular.ttf
