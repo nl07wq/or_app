@@ -14,7 +14,8 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const fieldKey = ValueKey('status-radial-spectrum-ambient');
   static const barCount = 144;
   static const bubbleCount = 96;
-  static const cycleDuration = Duration(seconds: 13);
+  static const cycleDuration = Duration(seconds: 24);
+  static const _motionCycleSeconds = 13.0;
   static const equalizerSpeedMultiplier = 1.5;
   static const equalizerAmplitudeMultiplier = 1.3;
   static const amplitudeTargetUpdatesPerSecond = 10;
@@ -152,12 +153,15 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final layout = _layoutFor(size);
-    final time = _time * math.pi * 2;
-    final spectrumTime =
-        time * StatusRadialSpectrumAmbient.equalizerSpeedMultiplier;
-
-    _paintBubbles(canvas, size, layout, time);
-    _paintDonut(canvas, layout, time);
+    final colorTime = _time * math.pi * 2;
+    // Preserve the established physical motion rate while color completes a
+    // separate, continuous 24-second revolution.
+    final time =
+        colorTime *
+        (StatusRadialSpectrumAmbient.cycleDuration.inMilliseconds / 1000) /
+        StatusRadialSpectrumAmbient._motionCycleSeconds;
+    _paintBubbles(canvas, size, layout, time, colorTime);
+    _paintDonut(canvas, layout, colorTime);
     canvas.drawCircle(layout.center, layout.coreRadius, _coreFill);
 
     for (var index = 0; index < StatusRadialSpectrumAmbient.barCount; index++) {
@@ -170,7 +174,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
               StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier;
       final start = layout.barStarts[index];
       final end = start + layout.barDirections[index] * length;
-      final color = _colorFor(angle, spectrumTime, index);
+      final color = _colorFor(angle, colorTime, index);
 
       _barBroadHalo
         ..strokeWidth = 1.25 + amplitude * 1.65
@@ -234,6 +238,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     Size size,
     _SpectrumLayout layout,
     double time,
+    double colorTime,
   ) {
     for (
       var index = 0;
@@ -265,7 +270,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       final visibility = alpha * edgeFade;
       if (visibility < .01) continue;
 
-      final color = _colorFor(angle, time * .34, index);
+      final color = _colorFor(angle, colorTime, index);
       final radiusPx =
           .8 +
           layout.shortest *
@@ -281,14 +286,14 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     }
   }
 
-  void _paintDonut(Canvas canvas, _SpectrumLayout layout, double time) {
+  void _paintDonut(Canvas canvas, _SpectrumLayout layout, double colorTime) {
     final oval = Rect.fromCircle(
       center: layout.center,
       radius: layout.donutOuterRadius - layout.donutThickness / 2,
     );
     final shader = SweepGradient(
       colors: _donutPalette,
-      transform: GradientRotation(time * .035),
+      transform: GradientRotation(colorTime),
     ).createShader(oval);
     _donutBroadHalo
       ..maskFilter = layout.donutBroadBlur
@@ -324,12 +329,13 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     return t * t * (3 - 2 * t);
   }
 
-  Color _colorFor(double angle, double time, int index) {
-    final region = ((angle / (math.pi * 2) + time * .035) * _palette.length)
-        .floor();
+  Color _colorFor(double angle, double colorTime, int index) {
+    final region =
+        ((angle / (math.pi * 2) + colorTime / (math.pi * 2)) * _palette.length)
+            .floor();
     final first = _palette[region % _palette.length];
     final second = _palette[(region + 1) % _palette.length];
-    final blend = .22 + .24 * math.sin(angle * 3 + time + index * .11);
+    final blend = .22 + .24 * math.sin(angle * 3 + colorTime + index * .11);
     return Color.lerp(first, second, blend.clamp(0.0, 1.0))!;
   }
 

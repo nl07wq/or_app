@@ -1,0 +1,45 @@
+name: Validate STATUS Glass and Rainbow
+
+on:
+  push:
+    branches: [codex/status-glass-rainbow-validation]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Update approved STATUS goldens on Linux
+        if: "!contains(github.event.head_commit.message, '[golden-update]')"
+        run: |
+          flutter test test/features/morning/status_radial_spectrum_ambient_test.dart --update-goldens
+          git add test/features/morning/goldens/status_radial_spectrum_static.png test/features/morning/goldens/status_radial_spectrum_phase.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet || git commit -m "[golden-update] Update STATUS CI goldens"
+          git push
+      - run: flutter test test/features/morning/status_radial_spectrum_ambient_test.dart test/features/morning/status_crt_monitor_title_test.dart
+      - name: Analyze STATUS implementation changes
+        run: >
+          flutter analyze --no-fatal-infos
+          lib/core/widgets/operation_button.dart
+          lib/features/morning/morning_page.dart
+          lib/features/morning/widgets/morning_history_button.dart
+          lib/features/morning/widgets/morning_manual_card.dart
+          lib/features/morning/widgets/status_crt_monitor_title.dart
+          lib/features/morning/widgets/status_radial_spectrum_ambient.dart
+          test/features/morning/status_radial_spectrum_ambient_test.dart
+      - run: git diff --check
+      - run: flutter build web --pwa-strategy=none
+      - uses: actions/upload-artifact@v4
+        with:
+          name: status-glass-web-build
+          path: build/web

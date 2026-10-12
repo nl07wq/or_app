@@ -20,6 +20,7 @@ class MorningManualCard extends StatelessWidget {
       key: const ValueKey('status-entry-button'),
       icon: Icons.edit_note,
       text: "STATUS ENTRY",
+      dashboardGlass: true,
       reportUnavailableTap: reportUnavailableTap,
       onPressed: appInitializationController.value.isReadOnly || !enabled
           ? null

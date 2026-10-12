@@ -10,7 +10,7 @@ void main() {
     expect(StatusRadialSpectrumAmbient.bubbleCount, 96);
     expect(
       StatusRadialSpectrumAmbient.cycleDuration,
-      const Duration(seconds: 13),
+      const Duration(seconds: 24),
     );
     expect(StatusRadialSpectrumAmbient.equalizerSpeedMultiplier, 1.5);
     expect(StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier, 1.3);
@@ -35,6 +35,8 @@ void main() {
     expect(source, contains('void _paintBubbles'));
     expect(source, contains('SweepGradient'));
     expect(source, contains('static const _donutPalette'));
+    expect(source, contains('final colorTime ='));
+    expect(source, contains('colorTime / (math.pi * 2)'));
     expect(source, contains('final edgeFade ='));
     expect(source, contains('StatusRadialSpectrumAmbient.bubbleCount'));
     expect(source, contains('equalizerSpeedMultiplier'));
