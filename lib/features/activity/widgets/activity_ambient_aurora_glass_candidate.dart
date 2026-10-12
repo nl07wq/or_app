@@ -42,7 +42,12 @@ class _AuroraGlassPainter extends CustomPainter {
 
   static const _cyan = Color(0xFF56E2EA);
   static const _magenta = Color(0xFFE19AD2);
-  static const _activationOriginCount = 13;
+  // The verified V8 frames contain many independently assembling small
+  // fragment constellations, rather than a handful of large radial blobs.
+  // These deterministic events move through a repeating timeline so the
+  // control field remains continuous at the reference-loop boundary.
+  static const _activationEventCount = 37;
+  static const _activationEpochCount = 7;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -83,10 +88,11 @@ class _AuroraGlassPainter extends CustomPainter {
     }
   }
 
-  /// Deterministic, moving activation origins create actual local formation
-  /// and dissolution. Their independent lifecycles overlap, so neighboring
-  /// tiles remain coherent without a global distance, diagonal, or fixed
-  /// cluster ordering.
+  /// V8-informed local formation events create actual tile assembly and
+  /// dissolution. Each event receives a new seeded location for every epoch,
+  /// then moves smoothly to the next location. This keeps local coherence
+  /// while removing the fixed, center-radial origin directions that produced
+  /// the previous vertical and diagonal bands.
   double _tileState(int row, int column, int rows, double phase) {
     final point = Offset(
       (column + .5) / ActivityAmbientAuroraGlassCandidate.gridColumns,
@@ -94,56 +100,93 @@ class _AuroraGlassPainter extends CustomPainter {
     );
     var intensity = 0.0;
 
-    for (var origin = 0; origin < _activationOriginCount; origin++) {
-      final lifecycle = _originLifecycle(origin, phase);
-      if (lifecycle <= 0) continue;
+    for (var event = 0; event < _activationEventCount; event++) {
+      final signal = _eventSignal(event, phase);
+      if (signal <= 0) continue;
 
-      final position = _originPosition(origin, phase, lifecycle);
+      final position = _eventPosition(event, phase);
+      final orientation = _eventOrientation(event, phase);
       final dx = point.dx - position.dx;
-      final dy = point.dy - position.dy;
-      final distance = math.sqrt(dx * dx + dy * dy);
-      final reach = .055 + lifecycle * (.13 + _originNoise(origin, 5) * .10);
-      final local = 1 - _smoothStep(reach * .45, reach, distance);
-      intensity = math.max(intensity, lifecycle * local).toDouble();
+      // The verified reference is square, while Activity uses a portrait
+      // full viewport. Measure both axes in grid-cell units so a compact V8
+      // cluster remains compact instead of becoming a vertical band.
+      final dy =
+          (point.dy - position.dy) *
+          rows /
+          ActivityAmbientAuroraGlassCandidate.gridColumns;
+      final longitudinal =
+          dx * math.cos(orientation) + dy * math.sin(orientation);
+      final lateral = -dx * math.sin(orientation) + dy * math.cos(orientation);
+      // Broad, short curved fields assemble into V8-like fragment masses.
+      // They deliberately avoid the thin, one-cell tracks made by the old
+      // origin discs and retain dark negative space between formations.
+      final length = .060 + _eventNoise(event, 11) * .100;
+      final width = .065 + _eventNoise(event, 12) * .070;
+      final bend = (_eventNoise(event, 13) - .5) * 1.25;
+      final curvedLateral =
+          lateral - bend * longitudinal * longitudinal / length;
+      final local =
+          1 -
+          _smoothStep(
+            .38,
+            1,
+            math.sqrt(
+              longitudinal * longitudinal / (length * length) +
+                  curvedLateral * curvedLateral / (width * width),
+            ),
+          );
+      final fragment = _smoothStep(
+        .30,
+        .82,
+        local + (_unitNoise(row, column, event + 71) - .5) * .72,
+      );
+      intensity = math.max(intensity, signal * local * fragment).toDouble();
     }
 
     return intensity.clamp(0.0, 1.0).toDouble();
   }
 
-  /// Origins are seeded once but move continuously. Their base radii are
-  /// center-biased statistically, while their phase, direction, and lifetime
-  /// differ so they neither recur at fixed points nor form a global front.
-  Offset _originPosition(int origin, double phase, double lifecycle) {
-    final direction = _originNoise(origin, 1) * math.pi * 2;
-    final baseRadius =
-        .08 + math.pow(_originNoise(origin, 2), 1.8).toDouble() * .58;
-    final radialDrift = lifecycle * (.04 + _originNoise(origin, 3) * .10);
-    final motionPhase =
-        phase * (1 + (origin % 3)) + _originNoise(origin, 4) * math.pi * 2;
-    final lateral =
-        (.025 + _originNoise(origin, 6) * .045) *
-        math.sin(motionPhase * 1.37 + direction);
-    final longitudinal =
-        (.018 + _originNoise(origin, 7) * .032) *
-        math.cos(motionPhase * .83 + direction * .61);
-    final radius = baseRadius + radialDrift + longitudinal;
+  Offset _eventPosition(int event, double phase) {
+    final epochProgress = phase / (math.pi * 2) * _activationEpochCount;
+    final epoch = epochProgress.floor();
+    final blend = _smoothStep(0, 1, epochProgress - epoch);
+    return Offset.lerp(
+      _eventAnchor(event, epoch),
+      _eventAnchor(event, (epoch + 1) % _activationEpochCount),
+      blend,
+    )!;
+  }
 
+  Offset _eventAnchor(int event, int epoch) {
+    final direction = _eventNoise(event, epoch * 17 + 1) * math.pi * 2;
+    // A square-root distribution maintains V8's sparse peripheral fragments
+    // without imposing a circular front or a protected central void.
+    final radius = .03 + math.sqrt(_eventNoise(event, epoch * 17 + 2)) * .67;
     return Offset(
-      (.5 + math.cos(direction) * radius - math.sin(direction) * lateral)
-          .clamp(0.0, 1.0)
-          .toDouble(),
-      (.5 + math.sin(direction) * radius + math.cos(direction) * lateral)
-          .clamp(0.0, 1.0)
-          .toDouble(),
+      (.5 + math.cos(direction) * radius).clamp(.03, .97).toDouble(),
+      (.5 + math.sin(direction) * radius).clamp(.03, .97).toDouble(),
     );
   }
 
-  double _originLifecycle(int origin, double phase) {
-    final speed = 1 + (origin % 3);
-    final offset = _originNoise(origin, 8) * math.pi * 2;
+  double _eventOrientation(int event, double phase) {
+    final epochProgress = phase / (math.pi * 2) * _activationEpochCount;
+    final epoch = epochProgress.floor();
+    final blend = _smoothStep(0, 1, epochProgress - epoch);
+    final start = _eventNoise(event, epoch * 17 + 3) * math.pi * 2;
+    final end =
+        _eventNoise(event, ((epoch + 1) % _activationEpochCount) * 17 + 3) *
+        math.pi *
+        2;
+    return start +
+        math.atan2(math.sin(end - start), math.cos(end - start)) * blend;
+  }
+
+  double _eventSignal(int event, double phase) {
+    final speed = 1 + (event % 4);
+    final offset = _eventNoise(event, 7) * math.pi * 2;
     final cycle = .5 + .5 * math.sin(phase * speed + offset);
-    final forming = _smoothStep(.16, .49, cycle);
-    final dissolving = 1 - _smoothStep(.57, .92, cycle);
+    final forming = _smoothStep(.23, .53, cycle);
+    final dissolving = 1 - _smoothStep(.60, .90, cycle);
     return forming * dissolving;
   }
 
@@ -208,8 +251,8 @@ class _AuroraGlassPainter extends CustomPainter {
     return laplacian.abs().clamp(0.0, 1.0);
   }
 
-  double _originNoise(int origin, int salt) {
-    var value = origin * 73856093 ^ salt * 19349663 ^ 51 * 83492791;
+  double _eventNoise(int event, int salt) {
+    var value = event * 73856093 ^ salt * 19349663 ^ 51 * 83492791;
     value ^= value >> 13;
     value *= 1274126177;
     return (value & 0x7fffffff) / 0x7fffffff;

@@ -138,27 +138,28 @@ void main() {
     expect(source, contains('Rect _tileGeometry'));
     expect(source, contains('Color _tileRgb'));
     expect(source, contains('class _GlassMaterial'));
-    expect(source, contains('static const _activationOriginCount = 13'));
-    expect(source, contains('double _originLifecycle'));
-    expect(source, contains('Offset _originPosition'));
-    expect(source, contains('double _originNoise'));
+    expect(source, contains('static const _activationEventCount = 37'));
+    expect(source, contains('static const _activationEpochCount = 7'));
+    expect(source, contains('double _eventSignal'));
+    expect(source, contains('Offset _eventPosition'));
+    expect(source, contains('Offset _eventAnchor'));
+    expect(source, contains('double _eventOrientation'));
+    expect(source, contains('double _eventNoise'));
     expect(source, contains('double _smoothStep'));
     expect(
       source,
-      contains('for (var origin = 0; origin < _activationOriginCount;'),
+      contains('for (var event = 0; event < _activationEventCount;'),
     );
-    expect(
-      source,
-      contains('final lifecycle = _originLifecycle(origin, phase)'),
-    );
-    expect(
-      source,
-      contains('final position = _originPosition(origin, phase, lifecycle)'),
-    );
-    expect(source, contains('final local = 1 - _smoothStep('));
+    expect(source, contains('final signal = _eventSignal(event, phase)'));
+    expect(source, contains('final position = _eventPosition(event, phase)'));
+    expect(source, contains('final curvedLateral ='));
+    expect(source, contains('final local ='));
     expect(source, contains('final forming = _smoothStep('));
     expect(source, contains('final dissolving = 1 - _smoothStep('));
     expect(source, isNot(contains('_spatialTimingVariation')));
+    expect(source, isNot(contains('_activationOriginCount')));
+    expect(source, isNot(contains('_originLifecycle')));
+    expect(source, isNot(contains('_originPosition')));
     expect(source, isNot(contains('final diagonal =')));
     expect(source, isNot(contains('final wave =')));
     expect(source, isNot(contains('final centerX =')));
