@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import 'dashboard_glass_card.dart';
 import 'global_touch_ripple.dart';
 
 enum OperationActionRole { primary, secondary, danger }
@@ -28,6 +29,7 @@ class OperationButton extends StatelessWidget {
   /// Allows an enclosing production glass surface to remain visible while
   /// retaining the button's established size, text, and interaction contract.
   final bool transparentSurface;
+  final bool dashboardGlass;
 
   const OperationButton({
     super.key,
@@ -38,6 +40,7 @@ class OperationButton extends StatelessWidget {
     this.reportUnavailableTap = false,
     this.deferFeedback = false,
     this.transparentSurface = false,
+    this.dashboardGlass = false,
   });
 
   @override
@@ -57,9 +60,15 @@ class OperationButton extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           elevation: transparentSurface ? 0 : 4,
-          backgroundColor: transparentSurface ? Colors.transparent : null,
-          shadowColor: transparentSurface ? Colors.transparent : null,
-          surfaceTintColor: transparentSurface ? Colors.transparent : null,
+          backgroundColor: transparentSurface || dashboardGlass
+              ? Colors.transparent
+              : null,
+          shadowColor: transparentSurface || dashboardGlass
+              ? Colors.transparent
+              : null,
+          surfaceTintColor: transparentSurface || dashboardGlass
+              ? Colors.transparent
+              : null,
           foregroundColor: foregroundColor,
           disabledForegroundColor: Theme.of(context).disabledColor,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
@@ -84,16 +93,25 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
+    final surfaced = dashboardGlass
+        ? Container(
+            decoration: DashboardGlassCard.decoration(
+              colorScheme,
+              borderRadius: AppRadius.medium,
+            ),
+            child: button,
+          )
+        : button;
     if (onPressed != null) {
       return ActionableFeedbackRegion(
         deferResolution: deferFeedback,
-        child: button,
+        child: surfaced,
       );
     }
-    if (!reportUnavailableTap) return button;
+    if (!reportUnavailableTap) return surfaced;
     return ActionableFeedbackRegion(
       result: ActionableFeedbackResult.unavailable,
-      child: button,
+      child: surfaced,
     );
   }
 }

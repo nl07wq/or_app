@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/dashboard_glass_card.dart';
+
 enum StatusCrtMonitorMode { normal, entry }
 
 /// The shared STATUS AppBar monitor. All motion is presentation-only.
@@ -161,17 +163,9 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
             width: StatusCrtMonitorTitle.width,
             height: StatusCrtMonitorTitle.height,
             child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xFF111719),
+              decoration: DashboardGlassCard.decoration(
+                Theme.of(context).colorScheme,
                 borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: const Color(0xFF536165), width: .8),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x66000000),
-                    blurRadius: 3,
-                    offset: Offset(0, 1),
-                  ),
-                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(3),

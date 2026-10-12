@@ -1,0 +1,27 @@
+name: Validate STATUS Glass and Rainbow
+
+on:
+  push:
+    branches: [codex/status-glass-rainbow-validation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter test test/features/morning/status_radial_spectrum_ambient_test.dart test/features/morning/status_crt_monitor_title_test.dart
+      - run: flutter analyze --no-fatal-infos
+      - run: git diff --check
+      - run: flutter build web --pwa-strategy=none
+      - uses: actions/upload-artifact@v4
+        with:
+          name: status-glass-web-build
+          path: build/web
