@@ -17,6 +17,9 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const cycleDuration = Duration(seconds: 13);
   static const equalizerSpeedMultiplier = 1.5;
   static const equalizerAmplitudeMultiplier = 1.3;
+  static const amplitudeTargetUpdatesPerSecond = 10;
+  static const amplitudeAttack = Duration(milliseconds: 60);
+  static const amplitudeRelease = Duration(milliseconds: 140);
 
   final bool enabled;
   final bool reducedMotion;
@@ -96,6 +99,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   final Animation<double> animation;
   final bool staticFrame;
   _SpectrumLayout? _layout;
+  static final _spectrumMotion = _FastSpectrumMotion();
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -158,7 +162,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
     for (var index = 0; index < StatusRadialSpectrumAmbient.barCount; index++) {
       final angle = layout.angles[index];
-      final amplitude = _amplitude(index, angle, spectrumTime);
+      final amplitude = _spectrumMotion.amplitudeFor(index, _time);
       final length =
           5 +
           layout.maxBarLength *
@@ -236,18 +240,20 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       index < StatusRadialSpectrumAmbient.bubbleCount;
       index++
     ) {
-      final speed = .26 + _noise(index, 1) * .24;
-      final progress = (time / (math.pi * 2) * speed + _noise(index, 2)) % 1;
+      final speed = .26 + _seededNoise(index, 1) * .24;
+      final progress =
+          (time / (math.pi * 2) * speed + _seededNoise(index, 2)) % 1;
       final appear = _smoothStep(.02, .16, progress);
       final dissolve = 1 - _smoothStep(.68, .98, progress);
       final alpha = appear * dissolve;
       if (alpha < .01) continue;
 
-      final baseAngle = _noise(index, 3) * math.pi * 2;
+      final baseAngle = _seededNoise(index, 3) * math.pi * 2;
       final angle = baseAngle + math.sin(time * .31 + index * .73) * .18;
-      final origin = layout.shortest * (.18 + _noise(index, 4) * .20);
+      final origin = layout.shortest * (.18 + _seededNoise(index, 4) * .20);
       final radius =
-          origin + layout.shortest * (.44 + _noise(index, 5) * .22) * progress;
+          origin +
+          layout.shortest * (.44 + _seededNoise(index, 5) * .22) * progress;
       final point = layout.center + Offset.fromDirection(angle, radius);
       // Let edge-bound bubbles dissolve naturally rather than clipping into
       // a line at a particular viewport boundary.
@@ -263,7 +269,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       final radiusPx =
           .8 +
           layout.shortest *
-              (.0015 + _noise(index, 6) * .0035) *
+              (.0015 + _seededNoise(index, 6) * .0035) *
               (.72 + .28 * math.sin(progress * math.pi));
       _bubbleHalo.color = color.withValues(alpha: visibility * .035);
       _bubbleNearHalo.color = color.withValues(alpha: visibility * .12);
@@ -318,29 +324,6 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     return t * t * (3 - 2 * t);
   }
 
-  double _noise(int index, int salt) {
-    var value = index * 73856093 ^ salt * 19349663 ^ 83492791;
-    value ^= value >> 13;
-    value *= 1274126177;
-    return (value & 0x7fffffff) / 0x7fffffff;
-  }
-
-  /// Neighboring bars share the traveling envelopes, while their smaller
-  /// deterministic offsets keep the spectrum from pulsing mechanically.
-  double _amplitude(int index, double angle, double time) {
-    final travelingPeak = .5 + .5 * math.sin(angle * 2.0 - time * 1.18);
-    final localBand = .5 + .5 * math.sin(angle * 8.0 + time * 2.7 + .48);
-    final detail = .5 + .5 * math.sin(index * 1.73 - time * 4.2);
-    final attack = math.pow(
-      (.04 + .55 * travelingPeak + .24 * localBand + .17 * detail).clamp(
-        0.0,
-        1.0,
-      ),
-      .72,
-    );
-    return attack.toDouble().clamp(.02, 1.0);
-  }
-
   Color _colorFor(double angle, double time, int index) {
     final region = ((angle / (math.pi * 2) + time * .035) * _palette.length)
         .floor();
@@ -354,6 +337,94 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   bool shouldRepaint(covariant _StatusRadialSpectrumPainter oldDelegate) =>
       oldDelegate.staticFrame != staticFrame ||
       oldDelegate.animation != animation;
+}
+
+/// Deterministic audio-spectrum targets. Targets are refreshed at 10 Hz;
+/// response is analytic between samples, so bars have a sharp attack and
+/// smooth release without per-frame random work or controller state resets.
+class _FastSpectrumMotion {
+  _FastSpectrumMotion()
+    : _targets = List<List<double>>.generate(
+        _targetCount,
+        (tick) => List<double>.generate(
+          StatusRadialSpectrumAmbient.barCount,
+          (index) => _targetFor(index, tick),
+          growable: false,
+        ),
+        growable: false,
+      ) {
+    var state = List<double>.filled(StatusRadialSpectrumAmbient.barCount, .08);
+    // Find the periodic steady state before recording it. Consequently the
+    // final target flows into the initial target without a controller reset.
+    for (var cycle = 0; cycle < 32; cycle++) {
+      for (final target in _targets) {
+        for (var index = 0; index < state.length; index++) {
+          state[index] = _settledValue(state[index], target[index], 1);
+        }
+      }
+    }
+    _states = List<List<double>>.generate(_targetCount, (tick) {
+      final snapshot = List<double>.of(state, growable: false);
+      final target = _targets[tick];
+      for (var index = 0; index < state.length; index++) {
+        state[index] = _settledValue(state[index], target[index], 1);
+      }
+      return snapshot;
+    }, growable: false);
+  }
+
+  static const _updateHz =
+      StatusRadialSpectrumAmbient.amplitudeTargetUpdatesPerSecond;
+  static const _targetCount = 13 * _updateHz;
+  static const _attackSeconds = .060;
+  static const _releaseSeconds = .140;
+
+  final List<List<double>> _targets;
+  late final List<List<double>> _states;
+
+  double amplitudeFor(int index, double cycleProgress) {
+    final tickPosition = cycleProgress * _targetCount;
+    final absoluteTick = tickPosition.floor();
+    final tick = absoluteTick % _targetCount;
+    final progress = tickPosition - absoluteTick;
+    return _settledValue(_states[tick][index], _targets[tick][index], progress);
+  }
+
+  static double _targetFor(int index, int tick) {
+    // Small four-bar neighborhoods share a changing peak, while each bar and
+    // its immediate neighbors preserve independent variation. The groups do
+    // not travel; new high regions occur at irregular positions each update.
+    final neighborhood =
+        (_seededNoise(index - 1, tick * 43 + 101) +
+            _seededNoise(index, tick * 43 + 101) +
+            _seededNoise(index + 1, tick * 43 + 101)) /
+        3;
+    final localPeak = _seededNoise(index ~/ 4, tick * 71 + 203);
+    final independent = _seededNoise(index, tick * 97 + 307);
+    final tallPeak = _seededNoise(index ~/ 3, tick * 131 + 401) > .90
+        ? .34 + _seededNoise(index, tick * 149 + 503) * .30
+        : 0.0;
+    return (.025 +
+            .29 * math.pow(neighborhood, 1.75) +
+            .28 * math.pow(localPeak, 2.15) +
+            .18 * math.pow(independent, 2.4) +
+            tallPeak)
+        .clamp(.02, 1.0)
+        .toDouble();
+  }
+
+  static double _settledValue(double current, double target, double progress) {
+    final seconds = progress / _updateHz;
+    final tau = target >= current ? _attackSeconds : _releaseSeconds;
+    return target + (current - target) * math.exp(-seconds / tau);
+  }
+}
+
+double _seededNoise(int index, int salt) {
+  var value = index * 73856093 ^ salt * 19349663 ^ 83492791;
+  value ^= value >> 13;
+  value *= 1274126177;
+  return (value & 0x7fffffff) / 0x7fffffff;
 }
 
 /// Geometry that is invariant until the ambient viewport changes size.

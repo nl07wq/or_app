@@ -14,14 +14,23 @@ void main() {
     );
     expect(StatusRadialSpectrumAmbient.equalizerSpeedMultiplier, 1.5);
     expect(StatusRadialSpectrumAmbient.equalizerAmplitudeMultiplier, 1.3);
+    expect(StatusRadialSpectrumAmbient.amplitudeTargetUpdatesPerSecond, 10);
+    expect(
+      StatusRadialSpectrumAmbient.amplitudeAttack,
+      const Duration(milliseconds: 60),
+    );
+    expect(
+      StatusRadialSpectrumAmbient.amplitudeRelease,
+      const Duration(milliseconds: 140),
+    );
 
     final source = File(
       'lib/features/morning/widgets/status_radial_spectrum_ambient.dart',
     ).readAsStringSync();
     expect(source, contains('class _StatusRadialSpectrumPainter'));
     expect(source, contains('Offset.fromDirection'));
-    expect(source, contains('localBand'));
-    expect(source, contains('travelingPeak'));
+    expect(source, isNot(contains('localBand')));
+    expect(source, isNot(contains('travelingPeak')));
     expect(source, contains('void _paintDonut'));
     expect(source, contains('void _paintBubbles'));
     expect(source, contains('SweepGradient'));
@@ -30,6 +39,14 @@ void main() {
     expect(source, contains('StatusRadialSpectrumAmbient.bubbleCount'));
     expect(source, contains('equalizerSpeedMultiplier'));
     expect(source, contains('equalizerAmplitudeMultiplier'));
+    expect(source, contains('class _FastSpectrumMotion'));
+    expect(source, contains('static const _updateHz'));
+    expect(source, contains('static const _attackSeconds = .060'));
+    expect(source, contains('static const _releaseSeconds = .140'));
+    expect(source, contains('final neighborhood ='));
+    expect(source, contains('final tallPeak ='));
+    expect(source, contains('_spectrumMotion.amplitudeFor'));
+    expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));
     expect(source, contains('drawCircle(point'));
