@@ -5,7 +5,7 @@ import 'package:flutter/scheduler.dart';
 
 /// Production Flutter-native Aurora Glass V8 ambient.
 ///
-/// The glass material is intentionally stable; continuous curved-fragment
+/// The glass material is intentionally stable; continuous, deformed ripple
 /// events control only when each square tile forms, reorganizes and dissolves.
 class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   const ActivityAmbientAuroraGlassCandidate({
@@ -119,7 +119,7 @@ class _AuroraGlassPainter extends CustomPainter {
     return states;
   }
 
-  /// Probabilistic union of every currently active finite curved band.
+  /// Probabilistic union of every currently active irregular ripple.
   double _tileState({
     required int row,
     required int column,
@@ -236,11 +236,12 @@ class _CurvedFragmentEvent {
     required this.start,
     required this.lifetime,
     required this.center,
-    required this.theta,
-    required this.radius,
-    required this.arcSpan,
+    required this.waveSpeed,
+    required this.phase1,
+    required this.phase2,
+    required this.noisePhase,
     required this.halfWidth,
-    required this.deformationPhase,
+    required this.fragmentPhase,
   });
 
   factory _CurvedFragmentEvent.fromIndex(int index) {
@@ -248,70 +249,91 @@ class _CurvedFragmentEvent {
       start:
           index / ActivityAmbientAuroraGlassCandidate.eventFrequency +
           (_eventNoise(index, 1) * 2 - 1) * .11,
-      lifetime: 1.6 + _eventNoise(index, 2) * 2.0,
+      lifetime: 2.4 + _eventNoise(index, 2) * 1.2,
       center: _eventCenter(index),
-      theta: _eventNoise(index, 3) * math.pi * 2,
-      radius: .10 + _eventNoise(index, 4) * .21,
-      arcSpan: .35 + _eventNoise(index, 5) * .95,
-      halfWidth: .035 + _eventNoise(index, 6) * .060,
-      deformationPhase: _eventNoise(index, 7) * math.pi * 2,
+      waveSpeed: .38 + _eventNoise(index, 3) * .16,
+      phase1: _eventNoise(index, 4) * math.pi * 2,
+      phase2: _eventNoise(index, 5) * math.pi * 2,
+      noisePhase: _eventNoise(index, 6) * math.pi * 2,
+      halfWidth: .072 + _eventNoise(index, 7) * .085,
+      fragmentPhase: _eventNoise(index, 8) * math.pi * 2,
     );
   }
 
   final double start;
   final double lifetime;
   final Offset center;
-  final double theta;
-  final double radius;
-  final double arcSpan;
+  final double waveSpeed;
+  final double phase1;
+  final double phase2;
+  final double noisePhase;
   final double halfWidth;
-  final double deformationPhase;
+  final double fragmentPhase;
 
   double activationAt({required Offset point, required double elapsed}) {
     final localTime = elapsed - start;
     final q = (localTime / lifetime).clamp(0.0, 1.0);
     if (localTime <= 0 || q >= 1) return 0;
-    final envelope = _smoothStep(0, .22, q) * (1 - _smoothStep(.62, 1, q));
+    final envelope = _smoothStep(0, .16, q) * (1 - _smoothStep(.66, 1, q));
     if (envelope <= 0) return 0;
 
-    final wobble = localTime * 1.15 + deformationPhase;
-    final orientation = theta + math.sin(wobble * .83) * .09;
-    final dynamicRadius = radius * (1 + math.sin(wobble * 1.17) * .055);
-    final arcCenter =
-        center +
-        Offset(math.cos(wobble * .71) * .008, math.sin(wobble * .93) * .008);
-    final relative = point - arcCenter;
-    final rawAngle = math.atan2(relative.dy, relative.dx);
-    final delta = _wrapAngle(
-      rawAngle - orientation,
-    ).clamp(-arcSpan / 2, arcSpan / 2);
-    final nearest =
-        arcCenter + Offset.fromDirection(orientation + delta, dynamicRadius);
-    final distance = (point - nearest).distance;
-    final spatial = 1 - _smoothStep(.25 * halfWidth, halfWidth, distance);
-    return envelope * spatial;
+    final relative = point - center;
+    final theta = math.atan2(relative.dy, relative.dx);
+    final radius = relative.distance;
+    final smoothNoise = _smoothSpatialNoise(theta, localTime, noisePhase);
+    final deformedFront =
+        waveSpeed * localTime +
+        .043 * math.sin(3 * theta + .7 * localTime + phase1) +
+        .024 * math.sin(7 * theta - .5 * localTime + phase2) +
+        .048 * (smoothNoise - .5);
+
+    // A correlated fragment field moves some neighboring cells slightly
+    // before or after the main front. This breaks a uniform annulus without
+    // turning the tile lifecycle into independent random flicker.
+    final fragment = _fragmentNoise(point, theta, localTime, fragmentPhase);
+    final localFront = deformedFront + (fragment - .5) * .095;
+    final localWidth = halfWidth * (.72 + fragment * .62);
+    final leadingDistance = math.max(0.0, radius - localFront).toDouble();
+    final trailingDistance = math.max(0.0, localFront - radius).toDouble();
+    final leading =
+        1 - _smoothStep(.12 * localWidth, localWidth, leadingDistance);
+    final trailing =
+        1 -
+        _smoothStep(
+          .18 * localWidth,
+          localWidth * (1.0 + fragment * .75),
+          trailingDistance,
+        );
+    final activation = leading * trailing * (.52 + fragment * .48);
+    return envelope * activation;
   }
 }
 
 Offset _eventCenter(int index) {
-  final previous = index == 0 ? null : _centerCandidate(index - 1, 0);
-  for (var attempt = 0; attempt < 6; attempt++) {
-    final candidate = _centerCandidate(index, attempt);
-    if (previous == null || (candidate - previous).distance >= .13) {
-      return candidate;
-    }
-  }
-  return _centerCandidate(index, 6);
+  final angle = _eventNoise(index, 101) * math.pi * 2;
+  // Successive waves share the viewport center while retaining a small,
+  // deterministic origin drift so their fronts can split and reconnect.
+  final radius = .004 + _eventNoise(index, 102) * .078;
+  return Offset(.5 + math.cos(angle) * radius, .5 + math.sin(angle) * radius);
 }
 
-Offset _centerCandidate(int index, int attempt) {
-  final angle = _eventNoise(index, 101 + attempt * 3) * math.pi * 2;
-  // Linear radius gives a weak center bias while still reaching the viewport.
-  final radius = .06 + _eventNoise(index, 102 + attempt * 3) * .59;
-  return Offset(
-    (.5 + math.cos(angle) * radius).clamp(.04, .96).toDouble(),
-    (.5 + math.sin(angle) * radius).clamp(.04, .96).toDouble(),
-  );
+double _smoothSpatialNoise(double theta, double time, double phase) {
+  final signal =
+      .48 * math.sin(2 * theta + time * .31 + phase) +
+      .32 * math.sin(5 * theta - time * .19 + phase * 1.7) +
+      .20 * math.sin(11 * theta + time * .13 + phase * .61);
+  return (.5 + signal * .5).clamp(0.0, 1.0);
+}
+
+double _fragmentNoise(Offset point, double theta, double time, double phase) {
+  final signal =
+      .46 * math.sin(point.dx * 15.7 + point.dy * 11.3 + time * .42 + phase) +
+      .34 *
+          math.sin(
+            point.dx * 7.1 - point.dy * 13.9 - time * .27 + phase * 1.4,
+          ) +
+      .20 * math.sin(theta * 6 + time * .18 + phase * .58);
+  return (.5 + signal * .5).clamp(0.0, 1.0);
 }
 
 double _eventNoise(int eventIndex, int parameterId) => _hash01(
@@ -336,16 +358,6 @@ double _hash01(int first, int second, int third) {
 double _smoothStep(double lower, double upper, double value) {
   final t = ((value - lower) / (upper - lower)).clamp(0.0, 1.0);
   return t * t * (3 - 2 * t);
-}
-
-double _wrapAngle(double value) {
-  while (value > math.pi) {
-    value -= math.pi * 2;
-  }
-  while (value < -math.pi) {
-    value += math.pi * 2;
-  }
-  return value;
 }
 
 class _GlassMaterial {

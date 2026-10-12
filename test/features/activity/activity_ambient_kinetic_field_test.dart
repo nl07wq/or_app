@@ -142,10 +142,15 @@ void main() {
     expect(source, contains('double activationAt'));
     expect(source, contains('static const eventFrequency = 2.09'));
     expect(source, contains('static const globalSeed = 51'));
-    expect(source, contains('final double arcSpan;'));
+    expect(source, contains('final double waveSpeed;'));
+    expect(source, contains('final double phase1;'));
+    expect(source, contains('final double phase2;'));
     expect(source, contains('final double halfWidth;'));
-    expect(source, contains('final nearest ='));
-    expect(source, contains('final distance ='));
+    expect(source, contains('final deformedFront ='));
+    expect(source, contains('double _smoothSpatialNoise'));
+    expect(source, contains('double _fragmentNoise'));
+    expect(source, contains('final localFront ='));
+    expect(source, contains('final localWidth ='));
     expect(source, contains('var remaining = 1.0'));
     expect(source, contains('remaining *= 1 - contribution'));
     expect(source, contains('final activationDelay'));
