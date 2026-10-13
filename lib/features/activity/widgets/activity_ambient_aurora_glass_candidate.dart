@@ -206,15 +206,9 @@ class _AuroraGlassPainter extends CustomPainter {
   }
 
   Color _tileRgb(int row, int column, int rows, double elapsed) {
-    // Coarse deterministic neighborhoods keep adjacent glass cells related,
-    // while the cell sample and temporal drift prevent large uniform zones.
-    final clusterColor =
-        .65 * _cellNoise(row ~/ 2, column ~/ 2, 53) +
-        .35 * _cellNoise((row + 1) ~/ 3, (column + 1) ~/ 3, 59);
     final hue =
-        .68 * clusterColor +
-        .32 * _cellNoise(row, column, 17) +
-        .12 * math.sin(elapsed * .55 + clusterColor * math.pi * 2);
+        _cellNoise(row, column, 17) +
+        .16 * math.sin(elapsed * .55 + column * .14);
     final recovered = Color.fromRGBO(
       ((.2 + .8 * math.max(0, math.sin(math.pi * 2 * hue))) * 255).round(),
       ((.30 + .65 * math.max(0, math.sin(math.pi * 2 * hue + 2.1))) * 255)
@@ -223,10 +217,9 @@ class _AuroraGlassPainter extends CustomPainter {
           .round(),
       255,
     );
-    final region = (.22 + .72 * hue + .06 * math.sin(rows * .013)).clamp(
-      0.0,
-      1.0,
-    );
+    final region =
+        .5 +
+        .5 * math.sin(column * .24 - row * .17 + elapsed * .36 + rows * .013);
     return Color.lerp(recovered, Color.lerp(_cyan, _magenta, region)!, .86)!;
   }
 
@@ -365,8 +358,8 @@ double _mosaicFragmentField(double dx, double dy, double time, double phase) {
   final radius = math.sqrt(dx * dx + dy * dy);
   // Quantizing only the activation field, rather than tile geometry, creates
   // uneven stepped groups while preserving the existing 30-column square grid.
-  final groupX = (dx / 2.2).floorToDouble();
-  final groupY = (dy / 2.2).floorToDouble();
+  final groupX = (dx / 3.6).floorToDouble();
+  final groupY = (dy / 3.6).floorToDouble();
   final grouped =
       .58 * math.sin(groupX * .91 + groupY * .57 + time * .17 + phase) +
       .42 * math.sin(groupX * .31 - groupY * .73 - time * .11 + phase * 1.7);

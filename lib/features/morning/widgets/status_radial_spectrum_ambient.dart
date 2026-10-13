@@ -114,6 +114,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   static final _pulseMotion = _StatusPulseMotion();
   static const _flameMotionSpeed = .65 * 1.30;
   static const _flameMotionAmplitude = 1.0 * 1.50;
+  static const _flameTongueCount = 17;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -480,12 +481,53 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   }
 
   double _flameContourExtension(double angle, double time) {
-    final broad =
-        math.sin(angle * 2 + time * .53 * _flameMotionSpeed + .37) * 3.2 +
-        math.sin(angle * 3 - time * .31 * _flameMotionSpeed + 1.83) * 1.85 +
-        math.sin(angle * 5 + time * .19 * _flameMotionSpeed + .91) * .95 +
-        math.sin(angle * 8 - time * .27 * _flameMotionSpeed + 2.34) * .48;
-    return (broad * _flameMotionAmplitude).clamp(-6.9, 6.9);
+    // A small moving base prevents an undeformed circle beneath the flames;
+    // every larger feature below belongs to this same continuous outer path.
+    var extension =
+        math.sin(angle * 3 + time * .22 * _flameMotionSpeed + .37) * .42 +
+        math.sin(angle * 5 - time * .16 * _flameMotionSpeed + 1.83) * .24;
+
+    for (var index = 0; index < _flameTongueCount; index++) {
+      final phase = _flameNoise(index, 1);
+      final cycle =
+          (time * (.17 + _flameNoise(index, 2) * .13) * _flameMotionSpeed +
+              phase) %
+          1;
+      // Each tongue returns to zero before its next emergence, so a local
+      // lifecycle can repeat without a global contour reset.
+      final lifetime =
+          _smoothStep(.03, .18, cycle) * (1 - _smoothStep(.58, .98, cycle));
+      if (lifetime <= .001) continue;
+
+      final width = .045 + _flameNoise(index, 3) * .075;
+      final lean =
+          (_flameNoise(index, 4) - .5) * 1.2 +
+          math.sin(time * .31 * _flameMotionSpeed + index * 1.71) * .32;
+      final center =
+          _flameNoise(index, 5) * math.pi * 2 + lean * width * lifetime;
+      final angularDistance = math.atan2(
+        math.sin(angle - center),
+        math.cos(angle - center),
+      ).abs();
+      if (angularDistance >= width) continue;
+
+      // The broad root narrows into a deliberately pointed tip. The center
+      // itself leans tangentially over its independent lifecycle.
+      final normalized = angularDistance / width;
+      final pointedProfile = math.pow(1 - normalized, .48).toDouble();
+      final height =
+          (2.1 + _flameNoise(index, 6) * 4.1) *
+          (1 + .16 * math.sin(time * .43 * _flameMotionSpeed + index));
+      extension += height * lifetime * pointedProfile;
+    }
+    return (extension * _flameMotionAmplitude).clamp(-6.9, 6.9);
+  }
+
+  double _flameNoise(int index, int parameter) {
+    var value = (index + 17) * 73856093 ^ parameter * 19349663;
+    value ^= value >> 13;
+    value *= 1274126177;
+    return (value & 0x7fffffff) / 0x7fffffff;
   }
 
   double _smoothStep(double lower, double upper, double value) {
