@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'touch_ripple_audio_stub.dart'
     if (dart.library.html) 'touch_ripple_audio_web.dart';
 import 'device_settings_controller.dart';
@@ -15,6 +17,39 @@ const touchRippleFailureAudioAssetUrl =
 const touchRippleExitAudioAssetUrl = 'assets/assets/audio/touch/button-09.mp3';
 
 enum TouchFeedbackSound { water, success, failure, exit }
+
+/// Opt-in, copyable event trace for investigating browser media behavior on a
+/// physical device. It is inert unless the public URL includes
+/// `?audioDiagnostics=true`.
+class TouchRippleAudioDiagnostics {
+  TouchRippleAudioDiagnostics._();
+
+  static const _maximumEntries = 64;
+  static final entries = ValueNotifier<List<String>>(const []);
+
+  static bool get enabled =>
+      Uri.base.queryParameters['audioDiagnostics'] == 'true';
+
+  static void record(String event, [Map<String, Object?> fields = const {}]) {
+    if (!enabled) return;
+    final detail = fields.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(' ');
+    final next = [
+      ...entries.value,
+      '${DateTime.now().toUtc().toIso8601String()} $event${detail.isEmpty ? '' : ' $detail'}',
+    ];
+    entries.value = List.unmodifiable(
+      next.length > _maximumEntries
+          ? next.sublist(next.length - _maximumEntries)
+          : next,
+    );
+  }
+
+  static String get report => entries.value.join('\n');
+
+  static void clear() => entries.value = const [];
+}
 
 const touchRippleWaterBaseVolume = .28;
 const touchRippleSemanticBaseVolume = .34;

@@ -79,7 +79,18 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
       sound,
       DeviceSettingsController.instance.value,
     );
-    if (volume <= 0) return;
+    TouchRippleAudioDiagnostics.record('PLAY_REQUESTED', {
+      'sound': sound.name,
+      'volume': volume.toStringAsFixed(3),
+      'active': _active.length,
+      'context': _audioContext?.state ?? 'none',
+    });
+    if (volume <= 0) {
+      TouchRippleAudioDiagnostics.record('PLAY_SKIPPED_MUTED_OR_ZERO', {
+        'sound': sound.name,
+      });
+      return;
+    }
     // Passive audio never displaces an in-progress semantic response.
     if (sound == TouchFeedbackSound.water &&
         _active.any((entry) => entry.sound != TouchFeedbackSound.water)) {
@@ -111,8 +122,18 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     audio.addEventListener('error', entry.error);
     _resumeAudioContext();
     audio.play().toDart.then<void>(
-      (_) {},
-      onError: (_) => _recoverFromPlaybackFailure(entry),
+      (_) => TouchRippleAudioDiagnostics.record('PLAY_PROMISE_RESOLVED', {
+        'sound': sound.name,
+        'time': audio.currentTime.toStringAsFixed(3),
+      }),
+      onError: (Object error, StackTrace stackTrace) {
+        TouchRippleAudioDiagnostics.record('PLAY_PROMISE_REJECTED', {
+          'sound': sound.name,
+          'errorType': error.runtimeType,
+          'error': error,
+        });
+        _recoverFromPlaybackFailure(entry);
+      },
     );
   }
 
@@ -138,6 +159,12 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     // by a newer semantic response.
     if (!_active.contains(entry)) return;
     final output = entry.output;
+    final error = output.audio.error;
+    TouchRippleAudioDiagnostics.record('MEDIA_FAILURE', {
+      'sound': entry.sound.name,
+      'mediaCode': error?.code ?? 'none',
+      'mediaMessage': error?.message ?? 'none',
+    });
     _remove(entry);
     if (identical(_prepared[entry.sound], output)) {
       _prepared.remove(entry.sound);
@@ -185,6 +212,7 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
         (HTMLAudioElement()
           ..src = Uri.base.resolve(_assetUrl(sound)).toString());
     audio.preload = 'auto';
+    _observeMedia(sound, audio);
     final output = outputFactory?.call(sound, audio) ?? _browserOutput(audio);
     output.setGain(
       touchFeedbackEffectiveVolume(
@@ -203,6 +231,7 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
         (HTMLAudioElement()
           ..src = Uri.base.resolve(_assetUrl(sound)).toString());
     audio.preload = 'auto';
+    _observeMedia(sound, audio);
     // Keep startup preparation independent of Web Audio.  Tests that inject
     // the output boundary retain their normal deterministic recording path.
     if (outputFactory != null) return outputFactory!(sound, audio);
@@ -221,8 +250,15 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     if (injected != null) return injected(audio);
     try {
       final context = _audioContext ??= AudioContext();
+      TouchRippleAudioDiagnostics.record('WEB_AUDIO_OUTPUT_CONNECTED', {
+        'context': context.state,
+      });
       return _WebAudioGainOutput(audio, context);
-    } catch (_) {
+    } catch (error) {
+      TouchRippleAudioDiagnostics.record('WEB_AUDIO_OUTPUT_FALLBACK', {
+        'errorType': error.runtimeType,
+        'error': error,
+      });
       // Older embedded browsers can advertise Web Audio but reject media
       // element routing. Keep the existing HTML audio fallback available.
     }
@@ -232,7 +268,46 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
   void _resumeAudioContext() {
     final context = _audioContext;
     if (context == null) return;
-    context.resume().toDart.then<void>((_) {}, onError: (_) {});
+    TouchRippleAudioDiagnostics.record('AUDIO_CONTEXT_RESUME_REQUESTED', {
+      'before': context.state,
+    });
+    context.resume().toDart.then<void>(
+      (_) => TouchRippleAudioDiagnostics.record('AUDIO_CONTEXT_RESUMED', {
+        'after': context.state,
+      }),
+      onError: (Object error, StackTrace stackTrace) =>
+          TouchRippleAudioDiagnostics.record('AUDIO_CONTEXT_RESUME_REJECTED', {
+            'errorType': error.runtimeType,
+            'error': error,
+          }),
+    );
+  }
+
+  void _observeMedia(TouchFeedbackSound sound, HTMLAudioElement audio) {
+    if (!TouchRippleAudioDiagnostics.enabled) return;
+    void record(String event) => TouchRippleAudioDiagnostics.record(event, {
+      'sound': sound.name,
+      'readyState': audio.readyState,
+      'networkState': audio.networkState,
+      'duration': audio.duration,
+    });
+    audio.addEventListener(
+      'loadstart',
+      ((Event _) => record('MEDIA_LOAD_START')).toJS,
+    );
+    audio.addEventListener(
+      'loadedmetadata',
+      ((Event _) => record('MEDIA_METADATA')).toJS,
+    );
+    audio.addEventListener(
+      'canplay',
+      ((Event _) => record('MEDIA_CAN_PLAY')).toJS,
+    );
+    audio.addEventListener(
+      'playing',
+      ((Event _) => record('MEDIA_PLAYING')).toJS,
+    );
+    audio.addEventListener('error', ((Event _) => record('MEDIA_ERROR')).toJS);
   }
 
   String _assetUrl(TouchFeedbackSound sound) => switch (sound) {

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/features/notifications/widgets/notification_settings_card.dart';
 
@@ -96,6 +98,10 @@ class DeviceSettingsPage extends StatelessWidget {
               ],
             ),
           ),
+          if (TouchRippleAudioDiagnostics.enabled) ...[
+            AppSpacing.gapSM,
+            _AudioDiagnosticCard(),
+          ],
           AppSpacing.gapXL,
           const SectionHeader(
             icon: Icons.notifications_outlined,
@@ -191,6 +197,43 @@ class DeviceSettingsPage extends StatelessWidget {
             ),
           ),
           AppSpacing.gapLG,
+        ],
+      ),
+    ),
+  );
+}
+
+class _AudioDiagnosticCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<List<String>>(
+    valueListenable: TouchRippleAudioDiagnostics.entries,
+    builder: (context, entries, _) => OperationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('AUDIO DIAGNOSTICS'),
+          AppSpacing.gapSM,
+          SelectableText(
+            entries.isEmpty
+                ? 'No events yet. Adjust REJECTED, then copy this report.'
+                : entries.join('\n'),
+            key: const ValueKey('audio-diagnostics-report'),
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            text: 'COPY AUDIO DIAGNOSTICS',
+            icon: Icons.copy_outlined,
+            onPressed: () async {
+              await Clipboard.setData(
+                ClipboardData(text: TouchRippleAudioDiagnostics.report),
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('AUDIO DIAGNOSTICS COPIED')),
+                );
+              }
+            },
+          ),
         ],
       ),
     ),
