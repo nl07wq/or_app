@@ -324,10 +324,26 @@ class _CurvedFragmentEvent {
     final frontRadius =
         waveSpeed * ActivityAmbientAuroraGlassCandidate.gridColumns * localTime;
     final distanceFromFront = (irregularDistance - frontRadius).abs();
+    // The previous narrow band read as a thin ◎ at device size. Widening the
+    // responsive grid-space front, and retaining a short, fading wake behind
+    // it, makes each event a broad tile formation rather than a line. This is
+    // measured in existing tile units: neither the viewport nor a prototype
+    // canvas/grid value participates in the geometry.
     final frontWidth =
-        halfWidth * ActivityAmbientAuroraGlassCandidate.gridColumns * .62;
-    final frontActivation =
-        1 - _smoothStep(frontWidth * .20, frontWidth, distanceFromFront);
+        halfWidth * ActivityAmbientAuroraGlassCandidate.gridColumns * 1.18;
+    final leadingActivation =
+        1 - _smoothStep(frontWidth * .14, frontWidth, distanceFromFront);
+    final distanceBehindFront = frontRadius - irregularDistance;
+    final wakeActivation = distanceBehindFront <= 0
+        ? 0.0
+        : (1 -
+                  _smoothStep(
+                    frontWidth * .25,
+                    frontWidth * 2.85,
+                    distanceBehindFront,
+                  )) *
+              .72;
+    final frontActivation = math.max(leadingActivation, wakeActivation);
     if (frontActivation <= 0) return 0;
 
     // Coarse correlated groups leave stepped, pixel-like arc fragments. They
@@ -358,8 +374,10 @@ double _mosaicFragmentField(double dx, double dy, double time, double phase) {
   final radius = math.sqrt(dx * dx + dy * dy);
   // Quantizing only the activation field, rather than tile geometry, creates
   // uneven stepped groups while preserving the existing 30-column square grid.
-  final groupX = (dx / 3.6).floorToDouble();
-  final groupY = (dy / 3.6).floorToDouble();
+  // Larger quantized activation regions form adjacent-tile mosaics while
+  // preserving the individual square tile pitch and responsive grid.
+  final groupX = (dx / 5.2).floorToDouble();
+  final groupY = (dy / 5.2).floorToDouble();
   final grouped =
       .58 * math.sin(groupX * .91 + groupY * .57 + time * .17 + phase) +
       .42 * math.sin(groupX * .31 - groupY * .73 - time * .11 + phase * 1.7);
