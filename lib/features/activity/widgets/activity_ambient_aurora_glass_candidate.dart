@@ -5,8 +5,9 @@ import 'package:flutter/scheduler.dart';
 
 /// Production Flutter-native Aurora Glass V8 ambient.
 ///
-/// The glass material is intentionally stable; continuous, irregular square
-/// ripples control only when each square tile forms, reorganizes and dissolves.
+/// The glass material is intentionally stable; continuous, organically
+/// deformed radial ripples control only when each square tile forms,
+/// reorganizes and dissolves.
 class ActivityAmbientAuroraGlassCandidate extends StatelessWidget {
   const ActivityAmbientAuroraGlassCandidate({
     super.key,
@@ -315,18 +316,18 @@ class _CurvedFragmentEvent {
     final envelope = _smoothStep(0, .16, q) * (1 - _smoothStep(.66, 1, q));
     if (envelope <= 0) return 0;
 
-    // Grid-space Chebyshev distance is the square-based ripple metric. The
-    // deformation is deliberately bounded so it roughens the front without
-    // replacing its unmistakable center-to-outside progression.
-    final squareDistance = math.max(dx.abs(), dy.abs());
-    final spatialVariation = _smoothSquareVariation(
+    // Euclidean grid distance is the primary propagation coordinate. The
+    // bounded angular deformation softens the front without replacing its
+    // center-to-outside progression with independent clusters or bands.
+    final radialDistance = math.sqrt(dx * dx + dy * dy);
+    final spatialVariation = _smoothRadialVariation(
       dx,
       dy,
       localTime,
       fragmentPhase,
     );
     final irregularDistance =
-        squareDistance + spatialVariation * 1.20 * variation;
+        radialDistance + spatialVariation * 1.20 * variation;
     final frontRadius =
         waveSpeed * ActivityAmbientAuroraGlassCandidate.gridColumns * localTime;
     final distanceFromFront = (irregularDistance - frontRadius).abs();
@@ -336,11 +337,11 @@ class _CurvedFragmentEvent {
         1 - _smoothStep(frontWidth * .20, frontWidth, distanceFromFront);
     if (frontActivation <= 0) return 0;
 
-    // Correlated grid-space gaps leave delayed and partial side segments.
-    // They evolve with the event but cannot form stationary vertical bands.
-    final fragments = _squareFragmentField(dx, dy, localTime, fragmentPhase);
+    // Correlated gaps leave delayed, diffusing arc fragments. They evolve with
+    // the event but cannot form stationary vertical or diagonal bands.
+    final fragments = _radialFragmentField(dx, dy, localTime, fragmentPhase);
     final partialFront = selectFragments
-        ? (squareDistance < 1.35
+        ? (radialDistance < 1.35
               ? .78 + fragments * .22
               : .46 + _smoothStep(.30, .70, fragments) * .54)
         : 1.0;
@@ -348,19 +349,23 @@ class _CurvedFragmentEvent {
   }
 }
 
-double _smoothSquareVariation(double dx, double dy, double time, double phase) {
+double _smoothRadialVariation(double dx, double dy, double time, double phase) {
+  final angle = math.atan2(dy, dx);
+  final radius = math.sqrt(dx * dx + dy * dy);
   final signal =
-      .52 * math.sin(dx * .51 + dy * .27 + time * .29 + phase) +
-      .31 * math.sin(dx * .19 - dy * .43 - time * .17 + phase * 1.6) +
-      .17 * math.sin(dx * .73 + dy * .68 + phase * .62);
+      .52 * math.sin(angle * 3 + time * .29 + phase) +
+      .31 * math.sin(angle * 7 - time * .17 + phase * 1.6) +
+      .17 * math.sin(radius * .73 + angle * 2 + phase * .62);
   return signal.clamp(-1.0, 1.0);
 }
 
-double _squareFragmentField(double dx, double dy, double time, double phase) {
+double _radialFragmentField(double dx, double dy, double time, double phase) {
+  final angle = math.atan2(dy, dx);
+  final radius = math.sqrt(dx * dx + dy * dy);
   final field =
-      .48 * math.sin(dx * .39 + dy * .21 + time * .33 + phase) +
-      .32 * math.sin(dx * .16 - dy * .47 - time * .19 + phase * 1.3) +
-      .20 * math.sin(dx * .62 + dy * .54 + time * .11 + phase * .71);
+      .48 * math.sin(angle * 4 + radius * .18 + time * .33 + phase) +
+      .32 * math.sin(angle * 9 - time * .19 + phase * 1.3) +
+      .20 * math.sin(radius * .62 + angle * 2 + time * .11 + phase * .71);
   return (.5 + field * .5).clamp(0.0, 1.0);
 }
 

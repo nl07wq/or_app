@@ -87,7 +87,7 @@ void main() {
     expect(source, contains('StatusRadialSpectrumAmbient.flameSampleCount'));
     expect(source, contains('void _appendDeformedRingContour'));
     expect(source, contains('void _paintHudRingPattern'));
-    expect(source, contains('const Color(0xFF03060D)'));
+    expect(source, contains('const Color(0x7003060D)'));
     expect(source, contains('for (var track = 0; track < 3; track++)'));
     expect(source, contains('markings.addOval'));
     expect(source, isNot(contains('const segmentCount = 13')));
@@ -101,6 +101,7 @@ void main() {
     expect(source, contains('time * .19 * _flameMotionSpeed'));
     expect(source, contains('deformed: false'));
     expect(source, contains('broad * _flameMotionAmplitude'));
+    expect(source, contains('clamp(-4.6, 4.6)'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));

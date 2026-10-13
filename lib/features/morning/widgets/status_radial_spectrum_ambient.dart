@@ -464,27 +464,27 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     // rainbow band. Their radii remain safely inside the hollow and outer
     // boundaries, so this does not add separate decorative rings.
     for (var track = 0; track < 3; track++) {
-      final grooveRadius = innerRadius + visibleThickness * (.18 + track * .22);
+      final grooveRadius = innerRadius + visibleThickness * (.14 + track * .16);
       markings.addOval(
         Rect.fromCircle(center: layout.center, radius: grooveRadius),
       );
     }
     _hudMarkingCore
       ..shader = null
-      ..strokeWidth = (layout.donutThickness * .075).clamp(.8, 1.4)
+      ..strokeWidth = (layout.donutThickness * .045).clamp(.5, .85)
       // The markings erase narrow sections from the luminous band instead
       // of adding a second color or a separate ornament layer.
-      ..color = const Color(0xFF03060D)
+      ..color = const Color(0x7003060D)
       ..maskFilter = null;
     canvas.drawPath(markings, _hudMarkingCore);
   }
 
   double _flameContourExtension(double angle, double time) {
     final broad =
-        math.sin(angle * 2 + time * .53 * _flameMotionSpeed + .37) * 2.5 +
-        math.sin(angle * 3 - time * .31 * _flameMotionSpeed + 1.83) * 1.45 +
-        math.sin(angle * 6 + time * .19 * _flameMotionSpeed + .91) * .75;
-    return (broad * _flameMotionAmplitude).clamp(-3.4, 3.4);
+        math.sin(angle * 2 + time * .53 * _flameMotionSpeed + .37) * 3.2 +
+        math.sin(angle * 3 - time * .31 * _flameMotionSpeed + 1.83) * 1.85 +
+        math.sin(angle * 5 + time * .19 * _flameMotionSpeed + .91) * .95;
+    return (broad * _flameMotionAmplitude).clamp(-4.6, 4.6);
   }
 
   double _smoothStep(double lower, double upper, double value) {

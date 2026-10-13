@@ -161,12 +161,14 @@ void main() {
     );
     expect(source, contains('final double waveSpeed;'));
     expect(source, contains('final double halfWidth;'));
-    expect(source, contains('final squareDistance ='));
+    expect(source, contains('final radialDistance ='));
     expect(source, contains('final irregularDistance ='));
     expect(source, contains('final frontRadius ='));
     expect(source, contains('final distanceFromFront ='));
-    expect(source, contains('double _smoothSquareVariation'));
-    expect(source, contains('double _squareFragmentField'));
+    expect(source, contains('double _smoothRadialVariation'));
+    expect(source, contains('double _radialFragmentField'));
+    expect(source, contains('math.sqrt(dx * dx + dy * dy)'));
+    expect(source, isNot(contains('final squareDistance =')));
     expect(source, contains('var remaining = 1.0'));
     expect(source, contains('remaining *= 1 - contribution'));
     expect(source, contains('final activationDelay'));
