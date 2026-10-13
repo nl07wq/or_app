@@ -16,9 +16,12 @@ TouchRippleAudio createPlatformTouchRippleAudio({
     HTMLAudioElement audio,
   )?
   outputFactory,
+  TouchFeedbackAudioOutput Function(HTMLAudioElement audio)?
+  browserOutputFactory,
 }) => _WebTouchRippleAudio(
   audioFactory: audioFactory,
   outputFactory: outputFactory,
+  browserOutputFactory: browserOutputFactory,
 );
 
 /// The final browser output stage used by the production touch-audio player.
@@ -32,7 +35,11 @@ abstract interface class TouchFeedbackAudioOutput {
 }
 
 class _WebTouchRippleAudio implements TouchRippleAudio {
-  _WebTouchRippleAudio({this.audioFactory, this.outputFactory});
+  _WebTouchRippleAudio({
+    this.audioFactory,
+    this.outputFactory,
+    this.browserOutputFactory,
+  });
 
   final HTMLAudioElement Function(TouchFeedbackSound)? audioFactory;
   final TouchFeedbackAudioOutput Function(
@@ -40,6 +47,8 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     HTMLAudioElement audio,
   )?
   outputFactory;
+  final TouchFeedbackAudioOutput Function(HTMLAudioElement audio)?
+  browserOutputFactory;
   final List<_ActiveSound> _active = [];
   final Map<TouchFeedbackSound, TouchFeedbackAudioOutput> _prepared = {};
   AudioContext? _audioContext;
@@ -51,8 +60,16 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
       DeviceSettingsController.instance.addListener(_applySettings);
       _listening = true;
     }
+    // Do not create an AudioContext or media-element source here.  `prepare`
+    // runs while the app tree is mounted, outside a user activation.  Mobile
+    // WebKit can keep such a context suspended through the first semantic
+    // feedback request, making that request silent until a later tap happens
+    // to resume it.  The selected output is instead created synchronously by
+    // [playFromUserGesture], inside the originating pointer/slider gesture.
+    // The plain media elements are still preloaded so the first permitted
+    // gesture does not have to wait for an uncached source request.
     for (final sound in TouchFeedbackSound.values) {
-      _prepared.putIfAbsent(sound, () => _newOutput(sound));
+      _prepared.putIfAbsent(sound, () => _newPreloadedOutput(sound));
     }
   }
 
@@ -77,12 +94,7 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
       // Only ambient sounds can coexist; replace the oldest bounded droplet.
       _stop(_active.first);
     }
-    final prepared = _prepared[sound];
-    final output =
-        prepared != null &&
-            !_active.any((entry) => identical(entry.output, prepared))
-        ? prepared
-        : _newOutput(sound);
+    final output = _outputForUserGesture(sound);
     final entry = _ActiveSound(sound, output);
     _active.add(entry);
     final audio = output.audio;
@@ -98,10 +110,10 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     audio.addEventListener('ended', entry.ended);
     audio.addEventListener('error', entry.error);
     _resumeAudioContext();
-    audio
-        .play()
-        .toDart
-        .then<void>((_) {}, onError: (_) => _recoverFromPlaybackFailure(entry));
+    audio.play().toDart.then<void>(
+      (_) {},
+      onError: (_) => _recoverFromPlaybackFailure(entry),
+    );
   }
 
   void _remove(_ActiveSound entry) {
@@ -144,6 +156,29 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     }
   }
 
+  /// Obtains a preloaded output without creating Web Audio until a real user
+  /// gesture asks for it.  A currently playing prepared source is never
+  /// reused: overlapping semantic requests retain their own media element.
+  TouchFeedbackAudioOutput _outputForUserGesture(TouchFeedbackSound sound) {
+    final prepared = _prepared[sound];
+    if (prepared != null &&
+        !_active.any((entry) => identical(entry.output, prepared))) {
+      if (_usesBrowserOutput && prepared is _HtmlAudioGainOutput) {
+        // Upgrade the preloaded media element only while a user gesture is
+        // active.  That is the point at which iPhone Safari permits the
+        // AudioContext to become an audible output.
+        final output = _browserOutput(prepared.audio);
+        _prepared[sound] = output;
+        prepared.dispose();
+        return output;
+      }
+      return prepared;
+    }
+    final output = _newOutput(sound);
+    _prepared.putIfAbsent(sound, () => output);
+    return output;
+  }
+
   TouchFeedbackAudioOutput _newOutput(TouchFeedbackSound sound) {
     final audio =
         audioFactory?.call(sound) ??
@@ -160,7 +195,30 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     return output;
   }
 
+  bool get _usesBrowserOutput => outputFactory == null;
+
+  TouchFeedbackAudioOutput _newPreloadedOutput(TouchFeedbackSound sound) {
+    final audio =
+        audioFactory?.call(sound) ??
+        (HTMLAudioElement()
+          ..src = Uri.base.resolve(_assetUrl(sound)).toString());
+    audio.preload = 'auto';
+    // Keep startup preparation independent of Web Audio.  Tests that inject
+    // the output boundary retain their normal deterministic recording path.
+    if (outputFactory != null) return outputFactory!(sound, audio);
+    final output = _HtmlAudioGainOutput(audio);
+    output.setGain(
+      touchFeedbackEffectiveVolume(
+        sound,
+        DeviceSettingsController.instance.value,
+      ),
+    );
+    return output;
+  }
+
   TouchFeedbackAudioOutput _browserOutput(HTMLAudioElement audio) {
+    final injected = browserOutputFactory;
+    if (injected != null) return injected(audio);
     try {
       final context = _audioContext ??= AudioContext();
       return _WebAudioGainOutput(audio, context);

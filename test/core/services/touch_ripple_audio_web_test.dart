@@ -23,6 +23,8 @@ void main() {
     );
     try {
       audio.prepare();
+      // Preparing retains preloaded media without creating production Web
+      // Audio output. Injected outputs remain observable for gain assertions.
       expect(outputs[TouchFeedbackSound.water]!.gain, .28);
       expect(outputs[TouchFeedbackSound.success]!.gain, .34);
       expect(outputs[TouchFeedbackSound.failure]!.gain, .34);
@@ -90,33 +92,64 @@ void main() {
     }
   });
 
-  test('failed REJECTED media is discarded before the next user gesture', () async {
-    final controller = DeviceSettingsController.instance;
-    final original = controller.value;
-    controller.resetForTesting(const DeviceSettings());
-    final outputs = <TouchFeedbackSound, List<_RecordingAudioOutput>>{};
-    final audio = createPlatformTouchRippleAudio(
-      audioFactory: (_) => HTMLAudioElement(),
-      outputFactory: (sound, element) {
-        final output = _RecordingAudioOutput(element);
-        outputs.putIfAbsent(sound, () => []).add(output);
-        return output;
-      },
-    );
-    try {
-      audio.prepare();
-      final first = outputs[TouchFeedbackSound.failure]!.single;
-      audio.playFromUserGesture(TouchFeedbackSound.failure);
-      first.audio.dispatchEvent(Event('error'));
-      audio.playFromUserGesture(TouchFeedbackSound.failure);
+  test(
+    'failed REJECTED media is discarded before the next user gesture',
+    () async {
+      final controller = DeviceSettingsController.instance;
+      final original = controller.value;
+      controller.resetForTesting(const DeviceSettings());
+      final outputs = <TouchFeedbackSound, List<_RecordingAudioOutput>>{};
+      final audio = createPlatformTouchRippleAudio(
+        audioFactory: (_) => HTMLAudioElement(),
+        outputFactory: (sound, element) {
+          final output = _RecordingAudioOutput(element);
+          outputs.putIfAbsent(sound, () => []).add(output);
+          return output;
+        },
+      );
+      try {
+        audio.prepare();
+        final first = outputs[TouchFeedbackSound.failure]!.single;
+        audio.playFromUserGesture(TouchFeedbackSound.failure);
+        first.audio.dispatchEvent(Event('error'));
+        audio.playFromUserGesture(TouchFeedbackSound.failure);
 
-      expect(outputs[TouchFeedbackSound.failure], hasLength(2));
-      expect(first.disposed, isTrue);
-    } finally {
-      audio.dispose();
-      controller.resetForTesting(original);
-    }
-  });
+        expect(outputs[TouchFeedbackSound.failure], hasLength(2));
+        expect(first.disposed, isTrue);
+      } finally {
+        audio.dispose();
+        controller.resetForTesting(original);
+      }
+    },
+  );
+
+  test(
+    'REJECTED creates its Web Audio output inside the first user gesture',
+    () {
+      final controller = DeviceSettingsController.instance;
+      final original = controller.value;
+      controller.resetForTesting(const DeviceSettings());
+      var browserOutputCreations = 0;
+      final audio = createPlatformTouchRippleAudio(
+        audioFactory: (_) => HTMLAudioElement(),
+        browserOutputFactory: (element) {
+          browserOutputCreations++;
+          return _RecordingAudioOutput(element);
+        },
+      );
+      try {
+        audio.prepare();
+        expect(browserOutputCreations, 0);
+
+        audio.playFromUserGesture(TouchFeedbackSound.failure);
+
+        expect(browserOutputCreations, 1);
+      } finally {
+        audio.dispose();
+        controller.resetForTesting(original);
+      }
+    },
+  );
 }
 
 class _RecordingAudioOutput implements TouchFeedbackAudioOutput {
