@@ -143,13 +143,6 @@ class _AuroraGlassPainter extends CustomPainter {
     required double elapsed,
     required List<_CurvedFragmentEvent> events,
   }) {
-    final point = Offset(
-      (column + .5) / ActivityAmbientAuroraGlassCandidate.gridColumns,
-      // The event model is evaluated in the specified normalized viewport
-      // coordinates (u = x / width, v = y / height). Tiles remain square
-      // because their rendered pitch is derived only from viewport width.
-      (row + .5) / (rows - 2),
-    );
     final tileNoise = _tileNoise(row, column);
     final activationDelay = (tileNoise - .5) * .28 * _motionVariation;
     final thresholdOffset =
