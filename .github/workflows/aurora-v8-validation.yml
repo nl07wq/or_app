@@ -18,11 +18,25 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - name: Update approved Aurora golden on Linux
+      - name: Update approved Aurora goldens on Linux
         if: "!contains(github.event.head_commit.message, '[golden-update]')"
         run: |
-          flutter test test/features/activity/activity_ambient_kinetic_field_test.dart --plain-name "ActivityPage gives default Aurora Glass its full Scaffold body" --update-goldens
-          git add test/features/activity/goldens/activity_scope_below_record.png
+          for test_name in \
+            "Aurora Glass candidate fills a static reduced-motion viewport" \
+            "renders a valid static measurement field for reduced motion" \
+            "keeps the supplied composition aligned with the scanning HUD" \
+            "keeps the supplied composition within the stationary scope" \
+            "keeps the static fallback aligned while the HUD scans" \
+            "keeps the ambient composition stable through 30 seconds"; do
+            flutter test test/features/activity/activity_ambient_kinetic_field_test.dart --plain-name "$test_name" --update-goldens
+          done
+          git add \
+            test/features/activity/goldens/activity_aurora_glass_fullscreen_static.png \
+            test/features/activity/goldens/activity_kinetic_measurement_static.png \
+            test/features/activity/goldens/activity_kinetic_measurement_tracking.png \
+            test/features/activity/goldens/activity_kinetic_measurement_accumulated.png \
+            test/features/activity/goldens/activity_kinetic_measurement_lower_viewport.png \
+            test/features/activity/goldens/activity_kinetic_measurement_30_seconds.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git diff --cached --quiet || git commit -m "[golden-update] Update Aurora CI golden"
