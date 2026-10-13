@@ -93,9 +93,9 @@ void main() {
     expect(source, isNot(contains('const segmentCount = 13')));
     expect(source, contains('double _flameContourExtension'));
     expect(source, isNot(contains('_flameTonguePath')));
-    expect(source, contains('static const _flameTongueCount = 17'));
-    expect(source, contains('static const _flameMotionSpeed = .65 * 1.30'));
-    expect(source, contains('static const _flameMotionAmplitude = 1.0 * 1.50'));
+    expect(source, contains('static const _flameTongueCount = 13'));
+    expect(source, contains('static const _flameMotionSpeed = .65 * 2.0'));
+    expect(source, contains('static const _flameMotionAmplitude = .70'));
     expect(source, contains('final pointedProfile'));
     expect(source, contains('final signedDistance'));
     expect(source, contains('final rootWidth'));
@@ -105,7 +105,8 @@ void main() {
     expect(source, contains('final lifetime'));
     expect(source, contains('deformed: false'));
     expect(source, contains('extension * _flameMotionAmplitude'));
-    expect(source, contains('clamp(-4.2, 11.8)'));
+    expect(source, contains('math.pow(1 - normalized, 1.35).toDouble()'));
+    expect(source, contains('clamp(-1.4, 6.5)'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));

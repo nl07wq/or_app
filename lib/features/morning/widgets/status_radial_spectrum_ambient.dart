@@ -112,9 +112,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   _SpectrumLayout? _layout;
   static final _spectrumMotion = _FastSpectrumMotion();
   static final _pulseMotion = _StatusPulseMotion();
-  static const _flameMotionSpeed = .65 * 1.30;
-  static const _flameMotionAmplitude = 1.0 * 1.50;
-  static const _flameTongueCount = 17;
+  static const _flameMotionSpeed = .65 * 2.0;
+  static const _flameMotionAmplitude = .70;
+  static const _flameTongueCount = 13;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -392,22 +392,22 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     ).createShader(oval);
     _donutBroadHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .72)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .48)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.72 + pulse * .30),
+              visibleThickness * (.48 + pulse * .20),
             )
       ..shader = shader
-      ..strokeWidth = visibleThickness * (1.35 + pulse * .18);
+      ..strokeWidth = visibleThickness * (.92 + pulse * .12);
     _donutNearHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .22)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .14)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.22 + pulse * .08),
+              visibleThickness * (.14 + pulse * .06),
             )
       ..shader = shader
-      ..strokeWidth = visibleThickness * (1.05 + pulse * .08);
+      ..strokeWidth = visibleThickness * (.82 + pulse * .06);
     _donutCore..shader = shader;
     canvas
       ..drawPath(outer, _donutBroadHalo)
@@ -476,8 +476,8 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     // A small moving base prevents an undeformed circle beneath the flames;
     // every larger feature below belongs to this same continuous outer path.
     var extension =
-        math.sin(angle * 3 + time * .22 * _flameMotionSpeed + .37) * .42 +
-        math.sin(angle * 5 - time * .16 * _flameMotionSpeed + 1.83) * .24;
+        math.sin(angle * 3 + time * .22 * _flameMotionSpeed + .37) * .24 +
+        math.sin(angle * 5 - time * .16 * _flameMotionSpeed + 1.83) * .14;
 
     for (var index = 0; index < _flameTongueCount; index++) {
       final phase = _flameNoise(index, 1);
@@ -493,9 +493,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
 
       final rootCenter = _flameNoise(index, 5) * math.pi * 2;
       final lean =
-          (_flameNoise(index, 4) - .5) * 1.2 +
-          math.sin(time * .31 * _flameMotionSpeed + index * 1.71) * .32;
-      final rootWidth = .070 + _flameNoise(index, 3) * .095;
+          (_flameNoise(index, 4) - .5) * .92 +
+          math.sin(time * .31 * _flameMotionSpeed + index * 1.71) * .24;
+      final rootWidth = .044 + _flameNoise(index, 3) * .050;
       final tipCenter = rootCenter + lean * rootWidth * lifetime;
       final signedDistance = math.atan2(
         math.sin(angle - tipCenter),
@@ -504,21 +504,21 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       // Unequal sides make each root broad but its tip lean and narrow rather
       // than forming a symmetric sine bump.
       final sideWidth = signedDistance < 0
-          ? rootWidth * (.68 + _flameNoise(index, 7) * .28)
-          : rootWidth * (1.05 + _flameNoise(index, 8) * .32);
+          ? rootWidth * (.55 + _flameNoise(index, 7) * .22)
+          : rootWidth * (.82 + _flameNoise(index, 8) * .28);
       final normalized = signedDistance.abs() / sideWidth;
       if (normalized >= 1) continue;
 
       // A linear taper preserves a distinct cusp at the tip. Because the
       // contour uses line segments above, this slope break remains visible
       // instead of being rounded away by spline interpolation.
-      final pointedProfile = 1 - normalized;
+      final pointedProfile = math.pow(1 - normalized, 1.35).toDouble();
       final height =
-          (3.2 + _flameNoise(index, 6) * 7.0) *
+          (3.0 + _flameNoise(index, 6) * 5.2) *
           (1 + .16 * math.sin(time * .43 * _flameMotionSpeed + index));
       extension += height * lifetime * pointedProfile;
     }
-    return (extension * _flameMotionAmplitude).clamp(-4.2, 11.8);
+    return (extension * _flameMotionAmplitude).clamp(-1.4, 6.5);
   }
 
   double _flameNoise(int index, int parameter) {
