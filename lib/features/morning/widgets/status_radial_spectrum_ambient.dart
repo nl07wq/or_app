@@ -112,8 +112,8 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   _SpectrumLayout? _layout;
   static final _spectrumMotion = _FastSpectrumMotion();
   static final _pulseMotion = _StatusPulseMotion();
-  static const _flameMotionSpeed = .65 * 2.0;
-  static const _flameMotionAmplitude = .70;
+  static const _flameMotionSpeed = 2.05;
+  static const _flameMotionAmplitude = .96;
   static const _flameTongueCount = 13;
 
   // These paints are mutable drawing resources, deliberately retained by the
@@ -141,6 +141,10 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   final _donutNearHalo = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+  final _donutEdgeCore = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.butt
+    ..strokeJoin = StrokeJoin.miter;
   final _ringBandPath = Path();
   final _ringOuterPath = Path();
   final _hudMarkingPath = Path();
@@ -392,27 +396,36 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     ).createShader(oval);
     _donutBroadHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .48)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .18)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.48 + pulse * .20),
+              visibleThickness * (.18 + pulse * .07),
             )
       ..shader = shader
-      ..strokeWidth = visibleThickness * (.92 + pulse * .12);
+      ..strokeJoin = StrokeJoin.miter
+      ..strokeWidth = visibleThickness * (.34 + pulse * .05);
     _donutNearHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .14)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .055)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.14 + pulse * .06),
+              visibleThickness * (.055 + pulse * .025),
             )
       ..shader = shader
-      ..strokeWidth = visibleThickness * (.82 + pulse * .06);
-    _donutCore..shader = shader;
+      ..strokeJoin = StrokeJoin.miter
+      ..strokeWidth = visibleThickness * (.20 + pulse * .03);
+    _donutCore.shader = shader;
+    _donutEdgeCore
+      ..shader = shader
+      ..strokeWidth = (visibleThickness * .12).clamp(.7, 1.35);
     canvas
       ..drawPath(outer, _donutBroadHalo)
       ..drawPath(outer, _donutNearHalo)
-      ..drawPath(band, _donutCore);
+      ..drawPath(band, _donutCore)
+      // Draw this after the filled ring and its glow: the mitered edge keeps
+      // every local flame tip visible in the final composite rather than
+      // allowing the broad halo to rebuild a smooth circular silhouette.
+      ..drawPath(outer, _donutEdgeCore);
     _paintHudRingPattern(canvas, layout, nominalOuter, visibleThickness);
   }
 
@@ -473,16 +486,17 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   }
 
   double _flameContourExtension(double angle, double time) {
-    // A small moving base prevents an undeformed circle beneath the flames;
-    // every larger feature below belongs to this same continuous outer path.
+    // Keep the resting rim close to circular between individual formations.
+    // This establishes visible depth at the roots instead of rebuilding a
+    // continuous sine-wave halo beneath the sharp tongues.
     var extension =
-        math.sin(angle * 3 + time * .22 * _flameMotionSpeed + .37) * .24 +
-        math.sin(angle * 5 - time * .16 * _flameMotionSpeed + 1.83) * .14;
+        math.sin(angle * 3 + time * .22 * _flameMotionSpeed + .37) * .055 +
+        math.sin(angle * 5 - time * .16 * _flameMotionSpeed + 1.83) * .035;
 
     for (var index = 0; index < _flameTongueCount; index++) {
       final phase = _flameNoise(index, 1);
       final cycle =
-          (time * (.17 + _flameNoise(index, 2) * .13) * _flameMotionSpeed +
+          (time * (.28 + _flameNoise(index, 2) * .18) * _flameMotionSpeed +
               phase) %
           1;
       // Each tongue returns to zero before its next emergence, so a local
@@ -495,7 +509,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       final lean =
           (_flameNoise(index, 4) - .5) * .92 +
           math.sin(time * .31 * _flameMotionSpeed + index * 1.71) * .24;
-      final rootWidth = .044 + _flameNoise(index, 3) * .050;
+      final rootWidth = .036 + _flameNoise(index, 3) * .060;
       final tipCenter = rootCenter + lean * rootWidth * lifetime;
       final signedDistance = math.atan2(
         math.sin(angle - tipCenter),
@@ -504,21 +518,23 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       // Unequal sides make each root broad but its tip lean and narrow rather
       // than forming a symmetric sine bump.
       final sideWidth = signedDistance < 0
-          ? rootWidth * (.55 + _flameNoise(index, 7) * .22)
-          : rootWidth * (.82 + _flameNoise(index, 8) * .28);
+          ? rootWidth * (.48 + _flameNoise(index, 7) * .26)
+          : rootWidth * (.86 + _flameNoise(index, 8) * .30);
       final normalized = signedDistance.abs() / sideWidth;
       if (normalized >= 1) continue;
 
-      // A linear taper preserves a distinct cusp at the tip. Because the
-      // contour uses line segments above, this slope break remains visible
-      // instead of being rounded away by spline interpolation.
-      final pointedProfile = math.pow(1 - normalized, 1.35).toDouble();
+      // A linear taper deliberately leaves a cusp at the tip. An eased power
+      // curve flattened that apex before the renderer even reached the glow
+      // stage, reading as a rounded bump on a phone-sized ring.
+      final pointedProfile = 1 - normalized;
       final height =
-          (3.0 + _flameNoise(index, 6) * 5.2) *
-          (1 + .16 * math.sin(time * .43 * _flameMotionSpeed + index));
+          (4.2 +
+              _flameNoise(index, 6) * 5.6 +
+              (_flameNoise(index, 9) > .82 ? 4.6 : 0)) *
+          (1 + .18 * math.sin(time * .56 * _flameMotionSpeed + index));
       extension += height * lifetime * pointedProfile;
     }
-    return (extension * _flameMotionAmplitude).clamp(-1.4, 6.5);
+    return (extension * _flameMotionAmplitude).clamp(-.35, 11.2);
   }
 
   double _flameNoise(int index, int parameter) {
