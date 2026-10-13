@@ -94,14 +94,14 @@ void main() {
     expect(source, contains('double _flameContourExtension'));
     expect(source, isNot(contains('_flameTonguePath')));
     expect(source, isNot(contains('flameTongueCount')));
-    expect(source, contains('static const _flameMotionSpeed = .65'));
-    expect(source, contains('static const _flameMotionAmplitude = 1.0'));
+    expect(source, contains('static const _flameMotionSpeed = .65 * 1.30'));
+    expect(source, contains('static const _flameMotionAmplitude = 1.0 * 1.50'));
     expect(source, contains('time * .53 * _flameMotionSpeed'));
     expect(source, contains('time * .31 * _flameMotionSpeed'));
     expect(source, contains('time * .19 * _flameMotionSpeed'));
     expect(source, contains('deformed: false'));
     expect(source, contains('broad * _flameMotionAmplitude'));
-    expect(source, contains('clamp(-4.6, 4.6)'));
+    expect(source, contains('clamp(-6.9, 6.9)'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));

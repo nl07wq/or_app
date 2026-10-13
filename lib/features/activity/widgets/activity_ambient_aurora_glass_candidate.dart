@@ -206,9 +206,15 @@ class _AuroraGlassPainter extends CustomPainter {
   }
 
   Color _tileRgb(int row, int column, int rows, double elapsed) {
+    // Coarse deterministic neighborhoods keep adjacent glass cells related,
+    // while the cell sample and temporal drift prevent large uniform zones.
+    final clusterColor =
+        .65 * _cellNoise(row ~/ 2, column ~/ 2, 53) +
+        .35 * _cellNoise((row + 1) ~/ 3, (column + 1) ~/ 3, 59);
     final hue =
-        _cellNoise(row, column, 17) +
-        .16 * math.sin(elapsed * .55 + column * .14);
+        .68 * clusterColor +
+        .32 * _cellNoise(row, column, 17) +
+        .12 * math.sin(elapsed * .55 + clusterColor * math.pi * 2);
     final recovered = Color.fromRGBO(
       ((.2 + .8 * math.max(0, math.sin(math.pi * 2 * hue))) * 255).round(),
       ((.30 + .65 * math.max(0, math.sin(math.pi * 2 * hue + 2.1))) * 255)
@@ -217,9 +223,10 @@ class _AuroraGlassPainter extends CustomPainter {
           .round(),
       255,
     );
-    final region =
-        .5 +
-        .5 * math.sin(column * .24 - row * .17 + elapsed * .36 + rows * .013);
+    final region = (.22 + .72 * hue + .06 * math.sin(rows * .013)).clamp(
+      0.0,
+      1.0,
+    );
     return Color.lerp(recovered, Color.lerp(_cyan, _magenta, region)!, .86)!;
   }
 
@@ -330,13 +337,14 @@ class _CurvedFragmentEvent {
         1 - _smoothStep(frontWidth * .20, frontWidth, distanceFromFront);
     if (frontActivation <= 0) return 0;
 
-    // Correlated gaps leave delayed, diffusing arc fragments. They evolve with
-    // the event but cannot form stationary vertical or diagonal bands.
-    final fragments = _radialFragmentField(dx, dy, localTime, fragmentPhase);
+    // Coarse correlated groups leave stepped, pixel-like arc fragments. They
+    // evolve with the event but cannot form stationary vertical or diagonal
+    // bands, nor a smooth continuous circular outline.
+    final fragments = _mosaicFragmentField(dx, dy, localTime, fragmentPhase);
     final partialFront = selectFragments
         ? (radialDistance < 1.35
               ? .78 + fragments * .22
-              : .46 + _smoothStep(.30, .70, fragments) * .54)
+              : .22 + _smoothStep(.42, .73, fragments) * .78)
         : 1.0;
     return envelope * frontActivation * partialFront;
   }
@@ -352,13 +360,20 @@ double _smoothRadialVariation(double dx, double dy, double time, double phase) {
   return signal.clamp(-1.0, 1.0);
 }
 
-double _radialFragmentField(double dx, double dy, double time, double phase) {
+double _mosaicFragmentField(double dx, double dy, double time, double phase) {
   final angle = math.atan2(dy, dx);
   final radius = math.sqrt(dx * dx + dy * dy);
+  // Quantizing only the activation field, rather than tile geometry, creates
+  // uneven stepped groups while preserving the existing 30-column square grid.
+  final groupX = (dx / 2.2).floorToDouble();
+  final groupY = (dy / 2.2).floorToDouble();
+  final grouped =
+      .58 * math.sin(groupX * .91 + groupY * .57 + time * .17 + phase) +
+      .42 * math.sin(groupX * .31 - groupY * .73 - time * .11 + phase * 1.7);
   final field =
-      .48 * math.sin(angle * 4 + radius * .18 + time * .33 + phase) +
-      .32 * math.sin(angle * 9 - time * .19 + phase * 1.3) +
-      .20 * math.sin(radius * .62 + angle * 2 + time * .11 + phase * .71);
+      .54 * grouped +
+      .29 * math.sin(angle * 5 + radius * .18 + time * .33 + phase) +
+      .17 * math.sin(angle * 9 - time * .19 + phase * 1.3);
   return (.5 + field * .5).clamp(0.0, 1.0);
 }
 

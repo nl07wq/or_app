@@ -166,7 +166,9 @@ void main() {
     expect(source, contains('final frontRadius ='));
     expect(source, contains('final distanceFromFront ='));
     expect(source, contains('double _smoothRadialVariation'));
-    expect(source, contains('double _radialFragmentField'));
+    expect(source, contains('double _mosaicFragmentField'));
+    expect(source, contains('final groupX = (dx / 2.2).floorToDouble()'));
+    expect(source, contains('final clusterColor ='));
     expect(source, contains('math.sqrt(dx * dx + dy * dy)'));
     expect(source, isNot(contains('final squareDistance =')));
     expect(source, contains('var remaining = 1.0'));

@@ -112,8 +112,8 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   _SpectrumLayout? _layout;
   static final _spectrumMotion = _FastSpectrumMotion();
   static final _pulseMotion = _StatusPulseMotion();
-  static const _flameMotionSpeed = .65;
-  static const _flameMotionAmplitude = 1.0;
+  static const _flameMotionSpeed = .65 * 1.30;
+  static const _flameMotionAmplitude = 1.0 * 1.50;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -483,8 +483,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     final broad =
         math.sin(angle * 2 + time * .53 * _flameMotionSpeed + .37) * 3.2 +
         math.sin(angle * 3 - time * .31 * _flameMotionSpeed + 1.83) * 1.85 +
-        math.sin(angle * 5 + time * .19 * _flameMotionSpeed + .91) * .95;
-    return (broad * _flameMotionAmplitude).clamp(-4.6, 4.6);
+        math.sin(angle * 5 + time * .19 * _flameMotionSpeed + .91) * .95 +
+        math.sin(angle * 8 - time * .27 * _flameMotionSpeed + 2.34) * .48;
+    return (broad * _flameMotionAmplitude).clamp(-6.9, 6.9);
   }
 
   double _smoothStep(double lower, double upper, double value) {
