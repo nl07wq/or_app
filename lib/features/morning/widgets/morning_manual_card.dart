@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../morning_fact_page.dart';
@@ -22,6 +23,11 @@ class MorningManualCard extends StatelessWidget {
       text: "STATUS ENTRY",
       dashboardGlass: true,
       reportUnavailableTap: reportUnavailableTap,
+      onUnavailableTap: reportUnavailableTap
+          ? () => TouchRippleAudioDiagnostics.record(
+              'STATUS_DISABLED_ENTRY_POINTER_DOWN',
+            )
+          : null,
       onPressed: appInitializationController.value.isReadOnly || !enabled
           ? null
           : () {

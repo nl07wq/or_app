@@ -1,6 +1,9 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
+import 'dart:async';
 import 'dart:js_interop';
+import 'dart:math' show sqrt;
+import 'dart:typed_data' as typed_data;
 
 import 'package:web/web.dart';
 
@@ -34,7 +37,8 @@ abstract interface class TouchFeedbackAudioOutput {
   void dispose();
 }
 
-class _WebTouchRippleAudio implements TouchRippleAudio {
+class _WebTouchRippleAudio
+    implements TouchRippleAudio, TouchRippleAudioDiagnosticPlayer {
   _WebTouchRippleAudio({
     this.audioFactory,
     this.outputFactory,
@@ -74,7 +78,22 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
   }
 
   @override
-  void playFromUserGesture(TouchFeedbackSound sound) {
+  void playFromUserGesture(TouchFeedbackSound sound) => _play(sound);
+
+  @override
+  void playDiagnosticRejected(TouchFeedbackDiagnosticRoute route) {
+    if (!TouchRippleAudioDiagnostics.enabled) return;
+    TouchRippleAudioDiagnostics.record('DIAGNOSTIC_ROUTE_SELECTED', {
+      'route': route.name,
+      'asset': touchRippleFailureAudioAssetUrl,
+    });
+    _play(TouchFeedbackSound.failure, diagnosticRoute: route);
+  }
+
+  void _play(
+    TouchFeedbackSound sound, {
+    TouchFeedbackDiagnosticRoute? diagnosticRoute,
+  }) {
     final volume = touchFeedbackEffectiveVolume(
       sound,
       DeviceSettingsController.instance.value,
@@ -85,6 +104,9 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
       'active': _active.length,
       'context': _audioContext?.state ?? 'none',
     });
+    if (TouchRippleAudioDiagnostics.enabled) {
+      unawaited(_inspectSignal(sound));
+    }
     if (volume <= 0) {
       TouchRippleAudioDiagnostics.record('PLAY_SKIPPED_MUTED_OR_ZERO', {
         'sound': sound.name,
@@ -105,12 +127,13 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
       // Only ambient sounds can coexist; replace the oldest bounded droplet.
       _stop(_active.first);
     }
-    final output = _outputForUserGesture(sound);
+    final output = _outputForUserGesture(sound, diagnosticRoute);
     final entry = _ActiveSound(sound, output);
     _active.add(entry);
     final audio = output.audio;
     audio.currentTime = 0;
     output.setGain(volume);
+    _recordOutputState(sound, output, diagnosticRoute);
     entry.ended = ((Event _) => _remove(entry)).toJS;
     // A media element can enter an error state after an interrupted or
     // rejected play request on mobile WebKit.  Keeping that prepared element
@@ -135,6 +158,17 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
         _recoverFromPlaybackFailure(entry);
       },
     );
+    if (TouchRippleAudioDiagnostics.enabled) {
+      Future<void>.delayed(const Duration(milliseconds: 250)).then((_) {
+        TouchRippleAudioDiagnostics.record('PLAYBACK_POSITION', {
+          'sound': sound.name,
+          'time': audio.currentTime.toStringAsFixed(3),
+          'paused': audio.paused,
+          'ended': audio.ended,
+          'readyState': audio.readyState,
+        });
+      });
+    }
   }
 
   void _remove(_ActiveSound entry) {
@@ -186,7 +220,13 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
   /// Obtains a preloaded output without creating Web Audio until a real user
   /// gesture asks for it.  A currently playing prepared source is never
   /// reused: overlapping semantic requests retain their own media element.
-  TouchFeedbackAudioOutput _outputForUserGesture(TouchFeedbackSound sound) {
+  TouchFeedbackAudioOutput _outputForUserGesture(
+    TouchFeedbackSound sound,
+    TouchFeedbackDiagnosticRoute? diagnosticRoute,
+  ) {
+    if (diagnosticRoute == TouchFeedbackDiagnosticRoute.directHtml) {
+      return _newDirectHtmlOutput(sound);
+    }
     final prepared = _prepared[sound];
     if (prepared != null &&
         !_active.any((entry) => identical(entry.output, prepared))) {
@@ -204,6 +244,18 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     final output = _newOutput(sound);
     _prepared.putIfAbsent(sound, () => output);
     return output;
+  }
+
+  TouchFeedbackAudioOutput _newDirectHtmlOutput(TouchFeedbackSound sound) {
+    final audio =
+        audioFactory?.call(sound) ??
+        (HTMLAudioElement()
+          ..src = Uri.base.resolve(_assetUrl(sound)).toString());
+    audio
+      ..preload = 'auto'
+      ..muted = false;
+    _observeMedia(sound, audio);
+    return _HtmlAudioGainOutput(audio);
   }
 
   TouchFeedbackAudioOutput _newOutput(TouchFeedbackSound sound) {
@@ -283,6 +335,84 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     );
   }
 
+  void _recordOutputState(
+    TouchFeedbackSound sound,
+    TouchFeedbackAudioOutput output,
+    TouchFeedbackDiagnosticRoute? diagnosticRoute,
+  ) {
+    if (!TouchRippleAudioDiagnostics.enabled) return;
+    final webAudio = output is _WebAudioGainOutput;
+    TouchRippleAudioDiagnostics.record('OUTPUT_READY', {
+      'sound': sound.name,
+      'requestedRoute': diagnosticRoute?.name ?? 'normal',
+      'actualRoute': webAudio ? 'webAudio' : 'directHtml',
+      'audioVolume': output.audio.volume.toStringAsFixed(3),
+      'audioMuted': output.audio.muted,
+      'context': webAudio ? output.context.state : 'none',
+      'gain': webAudio
+          ? output.gainValue.toStringAsFixed(3)
+          : output.audio.volume.toStringAsFixed(3),
+      'sourceToGain': webAudio,
+      'gainToDestination': webAudio,
+    });
+  }
+
+  Future<void> _inspectSignal(TouchFeedbackSound sound) async {
+    AudioContext? decoder;
+    try {
+      final response = await _fetchAudio(
+        Uri.base.resolve(_assetUrl(sound)).toString().toJS,
+      ).toDart;
+      if (!response.ok.toDart) {
+        TouchRippleAudioDiagnostics.record('SIGNAL_FETCH_FAILED', {
+          'sound': sound.name,
+          'status': response.status.toDartInt,
+        });
+        return;
+      }
+      final bytes = await response.arrayBuffer().toDart;
+      decoder = AudioContext();
+      final decoded = await decoder.decodeAudioData(bytes).toDart;
+      final samples = typed_data.Float32List(decoded.length);
+      decoded.copyFromChannel(samples.toJS, 0);
+      var peak = 0.0;
+      var squared = 0.0;
+      var firstAudible = samples.length;
+      for (var index = 0; index < samples.length; index++) {
+        final value = samples[index].abs();
+        if (value > peak) peak = value;
+        squared += value * value;
+        if (firstAudible == samples.length && value >= .002) {
+          firstAudible = index;
+        }
+      }
+      TouchRippleAudioDiagnostics.record('SIGNAL_DECODED', {
+        'sound': sound.name,
+        'channels': decoded.numberOfChannels,
+        'sampleRate': decoded.sampleRate.toStringAsFixed(0),
+        'duration': decoded.duration.toStringAsFixed(3),
+        'peak': peak.toStringAsFixed(4),
+        'rms': sqrt(squared / samples.length).toStringAsFixed(4),
+        'leadingSignal': firstAudible == samples.length
+            ? 'none'
+            : (firstAudible / decoded.sampleRate).toStringAsFixed(3),
+      });
+    } catch (error) {
+      TouchRippleAudioDiagnostics.record('SIGNAL_DECODE_FAILED', {
+        'sound': sound.name,
+        'errorType': error.runtimeType,
+        'error': error,
+      });
+    } finally {
+      final context = decoder;
+      if (context != null) {
+        unawaited(
+          context.close().toDart.then<void>((_) {}, onError: (_, _) {}),
+        );
+      }
+    }
+  }
+
   void _observeMedia(TouchFeedbackSound sound, HTMLAudioElement audio) {
     if (!TouchRippleAudioDiagnostics.enabled) return;
     void record(String event) => TouchRippleAudioDiagnostics.record(event, {
@@ -347,7 +477,7 @@ class _ActiveSound {
 }
 
 class _WebAudioGainOutput implements TouchFeedbackAudioOutput {
-  _WebAudioGainOutput(this.audio, AudioContext context)
+  _WebAudioGainOutput(this.audio, this.context)
     : _source = context.createMediaElementSource(audio),
       _gain = context.createGain() {
     // MediaElement volume is not continuously controllable on mobile WebKit.
@@ -359,8 +489,11 @@ class _WebAudioGainOutput implements TouchFeedbackAudioOutput {
 
   @override
   final HTMLAudioElement audio;
+  final AudioContext context;
   final MediaElementAudioSourceNode _source;
   final GainNode _gain;
+
+  double get gainValue => _gain.gain.value;
 
   @override
   void setGain(double gain) => _gain.gain.value = gain.clamp(0, 1);
@@ -383,4 +516,13 @@ class _HtmlAudioGainOutput implements TouchFeedbackAudioOutput {
 
   @override
   void dispose() {}
+}
+
+@JS('fetch')
+external JSPromise<_AudioDiagnosticResponse> _fetchAudio(JSString url);
+
+extension type _AudioDiagnosticResponse._(JSObject _) implements JSObject {
+  external JSBoolean get ok;
+  external JSNumber get status;
+  external JSPromise<JSArrayBuffer> arrayBuffer();
 }

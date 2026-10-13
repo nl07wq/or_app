@@ -30,6 +30,7 @@ class OperationButton extends StatelessWidget {
   /// retaining the button's established size, text, and interaction contract.
   final bool transparentSurface;
   final bool dashboardGlass;
+  final VoidCallback? onUnavailableTap;
 
   const OperationButton({
     super.key,
@@ -41,6 +42,7 @@ class OperationButton extends StatelessWidget {
     this.deferFeedback = false,
     this.transparentSurface = false,
     this.dashboardGlass = false,
+    this.onUnavailableTap,
   });
 
   @override
@@ -111,6 +113,7 @@ class OperationButton extends StatelessWidget {
     if (!reportUnavailableTap) return surfaced;
     return ActionableFeedbackRegion(
       result: ActionableFeedbackResult.unavailable,
+      onPointerDown: onUnavailableTap,
       child: surfaced,
     );
   }

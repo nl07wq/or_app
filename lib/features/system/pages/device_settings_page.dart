@@ -81,9 +81,14 @@ class DeviceSettingsPage extends StatelessWidget {
                   onChanged: (value) => _controller.update(
                     settings.copyWith(rejectedVolume: value),
                   ),
-                  onChangeEnd: (_) => GlobalTouchRipple.previewFeedback(
-                    TouchFeedbackSound.failure,
-                  ),
+                  onChangeEnd: (_) {
+                    TouchRippleAudioDiagnostics.record(
+                      'SYSTEM_REJECTED_SLIDER_RELEASED',
+                    );
+                    GlobalTouchRipple.previewFeedback(
+                      TouchFeedbackSound.failure,
+                    );
+                  },
                 ),
                 _SettingsSlider(
                   label: 'AMBIENT',
@@ -233,6 +238,22 @@ class _AudioDiagnosticCard extends StatelessWidget {
                 );
               }
             },
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            text: 'PLAY REJECTED: WEB AUDIO',
+            icon: Icons.graphic_eq_outlined,
+            onPressed: () => GlobalTouchRipple.previewRejectedDiagnostic(
+              TouchFeedbackDiagnosticRoute.webAudio,
+            ),
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            text: 'PLAY REJECTED: DIRECT HTML AUDIO',
+            icon: Icons.volume_up_outlined,
+            onPressed: () => GlobalTouchRipple.previewRejectedDiagnostic(
+              TouchFeedbackDiagnosticRoute.directHtml,
+            ),
           ),
         ],
       ),

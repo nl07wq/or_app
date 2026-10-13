@@ -124,6 +124,23 @@ class GlobalTouchRipple extends StatefulWidget {
     }
   }
 
+  /// Runs one explicitly selected REJECTED output route for physical-browser
+  /// diagnosis. Normal feedback never calls this path.
+  static void previewRejectedDiagnostic(TouchFeedbackDiagnosticRoute route) {
+    if (touchFeedbackEffectiveVolume(
+          TouchFeedbackSound.failure,
+          DeviceSettingsController.instance.value,
+        ) >
+        0) {
+      final audio = _activeState?._audio;
+      if (audio is TouchRippleAudioDiagnosticPlayer) {
+        (audio as TouchRippleAudioDiagnosticPlayer).playDiagnosticRejected(
+          route,
+        );
+      }
+    }
+  }
+
   static void _claimResolved(int pointer, TouchFeedbackSound sound) {
     final ownership = _ownership[pointer] ??= _TouchFeedbackOwnership();
     ownership.genericExcluded = true;
@@ -612,6 +629,7 @@ class ActionableFeedbackRegion extends StatelessWidget {
     this.role = ActionableFeedbackRole.command,
     this.roleExplicit = true,
     this.deferResolution = false,
+    this.onPointerDown,
   });
 
   final Widget child;
@@ -620,6 +638,7 @@ class ActionableFeedbackRegion extends StatelessWidget {
   final ActionableFeedbackRole role;
   final bool roleExplicit;
   final bool deferResolution;
+  final VoidCallback? onPointerDown;
 
   /// Resolves a [deferResolution] action after its callback has determined
   /// whether the operation was accepted. This is semantic-result dispatch,
@@ -633,6 +652,7 @@ class ActionableFeedbackRegion extends StatelessWidget {
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
+        onPointerDown?.call();
         GlobalTouchRipple.excludeGenericFeedback(event.pointer);
         if (deferResolution) {
           GlobalTouchRipple.beginDeferredSemanticFeedback(
@@ -689,6 +709,7 @@ class ActionableFeedbackButton extends ActionableFeedbackRegion {
     super.role,
     super.roleExplicit,
     super.deferResolution,
+    super.onPointerDown,
   });
 }
 

@@ -18,6 +18,10 @@ const touchRippleExitAudioAssetUrl = 'assets/assets/audio/touch/button-09.mp3';
 
 enum TouchFeedbackSound { water, success, failure, exit }
 
+/// Diagnostic-only output routes for comparing the same REJECTED asset on a
+/// physical browser. These are never selected by normal application feedback.
+enum TouchFeedbackDiagnosticRoute { webAudio, directHtml }
+
 /// Opt-in, copyable event trace for investigating browser media behavior on a
 /// physical device. It is inert unless the public URL includes
 /// `?audioDiagnostics=true`.
@@ -75,6 +79,12 @@ abstract interface class TouchRippleAudio {
   void prepare();
   void playFromUserGesture(TouchFeedbackSound sound);
   void dispose();
+}
+
+/// Implemented only by the web player. Keeping this separate ensures the
+/// diagnostic route is unavailable to normal feedback and test doubles.
+abstract interface class TouchRippleAudioDiagnosticPlayer {
+  void playDiagnosticRejected(TouchFeedbackDiagnosticRoute route);
 }
 
 TouchRippleAudio createTouchRippleAudio() => createPlatformTouchRippleAudio();
