@@ -585,7 +585,7 @@ void main() {
     expect(rippleEvents, 0);
   });
 
-  testWidgets('Calendar production period and date targets are silent', (
+  testWidgets('Calendar period and changed-date targets claim COMMAND once', (
     tester,
   ) async {
     final audio = _RecordingTouchRippleAudio();
@@ -603,18 +603,48 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.chevron_left).first);
     await tester.pumpAndSettle();
+    expect(audio.played, [TouchFeedbackSound.success]);
     await tester.tap(find.byIcon(Icons.chevron_right).first);
     await tester.pumpAndSettle();
-    final date = find.byWidgetPredicate(
-      (widget) =>
-          widget.key is ValueKey<String> &&
-          (widget.key! as ValueKey<String>).value.startsWith('calendar-day-'),
+    expect(
+      audio.played,
+      [TouchFeedbackSound.success, TouchFeedbackSound.success],
     );
-    expect(date, findsWidgets);
-    await tester.tap(date.first);
+    final today = DateUtils.dateOnly(DateTime.now());
+    final differentDate = DateTime(
+      today.year,
+      today.month,
+      today.day == 1 ? 2 : 1,
+    );
+    final date = find.byKey(
+      ValueKey('calendar-day-${_dateText(differentDate)}'),
+    );
+    expect(date, findsOneWidget);
+    await tester.tap(date);
     await tester.pumpAndSettle();
 
-    expect(audio.played, isEmpty);
+    expect(
+      audio.played,
+      [
+        TouchFeedbackSound.success,
+        TouchFeedbackSound.success,
+        TouchFeedbackSound.success,
+      ],
+    );
+    await tester.tap(find.text('今日'));
+    await tester.pumpAndSettle();
+    expect(
+      audio.played,
+      [
+        TouchFeedbackSound.success,
+        TouchFeedbackSound.success,
+        TouchFeedbackSound.success,
+        TouchFeedbackSound.success,
+      ],
+    );
+    await tester.tap(find.text('今日'));
+    await tester.pumpAndSettle();
+    expect(audio.played, hasLength(4));
     expect(rippleEvents, 0);
   });
 

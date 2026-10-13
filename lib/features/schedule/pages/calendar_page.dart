@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/navigation/app_routes.dart';
+import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
@@ -460,8 +461,13 @@ class _CalendarPageState extends State<CalendarPage> {
                                   _load();
                                 },
                                 onToday: () {
-                                  _collapseWeatherForCalendarAction();
                                   final now = _dateOnly(DateTime.now());
+                                  final changed =
+                                      !_sameDay(_selected, now) ||
+                                      _month.year != now.year ||
+                                      _month.month != now.month;
+                                  if (!changed) return;
+                                  _collapseWeatherForCalendarAction();
                                   setState(() {
                                     _selected = now;
                                     _month = DateTime(now.year, now.month);
@@ -469,6 +475,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                   _load();
                                 },
                                 onSelect: (date) {
+                                  if (_sameDay(_selected, date)) return;
                                   _collapseWeatherForCalendarAction();
                                   setState(() => _selected = date);
                                 },
@@ -604,7 +611,7 @@ class _CalendarPageState extends State<CalendarPage> {
                               ),
                             ],
                           ),
-                        ).actionableFeedback(),
+                        ),
                       ],
                     ),
                   ),
@@ -5251,8 +5258,14 @@ class _MonthGridState extends State<_MonthGrid> {
     return GestureDetector(
       // feedback-guard: drag-only; calendar cells own their discrete taps.
       onHorizontalDragEnd: (details) {
-        if ((details.primaryVelocity ?? 0) > 180) widget.onPrevious();
-        if ((details.primaryVelocity ?? 0) < -180) widget.onNext();
+        if ((details.primaryVelocity ?? 0) > 180) {
+          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.success);
+          widget.onPrevious();
+        }
+        if ((details.primaryVelocity ?? 0) < -180) {
+          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.success);
+          widget.onNext();
+        }
       },
       child: _CalendarFloatingSurface(
         key: const ValueKey('calendar-month-grid-hud'),
@@ -5261,10 +5274,13 @@ class _MonthGridState extends State<_MonthGrid> {
           children: [
             Row(
               children: [
-                IconButton(
-                  onPressed: widget.onPrevious,
-                  icon: const Icon(Icons.chevron_left),
-                ).actionableFeedback(role: ActionableFeedbackRole.silent),
+                ActionableFeedbackButton(
+                  enabled: true,
+                  child: IconButton(
+                    onPressed: widget.onPrevious,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                ),
                 Expanded(
                   child: Column(
                     children: [
@@ -5289,24 +5305,35 @@ class _MonthGridState extends State<_MonthGrid> {
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: widget.onNext,
-                  icon: const Icon(Icons.chevron_right),
-                ).actionableFeedback(role: ActionableFeedbackRole.silent),
+                ActionableFeedbackButton(
+                  enabled: true,
+                  child: IconButton(
+                    onPressed: widget.onNext,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ),
               ],
             ),
             Align(
               alignment: Alignment.centerLeft,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  shape: const BeveledRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(4)),
+              child: ActionableFeedbackButton(
+                enabled: true,
+                role: _sameDay(widget.selected, DateTime.now()) &&
+                        widget.month.year == DateTime.now().year &&
+                        widget.month.month == DateTime.now().month
+                    ? ActionableFeedbackRole.silent
+                    : ActionableFeedbackRole.command,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    shape: const BeveledRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                    ),
+                    foregroundColor: colorScheme.primary,
                   ),
-                  foregroundColor: colorScheme.primary,
+                  onPressed: widget.onToday,
+                  child: const Text('今日'),
                 ),
-                onPressed: widget.onToday,
-                child: const Text('今日'),
-              ).actionableFeedback(role: ActionableFeedbackRole.silent),
+              ),
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -5480,7 +5507,11 @@ class _MonthGridState extends State<_MonthGrid> {
                               ],
                             ),
                           ),
-                        ).actionableFeedback(role: ActionableFeedbackRole.silent),
+                        ).actionableFeedback(
+                          role: isSelected
+                              ? ActionableFeedbackRole.silent
+                              : ActionableFeedbackRole.command,
+                        ),
                       );
                     },
                   ),
