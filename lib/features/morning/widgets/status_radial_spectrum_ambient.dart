@@ -27,9 +27,9 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   static const pulseCompression = Duration(milliseconds: 90);
   static const pulseRecovery = Duration(milliseconds: 180);
   static const pulseDuration = Duration(milliseconds: 335);
-  static const pulseMaximumScale = 1.13;
-  static const pulseCompressionScale = .97;
-  static const pulseMaximumDisplacement = 8.0;
+  static const pulseMaximumScale = 1.20;
+  static const pulseCompressionScale = .94;
+  static const pulseMaximumDisplacement = 14.0;
   static const flameSampleCount = 216;
 
   final bool enabled;
@@ -246,8 +246,8 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     _impactFlash.shader =
         RadialGradient(
           colors: [
-            flashColor.withValues(alpha: impact * .21),
-            flashColor.withValues(alpha: impact * .070),
+            flashColor.withValues(alpha: impact * .34),
+            flashColor.withValues(alpha: impact * .12),
             flashColor.withValues(alpha: 0),
           ],
           stops: const [.0, .58, 1],
@@ -428,7 +428,6 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     bool reverse = false,
     bool deformed = true,
   }) {
-    Offset? previous;
     for (var step = 0; step <= sampleCount; step++) {
       final index = reverse ? sampleCount - step : step;
       final angle = math.pi * 2 * index / sampleCount;
@@ -438,18 +437,11 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       if (step == 0) {
         path.moveTo(point.dx, point.dy);
       } else {
-        final midpoint = Offset(
-          (previous!.dx + point.dx) / 2,
-          (previous.dy + point.dy) / 2,
-        );
-        path.quadraticBezierTo(
-          previous.dx,
-          previous.dy,
-          midpoint.dx,
-          midpoint.dy,
-        );
+        // Deliberately retain the slope break at each local flame tip. The
+        // former quadratic interpolation rounded a mathematically pointed
+        // profile into soft circular undulations.
+        path.lineTo(point.dx, point.dy);
       }
-      previous = point;
     }
   }
 
@@ -499,28 +491,34 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
           _smoothStep(.03, .18, cycle) * (1 - _smoothStep(.58, .98, cycle));
       if (lifetime <= .001) continue;
 
-      final width = .045 + _flameNoise(index, 3) * .075;
+      final rootCenter = _flameNoise(index, 5) * math.pi * 2;
       final lean =
           (_flameNoise(index, 4) - .5) * 1.2 +
           math.sin(time * .31 * _flameMotionSpeed + index * 1.71) * .32;
-      final center =
-          _flameNoise(index, 5) * math.pi * 2 + lean * width * lifetime;
-      final angularDistance = math.atan2(
-        math.sin(angle - center),
-        math.cos(angle - center),
-      ).abs();
-      if (angularDistance >= width) continue;
+      final rootWidth = .070 + _flameNoise(index, 3) * .095;
+      final tipCenter = rootCenter + lean * rootWidth * lifetime;
+      final signedDistance = math.atan2(
+        math.sin(angle - tipCenter),
+        math.cos(angle - tipCenter),
+      );
+      // Unequal sides make each root broad but its tip lean and narrow rather
+      // than forming a symmetric sine bump.
+      final sideWidth = signedDistance < 0
+          ? rootWidth * (.68 + _flameNoise(index, 7) * .28)
+          : rootWidth * (1.05 + _flameNoise(index, 8) * .32);
+      final normalized = signedDistance.abs() / sideWidth;
+      if (normalized >= 1) continue;
 
-      // The broad root narrows into a deliberately pointed tip. The center
-      // itself leans tangentially over its independent lifecycle.
-      final normalized = angularDistance / width;
-      final pointedProfile = math.pow(1 - normalized, .48).toDouble();
+      // A linear taper preserves a distinct cusp at the tip. Because the
+      // contour uses line segments above, this slope break remains visible
+      // instead of being rounded away by spline interpolation.
+      final pointedProfile = 1 - normalized;
       final height =
-          (2.1 + _flameNoise(index, 6) * 4.1) *
+          (3.2 + _flameNoise(index, 6) * 7.0) *
           (1 + .16 * math.sin(time * .43 * _flameMotionSpeed + index));
       extension += height * lifetime * pointedProfile;
     }
-    return (extension * _flameMotionAmplitude).clamp(-6.9, 6.9);
+    return (extension * _flameMotionAmplitude).clamp(-4.2, 11.8);
   }
 
   double _flameNoise(int index, int parameter) {

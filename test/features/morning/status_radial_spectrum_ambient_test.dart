@@ -47,9 +47,9 @@ void main() {
       StatusRadialSpectrumAmbient.pulseDuration,
       const Duration(milliseconds: 335),
     );
-    expect(StatusRadialSpectrumAmbient.pulseMaximumScale, 1.13);
-    expect(StatusRadialSpectrumAmbient.pulseCompressionScale, .97);
-    expect(StatusRadialSpectrumAmbient.pulseMaximumDisplacement, 8.0);
+    expect(StatusRadialSpectrumAmbient.pulseMaximumScale, 1.20);
+    expect(StatusRadialSpectrumAmbient.pulseCompressionScale, .94);
+    expect(StatusRadialSpectrumAmbient.pulseMaximumDisplacement, 14.0);
     expect(StatusRadialSpectrumAmbient.flameSampleCount, 216);
 
     final source = File(
@@ -97,11 +97,15 @@ void main() {
     expect(source, contains('static const _flameMotionSpeed = .65 * 1.30'));
     expect(source, contains('static const _flameMotionAmplitude = 1.0 * 1.50'));
     expect(source, contains('final pointedProfile'));
-    expect(source, contains('final angularDistance'));
+    expect(source, contains('final signedDistance'));
+    expect(source, contains('final rootWidth'));
+    expect(source, contains('final tipCenter'));
+    expect(source, contains('path.lineTo(point.dx, point.dy)'));
+    expect(source, isNot(contains('path.quadraticBezierTo')));
     expect(source, contains('final lifetime'));
     expect(source, contains('deformed: false'));
     expect(source, contains('extension * _flameMotionAmplitude'));
-    expect(source, contains('clamp(-6.9, 6.9)'));
+    expect(source, contains('clamp(-4.2, 11.8)'));
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));

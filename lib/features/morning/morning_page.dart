@@ -44,7 +44,12 @@ class _MorningPageState extends State<MorningPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
         title: const StatusCrtMonitorTitle(),
@@ -64,7 +69,16 @@ class _MorningPageState extends State<MorningPage> {
             ),
           ),
           SingleChildScrollView(
-            padding: AppSpacing.cardPadding,
+            // Keep the pre-existing content origin below the AppBar while the
+            // ambient itself paints through the status bar and CRT display.
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              MediaQuery.paddingOf(context).top +
+                  kToolbarHeight +
+                  AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

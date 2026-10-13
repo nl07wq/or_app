@@ -35,6 +35,14 @@ void main() {
     expect(phosphorBounds.bottom, lessThanOrEqualTo(screen.bottom - 1.5));
     expect(phosphorBounds.left, greaterThanOrEqualTo(screen.left));
     expect(phosphorBounds.right, lessThanOrEqualTo(screen.right));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('status-crt-screen')),
+        matching: find.byType(DecoratedBox),
+      ),
+      findsNothing,
+      reason: 'the upper CRT screen must not paint an opaque ambient blocker',
+    );
   });
 
   testWidgets('boot wakes once then settles to the static terminal title', (

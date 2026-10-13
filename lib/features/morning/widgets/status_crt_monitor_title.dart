@@ -172,38 +172,27 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
                 child: ClipRRect(
                   key: const ValueKey('status-crt-screen'),
                   borderRadius: BorderRadius.circular(4),
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment(0, -.1),
-                        radius: 1.15,
-                        colors: [
-                          Color(0xFF122B2D),
-                          Color(0xFF081415),
-                          Color(0xFF050B0C),
-                        ],
-                        stops: [0, .62, 1],
+                  // The CRT readout is intentionally transparent so the
+                  // STATUS ambient continues through the AppBar display.
+                  // Scanlines and phosphor glyphs remain independently drawn.
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      const CustomPaint(
+                        key: ValueKey('status-crt-scanlines'),
+                        painter: _CrtScanlinesPainter(),
                       ),
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        const CustomPaint(
-                          key: ValueKey('status-crt-scanlines'),
-                          painter: _CrtScanlinesPainter(),
+                      AnimatedBuilder(
+                        animation: Listenable.merge([
+                          _bootController,
+                          _refreshController,
+                        ]),
+                        builder: (context, _) => _CrtPhosphorContent(
+                          bootValue: _bootController.value,
+                          refreshValue: _refreshController.value,
                         ),
-                        AnimatedBuilder(
-                          animation: Listenable.merge([
-                            _bootController,
-                            _refreshController,
-                          ]),
-                          builder: (context, _) => _CrtPhosphorContent(
-                            bootValue: _bootController.value,
-                            refreshValue: _refreshController.value,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
