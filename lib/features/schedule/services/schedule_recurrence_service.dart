@@ -104,6 +104,7 @@ class ScheduleRecurrenceService {
             allDay: series.allDay,
             startTime: series.startTime,
             endTime: series.endTime,
+            endDate: _endDateForOccurrence(series, boundary),
             breakDuration: series.breakDuration,
             memo: series.memo,
             completed: series.completed,
@@ -186,6 +187,7 @@ class ScheduleRecurrenceService {
                 allDay: series.allDay,
                 startTime: series.startTime,
                 endTime: series.endTime,
+                endDate: _endDateForOccurrence(series, date),
                 breakDuration: series.breakDuration,
                 memo: series.memo,
                 completed: series.completed,
@@ -282,6 +284,7 @@ class ScheduleRecurrenceService {
     allDay: draft.allDay,
     startTime: draft.startTime,
     endTime: draft.endTime,
+    endDate: draft.endDate,
     breakDuration: draft.breakDuration,
     memo: draft.memo,
     completed: draft.completed,
@@ -307,6 +310,7 @@ class ScheduleRecurrenceService {
     allDay: draft.allDay,
     startTime: draft.startTime,
     endTime: draft.endTime,
+    endDate: draft.endDate,
     breakDuration: draft.breakDuration,
     memo: draft.memo,
     completed: draft.completed,
@@ -343,6 +347,7 @@ class ScheduleRecurrenceService {
       allDay: series.allDay,
       startTime: series.startTime,
       endTime: series.endTime,
+      endDate: series.endDate,
       breakDuration: series.breakDuration,
       memo: series.memo,
       completed: series.completed,
@@ -362,4 +367,13 @@ class ScheduleRecurrenceService {
 
   String _dayBefore(String value) =>
       _key(DateTime.parse(value).subtract(const Duration(days: 1)));
+
+  String? _endDateForOccurrence(ScheduleRecord series, String occurrenceDate) {
+    final endDate = series.endDate;
+    if (endDate == null) return null;
+    final days = DateTime.parse(
+      endDate,
+    ).difference(DateTime.parse(series.localDate)).inDays;
+    return _key(DateTime.parse(occurrenceDate).add(Duration(days: days)));
+  }
 }

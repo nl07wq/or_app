@@ -1,5 +1,9 @@
+import 'package:flutter/material.dart';
+
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
+import '../../reminders/models/reminder_definition.dart';
+import '../../reminders/services/reminder_recurrence_engine.dart';
 import '../../repositories/repository_exception.dart';
 import '../models/schedule_record.dart';
 import 'schedule_repository.dart';
@@ -9,6 +13,7 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
     : _now = now ?? DateTime.now;
   final IndexedDbDatabase _database;
   final DateTime Function() _now;
+  static const _recurrenceEngine = ReminderRecurrenceEngine();
 
   @override
   Future<List<ScheduleRecord>> findAll() => _all();
@@ -56,13 +61,8 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
             final existingWork =
                 (await transaction.findAll(IndexedDbStoreNames.scheduleRecords))
                     .map(ScheduleRecord.fromRecord)
-                    .any(
-                      (value) =>
-                          value.id != record.id &&
-                          value.localDate == record.localDate &&
-                          value.kind == ScheduleEntryKind.schedule &&
-                          value.type == ScheduleType.work,
-                    );
+                    .where(_isWorkSchedule)
+                    .any((value) => _conflictsWithWork(value, record));
             if (existingWork) {
               throw StateError('A WORK schedule already exists for this date.');
             }
@@ -83,6 +83,7 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
               allDay: record.allDay,
               startTime: record.startTime,
               endTime: record.endTime,
+              endDate: record.endDate,
               breakDuration: record.breakDuration,
               memo: record.memo,
               completed: record.completed,
@@ -92,6 +93,9 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
               recurrenceMonthDays: record.recurrenceMonthDays,
               recurrenceMonthEnd: record.recurrenceMonthEnd,
               recurrenceMonthWeek: record.recurrenceMonthWeek,
+              recurrenceMonthWeeks: record.recurrenceMonthWeeks,
+              notificationOffsetsMinutes: record.notificationOffsetsMinutes,
+              notificationTimeZone: record.notificationTimeZone,
               seriesId: record.seriesId,
               occurrenceDate: record.occurrenceDate,
               occurrenceExcluded: record.occurrenceExcluded,
@@ -107,6 +111,75 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
       throw RepositoryException(operation: 'schedule.save', cause: error);
     }
   }
+
+  bool _isWorkSchedule(ScheduleRecord value) =>
+      value.kind == ScheduleEntryKind.schedule &&
+      value.type == ScheduleType.work;
+
+  /// A persisted recurrence series and one of its overrides describe the same
+  /// logical WORK.  They are intentionally allowed to share an operation
+  /// date; unrelated WORK entries are not.
+  bool _conflictsWithWork(ScheduleRecord existing, ScheduleRecord candidate) {
+    if (existing.id == candidate.id ||
+        existing.effectiveSeriesId == candidate.effectiveSeriesId) {
+      return false;
+    }
+    if (existing.localDate == candidate.localDate) return true;
+    if (_occursOn(existing, candidate.localDate) ||
+        _occursOn(candidate, existing.localDate)) {
+      return true;
+    }
+    return _recurrencesOverlap(existing, candidate);
+  }
+
+  bool _occursOn(ScheduleRecord value, String date) {
+    if (!value.isRecurringSeries) return false;
+    final day = DateTime.parse(date);
+    final definition = _definition(value);
+    return _recurrenceEngine
+        .datesFor(definition, DateTimeRange(start: day, end: day))
+        .contains(date);
+  }
+
+  /// A bounded horizon covers the supported daily, weekly, monthly and yearly
+  /// rules while keeping duplicate checks inexpensive during a save.
+  bool _recurrencesOverlap(ScheduleRecord first, ScheduleRecord second) {
+    if (!first.isRecurringSeries || !second.isRecurringSeries) return false;
+    final firstStart = DateTime.parse(first.localDate);
+    final secondStart = DateTime.parse(second.localDate);
+    final start = firstStart.isAfter(secondStart) ? firstStart : secondStart;
+    final firstEnd = first.recurrenceEnd == null
+        ? start.add(const Duration(days: 366 * 8))
+        : DateTime.parse(first.recurrenceEnd!);
+    final secondEnd = second.recurrenceEnd == null
+        ? start.add(const Duration(days: 366 * 8))
+        : DateTime.parse(second.recurrenceEnd!);
+    final end = firstEnd.isBefore(secondEnd) ? firstEnd : secondEnd;
+    if (end.isBefore(start)) return false;
+    final range = DateTimeRange(start: start, end: end);
+    final dates = _recurrenceEngine.datesFor(_definition(first), range).toSet();
+    return _recurrenceEngine
+        .datesFor(_definition(second), range)
+        .any(dates.contains);
+  }
+
+  ReminderDefinition _definition(ScheduleRecord value) => ReminderDefinition(
+    id: value.effectiveSeriesId,
+    title: value.title,
+    startDate: value.localDate,
+    allDay: value.allDay,
+    recurrence: value.recurrence,
+    active: true,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    time: value.startTime,
+    recurrenceEnd: value.recurrenceEnd,
+    weekdays: value.recurrenceWeekdays,
+    monthDays: value.recurrenceMonthDays,
+    monthEnd: value.recurrenceMonthEnd,
+    monthWeek: value.recurrenceMonthWeek,
+    monthWeeks: value.recurrenceMonthWeeks,
+  );
 
   @override
   Future<void> delete(String id) =>

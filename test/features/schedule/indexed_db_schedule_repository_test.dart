@@ -51,6 +51,119 @@ void main() {
     );
   });
 
+  test(
+    'overnight schedules retain their end date without claiming next day',
+    () async {
+      final repository = IndexedDbScheduleRepository(FakeIndexedDbDatabase());
+      await repository.save(
+        ScheduleRecord(
+          id: 'overnight',
+          localDate: '2026-10-13',
+          endDate: '2026-10-14',
+          type: ScheduleType.work,
+          title: 'night shift',
+          startTime: '23:00',
+          endTime: '00:15',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+      );
+      final restored = (await repository.findForDate('2026-10-13')).single;
+      expect(restored.endDate, '2026-10-14');
+      expect(await repository.findWorkForDate('2026-10-14'), isNull);
+    },
+  );
+
+  test(
+    'WORK recurrence rejects an unrelated occurrence but permits override',
+    () async {
+      final repository = IndexedDbScheduleRepository(FakeIndexedDbDatabase());
+      await repository.save(
+        ScheduleRecord(
+          id: 'series',
+          localDate: '2026-10-13',
+          type: ScheduleType.work,
+          title: 'recurring work',
+          recurrence: ReminderRecurrence.daily,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+      );
+      await repository.save(
+        ScheduleRecord(
+          id: 'series@2026-10-13',
+          seriesId: 'series',
+          occurrenceDate: '2026-10-13',
+          localDate: '2026-10-13',
+          type: ScheduleType.work,
+          title: 'edited recurring work',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+      );
+      await expectLater(
+        repository.save(
+          record(id: 'other', date: '2026-10-14', type: ScheduleType.work),
+        ),
+        throwsA(isA<Object>()),
+      );
+    },
+  );
+
+  test('a new recurring WORK cannot expand onto an existing WORK', () async {
+    final repository = IndexedDbScheduleRepository(FakeIndexedDbDatabase());
+    await repository.save(
+      record(id: 'existing', date: '2026-10-14', type: ScheduleType.work),
+    );
+    await expectLater(
+      repository.save(
+        ScheduleRecord(
+          id: 'new-daily',
+          localDate: '2026-10-13',
+          type: ScheduleType.work,
+          title: 'daily work',
+          recurrence: ReminderRecurrence.daily,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+      ),
+      throwsA(isA<Object>()),
+    );
+  });
+
+  test(
+    'editing unrelated schedule fields retains multiple reminders',
+    () async {
+      final repository = IndexedDbScheduleRepository(FakeIndexedDbDatabase());
+      final original = ScheduleRecord(
+        id: 'reminders',
+        localDate: '2026-10-13',
+        type: ScheduleType.personal,
+        title: 'original',
+        notificationOffsetsMinutes: const [10, 60, 150],
+        notificationTimeZone: 'Asia/Tokyo',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      );
+      await repository.save(original);
+      await repository.save(
+        ScheduleRecord(
+          id: original.id,
+          localDate: original.localDate,
+          type: original.type,
+          title: 'renamed',
+          notificationOffsetsMinutes: original.notificationOffsetsMinutes,
+          notificationTimeZone: original.notificationTimeZone,
+          createdAt: original.createdAt,
+          updatedAt: DateTime.utc(2026, 1, 2),
+        ),
+      );
+      final restored = (await repository.findAll()).single;
+      expect(restored.notificationOffsetsMinutes, [10, 60, 150]);
+      expect(restored.notificationTimeZone, 'Asia/Tokyo');
+    },
+  );
+
   test('delete affects only the selected plan record', () async {
     final repository = IndexedDbScheduleRepository(FakeIndexedDbDatabase());
     await repository.save(record(id: 'a', date: '2026-10-01'));

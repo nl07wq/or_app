@@ -21,6 +21,27 @@ void main() {
     ]);
   });
 
+  test('projects overnight end date for every recurring occurrence', () async {
+    final repository = _MemoryScheduleRepository([
+      ScheduleRecord(
+        id: 'overnight-series',
+        localDate: '2026-01-05',
+        endDate: '2026-01-06',
+        type: ScheduleType.work,
+        title: 'Night work',
+        startTime: '23:00',
+        endTime: '00:15',
+        recurrence: ReminderRecurrence.weekly,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      ),
+    ]);
+    final values = await ScheduleRecurrenceService(repository).inRange(
+      DateTimeRange(start: DateTime(2026, 1, 5), end: DateTime(2026, 1, 12)),
+    );
+    expect(values.map((value) => value.endDate), ['2026-01-06', '2026-01-13']);
+  });
+
   test(
     'projects every Reminder-supported recurrence rule with local dates',
     () async {

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/global_touch_ripple.dart';
@@ -11,10 +12,15 @@ class SharedNotificationEditor extends StatefulWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.calendarStyle = false,
   });
 
   final NotificationConfiguration value;
   final ValueChanged<NotificationConfiguration> onChanged;
+
+  /// Schedule editing uses a compact iPhone Calendar-like selector while the
+  /// standalone reminder editor retains its existing inline controls.
+  final bool calendarStyle;
 
   @override
   State<SharedNotificationEditor> createState() =>
@@ -57,79 +63,221 @@ class _SharedNotificationEditorState extends State<SharedNotificationEditor> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) => Column(
-    key: const ValueKey('shared-notification-editor'),
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text('通知', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: [
-          for (final offset in _presets)
-            FilterChip(
-              key: ValueKey('notification-preset-$offset'),
-              label: Text(notificationOffsetLabel(offset)),
-              selected: widget.value.offsetsMinutes.contains(offset),
-              onSelected: (_) => _toggle(offset),
-            ).inputFeedback(),
-        ],
+  Future<void> _showCalendarSelector() {
+    final selected = widget.value.offsetsMinutes.toSet();
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          void toggle(int offset) {
+            selected.contains(offset)
+                ? selected.remove(offset)
+                : selected.add(offset);
+            widget.onChanged(widget.value.copyWith(offsetsMinutes: selected));
+            setSheetState(() {});
+          }
+
+          return SafeArea(
+            child: FractionallySizedBox(
+              heightFactor: .68,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                children: [
+                  Text('リマインダー', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  for (final preset in const <(String, int)>[
+                    ('開始時刻', 0),
+                    ('10分前', 10),
+                    ('1時間前', 60),
+                    ('6時間前', 360),
+                  ])
+                    ListTile(
+                      key: ValueKey(
+                        'calendar-notification-preset-${preset.$2}',
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(preset.$1),
+                      trailing: selected.contains(preset.$2)
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () => toggle(preset.$2),
+                    ).inputFeedback(),
+                  const Divider(),
+                  ListTile(
+                    key: const ValueKey('calendar-notification-custom'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('カスタム時刻…'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showCalendarCustomPicker(
+                      sheetContext,
+                      onConfirm: (offset) => toggle(offset),
+                    ),
+                  ).inputFeedback(),
+                ],
+              ),
+            ),
+          );
+        },
       ),
-      const SizedBox(height: 8),
-      Row(
-        children: [
-          Expanded(
-            child: TextField(
-              key: const ValueKey('notification-custom-number'),
-              controller: _number,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'カスタム'),
-            ).inputFeedback(),
-          ),
-          const SizedBox(width: 8),
-          DropdownButton<NotificationOffsetUnit>(
-            key: const ValueKey('notification-custom-unit'),
-            value: _unit,
-            items: [
-              for (final unit in NotificationOffsetUnit.values)
-                DropdownMenuItem(value: unit, child: Text(unit.label)),
+    );
+  }
+
+  Future<void> _showCalendarCustomPicker(
+    BuildContext sheetContext, {
+    required ValueChanged<int> onConfirm,
+  }) async {
+    var number = 10;
+    var unit = NotificationOffsetUnit.minutes;
+    await showModalBottomSheet<void>(
+      context: sheetContext,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: 310,
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('キャンセル'),
+                  ),
+                  TextButton(
+                    key: const ValueKey('calendar-notification-custom-confirm'),
+                    onPressed: () {
+                      onConfirm(canonicalNotificationOffset(number, unit));
+                      Navigator.pop(context);
+                    },
+                    child: const Text('完了'),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoPicker(
+                        itemExtent: 36,
+                        onSelectedItemChanged: (index) => number = index + 1,
+                        children: [
+                          for (var value = 1; value <= 60; value++)
+                            Center(child: Text('$value')),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: CupertinoPicker(
+                        itemExtent: 36,
+                        onSelectedItemChanged: (index) =>
+                            unit = NotificationOffsetUnit.values[index],
+                        children: [
+                          for (final value in NotificationOffsetUnit.values)
+                            Center(child: Text(value.label)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
-            onChanged: (value) {
-              if (value != null) setState(() => _unit = value);
-            },
-          ).inputFeedback(),
-          IconButton(
-            key: const ValueKey('notification-custom-add'),
-            tooltip: '通知を追加',
-            onPressed: _addCustom,
-            icon: const Icon(Icons.add_alert_outlined),
-          ).inputFeedback(),
-        ],
+          ),
+        ),
       ),
-      if (_error != null)
-        Text(
-          _error!,
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
-      if (widget.value.offsetsMinutes.isNotEmpty) ...[
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.calendarStyle
+      ? _buildCalendarField(context)
+      : Column(
+          key: const ValueKey('shared-notification-editor'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final offset in widget.value.offsetsMinutes)
-              InputChip(
-                key: ValueKey('notification-offset-$offset'),
-                label: Text(notificationOffsetLabel(offset)),
-                onDeleted: () => _toggle(offset),
-              ).inputFeedback(),
+            Text('通知', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final offset in _presets)
+                  FilterChip(
+                    key: ValueKey('notification-preset-$offset'),
+                    label: Text(notificationOffsetLabel(offset)),
+                    selected: widget.value.offsetsMinutes.contains(offset),
+                    onSelected: (_) => _toggle(offset),
+                  ).inputFeedback(),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const ValueKey('notification-custom-number'),
+                    controller: _number,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'カスタム'),
+                  ).inputFeedback(),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<NotificationOffsetUnit>(
+                  key: const ValueKey('notification-custom-unit'),
+                  value: _unit,
+                  items: [
+                    for (final unit in NotificationOffsetUnit.values)
+                      DropdownMenuItem(value: unit, child: Text(unit.label)),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _unit = value);
+                  },
+                ).inputFeedback(),
+                IconButton(
+                  key: const ValueKey('notification-custom-add'),
+                  tooltip: '通知を追加',
+                  onPressed: _addCustom,
+                  icon: const Icon(Icons.add_alert_outlined),
+                ).inputFeedback(),
+              ],
+            ),
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            if (widget.value.offsetsMinutes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final offset in widget.value.offsetsMinutes)
+                    InputChip(
+                      key: ValueKey('notification-offset-$offset'),
+                      label: Text(notificationOffsetLabel(offset)),
+                      onDeleted: () => _toggle(offset),
+                    ).inputFeedback(),
+                ],
+              ),
+            ],
+            const SizedBox(height: 4),
+            Text('TIMEZONE  ${widget.value.timeZone}'),
           ],
-        ),
-      ],
-      const SizedBox(height: 4),
-      Text('TIMEZONE  ${widget.value.timeZone}'),
-    ],
-  );
+        );
+
+  Widget _buildCalendarField(BuildContext context) {
+    final labels = widget.value.offsetsMinutes
+        .map(notificationOffsetLabel)
+        .join('、');
+    return ListTile(
+      key: const ValueKey('calendar-notification-field'),
+      contentPadding: EdgeInsets.zero,
+      title: const Text('リマインダー'),
+      subtitle: Text(labels.isEmpty ? 'なし' : labels),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: _showCalendarSelector,
+    ).inputFeedback();
+  }
 }

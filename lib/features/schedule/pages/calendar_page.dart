@@ -67,6 +67,22 @@ String _scheduleTypeLabel(ScheduleType value) => switch (value) {
   ScheduleType.other => 'その他',
 };
 
+String _displayEndTime(ScheduleRecord record) {
+  final end = record.endTime;
+  if (end == null || record.endDate == null) return end ?? '';
+  final startDate = DateTime.tryParse(record.localDate);
+  final endDate = DateTime.tryParse(record.endDate!);
+  if (startDate == null || endDate == null) return end;
+  final days = DateUtils.dateOnly(
+    endDate,
+  ).difference(DateUtils.dateOnly(startDate)).inDays;
+  if (days != 1) return end;
+  final parts = end.split(':');
+  if (parts.length != 2) return end;
+  final hour = int.tryParse(parts.first);
+  return hour == null ? end : '${hour + 24}:${parts.last}';
+}
+
 class _CalendarPageState extends State<CalendarPage> {
   late DateTime _selected = _dateOnly(widget.initialDate ?? DateTime.now());
   late DateTime _month = DateTime(_selected.year, _selected.month);
@@ -622,6 +638,7 @@ class _CalendarPageState extends State<CalendarPage> {
         allDay: record.allDay,
         startTime: record.startTime,
         endTime: record.endTime,
+        endDate: record.endDate,
         breakDuration: record.breakDuration,
         memo: record.memo,
         completed: !record.completed,
@@ -631,6 +648,9 @@ class _CalendarPageState extends State<CalendarPage> {
         recurrenceMonthDays: record.recurrenceMonthDays,
         recurrenceMonthEnd: record.recurrenceMonthEnd,
         recurrenceMonthWeek: record.recurrenceMonthWeek,
+        recurrenceMonthWeeks: record.recurrenceMonthWeeks,
+        notificationOffsetsMinutes: record.notificationOffsetsMinutes,
+        notificationTimeZone: record.notificationTimeZone,
         seriesId: record.seriesId,
         occurrenceDate: record.occurrenceDate,
         occurrenceExcluded: record.occurrenceExcluded,
@@ -659,6 +679,7 @@ class _CalendarPageState extends State<CalendarPage> {
         allDay: record.allDay,
         startTime: shifted,
         endTime: shiftedEnd,
+        endDate: record.endDate,
         breakDuration: record.breakDuration,
         memo: record.memo,
         completed: record.completed,
@@ -668,6 +689,9 @@ class _CalendarPageState extends State<CalendarPage> {
         recurrenceMonthDays: record.recurrenceMonthDays,
         recurrenceMonthEnd: record.recurrenceMonthEnd,
         recurrenceMonthWeek: record.recurrenceMonthWeek,
+        recurrenceMonthWeeks: record.recurrenceMonthWeeks,
+        notificationOffsetsMinutes: record.notificationOffsetsMinutes,
+        notificationTimeZone: record.notificationTimeZone,
         seriesId: record.seriesId,
         occurrenceDate: record.occurrenceDate,
         occurrenceExcluded: record.occurrenceExcluded,
@@ -4890,7 +4914,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                         ),
                       ),
                       Text(
-                        '${record.kind == ScheduleEntryKind.reminder ? 'リマインダー' : _scheduleTypeLabel(record.type)}${record.endTime == null ? '' : '  ${record.startTime}–${record.endTime}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
+                        '${record.kind == ScheduleEntryKind.reminder ? 'リマインダー' : _scheduleTypeLabel(record.type)}${record.endTime == null ? '' : '  ${record.startTime}–${_displayEndTime(record)}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.primary.withValues(alpha: .72),
                         ),
@@ -5522,6 +5546,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   );
   late DateTime _date =
       DateTime.tryParse(widget.record?.localDate ?? '') ?? widget.initialDate;
+  late DateTime? _endDate = DateTime.tryParse(widget.record?.endDate ?? '');
   late final _title = TextEditingController(text: widget.record?.title ?? '');
   late final _start = TextEditingController(
     text: widget.record?.startTime ?? '',
@@ -5609,6 +5634,18 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                     _end.text = value == null ? '' : clockFromTimeOfDay(value),
               ),
             ),
+            if (!_allDay && _end.text.trim().isNotEmpty)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('終了日'),
+                subtitle: Text(
+                  _endDate == null
+                      ? '開始日と同じ（終了時刻が開始時刻以前なら翌日）'
+                      : _key(_endDate!),
+                ),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: _pickEndDate,
+              ).inputFeedback(),
             if (_type == ScheduleType.work && !_allDay)
               _DurationControl(label: '休憩', controller: _break),
             SharedRecurrenceEditor(
@@ -5640,6 +5677,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
             ),
             SharedNotificationEditor(
               value: _notification,
+              calendarStyle: true,
               onChanged: (value) => setState(() => _notification = value),
             ),
             if (_error != null)
@@ -5682,6 +5720,22 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
       setState(() => _error = '日付を1つ以上選択してください。');
       return;
     }
+    final start = _start.text.trim().isEmpty
+        ? null
+        : timeOfDayFromClock(_start.text);
+    final end = _end.text.trim().isEmpty ? null : timeOfDayFromClock(_end.text);
+    final inferredEndDate =
+        _endDate ??
+        (start != null &&
+                end != null &&
+                (end.hour < start.hour ||
+                    (end.hour == start.hour && end.minute <= start.minute))
+            ? _date.add(const Duration(days: 1))
+            : _date);
+    if (inferredEndDate.isBefore(DateUtils.dateOnly(_date))) {
+      setState(() => _error = '終了日は開始日以降にしてください。');
+      return;
+    }
     Navigator.pop(
       context,
       ScheduleRecord(
@@ -5702,6 +5756,12 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                 _end.text.trim().isNotEmpty
             ? _end.text.trim()
             : null,
+        endDate:
+            _allDay ||
+                _end.text.trim().isEmpty ||
+                DateUtils.isSameDay(inferredEndDate, _date)
+            ? null
+            : _key(inferredEndDate),
         breakDuration:
             _kind == ScheduleEntryKind.schedule &&
                 _type == ScheduleType.work &&
@@ -5741,6 +5801,16 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         updatedAt: DateTime.now().toUtc(),
       ),
     );
+  }
+
+  Future<void> _pickEndDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? _date,
+      firstDate: _date,
+      lastDate: DateTime(_date.year + 10),
+    );
+    if (selected != null && mounted) setState(() => _endDate = selected);
   }
 }
 

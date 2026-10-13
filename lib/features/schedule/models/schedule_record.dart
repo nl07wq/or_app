@@ -14,6 +14,7 @@ class ScheduleRecord {
     this.allDay = false,
     this.startTime,
     this.endTime,
+    this.endDate,
     this.breakDuration,
     this.memo,
     this.completed = false,
@@ -41,6 +42,10 @@ class ScheduleRecord {
   final bool allDay;
   final String? startTime;
   final String? endTime;
+
+  /// Local calendar date containing the end of a timed schedule.  Older
+  /// records omit this field and therefore retain their same-day behaviour.
+  final String? endDate;
   final String? breakDuration;
   final String? memo;
   final bool completed;
@@ -77,6 +82,7 @@ class ScheduleRecord {
     if (allDay) 'allDay': true,
     if (startTime != null) 'startTime': startTime,
     if (endTime != null) 'endTime': endTime,
+    if (endDate != null) 'endDate': endDate,
     if (breakDuration != null) 'breakDuration': breakDuration,
     if (memo != null) 'memo': memo,
     if (completed) 'completed': true,
@@ -140,6 +146,12 @@ class ScheduleRecord {
     }
 
     final recurrenceName = record['recurrence'];
+    final endDate = record['endDate'];
+    if (endDate != null &&
+        (endDate is! String ||
+            !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(endDate))) {
+      throw const FormatException('Invalid schedule end date.');
+    }
     return ScheduleRecord(
       id: id,
       localDate: localDate,
@@ -157,6 +169,7 @@ class ScheduleRecord {
       title: title,
       startTime: record['startTime'] as String?,
       endTime: record['endTime'] as String?,
+      endDate: endDate as String?,
       breakDuration: record['breakDuration'] as String?,
       memo: record['memo'] as String?,
       completed: record['completed'] == true,
