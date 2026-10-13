@@ -266,6 +266,7 @@ class _CurvedFragmentEvent {
     required this.waveSpeed,
     required this.halfWidth,
     required this.fragmentPhase,
+    required this.blockSeed,
     required this.variation,
     required this.selectFragments,
   });
@@ -284,6 +285,7 @@ class _CurvedFragmentEvent {
       waveSpeed: .46 + (_eventNoise(index, 3) - .5) * .16 * variation,
       halfWidth: .1145 + (_eventNoise(index, 7) - .5) * .085 * variation,
       fragmentPhase: _eventNoise(index, 8) * math.pi * 2,
+      blockSeed: index,
       variation: variation,
       selectFragments: selectFragments,
     );
@@ -295,6 +297,7 @@ class _CurvedFragmentEvent {
   final double waveSpeed;
   final double halfWidth;
   final double fragmentPhase;
+  final int blockSeed;
   final double variation;
   final bool selectFragments;
 
@@ -303,7 +306,14 @@ class _CurvedFragmentEvent {
     required double dy,
     required double elapsed,
   }) {
-    final localTime = elapsed - start;
+    // A passing wave owns one fixed coarse mask. It is deliberately sampled
+    // before lifecycle and wake evaluation, so rejected square blocks never
+    // receive a delayed glow or residual trail from this event.
+    final blockX = (dx / 2).floor();
+    final blockY = (dy / 2).floor();
+    if (!_isMosaicBlockActive(blockSeed, blockX, blockY)) return 0;
+    final localTime =
+        elapsed - start - _mosaicBlockDelay(blockSeed, blockX, blockY);
     final q = (localTime / lifetime).clamp(0.0, 1.0);
     if (localTime <= 0 || q >= 1) return 0;
     final envelope = _smoothStep(0, .16, q) * (1 - _smoothStep(.66, 1, q));
@@ -387,6 +397,23 @@ double _mosaicFragmentField(double dx, double dy, double time, double phase) {
       .17 * math.sin(angle * 9 - time * .19 + phase * 1.3);
   return (.5 + field * .5).clamp(0.0, 1.0);
 }
+
+/// Coarse eligibility is intentionally independent of elapsed time. Every
+/// coordinate in a two-by-two tile block shares one decision and delay for an
+/// event; adjacent rejected blocks sometimes join into the larger stepped
+/// gaps required to break a continuous radial band.
+bool _isMosaicBlockActive(int eventSeed, int blockX, int blockY) {
+  final own = _hash01(eventSeed, blockX, blockY);
+  final east = _hash01(eventSeed, blockX + 1, blockY);
+  final south = _hash01(eventSeed, blockX, blockY + 1);
+  final bridge = _hash01(eventSeed ^ 0x5f3759df, blockX, blockY);
+  final inactive =
+      own > .72 || (own > .56 && (east > .68 || south > .68 || bridge > .73));
+  return !inactive;
+}
+
+double _mosaicBlockDelay(int eventSeed, int blockX, int blockY) =>
+    (_hash01(eventSeed ^ 0x45d9f3b, blockX, blockY) - .5) * .24;
 
 Offset _eventCenter(int index, {required double variation}) {
   final angle = _eventNoise(index, 101) * math.pi * 2;

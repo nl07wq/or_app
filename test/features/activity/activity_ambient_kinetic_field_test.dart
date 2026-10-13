@@ -172,6 +172,15 @@ void main() {
     expect(source, contains('final distanceBehindFront ='));
     expect(source, contains('final wakeActivation ='));
     expect(source, contains('frontWidth * 2.85'));
+    expect(source, contains('final blockX = (dx / 2).floor()'));
+    expect(source, contains('final blockY = (dy / 2).floor()'));
+    expect(source, contains('if (!_isMosaicBlockActive(blockSeed, blockX, blockY))'));
+    expect(source, contains('double _mosaicBlockDelay'));
+    expect(source, contains('bool _isMosaicBlockActive'));
+    expect(source, contains('final east = _hash01(eventSeed, blockX + 1, blockY)'));
+    expect(source, contains('final south = _hash01(eventSeed, blockX, blockY + 1)'));
+    expect(source, contains('final inactive ='));
+    expect(source, contains('return !inactive'));
     expect(source, isNot(contains('final clusterColor =')));
     expect(source, contains('math.sqrt(dx * dx + dy * dy)'));
     expect(source, isNot(contains('final squareDistance =')));
