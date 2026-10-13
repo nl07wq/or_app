@@ -77,6 +77,35 @@ void main() {
     expect(audio.played, isEmpty);
   });
 
+  testWidgets('REJECTED slider previews failure once at release', (tester) async {
+    final original = DeviceSettingsController.instance.value;
+    addTearDown(
+      () => DeviceSettingsController.instance.resetForTesting(original),
+    );
+    DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
+    final audio = _RecordingAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: const DeviceSettingsPage(),
+        ),
+      ),
+    );
+
+    final slider = find.byKey(
+      const ValueKey('device-settings-rejected-slider'),
+    );
+    final gesture = await tester.startGesture(tester.getCenter(slider));
+    await gesture.moveBy(const Offset(-20, 0));
+    await tester.pump();
+    expect(audio.played, isEmpty);
+    await gesture.up();
+    await tester.pump();
+
+    expect(audio.played, [TouchFeedbackSound.failure]);
+  });
+
   testWidgets('settings controls remain input-silent while applying changes', (
     tester,
   ) async {

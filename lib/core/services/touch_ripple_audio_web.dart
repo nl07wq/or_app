@@ -89,11 +89,19 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     audio.currentTime = 0;
     output.setGain(volume);
     entry.ended = ((Event _) => _remove(entry)).toJS;
-    entry.error = ((Event _) => _stop(entry)).toJS;
+    // A media element can enter an error state after an interrupted or
+    // rejected play request on mobile WebKit.  Keeping that prepared element
+    // would make every later REJECTED attempt silently reuse the same failed
+    // decoder.  Retire it so the next explicit user gesture starts with a
+    // fresh element and decoder.
+    entry.error = ((Event _) => _recoverFromPlaybackFailure(entry)).toJS;
     audio.addEventListener('ended', entry.ended);
     audio.addEventListener('error', entry.error);
     _resumeAudioContext();
-    audio.play().toDart.then<void>((_) {}, onError: (_) => _stop(entry));
+    audio
+        .play()
+        .toDart
+        .then<void>((_) {}, onError: (_) => _recoverFromPlaybackFailure(entry));
   }
 
   void _remove(_ActiveSound entry) {
@@ -111,6 +119,18 @@ class _WebTouchRippleAudio implements TouchRippleAudio {
     if (!_active.contains(entry)) return;
     entry.output.audio.pause();
     _remove(entry);
+  }
+
+  void _recoverFromPlaybackFailure(_ActiveSound entry) {
+    // Ignore delayed rejections from a source which has already been replaced
+    // by a newer semantic response.
+    if (!_active.contains(entry)) return;
+    final output = entry.output;
+    _remove(entry);
+    if (identical(_prepared[entry.sound], output)) {
+      _prepared.remove(entry.sound);
+      output.dispose();
+    }
   }
 
   void _applySettings() {

@@ -89,6 +89,34 @@ void main() {
       controller.resetForTesting(original);
     }
   });
+
+  test('failed REJECTED media is discarded before the next user gesture', () async {
+    final controller = DeviceSettingsController.instance;
+    final original = controller.value;
+    controller.resetForTesting(const DeviceSettings());
+    final outputs = <TouchFeedbackSound, List<_RecordingAudioOutput>>{};
+    final audio = createPlatformTouchRippleAudio(
+      audioFactory: (_) => HTMLAudioElement(),
+      outputFactory: (sound, element) {
+        final output = _RecordingAudioOutput(element);
+        outputs.putIfAbsent(sound, () => []).add(output);
+        return output;
+      },
+    );
+    try {
+      audio.prepare();
+      final first = outputs[TouchFeedbackSound.failure]!.single;
+      audio.playFromUserGesture(TouchFeedbackSound.failure);
+      first.audio.dispatchEvent(Event('error'));
+      audio.playFromUserGesture(TouchFeedbackSound.failure);
+
+      expect(outputs[TouchFeedbackSound.failure], hasLength(2));
+      expect(first.disposed, isTrue);
+    } finally {
+      audio.dispose();
+      controller.resetForTesting(original);
+    }
+  });
 }
 
 class _RecordingAudioOutput implements TouchFeedbackAudioOutput {
