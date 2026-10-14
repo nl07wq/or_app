@@ -177,16 +177,11 @@ class _WebTouchRippleAudio
       },
     );
     if (TouchRippleAudioDiagnostics.enabled) {
-      Future<void>.delayed(const Duration(milliseconds: 250)).then((_) {
-        TouchRippleAudioDiagnostics.record('PLAYBACK_POSITION', {
-          'sound': sound.name,
-          'outputId': entry.outputId,
-          'time': audio.currentTime.toStringAsFixed(3),
-          'paused': audio.paused,
-          'ended': audio.ended,
-          'readyState': audio.readyState,
+      for (final delay in const [120, 300, 650]) {
+        Future<void>.delayed(Duration(milliseconds: delay)).then((_) {
+          _recordPlaybackSample(entry, delay);
         });
-      });
+      }
     }
   }
 
@@ -325,7 +320,11 @@ class _WebTouchRippleAudio
       TouchRippleAudioDiagnostics.record('WEB_AUDIO_OUTPUT_CONNECTED', {
         'context': context.state,
       });
-      return _WebAudioGainOutput(audio, context);
+      return _WebAudioGainOutput(
+        audio,
+        context,
+        enableSignalDiagnostics: TouchRippleAudioDiagnostics.enabled,
+      );
     } catch (error) {
       TouchRippleAudioDiagnostics.record('WEB_AUDIO_OUTPUT_FALLBACK', {
         'errorType': error.runtimeType,
@@ -379,9 +378,37 @@ class _WebTouchRippleAudio
       'gain': webAudio
           ? output.gainValue.toStringAsFixed(3)
           : output.audio.volume.toStringAsFixed(3),
+      'topology': webAudio
+          ? output.outputTopology
+          : 'htmlAudioElement>browserMediaOutput',
       'sourceToGain': webAudio,
       'gainToDestination': webAudio,
     });
+  }
+
+  void _recordPlaybackSample(_ActiveSound entry, int elapsedMilliseconds) {
+    final audio = entry.output.audio;
+    final output = entry.output;
+    TouchRippleAudioDiagnostics.record('PLAYBACK_POSITION', {
+      'sound': entry.sound.name,
+      'outputId': entry.outputId,
+      'elapsedMs': elapsedMilliseconds,
+      'time': audio.currentTime.toStringAsFixed(3),
+      'paused': audio.paused,
+      'ended': audio.ended,
+      'readyState': audio.readyState,
+    });
+    if (output is _WebAudioGainOutput) {
+      TouchRippleAudioDiagnostics.record('WEB_AUDIO_SIGNAL_SAMPLE', {
+        'sound': entry.sound.name,
+        'outputId': entry.outputId,
+        'elapsedMs': elapsedMilliseconds,
+        'context': output.context.state,
+        'gain': output.gainValue.toStringAsFixed(3),
+        'topology': output.outputTopology,
+        ...output.signalLevels(),
+      });
+    }
   }
 
   int _outputIdFor(TouchFeedbackAudioOutput output) {
@@ -514,14 +541,34 @@ class _ActiveSound {
 }
 
 class _WebAudioGainOutput implements TouchFeedbackAudioOutput {
-  _WebAudioGainOutput(this.audio, this.context)
-    : _source = context.createMediaElementSource(audio),
-      _gain = context.createGain() {
+  _WebAudioGainOutput(
+    this.audio,
+    this.context, {
+    required bool enableSignalDiagnostics,
+  }) : _source = context.createMediaElementSource(audio),
+       _gain = context.createGain(),
+       _preGainAnalyser = enableSignalDiagnostics
+           ? context.createAnalyser()
+           : null,
+       _postGainAnalyser = enableSignalDiagnostics
+           ? context.createAnalyser()
+           : null {
     // MediaElement volume is not continuously controllable on mobile WebKit.
     // Keep it neutral and route the released asset level through Web Audio.
     audio.volume = 1;
-    _source.connect(_gain);
-    _gain.connect(context.destination);
+    _preGainAnalyser?.fftSize = 256;
+    _postGainAnalyser?.fftSize = 256;
+    final preGainAnalyser = _preGainAnalyser;
+    final postGainAnalyser = _postGainAnalyser;
+    if (preGainAnalyser != null && postGainAnalyser != null) {
+      _source.connect(preGainAnalyser);
+      preGainAnalyser.connect(_gain);
+      _gain.connect(postGainAnalyser);
+      postGainAnalyser.connect(context.destination);
+    } else {
+      _source.connect(_gain);
+      _gain.connect(context.destination);
+    }
   }
 
   @override
@@ -529,8 +576,38 @@ class _WebAudioGainOutput implements TouchFeedbackAudioOutput {
   final AudioContext context;
   final MediaElementAudioSourceNode _source;
   final GainNode _gain;
+  final AnalyserNode? _preGainAnalyser;
+  final AnalyserNode? _postGainAnalyser;
 
   double get gainValue => _gain.gain.value;
+
+  String get outputTopology => _preGainAnalyser == null
+      ? 'mediaElementSource>gain>destination'
+      : 'mediaElementSource>preGainAnalyser>gain>postGainAnalyser>destination';
+
+  Map<String, Object> signalLevels() => {
+    'signalDiagnostics': _preGainAnalyser != null,
+    'preGain': _signalLevel(_preGainAnalyser),
+    'postGain': _signalLevel(_postGainAnalyser),
+  };
+
+  Map<String, String> _signalLevel(AnalyserNode? analyser) {
+    if (analyser == null) return const {'available': 'false'};
+    final samples = typed_data.Uint8List(analyser.fftSize);
+    analyser.getByteTimeDomainData(samples.toJS);
+    var peak = 0.0;
+    var squared = 0.0;
+    for (final byte in samples) {
+      final amplitude = (byte - 128).abs() / 128;
+      if (amplitude > peak) peak = amplitude;
+      squared += amplitude * amplitude;
+    }
+    return {
+      'available': 'true',
+      'peak': peak.toStringAsFixed(4),
+      'rms': sqrt(squared / samples.length).toStringAsFixed(4),
+    };
+  }
 
   @override
   void setGain(double gain) => _gain.gain.value = gain.clamp(0, 1);
@@ -539,6 +616,8 @@ class _WebAudioGainOutput implements TouchFeedbackAudioOutput {
   void dispose() {
     _source.disconnect();
     _gain.disconnect();
+    _preGainAnalyser?.disconnect();
+    _postGainAnalyser?.disconnect();
   }
 }
 
