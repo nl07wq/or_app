@@ -220,7 +220,7 @@ class _AudioDiagnosticCard extends StatelessWidget {
           AppSpacing.gapSM,
           SelectableText(
             entries.isEmpty
-                ? 'No events yet. Adjust REJECTED, then copy this report.'
+                ? 'Run one test at a time. All four use the current REJECTED effective volume.'
                 : entries.join('\n'),
             key: const ValueKey('audio-diagnostics-report'),
           ),
@@ -241,9 +241,34 @@ class _AudioDiagnosticCard extends StatelessWidget {
           ),
           AppSpacing.gapSM,
           OperationButton(
+            text: 'CLEAR AUDIO DIAGNOSTICS',
+            icon: Icons.delete_outline,
+            onPressed: TouchRippleAudioDiagnostics.clear,
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            text: 'PLAY COMMAND: WEB AUDIO',
+            icon: Icons.graphic_eq_outlined,
+            onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
+              TouchFeedbackSound.success,
+              TouchFeedbackDiagnosticRoute.webAudio,
+            ),
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            text: 'PLAY COMMAND: DIRECT HTML AUDIO',
+            icon: Icons.volume_up_outlined,
+            onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
+              TouchFeedbackSound.success,
+              TouchFeedbackDiagnosticRoute.directHtml,
+            ),
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
             text: 'PLAY REJECTED: WEB AUDIO',
             icon: Icons.graphic_eq_outlined,
-            onPressed: () => GlobalTouchRipple.previewRejectedDiagnostic(
+            onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
+              TouchFeedbackSound.failure,
               TouchFeedbackDiagnosticRoute.webAudio,
             ),
           ),
@@ -251,7 +276,8 @@ class _AudioDiagnosticCard extends StatelessWidget {
           OperationButton(
             text: 'PLAY REJECTED: DIRECT HTML AUDIO',
             icon: Icons.volume_up_outlined,
-            onPressed: () => GlobalTouchRipple.previewRejectedDiagnostic(
+            onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
+              TouchFeedbackSound.failure,
               TouchFeedbackDiagnosticRoute.directHtml,
             ),
           ),

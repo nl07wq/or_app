@@ -55,8 +55,11 @@ class _WebTouchRippleAudio
   browserOutputFactory;
   final List<_ActiveSound> _active = [];
   final Map<TouchFeedbackSound, TouchFeedbackAudioOutput> _prepared = {};
+  final Map<TouchFeedbackAudioOutput, int> _outputIds = {};
+  final Map<HTMLAudioElement, int> _audioOutputIds = {};
   AudioContext? _audioContext;
   bool _listening = false;
+  int _nextOutputId = 1;
 
   @override
   void prepare() {
@@ -81,23 +84,36 @@ class _WebTouchRippleAudio
   void playFromUserGesture(TouchFeedbackSound sound) => _play(sound);
 
   @override
-  void playDiagnosticRejected(TouchFeedbackDiagnosticRoute route) {
+  void playDiagnosticFromUserGesture(
+    TouchFeedbackSound sound,
+    TouchFeedbackDiagnosticRoute route,
+    double effectiveVolume,
+  ) {
     if (!TouchRippleAudioDiagnostics.enabled) return;
     TouchRippleAudioDiagnostics.record('DIAGNOSTIC_ROUTE_SELECTED', {
+      'sound': sound.name,
       'route': route.name,
-      'asset': touchRippleFailureAudioAssetUrl,
+      'asset': _assetUrl(sound),
+      'comparisonVolume': effectiveVolume.toStringAsFixed(3),
     });
-    _play(TouchFeedbackSound.failure, diagnosticRoute: route);
+    _play(
+      sound,
+      diagnosticRoute: route,
+      diagnosticVolumeOverride: effectiveVolume,
+    );
   }
 
   void _play(
     TouchFeedbackSound sound, {
     TouchFeedbackDiagnosticRoute? diagnosticRoute,
+    double? diagnosticVolumeOverride,
   }) {
-    final volume = touchFeedbackEffectiveVolume(
-      sound,
-      DeviceSettingsController.instance.value,
-    );
+    final volume =
+        diagnosticVolumeOverride ??
+        touchFeedbackEffectiveVolume(
+          sound,
+          DeviceSettingsController.instance.value,
+        );
     TouchRippleAudioDiagnostics.record('PLAY_REQUESTED', {
       'sound': sound.name,
       'volume': volume.toStringAsFixed(3),
@@ -128,12 +144,12 @@ class _WebTouchRippleAudio
       _stop(_active.first);
     }
     final output = _outputForUserGesture(sound, diagnosticRoute);
-    final entry = _ActiveSound(sound, output);
+    final entry = _ActiveSound(sound, output, _outputIdFor(output));
     _active.add(entry);
     final audio = output.audio;
     audio.currentTime = 0;
     output.setGain(volume);
-    _recordOutputState(sound, output, diagnosticRoute);
+    _recordOutputState(sound, output, diagnosticRoute, entry.outputId);
     entry.ended = ((Event _) => _remove(entry)).toJS;
     // A media element can enter an error state after an interrupted or
     // rejected play request on mobile WebKit.  Keeping that prepared element
@@ -147,11 +163,13 @@ class _WebTouchRippleAudio
     audio.play().toDart.then<void>(
       (_) => TouchRippleAudioDiagnostics.record('PLAY_PROMISE_RESOLVED', {
         'sound': sound.name,
+        'outputId': entry.outputId,
         'time': audio.currentTime.toStringAsFixed(3),
       }),
       onError: (Object error, StackTrace stackTrace) {
         TouchRippleAudioDiagnostics.record('PLAY_PROMISE_REJECTED', {
           'sound': sound.name,
+          'outputId': entry.outputId,
           'errorType': error.runtimeType,
           'error': error,
         });
@@ -162,6 +180,7 @@ class _WebTouchRippleAudio
       Future<void>.delayed(const Duration(milliseconds: 250)).then((_) {
         TouchRippleAudioDiagnostics.record('PLAYBACK_POSITION', {
           'sound': sound.name,
+          'outputId': entry.outputId,
           'time': audio.currentTime.toStringAsFixed(3),
           'paused': audio.paused,
           'ended': audio.ended,
@@ -196,6 +215,7 @@ class _WebTouchRippleAudio
     final error = output.audio.error;
     TouchRippleAudioDiagnostics.record('MEDIA_FAILURE', {
       'sound': entry.sound.name,
+      'outputId': entry.outputId,
       'mediaCode': error?.code ?? 'none',
       'mediaMessage': error?.message ?? 'none',
     });
@@ -339,13 +359,20 @@ class _WebTouchRippleAudio
     TouchFeedbackSound sound,
     TouchFeedbackAudioOutput output,
     TouchFeedbackDiagnosticRoute? diagnosticRoute,
+    int outputId,
   ) {
     if (!TouchRippleAudioDiagnostics.enabled) return;
     final webAudio = output is _WebAudioGainOutput;
     TouchRippleAudioDiagnostics.record('OUTPUT_READY', {
       'sound': sound.name,
+      'asset': _assetUrl(sound),
+      'outputId': outputId,
+      'outputType': output.runtimeType,
       'requestedRoute': diagnosticRoute?.name ?? 'normal',
       'actualRoute': webAudio ? 'webAudio' : 'directHtml',
+      'audioSrc': output.audio.currentSrc.isEmpty
+          ? output.audio.src
+          : output.audio.currentSrc,
       'audioVolume': output.audio.volume.toStringAsFixed(3),
       'audioMuted': output.audio.muted,
       'context': webAudio ? output.context.state : 'none',
@@ -355,6 +382,12 @@ class _WebTouchRippleAudio
       'sourceToGain': webAudio,
       'gainToDestination': webAudio,
     });
+  }
+
+  int _outputIdFor(TouchFeedbackAudioOutput output) {
+    final outputId = _outputIds.putIfAbsent(output, () => _nextOutputId++);
+    _audioOutputIds[output.audio] = outputId;
+    return outputId;
   }
 
   Future<void> _inspectSignal(TouchFeedbackSound sound) async {
@@ -417,6 +450,9 @@ class _WebTouchRippleAudio
     if (!TouchRippleAudioDiagnostics.enabled) return;
     void record(String event) => TouchRippleAudioDiagnostics.record(event, {
       'sound': sound.name,
+      'outputId': _audioOutputIds[audio] ?? 'unassigned',
+      'asset': _assetUrl(sound),
+      'audioSrc': audio.currentSrc.isEmpty ? audio.src : audio.currentSrc,
       'readyState': audio.readyState,
       'networkState': audio.networkState,
       'duration': audio.duration,
@@ -468,10 +504,11 @@ class _WebTouchRippleAudio
 }
 
 class _ActiveSound {
-  _ActiveSound(this.sound, this.output);
+  _ActiveSound(this.sound, this.output, this.outputId);
 
   final TouchFeedbackSound sound;
   final TouchFeedbackAudioOutput output;
+  final int outputId;
   JSFunction? ended;
   JSFunction? error;
 }

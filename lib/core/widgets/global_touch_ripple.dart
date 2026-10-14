@@ -124,20 +124,44 @@ class GlobalTouchRipple extends StatefulWidget {
     }
   }
 
-  /// Runs one explicitly selected REJECTED output route for physical-browser
+  /// Runs one explicitly selected asset/output comparison for physical-browser
   /// diagnosis. Normal feedback never calls this path.
-  static void previewRejectedDiagnostic(TouchFeedbackDiagnosticRoute route) {
-    if (touchFeedbackEffectiveVolume(
-          TouchFeedbackSound.failure,
-          DeviceSettingsController.instance.value,
-        ) >
-        0) {
-      final audio = _activeState?._audio;
-      if (audio is TouchRippleAudioDiagnosticPlayer) {
-        (audio as TouchRippleAudioDiagnosticPlayer).playDiagnosticRejected(
-          route,
-        );
-      }
+  ///
+  /// The REJECTED channel is the comparison source for the common volume: it
+  /// preserves the user's master/mute/rejected settings while keeping all four
+  /// COMMAND/REJECTED × Web Audio/HTML Audio tests equivalent.
+  static void previewDiagnosticFeedback(
+    TouchFeedbackSound sound,
+    TouchFeedbackDiagnosticRoute route,
+  ) {
+    final effectiveVolume = touchFeedbackEffectiveVolume(
+      TouchFeedbackSound.failure,
+      DeviceSettingsController.instance.value,
+    );
+    TouchRippleAudioDiagnostics.record('DIAGNOSTIC_TEST_REQUESTED', {
+      'sound': sound.name,
+      'route': route.name,
+      'comparisonVolume': effectiveVolume.toStringAsFixed(3),
+    });
+    if (effectiveVolume <= 0) {
+      TouchRippleAudioDiagnostics.record('DIAGNOSTIC_TEST_SKIPPED_MUTED', {
+        'sound': sound.name,
+        'route': route.name,
+      });
+      return;
+    }
+    final audio = _activeState?._audio;
+    if (audio is TouchRippleAudioDiagnosticPlayer) {
+      (audio as TouchRippleAudioDiagnosticPlayer).playDiagnosticFromUserGesture(
+        sound,
+        route,
+        effectiveVolume,
+      );
+    } else {
+      TouchRippleAudioDiagnostics.record('DIAGNOSTIC_PLAYER_UNAVAILABLE', {
+        'sound': sound.name,
+        'route': route.name,
+      });
     }
   }
 

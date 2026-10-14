@@ -150,6 +150,63 @@ void main() {
       }
     },
   );
+
+  test('diagnostic comparison keeps COMMAND and REJECTED at one gain', () {
+    final controller = DeviceSettingsController.instance;
+    final original = controller.value;
+    controller.resetForTesting(const DeviceSettings());
+    final outputs = <TouchFeedbackSound, _RecordingAudioOutput>{};
+    final elements = <TouchFeedbackSound, List<HTMLAudioElement>>{};
+    final audio = createPlatformTouchRippleAudio(
+      audioFactory: (sound) {
+        final element = HTMLAudioElement();
+        elements.putIfAbsent(sound, () => []).add(element);
+        return element;
+      },
+      outputFactory: (sound, element) {
+        final output = _RecordingAudioOutput(element);
+        outputs[sound] = output;
+        return output;
+      },
+    );
+    try {
+      TouchRippleAudioDiagnostics.enabledForTesting = true;
+      audio.prepare();
+      final diagnostic = audio as TouchRippleAudioDiagnosticPlayer;
+      const comparisonGain = .17;
+
+      diagnostic.playDiagnosticFromUserGesture(
+        TouchFeedbackSound.success,
+        TouchFeedbackDiagnosticRoute.webAudio,
+        comparisonGain,
+      );
+      diagnostic.playDiagnosticFromUserGesture(
+        TouchFeedbackSound.failure,
+        TouchFeedbackDiagnosticRoute.webAudio,
+        comparisonGain,
+      );
+      expect(outputs[TouchFeedbackSound.success]!.gain, comparisonGain);
+      expect(outputs[TouchFeedbackSound.failure]!.gain, comparisonGain);
+
+      diagnostic.playDiagnosticFromUserGesture(
+        TouchFeedbackSound.success,
+        TouchFeedbackDiagnosticRoute.directHtml,
+        comparisonGain,
+      );
+      diagnostic.playDiagnosticFromUserGesture(
+        TouchFeedbackSound.failure,
+        TouchFeedbackDiagnosticRoute.directHtml,
+        comparisonGain,
+      );
+      expect(elements[TouchFeedbackSound.success]!.last.volume, comparisonGain);
+      expect(elements[TouchFeedbackSound.failure]!.last.volume, comparisonGain);
+    } finally {
+      audio.dispose();
+      TouchRippleAudioDiagnostics.enabledForTesting = null;
+      TouchRippleAudioDiagnostics.clear();
+      controller.resetForTesting(original);
+    }
+  });
 }
 
 class _RecordingAudioOutput implements TouchFeedbackAudioOutput {

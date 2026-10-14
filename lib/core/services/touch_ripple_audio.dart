@@ -28,10 +28,16 @@ enum TouchFeedbackDiagnosticRoute { webAudio, directHtml }
 class TouchRippleAudioDiagnostics {
   TouchRippleAudioDiagnostics._();
 
-  static const _maximumEntries = 64;
+  // Four independently-run route tests each emit media, output, signal, and
+  // promise events. Keep a complete comparison available for copying.
+  static const _maximumEntries = 192;
   static final entries = ValueNotifier<List<String>>(const []);
 
+  @visibleForTesting
+  static bool? enabledForTesting;
+
   static bool get enabled =>
+      enabledForTesting ??
       Uri.base.queryParameters['audioDiagnostics'] == 'true';
 
   static void record(String event, [Map<String, Object?> fields = const {}]) {
@@ -84,7 +90,14 @@ abstract interface class TouchRippleAudio {
 /// Implemented only by the web player. Keeping this separate ensures the
 /// diagnostic route is unavailable to normal feedback and test doubles.
 abstract interface class TouchRippleAudioDiagnosticPlayer {
-  void playDiagnosticRejected(TouchFeedbackDiagnosticRoute route);
+  /// Plays one explicitly selected comparison route. [effectiveVolume] is
+  /// resolved by the diagnostics UI once so every cross-test uses precisely
+  /// the same gain without changing normal production sound settings.
+  void playDiagnosticFromUserGesture(
+    TouchFeedbackSound sound,
+    TouchFeedbackDiagnosticRoute route,
+    double effectiveVolume,
+  );
 }
 
 TouchRippleAudio createTouchRippleAudio() => createPlatformTouchRippleAudio();
