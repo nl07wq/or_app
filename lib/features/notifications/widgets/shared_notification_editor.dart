@@ -29,9 +29,29 @@ class SharedNotificationEditor extends StatefulWidget {
 
 class _SharedNotificationEditorState extends State<SharedNotificationEditor> {
   static const _presets = [0, 5, 15, 30, 60, 1440, 10080];
+  static const _calendarPresetOffsets = {0, 10, 60, 360};
   final _number = TextEditingController();
+  late final Set<int> _calendarCustomOffsets = {
+    ...widget.value.offsetsMinutes.where(
+      (offset) => !_calendarPresetOffsets.contains(offset),
+    ),
+  };
   var _unit = NotificationOffsetUnit.minutes;
   String? _error;
+
+  @override
+  void didUpdateWidget(covariant SharedNotificationEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.calendarStyle) return;
+    // A parent rebuild follows every selection change. Keep deselected custom
+    // choices available for this edit session while admitting any persisted
+    // custom offset supplied by an externally refreshed record.
+    _calendarCustomOffsets.addAll(
+      widget.value.offsetsMinutes.where(
+        (offset) => !_calendarPresetOffsets.contains(offset),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -79,6 +99,19 @@ class _SharedNotificationEditorState extends State<SharedNotificationEditor> {
             setSheetState(() {});
           }
 
+          void addCustom(int offset) {
+            if (!_calendarPresetOffsets.contains(offset)) {
+              setState(() => _calendarCustomOffsets.add(offset));
+            }
+            // Adding an existing offset must select it; it must not invert an
+            // already selected option as the generic toggle would.
+            selected.add(offset);
+            widget.onChanged(widget.value.copyWith(offsetsMinutes: selected));
+            setSheetState(() {});
+          }
+
+          final customOffsets = _calendarCustomOffsets.toList()..sort();
+
           return SafeArea(
             child: FractionallySizedBox(
               heightFactor: .68,
@@ -105,6 +138,16 @@ class _SharedNotificationEditorState extends State<SharedNotificationEditor> {
                       onTap: () => toggle(preset.$2),
                     ).inputFeedback(),
                   const Divider(),
+                  for (final offset in customOffsets)
+                    ListTile(
+                      key: ValueKey('calendar-notification-custom-$offset'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(notificationOffsetLabel(offset)),
+                      trailing: selected.contains(offset)
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () => toggle(offset),
+                    ).inputFeedback(),
                   ListTile(
                     key: const ValueKey('calendar-notification-custom'),
                     contentPadding: EdgeInsets.zero,
@@ -112,7 +155,7 @@ class _SharedNotificationEditorState extends State<SharedNotificationEditor> {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _showCalendarCustomPicker(
                       sheetContext,
-                      onConfirm: (offset) => toggle(offset),
+                      onConfirm: addCustom,
                     ),
                   ).inputFeedback(),
                 ],
