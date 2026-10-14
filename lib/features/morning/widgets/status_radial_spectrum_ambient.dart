@@ -112,9 +112,9 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   _SpectrumLayout? _layout;
   static final _spectrumMotion = _FastSpectrumMotion();
   static final _pulseMotion = _StatusPulseMotion();
-  static const _flameMotionSpeed = 2.05;
+  static const _flameMotionSpeed = 2.45;
   static const _flameMotionAmplitude = .96;
-  static const _flameTongueCount = 13;
+  static const _flameTongueCount = 15;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -235,6 +235,11 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
         ..drawLine(start, end, _barNearHalo)
         ..drawLine(start, end, _barCore);
     }
+    // The bars deliberately remain behind the actual ring edge. Reasserting
+    // this same contour after the indicators prevents their dense radial
+    // strokes from flattening curved flame tips into a circular silhouette.
+    // This is not a second aura layer: it is the existing outer boundary.
+    canvas.drawPath(_ringOuterPath, _donutEdgeCore);
     canvas.restore();
   }
 
@@ -396,28 +401,28 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     ).createShader(oval);
     _donutBroadHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .18)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .11)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.18 + pulse * .07),
+              visibleThickness * (.11 + pulse * .045),
             )
       ..shader = shader
       ..strokeJoin = StrokeJoin.miter
-      ..strokeWidth = visibleThickness * (.34 + pulse * .05);
+      ..strokeWidth = visibleThickness * (.20 + pulse * .035);
     _donutNearHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .055)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .035)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.055 + pulse * .025),
+              visibleThickness * (.035 + pulse * .016),
             )
       ..shader = shader
       ..strokeJoin = StrokeJoin.miter
-      ..strokeWidth = visibleThickness * (.20 + pulse * .03);
+      ..strokeWidth = visibleThickness * (.13 + pulse * .022);
     _donutCore.shader = shader;
     _donutEdgeCore
       ..shader = shader
-      ..strokeWidth = (visibleThickness * .12).clamp(.7, 1.35);
+      ..strokeWidth = (visibleThickness * .09).clamp(.65, 1.15);
     canvas
       ..drawPath(outer, _donutBroadHalo)
       ..drawPath(outer, _donutNearHalo)
@@ -486,55 +491,102 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   }
 
   double _flameContourExtension(double angle, double time) {
-    // Keep the resting rim close to circular between individual formations.
-    // This establishes visible depth at the roots instead of rebuilding a
-    // continuous sine-wave halo beneath the sharp tongues.
+    // Keep the resting rim close to circular between local formations. The
+    // low-frequency motion only prevents an entirely static seam; it never
+    // becomes a second, rounded flame layer.
     var extension =
-        math.sin(angle * 3 + time * .22 * _flameMotionSpeed + .37) * .055 +
-        math.sin(angle * 5 - time * .16 * _flameMotionSpeed + 1.83) * .035;
+        math.sin(angle * 3 + time * .13 * _flameMotionSpeed + .37) * .035 +
+        math.sin(angle * 5 - time * .09 * _flameMotionSpeed + 1.83) * .020;
 
     for (var index = 0; index < _flameTongueCount; index++) {
       final phase = _flameNoise(index, 1);
       final cycle =
-          (time * (.28 + _flameNoise(index, 2) * .18) * _flameMotionSpeed +
+          (time * (.19 + _flameNoise(index, 2) * .15) * _flameMotionSpeed +
               phase) %
           1;
-      // Each tongue returns to zero before its next emergence, so a local
-      // lifecycle can repeat without a global contour reset.
-      final lifetime =
-          _smoothStep(.03, .18, cycle) * (1 - _smoothStep(.58, .98, cycle));
+      // Independent emergence, extension, curl, thinning, and disappearance
+      // phases keep formation changes continuous without a ring-wide reset.
+      final emergence = _smoothStep(.02, .15, cycle);
+      final extensionPhase = _smoothStep(.10, .48, cycle);
+      final curlPhase = _smoothStep(.26, .72, cycle);
+      final thinning = 1 - _smoothStep(.64, .98, cycle);
+      final lifetime = emergence * thinning;
       if (lifetime <= .001) continue;
 
-      final rootCenter = _flameNoise(index, 5) * math.pi * 2;
-      final lean =
-          (_flameNoise(index, 4) - .5) * .92 +
-          math.sin(time * .31 * _flameMotionSpeed + index * 1.71) * .24;
-      final rootWidth = .036 + _flameNoise(index, 3) * .060;
-      final tipCenter = rootCenter + lean * rootWidth * lifetime;
-      final signedDistance = math.atan2(
-        math.sin(angle - tipCenter),
-        math.cos(angle - tipCenter),
-      );
-      // Unequal sides make each root broad but its tip lean and narrow rather
-      // than forming a symmetric sine bump.
-      final sideWidth = signedDistance < 0
-          ? rootWidth * (.48 + _flameNoise(index, 7) * .26)
-          : rootWidth * (.86 + _flameNoise(index, 8) * .30);
-      final normalized = signedDistance.abs() / sideWidth;
-      if (normalized >= 1) continue;
-
-      // A linear taper deliberately leaves a cusp at the tip. An eased power
-      // curve flattened that apex before the renderer even reached the glow
-      // stage, reading as a rounded bump on a phone-sized ring.
-      final pointedProfile = 1 - normalized;
+      // The root drifts only slightly. The body and tip progressively travel
+      // farther around the circumference, making each flame curl instead of
+      // breathing as a fixed radial spike.
+      final baseRoot = _flameNoise(index, 5) * math.pi * 2;
+      final rootCenter =
+          baseRoot +
+          math.sin(time * (.12 + _flameNoise(index, 10) * .08) + index) *
+              (.025 + _flameNoise(index, 11) * .035);
+      final curlDirection = _flameNoise(index, 4) < .5 ? -1.0 : 1.0;
+      final curl =
+          curlDirection *
+          (.070 + _flameNoise(index, 12) * .150) *
+          curlPhase *
+          (1 + .18 * math.sin(time * .73 + index * 2.17));
+      final bodyCenter = rootCenter + curl * .42;
+      final tipCenter =
+          rootCenter +
+          curl +
+          curlDirection *
+              math.sin(time * (.44 + _flameNoise(index, 13) * .18) + index) *
+              .028 *
+              curlPhase;
+      final rootWidth = .065 + _flameNoise(index, 3) * .085;
       final height =
-          (4.2 +
-              _flameNoise(index, 6) * 5.6 +
-              (_flameNoise(index, 9) > .82 ? 4.6 : 0)) *
-          (1 + .18 * math.sin(time * .56 * _flameMotionSpeed + index));
-      extension += height * lifetime * pointedProfile;
+          (3.3 +
+              _flameNoise(index, 6) * 4.8 +
+              (_flameNoise(index, 9) > .80 ? 3.5 : 0)) *
+          (.62 + extensionPhase * .38);
+
+      // A broad anchored root, an offset narrowing body, and a compact cusp
+      // at a still farther angular position form one curved flame tongue.
+      // Their centres move at different rates, so the silhouette flows rather
+      // than repeatedly scaling a fixed angular spike.
+      extension +=
+          _flameLobe(angle, rootCenter, rootWidth, height * .30, 1.35) *
+          lifetime;
+      extension +=
+          _flameLobe(
+            angle,
+            bodyCenter,
+            rootWidth * (.52 + _flameNoise(index, 7) * .12),
+            height * (.42 + extensionPhase * .10),
+            .92,
+          ) *
+          lifetime;
+      extension +=
+          _flameLobe(
+            angle,
+            tipCenter,
+            rootWidth * (.19 + _flameNoise(index, 8) * .10),
+            height * (.72 + extensionPhase * .28),
+            .58,
+          ) *
+          lifetime;
     }
     return (extension * _flameMotionAmplitude).clamp(-.35, 11.2);
+  }
+
+  double _flameLobe(
+    double angle,
+    double center,
+    double halfWidth,
+    double height,
+    double exponent,
+  ) {
+    final signedDistance = math.atan2(
+      math.sin(angle - center),
+      math.cos(angle - center),
+    );
+    final normalized = 1 - signedDistance.abs() / halfWidth;
+    if (normalized <= 0) return 0;
+    // Fractions below one preserve a narrow, visibly pointed tip instead of
+    // easing it into the rounded humps rejected on the real device.
+    return height * math.pow(normalized, exponent).toDouble();
   }
 
   double _flameNoise(int index, int parameter) {
