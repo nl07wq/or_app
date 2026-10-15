@@ -89,11 +89,13 @@ class _CalendarPageState extends State<CalendarPage> {
   late DateTime _month = DateTime(_selected.year, _selected.month);
   Map<String, List<ScheduleRecord>> _byDate = const {};
   Map<String, ReminderOccurrence> _projectedReminders = const {};
+  List<ScheduleRecord> _todayCarriedOverReminders = const [];
   final _dailyTimelineKey = GlobalKey();
   final _timelineMarkerKeys = <String, GlobalKey>{};
   List<Rect> _dailyTimelineMarkerBounds = const [];
   bool _loading = true;
   int _loadGeneration = 0;
+  Timer? _dayRollover;
   final WeatherService _weatherService = WeatherService();
   WeatherLocationPreferences _weatherPreferences =
       const WeatherLocationPreferences(locations: [], activeLocationId: null);
@@ -115,18 +117,30 @@ class _CalendarPageState extends State<CalendarPage> {
     super.initState();
     schedulePlanRevisionNotifier.addListener(_handlePlanRevision);
     _load();
+    _scheduleDayRollover();
     _loadWeather();
   }
 
   @override
   void dispose() {
     schedulePlanRevisionNotifier.removeListener(_handlePlanRevision);
+    _dayRollover?.cancel();
     super.dispose();
   }
 
   void _handlePlanRevision() {
     if (!mounted) return;
     unawaited(_load(showLoading: false));
+  }
+
+  void _scheduleDayRollover() {
+    _dayRollover?.cancel();
+    final now = DateTime.now();
+    final nextDay = DateTime(now.year, now.month, now.day + 1);
+    _dayRollover = Timer(nextDay.difference(now) + const Duration(seconds: 1), () {
+      if (mounted) unawaited(_load(showLoading: false));
+      _scheduleDayRollover();
+    });
   }
 
   Future<void> _loadWeather({
@@ -238,11 +252,19 @@ class _CalendarPageState extends State<CalendarPage> {
     final values = await ScheduleRecurrenceService(
       container.schedules,
     ).inRange(DateTimeRange(start: first, end: last));
-    final occurrences = await ReminderOccurrenceService(
-      container.reminders,
-    ).inRange(DateTimeRange(start: first, end: last));
+    final reminderService = ReminderOccurrenceService(container.reminders);
+    final occurrences = await reminderService.inRange(
+      DateTimeRange(start: first, end: last),
+    );
+    final now = DateTime.now();
+    final today = _dateOnly(now);
+    final todayKey = _key(today);
+    final pendingThroughToday = await reminderService.pendingThrough(today);
+    final carryovers = pendingThroughToday
+        .where((value) => value.localDate.compareTo(todayKey) < 0)
+        .toList();
     final projected = <String, ReminderOccurrence>{
-      for (final value in occurrences) value.id: value,
+      for (final value in [...occurrences, ...carryovers]) value.id: value,
     };
     final calendarValues = <ScheduleRecord>[
       ...values.where((value) => value.kind == ScheduleEntryKind.schedule),
@@ -259,6 +281,7 @@ class _CalendarPageState extends State<CalendarPage> {
           ],
       };
       _projectedReminders = projected;
+      _todayCarriedOverReminders = carryovers.map(_projectReminder).toList();
       _loading = false;
     });
     unawaited(
@@ -267,8 +290,22 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   String get _selectedKey => _key(_selected);
-  List<ScheduleRecord> get _selectedSchedules =>
-      _byDate[_selectedKey] ?? const [];
+  List<ScheduleRecord> get _selectedSchedules {
+    final selected = _byDate[_selectedKey] ?? const <ScheduleRecord>[];
+    if (!_sameDay(_selected, DateTime.now())) return selected;
+    final merged = <String, ScheduleRecord>{
+      for (final value in _todayCarriedOverReminders) value.id: value,
+      for (final value in selected) value.id: value,
+    };
+    return merged.values.toList();
+  }
+
+  bool _isSelectedReminderOverdue(ScheduleRecord record) {
+    final occurrence = _projectedReminders[record.id];
+    return _sameDay(_selected, DateTime.now()) &&
+        occurrence != null &&
+        reminderOccurrenceIsOverdue(occurrence, DateTime.now());
+  }
 
   void _measureDailyTimeline(List<ScheduleRecord> records) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -557,6 +594,10 @@ class _CalendarPageState extends State<CalendarPage> {
                                                   },
                                                   child: _TimelineEntry(
                                                     record: entry.$2,
+                                                    overdue:
+                                                        _isSelectedReminderOverdue(
+                                                          entry.$2,
+                                                        ),
                                                     markerKey:
                                                         _timelineMarkerKeys
                                                             .putIfAbsent(
@@ -4816,12 +4857,14 @@ class _OpenMeteoAttribution extends StatelessWidget {
 class _TimelineEntry extends StatefulWidget {
   const _TimelineEntry({
     required this.record,
+    required this.overdue,
     required this.onTap,
     required this.onMove,
     required this.markerKey,
     this.onReminderToggle,
   });
   final ScheduleRecord record;
+  final bool overdue;
   final VoidCallback onTap;
   final ValueChanged<int> onMove;
   final Key markerKey;
@@ -4838,6 +4881,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
     final record = widget.record;
     final timed = record.startTime != null && !record.allDay;
     final colorScheme = Theme.of(context).colorScheme;
+    final textColor = widget.overdue ? colorScheme.error : null;
     return GestureDetector(
       onTap: widget.onTap,
       onLongPressStart: timed
@@ -4918,12 +4962,15 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                         record.title,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: textColor,
                         ),
                       ),
                       Text(
-                        '${record.kind == ScheduleEntryKind.reminder ? 'リマインダー' : _scheduleTypeLabel(record.type)}${record.endTime == null ? '' : '  ${record.startTime}–${_displayEndTime(record)}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
+                        '${widget.overdue ? '超過  ${record.localDate}  ' : ''}${record.kind == ScheduleEntryKind.reminder ? 'リマインダー' : _scheduleTypeLabel(record.type)}${record.endTime == null ? '' : '  ${record.startTime}–${_displayEndTime(record)}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.primary.withValues(alpha: .72),
+                          color: widget.overdue
+                              ? colorScheme.error
+                              : colorScheme.primary.withValues(alpha: .72),
                         ),
                       ),
                     ],

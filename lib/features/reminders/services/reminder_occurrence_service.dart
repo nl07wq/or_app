@@ -69,6 +69,41 @@ class ReminderOccurrenceService {
     return List.unmodifiable(values);
   }
 
+  /// Returns each pending occurrence through [day], retaining its original
+  /// occurrence date. This is a display projection for TODAY and Calendar;
+  /// it never changes a definition, notification, or occurrence state.
+  Future<List<ReminderOccurrence>> pendingThrough(DateTime day) async {
+    final definitions = await _repository.findDefinitions();
+    final states = {
+      for (final state in await _repository.findStates()) state.id: state,
+    };
+    final end = DateUtils.dateOnly(day);
+    final values = <ReminderOccurrence>[];
+    for (final definition in definitions) {
+      final start = DateTime.tryParse(definition.startDate);
+      if (start == null || start.isAfter(end)) continue;
+      for (final date in _engine.datesFor(
+        definition,
+        DateTimeRange(start: start, end: end),
+      )) {
+        if (!_isActiveFor(definition, date)) continue;
+        final state = states['${definition.id}@$date'];
+        if (state != null && state.status != ReminderOccurrenceStatus.pending) {
+          continue;
+        }
+        values.add(
+          ReminderOccurrence(
+            definition: definition,
+            localDate: date,
+            status: ReminderOccurrenceStatus.pending,
+          ),
+        );
+      }
+    }
+    values.sort(_compare);
+    return List.unmodifiable(values);
+  }
+
   /// Returns the next pending occurrence for each recurrence slot used by
   /// the compact ALL projection. Calendar and Dashboard continue to use
   /// [inRange] and are intentionally unaffected by this policy.
@@ -215,4 +250,22 @@ class ReminderOccurrenceService {
       _ => const {'definition'},
     };
   }
+}
+
+/// A past calendar date is always overdue. A timed occurrence earlier today
+/// is also overdue in views that display temporal status, while it remains a
+/// current-day item rather than a carryover projection.
+bool reminderOccurrenceIsOverdue(ReminderOccurrence occurrence, DateTime now) {
+  if (occurrence.status != ReminderOccurrenceStatus.pending) return false;
+  final date = DateTime.tryParse(occurrence.localDate);
+  if (date == null) return false;
+  final today = DateUtils.dateOnly(now);
+  if (date.isBefore(today)) return true;
+  if (date.isAfter(today) || occurrence.definition.allDay) return false;
+  final parts = occurrence.definition.time?.split(':');
+  if (parts == null || parts.length != 2) return false;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return false;
+  return DateTime(date.year, date.month, date.day, hour, minute).isBefore(now);
 }

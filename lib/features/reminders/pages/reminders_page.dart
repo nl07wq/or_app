@@ -45,6 +45,8 @@ class _RemindersPageState extends State<RemindersPage>
   List<ReminderOccurrence> _all = const [];
   List<ReminderOccurrence> _completed = const [];
   List<ReminderDefinition> _recurring = const [];
+  DateTime _displayNow = DateTime.now();
+  Timer? _dayRollover;
   final Map<int, Map<String, ReminderOccurrence>> _retainedCompletedByTab =
       <int, Map<String, ReminderOccurrence>>{};
   bool _loading = true;
@@ -59,11 +61,13 @@ class _RemindersPageState extends State<RemindersPage>
     _tabs.addListener(_clearTransientCompleteRetention);
     schedulePlanRevisionNotifier.addListener(_handlePlanRevision);
     _load();
+    _scheduleDayRollover();
   }
 
   @override
   void dispose() {
     schedulePlanRevisionNotifier.removeListener(_handlePlanRevision);
+    _dayRollover?.cancel();
     _tabs.removeListener(_clearTransientCompleteRetention);
     _tabs.dispose();
     super.dispose();
@@ -72,6 +76,19 @@ class _RemindersPageState extends State<RemindersPage>
   void _handlePlanRevision() {
     if (!mounted) return;
     unawaited(_load(showLoading: false));
+  }
+
+  void _scheduleDayRollover() {
+    _dayRollover?.cancel();
+    final now = DateTime.now();
+    final nextDay = DateTime(now.year, now.month, now.day + 1);
+    _dayRollover = Timer(
+      nextDay.difference(now) + const Duration(seconds: 1),
+      () {
+        if (mounted) unawaited(_load(showLoading: false));
+        _scheduleDayRollover();
+      },
+    );
   }
 
   void _clearTransientCompleteRetention() {
@@ -88,18 +105,20 @@ class _RemindersPageState extends State<RemindersPage>
       container.schedules,
       container.reminders,
     ).migrate();
-    final today = DateUtils.dateOnly(DateTime.now());
-    final todayPending = await _occurrences.inRange(
-      DateTimeRange(start: today, end: today),
-      includeCompleted: false,
-    );
+    final now = DateTime.now();
+    final today = DateUtils.dateOnly(now);
+    final todayPending = await _occurrences.pendingThrough(today);
     final allCompact = await _occurrences.nextPendingBySlot(today);
     final definitions = await container.reminders.findDefinitions();
     final completed = await _occurrences.completed();
     if (!mounted || generation != _loadGeneration) return;
     setState(() {
+      _displayNow = now;
       _today = _withTransientRetained(todayPending, 0);
-      _all = _withTransientRetained(allCompact, 1);
+      _all = _withTransientRetained(
+        _mergeOccurrences(todayPending, allCompact),
+        1,
+      );
       _completed = completed;
       _recurring = definitions
           .where((value) => _isCurrentRecurringDefinition(value, today))
@@ -123,6 +142,23 @@ class _RemindersPageState extends State<RemindersPage>
     };
     return byId.values.toList()
       ..sort((first, second) => first.localDate.compareTo(second.localDate));
+  }
+
+  List<ReminderOccurrence> _mergeOccurrences(
+    List<ReminderOccurrence> first,
+    List<ReminderOccurrence> second,
+  ) {
+    final values = <String, ReminderOccurrence>{
+      for (final value in first) value.id: value,
+      for (final value in second) value.id: value,
+    }.values.toList();
+    values.sort((a, b) {
+      final date = a.localDate.compareTo(b.localDate);
+      if (date != 0) return date;
+      final time = (a.definition.time ?? '').compareTo(b.definition.time ?? '');
+      return time != 0 ? time : a.id.compareTo(b.id);
+    });
+    return values;
   }
 
   Future<void> _toggle(ReminderOccurrence value, {int? retentionTab}) async {
@@ -357,6 +393,7 @@ class _RemindersPageState extends State<RemindersPage>
                                 children: [
                                   _OccurrenceList(
                                     values: _today,
+                                    now: _displayNow,
                                     empty: '今日のREMINDERはありません',
                                     onToggle: (value) =>
                                         _toggle(value, retentionTab: 0),
@@ -365,6 +402,7 @@ class _RemindersPageState extends State<RemindersPage>
                                   ),
                                   _OccurrenceList(
                                     values: _all,
+                                    now: _displayNow,
                                     empty: '今後のREMINDERはありません',
                                     onToggle: (value) =>
                                         _toggle(value, retentionTab: 1),
@@ -378,6 +416,7 @@ class _RemindersPageState extends State<RemindersPage>
                                   ),
                                   _OccurrenceList(
                                     values: _completed,
+                                    now: _displayNow,
                                     empty: '完了済みREMINDERはありません',
                                     onToggle: _toggle,
                                     onEdit: _edit,
@@ -517,12 +556,14 @@ class _ReminderHudTabs extends StatelessWidget {
 class _OccurrenceList extends StatefulWidget {
   const _OccurrenceList({
     required this.values,
+    required this.now,
     required this.empty,
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
   });
   final List<ReminderOccurrence> values;
+  final DateTime now;
   final String empty;
   final _OccurrenceAction onToggle;
   final _DefinitionAction onEdit;
@@ -556,6 +597,7 @@ class _OccurrenceListState extends State<_OccurrenceList> {
           child: _ReminderTimelineList(
             key: const ValueKey('reminder-full-list-timeline'),
             values: widget.values,
+            now: widget.now,
             onToggle: widget.onToggle,
             onEdit: widget.onEdit,
             onDelete: widget.onDelete,
@@ -570,12 +612,14 @@ class _ReminderTimelineList extends StatefulWidget {
   const _ReminderTimelineList({
     super.key,
     required this.values,
+    required this.now,
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
   });
 
   final List<ReminderOccurrence> values;
+  final DateTime now;
   final _OccurrenceAction onToggle;
   final _DefinitionAction onEdit;
   final _OccurrenceAction onDelete;
@@ -652,6 +696,10 @@ class _ReminderTimelineListState extends State<_ReminderTimelineList> {
                 ),
                 child: _ReminderOccurrenceRow(
                   value: widget.values[index],
+                  overdue: reminderOccurrenceIsOverdue(
+                    widget.values[index],
+                    widget.now,
+                  ),
                   markerKey: _markerKeys.putIfAbsent(
                     widget.values[index].id,
                     GlobalKey.new,
@@ -714,11 +762,13 @@ class _ReminderRowDivider extends StatelessWidget {
 class _ReminderOccurrenceRow extends StatelessWidget {
   const _ReminderOccurrenceRow({
     required this.value,
+    required this.overdue,
     required this.markerKey,
     required this.onToggle,
     required this.onEdit,
   });
   final ReminderOccurrence value;
+  final bool overdue;
   final Key markerKey;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
@@ -728,6 +778,7 @@ class _ReminderOccurrenceRow extends StatelessWidget {
     final completed = value.status == ReminderOccurrenceStatus.completed;
     final colorScheme = Theme.of(context).colorScheme;
     final secondary = colorScheme.onSurface.withValues(alpha: .65);
+    final textColor = overdue ? colorScheme.error : null;
     return Semantics(
       label: '${value.definition.title} ${completed ? '完了' : '未完了'}',
       child: InkWell(
@@ -759,7 +810,7 @@ class _ReminderOccurrenceRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: completed ? secondary : null,
+                          color: completed ? secondary : textColor,
                           decoration: completed
                               ? TextDecoration.lineThrough
                               : null,
@@ -770,6 +821,7 @@ class _ReminderOccurrenceRow extends StatelessWidget {
                             '${value.localDate}${value.definition.time == null ? '  終日' : '  ${value.definition.time}'}',
                         note: value.definition.note,
                         completed: completed,
+                        overdue: overdue,
                       ),
                     ],
                   ),
@@ -976,15 +1028,26 @@ class _ReminderSubtitle extends StatelessWidget {
     required this.summary,
     this.note,
     this.completed = false,
+    this.overdue = false,
   });
   final String summary;
   final String? note;
   final bool completed;
+  final bool overdue;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      if (overdue) ...[
+        Text(
+          '超過',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.error,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
       Text(
         summary,
         style: completed
@@ -993,6 +1056,10 @@ class _ReminderSubtitle extends StatelessWidget {
                   context,
                 ).colorScheme.onSurface.withValues(alpha: .65),
                 decoration: TextDecoration.lineThrough,
+              )
+            : overdue
+            ? Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.error,
               )
             : null,
       ),

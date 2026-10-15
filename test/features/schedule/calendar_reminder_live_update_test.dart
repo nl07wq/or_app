@@ -195,9 +195,41 @@ void main() {
       expect(find.text('Tomorrow schedule'), findsOneWidget);
     },
   );
+
+  testWidgets('Calendar TODAY projects incomplete past reminders once', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final yesterday = today.subtract(const Duration(days: 1));
+    final tomorrow = today.add(const Duration(days: 1));
+    final createdAt = DateTime.utc(2026, 10, 7);
+    await container.reminders.saveDefinition(
+      _definition(
+        id: 'carryover',
+        title: 'Carryover reminder',
+        startDate: _dateKey(yesterday),
+        time: '09:15',
+        createdAt: createdAt,
+      ),
+    );
+
+    await _pumpCalendar(tester, today);
+    expect(find.text('Carryover reminder'), findsOneWidget);
+    expect(find.textContaining('超過'), findsOneWidget);
+    expect(find.textContaining(_dateKey(yesterday)), findsOneWidget);
+
+    await _selectCalendarDate(tester, _dateKey(tomorrow));
+    expect(find.text('Carryover reminder'), findsNothing);
+    await _selectCalendarDate(tester, _dateKey(yesterday));
+    expect(find.text('Carryover reminder'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpCalendar(WidgetTester tester, DateTime initialDate) async {
+  tester.view.physicalSize = const Size(900, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(home: CalendarPage(initialDate: initialDate)),
   );
