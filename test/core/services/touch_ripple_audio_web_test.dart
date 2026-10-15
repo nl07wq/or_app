@@ -1,6 +1,8 @@
 @TestOn('browser')
 library;
 
+import 'dart:js_interop';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
@@ -8,6 +10,35 @@ import 'package:or_app/core/services/touch_ripple_audio_web.dart';
 import 'package:web/web.dart';
 
 void main() {
+  test(
+    'AudioBuffer diagnostics use a distinct, one-shot source route',
+    () async {
+      final context = AudioContext();
+      final buffer = AudioBuffer(
+        AudioBufferOptions(numberOfChannels: 1, length: 128, sampleRate: 44100),
+      );
+      final gain = context.createGain()..gain.value = .17;
+      final source = createAudioBufferDiagnosticSource(
+        context: context,
+        buffer: buffer,
+        gain: gain,
+      );
+      try {
+        expect(
+          TouchFeedbackDiagnosticRoute.values,
+          contains(TouchFeedbackDiagnosticRoute.audioBuffer),
+        );
+        expect(source.buffer, isNotNull);
+        expect(source.buffer!.length, 128);
+        expect(gain.gain.value, closeTo(.17, .000001));
+      } finally {
+        source.disconnect();
+        gain.disconnect();
+        await context.close().toDart;
+      }
+    },
+  );
+
   test('production player sends continuous gain to browser output', () async {
     final controller = DeviceSettingsController.instance;
     final original = controller.value;

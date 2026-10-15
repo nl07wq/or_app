@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 
 void main() {
@@ -36,5 +37,24 @@ void main() {
     expect(textColor('SECONDARY'), Colors.white);
     expect(textColor('DANGER'), theme.colorScheme.error);
     expect(textColor('DISABLED'), theme.disabledColor);
+  });
+
+  testWidgets('can make a diagnostic button feedback-silent', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OperationButton(
+            text: 'DIAGNOSTIC',
+            feedbackRole: ActionableFeedbackRole.silent,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    final region = tester.widget<ActionableFeedbackRegion>(
+      find.byType(ActionableFeedbackRegion),
+    );
+    expect(region.role, ActionableFeedbackRole.silent);
   });
 }

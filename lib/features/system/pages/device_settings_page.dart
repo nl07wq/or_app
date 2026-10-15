@@ -220,7 +220,7 @@ class _AudioDiagnosticCard extends StatelessWidget {
           AppSpacing.gapSM,
           SelectableText(
             entries.isEmpty
-                ? 'Run one test at a time. All four use the current REJECTED effective volume.'
+                ? 'Run one test at a time. Every route uses the current REJECTED effective volume.'
                 : entries.join('\n'),
             key: const ValueKey('audio-diagnostics-report'),
           ),
@@ -247,8 +247,10 @@ class _AudioDiagnosticCard extends StatelessWidget {
           ),
           AppSpacing.gapSM,
           OperationButton(
+            key: const ValueKey('audio-diagnostic-command-web-audio'),
             text: 'PLAY COMMAND: WEB AUDIO',
             icon: Icons.graphic_eq_outlined,
+            feedbackRole: ActionableFeedbackRole.silent,
             onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
               TouchFeedbackSound.success,
               TouchFeedbackDiagnosticRoute.webAudio,
@@ -256,8 +258,10 @@ class _AudioDiagnosticCard extends StatelessWidget {
           ),
           AppSpacing.gapSM,
           OperationButton(
+            key: const ValueKey('audio-diagnostic-command-direct-html'),
             text: 'PLAY COMMAND: DIRECT HTML AUDIO',
             icon: Icons.volume_up_outlined,
+            feedbackRole: ActionableFeedbackRole.silent,
             onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
               TouchFeedbackSound.success,
               TouchFeedbackDiagnosticRoute.directHtml,
@@ -265,8 +269,10 @@ class _AudioDiagnosticCard extends StatelessWidget {
           ),
           AppSpacing.gapSM,
           OperationButton(
+            key: const ValueKey('audio-diagnostic-rejected-web-audio'),
             text: 'PLAY REJECTED: WEB AUDIO',
             icon: Icons.graphic_eq_outlined,
+            feedbackRole: ActionableFeedbackRole.silent,
             onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
               TouchFeedbackSound.failure,
               TouchFeedbackDiagnosticRoute.webAudio,
@@ -274,8 +280,21 @@ class _AudioDiagnosticCard extends StatelessWidget {
           ),
           AppSpacing.gapSM,
           OperationButton(
+            key: const ValueKey('audio-diagnostic-rejected-audio-buffer'),
+            text: 'PLAY REJECTED: AUDIO BUFFER',
+            icon: Icons.memory_outlined,
+            feedbackRole: ActionableFeedbackRole.silent,
+            onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
+              TouchFeedbackSound.failure,
+              TouchFeedbackDiagnosticRoute.audioBuffer,
+            ),
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            key: const ValueKey('audio-diagnostic-rejected-direct-html'),
             text: 'PLAY REJECTED: DIRECT HTML AUDIO',
             icon: Icons.volume_up_outlined,
+            feedbackRole: ActionableFeedbackRole.silent,
             onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
               TouchFeedbackSound.failure,
               TouchFeedbackDiagnosticRoute.directHtml,

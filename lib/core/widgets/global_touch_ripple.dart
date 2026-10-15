@@ -128,8 +128,8 @@ class GlobalTouchRipple extends StatefulWidget {
   /// diagnosis. Normal feedback never calls this path.
   ///
   /// The REJECTED channel is the comparison source for the common volume: it
-  /// preserves the user's master/mute/rejected settings while keeping all four
-  /// COMMAND/REJECTED × Web Audio/HTML Audio tests equivalent.
+  /// preserves the user's master/mute/rejected settings while keeping every
+  /// COMMAND/REJECTED diagnostic route at an equivalent effective volume.
   static void previewDiagnosticFeedback(
     TouchFeedbackSound sound,
     TouchFeedbackDiagnosticRoute route,

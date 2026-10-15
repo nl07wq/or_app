@@ -5,6 +5,7 @@ import 'dart:js_interop';
 import 'dart:math' show sqrt;
 import 'dart:typed_data' as typed_data;
 
+import 'package:flutter/foundation.dart';
 import 'package:web/web.dart';
 
 import 'touch_ripple_audio.dart';
@@ -57,7 +58,9 @@ class _WebTouchRippleAudio
   final Map<TouchFeedbackSound, TouchFeedbackAudioOutput> _prepared = {};
   final Map<TouchFeedbackAudioOutput, int> _outputIds = {};
   final Map<HTMLAudioElement, int> _audioOutputIds = {};
+  final List<_BufferDiagnosticPlayback> _bufferDiagnostics = [];
   AudioContext? _audioContext;
+  Future<_DiagnosticAudioBuffer?>? _rejectedDiagnosticBuffer;
   bool _listening = false;
   int _nextOutputId = 1;
 
@@ -114,6 +117,10 @@ class _WebTouchRippleAudio
           sound,
           DeviceSettingsController.instance.value,
         );
+    if (diagnosticRoute == TouchFeedbackDiagnosticRoute.audioBuffer) {
+      _playAudioBufferDiagnostic(sound, volume);
+      return;
+    }
     TouchRippleAudioDiagnostics.record('PLAY_REQUESTED', {
       'sound': sound.name,
       'volume': volume.toStringAsFixed(3),
@@ -184,6 +191,213 @@ class _WebTouchRippleAudio
     if (TouchRippleAudioDiagnostics.enabled) {
       _scheduleMediaTimeSamples(entry);
     }
+  }
+
+  /// A comparison-only Web Audio route which deliberately bypasses
+  /// MediaElementAudioSourceNode. It never participates in normal feedback.
+  void _playAudioBufferDiagnostic(TouchFeedbackSound sound, double volume) {
+    if (sound != TouchFeedbackSound.failure) {
+      TouchRippleAudioDiagnostics.record('BUFFER_ROUTE_UNSUPPORTED_SOUND', {
+        'sound': sound.name,
+      });
+      return;
+    }
+    if (volume <= 0) {
+      TouchRippleAudioDiagnostics.record('BUFFER_ROUTE_SKIPPED_MUTED_OR_ZERO', {
+        'sound': sound.name,
+      });
+      return;
+    }
+    final context = _audioContext ??= AudioContext();
+    TouchRippleAudioDiagnostics.record('BUFFER_ROUTE_REQUESTED', {
+      'sound': sound.name,
+      'asset': _assetUrl(sound),
+      'requestedVolume': volume.toStringAsFixed(3),
+      'context': context.state,
+      'topology': 'audioBufferSource>gain>destination',
+    });
+    _resumeAudioContext();
+    unawaited(_startAudioBufferDiagnostic(context, sound, volume));
+  }
+
+  Future<void> _startAudioBufferDiagnostic(
+    AudioContext context,
+    TouchFeedbackSound sound,
+    double volume,
+  ) async {
+    final decoded = await _loadRejectedDiagnosticBuffer(context);
+    if (decoded == null) return;
+    if (!identical(context, _audioContext)) {
+      TouchRippleAudioDiagnostics.record('BUFFER_ROUTE_CONTEXT_RETIRED', {
+        'sound': sound.name,
+      });
+      return;
+    }
+    try {
+      final gain = context.createGain()..gain.value = volume.clamp(0, 1);
+      final signalDiagnostics = TouchRippleAudioDiagnostics.enabled;
+      final preGain = signalDiagnostics ? context.createAnalyser() : null;
+      final postGain = signalDiagnostics ? context.createAnalyser() : null;
+      preGain?.fftSize = 256;
+      postGain?.fftSize = 256;
+      final source = createAudioBufferDiagnosticSource(
+        context: context,
+        buffer: decoded.buffer,
+        gain: gain,
+        preGainAnalyser: preGain,
+        postGainAnalyser: postGain,
+      );
+      final playback = _BufferDiagnosticPlayback(
+        context: context,
+        source: source,
+        gain: gain,
+        preGainAnalyser: preGain,
+        postGainAnalyser: postGain,
+        sound: sound,
+        sourceDescription: decoded.description,
+      );
+      _bufferDiagnostics.add(playback);
+      playback.ended = ((Event _) {
+        TouchRippleAudioDiagnostics.record('BUFFER_SOURCE_ENDED', {
+          'sound': sound.name,
+          'context': context.state,
+          'startedAt': playback.startedAt.toStringAsFixed(4),
+        });
+        _removeBufferDiagnostic(playback);
+      }).toJS;
+      source.addEventListener('ended', playback.ended);
+      TouchRippleAudioDiagnostics.record('BUFFER_OUTPUT_READY', {
+        'sound': sound.name,
+        'asset': _assetUrl(sound),
+        'context': context.state,
+        'gain': gain.gain.value.toStringAsFixed(3),
+        'topology': playback.outputTopology,
+        ...decoded.description,
+      });
+      source.start();
+      playback.startedAt = context.currentTime;
+      TouchRippleAudioDiagnostics.record('BUFFER_SOURCE_STARTED', {
+        'sound': sound.name,
+        'context': context.state,
+        'startedAt': playback.startedAt.toStringAsFixed(4),
+      });
+      _scheduleBufferSamples(playback);
+    } catch (error) {
+      TouchRippleAudioDiagnostics.record('BUFFER_SOURCE_FAILED', {
+        'sound': sound.name,
+        'errorType': error.runtimeType,
+        'error': error,
+      });
+    }
+  }
+
+  Future<_DiagnosticAudioBuffer?> _loadRejectedDiagnosticBuffer(
+    AudioContext context,
+  ) => _rejectedDiagnosticBuffer ??= _decodeRejectedDiagnosticBuffer(context);
+
+  Future<_DiagnosticAudioBuffer?> _decodeRejectedDiagnosticBuffer(
+    AudioContext context,
+  ) async {
+    try {
+      final response = await _fetchAudio(
+        Uri.base.resolve(_assetUrl(TouchFeedbackSound.failure)).toString().toJS,
+      ).toDart;
+      if (!response.ok.toDart) {
+        TouchRippleAudioDiagnostics.record('BUFFER_FETCH_FAILED', {
+          'sound': TouchFeedbackSound.failure.name,
+          'status': response.status.toDartInt,
+        });
+        return null;
+      }
+      final bytes = await response.arrayBuffer().toDart;
+      final buffer = await context.decodeAudioData(bytes).toDart;
+      final description = _describeAudioBuffer(buffer);
+      TouchRippleAudioDiagnostics.record('BUFFER_DECODED', {
+        'sound': TouchFeedbackSound.failure.name,
+        ...description,
+      });
+      return _DiagnosticAudioBuffer(buffer, description);
+    } catch (error) {
+      TouchRippleAudioDiagnostics.record('BUFFER_DECODE_FAILED', {
+        'sound': TouchFeedbackSound.failure.name,
+        'errorType': error.runtimeType,
+        'error': error,
+      });
+      return null;
+    }
+  }
+
+  Map<String, String> _describeAudioBuffer(AudioBuffer buffer) {
+    var peak = 0.0;
+    var squared = 0.0;
+    for (var channel = 0; channel < buffer.numberOfChannels; channel++) {
+      final samples = typed_data.Float32List(buffer.length);
+      buffer.copyFromChannel(samples.toJS, channel);
+      for (final sample in samples) {
+        final amplitude = sample.abs();
+        if (amplitude > peak) peak = amplitude;
+        squared += sample * sample;
+      }
+    }
+    return {
+      'duration': buffer.duration.toStringAsFixed(3),
+      'channels': buffer.numberOfChannels.toString(),
+      'sampleRate': buffer.sampleRate.toStringAsFixed(0),
+      'peak': peak.toStringAsFixed(4),
+      'rms': sqrt(
+        squared / (buffer.length * buffer.numberOfChannels),
+      ).toStringAsFixed(4),
+    };
+  }
+
+  void _scheduleBufferSamples(
+    _BufferDiagnosticPlayback playback, [
+    int index = 0,
+  ]) {
+    const interval = Duration(milliseconds: 40);
+    const maximumSamples = 24;
+    Future<void>.delayed(index == 0 ? Duration.zero : interval).then((_) {
+      if (!_bufferDiagnostics.contains(playback) || index >= maximumSamples) {
+        return;
+      }
+      final elapsed = (playback.context.currentTime - playback.startedAt)
+          .clamp(0, double.infinity)
+          .toDouble();
+      TouchRippleAudioDiagnostics.record('BUFFER_SIGNAL_SAMPLE', {
+        'sound': playback.sound.name,
+        'sampleIndex': index,
+        'bufferTime': elapsed.toStringAsFixed(4),
+        'context': playback.context.state,
+        'gain': playback.gain.gain.value.toStringAsFixed(4),
+        'topology': playback.outputTopology,
+        'preGain': _signalLevel(playback.preGainAnalyser),
+        'postGain': _signalLevel(playback.postGainAnalyser),
+      });
+      _scheduleBufferSamples(playback, index + 1);
+    });
+  }
+
+  Map<String, String> _signalLevel(AnalyserNode? analyser) {
+    if (analyser == null) return const {'available': 'false'};
+    final samples = typed_data.Uint8List(analyser.fftSize);
+    analyser.getByteTimeDomainData(samples.toJS);
+    var peak = 0.0;
+    var squared = 0.0;
+    for (final byte in samples) {
+      final amplitude = (byte - 128).abs() / 128;
+      if (amplitude > peak) peak = amplitude;
+      squared += amplitude * amplitude;
+    }
+    return {
+      'available': 'true',
+      'peak': peak.toStringAsFixed(4),
+      'rms': sqrt(squared / samples.length).toStringAsFixed(4),
+    };
+  }
+
+  void _removeBufferDiagnostic(_BufferDiagnosticPlayback playback) {
+    if (!_bufferDiagnostics.remove(playback)) return;
+    playback.dispose();
   }
 
   void _remove(_ActiveSound entry) {
@@ -477,7 +691,9 @@ class _WebTouchRippleAudio
     return outputId;
   }
 
-  Future<_DecodedSignalDiagnostics?> _inspectSignal(TouchFeedbackSound sound) async {
+  Future<_DecodedSignalDiagnostics?> _inspectSignal(
+    TouchFeedbackSound sound,
+  ) async {
     AudioContext? decoder;
     try {
       final response = await _fetchAudio(
@@ -516,8 +732,9 @@ class _WebTouchRippleAudio
         'sampleRate': decoded.sampleRate.toStringAsFixed(0),
         'duration': decoded.duration.toStringAsFixed(3),
         'peak': peak.toStringAsFixed(4),
-        'rms': sqrt(squared / (decoded.length * channels.length))
-            .toStringAsFixed(4),
+        'rms': sqrt(
+          squared / (decoded.length * channels.length),
+        ).toStringAsFixed(4),
         'leadingSignal': firstAudible == decoded.length
             ? 'none'
             : (firstAudible / decoded.sampleRate).toStringAsFixed(3),
@@ -590,6 +807,11 @@ class _WebTouchRippleAudio
     for (final entry in List<_ActiveSound>.of(_active)) {
       _stop(entry);
     }
+    for (final playback in List<_BufferDiagnosticPlayback>.of(
+      _bufferDiagnostics,
+    )) {
+      _removeBufferDiagnostic(playback);
+    }
     for (final output in _prepared.values) {
       output.audio.pause();
       output.dispose();
@@ -599,6 +821,30 @@ class _WebTouchRippleAudio
     _audioContext = null;
     context?.close().toDart.then<void>((_) {}, onError: (_) {});
   }
+}
+
+/// Builds the one-shot source used solely by the opt-in diagnostic route.
+/// Exposed for the browser regression test; normal semantic playback never
+/// calls this helper.
+@visibleForTesting
+AudioBufferSourceNode createAudioBufferDiagnosticSource({
+  required AudioContext context,
+  required AudioBuffer buffer,
+  required GainNode gain,
+  AnalyserNode? preGainAnalyser,
+  AnalyserNode? postGainAnalyser,
+}) {
+  final source = context.createBufferSource()..buffer = buffer;
+  if (preGainAnalyser != null && postGainAnalyser != null) {
+    source.connect(preGainAnalyser);
+    preGainAnalyser.connect(gain);
+    gain.connect(postGainAnalyser);
+    postGainAnalyser.connect(context.destination);
+  } else {
+    source.connect(gain);
+    gain.connect(context.destination);
+  }
+  return source;
 }
 
 class _DecodedSignalDiagnostics {
@@ -614,12 +860,15 @@ class _DecodedSignalDiagnostics {
 
   Map<String, String> windowAt(double mediaTime, double windowSeconds) {
     final center = mediaTime.clamp(0, duration).toDouble();
-    final frameCount = (windowSeconds * sampleRate)
-        .round()
-        .clamp(1, channels.first.length);
+    final frameCount = (windowSeconds * sampleRate).round().clamp(
+      1,
+      channels.first.length,
+    );
     final centerFrame = (center * sampleRate).round();
-    final start = (centerFrame - frameCount ~/ 2)
-        .clamp(0, channels.first.length - frameCount);
+    final start = (centerFrame - frameCount ~/ 2).clamp(
+      0,
+      channels.first.length - frameCount,
+    );
     var peak = 0.0;
     var squared = 0.0;
     for (final channel in channels) {
@@ -642,13 +891,55 @@ class _DecodedSignalDiagnostics {
   }
 }
 
-class _ActiveSound {
-  _ActiveSound(
-    this.sound,
-    this.output,
-    this.outputId, {
-    this.decodedSignal,
+class _DiagnosticAudioBuffer {
+  const _DiagnosticAudioBuffer(this.buffer, this.description);
+
+  final AudioBuffer buffer;
+  final Map<String, String> description;
+}
+
+class _BufferDiagnosticPlayback {
+  _BufferDiagnosticPlayback({
+    required this.context,
+    required this.source,
+    required this.gain,
+    required this.preGainAnalyser,
+    required this.postGainAnalyser,
+    required this.sound,
+    required this.sourceDescription,
   });
+
+  final AudioContext context;
+  final AudioBufferSourceNode source;
+  final GainNode gain;
+  final AnalyserNode? preGainAnalyser;
+  final AnalyserNode? postGainAnalyser;
+  final TouchFeedbackSound sound;
+  final Map<String, String> sourceDescription;
+  JSFunction? ended;
+  double startedAt = 0;
+
+  String get outputTopology => preGainAnalyser == null
+      ? 'audioBufferSource>gain>destination'
+      : 'audioBufferSource>preGainAnalyser>gain>postGainAnalyser>destination';
+
+  void dispose() {
+    final listener = ended;
+    if (listener != null) source.removeEventListener('ended', listener);
+    try {
+      source.stop();
+    } catch (_) {
+      // A one-shot source that already ended cannot be stopped again.
+    }
+    source.disconnect();
+    gain.disconnect();
+    preGainAnalyser?.disconnect();
+    postGainAnalyser?.disconnect();
+  }
+}
+
+class _ActiveSound {
+  _ActiveSound(this.sound, this.output, this.outputId, {this.decodedSignal});
 
   final TouchFeedbackSound sound;
   final TouchFeedbackAudioOutput output;

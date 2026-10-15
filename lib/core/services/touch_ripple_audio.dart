@@ -20,7 +20,7 @@ enum TouchFeedbackSound { water, success, failure, exit }
 
 /// Diagnostic-only output routes for comparing the same REJECTED asset on a
 /// physical browser. These are never selected by normal application feedback.
-enum TouchFeedbackDiagnosticRoute { webAudio, directHtml }
+enum TouchFeedbackDiagnosticRoute { webAudio, audioBuffer, directHtml }
 
 /// Opt-in, copyable event trace for investigating browser media behavior on a
 /// physical device. It is inert unless the public URL includes

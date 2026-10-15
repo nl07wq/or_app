@@ -77,7 +77,9 @@ void main() {
     expect(audio.played, isEmpty);
   });
 
-  testWidgets('REJECTED slider previews failure once at release', (tester) async {
+  testWidgets('REJECTED slider previews failure once at release', (
+    tester,
+  ) async {
     final original = DeviceSettingsController.instance.value;
     addTearDown(
       () => DeviceSettingsController.instance.resetForTesting(original),
@@ -104,6 +106,34 @@ void main() {
     await tester.pump();
 
     expect(audio.played, [TouchFeedbackSound.failure]);
+  });
+
+  testWidgets('audio diagnostics exposes the isolated AudioBuffer route', (
+    tester,
+  ) async {
+    TouchRippleAudioDiagnostics.enabledForTesting = true;
+    addTearDown(() {
+      TouchRippleAudioDiagnostics.enabledForTesting = null;
+      TouchRippleAudioDiagnostics.clear();
+    });
+    final controller = DeviceSettingsController();
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceSettingsPage(controller: controller)),
+    );
+
+    final audioBuffer = find.byKey(
+      const ValueKey('audio-diagnostic-rejected-audio-buffer'),
+    );
+    expect(audioBuffer, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('audio-diagnostic-rejected-web-audio')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('audio-diagnostic-rejected-direct-html')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('settings controls remain input-silent while applying changes', (

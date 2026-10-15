@@ -30,6 +30,10 @@ class OperationButton extends StatelessWidget {
   /// retaining the button's established size, text, and interaction contract.
   final bool transparentSurface;
   final bool dashboardGlass;
+
+  /// Limits comparison-only controls to their requested audio route without
+  /// emitting a COMMAND confirmation for the diagnostic control itself.
+  final ActionableFeedbackRole feedbackRole;
   final VoidCallback? onUnavailableTap;
 
   const OperationButton({
@@ -42,6 +46,7 @@ class OperationButton extends StatelessWidget {
     this.deferFeedback = false,
     this.transparentSurface = false,
     this.dashboardGlass = false,
+    this.feedbackRole = ActionableFeedbackRole.command,
     this.onUnavailableTap,
   });
 
@@ -107,6 +112,7 @@ class OperationButton extends StatelessWidget {
     if (onPressed != null) {
       return ActionableFeedbackRegion(
         deferResolution: deferFeedback,
+        role: feedbackRole,
         child: surfaced,
       );
     }
