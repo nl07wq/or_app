@@ -121,6 +121,14 @@ void main() {
     expect(source, isNot(contains('double _amplitude')));
     expect(source, contains('class _SpectrumLayout'));
     expect(source, contains('final _barBroadHalo'));
+    expect(source, contains('(1.25 + amplitude * 1.65) * 1.5'));
+    expect(source, contains('(.55 + amplitude * .68) * 1.5'));
+    expect(source, contains('(.20 + amplitude * .32) * 1.5'));
+    expect(
+      source,
+      contains('donutOuterRadius - donutThickness * .12'),
+    );
+    expect(source, contains('visibleThickness * (.26 + pulse * .045)'));
     expect(source, contains('drawCircle(point'));
     expect(source, isNot(contains('HtmlElementView')));
     expect(source, isNot(contains('.mp4')));

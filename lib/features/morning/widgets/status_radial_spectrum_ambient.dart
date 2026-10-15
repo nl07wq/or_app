@@ -221,18 +221,18 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       final color = _colorFor(angle, colorTime, index);
 
       _barBroadHalo
-        ..strokeWidth = 1.25 + amplitude * 1.65
+        ..strokeWidth = (1.25 + amplitude * 1.65) * 1.5
         ..color = color.withValues(
-          alpha: (.010 + amplitude * .030) * (1 + pulse.impact * .85),
+          alpha: (.024 + amplitude * .052) * (1 + pulse.impact * .85),
         );
       _barNearHalo
-        ..strokeWidth = .55 + amplitude * .68
+        ..strokeWidth = (.55 + amplitude * .68) * 1.5
         ..color = color.withValues(
-          alpha: (.030 + amplitude * .070) * (1 + pulse.impact * .45),
+          alpha: (.068 + amplitude * .120) * (1 + pulse.impact * .45),
         );
       _barCore
-        ..strokeWidth = .20 + amplitude * .32
-        ..color = color.withValues(alpha: .18 + amplitude * .38);
+        ..strokeWidth = (.20 + amplitude * .32) * 1.5
+        ..color = color.withValues(alpha: .29 + amplitude * .52);
       canvas
         ..drawLine(start, end, _barBroadHalo)
         ..drawLine(start, end, _barNearHalo)
@@ -301,7 +301,12 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       barDirections: directions,
       barStarts: List<Offset>.generate(
         StatusRadialSpectrumAmbient.barCount,
-        (index) => center + directions[index] * (donutOuterRadius + 4),
+        // Begin inside the luminous outer edge so the indicator field reads
+        // as an extension of the ring rather than a detached halo.
+        (index) =>
+            center +
+            directions[index] *
+                (donutOuterRadius - donutThickness * .12),
         growable: false,
       ),
     );
@@ -404,28 +409,28 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
     ).createShader(oval);
     _donutBroadHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .11)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .13)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.11 + pulse * .045),
+              visibleThickness * (.13 + pulse * .050),
             )
       ..shader = shader
       ..strokeJoin = StrokeJoin.miter
-      ..strokeWidth = visibleThickness * (.20 + pulse * .035);
+      ..strokeWidth = visibleThickness * (.26 + pulse * .045);
     _donutNearHalo
       ..maskFilter = pulse == 0
-          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .035)
+          ? MaskFilter.blur(BlurStyle.normal, visibleThickness * .045)
           : MaskFilter.blur(
               BlurStyle.normal,
-              visibleThickness * (.035 + pulse * .016),
+              visibleThickness * (.045 + pulse * .020),
             )
       ..shader = shader
       ..strokeJoin = StrokeJoin.miter
-      ..strokeWidth = visibleThickness * (.13 + pulse * .022);
+      ..strokeWidth = visibleThickness * (.18 + pulse * .028);
     _donutCore.shader = shader;
     _donutEdgeCore
       ..shader = shader
-      ..strokeWidth = (visibleThickness * .09).clamp(.65, 1.15);
+      ..strokeWidth = (visibleThickness * .12).clamp(.8, 1.5);
     canvas
       ..drawPath(outer, _donutBroadHalo)
       ..drawPath(outer, _donutNearHalo)
