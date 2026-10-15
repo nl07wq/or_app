@@ -28,8 +28,14 @@ abstract final class FoodRecipeNutrition {
     );
   }
 
+  /// New recipes store a complete composition as one selected recipe unit.
+  /// Older records retain their historical serving split so reopening a formal
+  /// entry never changes recorded nutrition.
   static NutritionSnapshot perServing(FoodRecipeDefinition recipe) =>
       scale(recipe.nutrition, 1 / (recipe.servingCount ?? 1));
+
+  static bool isCanonicalRecipeUnit(FoodRecipeDefinition recipe) =>
+      recipe.yieldQuantity.value == 1 && recipe.servingCount == null;
 
   static FoodQuantityDefinition consumptionQuantity(
     FoodRecipeDefinition recipe,
@@ -39,11 +45,9 @@ abstract final class FoodRecipeNutrition {
       throw ArgumentError.value(servingMultiplier, 'servingMultiplier');
     }
     final yield = recipe.yieldQuantity;
-    if (yield.unit == FoodQuantityUnit.serving) {
-      return FoodQuantityDefinition(
-        value: servingMultiplier,
-        unit: FoodQuantityUnit.serving,
-      );
+    if (isCanonicalRecipeUnit(recipe) ||
+        yield.unit == FoodQuantityUnit.serving) {
+      return FoodQuantityDefinition(value: servingMultiplier, unit: yield.unit);
     }
     return FoodQuantityDefinition(
       value: yield.value / (recipe.servingCount ?? 1) * servingMultiplier,

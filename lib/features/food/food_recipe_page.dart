@@ -43,8 +43,6 @@ class FoodRecipeEditorPage extends StatefulWidget {
 
 class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   final _name = TextEditingController();
-  final _yield = TextEditingController(text: '1');
-  final _servings = TextEditingController(text: '1');
   final _memo = TextEditingController();
   final List<RecipeIngredientV2> _ingredients = [];
   Map<String, FoodCatalogEntry> _foodMasters = const {};
@@ -62,11 +60,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
     final recipe = widget.initialRecipe;
     if (recipe == null) return;
     _name.text = recipe.name;
-    _yield.text = _amount(recipe.yieldQuantity.value);
     _yieldUnit = recipe.yieldQuantity.unit;
-    _servings.text = recipe.servingCount == null
-        ? ''
-        : _amount(recipe.servingCount!);
     _memo.text = recipe.memo ?? '';
     _ingredients.addAll(recipe.ingredients);
   }
@@ -86,8 +80,6 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   @override
   void dispose() {
     _name.dispose();
-    _yield.dispose();
-    _servings.dispose();
     _memo.dispose();
     super.dispose();
   }
@@ -215,24 +207,12 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   Future<void> _save() async {
     if (_saving) return;
     final name = _name.text.trim();
-    final yieldValue = double.tryParse(_yield.text.trim());
-    final servingsText = _servings.text.trim();
-    final servingCount = servingsText.isEmpty
-        ? null
-        : double.tryParse(servingsText);
     if (name.isEmpty ||
-        yieldValue == null ||
-        !yieldValue.isFinite ||
-        yieldValue <= 0 ||
-        (servingsText.isNotEmpty &&
-            (servingCount == null ||
-                !servingCount.isFinite ||
-                servingCount <= 0)) ||
         _ingredients.isEmpty) {
       ActionableFeedbackRegion.resolveDeferred(
         ActionableFeedbackResult.unavailable,
       );
-      setState(() => _error = 'ENTER A NAME, YIELD, AND INGREDIENTS');
+      setState(() => _error = 'ENTER A NAME AND INGREDIENTS');
       return;
     }
     final timestamp = _now;
@@ -249,10 +229,13 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
           }),
       ],
       yieldQuantity: FoodQuantityDefinition(
-        value: yieldValue,
+        // The complete ingredient list is exactly one selected recipe unit.
+        // Keep the legacy field for schema compatibility without retaining a
+        // user-editable multiplier.
+        value: 1,
         unit: _yieldUnit,
       ),
-      servingCount: servingCount,
+      servingCount: null,
       nutrition: nutrition,
       nutritionStatus: nutrition.isEmpty
           ? NutritionStatus.unknown
@@ -322,48 +305,25 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
             onChanged: (_) => setState(() {}),
           ),
           AppSpacing.gapMD,
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final quantity = OperationTextField(
-                key: const ValueKey('recipe-yield'),
-                controller: _yield,
-                label: 'YIELD QUANTITY',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+          DropdownButtonFormField<FoodQuantityUnit>(
+            initialValue: _yieldUnit,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'RECIPE UNIT'),
+            items: [
+              for (final value in FoodQuantityUnit.values)
+                DropdownMenuItem(
+                  value: value,
+                  child: Text(value.stableId.toUpperCase()),
                 ),
-                onChanged: (_) => setState(() {}),
-              );
-              final unit = DropdownButtonFormField<FoodQuantityUnit>(
-                initialValue: _yieldUnit,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'YIELD UNIT'),
-                items: [
-                  for (final value in FoodQuantityUnit.values)
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(value.stableId.toUpperCase()),
-                    ),
-                ],
-                onChanged: readOnly
-                    ? null
-                    : (value) => setState(() => _yieldUnit = value!),
-              ).inputFeedback();
-              if (constraints.maxWidth < 420) {
-                return Column(children: [quantity, AppSpacing.gapSM, unit]);
-              }
-              return Row(
-                children: [
-                  Expanded(child: quantity),
-                  AppSpacing.gapSM,
-                  Expanded(child: unit),
-                ],
-              );
-            },
-          ),
+            ],
+            onChanged: readOnly
+                ? null
+                : (value) => setState(() => _yieldUnit = value!),
+          ).inputFeedback(),
           AppSpacing.gapMD,
           _RecipeSummaryHeader(
             name: _name.text.trim().isEmpty ? 'RECIPE' : _name.text.trim(),
-            serving: _servingMetadata(),
+            serving: '1 ${_yieldUnit.stableId.toUpperCase()}',
           ),
           if (FoodPfcBalanceCard.hasBalance(nutrition)) ...[
             AppSpacing.gapMD,
@@ -493,19 +453,6 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
     return value.startsWith('food:') ? value.substring(5) : value;
   }
 
-  String _servingMetadata() {
-    final value = double.tryParse(_servings.text.trim());
-    if (value != null && value.isFinite && value > 0) {
-      return FoodNutritionFormatter.servings(value);
-    }
-    if (_yieldUnit == FoodQuantityUnit.serving) {
-      final yieldValue = double.tryParse(_yield.text.trim());
-      if (yieldValue != null && yieldValue.isFinite && yieldValue > 0) {
-        return FoodNutritionFormatter.servings(yieldValue);
-      }
-    }
-    return 'SERVING NOT SET';
-  }
 }
 
 class _RecipeSummaryHeader extends StatelessWidget {

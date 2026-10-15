@@ -14,8 +14,39 @@ import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 import 'package:or_app/features/food/repository/food_meal_id_generator.dart';
 import 'package:or_app/features/food/repository/food_recipe_repository.dart';
 import 'package:or_app/features/food/services/food_catalog_meal_mapper.dart';
+import 'package:or_app/features/food/services/food_recipe_nutrition.dart';
 
 void main() {
+  test('canonical recipe unit retains full composition nutrition', () {
+    final recipe = FoodRecipeDefinition.fromJson({
+      ..._recipe().toJson(),
+      'yieldQuantity': FoodQuantityDefinition(
+        value: 1,
+        unit: FoodQuantityUnit.serving,
+      ).toJson(),
+      'servingCount': null,
+    });
+
+    expect(FoodRecipeNutrition.isCanonicalRecipeUnit(recipe), isTrue);
+    expect(
+      FoodRecipeNutrition.perServing(recipe).toJson(),
+      recipe.nutrition.toJson(),
+    );
+    expect(
+      FoodRecipeNutrition.consumptionQuantity(recipe, .25).toJson(),
+      FoodQuantityDefinition(
+        value: .25,
+        unit: FoodQuantityUnit.serving,
+      ).toJson(),
+    );
+  });
+
+  test('legacy recipe quantity continues to use its historical split', () {
+    final recipe = _recipe();
+    expect(FoodRecipeNutrition.isCanonicalRecipeUnit(recipe), isFalse);
+    expect(FoodRecipeNutrition.perServing(recipe).calories, 143);
+  });
+
   testWidgets('recipe list excludes archived definitions and supports search', (
     tester,
   ) async {
@@ -97,12 +128,12 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('recipe-save')));
     await tester.pumpAndSettle();
-    expect(
-      (await recipes.list())
-          .firstWhere((recipe) => recipe.recipeId == recipeId)
-          .servingCount,
-      2,
+    final normalized = (await recipes.list()).firstWhere(
+      (recipe) => recipe.recipeId == recipeId,
     );
+    expect(normalized.yieldQuantity.value, 1);
+    expect(normalized.yieldQuantity.unit, FoodQuantityUnit.serving);
+    expect(normalized.servingCount, isNull);
   });
 
   for (final width in [320.0, 390.0, 900.0, 1280.0]) {

@@ -68,6 +68,8 @@ class FoodInputForm extends StatefulWidget {
 
 enum _FoodEntryInputMode { manual, databaseFood, databaseRecipe, databaseMeal }
 
+enum _RecipeAdjustmentMode { recipeQuantity, ingredientAdjust }
+
 class _SelectorOption extends StatelessWidget {
   const _SelectorOption({required this.icon, required this.label});
 
@@ -146,6 +148,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final foodMemoController = TextEditingController();
   final _pendingQuantityController = TextEditingController();
   final _pendingUsedAmountController = TextEditingController();
+  final _recipeQuantityController = TextEditingController(text: '1');
   final _foodSearchController = TextEditingController();
   final _foodSearchFocusNode = FocusNode();
   final _recipeSearchController = TextEditingController();
@@ -196,6 +199,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
   _DatabaseFoodSelection? _pendingDatabaseSelection;
   FoodRecipeDefinition? _pendingRecipeSource;
   List<_RecipeIngredientDraft> _pendingRecipeIngredients = const [];
+  _RecipeAdjustmentMode _recipeAdjustmentMode =
+      _RecipeAdjustmentMode.recipeQuantity;
+  bool _pendingRecipeIngredientsCustomized = false;
   bool _addingDatabaseItem = false;
   bool _foodListExpanded = false;
   bool _recipeListExpanded = false;
@@ -301,6 +307,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     foodMemoController.dispose();
     _pendingQuantityController.dispose();
     _pendingUsedAmountController.dispose();
+    _recipeQuantityController.dispose();
     _foodSearchController.dispose();
     _foodSearchFocusNode.dispose();
     _recipeSearchController.dispose();
@@ -1203,6 +1210,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() {
       _pendingRecipeSource = recipe;
       _pendingRecipeIngredients = drafts;
+      _recipeQuantityController.text = '1';
+      _recipeAdjustmentMode = _RecipeAdjustmentMode.recipeQuantity;
+      _pendingRecipeIngredientsCustomized = false;
       _recipeIngredientControllers
         ..clear()
         ..addAll(
@@ -1248,8 +1258,29 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
   }
 
-  FoodRecipeDefinition _recipeInstance(FoodRecipeDefinition source) =>
-      _recipeInstanceFromDrafts(source, _pendingRecipeIngredients);
+  double? get _pendingRecipeQuantity =>
+      _FoodNumericTextValue.parse(_recipeQuantityController.text).value;
+
+  List<_RecipeIngredientDraft> _recipeDraftsForQuantity(
+    FoodRecipeDefinition source,
+    double quantity,
+  ) => [
+    for (final ingredient in source.ingredients)
+      _RecipeIngredientDraft(ingredient, ingredient.quantity.value * quantity),
+  ];
+
+  FoodRecipeDefinition _recipeInstance(FoodRecipeDefinition source) {
+    final quantity = _pendingRecipeQuantity;
+    final drafts = _recipeAdjustmentMode == _RecipeAdjustmentMode.recipeQuantity
+        ? quantity == null
+              ? const <_RecipeIngredientDraft>[]
+              : _recipeDraftsForQuantity(source, quantity)
+        : _pendingRecipeIngredients;
+    if (drafts.isEmpty) {
+      throw const FormatException('ENTER A VALID RECIPE QUANTITY.');
+    }
+    return _recipeInstanceFromDrafts(source, drafts);
+  }
 
   FoodRecipeDefinition _recipeInstanceFromDrafts(
     FoodRecipeDefinition source,
@@ -1284,6 +1315,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final next = List<_RecipeIngredientDraft>.from(_pendingRecipeIngredients);
       next[index] = _RecipeIngredientDraft(next[index].source, value);
       _pendingRecipeIngredients = next;
+      _pendingRecipeIngredientsCustomized = true;
       inputError = null;
     });
   }
@@ -1295,6 +1327,70 @@ class _FoodInputFormState extends State<FoodInputForm> {
     if (next <= 0) return;
     controller.text = _formatAmount(next);
     _changeRecipeIngredient(index, controller.text);
+  }
+
+  void _adjustRecipeQuantity(double delta) {
+    final current = _pendingRecipeQuantity ?? 0;
+    final next = current + delta;
+    if (next <= 0) return;
+    _recipeQuantityController.text = _formatAmount(next);
+    setState(() => inputError = null);
+  }
+
+  Future<void> _changeRecipeAdjustmentMode(
+    _RecipeAdjustmentMode mode,
+  ) async {
+    if (mode == _recipeAdjustmentMode) return;
+    final source = _pendingRecipeSource;
+    if (source == null) return;
+    if (mode == _RecipeAdjustmentMode.recipeQuantity &&
+        _pendingRecipeIngredientsCustomized) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('DISCARD INGREDIENT ADJUSTMENTS?'),
+          content: const Text(
+            'Returning to RECIPE QUANTITY restores the scaled recipe ingredients.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('KEEP ADJUSTMENTS'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('DISCARD'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true || !mounted) return;
+    }
+    final quantity = _pendingRecipeQuantity;
+    if (mode == _RecipeAdjustmentMode.ingredientAdjust && quantity == null) {
+      setState(() => inputError = 'ENTER A VALID RECIPE QUANTITY.');
+      return;
+    }
+    setState(() {
+      if (mode == _RecipeAdjustmentMode.ingredientAdjust) {
+        final drafts = _recipeDraftsForQuantity(source, quantity!);
+        _pendingRecipeIngredients = drafts;
+        _recipeIngredientControllers
+          ..forEach((controller) => controller.dispose())
+          ..clear()
+          ..addAll(
+            drafts.map(
+              (draft) => TextEditingController(
+                text: _formatAmount(draft.quantity),
+              ),
+            ),
+          );
+      } else {
+        _pendingRecipeIngredientsCustomized = false;
+      }
+      _recipeAdjustmentMode = mode;
+      inputError = null;
+    });
   }
 
   void _confirmRecipeInstance() {
@@ -1312,7 +1408,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
           foodSources: [null],
           recipeSources: [source],
           recipeInstanceSnapshots: [instance],
-          units: [FoodQuantityUnit.serving],
+          units: [source.yieldQuantity.unit],
         );
         _clearRecipeInstanceDraft();
         inputError = null;
@@ -1329,6 +1425,9 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _recipeIngredientControllers.clear();
     _pendingRecipeSource = null;
     _pendingRecipeIngredients = const [];
+    _recipeQuantityController.text = '1';
+    _recipeAdjustmentMode = _RecipeAdjustmentMode.recipeQuantity;
+    _pendingRecipeIngredientsCustomized = false;
   }
 
   void _cancelRecipeInstance() {
@@ -2309,8 +2408,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   Widget _recipeInstanceConfirmation(FoodRecipeDefinition recipe) {
-    final instance = _recipeInstance(recipe);
-    final nutrition = FoodRecipeNutrition.perServing(instance);
+    FoodRecipeDefinition? instance;
+    try {
+      instance = _recipeInstance(recipe);
+    } on FormatException {
+      // Keep the quantity input editable while an incomplete decimal is typed.
+    }
+    final nutrition = instance == null
+        ? null
+        : FoodRecipeNutrition.perServing(instance);
     return KeyedSubtree(
       key: _quantityConfirmationKey,
       child: OperationCard(
@@ -2325,18 +2431,61 @@ class _FoodInputFormState extends State<FoodInputForm> {
             AppSpacing.gapSM,
             Text(recipe.name, style: Theme.of(context).textTheme.titleMedium),
             AppSpacing.gapSM,
-            _recipeIngredientAdjustmentList(
-              ingredients: _pendingRecipeIngredients,
-              controllers: _recipeIngredientControllers,
-              keyPrefix: 'food-recipe',
-              onChanged: _changeRecipeIngredient,
-              onAdjust: _adjustRecipeIngredient,
+            SegmentedButton<_RecipeAdjustmentMode>(
+              key: const ValueKey('food-recipe-adjustment-mode'),
+              segments: const [
+                ButtonSegment(
+                  value: _RecipeAdjustmentMode.recipeQuantity,
+                  label: Text('RECIPE QUANTITY'),
+                ),
+                ButtonSegment(
+                  value: _RecipeAdjustmentMode.ingredientAdjust,
+                  label: Text('INGREDIENT ADJUST'),
+                ),
+              ],
+              selected: {_recipeAdjustmentMode},
+              onSelectionChanged: (selection) {
+                _changeRecipeAdjustmentMode(selection.single);
+              },
             ),
+            AppSpacing.gapSM,
+            if (_recipeAdjustmentMode == _RecipeAdjustmentMode.recipeQuantity)
+              FoodNumericStepperRow(
+                key: const ValueKey('food-recipe-quantity-stepper-row'),
+                inputKey: const ValueKey('food-recipe-quantity-input'),
+                controller: _recipeQuantityController,
+                label:
+                    'RECIPE QUANTITY (${recipe.yieldQuantity.unit.stableId.toUpperCase()})',
+                onChanged: (_) => setState(() => inputError = null),
+                incrementKey: const ValueKey('food-recipe-quantity-increment'),
+                incrementTooltip: 'Increase recipe quantity',
+                onIncrement: () => _adjustRecipeQuantity(1),
+                decrementKey: const ValueKey('food-recipe-quantity-decrement'),
+                decrementTooltip: 'Decrease recipe quantity',
+                onDecrement: () => _adjustRecipeQuantity(-1),
+              )
+            else
+              _recipeIngredientAdjustmentList(
+                ingredients: _pendingRecipeIngredients,
+                controllers: _recipeIngredientControllers,
+                keyPrefix: 'food-recipe',
+                onChanged: _changeRecipeIngredient,
+                onAdjust: _adjustRecipeIngredient,
+              ),
+            if (_recipeAdjustmentMode == _RecipeAdjustmentMode.recipeQuantity)
+              Text(
+                '${_recipeQuantityController.text.trim().isEmpty ? '—' : _recipeQuantityController.text.trim()} '
+                '${recipe.yieldQuantity.unit.stableId.toUpperCase()}',
+                key: const ValueKey('food-recipe-quantity-summary'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             Text(
-              '${FoodNutritionFormatter.calories(nutrition.calories ?? 0)}kcal'
-              '  P ${FoodNutritionFormatter.macro(nutrition.protein ?? 0)}g'
-              '  F ${FoodNutritionFormatter.macro(nutrition.fat ?? 0)}g'
-              '  C ${FoodNutritionFormatter.macro(nutrition.carbohydrate ?? 0)}g',
+              nutrition == null
+                  ? '— kcal  P —  F —  C —'
+                  : '${FoodNutritionFormatter.calories(nutrition.calories ?? 0)}kcal'
+                        '  P ${FoodNutritionFormatter.macro(nutrition.protein ?? 0)}g'
+                        '  F ${FoodNutritionFormatter.macro(nutrition.fat ?? 0)}g'
+                        '  C ${FoodNutritionFormatter.macro(nutrition.carbohydrate ?? 0)}g',
               key: const ValueKey('food-recipe-instance-nutrition'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
