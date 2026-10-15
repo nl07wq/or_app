@@ -1235,9 +1235,7 @@ class _ReadableText extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     value,
-    style: Theme.of(
-      context,
-    ).textTheme.bodyLarge?.copyWith(fontFamily: 'KleeOne', height: 1.55),
+    style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
   );
 }
 

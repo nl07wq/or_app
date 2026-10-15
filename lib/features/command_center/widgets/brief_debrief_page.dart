@@ -1464,7 +1464,6 @@ class _ReadableText extends StatelessWidget {
                         ? Theme.of(context).textTheme.bodyMedium
                         : Theme.of(context).textTheme.bodyLarge)
                     ?.copyWith(
-                      fontFamily: 'KleeOne',
                       color: color,
                       height: 1.65,
                       fontSize: emphasized ? 17 : null,

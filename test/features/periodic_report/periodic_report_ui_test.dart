@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/commander_report_paper_card.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
@@ -224,9 +225,10 @@ void main() {
           const ValueKey('periodic-report-header-card'),
         );
         expect(header, findsOneWidget);
-        final headerContainer = tester.widget<Container>(header);
-        final headerDecoration = headerContainer.decoration! as BoxDecoration;
-        expect(headerDecoration.color, const Color(0xD9FFFDF7));
+        final headerSection = tester.widget<CommanderReportDocumentSection>(
+          header,
+        );
+        expect(headerSection.tint, const Color(0xD9FFFDF7));
         expect(
           find.byKey(const ValueKey('periodic-report-document')),
           findsOneWidget,
