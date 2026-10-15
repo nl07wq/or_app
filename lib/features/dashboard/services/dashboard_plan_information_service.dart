@@ -5,6 +5,7 @@ import '../../schedule/repository/schedule_repository.dart';
 import '../../reminders/models/reminder_occurrence.dart';
 import '../../reminders/repository/reminder_repository.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
+import '../../schedule/services/schedule_recurrence_service.dart';
 
 enum DashboardPlanInformationGroup {
   todaySchedule,
@@ -45,10 +46,17 @@ class DashboardPlanInformationService {
 
   Future<DashboardPlanInformation> loadFor(String operationDate) async {
     final entries = <DashboardPlanInformationEntry>[];
-    for (final record in await _schedules.findAll()) {
-      if (record.kind == ScheduleEntryKind.reminder && reminders != null) {
-        continue;
-      }
+    final date = DateTime.parse(operationDate);
+    final persistedRecords = await _schedules.findAll();
+    // Dashboard is a Calendar projection, so it must use the same occurrence
+    // resolver. Reading persisted rows directly displays both a recurring
+    // definition and its single-occurrence override for the same day.
+    final resolvedSchedules = await ScheduleRecurrenceService(
+      _schedules,
+    ).inRange(DateTimeRange(start: date, end: date));
+    for (final record in resolvedSchedules.where(
+      (record) => record.kind != ScheduleEntryKind.reminder,
+    )) {
       final group = _groupFor(record, operationDate);
       if (group != null) {
         entries.add(
@@ -57,8 +65,18 @@ class DashboardPlanInformationService {
       }
     }
     final reminderRepository = reminders;
-    if (reminderRepository != null) {
-      final date = DateTime.parse(operationDate);
+    if (reminderRepository == null) {
+      for (final record in persistedRecords.where(
+        (record) => record.kind == ScheduleEntryKind.reminder,
+      )) {
+        final group = _groupFor(record, operationDate);
+        if (group != null) {
+          entries.add(
+            DashboardPlanInformationEntry(record: record, group: group),
+          );
+        }
+      }
+    } else {
       final occurrences = await ReminderOccurrenceService(
         reminderRepository,
       ).inRange(DateTimeRange(start: date, end: date), includeCompleted: false);

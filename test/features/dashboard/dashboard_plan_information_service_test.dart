@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/widgets/holographic_ambient_background.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/services/dashboard_plan_information_service.dart';
+import 'package:or_app/features/reminders/models/reminder_definition.dart';
 import 'package:or_app/features/schedule/models/schedule_record.dart';
 import 'package:or_app/features/schedule/repository/schedule_repository.dart';
 
@@ -156,6 +157,59 @@ void main() {
     );
     expect((await service.loadFor('2026-10-01')).entries, isEmpty);
   });
+
+  test(
+    'resolves a weekly WORK occurrence override once without mutating its series',
+    () async {
+      final now = DateTime.utc(2026);
+      final records = [
+        ScheduleRecord(
+          id: 'weekly-work',
+          localDate: '2026-10-01',
+          type: ScheduleType.work,
+          title: 'WORK',
+          startTime: '08:00',
+          endTime: '18:00',
+          recurrence: ReminderRecurrence.weekly,
+          createdAt: now,
+          updatedAt: now,
+        ),
+        ScheduleRecord(
+          id: 'weekly-work@2026-10-15',
+          seriesId: 'weekly-work',
+          occurrenceDate: '2026-10-15',
+          localDate: '2026-10-15',
+          type: ScheduleType.work,
+          title: 'WORK',
+          startTime: '15:00',
+          endTime: '00:15',
+          endDate: '2026-10-16',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ];
+      final service = DashboardPlanInformationService(
+        _FakeScheduleRepository(records),
+      );
+
+      final edited = await service.loadFor('2026-10-15');
+      final reloaded = await service.loadFor('2026-10-15');
+      final following = await service.loadFor('2026-10-22');
+
+      expect(edited.entries, hasLength(1));
+      expect(edited.entries.single.record.id, 'weekly-work@2026-10-15');
+      expect(edited.entries.single.record.startTime, '15:00');
+      expect(edited.entries.single.record.endTime, '00:15');
+      expect(edited.entries.single.record.endDate, '2026-10-16');
+      expect(reloaded.entries.map((entry) => entry.record.id), [
+        'weekly-work@2026-10-15',
+      ]);
+      expect(following.entries, hasLength(1));
+      expect(following.entries.single.record.startTime, '08:00');
+      expect(following.entries.single.record.endTime, '18:00');
+      expect(records, hasLength(2));
+    },
+  );
 
   testWidgets('caps Dashboard rows and keeps each row Calendar-addressable', (
     tester,
