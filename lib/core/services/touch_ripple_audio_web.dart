@@ -120,9 +120,9 @@ class _WebTouchRippleAudio
       'active': _active.length,
       'context': _audioContext?.state ?? 'none',
     });
-    if (TouchRippleAudioDiagnostics.enabled) {
-      unawaited(_inspectSignal(sound));
-    }
+    final decodedSignal = TouchRippleAudioDiagnostics.enabled
+        ? _inspectSignal(sound)
+        : null;
     if (volume <= 0) {
       TouchRippleAudioDiagnostics.record('PLAY_SKIPPED_MUTED_OR_ZERO', {
         'sound': sound.name,
@@ -144,7 +144,12 @@ class _WebTouchRippleAudio
       _stop(_active.first);
     }
     final output = _outputForUserGesture(sound, diagnosticRoute);
-    final entry = _ActiveSound(sound, output, _outputIdFor(output));
+    final entry = _ActiveSound(
+      sound,
+      output,
+      _outputIdFor(output),
+      decodedSignal: decodedSignal,
+    );
     _active.add(entry);
     final audio = output.audio;
     audio.currentTime = 0;
@@ -177,11 +182,7 @@ class _WebTouchRippleAudio
       },
     );
     if (TouchRippleAudioDiagnostics.enabled) {
-      for (final delay in const [120, 300, 650]) {
-        Future<void>.delayed(Duration(milliseconds: delay)).then((_) {
-          _recordPlaybackSample(entry, delay);
-        });
-      }
+      _scheduleMediaTimeSamples(entry);
     }
   }
 
@@ -386,29 +387,88 @@ class _WebTouchRippleAudio
     });
   }
 
-  void _recordPlaybackSample(_ActiveSound entry, int elapsedMilliseconds) {
+  void _scheduleMediaTimeSamples(_ActiveSound entry, [int index = 0]) {
+    // The analyser snapshot must be correlated with media time, not request
+    // time. A short bounded sequence captures attack, peak, and decay without
+    // changing or replaying the diagnostic sound.
+    const interval = Duration(milliseconds: 40);
+    const maximumSamples = 24;
+    Future<void>.delayed(index == 0 ? Duration.zero : interval).then((_) {
+      if (!_active.contains(entry) || index >= maximumSamples) return;
+      unawaited(_recordPlaybackSample(entry, index));
+      if (!entry.output.audio.ended) {
+        _scheduleMediaTimeSamples(entry, index + 1);
+      }
+    });
+  }
+
+  Future<void> _recordPlaybackSample(
+    _ActiveSound entry,
+    int sampleIndex,
+  ) async {
     final audio = entry.output.audio;
     final output = entry.output;
-    TouchRippleAudioDiagnostics.record('PLAYBACK_POSITION', {
+    const windowSeconds = .024;
+    final mediaTime = audio.currentTime;
+    final signalLevels = output is _WebAudioGainOutput
+        ? output.signalLevels()
+        : const <String, Object>{'signalDiagnostics': false};
+    final decodedFuture = entry.decodedSignal;
+    final decoded = decodedFuture == null ? null : await decodedFuture;
+    final sourceWindow = decoded?.windowAt(mediaTime, windowSeconds);
+    final gain = output is _WebAudioGainOutput
+        ? output.gainValue
+        : audio.volume;
+    final gainComparison = _gainComparison(
+      signalLevels['preGain'],
+      signalLevels['postGain'],
+      gain,
+    );
+    final common = <String, Object>{
       'sound': entry.sound.name,
       'outputId': entry.outputId,
-      'elapsedMs': elapsedMilliseconds,
-      'time': audio.currentTime.toStringAsFixed(3),
+      'sampleIndex': sampleIndex,
+      'measuredAtUtc': DateTime.now().toUtc().toIso8601String(),
+      'mediaTime': mediaTime.toStringAsFixed(4),
+      'measurementWindowMs': (windowSeconds * 1000).round(),
+      'sourceWindow': sourceWindow ?? const {'available': 'pendingOrFailed'},
       'paused': audio.paused,
       'ended': audio.ended,
       'readyState': audio.readyState,
-    });
-    if (output is _WebAudioGainOutput) {
-      TouchRippleAudioDiagnostics.record('WEB_AUDIO_SIGNAL_SAMPLE', {
-        'sound': entry.sound.name,
-        'outputId': entry.outputId,
-        'elapsedMs': elapsedMilliseconds,
-        'context': output.context.state,
-        'gain': output.gainValue.toStringAsFixed(3),
-        'topology': output.outputTopology,
-        ...output.signalLevels(),
-      });
+      'effectiveGain': gain.toStringAsFixed(4),
+      'context': output is _WebAudioGainOutput ? output.context.state : 'none',
+      'topology': output is _WebAudioGainOutput
+          ? output.outputTopology
+          : 'htmlAudioElement>browserMediaOutput',
+      ...signalLevels,
+      'gainComparison': gainComparison,
+    };
+    TouchRippleAudioDiagnostics.record('MEDIA_TIME_SIGNAL_SAMPLE', common);
+  }
+
+  Map<String, String> _gainComparison(
+    Object? preGain,
+    Object? postGain,
+    double gain,
+  ) {
+    if (preGain is! Map<String, String> || postGain is! Map<String, String>) {
+      return const {'status': 'notWebAudio'};
     }
+    final preRms = double.tryParse(preGain['rms'] ?? '');
+    final postRms = double.tryParse(postGain['rms'] ?? '');
+    if (preRms == null || postRms == null || preRms < .01) {
+      return const {
+        'status': 'insufficientPreGainSignal',
+        'note': 'byte analyser quantization or a quiet source window',
+      };
+    }
+    final observed = postRms / preRms;
+    return {
+      'status': 'comparable',
+      'expectedLinearRatio': gain.toStringAsFixed(4),
+      'observedRmsRatio': observed.toStringAsFixed(4),
+      'difference': (observed - gain).toStringAsFixed(4),
+    };
   }
 
   int _outputIdFor(TouchFeedbackAudioOutput output) {
@@ -417,7 +477,7 @@ class _WebTouchRippleAudio
     return outputId;
   }
 
-  Future<void> _inspectSignal(TouchFeedbackSound sound) async {
+  Future<_DecodedSignalDiagnostics?> _inspectSignal(TouchFeedbackSound sound) async {
     AudioContext? decoder;
     try {
       final response = await _fetchAudio(
@@ -428,22 +488,26 @@ class _WebTouchRippleAudio
           'sound': sound.name,
           'status': response.status.toDartInt,
         });
-        return;
+        return null;
       }
       final bytes = await response.arrayBuffer().toDart;
       decoder = AudioContext();
       final decoded = await decoder.decodeAudioData(bytes).toDart;
-      final samples = typed_data.Float32List(decoded.length);
-      decoded.copyFromChannel(samples.toJS, 0);
+      final channels = <typed_data.Float32List>[];
       var peak = 0.0;
       var squared = 0.0;
-      var firstAudible = samples.length;
-      for (var index = 0; index < samples.length; index++) {
-        final value = samples[index].abs();
-        if (value > peak) peak = value;
-        squared += value * value;
-        if (firstAudible == samples.length && value >= .002) {
-          firstAudible = index;
+      var firstAudible = decoded.length;
+      for (var channel = 0; channel < decoded.numberOfChannels; channel++) {
+        final samples = typed_data.Float32List(decoded.length);
+        decoded.copyFromChannel(samples.toJS, channel);
+        channels.add(samples);
+        for (var index = 0; index < samples.length; index++) {
+          final value = samples[index].abs();
+          if (value > peak) peak = value;
+          squared += value * value;
+          if (firstAudible == decoded.length && value >= .002) {
+            firstAudible = index;
+          }
         }
       }
       TouchRippleAudioDiagnostics.record('SIGNAL_DECODED', {
@@ -452,17 +516,24 @@ class _WebTouchRippleAudio
         'sampleRate': decoded.sampleRate.toStringAsFixed(0),
         'duration': decoded.duration.toStringAsFixed(3),
         'peak': peak.toStringAsFixed(4),
-        'rms': sqrt(squared / samples.length).toStringAsFixed(4),
-        'leadingSignal': firstAudible == samples.length
+        'rms': sqrt(squared / (decoded.length * channels.length))
+            .toStringAsFixed(4),
+        'leadingSignal': firstAudible == decoded.length
             ? 'none'
             : (firstAudible / decoded.sampleRate).toStringAsFixed(3),
       });
+      return _DecodedSignalDiagnostics(
+        channels: channels,
+        sampleRate: decoded.sampleRate,
+        duration: decoded.duration,
+      );
     } catch (error) {
       TouchRippleAudioDiagnostics.record('SIGNAL_DECODE_FAILED', {
         'sound': sound.name,
         'errorType': error.runtimeType,
         'error': error,
       });
+      return null;
     } finally {
       final context = decoder;
       if (context != null) {
@@ -530,12 +601,59 @@ class _WebTouchRippleAudio
   }
 }
 
+class _DecodedSignalDiagnostics {
+  const _DecodedSignalDiagnostics({
+    required this.channels,
+    required this.sampleRate,
+    required this.duration,
+  });
+
+  final List<typed_data.Float32List> channels;
+  final double sampleRate;
+  final double duration;
+
+  Map<String, String> windowAt(double mediaTime, double windowSeconds) {
+    final center = mediaTime.clamp(0, duration).toDouble();
+    final frameCount = (windowSeconds * sampleRate)
+        .round()
+        .clamp(1, channels.first.length);
+    final centerFrame = (center * sampleRate).round();
+    final start = (centerFrame - frameCount ~/ 2)
+        .clamp(0, channels.first.length - frameCount);
+    var peak = 0.0;
+    var squared = 0.0;
+    for (final channel in channels) {
+      for (var index = start; index < start + frameCount; index++) {
+        final value = channel[index];
+        final amplitude = value.abs();
+        if (amplitude > peak) peak = amplitude;
+        squared += value * value;
+      }
+    }
+    final sampleCount = frameCount * channels.length;
+    return {
+      'available': 'true',
+      'windowStart': (start / sampleRate).toStringAsFixed(4),
+      'windowEnd': ((start + frameCount) / sampleRate).toStringAsFixed(4),
+      'peak': peak.toStringAsFixed(5),
+      'rms': sqrt(squared / sampleCount).toStringAsFixed(5),
+      'channels': channels.length.toString(),
+    };
+  }
+}
+
 class _ActiveSound {
-  _ActiveSound(this.sound, this.output, this.outputId);
+  _ActiveSound(
+    this.sound,
+    this.output,
+    this.outputId, {
+    this.decodedSignal,
+  });
 
   final TouchFeedbackSound sound;
   final TouchFeedbackAudioOutput output;
   final int outputId;
+  final Future<_DecodedSignalDiagnostics?>? decodedSignal;
   JSFunction? ended;
   JSFunction? error;
 }
