@@ -8,14 +8,22 @@ import '../../core/widgets/section_header.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
 import 'widgets/training_history_button.dart';
+import 'widgets/training_ambient_comparison.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
 import 'widgets/training_manual_card.dart';
 import 'widgets/training_sync_card.dart';
 import 'training_plan_import_page.dart';
 
-class TrainingPage extends StatelessWidget {
+class TrainingPage extends StatefulWidget {
   const TrainingPage({super.key});
+
+  @override
+  State<TrainingPage> createState() => _TrainingPageState();
+}
+
+class _TrainingPageState extends State<TrainingPage> {
+  TrainingAmbientVariant _ambientVariant = TrainingAmbientVariant.magneticFlux;
 
   @override
   Widget build(BuildContext context) {
@@ -29,110 +37,127 @@ class TrainingPage extends StatelessWidget {
           titleKey: ValueKey('training-page-appbar-title'),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: MediaQuery.sizeOf(context).width < 360
-            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)
-            : AppSpacing.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SectionHeader(
-              icon: Icons.fitness_center,
-              title: 'MANUAL ENTRY',
-            ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          TrainingAmbientComparison(variant: _ambientVariant),
+          SingleChildScrollView(
+            padding: MediaQuery.sizeOf(context).width < 360
+                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)
+                : AppSpacing.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TrainingAmbientComparisonSelector(
+                  selected: _ambientVariant,
+                  onChanged: (variant) =>
+                      setState(() => _ambientVariant = variant),
+                ),
+                AppSpacing.gapMD,
+                const SectionHeader(
+                  icon: Icons.fitness_center,
+                  title: 'MANUAL ENTRY',
+                ),
 
-            AppSpacing.gapSM,
+                AppSpacing.gapSM,
 
-            const OperationDescription(
-              text:
-                  '本日のトレーニング内容を\n'
-                  '手動で記録します。',
-            ),
+                const OperationDescription(
+                  text:
+                      '本日のトレーニング内容を\n'
+                      '手動で記録します。',
+                ),
 
-            AppSpacing.gapMD,
+                AppSpacing.gapMD,
 
-            const TrainingManualCard(),
+                const TrainingManualCard(),
 
-            AppSpacing.gapXL,
+                AppSpacing.gapXL,
 
-            const SectionHeader(icon: Icons.event_note_outlined, title: 'PLAN'),
+                const SectionHeader(
+                  icon: Icons.event_note_outlined,
+                  title: 'PLAN',
+                ),
 
-            AppSpacing.gapSM,
+                AppSpacing.gapSM,
 
-            const OperationDescription(text: 'トレーニング記録をもとに、\n次回のプランを作成します。'),
+                const OperationDescription(
+                  text: 'トレーニング記録をもとに、\n次回のプランを作成します。',
+                ),
 
-            AppSpacing.gapMD,
+                AppSpacing.gapMD,
 
-            OperationCard(
-              child: OperationButton(
-                icon: Icons.event_note_outlined,
-                text: 'TRAINING PLAN',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TrainingPlanImportPage(),
+                OperationCard(
+                  child: OperationButton(
+                    icon: Icons.event_note_outlined,
+                    text: 'TRAINING PLAN',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TrainingPlanImportPage(),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            AppSpacing.gapXL,
+                AppSpacing.gapXL,
 
-            const SectionHeader(icon: Icons.history, title: 'RECORD'),
+                const SectionHeader(icon: Icons.history, title: 'RECORD'),
 
-            AppSpacing.gapSM,
+                AppSpacing.gapSM,
 
-            const OperationDescription(
-              text:
-                  '過去のトレーニング履歴を\n'
-                  '確認・編集できます。',
-            ),
+                const OperationDescription(
+                  text:
+                      '過去のトレーニング履歴を\n'
+                      '確認・編集できます。',
+                ),
 
-            AppSpacing.gapMD,
+                AppSpacing.gapMD,
 
-            const TrainingHistoryButton(),
+                const TrainingHistoryButton(),
 
-            AppSpacing.gapXL,
+                AppSpacing.gapXL,
 
-            const SectionHeader(
-              icon: Icons.analytics_outlined,
-              title: 'ANALYSIS REPORT',
-            ),
+                const SectionHeader(
+                  icon: Icons.analytics_outlined,
+                  title: 'ANALYSIS REPORT',
+                ),
 
-            AppSpacing.gapSM,
+                AppSpacing.gapSM,
 
-            const OperationDescription(
-              text: 'トレーニング記録を選択して、\n分析レポートを作成・確認します。',
-            ),
+                const OperationDescription(
+                  text: 'トレーニング記録を選択して、\n分析レポートを作成・確認します。',
+                ),
 
-            AppSpacing.gapMD,
+                AppSpacing.gapMD,
 
-            OperationCard(
-              child: OperationButton(
-                icon: Icons.analytics_outlined,
-                text: 'TRAINING ANALYSIS REPORT',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TrainingAnalysisPage(),
+                OperationCard(
+                  child: OperationButton(
+                    icon: Icons.analytics_outlined,
+                    text: 'TRAINING ANALYSIS REPORT',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TrainingAnalysisPage(),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+
+                AppSpacing.gapXL,
+
+                const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+
+                AppSpacing.gapSM,
+
+                const OperationDescription(text: 'ChatGPTから\nトレーニング記録を取り込みます。'),
+
+                AppSpacing.gapMD,
+
+                const TrainingSyncCard(),
+              ],
             ),
-
-            AppSpacing.gapXL,
-
-            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(text: 'ChatGPTから\nトレーニング記録を取り込みます。'),
-
-            AppSpacing.gapMD,
-
-            const TrainingSyncCard(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

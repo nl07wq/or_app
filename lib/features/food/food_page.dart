@@ -8,14 +8,22 @@ import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 
 import 'widgets/food_history_button.dart';
+import 'widgets/food_ambient_comparison.dart';
 import 'widgets/food_manual_card.dart';
 import 'widgets/food_sync_card.dart';
 import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
 import 'food_catalog_page.dart';
 
-class FoodPage extends StatelessWidget {
+class FoodPage extends StatefulWidget {
   const FoodPage({super.key});
+
+  @override
+  State<FoodPage> createState() => _FoodPageState();
+}
+
+class _FoodPageState extends State<FoodPage> {
+  FoodAmbientVariant _ambientVariant = FoodAmbientVariant.chromaticFluid;
 
   @override
   Widget build(BuildContext context) {
@@ -26,80 +34,94 @@ class FoodPage extends StatelessWidget {
         leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
         title: const FoodVfdScaleDisplayTitle(),
       ),
-      body: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(icon: Icons.edit_note, title: 'MANUAL ENTRY'),
-
-            AppSpacing.gapSM,
-
-            OperationDescription(
-              text:
-                  '食品を検索または手入力して\n'
-                  '食事を記録します。',
-            ),
-
-            AppSpacing.gapMD,
-
-            const FoodManualCard(),
-
-            AppSpacing.gapXL,
-
-            SectionHeader(icon: Icons.history, title: 'RECORD'),
-
-            AppSpacing.gapSM,
-
-            OperationDescription(
-              text:
-                  '過去の食事履歴を\n'
-                  '確認・編集できます。',
-            ),
-
-            AppSpacing.gapMD,
-
-            const FoodHistoryButton(),
-
-            AppSpacing.gapXL,
-
-            const SectionHeader(
-              icon: Icons.restaurant_menu,
-              title: 'FOOD DATABASE',
-            ),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(
-              text: '食品・商品情報と栄養データを登録し、\n食事記録で再利用できます。',
-            ),
-
-            AppSpacing.gapMD,
-
-            OperationCard(
-              child: OperationButton(
-                icon: Icons.storage_outlined,
-                text: 'OPEN FOOD DATABASE',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FoodCatalogPage()),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          FoodAmbientComparison(variant: _ambientVariant),
+          SingleChildScrollView(
+            padding: AppSpacing.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FoodAmbientComparisonSelector(
+                  selected: _ambientVariant,
+                  onChanged: (variant) =>
+                      setState(() => _ambientVariant = variant),
                 ),
-              ),
+                AppSpacing.gapMD,
+                SectionHeader(icon: Icons.edit_note, title: 'MANUAL ENTRY'),
+
+                AppSpacing.gapSM,
+
+                OperationDescription(
+                  text:
+                      '食品を検索または手入力して\n'
+                      '食事を記録します。',
+                ),
+
+                AppSpacing.gapMD,
+
+                const FoodManualCard(),
+
+                AppSpacing.gapXL,
+
+                SectionHeader(icon: Icons.history, title: 'RECORD'),
+
+                AppSpacing.gapSM,
+
+                OperationDescription(
+                  text:
+                      '過去の食事履歴を\n'
+                      '確認・編集できます。',
+                ),
+
+                AppSpacing.gapMD,
+
+                const FoodHistoryButton(),
+
+                AppSpacing.gapXL,
+
+                const SectionHeader(
+                  icon: Icons.restaurant_menu,
+                  title: 'FOOD DATABASE',
+                ),
+
+                AppSpacing.gapSM,
+
+                const OperationDescription(
+                  text: '食品・商品情報と栄養データを登録し、\n食事記録で再利用できます。',
+                ),
+
+                AppSpacing.gapMD,
+
+                OperationCard(
+                  child: OperationButton(
+                    icon: Icons.storage_outlined,
+                    text: 'OPEN FOOD DATABASE',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FoodCatalogPage(),
+                      ),
+                    ),
+                  ),
+                ),
+
+                AppSpacing.gapXL,
+
+                const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
+
+                AppSpacing.gapSM,
+
+                const OperationDescription(text: 'ChatGPTから\n食事記録を取り込みます。'),
+
+                AppSpacing.gapMD,
+
+                const FoodSyncCard(),
+              ],
             ),
-
-            AppSpacing.gapXL,
-
-            const SectionHeader(icon: Icons.sync, title: 'REPORT SYNC'),
-
-            AppSpacing.gapSM,
-
-            const OperationDescription(text: 'ChatGPTから\n食事記録を取り込みます。'),
-
-            AppSpacing.gapMD,
-
-            const FoodSyncCard(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
