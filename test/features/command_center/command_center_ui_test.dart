@@ -1460,7 +1460,7 @@ void main() {
     );
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.textContaining('Morning situation'), findsOneWidget);
     expect(find.textContaining('Morning intent'), findsOneWidget);
     expect(
@@ -1468,14 +1468,15 @@ void main() {
           .widget<Text>(find.textContaining('Morning intent'))
           .style
           ?.fontFamily,
-      isNull,
+      'Roboto',
     );
     expect(find.text('DB-2026-08-01'), findsOneWidget);
     expect(find.textContaining('Rev1'), findsNothing);
     expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
+    expect(find.byType(Chip), findsOneWidget);
 
     await _openDailyDebrief(tester);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     expect(find.byType(ReportSyncExchangePanel), findsNothing);
     expect(find.text('CREATE DAILY DEBRIEF'), findsOneWidget);
     expect(find.text('NO DAILY DEBRIEF BACK NUMBER'), findsOneWidget);
@@ -1616,9 +1617,9 @@ void main() {
 
     await _pump(tester, width: 390);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await _openDailyDebrief(tester);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
 
     expect(find.byKey(const ValueKey('current-daily-debrief')), findsOneWidget);
     expect(find.text('DD-2026-08-01-Rev7'), findsOneWidget);
@@ -2800,7 +2801,9 @@ Future<void> _settleDashboard(WidgetTester tester) async {
   // The Dashboard ambient pulse repeats indefinitely by design. Flush finite
   // navigation work without waiting for the ambient status layer to stop.
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 500));
+  for (var frame = 0; frame < 10; frame++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 Future<void> _pump(
@@ -2855,7 +2858,7 @@ Future<void> _pump(
       },
     ),
   );
-  await tester.pumpAndSettle();
+  await _settleDashboard(tester);
 }
 
 class _RecordingTouchRippleAudio implements TouchRippleAudio {

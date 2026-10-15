@@ -8,7 +8,6 @@ import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
-import '../../../core/widgets/commander_report_paper_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/theme/history_metric_color_registry.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
@@ -214,50 +213,19 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
             controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
             children: [
-              if (selectedRecord == null)
-                _ReportHeaderCard(
-                  reportType: widget.reportType,
-                  period: data.selected,
-                  report: null,
-                  busy: _busy,
-                  canMoveNext: _period(
-                    widget.reportType,
-                    _moveAnchor(_anchor!, widget.reportType, 1),
-                  ).isCompleteAt(data.operationDate),
-                  onPrevious: () => _move(-1),
-                  onNext: () => _move(1),
-                  onCreate: _prepare,
-                )
-              else
-                CommanderReportPaperCard(
-                  key: const ValueKey('periodic-report-document'),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _ReportHeaderCard(
-                        reportType: widget.reportType,
-                        period: data.selected,
-                        report: selectedRecord,
-                        busy: _busy,
-                        canMoveNext: _period(
-                          widget.reportType,
-                          _moveAnchor(_anchor!, widget.reportType, 1),
-                        ).isCompleteAt(data.operationDate),
-                        onPrevious: () => _move(-1),
-                        onNext: () => _move(1),
-                        onCreate: _prepare,
-                      ),
-                      AppSpacing.gapMD,
-                      _ReportViewer(
-                        report: selectedRecord,
-                        dailyFacts: data.dailyFacts,
-                        monthlyFacts: data.monthlyFacts,
-                        busy: _busy,
-                        onCreateRevision: _prepare,
-                      ),
-                    ],
-                  ),
-                ),
+              _ReportHeaderCard(
+                reportType: widget.reportType,
+                period: data.selected,
+                report: selectedRecord,
+                busy: _busy,
+                canMoveNext: _period(
+                  widget.reportType,
+                  _moveAnchor(_anchor!, widget.reportType, 1),
+                ).isCompleteAt(data.operationDate),
+                onPrevious: () => _move(-1),
+                onNext: () => _move(1),
+                onCreate: _prepare,
+              ),
               if (_preparation != null) ...[
                 AppSpacing.gapMD,
                 OperationCard(
@@ -307,6 +275,16 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
               if (_preview != null) ...[
                 AppSpacing.gapMD,
                 _PreviewCard(preview: _preview!, busy: _busy, onApply: _apply),
+              ],
+              if (selectedRecord != null) ...[
+                AppSpacing.gapMD,
+                _ReportViewer(
+                  report: selectedRecord,
+                  dailyFacts: data.dailyFacts,
+                  monthlyFacts: data.monthlyFacts,
+                  busy: _busy,
+                  onCreateRevision: _prepare,
+                ),
               ],
               if (_message != null)
                 Padding(
@@ -446,10 +424,13 @@ class _ReportHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return CommanderReportDocumentSection(
+    return Container(
       key: const ValueKey('periodic-report-header-card'),
       padding: const EdgeInsets.all(20),
-      tint: const Color(0xD9FFFDF7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -865,12 +846,8 @@ class _ReportViewer extends StatelessWidget {
         ),
         if (report.previousRevisions.isNotEmpty) ...[
           AppSpacing.gapMD,
-          CommanderReportDocumentSection(
+          OperationCard(
             key: const ValueKey('periodic-report-previous-revisions'),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs,
-            ),
             child: ExpansionTile(
               tilePadding: EdgeInsets.zero,
               title: const Text('PREVIOUS REVISIONS'),
@@ -903,7 +880,7 @@ class _ReportViewer extends StatelessWidget {
   }) {
     final visibleChildren = children.where(_hasContent).toList();
     if (text.trim().isEmpty && visibleChildren.isEmpty) return null;
-    return CommanderReportDocumentSection(
+    return OperationCard(
       key: ValueKey('periodic-report-section-$key'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

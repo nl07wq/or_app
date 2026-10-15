@@ -9,7 +9,6 @@ import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/commander_report_paper_card.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/status_lamp.dart';
@@ -675,7 +674,7 @@ class _DailyDebriefDetail extends StatelessWidget {
                 ],
         ),
     ];
-    return CommanderReportPaperCard(
+    return DashboardGlassCard(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -714,9 +713,12 @@ class _DailyDebriefHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outcome = record.analysis.commanderIntentEvaluation?.outcome;
-    return CommanderReportDocumentSection(
-      tint: const Color(0xD8FFFDF7),
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
           Icon(
@@ -773,30 +775,30 @@ class _CommanderIntentEvaluationSection extends StatelessWidget {
         _BriefSectionTitle(
           icon: Icons.flag_outlined,
           title: 'COMMANDER INTENT EVALUATION',
-          color: const Color(0xFF17384A),
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
         ),
         const SizedBox(height: 16),
         _CommanderIntentOutcomeIndicator(outcome: evaluation.outcome),
         const SizedBox(height: 18),
         _DebriefSubsectionLabel(
           '評価理由',
-          color: const Color(0xFF17384A),
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
         ),
         const SizedBox(height: 8),
         _ReadableText(
           evaluation.rationale,
-          color: const Color(0xFF17384A),
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
         ),
         if (evaluation.evidence.isNotEmpty) ...[
           const SizedBox(height: 18),
           _DebriefSubsectionLabel(
             '判定根拠',
-            color: const Color(0xFF17384A),
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
           const SizedBox(height: 8),
           _DebriefBulletList(
             values: evaluation.evidence,
-            color: const Color(0xFF17384A),
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
         ],
       ],
@@ -984,14 +986,20 @@ class _DebriefPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CommanderReportDocumentSection(
+    final colors = Theme.of(context).colorScheme;
+    return Container(
       padding: padding,
-      tint: switch (tone) {
-        _DebriefPanelTone.primary => const Color(0xCCDBF2FF),
-        _DebriefPanelTone.secondary => const Color(0xCCF8F3D8),
-        _DebriefPanelTone.neutral => const Color(0xD9FFFDF7),
-        _DebriefPanelTone.subtle => const Color(0xD9F3F0E8),
-      },
+      decoration: BoxDecoration(
+        color: switch (tone) {
+          _DebriefPanelTone.primary => colors.primaryContainer,
+          _DebriefPanelTone.secondary => colors.secondaryContainer.withValues(
+            alpha: 0.55,
+          ),
+          _DebriefPanelTone.neutral => colors.surfaceContainerLow,
+          _DebriefPanelTone.subtle => colors.surfaceContainerHighest,
+        },
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: child,
     );
   }
@@ -1052,7 +1060,7 @@ class _MorningBriefCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final analysis = record.situationAnalysisV2;
     final decision = record.strategicResourceDecisionV2;
-    return CommanderReportPaperCard(
+    return DashboardGlassCard(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1133,8 +1141,12 @@ class _BriefHeader extends StatelessWidget {
   final int revision;
 
   @override
-  Widget build(BuildContext context) => CommanderReportDocumentSection(
+  Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(16),
+    ),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final title = Row(
@@ -1386,10 +1398,17 @@ class _BriefSection extends StatelessWidget {
   final bool emphasized;
 
   @override
-  Widget build(BuildContext context) => CommanderReportDocumentSection(
+  Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 16),
     padding: const EdgeInsets.all(16),
-    tint: emphasized ? const Color(0xCCF5F1E4) : const Color(0xD9FFFDF7),
+    decoration: BoxDecoration(
+      color: emphasized
+          ? Theme.of(
+              context,
+            ).colorScheme.secondaryContainer.withValues(alpha: 0.55)
+          : Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1656,10 +1675,13 @@ class _CommanderIntentBlock extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => CommanderReportDocumentSection(
+  Widget build(BuildContext context) => Container(
     width: double.infinity,
     padding: const EdgeInsets.all(20),
-    tint: const Color(0xCCD8F1FF),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      borderRadius: BorderRadius.circular(12),
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1668,14 +1690,14 @@ class _CommanderIntentBlock extends StatelessWidget {
             Icon(
               Icons.flag_outlined,
               size: 24,
-              color: const Color(0xFF17384A),
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'COMMANDER INTENT',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF17384A),
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
@@ -1684,12 +1706,7 @@ class _CommanderIntentBlock extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        const SizedBox(height: 4),
-        _ReadableText(
-          text,
-          emphasized: true,
-          color: const Color(0xFF17384A),
-        ),
+        _ReadableText(text, emphasized: true),
       ],
     ),
   );
@@ -1703,40 +1720,19 @@ class _PriorityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = priority.toLowerCase();
-    final marker = switch (normalized) {
-      'critical' || 'high' => const Color(0x99FF9B88),
-      'medium' => const Color(0x99FFE186),
-      'low' => const Color(0x997DD7E8),
-      _ => const Color(0x99D7D2C5),
+    final color = switch (normalized) {
+      'critical' => Colors.red.shade800,
+      'high' => Colors.deepOrange,
+      'medium' => Colors.amber.shade800,
+      'low' => Colors.blue,
+      _ => Theme.of(context).colorScheme.outline,
     };
-    final angle = switch (normalized) {
-      'critical' || 'high' => -.018,
-      'medium' => .012,
-      'low' => -.01,
-      _ => 0.0,
-    };
-    return Transform.rotate(
-      angle: angle,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: marker,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(4),
-            topRight: Radius.circular(7),
-            bottomRight: Radius.circular(3),
-            bottomLeft: Radius.circular(6),
-          ),
-        ),
-        child: Text(
-          priority.toUpperCase(),
-          style: const TextStyle(
-            color: Color(0xFF302B25),
-            fontWeight: FontWeight.w800,
-            letterSpacing: .35,
-          ),
-        ),
-      ),
+    return Chip(
+      label: Text(priority.toUpperCase()),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700),
+      side: BorderSide(color: color),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
     );
   }
 }
