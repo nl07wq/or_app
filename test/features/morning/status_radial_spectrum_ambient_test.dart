@@ -93,7 +93,7 @@ void main() {
     expect(source, isNot(contains('const segmentCount = 13')));
     expect(source, contains('double _flameContourExtension'));
     expect(source, isNot(contains('_flameTonguePath')));
-    expect(source, contains('static const _flameTongueCount = 15'));
+    expect(source, contains('static const _flameTongueCount = 26'));
     expect(source, contains('static const _flameMotionSpeed = 2.45'));
     expect(source, contains('static const _flameMotionAmplitude = .96'));
     expect(source, contains('final emergence'));
@@ -101,6 +101,9 @@ void main() {
     expect(source, contains('final curlPhase'));
     expect(source, contains('final thinning'));
     expect(source, contains('final rootWidth'));
+    expect(source, contains('final stratifiedRoot'));
+    expect(source, contains('final rootJitter'));
+    expect(source, contains('final quietRootMotion'));
     expect(source, contains('final bodyCenter'));
     expect(source, contains('final tipCenter'));
     expect(source, contains('final curlDirection'));
@@ -185,6 +188,21 @@ void main() {
       find.byKey(StatusRadialSpectrumAmbient.fieldKey),
       matchesGoldenFile('goldens/status_radial_spectrum_phase.png'),
     );
+  });
+
+  testWidgets('keeps flame evolution stable across multiple lifecycle phases', (
+    tester,
+  ) async {
+    await pumpAmbient(tester, width: 390);
+    for (final elapsed in const [
+      Duration(milliseconds: 700),
+      Duration(milliseconds: 1500),
+      Duration(milliseconds: 2300),
+      Duration(milliseconds: 3100),
+    ]) {
+      await tester.pump(elapsed);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets(

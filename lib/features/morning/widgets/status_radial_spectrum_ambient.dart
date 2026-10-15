@@ -114,7 +114,10 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
   static final _pulseMotion = _StatusPulseMotion();
   static const _flameMotionSpeed = 2.45;
   static const _flameMotionAmplitude = .96;
-  static const _flameTongueCount = 15;
+  // Flame roots are stratified around the circumference.  The previous fully
+  // random root positions could leave large quiet sectors even while several
+  // tongues were active together.
+  static const _flameTongueCount = 26;
 
   // These paints are mutable drawing resources, deliberately retained by the
   // painter rather than allocated for every animation frame.
@@ -513,10 +516,15 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
       final lifetime = emergence * thinning;
       if (lifetime <= .001) continue;
 
-      // The root drifts only slightly. The body and tip progressively travel
+      // Stratification guarantees an independently evolving root in every
+      // sector while the bounded seed jitter avoids evenly spaced spikes.
+      // The root drifts only slightly; its body and tip progressively travel
       // farther around the circumference, making each flame curl instead of
       // breathing as a fixed radial spike.
-      final baseRoot = _flameNoise(index, 5) * math.pi * 2;
+      final sectorWidth = math.pi * 2 / _flameTongueCount;
+      final stratifiedRoot = index * sectorWidth;
+      final rootJitter = (_flameNoise(index, 5) - .5) * sectorWidth * .72;
+      final baseRoot = stratifiedRoot + rootJitter;
       final rootCenter =
           baseRoot +
           math.sin(time * (.12 + _flameNoise(index, 10) * .08) + index) *
@@ -541,6 +549,26 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
               _flameNoise(index, 6) * 4.8 +
               (_flameNoise(index, 9) > .80 ? 3.5 : 0)) *
           (.62 + extensionPhase * .38);
+
+      // A small continuously moving root survives the quiet portion of every
+      // major lifecycle. It prevents large stationary sectors without making
+      // the ring breathe in synchrony or adding a broad rounded halo.
+      final quietRootMotion =
+          .40 +
+          .60 *
+              (.5 +
+                  .5 *
+                      math.sin(
+                        time * (.68 + _flameNoise(index, 14) * .42) +
+                            _flameNoise(index, 15) * math.pi * 2,
+                      ));
+      extension += _flameLobe(
+        angle,
+        rootCenter,
+        rootWidth * 1.08,
+        (.18 + _flameNoise(index, 16) * .20) * quietRootMotion,
+        1.5,
+      );
 
       // A broad anchored root, an offset narrowing body, and a compact cusp
       // at a still farther angular position form one curved flame tongue.
