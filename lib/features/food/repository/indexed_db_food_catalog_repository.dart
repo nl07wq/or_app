@@ -2,6 +2,7 @@ import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
 import '../models/food_catalog_models.dart';
+import '../models/nutrition_models.dart';
 import '../services/food_v2_canonical_service.dart';
 import 'food_catalog_repository.dart';
 
@@ -13,26 +14,29 @@ class IndexedDbFoodCatalogRepository implements FoodCatalogRepository {
     : _now = now ?? DateTime.now;
 
   @override
-  Future<void> create(FoodCatalogEntry entry) =>
-      _write('foodCatalog.create', entry.foodId, (existing) {
+  Future<void> create(FoodCatalogEntry entry) async {
+    validateRequiredFoodCatalogNutrition(entry.nutrition);
+    await _write('foodCatalog.create', entry.foodId, (existing) {
         if (existing != null) throw StateError('FOOD catalog ID conflict.');
         return _copy(entry);
       });
+  }
 
   @override
-  Future<void> update(FoodCatalogEntry entry) => _write(
-    'foodCatalog.update',
-    entry.foodId,
-    (existing) {
-      if (existing == null) throw StateError('FOOD catalog record not found.');
+  Future<void> update(FoodCatalogEntry entry) async {
+    validateRequiredFoodCatalogNutrition(entry.nutrition);
+    await _write('foodCatalog.update', entry.foodId, (existing) {
+      if (existing == null) {
+        throw StateError('FOOD catalog record not found.');
+      }
       final current = FoodCatalogEntry.fromJson(existing);
       return FoodCatalogEntry.fromJson({
         ...entry.toJson(),
         'createdAt': current.createdAt.toUtc().toIso8601String(),
         'updatedAt': _now().toUtc().toIso8601String(),
       });
-    },
-  );
+    });
+  }
 
   @override
   Future<void> archive(String foodId) =>

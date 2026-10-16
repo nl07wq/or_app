@@ -95,6 +95,42 @@ void main() {
       );
     });
 
+    test('requires complete catalog nutrition without rejecting legacy reads', () {
+      final complete = NutritionSnapshot(
+        calories: 0,
+        protein: 0,
+        fat: 0,
+        carbohydrate: 0,
+      );
+      expect(requiredFoodCatalogNutritionErrors(complete), isEmpty);
+      expect(
+        () => validateRequiredFoodCatalogNutrition(complete),
+        returnsNormally,
+      );
+
+      final partial = NutritionSnapshot(calories: 100, protein: 2);
+      expect(requiredFoodCatalogNutritionErrors(partial), [
+        'FAT IS REQUIRED',
+        'CARBOHYDRATE IS REQUIRED',
+      ]);
+      expect(
+        () => validateRequiredFoodCatalogNutrition(partial),
+        throwsArgumentError,
+      );
+      expect(NutritionSnapshot.fromJson(partial.toJson()).protein, 2);
+      for (final expected in [
+        'CALORIES IS REQUIRED',
+        'PROTEIN IS REQUIRED',
+        'FAT IS REQUIRED',
+        'CARBOHYDRATE IS REQUIRED',
+      ]) {
+        expect(
+          requiredFoodCatalogNutritionErrors(NutritionSnapshot()),
+          contains(expected),
+        );
+      }
+    });
+
     test('uses every formal status and provenance stable ID', () {
       expect(NutritionStatus.values.map((value) => value.stableId), [
         'verified',

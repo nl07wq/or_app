@@ -815,6 +815,118 @@ void main() {
     expect(saved.nutrition.calories, 154);
   });
 
+  testWidgets('catalog save requires each nutrition field and preserves input', (
+    tester,
+  ) async {
+    const labels = ['CALORIES', 'PROTEIN', 'FAT', 'CARBOHYDRATE'];
+    for (final missing in labels) {
+      final repository = _MemoryCatalogRepository(const []);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            key: ValueKey('catalog-editor-missing-$missing'),
+            repository: repository,
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'NAME'),
+        'New Food',
+      );
+      for (final label in labels.where((label) => label != missing)) {
+        await tester.enterText(find.widgetWithText(TextField, label), '0');
+      }
+      await tester.ensureVisible(find.text('SAVE'));
+      await tester.tap(find.text('SAVE'));
+      await tester.pump();
+
+      expect(find.textContaining('$missing IS REQUIRED'), findsOneWidget);
+      expect(await repository.list(), isEmpty);
+    }
+
+    final repository = _MemoryCatalogRepository(const []);
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'NAME'), 'New Food');
+    for (final label in labels) {
+      await tester.enterText(find.widgetWithText(TextField, label), '0');
+    }
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    final saved = (await repository.list()).single;
+    expect(saved.nutrition.toJson(), {
+      'calories': 0.0,
+      'protein': 0.0,
+      'fat': 0.0,
+      'carbohydrate': 0.0,
+    });
+  });
+
+  testWidgets('catalog save rejects invalid nutrition input without mutation', (
+    tester,
+  ) async {
+    for (final invalid in ['-1', 'NaN', 'Infinity', 'not-a-number']) {
+      final repository = _MemoryCatalogRepository(const []);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodCatalogEditorPage(
+            key: ValueKey('catalog-editor-invalid-$invalid'),
+            repository: repository,
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'NAME'),
+        'Invalid Food',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'CALORIES'),
+        invalid,
+      );
+      for (final label in ['PROTEIN', 'FAT', 'CARBOHYDRATE']) {
+        await tester.enterText(find.widgetWithText(TextField, label), '1');
+      }
+      await tester.ensureVisible(find.text('SAVE'));
+      await tester.tap(find.text('SAVE'));
+      await tester.pump();
+
+      expect(
+        find.textContaining('CALORIES MUST BE A VALID NUMBER ZERO OR GREATER'),
+        findsOneWidget,
+      );
+      expect(_fieldText(tester, 'CALORIES'), invalid);
+      expect(await repository.list(), isEmpty);
+    }
+  });
+
+  testWidgets('editing a legacy incomplete record requires correction', (
+    tester,
+  ) async {
+    final entry = _entry(
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Legacy Food',
+      nutrition: NutritionSnapshot(calories: 120, protein: 4),
+    );
+    final repository = _MemoryCatalogRepository([entry]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: repository,
+          initialEntry: entry,
+        ),
+      ),
+    );
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pump();
+
+    expect(find.textContaining('FAT IS REQUIRED'), findsOneWidget);
+    expect(find.textContaining('CARBOHYDRATE IS REQUIRED'), findsOneWidget);
+    expect((await repository.readById(entry.foodId))!.nutrition.fat, isNull);
+  });
+
   testWidgets('catalog editor rounds presentation and preserves raw values', (
     tester,
   ) async {
@@ -927,6 +1039,9 @@ void main() {
           find.widgetWithText(TextField, 'BARCODE / JAN'),
           testCase.barcode,
         );
+        for (final label in ['CALORIES', 'PROTEIN', 'FAT', 'CARBOHYDRATE']) {
+          await tester.enterText(find.widgetWithText(TextField, label), '0');
+        }
         await tester.ensureVisible(find.text('SAVE'));
         await tester.tap(find.text('SAVE'));
         await tester.pumpAndSettle();

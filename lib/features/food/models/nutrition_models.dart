@@ -85,3 +85,33 @@ void validateNutritionStatus(
     );
   }
 }
+
+/// Validates the nutrition values required for a FOOD catalog save.
+///
+/// This intentionally does not run while decoding existing records: older
+/// catalog entries with partial nutrition must remain readable. New and edited
+/// entries are validated by the catalog editor and repository write boundary.
+List<String> requiredFoodCatalogNutritionErrors(NutritionSnapshot nutrition) {
+  final errors = <String>[];
+  for (final entry in {
+    'CALORIES': nutrition.calories,
+    'PROTEIN': nutrition.protein,
+    'FAT': nutrition.fat,
+    'CARBOHYDRATE': nutrition.carbohydrate,
+  }.entries) {
+    final value = entry.value;
+    if (value == null) {
+      errors.add('${entry.key} IS REQUIRED');
+    } else if (!value.isFinite || value < 0) {
+      errors.add('${entry.key} MUST BE ZERO OR GREATER');
+    }
+  }
+  return List.unmodifiable(errors);
+}
+
+void validateRequiredFoodCatalogNutrition(NutritionSnapshot nutrition) {
+  final errors = requiredFoodCatalogNutritionErrors(nutrition);
+  if (errors.isNotEmpty) {
+    throw ArgumentError(errors.join('; '));
+  }
+}

@@ -45,6 +45,35 @@ void main() {
     },
   );
 
+  test('catalog writes require all four nutrition values without mutation', () async {
+    final database = FakeIndexedDbDatabase();
+    final repository = IndexedDbFoodCatalogRepository(database, now: () => next);
+    final complete = _catalog(created, updated);
+    final incomplete = _catalog(
+      created,
+      updated,
+      nutrition: NutritionSnapshot(calories: 100, protein: 2),
+    );
+
+    await expectLater(repository.create(incomplete), throwsArgumentError);
+    expect(await repository.readById(incomplete.foodId), isNull);
+
+    await repository.create(complete);
+    await expectLater(
+      repository.update(
+        FoodCatalogEntry.fromJson({
+          ...complete.toJson(),
+          'nutrition': NutritionSnapshot(
+            calories: 100,
+            protein: 2,
+          ).toJson(),
+        }),
+      ),
+      throwsArgumentError,
+    );
+    expect((await repository.readById(complete.foodId))!.nutrition.fat, 1);
+  });
+
   test(
     'recipe create, update and archive preserve identity and createdAt',
     () async {
@@ -214,9 +243,18 @@ FoodDataProvenance _provenance(DateTime created) => FoodDataProvenance(
   capturedAt: created,
 );
 
-NutritionSnapshot _nutrition() => NutritionSnapshot(calories: 100, protein: 2);
+NutritionSnapshot _nutrition() => NutritionSnapshot(
+  calories: 100,
+  protein: 2,
+  fat: 1,
+  carbohydrate: 3,
+);
 
-FoodCatalogEntry _catalog(DateTime created, DateTime updated) =>
+FoodCatalogEntry _catalog(
+  DateTime created,
+  DateTime updated, {
+  NutritionSnapshot? nutrition,
+}) =>
     FoodCatalogEntry(
       foodId: '11111111-1111-4111-8111-111111111111',
       name: 'Rice',
@@ -225,7 +263,7 @@ FoodCatalogEntry _catalog(DateTime created, DateTime updated) =>
         value: 100,
         unit: FoodQuantityUnit.gram,
       ),
-      nutrition: _nutrition(),
+      nutrition: nutrition ?? _nutrition(),
       nutritionStatus: NutritionStatus.declared,
       provenance: _provenance(created),
       isArchived: false,

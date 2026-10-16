@@ -1625,7 +1625,6 @@ class _FoodInputFormState extends State<FoodInputForm> {
         builder: (_) => FoodCatalogEditorPage(
           repository: AppRepositoryRegistry.container.foodCatalog,
           initialEntry: _currentCatalogSource,
-          requireCompleteNutrition: true,
           draft: FoodCatalogDraft(
             name: item.name,
             category: category,

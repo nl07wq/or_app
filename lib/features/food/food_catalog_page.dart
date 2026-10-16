@@ -526,14 +526,12 @@ class FoodCatalogEditorPage extends StatefulWidget {
     this.initialEntry,
     this.draft,
     this.captureGateway,
-    this.requireCompleteNutrition = false,
   });
 
   final FoodCatalogRepository repository;
   final FoodCatalogEntry? initialEntry;
   final FoodCatalogDraft? draft;
   final FoodInputCaptureGateway? captureGateway;
-  final bool requireCompleteNutrition;
 
   @override
   State<FoodCatalogEditorPage> createState() => _FoodCatalogEditorPageState();
@@ -873,6 +871,26 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     carbohydrate: _rawCarbohydrate ?? _optionalNumber(_carbs),
   );
 
+  List<String> _requiredNutritionErrors() {
+    final fields = <String, (TextEditingController, double?)>{
+      'CALORIES': (_calories, _rawCalories),
+      'PROTEIN': (_protein, _rawProtein),
+      'FAT': (_fat, _rawFat),
+      'CARBOHYDRATE': (_carbs, _rawCarbohydrate),
+    };
+    final errors = <String>[];
+    for (final entry in fields.entries) {
+      final text = entry.value.$1.text.trim();
+      final value = entry.value.$2 ?? double.tryParse(text);
+      if (text.isEmpty && entry.value.$2 == null) {
+        errors.add('${entry.key} IS REQUIRED');
+      } else if (value == null || !value.isFinite || value < 0) {
+        errors.add('${entry.key} MUST BE A VALID NUMBER ZERO OR GREATER');
+      }
+    }
+    return errors;
+  }
+
   String? get _recalculationBlockReason {
     final values = [
       _rawCalories ?? _optionalNumber(_calories),
@@ -1011,6 +1029,14 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         return;
       }
     }
+    final nutritionErrors = _requiredNutritionErrors();
+    if (nutritionErrors.isNotEmpty) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
+      setState(() => _error = nutritionErrors.join('\n'));
+      return;
+    }
     final timestamp = DateTime.now().toUtc();
     final existing = widget.initialEntry;
     final nutrition = NutritionSnapshot(
@@ -1019,19 +1045,6 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       fat: _rawFat ?? _optionalNumber(_fat),
       carbohydrate: _rawCarbohydrate ?? _optionalNumber(_carbs),
     );
-    if (widget.requireCompleteNutrition &&
-        [
-          nutrition.calories,
-          nutrition.protein,
-          nutrition.fat,
-          nutrition.carbohydrate,
-        ].any((value) => value == null || !value.isFinite || value < 0)) {
-      ActionableFeedbackRegion.resolveDeferred(
-        ActionableFeedbackResult.unavailable,
-      );
-      setState(() => _error = 'COMPLETE NUTRITION VALUES ARE REQUIRED');
-      return;
-    }
     // The editor can be saved while a mobile keyboard is open. End that input
     // session before this route pops so the previous FOOD route is rebuilt
     // against the restored viewport rather than stale keyboard metrics.
