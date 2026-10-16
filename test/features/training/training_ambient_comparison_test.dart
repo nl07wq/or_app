@@ -3,6 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 
 void main() {
+  test('meshed kinetic gears retain opposite tooth-count velocity ratio', () {
+    expect(
+      TrainingAmbientComparison.meshedAngularVelocity(
+        driveVelocity: .72,
+        driveTeeth: 28,
+        drivenTeeth: 20,
+      ),
+      closeTo(-1.008, .0001),
+    );
+  });
+
   testWidgets(
     'TRAINING ambient comparison exposes and switches all candidates',
     (tester) async {

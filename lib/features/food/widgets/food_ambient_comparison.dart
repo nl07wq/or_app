@@ -109,55 +109,91 @@ class _FoodAmbientPainter extends CustomPainter {
   }
 
   void _fluid(Canvas c, Size s) {
+    // Each mass has a slow advective drift and a separate, faster surface
+    // current.  The closed paths are cubic through their sampled anchors so
+    // no polygon edges survive on a small phone display.
     for (var i = 0; i < 5; i++) {
-      final q = t * (.16 + i * .035) + i * 1.7;
-      final o = Offset(
-        s.width * (.5 + .36 * math.sin(q * .7 + i)),
-        s.height * (.48 + .34 * math.cos(q * .53 + i)),
+      final q = t * (.105 + i * .021) + i * 2.13;
+      final center = Offset(
+        s.width * (.50 + .34 * math.sin(q * .63 + i * .7)),
+        s.height * (.48 + .31 * math.cos(q * .49 + i * 1.1)),
       );
-      final p = _blob(o, s.shortestSide * (.22 + i * .018), q, i, 18, .3);
-      final col = _cool[i % 4];
+      final radius = s.shortestSide * (.235 + (i % 3) * .028);
+      final path = _smoothOrganicPath(center, radius, q, i, 16, .25);
+      final color = _cool[i % _cool.length];
       c.drawPath(
-        p,
+        path,
         Paint()
-          ..color = col.withValues(alpha: .07)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+          ..color = color.withValues(alpha: .09)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
       );
-      c.drawPath(p, Paint()..color = col.withValues(alpha: .10));
       c.drawPath(
-        p,
+        path,
+        Paint()
+          ..shader = RadialGradient(
+            center: Alignment(
+              math.sin(q * 1.7) * .32,
+              math.cos(q * 1.31) * .32,
+            ),
+            radius: 1.05,
+            colors: [
+              Color.lerp(color, Colors.white, .32)!.withValues(alpha: .24),
+              color.withValues(alpha: .105),
+              color.withValues(alpha: .018),
+            ],
+            stops: const [.0, .57, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.2)),
+      );
+      c.drawPath(
+        path,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = col.withValues(alpha: .27),
+          ..strokeWidth = 1.15
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            .42,
+          )!.withValues(alpha: .22),
+      );
+      // Moving internal caustic; it gives the mass thickness rather than a
+      // flat gradient-circle appearance.
+      c.drawCircle(
+        center + Offset(math.cos(q * 1.4), math.sin(q * 1.1)) * radius * .28,
+        radius * .22,
+        Paint()
+          ..color = Colors.white.withValues(alpha: .035)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 13),
       );
     }
-    for (var i = 0; i < 8; i++) {
-      final q = t * (.2 + i * .012) + i;
-      final y = s.height * (.1 + .11 * i);
-      final p = Path()
-        ..moveTo(-20, y)
+    for (var i = 0; i < 7; i++) {
+      final q = t * (.18 + i * .017) + i * 1.91;
+      final left = Offset(-18, s.height * (.12 + i * .125));
+      final right = Offset(s.width + 18, s.height * (.18 + i * .115));
+      final filament = Path()
+        ..moveTo(left.dx, left.dy)
         ..cubicTo(
-          s.width * .28,
-          y + 70 * math.sin(q),
-          s.width * .7,
-          y - 85 * math.cos(q * .8),
-          s.width + 20,
-          y + 30 * math.sin(q * .7),
+          s.width * .22,
+          left.dy + s.height * .19 * math.sin(q),
+          s.width * .72,
+          right.dy - s.height * .21 * math.cos(q * .83),
+          right.dx,
+          right.dy,
         );
       c.drawPath(
-        p,
+        filament,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = 1.2 + i % 3
-          ..color = _cool[i % 4].withValues(alpha: .13),
+          ..strokeWidth = 1.1 + (i % 3) * .72
+          ..color = _cool[i % 4].withValues(alpha: .17),
       );
     }
   }
 
   void _cells(Canvas c, Size s) {
-    for (var i = 0; i < 17; i++) {
+    final cells =
+        <({Offset center, double radius, double phase, Color color})>[];
+    for (var i = 0; i < 15; i++) {
       final seed = _h(i, 9);
       final q = t * (.23 + seed * .18) + i;
       final o = Offset(
@@ -167,32 +203,52 @@ class _FoodAmbientPainter extends CustomPainter {
       final r = s.shortestSide * (.052 + seed * .072);
       final split = i % 5 == 0 ? math.sin(q * .36).abs() : 0.0;
       final col = _cool[i % 3];
-      final p = _blob(
+      cells.add((center: o, radius: r, phase: q, color: col));
+      final membrane = _smoothOrganicPath(
         o,
         r,
         q,
         i + 30,
         14,
-        .22,
-        x: 1 + split * .55,
-        y: 1 - split * .18,
+        .16 + split * .09,
+        x: 1 + split * .62,
+        y: 1 - split * .24,
       );
-      c.drawPath(p, Paint()..color = col.withValues(alpha: .055));
+      c.drawPath(membrane, Paint()..color = col.withValues(alpha: .07));
       c.drawPath(
-        p,
+        membrane,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1 + seed
-          ..color = col.withValues(alpha: .32),
+          ..strokeWidth = 1.3 + seed * .8
+          ..color = Color.lerp(col, Colors.white, .30)!.withValues(alpha: .35),
+      );
+      c.drawPath(
+        _smoothOrganicPath(o, r * .76, q + .55, i + 60, 14, .11),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .75
+          ..color = col.withValues(alpha: .15),
       );
       c.drawCircle(
-        o,
-        r * .26,
+        o + Offset(math.cos(q * .8), math.sin(q * .67)) * r * .12,
+        r * .30,
         Paint()
-          ..color = col.withValues(alpha: .17)
+          ..color = Color.lerp(col, Colors.white, .22)!.withValues(alpha: .21)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
       );
-      c.drawCircle(o, r * .14, Paint()..color = col.withValues(alpha: .42));
+      c.drawCircle(
+        o + Offset(math.cos(q * .8), math.sin(q * .67)) * r * .12,
+        r * .15,
+        Paint()..color = col.withValues(alpha: .44),
+      );
+      for (var organelle = 0; organelle < 3; organelle++) {
+        final a = q * (1.1 + organelle * .13) + organelle * 2.1;
+        c.drawCircle(
+          o + Offset(math.cos(a), math.sin(a)) * r * (.35 + organelle * .08),
+          r * (.045 + organelle * .012),
+          Paint()..color = col.withValues(alpha: .30),
+        );
+      }
       if (split > .45) {
         final d = Offset(math.cos(q), math.sin(q)) * r * split * .55;
         c.drawCircle(
@@ -206,6 +262,28 @@ class _FoodAmbientPainter extends CustomPainter {
           Paint()..color = col.withValues(alpha: .4),
         );
       }
+    }
+    // Short-lived membrane bridges make local contacts read as a living
+    // environment, instead of a uniform field of isolated outlines.
+    for (var i = 0; i < cells.length - 1; i += 4) {
+      final a = cells[i], b = cells[i + 1];
+      final bridge = Path()
+        ..moveTo(a.center.dx, a.center.dy)
+        ..cubicTo(
+          a.center.dx + (b.center.dx - a.center.dx) * .32,
+          a.center.dy + 18 * math.sin(a.phase),
+          b.center.dx - (b.center.dx - a.center.dx) * .30,
+          b.center.dy - 18 * math.cos(b.phase),
+          b.center.dx,
+          b.center.dy,
+        );
+      c.drawPath(
+        bridge,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0 + math.sin(t * .41 + i).abs() * 1.8
+          ..color = Color.lerp(a.color, b.color, .5)!.withValues(alpha: .12),
+      );
     }
     for (var i = 0; i < 30; i++) {
       final q = t * (.32 + _h(i, 33) * .2) + i;
@@ -273,7 +351,7 @@ class _FoodAmbientPainter extends CustomPainter {
     }
   }
 
-  Path _blob(
+  Path _smoothOrganicPath(
     Offset o,
     double r,
     double q,
@@ -283,19 +361,41 @@ class _FoodAmbientPainter extends CustomPainter {
     double x = 1,
     double y = 1,
   }) {
-    final p = Path();
-    for (var i = 0; i <= n; i++) {
+    final points = <Offset>[];
+    for (var i = 0; i < n; i++) {
       final a = i / n * math.pi * 2;
       final w =
           1 +
           d *
               (.58 * math.sin(a * 3 + q + seed) +
                   .3 * math.sin(a * 7 - q * .7));
-      final z = Offset(
-        o.dx + math.cos(a) * r * w * x,
-        o.dy + math.sin(a) * r * w * y,
+      points.add(
+        Offset(o.dx + math.cos(a) * r * w * x, o.dy + math.sin(a) * r * w * y),
       );
-      i == 0 ? p.moveTo(z.dx, z.dy) : p.lineTo(z.dx, z.dy);
+    }
+    final p = Path();
+    final start = Offset(
+      (points.last.dx + points.first.dx) / 2,
+      (points.last.dy + points.first.dy) / 2,
+    );
+    p.moveTo(start.dx, start.dy);
+    for (var i = 0; i < points.length; i++) {
+      final previous = points[(i - 1 + points.length) % points.length];
+      final current = points[i];
+      final next = points[(i + 1) % points.length];
+      final mid = Offset(
+        (current.dx + next.dx) / 2,
+        (current.dy + next.dy) / 2,
+      );
+      final tangent = next - previous;
+      p.cubicTo(
+        current.dx - tangent.dx * .12,
+        current.dy - tangent.dy * .12,
+        current.dx + tangent.dx * .12,
+        current.dy + tangent.dy * .12,
+        mid.dx,
+        mid.dy,
+      );
     }
     return p..close();
   }

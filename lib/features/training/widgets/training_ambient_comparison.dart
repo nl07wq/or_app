@@ -29,6 +29,15 @@ class TrainingAmbientComparison extends StatefulWidget {
     }
   }
 
+  /// External gears use the tooth-count ratio and turn in opposite directions.
+  /// Kept public so the mechanical relationship is regression-tested without
+  /// coupling a test to painter pixels.
+  static double meshedAngularVelocity({
+    required double driveVelocity,
+    required int driveTeeth,
+    required int drivenTeeth,
+  }) => -driveVelocity * driveTeeth / drivenTeeth;
+
   @override
   State<TrainingAmbientComparison> createState() =>
       _TrainingAmbientComparisonState();
@@ -95,7 +104,7 @@ class TrainingAmbientComparisonSelector extends StatelessWidget {
             Semantics(
               selected: value == selected,
               child: ChoiceChip(
-                    key: ValueKey('training-ambient-${value.name}'),
+                key: ValueKey('training-ambient-${value.name}'),
                 label: Text(value.label),
                 selected: value == selected,
                 onSelected: (_) => onChanged(value),
@@ -144,35 +153,46 @@ class _TrainingAmbientPainter extends CustomPainter {
         size.height * (.77 + .05 * math.cos(time * .21)),
       ),
     ];
+    const polarities = [1.0, -1.0, .72];
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 22; i++) {
-      final y = (i + .5) / 22;
-      final start = Offset(-20, y * size.height);
-      final end = Offset(size.width + 20, (1 - y) * size.height);
-      final bend =
-          (centers[0].dy - centers[1].dy) * (.1 + .03 * i) +
-          math.sin(time * .55 + i) * 28;
-      final c1 = Offset(size.width * .28, start.dy + bend);
-      final c2 = Offset(size.width * .70, end.dy - bend);
-      final path = Path()
-        ..moveTo(start.dx, start.dy)
-        ..cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, end.dx, end.dy);
+    for (var i = 0; i < 24; i++) {
+      final source =
+          centers[i % 2] +
+          Offset.fromDirection(
+            i * math.pi * 2 / 12 + time * .035,
+            14 + (i % 4) * 4,
+          );
+      final points = _integrateField(
+        source,
+        centers,
+        polarities,
+        size,
+        i.isEven ? 1 : -1,
+      );
+      if (points.length < 3) continue;
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final point in points.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
       stroke
         ..color = Color.lerp(
           const Color(0x334be9ff),
-          const Color(0x665c5cff),
-          i / 22,
+          const Color(0x775c5cff),
+          (i % 12) / 12,
         )!
-        ..strokeWidth = i % 5 == 0 ? 1.65 : .75;
+        ..strokeWidth = i % 5 == 0 ? 1.45 : .72;
       canvas.drawPath(path, stroke);
       if (i % 3 == 0) {
         final u = (time * .14 + i * .09) % 1;
+        final point = points[(u * (points.length - 1)).floor()];
         canvas.drawCircle(
-          _bezier(start, c1, c2, end, u),
+          point,
           2.2,
-          Paint()..color = const Color(0xff8cf5ff),
+          Paint()
+            ..color = const Color(0xff8cf5ff)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
         );
       }
     }
@@ -190,66 +210,187 @@ class _TrainingAmbientPainter extends CustomPainter {
   }
 
   void _engine(Canvas canvas, Size size) {
-    final centers = [
-      Offset(size.width * .29, size.height * .36),
-      Offset(size.width * .67, size.height * .50),
-      Offset(size.width * .43, size.height * .75),
+    final unit = size.shortestSide;
+    final drive = _Gear(
+      center: Offset(size.width * .48, size.height * .55),
+      radius: unit * .185,
+      teeth: 28,
+    );
+    final upper = _Gear(
+      center:
+          drive.center + Offset.fromDirection(-.54, drive.radius + unit * .127),
+      radius: unit * .127,
+      teeth: 20,
+    );
+    final lower = _Gear(
+      center:
+          drive.center + Offset.fromDirection(2.18, drive.radius + unit * .102),
+      radius: unit * .102,
+      teeth: 16,
+    );
+    final gears = [drive, upper, lower];
+    final driveVelocity = .72 + .11 * math.sin(time * .17);
+    final velocities = [
+      driveVelocity,
+      TrainingAmbientComparison.meshedAngularVelocity(
+        driveVelocity: driveVelocity,
+        driveTeeth: drive.teeth,
+        drivenTeeth: upper.teeth,
+      ),
+      TrainingAmbientComparison.meshedAngularVelocity(
+        driveVelocity: driveVelocity,
+        driveTeeth: drive.teeth,
+        drivenTeeth: lower.teeth,
+      ),
     ];
-    final radii = [48.0, 64.0, 37.0];
-    final link = Paint()
-      ..strokeWidth = 1.3
-      ..color = const Color(0x555fc9ff);
-    for (var i = 0; i < 3; i++) {
-      canvas.drawLine(centers[i], centers[(i + 1) % 3], link);
-    }
-    for (var i = 0; i < 3; i++) {
-      _wheel(
-        canvas,
-        centers[i],
-        radii[i],
-        time * (i == 1 ? -.53 : .72 + i * .13),
-        i,
-      );
-    }
-    final phase = (math.sin(time * .95) + 1) / 2;
-    for (final c in centers) {
-      canvas.drawCircle(
-        c,
-        12 + phase * 7,
+    // Rear frame and genuine shafts sit behind all rotating parts.
+    final frame = Paint()..color = const Color(0xff091421);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: drive.center,
+          width: unit * .82,
+          height: unit * .62,
+        ),
+        Radius.circular(unit * .06),
+      ),
+      frame,
+    );
+    for (final gear in gears.skip(1)) {
+      canvas.drawLine(
+        drive.center,
+        gear.center,
         Paint()
-          ..color = const Color(0x4478dfff)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+          ..strokeWidth = unit * .035
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff27394a),
       );
-      canvas.drawCircle(c, 3, Paint()..color = const Color(0xffffca78));
+      canvas.drawLine(
+        drive.center,
+        gear.center,
+        Paint()
+          ..strokeWidth = unit * .010
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0x886de4ff),
+      );
+    }
+    for (var i = 0; i < gears.length; i++) {
+      _gear(canvas, gears[i], time * velocities[i], i);
     }
   }
 
-  void _wheel(Canvas canvas, Offset c, double radius, double angle, int index) {
-    final metal = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = const Color(0x9983c8ed);
-    canvas.drawCircle(c, radius, metal);
-    canvas.drawCircle(c, radius * .57, metal..color = const Color(0x557e54ff));
-    final node = Paint()..color = const Color(0xff98edff);
-    for (var n = 0; n < 12; n++) {
-      final a = angle + n * math.pi * 2 / 12;
-      final inner = c + Offset(math.cos(a), math.sin(a)) * radius * .58;
-      final outer = c + Offset(math.cos(a), math.sin(a)) * radius;
-      canvas.drawLine(inner, outer, metal..strokeWidth = n % 3 == 0 ? 2 : .8);
-      if (n % 3 == 0) canvas.drawCircle(outer, 3, node);
+  void _gear(Canvas canvas, _Gear gear, double angle, int index) {
+    final toothDepth = gear.radius * .13;
+    final profile = Path();
+    for (var tooth = 0; tooth < gear.teeth; tooth++) {
+      final base = angle + tooth * math.pi * 2 / gear.teeth;
+      for (final (fraction, radius) in [
+        (-.48, gear.radius),
+        (-.29, gear.radius + toothDepth),
+        (.29, gear.radius + toothDepth),
+        (.48, gear.radius),
+      ]) {
+        final point =
+            gear.center +
+            Offset.fromDirection(
+              base + fraction * math.pi * 2 / gear.teeth,
+              radius,
+            );
+        if (tooth == 0 && fraction == -.48) {
+          profile.moveTo(point.dx, point.dy);
+        } else {
+          profile.lineTo(point.dx, point.dy);
+        }
+      }
     }
+    profile.close();
+    canvas.drawPath(profile, Paint()..color = const Color(0xff2c4253));
+    canvas.drawPath(
+      profile,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = const Color(0xff7acdf0).withValues(alpha: .62),
+    );
+    canvas.drawCircle(
+      gear.center,
+      gear.radius * .72,
+      Paint()..color = const Color(0xff162634),
+    );
+    canvas.drawCircle(
+      gear.center,
+      gear.radius * .61,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = gear.radius * .07
+        ..color = const Color(0xff46687e),
+    );
+    for (var spoke = 0; spoke < 6; spoke++) {
+      final a = angle + spoke * math.pi / 3;
+      canvas.drawLine(
+        gear.center + Offset.fromDirection(a, gear.radius * .18),
+        gear.center + Offset.fromDirection(a, gear.radius * .58),
+        Paint()
+          ..strokeWidth = gear.radius * .07
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff38566a),
+      );
+    }
+    canvas.drawCircle(
+      gear.center,
+      gear.radius * .22,
+      Paint()
+        ..color = const Color(0xff68dfff)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawCircle(
+      gear.center,
+      gear.radius * .12,
+      Paint()..color = const Color(0xffffbe74),
+    );
     canvas.drawArc(
-      Rect.fromCircle(center: c, radius: radius + 5),
+      Rect.fromCircle(center: gear.center, radius: gear.radius * .82),
       angle + index,
-      math.pi * .46,
+      math.pi * .36,
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
+        ..strokeWidth = gear.radius * .035
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xffffb86c),
+        ..color = const Color(0xffc1f8ff).withValues(alpha: .62),
     );
+  }
+
+  List<Offset> _integrateField(
+    Offset start,
+    List<Offset> centers,
+    List<double> polarities,
+    Size size,
+    int direction,
+  ) {
+    final points = <Offset>[start];
+    var point = start;
+    for (var step = 0; step < 58; step++) {
+      var vector = Offset.zero;
+      for (var i = 0; i < centers.length; i++) {
+        final delta = point - centers[i];
+        final squared = math.max(180.0, delta.distanceSquared);
+        vector +=
+            delta / math.pow(squared, 1.35).toDouble() * polarities[i] * 26000;
+      }
+      if (vector.distance < .0001) {
+        break;
+      }
+      point += vector / vector.distance * direction.toDouble() * 7;
+      if (point.dx < -30 ||
+          point.dx > size.width + 30 ||
+          point.dy < -30 ||
+          point.dy > size.height + 30) {
+        break;
+      }
+      points.add(point);
+    }
+    return points;
   }
 
   void _vectors(Canvas canvas, Size size) {
@@ -305,20 +446,6 @@ class _TrainingAmbientPainter extends CustomPainter {
     }
   }
 
-  Offset _bezier(Offset a, Offset b, Offset c, Offset d, double t) {
-    final u = 1 - t;
-    return Offset(
-      u * u * u * a.dx +
-          3 * u * u * t * b.dx +
-          3 * u * t * t * c.dx +
-          t * t * t * d.dx,
-      u * u * u * a.dy +
-          3 * u * u * t * b.dy +
-          3 * u * t * t * c.dy +
-          t * t * t * d.dy,
-    );
-  }
-
   double _h(int value) {
     final x = math.sin(value * 12.9898) * 43758.5453;
     return x - x.floorToDouble();
@@ -327,4 +454,16 @@ class _TrainingAmbientPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TrainingAmbientPainter oldDelegate) =>
       oldDelegate.variant != variant || oldDelegate.time != time;
+}
+
+class _Gear {
+  const _Gear({
+    required this.center,
+    required this.radius,
+    required this.teeth,
+  });
+
+  final Offset center;
+  final double radius;
+  final int teeth;
 }
