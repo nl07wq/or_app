@@ -18,13 +18,13 @@ void main() {
         AudioBufferOptions(numberOfChannels: 1, length: 128, sampleRate: 44100),
       );
       final gain = context.createGain()..gain.value = .17;
-      final source = createAudioBufferDiagnosticSource(
+      final source = createAudioBufferSource(
         context: context,
         buffer: buffer,
         gain: gain,
       );
       final secondGain = context.createGain()..gain.value = .17;
-      final secondSource = createAudioBufferDiagnosticSource(
+      final secondSource = createAudioBufferSource(
         context: context,
         buffer: buffer,
         gain: secondGain,
@@ -164,7 +164,7 @@ void main() {
     },
   );
 
-  test('COMMAND retains its MediaElement Web Audio production route', () {
+  test('production routes every SE through AudioBuffer without media output', () {
     final controller = DeviceSettingsController.instance;
     final original = controller.value;
     controller.resetForTesting(const DeviceSettings());
@@ -180,11 +180,23 @@ void main() {
       audio.prepare();
       expect(browserOutputCreations, 0);
 
-      audio.playFromUserGesture(TouchFeedbackSound.success);
+      TouchRippleAudioDiagnostics.enabledForTesting = true;
+      for (final sound in TouchFeedbackSound.values) {
+        audio.playFromUserGesture(sound);
+      }
 
-      expect(browserOutputCreations, 1);
+      expect(browserOutputCreations, 0);
+      final report = TouchRippleAudioDiagnostics.report;
+      for (final sound in TouchFeedbackSound.values) {
+        expect(
+          report,
+          contains('AUDIO_BUFFER_ROUTE_REQUESTED sound=${sound.name}'),
+        );
+      }
     } finally {
       audio.dispose();
+      TouchRippleAudioDiagnostics.enabledForTesting = null;
+      TouchRippleAudioDiagnostics.clear();
       controller.resetForTesting(original);
     }
   });
