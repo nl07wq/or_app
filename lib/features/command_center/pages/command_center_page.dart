@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/navigation/app_routes.dart';
@@ -784,7 +785,15 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
-                onPressed: () => widget.onSelectPage(index),
+                onPressed: () {
+                  if (index == CommandCenterSection.periodicReport.index &&
+                      widget.currentPage != index) {
+                    GlobalTouchRipple.previewFeedback(
+                      TouchFeedbackSound.pageFlip,
+                    );
+                  }
+                  widget.onSelectPage(index);
+                },
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(

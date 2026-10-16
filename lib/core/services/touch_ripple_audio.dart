@@ -15,8 +15,10 @@ const touchRippleSuccessAudioAssetUrl =
 const touchRippleFailureAudioAssetUrl =
     'assets/assets/audio/touch/cancel-1.mp3';
 const touchRippleExitAudioAssetUrl = 'assets/assets/audio/touch/button-09.mp3';
+const touchRipplePageFlipAudioAssetUrl =
+    'assets/assets/audio/touch/Book01-1(Flip).mp3';
 
-enum TouchFeedbackSound { water, success, failure, exit }
+enum TouchFeedbackSound { water, success, failure, exit, pageFlip }
 
 /// Diagnostic-only output routes for comparing the same REJECTED asset on a
 /// physical browser. These are never selected by normal application feedback.
@@ -79,6 +81,9 @@ double touchFeedbackEffectiveVolume(
       TouchFeedbackSound.success => DeviceFeedbackChannel.command,
       TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
       TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
+      // Report navigation is a semantic command; it deliberately uses the
+      // existing COMMAND level rather than introducing a second settings UI.
+      TouchFeedbackSound.pageFlip => DeviceFeedbackChannel.command,
     });
 
 abstract interface class TouchRippleAudio {

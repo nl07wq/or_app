@@ -931,6 +931,7 @@ class _WebTouchRippleAudio
     TouchFeedbackSound.success => touchRippleSuccessAudioAssetUrl,
     TouchFeedbackSound.failure => touchRippleFailureAudioAssetUrl,
     TouchFeedbackSound.exit => touchRippleExitAudioAssetUrl,
+    TouchFeedbackSound.pageFlip => touchRipplePageFlipAudioAssetUrl,
   };
 
   @override

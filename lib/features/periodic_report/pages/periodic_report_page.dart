@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -72,14 +73,23 @@ class PeriodicReportWorkspace extends StatelessWidget {
             title: 'PERIODIC REPORT',
           ),
         ),
-        const ActionableFeedbackRegion(
+        ActionableFeedbackRegion(
           role: ActionableFeedbackRole.silent,
-          child: TabBar(
-            tabs: [
-              Tab(text: 'WEEKLY'),
-              Tab(text: 'MONTHLY'),
-              Tab(text: 'YEARLY'),
-            ],
+          child: Builder(
+            builder: (context) => TabBar(
+              onTap: (index) {
+                if (DefaultTabController.of(context).index != index) {
+                  GlobalTouchRipple.previewFeedback(
+                    TouchFeedbackSound.pageFlip,
+                  );
+                }
+              },
+              tabs: const [
+                Tab(text: 'WEEKLY'),
+                Tab(text: 'MONTHLY'),
+                Tab(text: 'YEARLY'),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -385,6 +395,7 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
       _message = null;
       _data = _load();
     });
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.pageFlip);
   }
 }
 
