@@ -4,19 +4,24 @@ import 'package:or_app/features/food/widgets/food_ambient_comparison.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 
 void main() {
-  Future<void> pumpFood(WidgetTester tester, FoodAmbientVariant variant) async {
+  Future<void> pumpFood(
+    WidgetTester tester,
+    FoodAmbientVariant variant, [
+    Duration elapsed = const Duration(milliseconds: 1600),
+  ]) async {
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox.expand(child: FoodAmbientComparison(variant: variant)),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump(elapsed);
   }
 
   Future<void> pumpTraining(
     WidgetTester tester,
-    TrainingAmbientVariant variant,
-  ) async {
+    TrainingAmbientVariant variant, [
+    Duration elapsed = const Duration(milliseconds: 1600),
+  ]) async {
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox.expand(
@@ -24,7 +29,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump(elapsed);
   }
 
   testWidgets('CHROMATIC FLUID visual frame is stable', (tester) async {
@@ -69,5 +74,36 @@ void main() {
       ),
       matchesGoldenFile('goldens/training_kinetic_engine_v3.png'),
     );
+  });
+
+  testWidgets('V4 renderers remain deterministic at a later phase', (
+    tester,
+  ) async {
+    for (final variant in const [
+      FoodAmbientVariant.chromaticFluid,
+      FoodAmbientVariant.metabolicCells,
+    ]) {
+      await pumpFood(tester, variant, const Duration(milliseconds: 5100));
+      await expectLater(
+        find.descendant(
+          of: find.byType(FoodAmbientComparison),
+          matching: find.byType(RepaintBoundary),
+        ),
+        matchesGoldenFile('goldens/food_${variant.name}_v4_phase_b.png'),
+      );
+    }
+    for (final variant in const [
+      TrainingAmbientVariant.magneticFlux,
+      TrainingAmbientVariant.kineticEngine,
+    ]) {
+      await pumpTraining(tester, variant, const Duration(milliseconds: 5100));
+      await expectLater(
+        find.descendant(
+          of: find.byType(TrainingAmbientComparison),
+          matching: find.byType(RepaintBoundary),
+        ),
+        matchesGoldenFile('goldens/training_${variant.name}_v4_phase_b.png'),
+      );
+    }
   });
 }

@@ -157,12 +157,12 @@ class _TrainingAmbientPainter extends CustomPainter {
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 24; i++) {
+    for (var i = 0; i < 36; i++) {
       final source =
-          centers[i % 2] +
+          centers[i % centers.length] +
           Offset.fromDirection(
-            i * math.pi * 2 / 12 + time * .035,
-            14 + (i % 4) * 4,
+            i * math.pi * 2 / 12 + time * (.025 + (i % 3) * .006),
+            12 + (i % 6) * 4,
           );
       final points = _integrateField(
         source,
@@ -176,17 +176,32 @@ class _TrainingAmbientPainter extends CustomPainter {
       for (final point in points.skip(1)) {
         path.lineTo(point.dx, point.dy);
       }
+      final middle = points[points.length ~/ 2];
+      final concentration = _fieldAt(middle, centers, polarities).distance;
+      final intensity = (concentration / 20).clamp(.18, 1.0);
       stroke
         ..color = Color.lerp(
           const Color(0x334be9ff),
           const Color(0x775c5cff),
-          (i % 12) / 12,
+          (i % 18) / 18,
         )!
-        ..strokeWidth = i % 5 == 0 ? 1.45 : .72;
+        ..color = stroke.color.withValues(alpha: .18 + intensity * .42)
+        ..strokeWidth = i % 6 == 0 ? 1.55 : .52 + intensity * .48;
       canvas.drawPath(path, stroke);
       if (i % 3 == 0) {
-        final u = (time * .14 + i * .09) % 1;
-        final point = points[(u * (points.length - 1)).floor()];
+        final u = (time * (.12 + (i % 5) * .012) + i * .09) % 1;
+        final pointIndex = (u * (points.length - 1)).floor();
+        final point = points[pointIndex];
+        final next = points[math.min(pointIndex + 1, points.length - 1)];
+        final tangent = next - point;
+        canvas.drawLine(
+          point - tangent * .8,
+          point + tangent * .8,
+          Paint()
+            ..strokeWidth = 1.1
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xaa8cf5ff),
+        );
         canvas.drawCircle(
           point,
           2.2,
@@ -228,7 +243,19 @@ class _TrainingAmbientPainter extends CustomPainter {
       radius: unit * .102,
       teeth: 16,
     );
-    final gears = [drive, upper, lower];
+    final transfer = _Gear(
+      center:
+          upper.center + Offset.fromDirection(.22, upper.radius + unit * .075),
+      radius: unit * .075,
+      teeth: 12,
+    );
+    final output = _Gear(
+      center:
+          lower.center + Offset.fromDirection(2.68, lower.radius + unit * .088),
+      radius: unit * .088,
+      teeth: 14,
+    );
+    final gears = [drive, upper, lower, transfer, output];
     final driveVelocity = .72 + .11 * math.sin(time * .17);
     final velocities = [
       driveVelocity,
@@ -241,6 +268,24 @@ class _TrainingAmbientPainter extends CustomPainter {
         driveVelocity: driveVelocity,
         driveTeeth: drive.teeth,
         drivenTeeth: lower.teeth,
+      ),
+      TrainingAmbientComparison.meshedAngularVelocity(
+        driveVelocity: TrainingAmbientComparison.meshedAngularVelocity(
+          driveVelocity: driveVelocity,
+          driveTeeth: drive.teeth,
+          drivenTeeth: upper.teeth,
+        ),
+        driveTeeth: upper.teeth,
+        drivenTeeth: transfer.teeth,
+      ),
+      TrainingAmbientComparison.meshedAngularVelocity(
+        driveVelocity: TrainingAmbientComparison.meshedAngularVelocity(
+          driveVelocity: driveVelocity,
+          driveTeeth: drive.teeth,
+          drivenTeeth: lower.teeth,
+        ),
+        driveTeeth: lower.teeth,
+        drivenTeeth: output.teeth,
       ),
     ];
     // Rear frame and genuine shafts sit behind all rotating parts.
@@ -256,18 +301,24 @@ class _TrainingAmbientPainter extends CustomPainter {
       ),
       frame,
     );
-    for (final gear in gears.skip(1)) {
+    final links = [
+      (drive, upper),
+      (drive, lower),
+      (upper, transfer),
+      (lower, output),
+    ];
+    for (final link in links) {
       canvas.drawLine(
-        drive.center,
-        gear.center,
+        link.$1.center,
+        link.$2.center,
         Paint()
           ..strokeWidth = unit * .035
           ..strokeCap = StrokeCap.round
           ..color = const Color(0xff27394a),
       );
       canvas.drawLine(
-        drive.center,
-        gear.center,
+        link.$1.center,
+        link.$2.center,
         Paint()
           ..strokeWidth = unit * .010
           ..strokeCap = StrokeCap.round
@@ -277,6 +328,34 @@ class _TrainingAmbientPainter extends CustomPainter {
     for (var i = 0; i < gears.length; i++) {
       _gear(canvas, gears[i], time * velocities[i], i);
     }
+    // The final shaft drives a constrained slider through a real crank radius.
+    final outputAngle = time * velocities[4];
+    final crankPin =
+        output.center + Offset.fromDirection(outputAngle, output.radius * .56);
+    final sliderY = output.center.dy + output.radius * 1.72;
+    final sliderX =
+        output.center.dx + math.cos(outputAngle) * output.radius * .56;
+    final slider = Offset(sliderX, sliderY);
+    canvas.drawLine(
+      crankPin,
+      slider,
+      Paint()
+        ..strokeWidth = unit * .018
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff8cb8ca),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: slider, width: unit * .13, height: unit * .055),
+        Radius.circular(unit * .014),
+      ),
+      Paint()..color = const Color(0xff314d60),
+    );
+    canvas.drawCircle(
+      crankPin,
+      unit * .012,
+      Paint()..color = const Color(0xffffbd70),
+    );
   }
 
   void _gear(Canvas canvas, _Gear gear, double angle, int index) {
@@ -371,13 +450,7 @@ class _TrainingAmbientPainter extends CustomPainter {
     final points = <Offset>[start];
     var point = start;
     for (var step = 0; step < 58; step++) {
-      var vector = Offset.zero;
-      for (var i = 0; i < centers.length; i++) {
-        final delta = point - centers[i];
-        final squared = math.max(180.0, delta.distanceSquared);
-        vector +=
-            delta / math.pow(squared, 1.35).toDouble() * polarities[i] * 26000;
-      }
+      final vector = _fieldAt(point, centers, polarities);
       if (vector.distance < .0001) {
         break;
       }
@@ -391,6 +464,17 @@ class _TrainingAmbientPainter extends CustomPainter {
       points.add(point);
     }
     return points;
+  }
+
+  Offset _fieldAt(Offset point, List<Offset> centers, List<double> polarities) {
+    var vector = Offset.zero;
+    for (var i = 0; i < centers.length; i++) {
+      final delta = point - centers[i];
+      final squared = math.max(180.0, delta.distanceSquared);
+      vector +=
+          delta / math.pow(squared, 1.35).toDouble() * polarities[i] * 26000;
+    }
+    return vector;
   }
 
   void _vectors(Canvas canvas, Size size) {

@@ -112,6 +112,8 @@ class _FoodAmbientPainter extends CustomPainter {
     // Each mass has a slow advective drift and a separate, faster surface
     // current.  The closed paths are cubic through their sampled anchors so
     // no polygon edges survive on a small phone display.
+    final bodies =
+        <({Offset center, double radius, double phase, Color color})>[];
     for (var i = 0; i < 5; i++) {
       final q = t * (.105 + i * .021) + i * 2.13;
       final center = Offset(
@@ -119,6 +121,12 @@ class _FoodAmbientPainter extends CustomPainter {
         s.height * (.48 + .31 * math.cos(q * .49 + i * 1.1)),
       );
       final radius = s.shortestSide * (.235 + (i % 3) * .028);
+      bodies.add((
+        center: center,
+        radius: radius,
+        phase: q,
+        color: _cool[i % _cool.length],
+      ));
       final path = _smoothOrganicPath(center, radius, q, i, 16, .25);
       final color = _cool[i % _cool.length];
       c.drawPath(
@@ -163,6 +171,87 @@ class _FoodAmbientPainter extends CustomPainter {
         Paint()
           ..color = Colors.white.withValues(alpha: .035)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 13),
+      );
+    }
+    // Contact bridges narrow and relax continuously. They visually join bodies
+    // only while their surfaces approach, producing necking/pinch-off instead
+    // of five unrelated translated blobs.
+    for (var i = 0; i < bodies.length; i++) {
+      final a = bodies[i];
+      final b = bodies[(i + 1) % bodies.length];
+      final distance = (b.center - a.center).distance;
+      final reach = (a.radius + b.radius) * 1.12;
+      final contact = ((reach - distance) / (reach * .42)).clamp(0.0, 1.0);
+      if (contact <= .02) continue;
+      final direction = (b.center - a.center) / math.max(distance, 1);
+      final normal = Offset(-direction.dy, direction.dx);
+      final root = math.min(a.radius, b.radius) * (.10 + contact * .17);
+      final neck = Path()
+        ..moveTo(
+          (a.center + direction * a.radius * .68 + normal * root).dx,
+          (a.center + direction * a.radius * .68 + normal * root).dy,
+        )
+        ..cubicTo(
+          a.center.dx + direction.dx * a.radius,
+          a.center.dy + direction.dy * a.radius,
+          b.center.dx - direction.dx * b.radius,
+          b.center.dy - direction.dy * b.radius,
+          (b.center - direction * b.radius * .68 + normal * root).dx,
+          (b.center - direction * b.radius * .68 + normal * root).dy,
+        )
+        ..lineTo(
+          (b.center - direction * b.radius * .68 - normal * root).dx,
+          (b.center - direction * b.radius * .68 - normal * root).dy,
+        )
+        ..cubicTo(
+          b.center.dx - direction.dx * b.radius,
+          b.center.dy - direction.dy * b.radius,
+          a.center.dx + direction.dx * a.radius,
+          a.center.dy + direction.dy * a.radius,
+          (a.center + direction * a.radius * .68 - normal * root).dx,
+          (a.center + direction * a.radius * .68 - normal * root).dy,
+        )
+        ..close();
+      c.drawPath(
+        neck,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              a.color.withValues(alpha: .12 * contact),
+              b.color.withValues(alpha: .15 * contact),
+            ],
+          ).createShader(Rect.fromPoints(a.center, b.center)),
+      );
+    }
+    // Bound droplets follow separate trajectories and periodically approach a
+    // parent mass, reading as pinch-off and re-merging without unbounded state.
+    for (var i = 0; i < 11; i++) {
+      final parent = bodies[i % bodies.length];
+      final phase = t * (.24 + _h(i, 93) * .11) + i * 1.73;
+      final orbit = parent.radius * (.82 + .42 * math.sin(phase * .37).abs());
+      final center = parent.center + Offset.fromDirection(phase, orbit);
+      final radius = s.shortestSide * (.012 + _h(i, 97) * .018);
+      final droplet = _smoothOrganicPath(
+        center,
+        radius,
+        phase,
+        i + 90,
+        10,
+        .09,
+      );
+      c.drawPath(
+        droplet,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              Color.lerp(
+                parent.color,
+                Colors.white,
+                .38,
+              )!.withValues(alpha: .28),
+              parent.color.withValues(alpha: .08),
+            ],
+          ).createShader(Rect.fromCircle(center: center, radius: radius)),
       );
     }
     for (var i = 0; i < 7; i++) {
@@ -283,6 +372,17 @@ class _FoodAmbientPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0 + math.sin(t * .41 + i).abs() * 1.8
           ..color = Color.lerp(a.color, b.color, .5)!.withValues(alpha: .12),
+      );
+      final exchange = (t * (.18 + i * .006) + i * .17) % 1;
+      final reaction = Offset.lerp(a.center, b.center, exchange)! +
+          Offset(0, math.sin(exchange * math.pi * 2 + a.phase) * 7);
+      c.drawCircle(
+        reaction,
+        2.2 + math.sin(exchange * math.pi).abs() * 1.8,
+        Paint()
+          ..color = Color.lerp(a.color, b.color, exchange)!
+              .withValues(alpha: .48)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
       );
     }
     for (var i = 0; i < 30; i++) {
