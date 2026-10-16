@@ -220,7 +220,7 @@ class _AudioDiagnosticCard extends StatelessWidget {
           AppSpacing.gapSM,
           SelectableText(
             entries.isEmpty
-                ? 'Run one test at a time. Every route uses the current REJECTED effective volume.'
+                ? 'Run one test at a time. Every route uses the configured comparison volume.'
                 : entries.join('\n'),
             key: const ValueKey('audio-diagnostics-report'),
           ),
@@ -254,6 +254,17 @@ class _AudioDiagnosticCard extends StatelessWidget {
             onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
               TouchFeedbackSound.success,
               TouchFeedbackDiagnosticRoute.webAudio,
+            ),
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            key: const ValueKey('audio-diagnostic-command-audio-buffer'),
+            text: 'PLAY COMMAND: AUDIO BUFFER',
+            icon: Icons.memory_outlined,
+            feedbackRole: ActionableFeedbackRole.silent,
+            onPressed: () => GlobalTouchRipple.previewDiagnosticFeedback(
+              TouchFeedbackSound.success,
+              TouchFeedbackDiagnosticRoute.audioBuffer,
             ),
           ),
           AppSpacing.gapSM,

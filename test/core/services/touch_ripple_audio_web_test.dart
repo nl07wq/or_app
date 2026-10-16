@@ -164,33 +164,30 @@ void main() {
     },
   );
 
-  test(
-    'REJECTED creates its Web Audio output inside the first user gesture',
-    () {
-      final controller = DeviceSettingsController.instance;
-      final original = controller.value;
-      controller.resetForTesting(const DeviceSettings());
-      var browserOutputCreations = 0;
-      final audio = createPlatformTouchRippleAudio(
-        audioFactory: (_) => HTMLAudioElement(),
-        browserOutputFactory: (element) {
-          browserOutputCreations++;
-          return _RecordingAudioOutput(element);
-        },
-      );
-      try {
-        audio.prepare();
-        expect(browserOutputCreations, 0);
+  test('COMMAND retains its MediaElement Web Audio production route', () {
+    final controller = DeviceSettingsController.instance;
+    final original = controller.value;
+    controller.resetForTesting(const DeviceSettings());
+    var browserOutputCreations = 0;
+    final audio = createPlatformTouchRippleAudio(
+      audioFactory: (_) => HTMLAudioElement(),
+      browserOutputFactory: (element) {
+        browserOutputCreations++;
+        return _RecordingAudioOutput(element);
+      },
+    );
+    try {
+      audio.prepare();
+      expect(browserOutputCreations, 0);
 
-        audio.playFromUserGesture(TouchFeedbackSound.failure);
+      audio.playFromUserGesture(TouchFeedbackSound.success);
 
-        expect(browserOutputCreations, 1);
-      } finally {
-        audio.dispose();
-        controller.resetForTesting(original);
-      }
-    },
-  );
+      expect(browserOutputCreations, 1);
+    } finally {
+      audio.dispose();
+      controller.resetForTesting(original);
+    }
+  });
 
   test(
     'production REJECTED selects the cached one-shot buffer route',
@@ -213,7 +210,7 @@ void main() {
 
         expect(
           TouchRippleAudioDiagnostics.report,
-          contains('REJECTED_BUFFER_ROUTE_REQUESTED sound=failure'),
+          contains('AUDIO_BUFFER_ROUTE_REQUESTED sound=failure'),
         );
         expect(
           mediaOutputCreations,
@@ -221,6 +218,38 @@ void main() {
           reason: 'REJECTED must not create a MediaElement Web Audio output',
         );
         await Future<void>.delayed(const Duration(milliseconds: 10));
+      } finally {
+        audio.dispose();
+        TouchRippleAudioDiagnostics.enabledForTesting = null;
+        TouchRippleAudioDiagnostics.clear();
+        controller.resetForTesting(original);
+      }
+    },
+  );
+
+  test(
+    'COMMAND AudioBuffer is available only through the diagnostic route',
+    () {
+      final controller = DeviceSettingsController.instance;
+      final original = controller.value;
+      controller.resetForTesting(const DeviceSettings());
+      TouchRippleAudioDiagnostics.enabledForTesting = true;
+      final audio = createPlatformTouchRippleAudio(
+        audioFactory: (_) => HTMLAudioElement(),
+        browserOutputFactory: _RecordingAudioOutput.new,
+      );
+      try {
+        audio.prepare();
+        (audio as TouchRippleAudioDiagnosticPlayer)
+            .playDiagnosticFromUserGesture(
+              TouchFeedbackSound.success,
+              TouchFeedbackDiagnosticRoute.audioBuffer,
+              .34,
+            );
+        expect(
+          TouchRippleAudioDiagnostics.report,
+          contains('AUDIO_BUFFER_ROUTE_REQUESTED sound=success'),
+        );
       } finally {
         audio.dispose();
         TouchRippleAudioDiagnostics.enabledForTesting = null;

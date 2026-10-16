@@ -131,6 +131,10 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('audio-diagnostic-command-audio-buffer')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('audio-diagnostic-rejected-direct-html')),
       findsOneWidget,
     );
