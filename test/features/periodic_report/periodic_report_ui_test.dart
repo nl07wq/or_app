@@ -295,7 +295,7 @@ void main() {
     }
   });
 
-  testWidgets('period tabs and navigation are silent display controls', (
+  testWidgets('period tabs and navigation own one page flip per transition', (
     tester,
   ) async {
     await _install(operationDate: '2027-02-01');
@@ -310,14 +310,26 @@ void main() {
     for (final label in ['MONTHLY', 'YEARLY', 'WEEKLY']) {
       await tester.tap(find.text(label).first);
       await tester.pumpAndSettle();
-      expect(audio.played, isEmpty, reason: label);
+      expect(
+        audio.played,
+        List.filled(
+          ['MONTHLY', 'YEARLY', 'WEEKLY'].indexOf(label) + 1,
+          TouchFeedbackSound.pageFlip,
+        ),
+        reason: label,
+      );
     }
+
+    await tester.tap(find.text('WEEKLY').first);
+    await tester.pumpAndSettle();
+    expect(audio.played, hasLength(3));
 
     await tester.tap(find.byTooltip('PREVIOUS PERIOD'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('NEXT PERIOD'));
     await tester.pumpAndSettle();
-    expect(audio.played, isEmpty);
+    expect(audio.played, hasLength(5));
+    expect(audio.played, everyElement(TouchFeedbackSound.pageFlip));
   });
 
   testWidgets('weekly report uses semantic cards and formal daily charts', (

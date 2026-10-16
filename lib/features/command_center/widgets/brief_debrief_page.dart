@@ -97,27 +97,7 @@ class BriefDebriefPage extends StatelessWidget {
             title: 'BRIEF / DEBRIEF',
           ),
         ),
-        ActionableFeedbackRegion(
-          role: ActionableFeedbackRole.silent,
-          child: Builder(
-            builder: (context) => TabBar(
-              key: const ValueKey('brief-debrief-tab-bar'),
-              isScrollable: false,
-              indicatorSize: TabBarIndicatorSize.label,
-              onTap: (index) {
-                if (DefaultTabController.of(context).index != index) {
-                  GlobalTouchRipple.previewFeedback(
-                    TouchFeedbackSound.pageFlip,
-                  );
-                }
-              },
-              tabs: const [
-                Tab(text: 'DAILY BRIEF'),
-                Tab(text: 'DAILY DEBRIEF'),
-              ],
-            ),
-          ),
-        ),
+        const _BriefDebriefPageFlipTabBar(),
         Expanded(
           child: TabBarView(
             children: [
@@ -1888,12 +1868,7 @@ class _DailyDebriefBackNumberRow extends StatelessWidget {
               context,
               evaluation.outcome,
             ).color,
-      onTap: () => Navigator.push<void>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => _DailyDebriefDetailPage(record: historical.record),
-        ),
-      ),
+      onTap: () => _openDailyDebriefDetail(context, historical.record),
     );
   }
 }
@@ -1913,16 +1888,19 @@ class _BackNumberRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: _BackNumberLeading(indicatorColor: indicatorColor),
-    title: Text(date),
-    subtitle: preview == null
-        ? null
-        : Text(preview!, maxLines: 2, overflow: TextOverflow.ellipsis),
-    trailing: const Icon(Icons.chevron_right),
-    onTap: onTap,
-  ).actionableFeedback(enabled: true);
+  Widget build(BuildContext context) => ActionableFeedbackRegion(
+    role: ActionableFeedbackRole.silent,
+    child: ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: _BackNumberLeading(indicatorColor: indicatorColor),
+      title: Text(date),
+      subtitle: preview == null
+          ? null
+          : Text(preview!, maxLines: 2, overflow: TextOverflow.ellipsis),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    ),
+  );
 }
 
 class _BackNumberLeading extends StatelessWidget {
@@ -1972,6 +1950,54 @@ void _openMorningBriefDetail(BuildContext context, MorningBriefRecord record) {
   );
 }
 
+void _openDailyDebriefDetail(BuildContext context, DailyDebriefRecord record) {
+  GlobalTouchRipple.previewFeedback(TouchFeedbackSound.pageFlip);
+  Navigator.push<void>(
+    context,
+    MaterialPageRoute(builder: (_) => _DailyDebriefDetailPage(record: record)),
+  );
+}
+
+class _BriefDebriefPageFlipTabBar extends StatefulWidget {
+  const _BriefDebriefPageFlipTabBar();
+
+  @override
+  State<_BriefDebriefPageFlipTabBar> createState() =>
+      _BriefDebriefPageFlipTabBarState();
+}
+
+class _BriefDebriefPageFlipTabBarState
+    extends State<_BriefDebriefPageFlipTabBar> {
+  TabController? _controller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (_controller == controller) return;
+    _controller = controller;
+  }
+
+  @override
+  Widget build(BuildContext context) => ActionableFeedbackRegion(
+    role: ActionableFeedbackRole.silent,
+    child: TabBar(
+      key: const ValueKey('brief-debrief-tab-bar'),
+      isScrollable: false,
+      indicatorSize: TabBarIndicatorSize.label,
+      onTap: (index) {
+        if (_controller!.indexIsChanging) {
+          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.pageFlip);
+        }
+      },
+      tabs: const [
+        Tab(text: 'DAILY BRIEF'),
+        Tab(text: 'DAILY DEBRIEF'),
+      ],
+    ),
+  );
+}
+
 class _MorningBriefDetailPage extends StatelessWidget {
   const _MorningBriefDetailPage({required this.record});
 
@@ -2005,24 +2031,27 @@ class _MorningBriefArchivePage extends StatelessWidget {
       padding: AppSpacing.cardPadding,
       itemCount: records.length,
       separatorBuilder: (_, _) => const Divider(),
-      itemBuilder: (context, index) => ListTile(
-        key: ValueKey(
-          'all-morning-brief-back-number-${records[index].localDate}',
-        ),
-        leading: _BackNumberLeading(
-          indicatorColor: _morningBriefBackNumberColor(
-            records[index].operationStatus,
+      itemBuilder: (context, index) => ActionableFeedbackRegion(
+        role: ActionableFeedbackRole.silent,
+        child: ListTile(
+          key: ValueKey(
+            'all-morning-brief-back-number-${records[index].localDate}',
           ),
+          leading: _BackNumberLeading(
+            indicatorColor: _morningBriefBackNumberColor(
+              records[index].operationStatus,
+            ),
+          ),
+          title: Text(records[index].localDate),
+          subtitle: Text(
+            records[index].commanderIntent,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openMorningBriefDetail(context, records[index]),
         ),
-        title: Text(records[index].localDate),
-        subtitle: Text(
-          records[index].commanderIntent,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => _openMorningBriefDetail(context, records[index]),
-      ).actionableFeedback(enabled: true),
+      ),
     ),
   );
 }

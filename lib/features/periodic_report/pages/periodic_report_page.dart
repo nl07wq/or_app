@@ -73,25 +73,7 @@ class PeriodicReportWorkspace extends StatelessWidget {
             title: 'PERIODIC REPORT',
           ),
         ),
-        ActionableFeedbackRegion(
-          role: ActionableFeedbackRole.silent,
-          child: Builder(
-            builder: (context) => TabBar(
-              onTap: (index) {
-                if (DefaultTabController.of(context).index != index) {
-                  GlobalTouchRipple.previewFeedback(
-                    TouchFeedbackSound.pageFlip,
-                  );
-                }
-              },
-              tabs: const [
-                Tab(text: 'WEEKLY'),
-                Tab(text: 'MONTHLY'),
-                Tab(text: 'YEARLY'),
-              ],
-            ),
-          ),
-        ),
+        const _PeriodicPageFlipTabBar(),
         Expanded(
           child: TabBarView(
             children: [
@@ -125,6 +107,44 @@ class PeriodicReportWorkspace extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    ),
+  );
+}
+
+class _PeriodicPageFlipTabBar extends StatefulWidget {
+  const _PeriodicPageFlipTabBar();
+
+  @override
+  State<_PeriodicPageFlipTabBar> createState() =>
+      _PeriodicPageFlipTabBarState();
+}
+
+class _PeriodicPageFlipTabBarState extends State<_PeriodicPageFlipTabBar> {
+  TabController? _controller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (_controller == controller) return;
+    _controller = controller;
+  }
+
+  @override
+  Widget build(BuildContext context) => ActionableFeedbackRegion(
+    role: ActionableFeedbackRole.silent,
+    child: TabBar(
+      key: const ValueKey('periodic-report-tab-bar'),
+      onTap: (index) {
+        if (_controller!.indexIsChanging) {
+          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.pageFlip);
+        }
+      },
+      tabs: const [
+        Tab(text: 'WEEKLY'),
+        Tab(text: 'MONTHLY'),
+        Tab(text: 'YEARLY'),
       ],
     ),
   );

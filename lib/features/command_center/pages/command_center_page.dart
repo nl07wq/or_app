@@ -786,7 +786,8 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
                 onPressed: () {
-                  if (index == CommandCenterSection.periodicReport.index &&
+                  if ((index == CommandCenterSection.periodicReport.index ||
+                          index == CommandCenterSection.briefDebrief.index) &&
                       widget.currentPage != index) {
                     GlobalTouchRipple.previewFeedback(
                       TouchFeedbackSound.pageFlip,

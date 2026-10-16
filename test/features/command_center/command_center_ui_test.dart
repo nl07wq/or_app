@@ -1177,19 +1177,43 @@ void main() {
     expect(find.text('WEEKLY REPORT'), findsOneWidget);
   });
 
-  testWidgets('top workspace tabs are silent display controls', (tester) async {
+  testWidgets('BRIEF DEBRIEF workspace transition owns one page flip', (
+    tester,
+  ) async {
     final audio = _RecordingTouchRippleAudio();
     await _pump(tester, width: 390, feedbackAudio: audio);
 
-    for (final label in [
-      'PERIODIC REPORT',
-      'BRIEF / DEBRIEF',
-      'DAILY COMMAND',
-      'DATA CENTER',
-    ]) {
-      await _tapCommandCenterTab(tester, label);
-      expect(audio.played, isEmpty, reason: label);
-    }
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+    expect(audio.played, [TouchFeedbackSound.pageFlip]);
+
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+    expect(audio.played, [TouchFeedbackSound.pageFlip]);
+    expect(audio.played, isNot(contains(TouchFeedbackSound.success)));
+  });
+
+  testWidgets('DAILY BRIEF and DAILY DEBRIEF transitions own one page flip', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await _pump(tester, width: 390, feedbackAudio: audio);
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+    audio.played.clear();
+
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _settleDashboard(tester);
+    expect(audio.played, [TouchFeedbackSound.pageFlip]);
+
+    await tester.tap(find.text('DAILY DEBRIEF').first);
+    await _settleDashboard(tester);
+    expect(audio.played, [TouchFeedbackSound.pageFlip]);
+
+    await tester.tap(find.text('DAILY BRIEF').first);
+    await _settleDashboard(tester);
+    expect(audio.played, [
+      TouchFeedbackSound.pageFlip,
+      TouchFeedbackSound.pageFlip,
+    ]);
+    expect(audio.played, isNot(contains(TouchFeedbackSound.success)));
   });
 
   testWidgets('balances BRIEF and DEBRIEF tabs across the available width', (
@@ -1839,6 +1863,7 @@ void main() {
   testWidgets('debrief back numbers match brief rows and outcome colors', (
     tester,
   ) async {
+    final audio = _RecordingTouchRippleAudio();
     final timestamp = DateTime.utc(2026, 8, 1, 23);
     final current = _dailyDebriefRecord(
       localDate: '2026-08-01',
@@ -1901,11 +1926,12 @@ void main() {
       noEvaluation.toRecord(),
     );
 
-    await _pump(tester, width: 390);
+    await _pump(tester, width: 390, feedbackAudio: audio);
     await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
     await _openDailyDebrief(tester);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
+    audio.played.clear();
 
     final colors = Theme.of(
       tester.element(find.byKey(const ValueKey('daily-debrief-content'))),
@@ -1932,6 +1958,15 @@ void main() {
       find.byKey(const ValueKey('daily-debrief-history-2026-07-27')),
       findsNothing,
     );
+    await tester.tap(
+      find.byKey(const ValueKey('daily-debrief-history-2026-07-31')),
+    );
+    await _settleDashboard(tester);
+    expect(audio.played, [TouchFeedbackSound.pageFlip]);
+    expect(audio.played, isNot(contains(TouchFeedbackSound.success)));
+    Navigator.of(tester.element(find.byType(Scaffold).last)).pop();
+    await _settleDashboard(tester);
+    audio.played.clear();
     final viewAll = find.byKey(
       const ValueKey('view-all-daily-debrief-back-numbers'),
     );
@@ -1946,7 +1981,8 @@ void main() {
           .first,
     );
     await tester.tap(viewAll);
-    await tester.pumpAndSettle();
+    await _settleDashboard(tester);
+    audio.played.clear();
     for (final value in cases) {
       final row = find.byKey(
         ValueKey('all-daily-debrief-back-number-${value.$1}'),
@@ -2003,6 +2039,12 @@ void main() {
       ),
       findsNothing,
     );
+    await tester.tap(
+      find.byKey(const ValueKey('all-daily-debrief-back-number-2026-07-31')),
+    );
+    await _settleDashboard(tester);
+    expect(audio.played, [TouchFeedbackSound.pageFlip]);
+    expect(audio.played, isNot(contains(TouchFeedbackSound.success)));
     expect(tester.takeException(), isNull);
   });
 
@@ -2307,6 +2349,7 @@ void main() {
   testWidgets(
     'separates current Morning Brief and exposes three back numbers with detail',
     (tester) async {
+      final audio = _RecordingTouchRippleAudio();
       for (final date in const [
         '2026-08-01',
         '2026-07-31',
@@ -2321,9 +2364,10 @@ void main() {
         );
       }
 
-      await _pump(tester, width: 390);
+      await _pump(tester, width: 390, feedbackAudio: audio);
       await tester.tap(find.widgetWithText(TextButton, 'BRIEF / DEBRIEF'));
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
+      audio.played.clear();
 
       expect(find.text('CURRENT INTENT 2026-08-01'), findsOneWidget);
       expect(find.text('CARRYOVER MUST STAY HIDDEN'), findsNothing);
@@ -2353,7 +2397,7 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       expect(find.text('DAILY BRIEF BACK NUMBER'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
@@ -2367,21 +2411,23 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey('morning-brief-back-number-2026-07-31')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
+      expect(audio.played, [TouchFeedbackSound.pageFlip]);
       expect(find.text('CURRENT INTENT 2026-07-31'), findsOneWidget);
       Navigator.of(
         tester.element(find.text('CURRENT INTENT 2026-07-31')),
       ).pop();
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
 
       await tester.ensureVisible(
         find.byKey(const ValueKey('view-all-morning-brief-back-numbers')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
       await tester.tap(
         find.byKey(const ValueKey('view-all-morning-brief-back-numbers')),
       );
-      await tester.pumpAndSettle();
+      await _settleDashboard(tester);
+      audio.played.clear();
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('all-morning-brief-back-number-2026-07-26')),
         250,
@@ -2390,6 +2436,11 @@ void main() {
         find.byKey(const ValueKey('all-morning-brief-back-number-2026-07-26')),
         findsOneWidget,
       );
+      await tester.tap(
+        find.byKey(const ValueKey('all-morning-brief-back-number-2026-07-26')),
+      );
+      await _settleDashboard(tester);
+      expect(audio.played, [TouchFeedbackSound.pageFlip]);
       expect(tester.takeException(), isNull);
     },
   );
@@ -2747,9 +2798,9 @@ Future<void> _openDailyDebrief(WidgetTester tester) async {
 Future<void> _tapCommandCenterTab(WidgetTester tester, String label) async {
   final tab = find.widgetWithText(TextButton, label).first;
   await tester.ensureVisible(tab);
-  await tester.pumpAndSettle();
+  await _settleDashboard(tester);
   await tester.tap(tab);
-  await tester.pumpAndSettle();
+  await _settleDashboard(tester);
 }
 
 bool _isCommandCenterTabVisible(WidgetTester tester, String label) {
