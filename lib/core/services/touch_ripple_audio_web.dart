@@ -61,6 +61,7 @@ class _WebTouchRippleAudio
   final List<_BufferDiagnosticPlayback> _bufferDiagnostics = [];
   AudioContext? _audioContext;
   Future<_DiagnosticAudioBuffer?>? _rejectedDiagnosticBuffer;
+  int _rejectedBufferRequest = 0;
   bool _listening = false;
   int _nextOutputId = 1;
 
@@ -79,6 +80,7 @@ class _WebTouchRippleAudio
     // The plain media elements are still preloaded so the first permitted
     // gesture does not have to wait for an uncached source request.
     for (final sound in TouchFeedbackSound.values) {
+      if (sound == TouchFeedbackSound.failure && _usesBrowserOutput) continue;
       _prepared.putIfAbsent(sound, () => _newPreloadedOutput(sound));
     }
   }
@@ -118,7 +120,7 @@ class _WebTouchRippleAudio
           DeviceSettingsController.instance.value,
         );
     if (diagnosticRoute == TouchFeedbackDiagnosticRoute.audioBuffer) {
-      _playAudioBufferDiagnostic(sound, volume);
+      _playRejectedAudioBuffer(sound, volume, diagnostic: true);
       return;
     }
     TouchRippleAudioDiagnostics.record('PLAY_REQUESTED', {
@@ -134,6 +136,10 @@ class _WebTouchRippleAudio
       TouchRippleAudioDiagnostics.record('PLAY_SKIPPED_MUTED_OR_ZERO', {
         'sound': sound.name,
       });
+      return;
+    }
+    if (sound == TouchFeedbackSound.failure && _usesBrowserOutput) {
+      _playRejectedAudioBuffer(sound, volume);
       return;
     }
     // Passive audio never displaces an in-progress semantic response.
@@ -193,9 +199,14 @@ class _WebTouchRippleAudio
     }
   }
 
-  /// A comparison-only Web Audio route which deliberately bypasses
-  /// MediaElementAudioSourceNode. It never participates in normal feedback.
-  void _playAudioBufferDiagnostic(TouchFeedbackSound sound, double volume) {
+  /// Uses the verified one-shot buffer route for production REJECTED feedback
+  /// and for the opt-in comparison control. All other sounds keep their
+  /// existing MediaElement or HTML Audio routes.
+  void _playRejectedAudioBuffer(
+    TouchFeedbackSound sound,
+    double volume, {
+    bool diagnostic = false,
+  }) {
     if (sound != TouchFeedbackSound.failure) {
       TouchRippleAudioDiagnostics.record('BUFFER_ROUTE_UNSUPPORTED_SOUND', {
         'sound': sound.name,
@@ -208,23 +219,46 @@ class _WebTouchRippleAudio
       });
       return;
     }
+    final request = diagnostic ? null : ++_rejectedBufferRequest;
+    if (!diagnostic) {
+      for (final entry in List<_ActiveSound>.of(_active)) {
+        _stop(entry);
+      }
+      for (final playback in List<_BufferDiagnosticPlayback>.of(
+        _bufferDiagnostics,
+      )) {
+        if (!playback.diagnostic) _removeBufferDiagnostic(playback);
+      }
+    }
     final context = _audioContext ??= AudioContext();
-    TouchRippleAudioDiagnostics.record('BUFFER_ROUTE_REQUESTED', {
+    TouchRippleAudioDiagnostics.record('REJECTED_BUFFER_ROUTE_REQUESTED', {
       'sound': sound.name,
       'asset': _assetUrl(sound),
       'requestedVolume': volume.toStringAsFixed(3),
+      'request': request ?? 'diagnostic',
+      'mode': diagnostic ? 'diagnostic' : 'production',
       'context': context.state,
       'topology': 'audioBufferSource>gain>destination',
     });
     _resumeAudioContext();
-    unawaited(_startAudioBufferDiagnostic(context, sound, volume));
+    unawaited(
+      _startAudioBufferPlayback(
+        context,
+        sound,
+        volume,
+        request: request,
+        diagnostic: diagnostic,
+      ),
+    );
   }
 
-  Future<void> _startAudioBufferDiagnostic(
+  Future<void> _startAudioBufferPlayback(
     AudioContext context,
     TouchFeedbackSound sound,
-    double volume,
-  ) async {
+    double volume, {
+    int? request,
+    bool diagnostic = false,
+  }) async {
     final decoded = await _loadRejectedDiagnosticBuffer(context);
     if (decoded == null) return;
     if (!identical(context, _audioContext)) {
@@ -233,6 +267,14 @@ class _WebTouchRippleAudio
       });
       return;
     }
+    if (!diagnostic && request != _rejectedBufferRequest) {
+      TouchRippleAudioDiagnostics.record('REJECTED_BUFFER_REQUEST_SUPERSEDED', {
+        'sound': sound.name,
+        'request': request,
+      });
+      return;
+    }
+    _BufferDiagnosticPlayback? playback;
     try {
       final gain = context.createGain()..gain.value = volume.clamp(0, 1);
       final signalDiagnostics = TouchRippleAudioDiagnostics.enabled;
@@ -247,7 +289,7 @@ class _WebTouchRippleAudio
         preGainAnalyser: preGain,
         postGainAnalyser: postGain,
       );
-      final playback = _BufferDiagnosticPlayback(
+      final createdPlayback = _BufferDiagnosticPlayback(
         context: context,
         source: source,
         gain: gain,
@@ -255,35 +297,41 @@ class _WebTouchRippleAudio
         postGainAnalyser: postGain,
         sound: sound,
         sourceDescription: decoded.description,
+        diagnostic: diagnostic,
       );
-      _bufferDiagnostics.add(playback);
-      playback.ended = ((Event _) {
+      playback = createdPlayback;
+      _bufferDiagnostics.add(createdPlayback);
+      createdPlayback.ended = ((Event _) {
         TouchRippleAudioDiagnostics.record('BUFFER_SOURCE_ENDED', {
           'sound': sound.name,
           'context': context.state,
-          'startedAt': playback.startedAt.toStringAsFixed(4),
+          'startedAt': createdPlayback.startedAt.toStringAsFixed(4),
         });
-        _removeBufferDiagnostic(playback);
+        _removeBufferDiagnostic(createdPlayback);
       }).toJS;
-      source.addEventListener('ended', playback.ended);
-      TouchRippleAudioDiagnostics.record('BUFFER_OUTPUT_READY', {
+      source.addEventListener('ended', createdPlayback.ended);
+      TouchRippleAudioDiagnostics.record('REJECTED_BUFFER_OUTPUT_READY', {
         'sound': sound.name,
         'asset': _assetUrl(sound),
         'context': context.state,
         'gain': gain.gain.value.toStringAsFixed(3),
-        'topology': playback.outputTopology,
+        'mode': diagnostic ? 'diagnostic' : 'production',
+        'topology': createdPlayback.outputTopology,
         ...decoded.description,
       });
       source.start();
-      playback.startedAt = context.currentTime;
-      TouchRippleAudioDiagnostics.record('BUFFER_SOURCE_STARTED', {
+      createdPlayback.startedAt = context.currentTime;
+      TouchRippleAudioDiagnostics.record('REJECTED_BUFFER_SOURCE_STARTED', {
         'sound': sound.name,
         'context': context.state,
-        'startedAt': playback.startedAt.toStringAsFixed(4),
+        'startedAt': createdPlayback.startedAt.toStringAsFixed(4),
       });
-      _scheduleBufferSamples(playback);
+      _scheduleBufferSamples(createdPlayback);
     } catch (error) {
-      TouchRippleAudioDiagnostics.record('BUFFER_SOURCE_FAILED', {
+      final activePlayback = playback;
+      if (activePlayback != null) _removeBufferDiagnostic(activePlayback);
+      debugPrint('REJECTED AudioBuffer playback failed: $error');
+      TouchRippleAudioDiagnostics.record('REJECTED_BUFFER_SOURCE_FAILED', {
         'sound': sound.name,
         'errorType': error.runtimeType,
         'error': error,
@@ -293,7 +341,19 @@ class _WebTouchRippleAudio
 
   Future<_DiagnosticAudioBuffer?> _loadRejectedDiagnosticBuffer(
     AudioContext context,
-  ) => _rejectedDiagnosticBuffer ??= _decodeRejectedDiagnosticBuffer(context);
+  ) {
+    final cached = _rejectedDiagnosticBuffer;
+    if (cached != null) return cached;
+    final decoded = _decodeRejectedDiagnosticBuffer(context);
+    _rejectedDiagnosticBuffer = decoded;
+    return decoded.then((buffer) {
+      if (buffer == null && identical(_rejectedDiagnosticBuffer, decoded)) {
+        // A transient fetch/decode failure must not poison a later gesture.
+        _rejectedDiagnosticBuffer = null;
+      }
+      return buffer;
+    });
+  }
 
   Future<_DiagnosticAudioBuffer?> _decodeRejectedDiagnosticBuffer(
     AudioContext context,
@@ -318,6 +378,7 @@ class _WebTouchRippleAudio
       });
       return _DiagnosticAudioBuffer(buffer, description);
     } catch (error) {
+      debugPrint('REJECTED AudioBuffer decode failed: $error');
       TouchRippleAudioDiagnostics.record('BUFFER_DECODE_FAILED', {
         'sound': TouchFeedbackSound.failure.name,
         'errorType': error.runtimeType,
@@ -444,6 +505,14 @@ class _WebTouchRippleAudio
       if (volume <= 0) {
         _stop(entry);
       }
+    }
+    for (final playback in List<_BufferDiagnosticPlayback>.of(
+      _bufferDiagnostics,
+    )) {
+      if (playback.diagnostic) continue;
+      final volume = touchFeedbackEffectiveVolume(playback.sound, settings);
+      playback.gain.gain.value = volume.clamp(0, 1);
+      if (volume <= 0) _removeBufferDiagnostic(playback);
     }
   }
 
@@ -817,15 +886,15 @@ class _WebTouchRippleAudio
       output.dispose();
     }
     _prepared.clear();
+    _rejectedDiagnosticBuffer = null;
     final context = _audioContext;
     _audioContext = null;
     context?.close().toDart.then<void>((_) {}, onError: (_) {});
   }
 }
 
-/// Builds the one-shot source used solely by the opt-in diagnostic route.
-/// Exposed for the browser regression test; normal semantic playback never
-/// calls this helper.
+/// Builds a one-shot REJECTED source. It is shared by the production failure
+/// route and the opt-in diagnostic comparison, and exposed for browser tests.
 @visibleForTesting
 AudioBufferSourceNode createAudioBufferDiagnosticSource({
   required AudioContext context,
@@ -907,6 +976,7 @@ class _BufferDiagnosticPlayback {
     required this.postGainAnalyser,
     required this.sound,
     required this.sourceDescription,
+    required this.diagnostic,
   });
 
   final AudioContext context;
@@ -916,6 +986,7 @@ class _BufferDiagnosticPlayback {
   final AnalyserNode? postGainAnalyser;
   final TouchFeedbackSound sound;
   final Map<String, String> sourceDescription;
+  final bool diagnostic;
   JSFunction? ended;
   double startedAt = 0;
 

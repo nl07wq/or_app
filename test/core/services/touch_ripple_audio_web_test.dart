@@ -23,6 +23,12 @@ void main() {
         buffer: buffer,
         gain: gain,
       );
+      final secondGain = context.createGain()..gain.value = .17;
+      final secondSource = createAudioBufferDiagnosticSource(
+        context: context,
+        buffer: buffer,
+        gain: secondGain,
+      );
       try {
         expect(
           TouchFeedbackDiagnosticRoute.values,
@@ -30,10 +36,14 @@ void main() {
         );
         expect(source.buffer, isNotNull);
         expect(source.buffer!.length, 128);
+        expect(identical(source, secondSource), isFalse);
+        expect(identical(source.buffer, secondSource.buffer), isTrue);
         expect(gain.gain.value, closeTo(.17, .000001));
       } finally {
         source.disconnect();
+        secondSource.disconnect();
         gain.disconnect();
+        secondGain.disconnect();
         await context.close().toDart;
       }
     },
@@ -177,6 +187,44 @@ void main() {
         expect(browserOutputCreations, 1);
       } finally {
         audio.dispose();
+        controller.resetForTesting(original);
+      }
+    },
+  );
+
+  test(
+    'production REJECTED selects the cached one-shot buffer route',
+    () async {
+      final controller = DeviceSettingsController.instance;
+      final original = controller.value;
+      controller.resetForTesting(const DeviceSettings());
+      TouchRippleAudioDiagnostics.enabledForTesting = true;
+      var mediaOutputCreations = 0;
+      final audio = createPlatformTouchRippleAudio(
+        audioFactory: (_) => HTMLAudioElement(),
+        browserOutputFactory: (element) {
+          mediaOutputCreations++;
+          return _RecordingAudioOutput(element);
+        },
+      );
+      try {
+        audio.prepare();
+        audio.playFromUserGesture(TouchFeedbackSound.failure);
+
+        expect(
+          TouchRippleAudioDiagnostics.report,
+          contains('REJECTED_BUFFER_ROUTE_REQUESTED sound=failure'),
+        );
+        expect(
+          mediaOutputCreations,
+          0,
+          reason: 'REJECTED must not create a MediaElement Web Audio output',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      } finally {
+        audio.dispose();
+        TouchRippleAudioDiagnostics.enabledForTesting = null;
+        TouchRippleAudioDiagnostics.clear();
         controller.resetForTesting(original);
       }
     },
