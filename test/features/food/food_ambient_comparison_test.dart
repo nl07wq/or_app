@@ -7,21 +7,25 @@ void main() {
     tester,
   ) async {
     FoodAmbientVariant selected = FoodAmbientVariant.chromaticFluid;
+    late StateSetter update;
 
     await tester.pumpWidget(
       MaterialApp(
         home: StatefulBuilder(
-          builder: (context, setState) => Scaffold(
-            body: Stack(
-              children: [
-                FoodAmbientComparison(variant: selected),
-                FoodAmbientComparisonSelector(
-                  selected: selected,
-                  onChanged: (variant) => setState(() => selected = variant),
-                ),
-              ],
-            ),
-          ),
+          builder: (context, setState) {
+            update = setState;
+            return Scaffold(
+              body: Stack(
+                children: [
+                  FoodAmbientComparison(variant: selected),
+                  FoodAmbientComparisonSelector(
+                    selected: selected,
+                    onChanged: (variant) => setState(() => selected = variant),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -36,5 +40,14 @@ void main() {
     await tester.pump();
 
     expect(selected, FoodAmbientVariant.metabolicCells);
+    for (final variant in FoodAmbientVariant.values) {
+      expect(
+        FoodAmbientComparison.motionSignatureFor(variant, 0),
+        isNot(FoodAmbientComparison.motionSignatureFor(variant, 3.75)),
+      );
+      update(() => selected = variant);
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(tester.takeException(), isNull);
+    }
   });
 }

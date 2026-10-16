@@ -1,59 +1,48 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-/// Temporary, self-contained candidate host for the FOOD ambient comparison.
-/// Keeping the candidates here makes it straightforward to retain one and
-/// remove the comparison surface after device review.
 enum FoodAmbientVariant {
   chromaticFluid('CHROMATIC FLUID'),
   metabolicCells('METABOLIC CELLS'),
   thermalCurrent('THERMAL CURRENT');
 
   const FoodAmbientVariant(this.label);
-
   final String label;
 }
 
 class FoodAmbientComparison extends StatefulWidget {
   const FoodAmbientComparison({required this.variant, super.key});
-
   final FoodAmbientVariant variant;
-
+  static double motionSignatureFor(FoodAmbientVariant v, double t) =>
+      math.sin(t * (v.index + 1.17)) + math.cos(t * (v.index + .43));
   @override
   State<FoodAmbientComparison> createState() => _FoodAmbientComparisonState();
 }
 
 class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
+  late final AnimationController _clock = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 20),
+    duration: const Duration(seconds: 48),
   )..repeat();
-
   @override
   void dispose() {
-    _controller.dispose();
+    _clock.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) => CustomPaint(
-            painter: _FoodAmbientPainter(
-              variant: widget.variant,
-              time: _controller.value * math.pi * 2,
-            ),
-            child: const SizedBox.expand(),
-          ),
+  Widget build(BuildContext context) => IgnorePointer(
+    child: RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _clock,
+        builder: (context, child) => CustomPaint(
+          painter: _FoodAmbientPainter(widget.variant, _clock.value * 48),
+          child: const SizedBox.expand(),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class FoodAmbientComparisonSelector extends StatelessWidget {
@@ -62,20 +51,18 @@ class FoodAmbientComparisonSelector extends StatelessWidget {
     required this.onChanged,
     super.key,
   });
-
   final FoodAmbientVariant selected;
   final ValueChanged<FoodAmbientVariant> onChanged;
-
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final c = Theme.of(context).colorScheme;
     return Semantics(
       label: 'FOOD ambient comparison',
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.surface.withValues(alpha: .82),
+          color: c.surface.withValues(alpha: .82),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.outline.withValues(alpha: .35)),
+          border: Border.all(color: c.outline.withValues(alpha: .35)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(8),
@@ -83,12 +70,12 @@ class FoodAmbientComparisonSelector extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (final variant in FoodAmbientVariant.values)
+              for (final v in FoodAmbientVariant.values)
                 ChoiceChip(
-                  key: ValueKey('food-ambient-${variant.name}'),
-                  label: Text(variant.label),
-                  selected: selected == variant,
-                  onSelected: (_) => onChanged(variant),
+                  key: ValueKey('food-ambient-${v.name}'),
+                  label: Text(v.label),
+                  selected: v == selected,
+                  onSelected: (_) => onChanged(v),
                 ),
             ],
           ),
@@ -99,120 +86,223 @@ class FoodAmbientComparisonSelector extends StatelessWidget {
 }
 
 class _FoodAmbientPainter extends CustomPainter {
-  const _FoodAmbientPainter({required this.variant, required this.time});
-
+  const _FoodAmbientPainter(this.variant, this.t);
   final FoodAmbientVariant variant;
-  final double time;
-
+  final double t;
+  static const _cool = [
+    Color(0xff36d8ca),
+    Color(0xffdc5bb3),
+    Color(0xff886fff),
+    Color(0xffffad61),
+  ];
   @override
-  void paint(Canvas canvas, Size size) {
+  void paint(Canvas c, Size s) {
+    c.drawRect(Offset.zero & s, Paint()..color = const Color(0xff05080d));
     switch (variant) {
       case FoodAmbientVariant.chromaticFluid:
-        _paintChromaticFluid(canvas, size);
+        _fluid(c, s);
       case FoodAmbientVariant.metabolicCells:
-        _paintMetabolicCells(canvas, size);
+        _cells(c, s);
       case FoodAmbientVariant.thermalCurrent:
-        _paintThermalCurrent(canvas, size);
+        _thermal(c, s);
     }
   }
 
-  void _paintChromaticFluid(Canvas canvas, Size size) {
-    const colors = [
-      Color(0xFF00C8C8),
-      Color(0xFF4E78FF),
-      Color(0xFFE65CAB),
-      Color(0xFFFFA85B),
-    ];
-    for (var i = 0; i < colors.length; i++) {
-      final phase = time * (.22 + i * .035) + i * 1.7;
-      final center = Offset(
-        size.width * (.5 + .38 * math.sin(phase)),
-        size.height * (.5 + .34 * math.cos(phase * .78 + i)),
+  void _fluid(Canvas c, Size s) {
+    for (var i = 0; i < 5; i++) {
+      final q = t * (.16 + i * .035) + i * 1.7;
+      final o = Offset(
+        s.width * (.5 + .36 * math.sin(q * .7 + i)),
+        s.height * (.48 + .34 * math.cos(q * .53 + i)),
       );
-      final radius = size.shortestSide * (.32 + .07 * math.sin(phase * .6));
-      final paint = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            colors[i].withValues(alpha: .15),
-            colors[i].withValues(alpha: 0),
-          ],
-        ).createShader(Rect.fromCircle(center: center, radius: radius));
-      canvas.drawCircle(center, radius, paint);
+      final p = _blob(o, s.shortestSide * (.22 + i * .018), q, i, 18, .3);
+      final col = _cool[i % 4];
+      c.drawPath(
+        p,
+        Paint()
+          ..color = col.withValues(alpha: .07)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+      );
+      c.drawPath(p, Paint()..color = col.withValues(alpha: .10));
+      c.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = col.withValues(alpha: .27),
+      );
+    }
+    for (var i = 0; i < 8; i++) {
+      final q = t * (.2 + i * .012) + i;
+      final y = s.height * (.1 + .11 * i);
+      final p = Path()
+        ..moveTo(-20, y)
+        ..cubicTo(
+          s.width * .28,
+          y + 70 * math.sin(q),
+          s.width * .7,
+          y - 85 * math.cos(q * .8),
+          s.width + 20,
+          y + 30 * math.sin(q * .7),
+        );
+      c.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 1.2 + i % 3
+          ..color = _cool[i % 4].withValues(alpha: .13),
+      );
     }
   }
 
-  void _paintMetabolicCells(Canvas canvas, Size size) {
-    const palette = [Color(0xFF55D5C0), Color(0xFF74A4FF), Color(0xFFD184C7)];
-    final columns = math.max(4, (size.width / 96).floor());
-    final rows = math.max(7, (size.height / 92).floor());
-    final cellWidth = size.width / columns;
-    final cellHeight = size.height / rows;
-    for (var row = 0; row < rows; row++) {
-      for (var column = 0; column < columns; column++) {
-        final seed = _noise(column, row);
-        final phase = time * (.34 + seed * .15) + seed * math.pi * 2;
-        final pulse = .68 + .32 * math.sin(phase);
-        final center = Offset(
-          (column + .5 + .12 * math.sin(phase * .7)) * cellWidth,
-          (row + .5 + .10 * math.cos(phase * .8)) * cellHeight,
+  void _cells(Canvas c, Size s) {
+    for (var i = 0; i < 17; i++) {
+      final seed = _h(i, 9);
+      final q = t * (.23 + seed * .18) + i;
+      final o = Offset(
+        s.width * (.06 + .88 * _h(i, 11)) + 18 * math.sin(q * .7),
+        s.height * (.05 + .9 * _h(i, 13)) + 20 * math.cos(q * .63),
+      );
+      final r = s.shortestSide * (.052 + seed * .072);
+      final split = i % 5 == 0 ? math.sin(q * .36).abs() : 0.0;
+      final col = _cool[i % 3];
+      final p = _blob(
+        o,
+        r,
+        q,
+        i + 30,
+        14,
+        .22,
+        x: 1 + split * .55,
+        y: 1 - split * .18,
+      );
+      c.drawPath(p, Paint()..color = col.withValues(alpha: .055));
+      c.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1 + seed
+          ..color = col.withValues(alpha: .32),
+      );
+      c.drawCircle(
+        o,
+        r * .26,
+        Paint()
+          ..color = col.withValues(alpha: .17)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+      );
+      c.drawCircle(o, r * .14, Paint()..color = col.withValues(alpha: .42));
+      if (split > .45) {
+        final d = Offset(math.cos(q), math.sin(q)) * r * split * .55;
+        c.drawCircle(
+          o - d,
+          r * .13,
+          Paint()..color = col.withValues(alpha: .4),
         );
-        final radius = (cellWidth + cellHeight) * (.18 + seed * .12) * pulse;
-        final color = palette[(seed * palette.length).floor() % palette.length];
-        final paint = Paint()
-          ..style = PaintingStyle.fill
-          ..color = color.withValues(alpha: .035 + .045 * pulse);
-        canvas.drawCircle(center, radius, paint);
-        canvas.drawCircle(
-          center,
-          radius,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1
-            ..color = color.withValues(alpha: .10 + .06 * pulse),
+        c.drawCircle(
+          o + d,
+          r * .13,
+          Paint()..color = col.withValues(alpha: .4),
         );
+      }
+    }
+    for (var i = 0; i < 30; i++) {
+      final q = t * (.32 + _h(i, 33) * .2) + i;
+      c.drawCircle(
+        Offset(
+          s.width * (.5 + .48 * math.sin(q)),
+          s.height * (.5 + .46 * math.cos(q * .81)),
+        ),
+        1 + _h(i, 41) * 1.6,
+        Paint()..color = _cool[i % 3].withValues(alpha: .26),
+      );
+    }
+  }
+
+  void _thermal(Canvas c, Size s) {
+    for (var i = 0; i < 7; i++) {
+      final seed = _h(i, 77), q = t * (.28 + seed * .14) + i;
+      final x = s.width * (.05 + .9 * _h(i, 81));
+      final pts = <Offset>[];
+      for (var j = 0; j < 17; j++) {
+        final u = j / 16;
+        pts.add(
+          Offset(
+            x + s.width * (.07 + seed * .06) * math.sin(q + u * 5),
+            s.height * (1.04 - u * (.62 + seed * .2)),
+          ),
+        );
+      }
+      final p = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (final z in pts) {
+        p.lineTo(z.dx + 18 * (1 - z.dy / s.height), z.dy);
+      }
+      for (final z in pts.reversed) {
+        p.lineTo(z.dx - 18 * (1 - z.dy / s.height), z.dy);
+      }
+      p.close();
+      final col = [
+        const Color(0xffffb45f),
+        const Color(0xffff704e),
+        const Color(0xffe94d70),
+      ][i % 3];
+      c.drawPath(
+        p,
+        Paint()
+          ..color = col.withValues(alpha: .055)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+      );
+      final core = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (final z in pts.skip(1)) {
+        core.lineTo(z.dx, z.dy);
+      }
+      c.drawPath(
+        core,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 1.5 + seed
+          ..color = col.withValues(alpha: .3),
+      );
+      for (var k = 0; k < 4; k++) {
+        final u = (t * (.24 + seed * .14) + k * .27) % 1;
+        final z = pts[(u * 16).floor()];
+        c.drawCircle(z, 1.5, Paint()..color = col.withValues(alpha: .5));
       }
     }
   }
 
-  void _paintThermalCurrent(Canvas canvas, Size size) {
-    const warm = [Color(0xFFFF9A5A), Color(0xFFFFC85C), Color(0xFFF36A76)];
-    for (var i = 0; i < 12; i++) {
-      final seed = _noise(i, 4);
-      final x =
-          (i + .45 + .18 * math.sin(time * .32 + seed * 9)) / 12 * size.width;
-      final travel = (time * (.025 + seed * .018) + seed) % 1;
-      final start = Offset(x, size.height * (1.05 - travel * .95));
-      final path = Path()
-        ..moveTo(start.dx, start.dy)
-        ..cubicTo(
-          start.dx + 24 * math.sin(time + seed * 8),
-          start.dy - size.height * .12,
-          start.dx - 28 * math.cos(time * .6 + seed * 7),
-          start.dy - size.height * .27,
-          start.dx + 10 * math.sin(time * .9 + seed * 3),
-          start.dy - size.height * .42,
-        );
-      final color = warm[i % warm.length];
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 1.2 + seed * 1.8
-          ..color = color.withValues(alpha: .10 + .08 * (1 - travel)),
+  Path _blob(
+    Offset o,
+    double r,
+    double q,
+    int seed,
+    int n,
+    double d, {
+    double x = 1,
+    double y = 1,
+  }) {
+    final p = Path();
+    for (var i = 0; i <= n; i++) {
+      final a = i / n * math.pi * 2;
+      final w =
+          1 +
+          d *
+              (.58 * math.sin(a * 3 + q + seed) +
+                  .3 * math.sin(a * 7 - q * .7));
+      final z = Offset(
+        o.dx + math.cos(a) * r * w * x,
+        o.dy + math.sin(a) * r * w * y,
       );
-      canvas.drawCircle(
-        start.translate(0, -size.height * .18),
-        1.5 + seed * 2,
-        Paint()..color = color.withValues(alpha: .12),
-      );
+      i == 0 ? p.moveTo(z.dx, z.dy) : p.lineTo(z.dx, z.dy);
     }
+    return p..close();
   }
 
-  double _noise(int a, int b) =>
-      ((math.sin(a * 12.9898 + b * 78.233) * 43758.5453) % 1).abs();
-
+  double _h(int a, int b) =>
+      (math.sin(a * 12.9898 + b * 78.233) * 43758.5453).abs() % 1;
   @override
-  bool shouldRepaint(covariant _FoodAmbientPainter oldDelegate) =>
-      oldDelegate.variant != variant || oldDelegate.time != time;
+  bool shouldRepaint(covariant _FoodAmbientPainter old) =>
+      old.variant != variant || old.t != t;
 }

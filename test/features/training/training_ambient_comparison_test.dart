@@ -7,27 +7,32 @@ void main() {
     'TRAINING ambient comparison exposes and switches all candidates',
     (tester) async {
       TrainingAmbientVariant selected = TrainingAmbientVariant.magneticFlux;
+      late StateSetter update;
 
       await tester.pumpWidget(
         MaterialApp(
           home: StatefulBuilder(
-            builder: (context, setState) => Scaffold(
-              body: Stack(
-                children: [
-                  TrainingAmbientComparison(variant: selected),
-                  TrainingAmbientComparisonSelector(
-                    selected: selected,
-                    onChanged: (variant) => setState(() => selected = variant),
-                  ),
-                ],
-              ),
-            ),
+            builder: (context, setState) {
+              update = setState;
+              return Scaffold(
+                body: Stack(
+                  children: [
+                    TrainingAmbientComparison(variant: selected),
+                    TrainingAmbientComparisonSelector(
+                      selected: selected,
+                      onChanged: (variant) =>
+                          setState(() => selected = variant),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       );
 
       expect(TrainingAmbientVariant.values, hasLength(3));
-    expect(find.byType(TrainingAmbientComparison), findsOneWidget);
+      expect(find.byType(TrainingAmbientComparison), findsOneWidget);
       expect(find.text('MAGNETIC FLUX'), findsOneWidget);
       expect(find.text('KINETIC ENGINE'), findsOneWidget);
       expect(find.text('VECTOR IMPULSE'), findsOneWidget);
@@ -38,6 +43,15 @@ void main() {
       await tester.pump();
 
       expect(selected, TrainingAmbientVariant.vectorImpulse);
+      for (final variant in TrainingAmbientVariant.values) {
+        expect(
+          TrainingAmbientComparison.motionSignatureFor(variant, 0),
+          isNot(TrainingAmbientComparison.motionSignatureFor(variant, 3.75)),
+        );
+        update(() => selected = variant);
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(tester.takeException(), isNull);
+      }
     },
   );
 }
