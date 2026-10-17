@@ -3,11 +3,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 
 void main() {
-  test('V5 kinetic inventory defines an eleven-gear responsive drive train', () {
-    expect(TrainingAmbientComparison.kineticGearToothCounts, hasLength(11));
-    expect(TrainingAmbientComparison.kineticGearToothCounts.first, 40);
-    expect(TrainingAmbientComparison.kineticGearToothCounts, containsAll([12, 14, 32, 40]));
-  });
+  test(
+    'V6 kinetic inventory defines an eleven-gear responsive drive train',
+    () {
+      expect(TrainingAmbientComparison.kineticGearToothCounts, hasLength(11));
+      expect(TrainingAmbientComparison.kineticGearToothCounts.first, 40);
+      expect(
+        TrainingAmbientComparison.kineticGearToothCounts,
+        containsAll([12, 14, 32, 40]),
+      );
+    },
+  );
+
+  testWidgets(
+    'V6 kinetic painter terminates across multiple animation frames',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TrainingAmbientComparison(
+              variant: TrainingAmbientVariant.kineticEngine,
+            ),
+          ),
+        ),
+      );
+
+      for (var frame = 0; frame < 12; frame += 1) {
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   test('meshed kinetic gears retain opposite tooth-count velocity ratio', () {
     expect(

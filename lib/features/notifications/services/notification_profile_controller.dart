@@ -107,20 +107,34 @@ class NotificationProfileController
 
   Future<void> initialize() async {
     if (_initialized) return;
-    final preferences = await _preferencesLoader();
-    _profileId = preferences.getString(_profileIdKey);
-    _profileSecret = preferences.getString(_profileSecretKey);
-    _installationId = preferences.getString(_installationIdKey);
-    _installationId ??= _bridge.randomToken();
-    await preferences.setString(_installationIdKey, _installationId!);
-    _initialized = true;
-    value = value.copyWith(
-      permission: _bridge.permission(),
-      profile: configured ? 'configured' : 'missing',
-      pendingSync: preferences.containsKey(_outboxKey),
-    );
-    if (configured && preferences.containsKey(_outboxKey))
-      unawaited(syncPending());
+    try {
+      final preferences = await _preferencesLoader();
+      _profileId = preferences.getString(_profileIdKey);
+      _profileSecret = preferences.getString(_profileSecretKey);
+      _installationId = preferences.getString(_installationIdKey);
+      _installationId ??= _bridge.randomToken();
+      await preferences.setString(_installationIdKey, _installationId!);
+      _initialized = true;
+      value = value.copyWith(
+        permission: _bridge.permission(),
+        profile: configured ? 'configured' : 'missing',
+        pendingSync: preferences.containsKey(_outboxKey),
+        clearError: true,
+      );
+      if (configured && preferences.containsKey(_outboxKey)) {
+        unawaited(syncPending());
+      }
+    } catch (error) {
+      // Notification profile storage is optional at boot.  Keep the UI and
+      // existing application data available, and allow a later retry.
+      _initialized = false;
+      value = value.copyWith(
+        permission: _bridge.permission(),
+        profile: 'unavailable',
+        error: 'Notification profile storage is unavailable.',
+      );
+      rethrow;
+    }
   }
 
   Future<String> createProfile() async {
