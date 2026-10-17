@@ -3,6 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 
 void main() {
+  test('V5 kinetic inventory defines an eleven-gear responsive drive train', () {
+    expect(TrainingAmbientComparison.kineticGearToothCounts, hasLength(11));
+    expect(TrainingAmbientComparison.kineticGearToothCounts.first, 40);
+    expect(TrainingAmbientComparison.kineticGearToothCounts, containsAll([14, 16, 40]));
+  });
+
   test('meshed kinetic gears retain opposite tooth-count velocity ratio', () {
     expect(
       TrainingAmbientComparison.meshedAngularVelocity(
