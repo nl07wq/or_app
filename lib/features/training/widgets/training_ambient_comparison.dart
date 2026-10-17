@@ -11,14 +11,66 @@ enum TrainingAmbientVariant {
   final String label;
 }
 
+/// Stable, PNG-replaceable mechanical geometry.  The same tooth count drives
+/// the visible profile, pitch radius, phase and transmission ratio.
+class KineticGearGeometry {
+  const KineticGearGeometry({
+    required this.id,
+    required this.center,
+    required this.toothCount,
+    required this.module,
+    required this.pitchRadius,
+    required this.rootRadius,
+    required this.tipRadius,
+    required this.phaseOffset,
+    required this.driveRatio,
+    this.parentId,
+  });
+
+  final String id;
+  final Offset center;
+  final int toothCount;
+  final double module;
+  final double pitchRadius;
+  final double rootRadius;
+  final double tipRadius;
+  final double phaseOffset;
+  final double driveRatio;
+  final String? parentId;
+
+  int get renderedToothTipCount => toothCount;
+
+  double phaseAt(double drivePhase) => phaseOffset + driveRatio * drivePhase;
+}
+
 class TrainingAmbientComparison extends StatefulWidget {
   const TrainingAmbientComparison({super.key, required this.variant});
   final TrainingAmbientVariant variant;
 
-  /// V5 component inventory. The painter maps these ratios onto its responsive
-  /// pivots; a later PNG body can retain the same identity and tooth count.
+  /// V6.2 inventory. Each entry becomes one visibly emitted tooth profile.
   static const kineticGearToothCounts = <int>[
-    40, 24, 28, 14, 16, 30, 32, 22, 20, 12, 26,
+    40,
+    24,
+    14,
+    30,
+    16,
+    28,
+    12,
+    32,
+    18,
+    26,
+    20,
+    34,
+    14,
+    24,
+    16,
+    30,
+    12,
+    28,
+    18,
+    22,
+    16,
+    26,
   ];
 
   static double motionSignatureFor(
@@ -43,6 +95,91 @@ class TrainingAmbientComparison extends StatefulWidget {
     required int driveTeeth,
     required int drivenTeeth,
   }) => -driveVelocity * driveTeeth / drivenTeeth;
+
+  static double kineticDrivePhase(double time) =>
+      .72 * time + .11 / .17 * (1 - math.cos(time * .17));
+
+  /// Builds one connected, vertically distributed train for the actual
+  /// scrollable painting extent. All gears share one module and every child
+  /// pivot is derived from its parent's pitch radius.
+  static List<KineticGearGeometry> kineticGearGeometryFor(Size size) {
+    // The scroll extent controls scale as well as width: a long TRAINING page
+    // receives a physically larger connected train rather than a fixed-height
+    // cluster followed by empty ambient space.
+    final module = math.max(
+      1.18,
+      math.max(size.width * .0038, size.height * .0015),
+    );
+    KineticGearGeometry root(String id, Offset center, int teeth) =>
+        KineticGearGeometry(
+          id: id,
+          center: center,
+          toothCount: teeth,
+          module: module,
+          pitchRadius: module * teeth,
+          rootRadius: module * (teeth - .95),
+          tipRadius: module * (teeth + 1.35),
+          phaseOffset: .08,
+          driveRatio: 1,
+        );
+    KineticGearGeometry mesh(
+      KineticGearGeometry parent,
+      String id,
+      double angle,
+      int teeth,
+    ) {
+      final pitchRadius = module * teeth;
+      final ratio = -parent.driveRatio * parent.toothCount / teeth;
+      return KineticGearGeometry(
+        id: id,
+        parentId: parent.id,
+        center:
+            parent.center +
+            Offset.fromDirection(angle, parent.pitchRadius + pitchRadius),
+        toothCount: teeth,
+        module: module,
+        pitchRadius: pitchRadius,
+        rootRadius: module * (teeth - .95),
+        tipRadius: module * (teeth + 1.35),
+        phaseOffset:
+            angle +
+            math.pi -
+            math.pi / teeth -
+            parent.phaseOffset * parent.toothCount / teeth,
+        driveRatio: ratio,
+      );
+    }
+
+    final drive = root('main-drive', Offset(size.width * .48, module * 43), 40);
+    final specs = <(String, double, int)>[
+      ('upper-left', 2.44, 24),
+      ('left-pinion', 1.48, 14),
+      ('left-crown', 2.35, 30),
+      ('left-transfer', 1.16, 16),
+      ('upper-right', -.36, 28),
+      ('right-pinion', 1.44, 12),
+      ('right-crown', .56, 32),
+      ('right-transfer', 1.72, 18),
+      ('mid-drive', .96, 26),
+      ('mid-pinion', 2.06, 20),
+      ('mid-crown', 1.18, 34),
+      ('lower-left', 2.12, 14),
+      ('lower-center', .92, 24),
+      ('lower-pinion', 1.96, 16),
+      ('lower-crown', 1.12, 30),
+      ('output-pinion', 2.24, 12),
+      ('output-crown', 1.04, 28),
+      ('escapement', 2.12, 18),
+      ('bottom-drive', 1.04, 22),
+      ('bottom-pinion', 2.20, 16),
+      ('bottom-crown', 1.10, 26),
+    ];
+    final gears = <KineticGearGeometry>[drive];
+    for (final spec in specs) {
+      gears.add(mesh(gears.last, spec.$1, spec.$2, spec.$3));
+    }
+    return gears;
+  }
 
   @override
   State<TrainingAmbientComparison> createState() =>
@@ -231,118 +368,90 @@ class _TrainingAmbientPainter extends CustomPainter {
   }
 
   void _engine(Canvas canvas, Size size) {
-    final unit = size.shortestSide;
-    // V6 derives every transmission pivot from the touching pitch radii.
-    // This keeps the geometry PNG-ready while preventing floating gears.
-    _Gear mesh(_Gear parent, double angle, double radius, int teeth) => _Gear(
-      center: parent.center + Offset.fromDirection(angle, parent.radius + radius),
-      radius: radius,
-      teeth: teeth,
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(size);
+    final byId = {for (final gear in gears) gear.id: gear};
+    final drivePhase = TrainingAmbientComparison.kineticDrivePhase(time);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0x99101924),
     );
-    final drive = _Gear(center: Offset(size.width * .49, size.height * .47), radius: unit * .17, teeth: 40);
-    final upperLeft = mesh(drive, -2.48, unit * .108, 24);
-    final upperRight = mesh(drive, -.50, unit * .118, 28);
-    final leftPinion = mesh(upperLeft, 2.20, unit * .064, 14);
-    final rightPinion = mesh(upperRight, .92, unit * .067, 16);
-    final leftCrown = mesh(leftPinion, 2.63, unit * .128, 30);
-    final rightCrown = mesh(rightPinion, .50, unit * .13, 32);
-    final lowerLeft = mesh(drive, 2.68, unit * .094, 22);
-    final lowerRight = mesh(drive, .73, unit * .085, 20);
-    final lowerPinion = mesh(lowerRight, 1.24, unit * .055, 12);
-    final escapement = mesh(lowerPinion, 1.88, unit * .108, 26);
-    final gears = <_Gear>[drive, upperLeft, upperRight, leftPinion, rightPinion, leftCrown, rightCrown, lowerLeft, lowerRight, lowerPinion, escapement];
-    final driveVelocity = .72 + .11 * math.sin(time * .17);
-    final velocities = <double>[
-      driveVelocity,
-      TrainingAmbientComparison.meshedAngularVelocity(
-        driveVelocity: driveVelocity,
-        driveTeeth: gears[0].teeth,
-        drivenTeeth: gears[1].teeth,
-      ),
-      TrainingAmbientComparison.meshedAngularVelocity(
-        driveVelocity: driveVelocity,
-        driveTeeth: gears[0].teeth,
-        drivenTeeth: gears[2].teeth,
-      ),
-      driveVelocity * 40 / 14, driveVelocity * 40 / 16,
-      -driveVelocity * 40 / 30, -driveVelocity * 40 / 32,
-      -driveVelocity * 40 / 22, -driveVelocity * 40 / 20,
-      driveVelocity * 40 / 12, -driveVelocity * 40 / 26,
-    ];
-    final plate = Paint()..color = const Color(0x99101924);
-    canvas.drawRect(Offset.zero & size, plate);
-    // Structural bridges are deliberately behind the train, not decorative
-    // strokes over it. They establish shafts and physical transmission paths.
-    final links = [
-      (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (0, 7), (0, 8),
-      (8, 9), (9, 10),
-    ];
-    for (final link in links) {
-      final from = gears[link.$1].center;
-      final to = gears[link.$2].center;
+    for (final gear in gears) {
+      final parentId = gear.parentId;
+      if (parentId == null) continue;
+      final parent = byId[parentId]!;
       canvas.drawLine(
-        from,
-        to,
+        parent.center,
+        gear.center,
         Paint()
-          ..strokeWidth = unit * .026
+          ..strokeWidth = gear.module * 4.6
           ..strokeCap = StrokeCap.round
           ..color = const Color(0xff263442),
       );
     }
     for (var i = 0; i < gears.length; i++) {
-      _gear(canvas, gears[i], time * velocities[i], i);
+      _gear(canvas, gears[i], gears[i].phaseAt(drivePhase), i);
     }
-    // The output gear drives an actual crank and constrained horizontal slider.
-    final output = gears[4];
-    final outputAngle = time * velocities[4];
-    final crankPin = output.center + Offset.fromDirection(outputAngle, output.radius * .62);
-    final sliderY = output.center.dy + unit * .19;
-    final rod = unit * .24;
-    final dx = math.cos(outputAngle) * output.radius * .62;
+    final output = byId['output-crown']!;
+    final outputAngle = output.phaseAt(drivePhase);
+    final crankPin =
+        output.center +
+        Offset.fromDirection(outputAngle, output.pitchRadius * .62);
+    final sliderY = output.center.dy + output.module * 38;
+    final rod = output.module * 48;
     final vertical = sliderY - crankPin.dy;
-    final sliderX = crankPin.dx + math.sqrt(math.max(0, rod * rod - vertical * vertical));
+    final sliderX =
+        crankPin.dx + math.sqrt(math.max(0, rod * rod - vertical * vertical));
     final slider = Offset(sliderX, sliderY);
-    canvas.drawLine(Offset(unit * .55, sliderY), Offset(size.width + unit * .1, sliderY), Paint()..strokeWidth = unit * .034..color = const Color(0xff192633));
+    canvas.drawLine(
+      Offset(0, sliderY),
+      Offset(size.width, sliderY),
+      Paint()
+        ..strokeWidth = output.module * 5.4
+        ..color = const Color(0xff192633),
+    );
     canvas.drawLine(
       crankPin,
       slider,
       Paint()
-        ..strokeWidth = unit * .026
+        ..strokeWidth = output.module * 4.2
         ..strokeCap = StrokeCap.round
         ..color = const Color(0xff60798a),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: slider, width: unit * .18, height: unit * .07),
-        Radius.circular(unit * .014),
+        Rect.fromCenter(
+          center: slider,
+          width: output.module * 29,
+          height: output.module * 11,
+        ),
+        Radius.circular(output.module * 2),
       ),
       Paint()..color = const Color(0xff344857),
     );
     canvas.drawCircle(
       crankPin,
-      unit * .012,
+      output.module * 2,
       Paint()..color = const Color(0xff80dcf5),
     );
   }
 
-  void _gear(Canvas canvas, _Gear gear, double angle, int index) {
-    final toothDepth = gear.radius * .13;
+  void _gear(Canvas canvas, KineticGearGeometry gear, double angle, int index) {
     final profile = Path();
-    for (var tooth = 0; tooth < gear.teeth; tooth++) {
-      final base = angle + tooth * math.pi * 2 / gear.teeth;
+    for (var tooth = 0; tooth < gear.renderedToothTipCount; tooth++) {
+      final base = angle + tooth * math.pi * 2 / gear.toothCount;
       for (final (fraction, radius) in [
-        (-.48, gear.radius),
-        (-.29, gear.radius + toothDepth),
-        (.29, gear.radius + toothDepth),
-        (.48, gear.radius),
+        (-.50, gear.rootRadius),
+        (-.27, gear.tipRadius),
+        (.22, gear.tipRadius),
+        (.50, gear.rootRadius),
       ]) {
         final point =
             gear.center +
             Offset.fromDirection(
-              base + fraction * math.pi * 2 / gear.teeth,
+              base + fraction * math.pi * 2 / gear.toothCount,
               radius,
             );
-        if (tooth == 0 && fraction == -.48) {
+        if (tooth == 0 && fraction == -.50) {
           profile.moveTo(point.dx, point.dy);
         } else {
           profile.lineTo(point.dx, point.dy);
@@ -360,48 +469,48 @@ class _TrainingAmbientPainter extends CustomPainter {
     );
     canvas.drawCircle(
       gear.center,
-      gear.radius * .72,
+      gear.pitchRadius * .72,
       Paint()..color = const Color(0xff162634),
     );
     canvas.drawCircle(
       gear.center,
-      gear.radius * .61,
+      gear.pitchRadius * .61,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = gear.radius * .07
+        ..strokeWidth = gear.pitchRadius * .07
         ..color = const Color(0xff46687e),
     );
     for (var spoke = 0; spoke < 6; spoke++) {
       final a = angle + spoke * math.pi / 3;
       canvas.drawLine(
-        gear.center + Offset.fromDirection(a, gear.radius * .18),
-        gear.center + Offset.fromDirection(a, gear.radius * .58),
+        gear.center + Offset.fromDirection(a, gear.pitchRadius * .18),
+        gear.center + Offset.fromDirection(a, gear.pitchRadius * .58),
         Paint()
-          ..strokeWidth = gear.radius * .07
+          ..strokeWidth = gear.pitchRadius * .07
           ..strokeCap = StrokeCap.round
           ..color = const Color(0xff38566a),
       );
     }
     canvas.drawCircle(
       gear.center,
-      gear.radius * .22,
+      gear.pitchRadius * .22,
       Paint()
         ..color = const Color(0xff68dfff)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
     );
     canvas.drawCircle(
       gear.center,
-      gear.radius * .12,
+      gear.pitchRadius * .12,
       Paint()..color = const Color(0xffffbe74),
     );
     canvas.drawArc(
-      Rect.fromCircle(center: gear.center, radius: gear.radius * .82),
+      Rect.fromCircle(center: gear.center, radius: gear.pitchRadius * .82),
       angle + index,
       math.pi * .36,
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = gear.radius * .035
+        ..strokeWidth = gear.pitchRadius * .035
         ..strokeCap = StrokeCap.round
         ..color = const Color(0xffc1f8ff).withValues(alpha: .62),
     );
@@ -505,16 +614,4 @@ class _TrainingAmbientPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TrainingAmbientPainter oldDelegate) =>
       oldDelegate.variant != variant || oldDelegate.time != time;
-}
-
-class _Gear {
-  const _Gear({
-    required this.center,
-    required this.radius,
-    required this.teeth,
-  });
-
-  final Offset center;
-  final double radius;
-  final int teeth;
 }
