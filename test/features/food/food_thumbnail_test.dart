@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/widgets/food_thumbnail.dart';
 
@@ -14,20 +15,23 @@ void main() {
     FoodVisualKey.fruit: 'fruit.png',
     FoodVisualKey.protein: 'protein.png',
     FoodVisualKey.condiment: 'condiment.png',
-    FoodVisualKey.soup: 'soup.png',
     FoodVisualKey.surimi: 'surimi.png',
     FoodVisualKey.plate: 'plate.png',
+    FoodVisualKey.riceBall: 'rice_ball.jpg',
   };
 
   const materialIcons = <FoodVisualKey, IconData>{
     FoodVisualKey.snack: Icons.cookie_outlined,
     FoodVisualKey.drink: Icons.local_drink_outlined,
+    FoodVisualKey.noodles: Symbols.ramen_dining,
+    FoodVisualKey.bread: Symbols.bakery_dining,
+    FoodVisualKey.soup: Symbols.skillet,
   };
 
   test(
     'custom assets and preserved Material Symbols cover every visual key',
     () {
-      expect(FoodVisualKey.values, hasLength(14));
+      expect(FoodVisualKey.values, hasLength(17));
       expect({
         ...customAssets.keys,
         ...materialIcons.keys,
@@ -37,7 +41,11 @@ void main() {
           FoodThumbnailAssetResolver.resolve(entry.key),
           'assets/images/food_category/${entry.value}',
         );
-        expect(foodVisualKeyLabel(entry.key), entry.key.stableId.toUpperCase());
+        expect(foodVisualKeyLabel(entry.key), switch (entry.key) {
+          FoodVisualKey.grain => 'RICE',
+          FoodVisualKey.riceBall => 'RICE BALL',
+          _ => entry.key.stableId.toUpperCase(),
+        });
       }
       for (final entry in materialIcons.entries) {
         expect(FoodThumbnailAssetResolver.resolve(entry.key), isNull);
@@ -46,10 +54,10 @@ void main() {
     },
   );
 
-  test('thumbnail selector order keeps plate after protein and before soup', () {
-    expect(
-      FoodVisualKey.values.map((key) => key.stableId).toList(),
-      [
+  test(
+    'thumbnail selector preserves existing order and appends new choices',
+    () {
+      expect(FoodVisualKey.values.map((key) => key.stableId).toList(), [
         'meat',
         'fish',
         'egg',
@@ -64,7 +72,20 @@ void main() {
         'plate',
         'soup',
         'surimi',
-      ],
+        'riceBall',
+        'noodles',
+        'bread',
+      ]);
+    },
+  );
+
+  test('GRAIN stable ID remains compatible while displaying RICE', () {
+    expect(FoodVisualKey.fromStableId('grain'), FoodVisualKey.grain);
+    expect(FoodVisualKey.grain.stableId, 'grain');
+    expect(foodVisualKeyLabel(FoodVisualKey.grain), 'RICE');
+    expect(
+      FoodThumbnailAssetResolver.resolve(FoodVisualKey.grain),
+      'assets/images/food_category/grain.png',
     );
   });
 

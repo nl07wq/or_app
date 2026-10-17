@@ -34,7 +34,10 @@ enum FoodVisualKey {
   protein,
   plate,
   soup,
-  surimi;
+  surimi,
+  riceBall,
+  noodles,
+  bread;
 
   String get stableId => name;
 

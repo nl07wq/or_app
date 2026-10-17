@@ -239,7 +239,7 @@ void main() {
           .widget<GridView>(find.byType(GridView))
           .childrenDelegate
           .estimatedChildCount,
-      15,
+      18,
     );
     final expectedChoiceKeys = {
       'food-thumbnail-choice-not-set',
@@ -318,6 +318,19 @@ void main() {
     expect(saved.visualKey, FoodVisualKey.surimi);
 
     await pumpEditor(saved);
+    await tester.ensureVisible(change);
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    await _tapThumbnailChoice(tester, 'riceBall');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    saved = (await repository.list()).single;
+    expect(saved.visualKey, FoodVisualKey.riceBall);
+
+    await pumpEditor(saved);
+    expect(find.text('RICE BALL'), findsOneWidget);
     await tester.ensureVisible(change);
     await tester.tap(change);
     await tester.pumpAndSettle();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/food_catalog_models.dart';
 
@@ -19,8 +20,11 @@ abstract final class FoodVisualIconResolver {
     FoodVisualKey.drink => Icons.local_drink_outlined,
     FoodVisualKey.condiment => Icons.soup_kitchen_outlined,
     FoodVisualKey.protein => Icons.fitness_center_outlined,
-    FoodVisualKey.soup => Icons.soup_kitchen_outlined,
+    FoodVisualKey.soup => Symbols.skillet,
     FoodVisualKey.surimi => Icons.restaurant_menu,
+    FoodVisualKey.riceBall => Symbols.rice_bowl,
+    FoodVisualKey.noodles => Symbols.ramen_dining,
+    FoodVisualKey.bread => Symbols.bakery_dining,
     null => fallback,
   };
 
@@ -50,14 +54,20 @@ abstract final class FoodThumbnailAssetResolver {
     FoodVisualKey.fruit ||
     FoodVisualKey.protein ||
     FoodVisualKey.condiment ||
-    FoodVisualKey.soup ||
     FoodVisualKey.surimi ||
     FoodVisualKey.plate => '$_directory/${key!.stableId}.png',
+    FoodVisualKey.riceBall => '$_directory/rice_ball.jpg',
     _ => null,
   };
 }
 
-String foodVisualKeyLabel(FoodVisualKey key) => key.stableId.toUpperCase();
+String foodVisualKeyLabel(FoodVisualKey key) => switch (key) {
+  FoodVisualKey.grain => 'RICE',
+  FoodVisualKey.riceBall => 'RICE BALL',
+  FoodVisualKey.noodles => 'NOODLES',
+  FoodVisualKey.bread => 'BREAD',
+  _ => key.stableId.toUpperCase(),
+};
 
 class FoodThumbnail extends StatelessWidget {
   const FoodThumbnail({
