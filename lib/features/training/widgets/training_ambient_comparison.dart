@@ -18,7 +18,7 @@ class TrainingAmbientComparison extends StatefulWidget {
   /// V5 component inventory. The painter maps these ratios onto its responsive
   /// pivots; a later PNG body can retain the same identity and tooth count.
   static const kineticGearToothCounts = <int>[
-    40, 24, 30, 18, 20, 22, 24, 26, 28, 14, 16,
+    40, 24, 28, 14, 16, 30, 32, 22, 20, 12, 26,
   ];
 
   static double motionSignatureFor(
@@ -232,22 +232,25 @@ class _TrainingAmbientPainter extends CustomPainter {
 
   void _engine(Canvas canvas, Size size) {
     final unit = size.shortestSide;
-    // V5 has one spatially fixed drive train.  Component centers, teeth and
-    // pivots are intentionally independent of the painter so gear artwork can
-    // later be replaced by transparent PNG bodies without changing timing.
-    final gears = <_Gear>[
-      _Gear(center: Offset(size.width * .48, size.height * .53), radius: unit * .19, teeth: 40),
-      _Gear(center: Offset(size.width * .25, size.height * .37), radius: unit * .115, teeth: 24),
-      _Gear(center: Offset(size.width * .74, size.height * .40), radius: unit * .145, teeth: 30),
-      _Gear(center: Offset(size.width * .23, size.height * .66), radius: unit * .086, teeth: 18),
-      _Gear(center: Offset(size.width * .72, size.height * .67), radius: unit * .096, teeth: 20),
-      _Gear(center: Offset(size.width * .07, size.height * .17), radius: unit * .105, teeth: 22),
-      _Gear(center: Offset(size.width * .94, size.height * .18), radius: unit * .11, teeth: 24),
-      _Gear(center: Offset(size.width * .08, size.height * .88), radius: unit * .12, teeth: 26),
-      _Gear(center: Offset(size.width * .93, size.height * .91), radius: unit * .13, teeth: 28),
-      _Gear(center: Offset(size.width * .45, size.height * .13), radius: unit * .07, teeth: 14),
-      _Gear(center: Offset(size.width * .52, size.height * .88), radius: unit * .075, teeth: 16),
-    ];
+    // V6 derives every transmission pivot from the touching pitch radii.
+    // This keeps the geometry PNG-ready while preventing floating gears.
+    _Gear mesh(_Gear parent, double angle, double radius, int teeth) => _Gear(
+      center: parent.center + Offset.fromDirection(angle, parent.radius + radius),
+      radius: radius,
+      teeth: teeth,
+    );
+    final drive = _Gear(center: Offset(size.width * .49, size.height * .47), radius: unit * .17, teeth: 40);
+    final upperLeft = mesh(drive, -2.48, unit * .108, 24);
+    final upperRight = mesh(drive, -.50, unit * .118, 28);
+    final leftPinion = mesh(upperLeft, 2.20, unit * .064, 14);
+    final rightPinion = mesh(upperRight, .92, unit * .067, 16);
+    final leftCrown = mesh(leftPinion, 2.63, unit * .128, 30);
+    final rightCrown = mesh(rightPinion, .50, unit * .13, 32);
+    final lowerLeft = mesh(drive, 2.68, unit * .094, 22);
+    final lowerRight = mesh(drive, .73, unit * .085, 20);
+    final lowerPinion = mesh(lowerRight, 1.24, unit * .055, 12);
+    final escapement = mesh(lowerPinion, 1.88, unit * .108, 26);
+    final gears = <_Gear>[drive, upperLeft, upperRight, leftPinion, rightPinion, leftCrown, rightCrown, lowerLeft, lowerRight, lowerPinion, escapement];
     final driveVelocity = .72 + .11 * math.sin(time * .17);
     final velocities = <double>[
       driveVelocity,
@@ -261,17 +264,18 @@ class _TrainingAmbientPainter extends CustomPainter {
         driveTeeth: gears[0].teeth,
         drivenTeeth: gears[2].teeth,
       ),
-      -driveVelocity * 1.4, driveVelocity * 1.25, driveVelocity * .8,
-      -driveVelocity * .72, driveVelocity * .63, -driveVelocity * .57,
-      driveVelocity * 2.1, -driveVelocity * 1.9,
+      driveVelocity * 40 / 14, driveVelocity * 40 / 16,
+      -driveVelocity * 40 / 30, -driveVelocity * 40 / 32,
+      -driveVelocity * 40 / 22, -driveVelocity * 40 / 20,
+      driveVelocity * 40 / 12, -driveVelocity * 40 / 26,
     ];
     final plate = Paint()..color = const Color(0x99101924);
     canvas.drawRect(Offset.zero & size, plate);
     // Structural bridges are deliberately behind the train, not decorative
     // strokes over it. They establish shafts and physical transmission paths.
     final links = [
-      (0, 1), (0, 2), (1, 5), (2, 6), (1, 3), (2, 4), (3, 7), (4, 8),
-      (1, 9), (4, 10),
+      (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (0, 7), (0, 8),
+      (8, 9), (9, 10),
     ];
     for (final link in links) {
       final from = gears[link.$1].center;
