@@ -12,7 +12,7 @@ class TrainingHistoryButton extends StatelessWidget {
     return OperationButton(
       icon: Icons.history,
       text: 'RECORD',
-      dashboardGlass: true,
+      frostedGlass: true,
       onPressed: () {
         Navigator.push(
           context,

@@ -13,7 +13,7 @@ class TrainingManualCard extends StatelessWidget {
     return OperationButton(
       icon: Icons.fitness_center,
       text: 'TRAINING ENTRY',
-      dashboardGlass: true,
+      frostedGlass: true,
       onPressed: appInitializationController.value.isReadOnly
           ? null
           : () {

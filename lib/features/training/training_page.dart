@@ -109,7 +109,7 @@ class _TrainingPageState extends State<TrainingPage> {
                     OperationButton(
                       icon: Icons.event_note_outlined,
                       text: 'TRAINING PLAN',
-                      dashboardGlass: true,
+                      frostedGlass: true,
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -152,7 +152,7 @@ class _TrainingPageState extends State<TrainingPage> {
                     OperationButton(
                       icon: Icons.analytics_outlined,
                       text: 'TRAINING ANALYSIS REPORT',
-                      dashboardGlass: true,
+                      frostedGlass: true,
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(

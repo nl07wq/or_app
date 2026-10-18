@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
@@ -31,6 +33,11 @@ class OperationButton extends StatelessWidget {
   final bool transparentSurface;
   final bool dashboardGlass;
 
+  /// TRAINING's kinetic backdrop needs local contrast without restoring its
+  /// former opaque outer panels. This material is opt-in so other pages keep
+  /// their established button surfaces.
+  final bool frostedGlass;
+
   /// Limits comparison-only controls to their requested audio route without
   /// emitting a COMMAND confirmation for the diagnostic control itself.
   final ActionableFeedbackRole feedbackRole;
@@ -46,6 +53,7 @@ class OperationButton extends StatelessWidget {
     this.deferFeedback = false,
     this.transparentSurface = false,
     this.dashboardGlass = false,
+    this.frostedGlass = false,
     this.feedbackRole = ActionableFeedbackRole.command,
     this.onUnavailableTap,
   });
@@ -67,13 +75,13 @@ class OperationButton extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           elevation: transparentSurface ? 0 : 4,
-          backgroundColor: transparentSurface || dashboardGlass
+          backgroundColor: transparentSurface || dashboardGlass || frostedGlass
               ? Colors.transparent
               : null,
-          shadowColor: transparentSurface || dashboardGlass
+          shadowColor: transparentSurface || dashboardGlass || frostedGlass
               ? Colors.transparent
               : null,
-          surfaceTintColor: transparentSurface || dashboardGlass
+          surfaceTintColor: transparentSurface || dashboardGlass || frostedGlass
               ? Colors.transparent
               : null,
           foregroundColor: foregroundColor,
@@ -100,7 +108,33 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
-    final surfaced = dashboardGlass
+    final surfaced = frostedGlass
+        ? ClipRRect(
+            borderRadius: AppRadius.medium,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xd62d4b60), Color(0xbf162b3d)],
+                  ),
+                  borderRadius: AppRadius.medium,
+                  border: Border.all(color: const Color(0xc078a8b8)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x55020c16),
+                      blurRadius: 5,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: button,
+              ),
+            ),
+          )
+        : dashboardGlass
         ? Container(
             decoration: DashboardGlassCard.decoration(
               colorScheme,

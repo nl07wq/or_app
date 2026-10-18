@@ -139,6 +139,105 @@ class KineticReportSyncTransmissionPose {
   final double phase;
 }
 
+/// A sampled position on one closed, equal-radius open-belt path.  The path
+/// is measured by arc length so surface ribs can travel continuously across
+/// straight and wrapped segments with the same phase.
+class _OpenBeltPathSample {
+  const _OpenBeltPathSample(this.position, this.tangent);
+
+  final Offset position;
+  final Offset tangent;
+}
+
+/// The two REPORT SYNC belts use equal-radius pulleys.  This retains the
+/// frozen V11.7 length `2d + 2πr` while providing a real continuous route for
+/// the belt body and moving surface details.
+class _OpenBeltLoop {
+  _OpenBeltLoop(this.start, this.end, this.radius)
+    : span = (end - start).distance,
+      axis = (end - start).distance == 0
+          ? const Offset(1, 0)
+          : (end - start) / (end - start).distance {
+    normal = Offset(-axis.dy, axis.dx);
+    normalAngle = math.atan2(normal.dy, normal.dx);
+    loopLength = span * 2 + 2 * math.pi * radius;
+  }
+
+  final Offset start;
+  final Offset end;
+  final double radius;
+  final double span;
+  final Offset axis;
+  late final Offset normal;
+  late final double normalAngle;
+  late final double loopLength;
+
+  bool get isValid => span > radius * 2.2 && radius > 0;
+
+  _OpenBeltPathSample sampleAt(double distance) {
+    var cursor = distance % loopLength;
+    if (cursor < 0) cursor += loopLength;
+    if (cursor <= span) {
+      return _OpenBeltPathSample(start + normal * radius + axis * cursor, axis);
+    }
+    cursor -= span;
+    if (cursor <= math.pi * radius) {
+      final angle = normalAngle + cursor / radius;
+      return _OpenBeltPathSample(
+        end + Offset(math.cos(angle), math.sin(angle)) * radius,
+        Offset(-math.sin(angle), math.cos(angle)),
+      );
+    }
+    cursor -= math.pi * radius;
+    if (cursor <= span) {
+      return _OpenBeltPathSample(end - normal * radius - axis * cursor, -axis);
+    }
+    cursor -= span;
+    final angle = normalAngle + math.pi + cursor / radius;
+    return _OpenBeltPathSample(
+      start + Offset(math.cos(angle), math.sin(angle)) * radius,
+      Offset(-math.sin(angle), math.cos(angle)),
+    );
+  }
+
+  Path get path {
+    final result = Path();
+    final segments = math.max(8, (radius * 1.45).round());
+    result.moveTo(start.dx + normal.dx * radius, start.dy + normal.dy * radius);
+    result.lineTo(end.dx + normal.dx * radius, end.dy + normal.dy * radius);
+    for (var index = 1; index <= segments; index++) {
+      final sample = sampleAt(span + math.pi * radius * index / segments);
+      result.lineTo(sample.position.dx, sample.position.dy);
+    }
+    result.lineTo(start.dx - normal.dx * radius, start.dy - normal.dy * radius);
+    for (var index = 1; index <= segments; index++) {
+      final sample = sampleAt(
+        span * 2 + math.pi * radius + math.pi * radius * index / segments,
+      );
+      result.lineTo(sample.position.dx, sample.position.dy);
+    }
+    result.close();
+    return result;
+  }
+
+  Path edgePath(double offset) {
+    final result = Path();
+    const samples = 40;
+    for (var index = 0; index <= samples; index++) {
+      final sample = sampleAt(loopLength * index / samples);
+      final edgeNormal = Offset(-sample.tangent.dy, sample.tangent.dx);
+      final point = sample.position + edgeNormal * offset;
+      if (index == 0) {
+        result.moveTo(point.dx, point.dy);
+      } else {
+        result.lineTo(point.dx, point.dy);
+      }
+    }
+    result.close();
+    return result;
+  }
+}
+
 /// Static, PNG-replaceable structure behind the two V7 gear layers.  It has
 /// no drive state, so adding it cannot affect transmission geometry or motion.
 class KineticBaseplateGeometry {
@@ -1102,6 +1201,7 @@ class _TrainingAmbientPainter extends CustomPainter {
     // RECORD rocker root and REPORT SYNC axles a visible machine-frame
     // attachment without constraining the existing animation geometry.
     _reportSyncSupports(canvas, byId['mid-crown']!);
+    _reportSyncCoveredBearingCap(canvas, byId['mid-crown']!);
     _recordRockerRootSupport(canvas, byId['right-crown']!);
     _steamLinkage(canvas, byId['mid-crown']!, drivePhase);
     _rockerLinkage(canvas, byId['right-crown']!, drivePhase);
@@ -1148,10 +1248,6 @@ class _TrainingAmbientPainter extends CustomPainter {
       Paint()..color = const Color(0xff80dcf5),
     );
     _mechanicalCovers(canvas, size);
-    // The lower-left V11.6 cover passes in front of REPORT SYNC’s left axle.
-    // A fixed bearing cap on that existing cover makes the support explicit
-    // without moving, resizing, or otherwise changing the cover itself.
-    _reportSyncCoveredBearingCap(canvas, byId['mid-crown']!);
   }
 
   void _reportSyncCoveredBearingCap(
@@ -1584,9 +1680,17 @@ class _TrainingAmbientPainter extends CustomPainter {
           drivePhase,
         );
     final scale = driveGear.module;
-    // The two open belts are valid because all three REPORT SYNC axle centers
-    // are fixed. Their loop lengths therefore do not vary while the crank
-    // pins and coupling rods move above them.
+    // Fixed support plates and bearing outer races are already behind this
+    // block. Pulley bodies sit above them, then each constant-length belt is
+    // visible over its wrapped arcs before the front pulley faces and rods.
+    for (var i = 0; i < transmission.axleCenters.length; i++) {
+      _reportSyncPulleyBase(
+        canvas,
+        transmission.axleCenters[i],
+        radius: transmission.pulleyRadius,
+        driveFlange: i == transmission.axleCenters.length - 1,
+      );
+    }
     for (var i = 0; i < transmission.axleCenters.length - 1; i++) {
       _openBelt(
         canvas,
@@ -1597,7 +1701,7 @@ class _TrainingAmbientPainter extends CustomPainter {
       );
     }
     for (var i = 0; i < transmission.axleCenters.length; i++) {
-      _reportSyncPulley(
+      _reportSyncPulleyFront(
         canvas,
         transmission.axleCenters[i],
         scale: scale,
@@ -1658,13 +1762,14 @@ class _TrainingAmbientPainter extends CustomPainter {
         endRadius: 3.6,
         bodyColor: const Color(0xff315b73),
       );
+      // The static outer bearing race was painted with the supports. This
+      // compact inner axle cap remains in front with the rotating crank.
       _bearingJoint(
         canvas,
         center,
         scale: scale,
-        radius: 4.8,
+        radius: 3.85,
         coreRadius: 1.7,
-        fixed: true,
       );
       _bearingJoint(canvas, pin, scale: scale, radius: 5, coreRadius: 2);
     }
@@ -1705,67 +1810,94 @@ class _TrainingAmbientPainter extends CustomPainter {
     required double radius,
     required double phase,
   }) {
-    final span = end.dx - start.dx;
-    if (span <= radius * 2.2 || (end.dy - start.dy).abs() > .01) return;
-    final upperStart = start + Offset(0, -radius);
-    final upperEnd = end + Offset(0, -radius);
-    final lowerStart = start + Offset(0, radius);
-    final path = Path()
-      ..moveTo(upperStart.dx, upperStart.dy)
-      ..lineTo(upperEnd.dx, upperEnd.dy)
-      ..arcTo(
-        Rect.fromCircle(center: end, radius: radius),
-        -math.pi / 2,
-        math.pi,
-        false,
-      )
-      ..lineTo(lowerStart.dx, lowerStart.dy)
-      ..arcTo(
-        Rect.fromCircle(center: start, radius: radius),
-        math.pi / 2,
-        math.pi,
-        false,
-      )
-      ..close();
+    final loop = _OpenBeltLoop(start, end, radius);
+    if (!loop.isValid) return;
+    final path = loop.path;
+    final beltWidth = math.max(4.2, radius * .62);
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(4, radius * .52)
+        ..strokeWidth = beltWidth + 1.2
         ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xee132a3b),
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff071926),
     );
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(1.1, radius * .11)
+        ..strokeWidth = beltWidth
         ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xff4f778e),
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff28556b),
     );
-    final markerSpacing = math.max(10, radius * 1.55);
-    final markerOffset = (phase * radius * 2.1) % markerSpacing;
+    // A darker center channel and two restrained edge highlights give the
+    // belt depth without turning the moving detail into floating diagonals.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(.75, beltWidth * .18)
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff092536),
+    );
+    canvas.drawPath(
+      loop.edgePath(beltWidth * .38),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(.55, beltWidth * .10)
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff6a9cb0),
+    );
+    canvas.drawPath(
+      loop.edgePath(-beltWidth * .38),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(.55, beltWidth * .10)
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff0c2b3e),
+    );
+
+    final ribSpacing = math.max(7.2, radius * 1.12);
+    final ribOffset = (phase * radius) % ribSpacing;
     for (
-      var distance = markerOffset;
-      distance < span;
-      distance += markerSpacing
+      var distance = ribOffset;
+      distance < loop.loopLength + ribSpacing;
+      distance += ribSpacing
     ) {
-      final x = start.dx + distance;
-      final slant = math.min(4.2, radius * .35);
-      for (final y in [start.dy - radius, start.dy + radius]) {
-        canvas.drawLine(
-          Offset(x - slant, y - 1.1),
-          Offset(x + slant, y + 1.1),
-          Paint()
-            ..strokeWidth = math.max(.7, radius * .075)
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xff77b5c9),
-        );
-      }
+      final sample = loop.sampleAt(distance);
+      final normal = Offset(-sample.tangent.dy, sample.tangent.dx);
+      final halfWidth = beltWidth * .33;
+      canvas.drawLine(
+        sample.position - normal * halfWidth,
+        sample.position + normal * halfWidth,
+        Paint()
+          ..strokeWidth = math.max(.55, beltWidth * .11)
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff90c9db),
+      );
     }
   }
 
-  void _reportSyncPulley(
+  void _reportSyncPulleyBase(
+    Canvas canvas,
+    Offset center, {
+    required double radius,
+    required bool driveFlange,
+  }) {
+    final fill = driveFlange
+        ? const Color(0xff315e78)
+        : const Color(0xff24485f);
+    canvas.drawCircle(center, radius, Paint()..color = fill);
+    canvas.drawCircle(
+      center,
+      radius * .78,
+      Paint()..color = const Color(0xff17384f),
+    );
+  }
+
+  void _reportSyncPulleyFront(
     Canvas canvas,
     Offset center, {
     required double scale,
@@ -1774,10 +1906,6 @@ class _TrainingAmbientPainter extends CustomPainter {
     required bool dualGroove,
     required bool driveFlange,
   }) {
-    final fill = driveFlange
-        ? const Color(0xff315e78)
-        : const Color(0xff24485f);
-    canvas.drawCircle(center, radius, Paint()..color = fill);
     canvas.drawCircle(
       center,
       radius,
@@ -1789,11 +1917,19 @@ class _TrainingAmbientPainter extends CustomPainter {
     if (dualGroove) {
       canvas.drawCircle(
         center,
-        radius * .70,
+        radius * .76,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = math.max(1.2, scale * 1.05)
+          ..strokeWidth = math.max(1.15, scale * .94)
           ..color = const Color(0xff102b40),
+      );
+      canvas.drawCircle(
+        center,
+        radius * .57,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(.9, scale * .7)
+          ..color = const Color(0xff5b879d),
       );
     }
     for (var i = 0; i < 4; i++) {

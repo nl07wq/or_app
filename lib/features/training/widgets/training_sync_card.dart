@@ -16,7 +16,7 @@ class TrainingSyncCard extends StatelessWidget {
     return OperationButton(
       icon: Icons.sync,
       text: 'SYNC TRAINING',
-      dashboardGlass: true,
+      frostedGlass: true,
       onPressed: appInitializationController.value.isReadOnly
           ? null
           : () async {

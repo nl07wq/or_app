@@ -441,7 +441,7 @@ void main() {
     }
   });
 
-  test('V11.7 REPORT SYNC belt loops retain constant length and phase', () {
+  test('V11.8 REPORT SYNC belts retain their frozen closed-loop geometry', () {
     final drive = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 844),
     ).singleWhere((gear) => gear.id == 'mid-crown');
@@ -460,6 +460,14 @@ void main() {
       expect(pose.axleCenters, baseline.axleCenters);
       expect(pose.beltLoopLengths, orderedEquals(baseline.beltLoopLengths));
       expect(pose.phase, isNot(baseline.phase));
+      for (var index = 0; index < pose.beltLoopLengths.length; index++) {
+        final axleDistance =
+            (pose.axleCenters[index + 1] - pose.axleCenters[index]).distance;
+        expect(
+          pose.beltLoopLengths[index],
+          closeTo(2 * axleDistance + 2 * math.pi * pose.pulleyRadius, .000001),
+        );
+      }
     }
   });
 
@@ -615,7 +623,7 @@ void main() {
     },
   );
 
-  testWidgets('V11.7 supports, covers and hubs render through four phases', (
+  testWidgets('V11.8 supports, belts and hubs render through four phases', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -640,7 +648,7 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('v11-7-kinetic-phase')),
         matchesGoldenFile(
-          'goldens/training_kinetic_engine_v11_7_phase_$phase.png',
+          'goldens/training_kinetic_engine_v11_8_phase_$phase.png',
         ),
       );
       expect(tester.takeException(), isNull);
@@ -675,7 +683,7 @@ void main() {
   );
 
   testWidgets(
-    'V11.7 UI goldens preserve the transparent header while scrolling',
+    'V11.8 UI goldens preserve the transparent header while scrolling',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -697,7 +705,7 @@ void main() {
       await tester.pump();
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_top.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_top.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -706,7 +714,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 2300));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_middle.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_middle.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -715,13 +723,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1700));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_lower.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_lower.png'),
       );
     },
   );
 
   testWidgets(
-    'V11.7 RECORD root and REPORT SYNC supports are visible in close-up',
+    'V11.8 REPORT SYNC fixed supports remain behind its moving hardware',
     (tester) async {
       tester.view.physicalSize = const Size(390, 520);
       tester.view.devicePixelRatio = 1;
@@ -733,7 +741,7 @@ void main() {
           home: Column(
             children: [
               _KineticAmbientCrop(top: 300),
-              _KineticAmbientCrop(top: 505),
+              _KineticAmbientCrop(top: 560),
             ],
           ),
         ),
@@ -741,42 +749,53 @@ void main() {
       await tester.pump();
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_linkages.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_linkages.png'),
       );
       expect(tester.takeException(), isNull);
     },
   );
 
-  testWidgets('TRAINING actions use STATUS glass buttons without outer cards', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 1600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+  testWidgets(
+    'V11.8 TRAINING actions use localized frosted glass without outer cards',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
 
-    for (final label in const [
-      'TRAINING ENTRY',
-      'TRAINING PLAN',
-      'RECORD',
-      'TRAINING ANALYSIS REPORT',
-      'SYNC TRAINING',
-    ]) {
-      final buttonFinder = find.byWidgetPredicate(
-        (widget) => widget is OperationButton && widget.text == label,
-      );
-      expect(buttonFinder, findsOneWidget);
-      expect(
-        tester.widget<OperationButton>(buttonFinder).dashboardGlass,
-        isTrue,
-      );
-      expect(
-        find.ancestor(of: buttonFinder, matching: find.byType(OperationCard)),
-        findsNothing,
-      );
-    }
-  });
+      for (final label in const [
+        'TRAINING ENTRY',
+        'TRAINING PLAN',
+        'RECORD',
+        'TRAINING ANALYSIS REPORT',
+        'SYNC TRAINING',
+      ]) {
+        final buttonFinder = find.byWidgetPredicate(
+          (widget) => widget is OperationButton && widget.text == label,
+        );
+        expect(buttonFinder, findsOneWidget);
+        expect(
+          tester.widget<OperationButton>(buttonFinder).frostedGlass,
+          isTrue,
+        );
+        expect(
+          find.descendant(
+            of: buttonFinder,
+            matching: find.byWidgetPredicate(
+              (widget) => widget is SizedBox && widget.height == 52,
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.ancestor(of: buttonFinder, matching: find.byType(OperationCard)),
+          findsNothing,
+        );
+      }
+      expect(find.byType(BackdropFilter), findsNWidgets(5));
+    },
+  );
 
   test('meshed kinetic gears retain opposite tooth-count velocity ratio', () {
     expect(
