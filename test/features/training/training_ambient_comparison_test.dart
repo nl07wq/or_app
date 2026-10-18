@@ -228,6 +228,55 @@ void main() {
     },
   );
 
+  test('V11.3 preserves V11.2 rim boundaries for every silhouette', () {
+    expect(
+      TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+        KineticGearVisualVariant.openSpoke,
+      ),
+      .85,
+    );
+    expect(
+      TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+        KineticGearVisualVariant.thinRim,
+      ),
+      .88,
+    );
+    expect(
+      TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+        KineticGearVisualVariant.cutoutDisc,
+      ),
+      .84,
+    );
+    expect(
+      TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+        KineticGearVisualVariant.pinion,
+      ),
+      .76,
+    );
+    expect(
+      TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+        KineticGearVisualVariant.asymmetric,
+      ),
+      .84,
+    );
+  });
+
+  test('V11.3 keeps tooth and transmission geometry frozen', () {
+    final primary = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 2200),
+    );
+    final rear = TrainingAmbientComparison.kineticBackgroundGearGeometryFor(
+      const Size(390, 2200),
+    );
+    expect(primary, hasLength(22));
+    expect(rear, hasLength(32));
+    expect(primary.first.toothCount, 40);
+    expect(primary.first.renderedToothTipCount, 40);
+    expect(TrainingAmbientComparison.kineticToothRootDedendum, 1.45);
+    expect(TrainingAmbientComparison.kineticToothTipAddendum, 1.85);
+    expect(TrainingAmbientComparison.kineticToothTipAngularWidthFraction, .33);
+  });
+
   test('V11 preserves exactly the original transmission inventory', () {
     final primary = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 788),

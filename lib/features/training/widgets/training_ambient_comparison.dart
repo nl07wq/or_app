@@ -370,6 +370,18 @@ class TrainingAmbientComparison extends StatefulWidget {
     return spokeCounts[stableSeed % spokeCounts.length];
   }
 
+  /// V11.2's accepted inner rim boundaries. V11.3 changes only the material
+  /// and the interior construction drawn inside these frozen boundaries.
+  static double kineticRimInnerRadiusFactorFor(
+    KineticGearVisualVariant variant,
+  ) => switch (variant) {
+    KineticGearVisualVariant.openSpoke => .85,
+    KineticGearVisualVariant.thinRim => .88,
+    KineticGearVisualVariant.cutoutDisc => .84,
+    KineticGearVisualVariant.pinion => .76,
+    KineticGearVisualVariant.asymmetric => .84,
+  };
+
   /// V8 baseplate topology. Plates overlap but are deliberately broken into
   /// separate machined sections instead of becoming a decorative rectangle.
   /// Every mounting point resolves to a V7 primary or background gear pivot.
@@ -811,18 +823,21 @@ class _TrainingAmbientPainter extends CustomPainter {
       index,
       background: background,
     );
-    // V10 preserves the exact tooth profile while replacing V9's repeated
-    // spoke-and-ring interior with stable, visibly different constructions.
-    final fill = background ? const Color(0x7412264a) : const Color(0xa5155a93);
-    final edge = background
-        ? const Color(0x555eabdc)
-        : const Color(0xff78e7ff).withValues(alpha: .88);
-    final well = background ? const Color(0xb6051230) : const Color(0xe1061e45);
-    final rim = background ? const Color(0x664785bb) : const Color(0xff4ecbff);
-    final spokeColor = background
-        ? const Color(0x553e7bb0)
-        : const Color(0xcc348dcc);
-    canvas.drawPath(profile, Paint()..color = fill);
+    // One material family now spans teeth, rim, spokes and hub mounting. The
+    // rear layer uses the same steel-blue material at lower contrast.
+    final material = background
+        ? const Color(0x8a284b68)
+        : const Color(0xe1287598);
+    final edge = background ? const Color(0x7a6096b5) : const Color(0xe077dff4);
+    final shade = background
+        ? const Color(0x5c10243b)
+        : const Color(0x9a123c59);
+    final layerBounds = Rect.fromCircle(
+      center: gear.center,
+      radius: gear.tipRadius + 5,
+    );
+    canvas.saveLayer(layerBounds, Paint());
+    canvas.drawPath(profile, Paint()..color = material);
     canvas.drawPath(
       profile.shift(const Offset(1.5, 2.2)),
       Paint()
@@ -845,11 +860,12 @@ class _TrainingAmbientPainter extends CustomPainter {
       angle,
       index,
       variant,
-      well: well,
-      rim: rim,
-      spokeColor: spokeColor,
+      material: material,
+      edge: edge,
+      shade: shade,
       background: background,
     );
+    canvas.restore();
     if (!background) {
       canvas.drawCircle(
         gear.center,
@@ -909,15 +925,18 @@ class _TrainingAmbientPainter extends CustomPainter {
     double angle,
     int index,
     KineticGearVisualVariant variant, {
-    required Color well,
-    required Color rim,
-    required Color spokeColor,
+    required Color material,
+    required Color edge,
+    required Color shade,
     required bool background,
   }) {
     final r = gear.pitchRadius;
     final spokeCount = TrainingAmbientComparison.kineticSpokeCountFor(
       gear,
       index,
+    );
+    final innerRim = TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+      variant,
     );
     void outline(double radius, double width, {double alpha = 1}) =>
         canvas.drawCircle(
@@ -926,7 +945,7 @@ class _TrainingAmbientPainter extends CustomPainter {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = math.max(.8, r * width)
-            ..color = rim.withValues(alpha: rim.a * alpha),
+            ..color = edge.withValues(alpha: edge.a * alpha),
         );
     void wedgeSpoke(double a, double inner, double outer, double spread) {
       final path = Path()
@@ -947,51 +966,83 @@ class _TrainingAmbientPainter extends CustomPainter {
           (gear.center + Offset.fromDirection(a + spread, r * inner)).dy,
         )
         ..close();
-      canvas.drawPath(path, Paint()..color = spokeColor);
+      canvas.drawPath(path, Paint()..color = material);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(.65, r * .012)
+          ..color = edge.withValues(alpha: edge.a * .58),
+      );
     }
 
-    void hole(double a, double distance, double radius) => canvas.drawCircle(
+    final clearPaint = Paint()..blendMode = BlendMode.clear;
+    void clearCircle(Offset center, double radius) =>
+        canvas.drawCircle(center, radius, clearPaint);
+    void clearWell() => clearCircle(gear.center, r * innerRim);
+    void hole(double a, double distance, double radius) => clearCircle(
       gear.center + Offset.fromDirection(a, r * distance),
       math.max(1.1, r * radius),
-      Paint()..color = const Color(0xff041127),
     );
+    void hub(double radius) {
+      canvas.drawCircle(gear.center, r * radius, Paint()..color = material);
+      outline(r * radius, .018, alpha: .72);
+    }
 
     switch (variant) {
       case KineticGearVisualVariant.openSpoke:
-        canvas.drawCircle(gear.center, r * .85, Paint()..color = well);
-        outline(r * .82, .052);
+        clearWell();
         for (var i = 0; i < spokeCount; i++) {
-          wedgeSpoke(angle + i * math.pi * 2 / spokeCount, .14, .84, .085);
+          wedgeSpoke(angle + i * math.pi * 2 / spokeCount, .16, .87, .092);
         }
+        hub(.20);
+        outline(r * innerRim, .018, alpha: .78);
       case KineticGearVisualVariant.thinRim:
-        canvas.drawCircle(gear.center, r * .88, Paint()..color = well);
-        outline(r * .85, .038);
-        for (var i = 0; i < 3; i++) {
-          wedgeSpoke(angle + .25 + i * math.pi * 2 / 3, .17, .87, .042);
+        clearWell();
+        final thinSpokes = spokeCount.clamp(3, 4);
+        for (var i = 0; i < thinSpokes; i++) {
+          wedgeSpoke(
+            angle + .25 + i * math.pi * 2 / thinSpokes,
+            .14,
+            .90,
+            .046,
+          );
         }
+        hub(.17);
+        outline(r * innerRim, .013, alpha: .68);
       case KineticGearVisualVariant.cutoutDisc:
-        canvas.drawCircle(gear.center, r * .84, Paint()..color = well);
-        for (var i = 0; i < spokeCount; i++) {
-          final a = angle + .18 + i * math.pi * 2 / spokeCount;
-          hole(a, .45, i.isEven ? .135 : .095);
+        final holeCount = spokeCount.clamp(4, 6);
+        for (var i = 0; i < holeCount; i++) {
+          final a = angle + .18 + i * math.pi * 2 / holeCount;
+          hole(a, .52, .155);
         }
+        hub(.20);
+        outline(r * innerRim, .016, alpha: .72);
       case KineticGearVisualVariant.pinion:
-        canvas.drawCircle(gear.center, r * .76, Paint()..color = well);
+        clearWell();
         for (var i = 0; i < 3; i++) {
-          wedgeSpoke(angle + i * math.pi * 2 / 3, .12, .75, .11);
+          wedgeSpoke(angle + i * math.pi * 2 / 3, .18, .79, .12);
         }
+        hub(.24);
       case KineticGearVisualVariant.asymmetric:
-        canvas.drawCircle(gear.center, r * .84, Paint()..color = well);
-        const offsets = [0.0, .72, 2.12, 3.45, 5.02];
-        for (var i = 0; i < offsets.length; i++) {
-          final a = angle + offsets[i];
-          if (i.isEven) {
-            hole(a, .43, .14);
-          } else {
-            wedgeSpoke(a, .17, .83, .055);
-          }
+        final apertureSpecs = <(double, double, double)>[
+          (angle + .18, .48, .18),
+          (angle + 1.38, .56, .13),
+          (angle + 2.72, .46, .17),
+          (angle + 4.22, .55, .12),
+        ];
+        for (final aperture in apertureSpecs) {
+          hole(aperture.$1, aperture.$2, aperture.$3);
         }
+        wedgeSpoke(angle + 5.28, .18, .85, .07);
+        hub(.21);
+        outline(r * innerRim, .014, alpha: .62);
     }
+    canvas.drawCircle(
+      gear.center + Offset(-r * .025, -r * .035),
+      r * .105,
+      Paint()..color = shade.withValues(alpha: shade.a * .42),
+    );
   }
 
   List<Offset> _integrateField(
