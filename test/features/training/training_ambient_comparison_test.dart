@@ -60,6 +60,72 @@ void main() {
     }
   });
 
+  test('V11.1 tooth envelope is taller and tips are narrower than V11', () {
+    final primary = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 788),
+    );
+    final rear = TrainingAmbientComparison.kineticBackgroundGearGeometryFor(
+      const Size(390, 788),
+    );
+    final previousHeight =
+        TrainingAmbientComparison.v11ToothRootDedendum +
+        TrainingAmbientComparison.v11ToothTipAddendum;
+    final currentHeight =
+        TrainingAmbientComparison.kineticToothRootDedendum +
+        TrainingAmbientComparison.kineticToothTipAddendum;
+
+    expect(currentHeight, greaterThan(previousHeight));
+    expect(
+      TrainingAmbientComparison.kineticToothTipAngularWidthFraction,
+      lessThan(TrainingAmbientComparison.v11ToothTipAngularWidthFraction),
+    );
+    for (final gear in [...primary, ...rear]) {
+      expect(gear.renderedToothTipCount, gear.toothCount);
+      expect(gear.pitchRadius, closeTo(gear.module * gear.toothCount, .000001));
+      expect(
+        gear.tipRadius - gear.pitchRadius,
+        closeTo(
+          gear.module * TrainingAmbientComparison.kineticToothTipAddendum,
+          .000001,
+        ),
+      );
+      expect(
+        gear.pitchRadius - gear.rootRadius,
+        closeTo(
+          gear.module * TrainingAmbientComparison.kineticToothRootDedendum,
+          .000001,
+        ),
+      );
+    }
+  });
+
+  test('V11.1 tall teeth retain bounded mesh engagement and V11 interiors', () {
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 788),
+    );
+    final byId = {for (final gear in gears) gear.id: gear};
+    for (var i = 0; i < gears.length; i++) {
+      final gear = gears[i];
+      expect(
+        TrainingAmbientComparison.kineticGearVisualVariantFor(gear, i),
+        isA<KineticGearVisualVariant>(),
+      );
+      expect(
+        TrainingAmbientComparison.kineticSpokeCountFor(gear, i),
+        anyOf(3, 4, 5, 6, 8),
+      );
+      if (gear.parentId case final parentId?) {
+        final parent = byId[parentId]!;
+        final centerDistance = (gear.center - parent.center).distance;
+        // Tips enter only the partner's dedendum, never by more than .40m.
+        expect(
+          gear.tipRadius + parent.rootRadius,
+          lessThanOrEqualTo(centerDistance + gear.module * .401),
+        );
+      }
+    }
+  });
+
   test(
     'V7 primary train distributes connected pivots through scroll regions',
     () {

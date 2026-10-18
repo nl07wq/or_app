@@ -81,6 +81,15 @@ class TrainingAmbientComparison extends StatefulWidget {
   static const kineticEngineBackgroundAsset =
       'assets/images/training/kinetic_engine_v9_background.png';
 
+  /// V11.1 profile parameters. Pitch circles remain frozen; only the radial
+  /// envelope and angular occupancy around each pitch circle change.
+  static const v11ToothRootDedendum = .95;
+  static const v11ToothTipAddendum = 1.35;
+  static const v11ToothTipAngularWidthFraction = .49;
+  static const kineticToothRootDedendum = 1.45;
+  static const kineticToothTipAddendum = 1.85;
+  static const kineticToothTipAngularWidthFraction = .33;
+
   /// V6.2 inventory. Each entry becomes one visibly emitted tooth profile.
   static const kineticGearToothCounts = <int>[
     40,
@@ -144,18 +153,23 @@ class TrainingAmbientComparison extends StatefulWidget {
       1.18,
       math.max(size.width * .0038, size.height * .0015),
     );
-    KineticGearGeometry root(String id, Offset center, int teeth) =>
-        KineticGearGeometry(
-          id: id,
-          center: center,
-          toothCount: teeth,
-          module: module,
-          pitchRadius: module * teeth,
-          rootRadius: module * (teeth - .95),
-          tipRadius: module * (teeth + 1.35),
-          phaseOffset: .08,
-          driveRatio: 1,
-        );
+    KineticGearGeometry root(
+      String id,
+      Offset center,
+      int teeth,
+    ) => KineticGearGeometry(
+      id: id,
+      center: center,
+      toothCount: teeth,
+      module: module,
+      pitchRadius: module * teeth,
+      rootRadius:
+          module * (teeth - TrainingAmbientComparison.kineticToothRootDedendum),
+      tipRadius:
+          module * (teeth + TrainingAmbientComparison.kineticToothTipAddendum),
+      phaseOffset: .08,
+      driveRatio: 1,
+    );
     KineticGearGeometry mesh(
       KineticGearGeometry parent,
       String id,
@@ -173,8 +187,12 @@ class TrainingAmbientComparison extends StatefulWidget {
         toothCount: teeth,
         module: module,
         pitchRadius: pitchRadius,
-        rootRadius: module * (teeth - .95),
-        tipRadius: module * (teeth + 1.35),
+        rootRadius:
+            module *
+            (teeth - TrainingAmbientComparison.kineticToothRootDedendum),
+        tipRadius:
+            module *
+            (teeth + TrainingAmbientComparison.kineticToothTipAddendum),
         phaseOffset:
             angle +
             math.pi -
@@ -233,8 +251,10 @@ class TrainingAmbientComparison extends StatefulWidget {
       toothCount: teeth,
       module: module,
       pitchRadius: module * teeth,
-      rootRadius: module * (teeth - .95),
-      tipRadius: module * (teeth + 1.35),
+      rootRadius:
+          module * (teeth - TrainingAmbientComparison.kineticToothRootDedendum),
+      tipRadius:
+          module * (teeth + TrainingAmbientComparison.kineticToothTipAddendum),
       phaseOffset: phase,
       driveRatio: driveRatio,
     );
@@ -255,8 +275,12 @@ class TrainingAmbientComparison extends StatefulWidget {
         toothCount: teeth,
         module: module,
         pitchRadius: pitchRadius,
-        rootRadius: module * (teeth - .95),
-        tipRadius: module * (teeth + 1.35),
+        rootRadius:
+            module *
+            (teeth - TrainingAmbientComparison.kineticToothRootDedendum),
+        tipRadius:
+            module *
+            (teeth + TrainingAmbientComparison.kineticToothTipAddendum),
         phaseOffset:
             angle +
             math.pi -
@@ -855,10 +879,15 @@ class _TrainingAmbientPainter extends CustomPainter {
     final profile = Path();
     for (var tooth = 0; tooth < teeth; tooth++) {
       final base = angle + tooth * math.pi * 2 / teeth;
+      // V11 used a .49 pitch-wide tip with a shallow 2.30-module radial
+      // envelope. V11.1 narrows the tip to .33 pitch and deepens the valleys,
+      // leaving a recognisable root gap between every adjacent tooth.
       for (final (fraction, radius) in [
         (-.50, rootRadius),
-        (-.27, tipRadius),
-        (.22, tipRadius),
+        (-.34, rootRadius),
+        (-.18, tipRadius),
+        (.15, tipRadius),
+        (.30, rootRadius),
         (.50, rootRadius),
       ]) {
         final point =
