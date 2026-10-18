@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 
 import '../../../core/models/training_equipment_snapshot.dart';
 import '../services/training_equipment_candidates.dart';
@@ -45,7 +46,7 @@ class TrainingEquipmentField extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-    ).actionableFeedback();
+    ).actionableFeedback(role: ActionableFeedbackRole.silent);
   }
 
   Future<void> _select(BuildContext context) async {
@@ -57,7 +58,8 @@ class TrainingEquipmentField extends StatelessWidget {
         allowCustom: allowCustom,
       ),
     );
-    if (selected == null) return;
+    if (selected == null || selected.value == value) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     onChanged(selected.value);
   }
 }
@@ -83,7 +85,10 @@ class _EquipmentSheet extends StatelessWidget {
                     title: const Text('なし'),
                     onTap: () =>
                         Navigator.pop(context, const _EquipmentSelection(null)),
-                  ).actionableFeedback(enabled: true),
+                  ).actionableFeedback(
+                    enabled: true,
+                    role: ActionableFeedbackRole.silent,
+                  ),
                   for (final candidate in candidates)
                     ListTile(
                       leading: const Icon(Icons.fitness_center_outlined),
@@ -95,7 +100,10 @@ class _EquipmentSheet extends StatelessWidget {
                         context,
                         _EquipmentSelection(candidate),
                       ),
-                    ).actionableFeedback(enabled: true),
+                    ).actionableFeedback(
+                      enabled: true,
+                      role: ActionableFeedbackRole.silent,
+                    ),
                 ],
               ),
             ),
@@ -105,7 +113,10 @@ class _EquipmentSheet extends StatelessWidget {
                 leading: const Icon(Icons.add),
                 title: const Text('CUSTOM EQUIPMENT'),
                 onTap: () => _custom(context),
-              ).actionableFeedback(enabled: true),
+              ).actionableFeedback(
+                enabled: true,
+                role: ActionableFeedbackRole.silent,
+              ),
             ],
           ],
         ),
@@ -128,14 +139,14 @@ class _EquipmentSheet extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CANCEL'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
           FilledButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(context, value);
             },
             child: const Text('ADD'),
-          ).actionableFeedback(),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
         ],
       ),
     );

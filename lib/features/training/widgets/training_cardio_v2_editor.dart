@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/models/cardio_entry.dart';
@@ -70,6 +71,10 @@ class TrainingCardioV2Editor extends StatelessWidget {
                       ),
                   ],
                   onChanged: (value) {
+                    if (value == controller.type) return;
+                    GlobalTouchRipple.previewFeedback(
+                      TouchFeedbackSound.cursor,
+                    );
                     controller.type = value;
                     onChanged();
                   },
@@ -201,6 +206,8 @@ class TrainingCardioV2Editor extends StatelessWidget {
           ),
         ],
         onChanged: (value) {
+          if (value == controller.purpose) return;
+          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
           controller.purpose = value;
           onChanged();
         },

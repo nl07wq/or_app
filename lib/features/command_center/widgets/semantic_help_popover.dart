@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 
 import '../../../core/theme/app_spacing.dart';
 
@@ -50,7 +51,11 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
     super.dispose();
   }
 
-  void _dismiss() {
+  void _dismiss({bool withFeedback = false}) {
+    if (_entry == null) return;
+    if (withFeedback) {
+      GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    }
     _entry?.remove();
     _entry = null;
   }
@@ -90,8 +95,8 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: _dismiss,
-            ).actionableFeedback(),
+              onTap: () => _dismiss(withFeedback: true),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
           Positioned(
             left: popoverLeft,
@@ -115,6 +120,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
         ],
       ),
     );
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     overlay.insert(_entry!);
   }
 
@@ -140,8 +146,12 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
             ),
           ),
         ],
+        onOpened: () =>
+            GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor),
+        onCanceled: () =>
+            GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor),
         child: widget.child,
-      ).actionableFeedback();
+      ).actionableFeedback(role: ActionableFeedbackRole.silent);
     }
 
     return GestureDetector(
@@ -149,7 +159,7 @@ class _SemanticHelpPopoverState extends State<SemanticHelpPopover> {
       behavior: HitTestBehavior.opaque,
       onTap: _showContextualPopover,
       child: widget.child,
-    ).actionableFeedback();
+    ).actionableFeedback(role: ActionableFeedbackRole.silent);
   }
 }
 

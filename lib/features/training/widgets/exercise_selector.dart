@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 
 import '../services/exercise_catalog_service.dart';
 import '../services/exercise_name_localization.dart';
@@ -32,7 +33,7 @@ class ExerciseSelector extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
-        ).actionableFeedback();
+        ).actionableFeedback(role: ActionableFeedbackRole.silent);
       },
     );
   }
@@ -46,8 +47,9 @@ class ExerciseSelector extends StatelessWidget {
       isScrollControlled: true,
       builder: (context) => _ExercisePickerSheet(catalog: catalog),
     );
-    if (selectedName == null) return;
+    if (selectedName == null || selectedName == controller.text) return;
 
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     controller.text = selectedName;
   }
 }
@@ -71,20 +73,28 @@ class _ExercisePickerSheet extends StatelessWidget {
                   if (catalog.recent.isNotEmpty) ...[
                     const _SectionLabel('Recent'),
                     ...catalog.recent.map(
-                      (name) => ListTile(
-                        leading: const Icon(Icons.history),
-                        title: Text(exerciseDisplayName(name)),
-                        onTap: () => Navigator.pop(context, name),
-                      ).actionableFeedback(enabled: true),
+                      (name) =>
+                          ListTile(
+                            leading: const Icon(Icons.history),
+                            title: Text(exerciseDisplayName(name)),
+                            onTap: () => Navigator.pop(context, name),
+                          ).actionableFeedback(
+                            enabled: true,
+                            role: ActionableFeedbackRole.silent,
+                          ),
                     ),
                     const Divider(),
                   ],
                   const _SectionLabel('All Exercises'),
                   ...catalog.all.map(
-                    (name) => ListTile(
-                      title: Text(exerciseDisplayName(name)),
-                      onTap: () => Navigator.pop(context, name),
-                    ).actionableFeedback(enabled: true),
+                    (name) =>
+                        ListTile(
+                          title: Text(exerciseDisplayName(name)),
+                          onTap: () => Navigator.pop(context, name),
+                        ).actionableFeedback(
+                          enabled: true,
+                          role: ActionableFeedbackRole.silent,
+                        ),
                   ),
                 ],
               ),
@@ -94,7 +104,10 @@ class _ExercisePickerSheet extends StatelessWidget {
               leading: const Icon(Icons.add),
               title: const Text('Add Custom Exercise'),
               onTap: () => _addCustomExercise(context),
-            ).actionableFeedback(enabled: true),
+            ).actionableFeedback(
+              enabled: true,
+              role: ActionableFeedbackRole.silent,
+            ),
           ],
         ),
       ),
@@ -145,13 +158,13 @@ class _AddCustomExerciseDialogState extends State<_AddCustomExerciseDialog> {
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: ActionableFeedbackRole.silent),
         FilledButton(
           onPressed: _nameController.text.trim().isEmpty
               ? null
               : () => _registerAndClose(_nameController.text),
           child: const Text('Save'),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     );
   }

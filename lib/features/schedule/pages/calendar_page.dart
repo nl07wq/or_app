@@ -137,10 +137,13 @@ class _CalendarPageState extends State<CalendarPage> {
     _dayRollover?.cancel();
     final now = DateTime.now();
     final nextDay = DateTime(now.year, now.month, now.day + 1);
-    _dayRollover = Timer(nextDay.difference(now) + const Duration(seconds: 1), () {
-      if (mounted) unawaited(_load(showLoading: false));
-      _scheduleDayRollover();
-    });
+    _dayRollover = Timer(
+      nextDay.difference(now) + const Duration(seconds: 1),
+      () {
+        if (mounted) unawaited(_load(showLoading: false));
+        _scheduleDayRollover();
+      },
+    );
   }
 
   Future<void> _loadWeather({
@@ -196,6 +199,8 @@ class _CalendarPageState extends State<CalendarPage> {
     );
     final next =
         locations[(index + direction + locations.length) % locations.length];
+    if (next.stableId == activeId) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     await _weatherService.setActiveLocation(next.stableId);
     if (!mounted) return;
     setState(() {
@@ -212,8 +217,15 @@ class _CalendarPageState extends State<CalendarPage> {
   void _selectWeatherDate(String value) {
     final date = DateTime.tryParse(value);
     if (date == null) return;
+    final next = _dateOnly(date);
+    if (_sameDay(_selected, next) &&
+        _month.year == next.year &&
+        _month.month == next.month) {
+      return;
+    }
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     setState(() {
-      _selected = _dateOnly(date);
+      _selected = next;
       _month = DateTime(date.year, date.month);
     });
     _load();
@@ -228,8 +240,25 @@ class _CalendarPageState extends State<CalendarPage> {
     _selectWeatherDate(days[next].date);
   }
 
-  void _toggleWeatherDisclosure() =>
-      setState(() => _weatherExpanded = !_weatherExpanded);
+  void _toggleWeatherDisclosure() {
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    setState(() => _weatherExpanded = !_weatherExpanded);
+  }
+
+  void _toggleWeatherHourly() {
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    setState(() => _weatherHourlyExpanded = !_weatherHourlyExpanded);
+  }
+
+  void _toggleWeatherDetails() {
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    setState(() => _weatherDetailsExpanded = !_weatherDetailsExpanded);
+  }
+
+  void _toggleWeatherSevenDay() {
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    setState(() => _weatherSevenDayExpanded = !_weatherSevenDayExpanded);
+  }
 
   /// Calendar actions retain their normal callback path; this only folds the
   /// contextual Weather layer before that action proceeds.
@@ -453,18 +482,9 @@ class _CalendarPageState extends State<CalendarPage> {
                           onSwipeDate: _shiftWeatherDate,
                           onSwipeLocation: _switchWeatherLocation,
                           onToggleDisclosure: _toggleWeatherDisclosure,
-                          onToggleHourly: () => setState(
-                            () => _weatherHourlyExpanded =
-                                !_weatherHourlyExpanded,
-                          ),
-                          onToggleDetails: () => setState(
-                            () => _weatherDetailsExpanded =
-                                !_weatherDetailsExpanded,
-                          ),
-                          onToggleSevenDay: () => setState(
-                            () => _weatherSevenDayExpanded =
-                                !_weatherSevenDayExpanded,
-                          ),
+                          onToggleHourly: _toggleWeatherHourly,
+                          onToggleDetails: _toggleWeatherDetails,
+                          onToggleSevenDay: _toggleWeatherSevenDay,
                         ),
                         GestureDetector(
                           behavior: HitTestBehavior.translucent,
@@ -479,6 +499,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                 byDate: _byDate,
                                 onPrevious: () {
                                   _collapseWeatherForCalendarAction();
+                                  GlobalTouchRipple.previewFeedback(
+                                    TouchFeedbackSound.cursor,
+                                  );
                                   setState(
                                     () => _month = DateTime(
                                       _month.year,
@@ -489,6 +512,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                 },
                                 onNext: () {
                                   _collapseWeatherForCalendarAction();
+                                  GlobalTouchRipple.previewFeedback(
+                                    TouchFeedbackSound.cursor,
+                                  );
                                   setState(
                                     () => _month = DateTime(
                                       _month.year,
@@ -505,6 +531,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                       _month.month != now.month;
                                   if (!changed) return;
                                   _collapseWeatherForCalendarAction();
+                                  GlobalTouchRipple.previewFeedback(
+                                    TouchFeedbackSound.cursor,
+                                  );
                                   setState(() {
                                     _selected = now;
                                     _month = DateTime(now.year, now.month);
@@ -514,6 +543,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                 onSelect: (date) {
                                   if (_sameDay(_selected, date)) return;
                                   _collapseWeatherForCalendarAction();
+                                  GlobalTouchRipple.previewFeedback(
+                                    TouchFeedbackSound.cursor,
+                                  );
                                   setState(() => _selected = date);
                                 },
                               ),
@@ -909,7 +941,6 @@ class _CalendarWeatherHud extends StatelessWidget {
                       day: selected,
                       snapshot: snapshot!,
                       onSwipeDate: onSwipeDate,
-                      silentOnTap: !expanded,
                       onTap: expanded
                           ? () => _showDailyForecastDetail(
                               context,
@@ -1004,7 +1035,7 @@ class WeatherSurfaceGesture extends StatelessWidget {
           }
         : null,
     child: child,
-  ).actionableFeedback();
+  ).actionableFeedback(role: ActionableFeedbackRole.silent);
 }
 
 class _WeatherHeader extends StatelessWidget {
@@ -2111,14 +2142,12 @@ class _WeatherSummary extends StatelessWidget {
     required this.snapshot,
     required this.onSwipeDate,
     required this.onTap,
-    required this.silentOnTap,
   });
 
   final WeatherDaily day;
   final WeatherSnapshot snapshot;
   final ValueChanged<int> onSwipeDate;
   final VoidCallback onTap;
-  final bool silentOnTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2153,73 +2182,62 @@ class _WeatherSummary extends StatelessWidget {
         final velocity = details.primaryVelocity ?? 0;
         if (velocity.abs() > 120) onSwipeDate(velocity < 0 ? 1 : -1);
       },
-      child:
-          InkWell(
-            onTap: onTap,
-            child: Container(
-              key: const ValueKey('weather-selected-day'),
-              margin: const EdgeInsets.fromLTRB(12, 3, 12, 2),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: scheme.primary.withValues(alpha: .35),
-                ),
-                borderRadius: BorderRadius.circular(8),
-                gradient: LinearGradient(
-                  colors: [
-                    scheme.primary.withValues(alpha: .12),
-                    Colors.transparent,
-                  ],
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          key: const ValueKey('weather-selected-day'),
+          margin: const EdgeInsets.fromLTRB(12, 3, 12, 2),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            border: Border.all(color: scheme.primary.withValues(alpha: .35)),
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: .12),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$label  ${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: scheme.primary,
+                  letterSpacing: .7,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 5),
+              Row(
                 children: [
-                  Text(
-                    '$label  ${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: scheme.primary,
-                      letterSpacing: .7,
+                  Icon(_weatherIcon(day.code), color: scheme.primary, size: 23),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _weatherConditionJapanese(day.code),
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(
-                        _weatherIcon(day.code),
-                        color: scheme.primary,
-                        size: 23,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _weatherConditionJapanese(day.code),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ),
-                      Text('最低 ${day.low.round()}℃ · 最高 ${day.high.round()}℃'),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '降水 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm${representative == null ? '' : ' · 風 ${representative.windSpeed.round()}km/h'}',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    summary.primary,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: scheme.onSurface),
-                  ),
+                  Text('最低 ${day.low.round()}℃ · 最高 ${day.high.round()}℃'),
                 ],
               ),
-            ),
-          ).actionableFeedback(
-            role: silentOnTap
-                ? ActionableFeedbackRole.silent
-                : ActionableFeedbackRole.command,
+              const SizedBox(height: 4),
+              Text(
+                '降水 ${day.precipitationProbability}% · ${day.precipitation.toStringAsFixed(1)}mm${representative == null ? '' : ' · 風 ${representative.windSpeed.round()}km/h'}',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                summary.primary,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurface),
+              ),
+            ],
           ),
+        ),
+      ).actionableFeedback(role: ActionableFeedbackRole.silent),
     );
   }
 }
@@ -5306,11 +5324,9 @@ class _MonthGridState extends State<_MonthGrid> {
       // feedback-guard: drag-only; calendar cells own their discrete taps.
       onHorizontalDragEnd: (details) {
         if ((details.primaryVelocity ?? 0) > 180) {
-          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.success);
           widget.onPrevious();
         }
         if ((details.primaryVelocity ?? 0) < -180) {
-          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.success);
           widget.onNext();
         }
       },
@@ -5323,6 +5339,7 @@ class _MonthGridState extends State<_MonthGrid> {
               children: [
                 ActionableFeedbackButton(
                   enabled: true,
+                  role: ActionableFeedbackRole.silent,
                   child: IconButton(
                     onPressed: widget.onPrevious,
                     icon: const Icon(Icons.chevron_left),
@@ -5354,6 +5371,7 @@ class _MonthGridState extends State<_MonthGrid> {
                 ),
                 ActionableFeedbackButton(
                   enabled: true,
+                  role: ActionableFeedbackRole.silent,
                   child: IconButton(
                     onPressed: widget.onNext,
                     icon: const Icon(Icons.chevron_right),
@@ -5365,11 +5383,7 @@ class _MonthGridState extends State<_MonthGrid> {
               alignment: Alignment.centerLeft,
               child: ActionableFeedbackButton(
                 enabled: true,
-                role: _sameDay(widget.selected, DateTime.now()) &&
-                        widget.month.year == DateTime.now().year &&
-                        widget.month.month == DateTime.now().month
-                    ? ActionableFeedbackRole.silent
-                    : ActionableFeedbackRole.command,
+                role: ActionableFeedbackRole.silent,
                 child: TextButton(
                   style: TextButton.styleFrom(
                     shape: const BeveledRectangleBorder(
@@ -5554,11 +5568,7 @@ class _MonthGridState extends State<_MonthGrid> {
                               ],
                             ),
                           ),
-                        ).actionableFeedback(
-                          role: isSelected
-                              ? ActionableFeedbackRole.silent
-                              : ActionableFeedbackRole.command,
-                        ),
+                        ).actionableFeedback(role: ActionableFeedbackRole.silent),
                       );
                     },
                   ),

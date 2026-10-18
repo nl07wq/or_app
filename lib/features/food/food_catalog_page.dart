@@ -730,6 +730,8 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       ),
     );
     if (selection == null || !mounted) return;
+    if (selection.visualKey == _visualKey) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     setState(() => _visualKey = selection.visualKey);
   }
 
@@ -1150,7 +1152,13 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                       value: _category,
                       values: FoodCatalogCategory.values,
                       text: foodCatalogCategoryLabel,
-                      onChanged: (value) => setState(() => _category = value),
+                      onChanged: (value) {
+                        if (value == _category) return;
+                        GlobalTouchRipple.previewFeedback(
+                          TouchFeedbackSound.cursor,
+                        );
+                        setState(() => _category = value);
+                      },
                     );
                     final thumbnail = _FoodThumbnailField(
                       visualKey: _visualKey,
@@ -1582,7 +1590,7 @@ class _FoodVisualChoice extends StatelessWidget {
               ],
             ),
           ),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ),
     );
   }

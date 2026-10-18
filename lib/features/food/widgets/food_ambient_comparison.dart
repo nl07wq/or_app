@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
+
 enum FoodAmbientVariant {
   chromaticFluid('CHROMATIC FLUID'),
   metabolicCells('METABOLIC CELLS'),
@@ -71,11 +74,20 @@ class FoodAmbientComparisonSelector extends StatelessWidget {
             runSpacing: 6,
             children: [
               for (final v in FoodAmbientVariant.values)
-                ChoiceChip(
-                  key: ValueKey('food-ambient-${v.name}'),
-                  label: Text(v.label),
-                  selected: v == selected,
-                  onSelected: (_) => onChanged(v),
+                ActionableFeedbackRegion(
+                  role: ActionableFeedbackRole.silent,
+                  child: ChoiceChip(
+                    key: ValueKey('food-ambient-${v.name}'),
+                    label: Text(v.label),
+                    selected: v == selected,
+                    onSelected: (_) {
+                      if (v == selected) return;
+                      GlobalTouchRipple.previewFeedback(
+                        TouchFeedbackSound.cursor,
+                      );
+                      onChanged(v);
+                    },
+                  ),
                 ),
             ],
           ),
@@ -374,14 +386,18 @@ class _FoodAmbientPainter extends CustomPainter {
           ..color = Color.lerp(a.color, b.color, .5)!.withValues(alpha: .12),
       );
       final exchange = (t * (.18 + i * .006) + i * .17) % 1;
-      final reaction = Offset.lerp(a.center, b.center, exchange)! +
+      final reaction =
+          Offset.lerp(a.center, b.center, exchange)! +
           Offset(0, math.sin(exchange * math.pi * 2 + a.phase) * 7);
       c.drawCircle(
         reaction,
         2.2 + math.sin(exchange * math.pi).abs() * 1.8,
         Paint()
-          ..color = Color.lerp(a.color, b.color, exchange)!
-              .withValues(alpha: .48)
+          ..color = Color.lerp(
+            a.color,
+            b.color,
+            exchange,
+          )!.withValues(alpha: .48)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
       );
     }

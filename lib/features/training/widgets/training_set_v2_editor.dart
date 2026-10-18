@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 
 import '../../../core/models/training_set_v2.dart';
 import '../../../core/theme/app_radius.dart';
@@ -280,6 +281,10 @@ class _SetEditor extends StatelessWidget {
                     for (var value = 1; value <= 10; value++) Text('$value'),
                   ],
                   onChanged: (value) {
+                    if (value == set.rpe) return;
+                    GlobalTouchRipple.previewFeedback(
+                      TouchFeedbackSound.cursor,
+                    );
                     set.rpe = value;
                     onChanged();
                   },
@@ -316,11 +321,15 @@ class _SetEditor extends StatelessWidget {
                           selected: set.rest.text.trim() == '$seconds',
                         ),
                         onPressed: () {
+                          if (set.rest.text.trim() == '$seconds') return;
+                          GlobalTouchRipple.previewFeedback(
+                            TouchFeedbackSound.cursor,
+                          );
                           set.rest.text = '$seconds';
                           onChanged();
                         },
                         child: Text('$seconds'),
-                      ).actionableFeedback(),
+                      ).actionableFeedback(role: ActionableFeedbackRole.silent),
                     ),
                   ),
               ],
@@ -366,7 +375,8 @@ class _SetEditor extends StatelessWidget {
           DropdownMenuItem(value: TrainingSetType.main, child: Text('MAIN')),
         ],
         onChanged: (value) {
-          if (value == null) return;
+          if (value == null || value == set.setType) return;
+          GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
           set.setType = value;
           onChanged();
         },

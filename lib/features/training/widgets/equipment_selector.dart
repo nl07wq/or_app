@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 
 import '../models/equipment.dart';
 import '../services/equipment_catalog.dart';
@@ -72,7 +73,7 @@ class _EquipmentSelectorState extends State<EquipmentSelector> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ).actionableFeedback();
+            ).actionableFeedback(role: ActionableFeedbackRole.silent);
           },
         );
       },
@@ -88,7 +89,10 @@ class _EquipmentSelectorState extends State<EquipmentSelector> {
       builder: (context) => _EquipmentPickerSheet(equipment: equipment),
     );
     if (selectedId == null) return;
-    widget.controller.value = selectedId.isEmpty ? null : selectedId;
+    final next = selectedId.isEmpty ? null : selectedId;
+    if (next == widget.controller.value) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    widget.controller.value = next;
   }
 
   void _handleExerciseChanged() {
@@ -119,13 +123,19 @@ class _EquipmentPickerSheet extends StatelessWidget {
           ListTile(
             title: const Text('なし'),
             onTap: () => Navigator.pop(context, ''),
-          ).actionableFeedback(enabled: true),
+          ).actionableFeedback(
+            enabled: true,
+            role: ActionableFeedbackRole.silent,
+          ),
           const Divider(height: 1),
           for (final item in equipment)
             ListTile(
               title: Text(equipmentDisplayNameJa(item)),
               onTap: () => Navigator.pop(context, item.id),
-            ).actionableFeedback(enabled: true),
+            ).actionableFeedback(
+              enabled: true,
+              role: ActionableFeedbackRole.silent,
+            ),
         ],
       ),
     );

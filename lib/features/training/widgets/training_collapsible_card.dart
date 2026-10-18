@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -36,6 +37,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     void handleToggle() {
       FocusManager.instance.primaryFocus?.unfocus();
+      GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
       onToggle();
     }
 
@@ -105,7 +107,7 @@ class TrainingCollapsibleCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ).actionableFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.silent),
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 180),

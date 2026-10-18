@@ -51,6 +51,31 @@ void main() {
     );
     expect(rippleEvents, 0);
   });
+
+  testWidgets('FOOD ambient selector emits CURSOR only for a changed variant', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: const FoodPage(),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('food-ambient-chromaticFluid')),
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('food-ambient-metabolicCells')),
+    );
+    await tester.pump();
+
+    expect(audio.played, [TouchFeedbackSound.cursor]);
+  });
   testWidgets('food database uses Japanese human-facing description', (
     tester,
   ) async {

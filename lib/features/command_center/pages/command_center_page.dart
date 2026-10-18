@@ -147,7 +147,12 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
   }
 
   void _selectPage(int page) {
-    if (_currentPage != page) setState(() => _currentPage = page);
+    if (_currentPage == page) return;
+    if (page == CommandCenterSection.dailyCommand.index ||
+        page == CommandCenterSection.dataCenter.index) {
+      GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    }
+    setState(() => _currentPage = page);
     _pageController.animateToPage(
       page,
       duration: const Duration(milliseconds: 200),

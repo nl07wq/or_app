@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/models/food_item.dart';
@@ -1337,9 +1338,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
     setState(() => inputError = null);
   }
 
-  Future<void> _changeRecipeAdjustmentMode(
-    _RecipeAdjustmentMode mode,
-  ) async {
+  Future<void> _changeRecipeAdjustmentMode(_RecipeAdjustmentMode mode) async {
     if (mode == _recipeAdjustmentMode) return;
     final source = _pendingRecipeSource;
     if (source == null) return;
@@ -1371,6 +1370,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       setState(() => inputError = 'ENTER A VALID RECIPE QUANTITY.');
       return;
     }
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     setState(() {
       if (mode == _RecipeAdjustmentMode.ingredientAdjust) {
         final drafts = _recipeDraftsForQuantity(source, quantity!);
@@ -1380,9 +1380,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
           ..clear()
           ..addAll(
             drafts.map(
-              (draft) => TextEditingController(
-                text: _formatAmount(draft.quantity),
-              ),
+              (draft) =>
+                  TextEditingController(text: _formatAmount(draft.quantity)),
             ),
           );
       } else {
@@ -1769,9 +1768,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       final provenanceSnapshots = List<FoodDataProvenance?>.from(
         _provenanceSnapshots,
       );
-      final nutritionStatuses = List<NutritionStatus?>.from(
-        _nutritionStatuses,
-      );
+      final nutritionStatuses = List<NutritionStatus?>.from(_nutritionStatuses);
       final brandSnapshots = List<String?>.from(_brandSnapshots);
       final categories = List<FoodCatalogCategory?>.from(_categories);
       final itemMemos = List<String?>.from(_itemMemos);
@@ -1846,6 +1843,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   void _switchInputMode(_FoodEntryInputMode mode) {
     if (_inputMode == mode || !_canSwitchInputMode) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     setState(() {
       _inputMode = mode;
       inputError = null;
@@ -1891,13 +1889,18 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
         onChanged: _isSaving
             ? null
-            : (value) => setState(() {
-                isWaterEntry = value ?? false;
-                if (isWaterEntry) {
-                  _pendingDatabaseSelection = null;
-                  _pendingQuantityController.clear();
-                }
-              }),
+            : (value) {
+                final next = value ?? false;
+                if (next == isWaterEntry) return;
+                GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+                setState(() {
+                  isWaterEntry = next;
+                  if (isWaterEntry) {
+                    _pendingDatabaseSelection = null;
+                    _pendingQuantityController.clear();
+                  }
+                });
+              },
       ).inputFeedback(),
     ],
   );
@@ -1943,7 +1946,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
         onChanged: isWaterEntry || _isSaving
             ? null
-            : (value) => setState(() => mealType = value ?? mealType),
+            : (value) {
+                final next = value ?? mealType;
+                if (next == mealType) return;
+                GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+                setState(() => mealType = next);
+              },
       ).inputFeedback(),
     ],
   );
@@ -2113,6 +2121,8 @@ class _FoodInputFormState extends State<FoodInputForm> {
   };
 
   void _setMasterListExpanded(_FoodEntryInputMode mode, bool expanded) {
+    if (_isMasterListExpanded(mode) == expanded) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     setState(() {
       switch (mode) {
         case _FoodEntryInputMode.databaseFood:
@@ -2199,7 +2209,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
         ),
         onPressed: () => _setMasterListExpanded(mode, !expanded),
         child: Text(expanded ? '折りたたむ' : 'さらに表示'),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.silent),
     );
   }
 

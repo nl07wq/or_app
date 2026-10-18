@@ -27,6 +27,7 @@ import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/device_settings_controller.dart';
+import '../../core/services/touch_ripple_audio.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/holographic_ambient_background.dart';
 import '../../core/widgets/global_touch_ripple.dart';
@@ -1073,6 +1074,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _showQuickWaterInput(BuildContext context) {
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -3661,9 +3663,16 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
                 onPressed: _isSaving ? null : _saveCustomAmount,
               ),
               TextButton(
-                onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                onPressed: _isSaving
+                    ? null
+                    : () {
+                        GlobalTouchRipple.previewFeedback(
+                          TouchFeedbackSound.cursor,
+                        );
+                        Navigator.of(context).pop();
+                      },
                 child: const Text('Cancel'),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ],
           ),
         ),
