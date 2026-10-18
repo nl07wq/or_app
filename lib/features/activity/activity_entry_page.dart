@@ -716,16 +716,22 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               if (_hasDraftConflict) ...[
                 AppSpacing.gapMD,
                 const MaterialBanner(
+                  backgroundColor: Colors.transparent,
                   content: Text('同じ日付の未確定Draftがあります。正式Recordを優先して表示しています。'),
                   actions: [SizedBox.shrink()],
                 ),
               ],
               AppSpacing.gapMD,
-              ListTile(
-                title: const Text('Date'),
-                trailing: Text(_formatDate(_date)),
-                onTap: _isFormal ? null : _pickDate,
-              ).inputFeedback(),
+              DecoratedBox(
+                decoration: DashboardGlassCard.decoration(
+                  Theme.of(context).colorScheme,
+                ),
+                child: ListTile(
+                  title: const Text('Date'),
+                  trailing: Text(_formatDate(_date)),
+                  onTap: _isFormal ? null : _pickDate,
+                ).inputFeedback(),
+              ),
               AppSpacing.gapMD,
               _MeasuredStepsField(
                 controller: _measuredStepsController,
@@ -1036,6 +1042,14 @@ class _QuickStepRow extends StatelessWidget {
               minimumSize: const Size(0, 40),
               padding: const EdgeInsets.symmetric(horizontal: 2),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: .18),
+              side: BorderSide(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .18),
+              ),
             ),
             child: FittedBox(child: Text('+${values[index]}')),
           ).actionableFeedback(),
@@ -1059,7 +1073,7 @@ class _ReadOnlyStepDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InputDecorator(
-      decoration: InputDecoration(labelText: label),
+      decoration: _activityGlassInputDecoration(context, label),
       child: Text('$prefix${_formatSteps(value)} steps'),
     );
   }
@@ -1073,12 +1087,27 @@ class _OfficialStepsDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InputDecorator(
-      decoration: const InputDecoration(labelText: 'Official steps'),
+      decoration: _activityGlassInputDecoration(context, 'Official steps'),
       child: Text(
         officialSteps == null ? '--' : '${_formatSteps(officialSteps!)} steps',
       ),
     );
   }
+}
+
+InputDecoration _activityGlassInputDecoration(
+  BuildContext context,
+  String label,
+) {
+  final scheme = Theme.of(context).colorScheme;
+  return InputDecoration(
+    labelText: label,
+    filled: true,
+    fillColor: scheme.surface.withValues(alpha: .22),
+    enabledBorder: OutlineInputBorder(
+      borderSide: BorderSide(color: scheme.primary.withValues(alpha: .18)),
+    ),
+  );
 }
 
 String _formatSteps(int steps) => steps.toString().replaceAllMapped(

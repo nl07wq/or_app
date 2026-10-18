@@ -22,6 +22,7 @@ void main() {
         expect(page, contains('AmbientPageScaffold'));
         expect(page, contains('StatusAmbientBackground'));
         expect(page, contains('forceMaterialTransparency: true'));
+        expect(page, contains('elevation: 0'));
       }
     },
   );
@@ -53,23 +54,40 @@ void main() {
         source('lib/features/activity/widgets/digestive_event_card.dart'),
         contains('DashboardGlassCard'),
       );
+      final entry = source('lib/features/activity/activity_entry_page.dart');
+      expect(entry, contains('DashboardGlassCard.decoration'));
+      expect(entry, contains('_activityGlassInputDecoration'));
+      expect(entry, contains('backgroundColor: Colors.transparent'));
+      expect(entry, contains('glass: true'));
     },
   );
 
-  test(
-    'shared calendar only receives STATUS ambient through an explicit context',
-    () {
-      final calendar = source('lib/features/schedule/pages/calendar_page.dart');
-      final status = source('lib/features/morning/morning_page.dart');
-      expect(calendar, contains('enum CalendarAmbientContext { status }'));
-      expect(calendar, contains('StatusAmbientBackground'));
-      expect(
-        calendar,
-        contains('widget.ambientContext == CalendarAmbientContext.status'),
-      );
-      expect(status, contains('ambientContext: CalendarAmbientContext.status'));
-    },
-  );
+  test('shared calendar retains CIRCUIT ambient for every caller context', () {
+    final calendar = source('lib/features/schedule/pages/calendar_page.dart');
+    final status = source('lib/features/morning/morning_page.dart');
+    expect(calendar, contains('enum CalendarAmbientContext { status }'));
+    expect(calendar, contains('HolographicAmbientBackground'));
+    expect(calendar, isNot(contains('StatusAmbientBackground')));
+    expect(
+      RegExp('HolographicAmbientBackground').allMatches(calendar).length,
+      greaterThanOrEqualTo(2),
+    );
+    expect(
+      calendar,
+      contains('widget.ambientContext == CalendarAmbientContext.status'),
+    );
+    expect(status, contains('ambientContext: CalendarAmbientContext.status'));
+  });
+
+  test('ambient scaffold keeps the field above transparent route material', () {
+    final scaffold = source('lib/core/widgets/ambient_page_scaffold.dart');
+    expect(scaffold, contains('backgroundColor: Colors.transparent'));
+    expect(
+      scaffold,
+      contains('Positioned.fill(child: ExcludeSemantics(child: ambient))'),
+    );
+    expect(scaffold, contains('extendBodyBehindAppBar: true'));
+  });
 
   test(
     'glass input treatment is opt-in and does not affect unrelated inputs',

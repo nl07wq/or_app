@@ -28,7 +28,6 @@ import '../widgets/shared_date_time_recurrence_editor.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
-import '../../morning/widgets/status_radial_spectrum_ambient.dart';
 import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
 import '../models/schedule_plan_revision.dart';
@@ -472,11 +471,10 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: isStatusAmbient
-                ? const StatusAmbientBackground()
-                : const HolographicAmbientBackground(),
-          ),
+          // Calendar and Schedule always retain their own CIRCUIT ambient.
+          // The STATUS context only preserves the V1 transparent Glass route
+          // surface; it must never replace this feature-owned background.
+          const Positioned.fill(child: HolographicAmbientBackground()),
           Positioned.fill(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -5729,7 +5727,9 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (isStatusAmbient) const StatusAmbientBackground(),
+          // Schedule editors share the calendar's CIRCUIT field even when
+          // opened through STATUS. Their Glass route treatment remains below.
+          const HolographicAmbientBackground(),
           SafeArea(
             top: !isStatusAmbient,
             child: SingleChildScrollView(

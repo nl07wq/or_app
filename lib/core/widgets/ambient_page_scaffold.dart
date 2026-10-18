@@ -17,16 +17,20 @@ class AmbientPageScaffold extends StatelessWidget {
   final bool resizeToAvoidBottomInset;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    extendBodyBehindAppBar: true,
-    resizeToAvoidBottomInset: resizeToAvoidBottomInset,
-    appBar: appBar,
-    body: Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: ExcludeSemantics(child: ambient)),
-        body,
-      ],
-    ),
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Positioned.fill(child: ExcludeSemantics(child: ambient)),
+      Scaffold(
+        // The route material must not paint over the ambient before the
+        // transparent AppBar is composited. Keeping it outside the Scaffold
+        // also makes the status-bar and header share the same field.
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
+        resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+        appBar: appBar,
+        body: body,
+      ),
+    ],
   );
 }
