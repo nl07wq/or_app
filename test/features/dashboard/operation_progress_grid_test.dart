@@ -2097,9 +2097,17 @@ void main() {
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
 
+    final logoFinder = find.byKey(const ValueKey('dashboard-brand-logo'));
     expect(
-      tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
+      tester.getSize(logoFinder).height,
       DashboardNeonTubeGeometry.logoSize,
+    );
+    final logoImage = tester.widget<Image>(logoFinder);
+    expect(logoImage.fit, BoxFit.contain);
+    expect(logoImage.colorBlendMode, BlendMode.modulate);
+    expect(
+      (logoImage.image as AssetImage).assetName,
+      'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
     );
     final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
     expect(
@@ -2152,9 +2160,9 @@ void main() {
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(6, 7));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(4, 5));
     expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
-    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(7, 8));
+    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(5, 7));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),
@@ -2233,6 +2241,23 @@ void main() {
       }
     },
   );
+
+  testWidgets('Dashboard neon logo V2 matches the stable visual reference', (
+    tester,
+  ) async {
+    final database = FakeIndexedDbDatabase();
+    seedOperationState(database, '2026-07-28');
+    AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+    addTearDown(AppRepositoryRegistry.resetForTesting);
+
+    await _pumpDashboard(tester, width: 390);
+    await _settleDashboard(tester);
+
+    await expectLater(
+      find.byKey(const ValueKey('dashboard-neon-physical-sign')),
+      matchesGoldenFile('goldens/dashboard_neon_logo_v2.png'),
+    );
+  });
 
   testWidgets('DAILY COMMAND standby lamp fits supported widths', (
     tester,

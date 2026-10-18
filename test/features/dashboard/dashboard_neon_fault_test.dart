@@ -56,10 +56,15 @@ void main() {
         lessThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right),
       );
       expect(DashboardNeonTubeGeometry.signHorizontalPadding, 1);
-      expect(DashboardNeonTubeGeometry.leftContentClearance, 6.5);
+      expect(DashboardNeonTubeGeometry.logoSize, 33);
+      expect(DashboardNeonTubeGeometry.logoVisibleWidth, closeTo(32.21, .01));
+      expect(DashboardNeonTubeGeometry.logoVisibleHeight, closeTo(30.31, .01));
+      expect(DashboardNeonTubeGeometry.logoGlowOpacity, .34);
+      expect(DashboardNeonTubeGeometry.logoCoreOpacity, .90);
+      expect(DashboardNeonTubeGeometry.leftContentClearance, 4.5);
       expect(
         DashboardNeonTubeGeometry.rightContentClearance,
-        closeTo(7.2, .01),
+        closeTo(5.2, .01),
       );
       expect(
         DashboardNeonTubeGeometry.lockupWidth,

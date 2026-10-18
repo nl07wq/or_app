@@ -599,8 +599,15 @@ abstract final class DashboardNeonTubeGeometry {
   static const signHorizontalPadding = 1.0;
   static const contentSafeHorizontalClearance = 3.0;
   static const contentSafeVerticalClearance = 2.0;
-  static const logoSize = 28.0;
-  static const logoWordmarkGap = 2.0;
+  static const logoSize = 33.0;
+  static const logoWordmarkGap = 1.0;
+  // Measured from the supplied 1290px transparent canvas at alpha > 8.
+  static const logoVisibleWidthFraction = 1259 / 1290;
+  static const logoVisibleHeightFraction = 1185 / 1290;
+  static const logoVisibleWidth = logoSize * logoVisibleWidthFraction;
+  static const logoVisibleHeight = logoSize * logoVisibleHeightFraction;
+  static const logoGlowOpacity = .34;
+  static const logoCoreOpacity = .90;
   static const lockupOffsetX = 0.0;
 
   static const wordmarkWidth = 80.0;
@@ -4046,7 +4053,9 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                           alignment: Alignment.center,
                           children: [
                             Opacity(
-                              opacity: .22 * _phase.outerGlowIntensity,
+                              opacity:
+                                  DashboardNeonTubeGeometry.logoGlowOpacity *
+                                  _phase.outerGlowIntensity,
                               child: Image.asset(
                                 'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
                                 height: DashboardNeonTubeGeometry.logoSize,
@@ -4056,14 +4065,16 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                               ),
                             ),
                             Opacity(
-                              opacity: .78 * _phase.logoIntensity,
+                              opacity:
+                                  DashboardNeonTubeGeometry.logoCoreOpacity *
+                                  _phase.logoIntensity,
                               child: Image.asset(
                                 'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
                                 key: const ValueKey('dashboard-brand-logo'),
                                 height: DashboardNeonTubeGeometry.logoSize,
                                 fit: BoxFit.contain,
                                 color: coreColor,
-                                colorBlendMode: BlendMode.srcIn,
+                                colorBlendMode: BlendMode.modulate,
                               ),
                             ),
                           ],
