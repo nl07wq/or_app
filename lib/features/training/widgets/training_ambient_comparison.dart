@@ -958,37 +958,37 @@ class _TrainingAmbientPainter extends CustomPainter {
 
     switch (variant) {
       case KineticGearVisualVariant.openSpoke:
-        canvas.drawCircle(gear.center, r * .71, Paint()..color = well);
-        outline(r * .66, .085);
+        canvas.drawCircle(gear.center, r * .85, Paint()..color = well);
+        outline(r * .82, .052);
         for (var i = 0; i < spokeCount; i++) {
-          wedgeSpoke(angle + i * math.pi * 2 / spokeCount, .14, .65, .085);
+          wedgeSpoke(angle + i * math.pi * 2 / spokeCount, .14, .84, .085);
         }
       case KineticGearVisualVariant.thinRim:
-        canvas.drawCircle(gear.center, r * .77, Paint()..color = well);
-        outline(r * .73, .052);
+        canvas.drawCircle(gear.center, r * .88, Paint()..color = well);
+        outline(r * .85, .038);
         for (var i = 0; i < 3; i++) {
-          wedgeSpoke(angle + .25 + i * math.pi * 2 / 3, .17, .70, .042);
+          wedgeSpoke(angle + .25 + i * math.pi * 2 / 3, .17, .87, .042);
         }
       case KineticGearVisualVariant.cutoutDisc:
-        canvas.drawCircle(gear.center, r * .70, Paint()..color = well);
+        canvas.drawCircle(gear.center, r * .84, Paint()..color = well);
         for (var i = 0; i < spokeCount; i++) {
           final a = angle + .18 + i * math.pi * 2 / spokeCount;
           hole(a, .45, i.isEven ? .135 : .095);
         }
       case KineticGearVisualVariant.pinion:
-        canvas.drawCircle(gear.center, r * .63, Paint()..color = well);
+        canvas.drawCircle(gear.center, r * .76, Paint()..color = well);
         for (var i = 0; i < 3; i++) {
-          wedgeSpoke(angle + i * math.pi * 2 / 3, .12, .58, .11);
+          wedgeSpoke(angle + i * math.pi * 2 / 3, .12, .75, .11);
         }
       case KineticGearVisualVariant.asymmetric:
-        canvas.drawCircle(gear.center, r * .70, Paint()..color = well);
+        canvas.drawCircle(gear.center, r * .84, Paint()..color = well);
         const offsets = [0.0, .72, 2.12, 3.45, 5.02];
         for (var i = 0; i < offsets.length; i++) {
           final a = angle + offsets[i];
           if (i.isEven) {
             hole(a, .43, .14);
           } else {
-            wedgeSpoke(a, .17, .63, .055);
+            wedgeSpoke(a, .17, .83, .055);
           }
         }
     }
