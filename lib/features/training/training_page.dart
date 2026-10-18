@@ -40,20 +40,16 @@ class _TrainingPageState extends State<TrainingPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (_ambientVariant != TrainingAmbientVariant.kineticEngine)
-            TrainingAmbientComparison(variant: _ambientVariant),
+          // KINETIC ENGINE is a fixed viewport ambient. Its reference image
+          // is authored at the matching portrait ratio, while only the
+          // foreground content below scrolls.
+          TrainingAmbientComparison(variant: _ambientVariant),
           SingleChildScrollView(
             padding: MediaQuery.sizeOf(context).width < 360
                 ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)
                 : AppSpacing.cardPadding,
             child: Stack(
               children: [
-                if (_ambientVariant == TrainingAmbientVariant.kineticEngine)
-                  const Positioned.fill(
-                    child: TrainingAmbientComparison(
-                      variant: TrainingAmbientVariant.kineticEngine,
-                    ),
-                  ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

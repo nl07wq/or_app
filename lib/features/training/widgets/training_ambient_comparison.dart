@@ -67,7 +67,7 @@ class TrainingAmbientComparison extends StatefulWidget {
   final TrainingAmbientVariant variant;
 
   static const kineticEngineBackgroundAsset =
-      'assets/images/training/kinetic_engine_v9_background.jpg';
+      'assets/images/training/kinetic_engine_v9_background.png';
 
   /// V6.2 inventory. Each entry becomes one visibly emitted tooth profile.
   static const kineticGearToothCounts = <int>[

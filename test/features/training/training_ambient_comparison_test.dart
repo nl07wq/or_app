@@ -128,7 +128,7 @@ void main() {
   test('V9 static anime background asset is bundled unchanged', () async {
     expect(
       TrainingAmbientComparison.kineticEngineBackgroundAsset,
-      'assets/images/training/kinetic_engine_v9_background.jpg',
+      'assets/images/training/kinetic_engine_v9_background.png',
     );
     final asset = await rootBundle.load(
       TrainingAmbientComparison.kineticEngineBackgroundAsset,
@@ -156,30 +156,32 @@ void main() {
     },
   );
 
-  testWidgets('V7 kinetic ambient remains active through training scroll', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
-    await tester.tap(
-      find.byKey(const ValueKey('training-ambient-kineticEngine')),
-    );
-    await tester.pump(const Duration(milliseconds: 240));
-    final ambient = find.byType(TrainingAmbientComparison);
-    expect(ambient, findsOneWidget);
-    final contentHeight = tester.getSize(ambient).height;
-    expect(contentHeight, greaterThan(tester.view.physicalSize.height));
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -620),
-    );
-    await tester.pump(const Duration(milliseconds: 360));
-    expect(tester.getSize(ambient).height, contentHeight);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'V9 kinetic ambient remains fixed while training content scrolls',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+      await tester.tap(
+        find.byKey(const ValueKey('training-ambient-kineticEngine')),
+      );
+      await tester.pump(const Duration(milliseconds: 240));
+      final ambient = find.byType(TrainingAmbientComparison);
+      expect(ambient, findsOneWidget);
+      final ambientHeight = tester.getSize(ambient).height;
+      expect(ambientHeight, greaterThan(0));
+      expect(ambientHeight, lessThan(tester.view.physicalSize.height));
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -620),
+      );
+      await tester.pump(const Duration(milliseconds: 360));
+      expect(tester.getSize(ambient).height, ambientHeight);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'V9 anime background remains behind both frozen gear layers while scrolling',
