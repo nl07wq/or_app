@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/services/touch_ripple_audio.dart';
@@ -35,41 +36,100 @@ class ChromaticFluidDrop {
 }
 
 @immutable
-class ChromaticFluidBridge {
-  const ChromaticFluidBridge({
+class ChromaticFluidContact {
+  const ChromaticFluidContact({
     required this.first,
     required this.second,
     required this.strength,
-    required this.neckWidth,
-    required this.path,
   });
 
   final ChromaticFluidDrop first;
   final ChromaticFluidDrop second;
   final double strength;
-  final double neckWidth;
-  final Path path;
 
   Color get mixedColor => Color.lerp(first.color, second.color, .5)!;
+
+  Offset get center => Offset.lerp(
+    first.center,
+    second.center,
+    first.radius / (first.radius + second.radius),
+  )!;
+
+  double get radius =>
+      math.min(first.radius, second.radius) * (.34 + strength * .48);
 }
 
 @immutable
 class ChromaticFluidFrame {
-  const ChromaticFluidFrame({required this.drops, required this.bridges});
+  const ChromaticFluidFrame({required this.drops, required this.contacts});
 
   final List<ChromaticFluidDrop> drops;
-  final List<ChromaticFluidBridge> bridges;
+  final List<ChromaticFluidContact> contacts;
 }
 
-/// Deterministic, bounded geometry for the lightweight Phase 1 metaballs.
+@immutable
+class ChromaticFluidFieldContour {
+  const ChromaticFluidFieldContour({
+    required this.path,
+    required this.bounds,
+    required this.dropIds,
+    required this.pointCount,
+    required this.samplePoints,
+  });
+
+  final Path path;
+  final Rect bounds;
+  final Set<int> dropIds;
+  final int pointCount;
+  final List<Offset> samplePoints;
+}
+
+@immutable
+class ChromaticFluidField {
+  const ChromaticFluidField({
+    required this.contours,
+    required this.sampleCount,
+    required this.groupCount,
+  });
+
+  final List<ChromaticFluidFieldContour> contours;
+  final int sampleCount;
+  final int groupCount;
+}
+
+class _ChromaticFluidFieldSource {
+  const _ChromaticFluidFieldSource({
+    required this.center,
+    required this.radiusX,
+    required this.radiusY,
+    required this.cosRotation,
+    required this.sinRotation,
+    required this.weight,
+  });
+
+  final Offset center;
+  final double radiusX;
+  final double radiusY;
+  final double cosRotation;
+  final double sinRotation;
+  final double weight;
+}
+
+typedef _ChromaticFluidFieldNode = (int orientation, int x, int y);
+
+/// Deterministic, bounded implicit-field geometry for Chromatic Fluid V3.
 ///
-/// Three scheduled pairs travel through separation, contact, fusion and
-/// pinch-off at different phases. Six independent droplets keep the field
-/// alive without adding an unbounded all-pairs solver.
+/// Each scheduled pair and each independent small drop is sampled only inside
+/// its local influence rectangle. A smooth iso-contour is extracted from the
+/// summed field, so approach, fusion and pinch-off all come from one scalar
+/// surface instead of a separately drawn connector.
 abstract final class ChromaticFluidMetaballs {
   static const dropCount = 12;
-  static const maximumBridgeCount = 3;
+  static const maximumContactCount = 3;
+  static const maximumFieldGroupCount = 9;
+  static const maximumFieldSampleCount = 18000;
   static const cycleSeconds = 18.0;
+  static const fieldIsoValue = 1.0;
   static const _palette = <Color>[
     Color(0xff32ddd0),
     Color(0xff438cff),
@@ -162,7 +222,7 @@ abstract final class ChromaticFluidMetaballs {
       );
     }
 
-    final bridges = <ChromaticFluidBridge>[];
+    final contacts = <ChromaticFluidContact>[];
     for (var pair = 0; pair < 3; pair++) {
       final first = drops[pair * 2];
       final second = drops[pair * 2 + 1];
@@ -171,22 +231,13 @@ abstract final class ChromaticFluidMetaballs {
           (first.radius + second.radius);
       final strength = contactStrength(normalizedDistance);
       if (strength <= .005) continue;
-      final bridge = bridgePath(first, second, strength);
-      bridges.add(
-        ChromaticFluidBridge(
-          first: first,
-          second: second,
-          strength: strength,
-          neckWidth:
-              math.min(first.radius, second.radius) *
-              (.025 + .36 * math.pow(strength, 1.18)),
-          path: bridge,
-        ),
+      contacts.add(
+        ChromaticFluidContact(first: first, second: second, strength: strength),
       );
     }
     return ChromaticFluidFrame(
       drops: List.unmodifiable(drops),
-      bridges: List.unmodifiable(bridges),
+      contacts: List.unmodifiable(contacts),
     );
   }
 
@@ -195,93 +246,291 @@ abstract final class ChromaticFluidMetaballs {
     return _smoothStep(raw);
   }
 
-  static Path dropPath(ChromaticFluidDrop drop) {
-    final samples = switch (drop.size) {
-      ChromaticFluidDropSize.large => 30,
-      ChromaticFluidDropSize.medium => 24,
-      ChromaticFluidDropSize.small => 18,
-    };
-    final amplitude = switch (drop.size) {
-      ChromaticFluidDropSize.large => .065,
-      ChromaticFluidDropSize.medium => .078,
-      ChromaticFluidDropSize.small => .032,
-    };
-    final points = <Offset>[];
-    for (var index = 0; index < samples; index++) {
-      final angle = index / samples * math.pi * 2;
-      final deformation =
-          1 +
-          amplitude *
-              (.62 * math.sin(angle * 3 + drop.surfacePhase) +
-                  .25 * math.sin(angle * 5 - drop.surfacePhase * .71) +
-                  .13 * math.sin(angle * 2 + drop.id * 1.31));
-      points.add(
-        drop.center + Offset.fromDirection(angle, drop.radius * deformation),
-      );
+  static double fieldSpacingFor(Size size) =>
+      (size.shortestSide / 92).clamp(3.8, 5.2);
+
+  static ChromaticFluidField buildField(
+    Size size,
+    ChromaticFluidFrame frame, {
+    double? spacing,
+  }) {
+    final byId = {for (final drop in frame.drops) drop.id: drop};
+    final groups = <List<ChromaticFluidDrop>>[
+      for (var pair = 0; pair < 3; pair++)
+        [byId[pair * 2]!, byId[pair * 2 + 1]!],
+      for (var id = 6; id < dropCount; id++) [byId[id]!],
+    ];
+    final contours = <ChromaticFluidFieldContour>[];
+    var sampleCount = 0;
+    final fieldSpacing = spacing ?? fieldSpacingFor(size);
+    for (final group in groups) {
+      final result = _contoursForGroup(group, fieldSpacing);
+      contours.addAll(result.$1);
+      sampleCount += result.$2;
     }
-    return _closedSmoothPath(points);
+    assert(groups.length <= maximumFieldGroupCount);
+    assert(sampleCount <= maximumFieldSampleCount);
+    return ChromaticFluidField(
+      contours: List.unmodifiable(contours),
+      sampleCount: sampleCount,
+      groupCount: groups.length,
+    );
   }
 
-  static Path bridgePath(
-    ChromaticFluidDrop first,
-    ChromaticFluidDrop second,
-    double strength,
+  static (List<ChromaticFluidFieldContour>, int) _contoursForGroup(
+    List<ChromaticFluidDrop> drops,
+    double spacing,
   ) {
-    final delta = second.center - first.center;
-    final distance = math.max(delta.distance, .001);
-    final direction = delta / distance;
-    final normal = Offset(-direction.dy, direction.dx);
-    final smallerRadius = math.min(first.radius, second.radius);
-    final shoulder = smallerRadius * (.10 + strength * .24);
-    final neck = smallerRadius * (.025 + .36 * math.pow(strength, 1.18));
-    final firstRoot =
-        first.center + direction * first.radius * (1 - strength * .24);
-    final secondRoot =
-        second.center - direction * second.radius * (1 - strength * .24);
-    final midpoint = Offset.lerp(firstRoot, secondRoot, .5)!;
-    final path = Path()
-      ..moveTo(
-        (firstRoot + normal * shoulder).dx,
-        (firstRoot + normal * shoulder).dy,
-      )
-      ..cubicTo(
-        firstRoot.dx + direction.dx * distance * .18,
-        firstRoot.dy + direction.dy * distance * .18,
-        midpoint.dx - direction.dx * distance * .10 + normal.dx * neck,
-        midpoint.dy - direction.dy * distance * .10 + normal.dy * neck,
-        (midpoint + normal * neck).dx,
-        (midpoint + normal * neck).dy,
-      )
-      ..cubicTo(
-        midpoint.dx + direction.dx * distance * .10 + normal.dx * neck,
-        midpoint.dy + direction.dy * distance * .10 + normal.dy * neck,
-        secondRoot.dx - direction.dx * distance * .18,
-        secondRoot.dy - direction.dy * distance * .18,
-        (secondRoot + normal * shoulder).dx,
-        (secondRoot + normal * shoulder).dy,
-      )
-      ..lineTo(
-        (secondRoot - normal * shoulder).dx,
-        (secondRoot - normal * shoulder).dy,
-      )
-      ..cubicTo(
-        secondRoot.dx - direction.dx * distance * .18,
-        secondRoot.dy - direction.dy * distance * .18,
-        midpoint.dx + direction.dx * distance * .10 - normal.dx * neck,
-        midpoint.dy + direction.dy * distance * .10 - normal.dy * neck,
-        (midpoint - normal * neck).dx,
-        (midpoint - normal * neck).dy,
-      )
-      ..cubicTo(
-        midpoint.dx - direction.dx * distance * .10 - normal.dx * neck,
-        midpoint.dy - direction.dy * distance * .10 - normal.dy * neck,
-        firstRoot.dx + direction.dx * distance * .18,
-        firstRoot.dy + direction.dy * distance * .18,
-        (firstRoot - normal * shoulder).dx,
-        (firstRoot - normal * shoulder).dy,
-      )
-      ..close();
-    return path;
+    final sources = <_ChromaticFluidFieldSource>[
+      for (final drop in drops) ..._sourcesFor(drop),
+    ];
+    var bounds = Rect.fromCircle(
+      center: drops.first.center,
+      radius: drops.first.radius * 1.5,
+    );
+    for (final drop in drops.skip(1)) {
+      bounds = bounds.expandToInclude(
+        Rect.fromCircle(center: drop.center, radius: drop.radius * 1.5),
+      );
+    }
+    bounds = Rect.fromLTRB(
+      (bounds.left / spacing).floor() * spacing,
+      (bounds.top / spacing).floor() * spacing,
+      (bounds.right / spacing).ceil() * spacing,
+      (bounds.bottom / spacing).ceil() * spacing,
+    );
+    final columns = math.max(2, (bounds.width / spacing).ceil());
+    final rows = math.max(2, (bounds.height / spacing).ceil());
+    final values = List<double>.filled((columns + 1) * (rows + 1), 0);
+    int valueIndex(int x, int y) => y * (columns + 1) + x;
+    for (var y = 0; y <= rows; y++) {
+      for (var x = 0; x <= columns; x++) {
+        values[valueIndex(x, y)] = _fieldValue(
+          Offset(bounds.left + x * spacing, bounds.top + y * spacing),
+          sources,
+        );
+      }
+    }
+
+    final positions = <_ChromaticFluidFieldNode, Offset>{};
+    final neighbours =
+        <_ChromaticFluidFieldNode, List<_ChromaticFluidFieldNode>>{};
+    Offset edgePosition(
+      _ChromaticFluidFieldNode node,
+      Offset first,
+      Offset second,
+      double firstValue,
+      double secondValue,
+    ) {
+      return positions.putIfAbsent(node, () {
+        final denominator = secondValue - firstValue;
+        final amount = denominator.abs() < .000001
+            ? .5
+            : ((fieldIsoValue - firstValue) / denominator).clamp(0.0, 1.0);
+        return Offset.lerp(first, second, amount)!;
+      });
+    }
+
+    void connect(
+      _ChromaticFluidFieldNode first,
+      _ChromaticFluidFieldNode second,
+    ) {
+      neighbours
+          .putIfAbsent(first, () => <_ChromaticFluidFieldNode>[])
+          .add(second);
+      neighbours
+          .putIfAbsent(second, () => <_ChromaticFluidFieldNode>[])
+          .add(first);
+    }
+
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < columns; x++) {
+        final topLeft = values[valueIndex(x, y)];
+        final topRight = values[valueIndex(x + 1, y)];
+        final bottomRight = values[valueIndex(x + 1, y + 1)];
+        final bottomLeft = values[valueIndex(x, y + 1)];
+        final state =
+            (topLeft >= fieldIsoValue ? 1 : 0) |
+            (topRight >= fieldIsoValue ? 2 : 0) |
+            (bottomRight >= fieldIsoValue ? 4 : 0) |
+            (bottomLeft >= fieldIsoValue ? 8 : 0);
+        if (state == 0 || state == 15) continue;
+        final origin = Offset(
+          bounds.left + x * spacing,
+          bounds.top + y * spacing,
+        );
+        final points = <Offset>[
+          origin,
+          origin + Offset(spacing, 0),
+          origin + Offset(spacing, spacing),
+          origin + Offset(0, spacing),
+        ];
+        final edgeNodes = <_ChromaticFluidFieldNode>[
+          (0, x, y),
+          (1, x + 1, y),
+          (0, x, y + 1),
+          (1, x, y),
+        ];
+        final edgeValues = <(double, double)>[
+          (topLeft, topRight),
+          (topRight, bottomRight),
+          (bottomLeft, bottomRight),
+          (topLeft, bottomLeft),
+        ];
+        const edgePointIndexes = <(int, int)>[(0, 1), (1, 2), (3, 2), (0, 3)];
+        _ChromaticFluidFieldNode node(int edge) {
+          final valuePair = edgeValues[edge];
+          final pointIndexes = edgePointIndexes[edge];
+          edgePosition(
+            edgeNodes[edge],
+            points[pointIndexes.$1],
+            points[pointIndexes.$2],
+            valuePair.$1,
+            valuePair.$2,
+          );
+          return edgeNodes[edge];
+        }
+
+        void add(int first, int second) => connect(node(first), node(second));
+        switch (state) {
+          case 1:
+          case 14:
+            add(3, 0);
+            break;
+          case 2:
+          case 13:
+            add(0, 1);
+            break;
+          case 3:
+          case 12:
+            add(3, 1);
+            break;
+          case 4:
+          case 11:
+            add(1, 2);
+            break;
+          case 6:
+          case 9:
+            add(0, 2);
+            break;
+          case 7:
+          case 8:
+            add(3, 2);
+            break;
+          case 5:
+          case 10:
+            final centerInside =
+                (topLeft + topRight + bottomRight + bottomLeft) * .25 >=
+                fieldIsoValue;
+            if ((state == 5) == centerInside) {
+              add(0, 1);
+              add(2, 3);
+            } else {
+              add(3, 0);
+              add(1, 2);
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    }
+
+    String edgeId(
+      _ChromaticFluidFieldNode first,
+      _ChromaticFluidFieldNode second,
+    ) {
+      final firstText = '${first.$1}:${first.$2}:${first.$3}';
+      final secondText = '${second.$1}:${second.$2}:${second.$3}';
+      return firstText.compareTo(secondText) <= 0
+          ? '$firstText|$secondText'
+          : '$secondText|$firstText';
+    }
+
+    final visited = <String>{};
+    final contours = <ChromaticFluidFieldContour>[];
+    for (final start in neighbours.keys) {
+      for (final firstStep in neighbours[start]!) {
+        if (visited.contains(edgeId(start, firstStep))) continue;
+        final points = <Offset>[positions[start]!];
+        var previous = start;
+        var current = firstStep;
+        var closed = false;
+        while (points.length <= neighbours.length + 1) {
+          visited.add(edgeId(previous, current));
+          if (current == start) {
+            closed = true;
+            break;
+          }
+          points.add(positions[current]!);
+          final options = neighbours[current]!;
+          final next = options.firstWhere(
+            (candidate) => candidate != previous,
+            orElse: () => previous,
+          );
+          if (next == previous) break;
+          previous = current;
+          current = next;
+        }
+        if (!closed || points.length < 8) continue;
+        final path = _closedSmoothPath(points);
+        contours.add(
+          ChromaticFluidFieldContour(
+            path: path,
+            bounds: path.getBounds(),
+            dropIds: Set.unmodifiable(drops.map((drop) => drop.id)),
+            pointCount: points.length,
+            samplePoints: List.unmodifiable(points),
+          ),
+        );
+      }
+    }
+    return (contours, values.length);
+  }
+
+  static List<_ChromaticFluidFieldSource> _sourcesFor(ChromaticFluidDrop drop) {
+    final shapePhase = drop.surfacePhase * .63 + drop.id * .71;
+    final rotation = shapePhase * .37;
+    final xScale = 1 + math.sin(shapePhase) * .052;
+    final yScale = 1 + math.cos(shapePhase * .83) * .047;
+    final lobeDirection = Offset.fromDirection(shapePhase * .71 + drop.id);
+    return [
+      _ChromaticFluidFieldSource(
+        center: drop.center,
+        radiusX: drop.radius * xScale,
+        radiusY: drop.radius * yScale,
+        cosRotation: math.cos(rotation),
+        sinRotation: math.sin(rotation),
+        weight: .90,
+      ),
+      _ChromaticFluidFieldSource(
+        center: drop.center + lobeDirection * drop.radius * .18,
+        radiusX: drop.radius * .57,
+        radiusY: drop.radius * .48,
+        cosRotation: math.cos(rotation + .8),
+        sinRotation: math.sin(rotation + .8),
+        weight: .18,
+      ),
+    ];
+  }
+
+  static double _fieldValue(
+    Offset point,
+    List<_ChromaticFluidFieldSource> sources,
+  ) {
+    var field = 0.0;
+    for (final source in sources) {
+      final delta = point - source.center;
+      final localX =
+          delta.dx * source.cosRotation + delta.dy * source.sinRotation;
+      final localY =
+          -delta.dx * source.sinRotation + delta.dy * source.cosRotation;
+      final normalizedSquared =
+          localX * localX / (source.radiusX * source.radiusX) +
+          localY * localY / (source.radiusY * source.radiusY);
+      field += source.weight / math.max(normalizedSquared, .0001);
+    }
+    return field;
   }
 
   static Path _closedSmoothPath(List<Offset> points) {
@@ -295,10 +544,10 @@ abstract final class ChromaticFluidMetaballs {
       final midpoint = Offset.lerp(current, next, .5)!;
       final tangent = next - previous;
       path.cubicTo(
-        current.dx - tangent.dx * .12,
-        current.dy - tangent.dy * .12,
-        current.dx + tangent.dx * .12,
-        current.dy + tangent.dy * .12,
+        current.dx - tangent.dx * .10,
+        current.dy - tangent.dy * .10,
+        current.dx + tangent.dx * .10,
+        current.dy + tangent.dy * .10,
         midpoint.dx,
         midpoint.dy,
       );
@@ -426,122 +675,176 @@ class _FoodAmbientPainter extends CustomPainter {
 
   void _fluid(Canvas c, Size s) {
     final frame = ChromaticFluidMetaballs.frame(s, t);
-    final dropPaths = <int, Path>{
-      for (final drop in frame.drops)
-        drop.id: ChromaticFluidMetaballs.dropPath(drop),
-    };
-    final silhouette = Path();
-    for (final path in dropPaths.values) {
-      silhouette.addPath(path, Offset.zero);
-    }
-    for (final bridge in frame.bridges) {
-      silhouette.addPath(bridge.path, Offset.zero);
-    }
+    final field = ChromaticFluidMetaballs.buildField(s, frame);
+    final dropsById = {for (final drop in frame.drops) drop.id: drop};
+    final viewport = Offset.zero & s;
 
-    // A single filled silhouette means intersecting drops and their necks have
-    // no internal seam. The restrained exterior bloom softens only the outer
-    // liquid boundary rather than blurring the entire viewport.
-    c.drawPath(
-      silhouette,
-      Paint()
-        ..color = const Color(0xff49bad4).withValues(alpha: .075)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11),
-    );
-    c.save();
-    c.clipPath(silhouette);
-    c.drawRect(
-      Offset.zero & s,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0x20102b48), Color(0x2813092f), Color(0x1c07372e)],
-        ).createShader(Offset.zero & s),
-    );
+    for (final contour in field.contours) {
+      if (!contour.bounds.overlaps(viewport)) continue;
+      final contourDrops = [for (final id in contour.dropIds) dropsById[id]!];
+      final averageColor = contourDrops
+          .map((drop) => drop.color)
+          .reduce((first, second) => Color.lerp(first, second, .5)!);
 
-    for (final drop in frame.drops) {
-      final highlightCenter =
-          drop.center +
-          Offset(
-                math.cos(drop.surfacePhase * .73),
-                math.sin(drop.surfacePhase * .61),
-              ) *
-              drop.radius *
-              .27;
-      c.drawCircle(
-        drop.center,
-        drop.radius * 1.52,
-        Paint()
-          ..shader =
-              RadialGradient(
-                center: const Alignment(-.28, -.32),
-                radius: 1.0,
-                colors: [
-                  Color.lerp(
-                    drop.color,
-                    Colors.white,
-                    .34,
-                  )!.withValues(alpha: .43),
-                  drop.color.withValues(alpha: .28),
-                  Color.lerp(
-                    drop.color,
-                    const Color(0xff091523),
-                    .52,
-                  )!.withValues(alpha: .10),
-                  drop.color.withValues(alpha: 0),
-                ],
-                stops: const [0, .42, .78, 1],
-              ).createShader(
-                Rect.fromCircle(
-                  center: drop.center,
-                  radius: drop.radius * 1.52,
-                ),
-              ),
-      );
-      c.drawCircle(
-        highlightCenter,
-        drop.radius * .24,
-        Paint()
-          ..color = Colors.white.withValues(
-            alpha: drop.size == ChromaticFluidDropSize.small ? .09 : .055,
-          )
-          ..maskFilter = MaskFilter.blur(
-            BlurStyle.normal,
-            math.max(2, drop.radius * .16),
-          ),
-      );
-    }
-
-    // Explicit bridge gradients create a local intermediate colour. Their
-    // area shrinks with the same continuous contact strength as the geometry,
-    // so no mixed colour remains after pinch-off.
-    for (final bridge in frame.bridges) {
-      final rect = Rect.fromPoints(
-        bridge.first.center,
-        bridge.second.center,
-      ).inflate(bridge.neckWidth * 1.5);
+      // Only the local contour is blurred. The viewport never enters an
+      // offscreen layer and distant drops do not participate in this pass.
       c.drawPath(
-        bridge.path,
+        contour.path,
         Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              bridge.first.color.withValues(alpha: .18 + bridge.strength * .15),
-              Color.lerp(
-                bridge.mixedColor,
-                Colors.white,
-                .12,
-              )!.withValues(alpha: .28 + bridge.strength * .17),
-              bridge.second.color.withValues(
-                alpha: .18 + bridge.strength * .15,
-              ),
-            ],
-            stops: const [0, .5, 1],
-          ).createShader(rect),
+          ..color = averageColor.withValues(alpha: .09)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+      c.save();
+      c.clipPath(contour.path);
+      c.drawRect(
+        contour.bounds,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0x42102b48), Color(0x4813092f), Color(0x3c07372e)],
+          ).createShader(contour.bounds),
+      );
+
+      if (contourDrops.length == 2) {
+        final first = contourDrops.first;
+        final second = contourDrops.last;
+        final mixed = Color.lerp(first.color, second.color, .5)!;
+        c.drawRect(
+          contour.bounds,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              first.center,
+              second.center,
+              [
+                first.color.withValues(alpha: .42),
+                Color.lerp(mixed, Colors.white, .10)!.withValues(alpha: .54),
+                second.color.withValues(alpha: .42),
+              ],
+              const [0, .5, 1],
+            ),
+        );
+      } else {
+        c.drawPath(
+          contour.path,
+          Paint()..color = averageColor.withValues(alpha: .34),
+        );
+      }
+
+      for (final drop in contourDrops) {
+        final flowCenter =
+            drop.center +
+            Offset(
+                  math.cos(drop.surfacePhase * .73),
+                  math.sin(drop.surfacePhase * .61),
+                ) *
+                drop.radius *
+                .24;
+        c.drawCircle(
+          drop.center,
+          drop.radius * 1.72,
+          Paint()
+            ..shader =
+                RadialGradient(
+                  center: const Alignment(-.24, -.28),
+                  radius: 1,
+                  colors: [
+                    Color.lerp(
+                      drop.color,
+                      Colors.white,
+                      .30,
+                    )!.withValues(alpha: .27),
+                    drop.color.withValues(alpha: .16),
+                    Color.lerp(
+                      drop.color,
+                      const Color(0xff071522),
+                      .50,
+                    )!.withValues(alpha: .10),
+                    drop.color.withValues(alpha: 0),
+                  ],
+                  stops: const [0, .38, .76, 1],
+                ).createShader(
+                  Rect.fromCircle(
+                    center: drop.center,
+                    radius: drop.radius * 1.72,
+                  ),
+                ),
+        );
+
+        // A rotating, soft anisotropic lobe gives the interior its own period,
+        // independent from both centre translation and contour deformation.
+        c.save();
+        c.translate(flowCenter.dx, flowCenter.dy);
+        c.rotate(drop.surfacePhase * .19 + drop.id * .37);
+        final flowRect = Rect.fromCenter(
+          center: Offset.zero,
+          width: drop.radius * 1.34,
+          height: drop.radius * .42,
+        );
+        c.drawOval(
+          flowRect,
+          Paint()
+            ..shader = LinearGradient(
+              colors: [
+                drop.color.withValues(alpha: 0),
+                Color.lerp(
+                  drop.color,
+                  Colors.white,
+                  .42,
+                )!.withValues(alpha: .14),
+                drop.color.withValues(alpha: 0),
+              ],
+              stops: const [0, .52, 1],
+            ).createShader(flowRect)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.2),
+        );
+        c.restore();
+      }
+
+      // Mixed colour is a local field around the saddle point. It is clipped
+      // by the same iso-contour and contracts continuously as contact fades.
+      for (final contact in frame.contacts) {
+        if (!contour.dropIds.contains(contact.first.id) ||
+            !contour.dropIds.contains(contact.second.id)) {
+          continue;
+        }
+        final mixRadius = contact.radius;
+        c.drawCircle(
+          contact.center,
+          mixRadius,
+          Paint()
+            ..shader =
+                RadialGradient(
+                  colors: [
+                    Color.lerp(
+                      contact.mixedColor,
+                      Colors.white,
+                      .12,
+                    )!.withValues(alpha: .18 + contact.strength * .28),
+                    contact.mixedColor.withValues(
+                      alpha: .10 + contact.strength * .17,
+                    ),
+                    contact.mixedColor.withValues(alpha: 0),
+                  ],
+                  stops: const [0, .54, 1],
+                ).createShader(
+                  Rect.fromCircle(center: contact.center, radius: mixRadius),
+                ),
+        );
+      }
+      c.restore();
+      c.drawPath(
+        contour.path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .8
+          ..color = Color.lerp(
+            averageColor,
+            Colors.white,
+            .28,
+          )!.withValues(alpha: .19),
       );
     }
-    c.restore();
   }
 
   void _cells(Canvas c, Size s) {
