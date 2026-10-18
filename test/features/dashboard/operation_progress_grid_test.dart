@@ -2086,7 +2086,7 @@ void main() {
     },
   );
 
-  testWidgets('brand emblem and Daily Command headings fit at 390px', (
+  testWidgets('brand lockup and Daily Command headings fit at 390px', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -2097,29 +2097,64 @@ void main() {
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
 
-    final emblem = find.byKey(const ValueKey('dashboard-brand-emblem'));
-    final emblemCanvas = find.byKey(
-      const ValueKey('dashboard-brand-emblem-canvas'),
+    expect(
+      tester.getSize(find.byKey(const ValueKey('dashboard-brand-logo'))).height,
+      DashboardNeonTubeGeometry.logoSize,
     );
-    expect(emblem, findsOneWidget);
+    final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
+    expect(
+      tester.getSize(neonWordmark),
+      const Size(
+        DashboardNeonTubeGeometry.wordmarkWidth,
+        DashboardNeonTubeGeometry.wordmarkHeight,
+      ),
+    );
+    expect(
+      find.descendant(of: neonWordmark, matching: find.byType(CustomPaint)),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('dashboard-neon-brand-mark')),
       findsOneWidget,
     );
-    expect(tester.getSize(emblemCanvas), const Size(42, 42));
-    expect(tester.getSize(emblem), const Size(42, 42));
     expect(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('dashboard-neon-perimeter-tube')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('dashboard-brand-wordmark')),
-      findsNothing,
+      tester
+          .getSize(find.byKey(const ValueKey('dashboard-neon-physical-sign')))
+          .height,
+      DashboardNeonTubeGeometry.signHeight,
     );
+    final signRect = tester.getRect(
+      find.byKey(const ValueKey('dashboard-neon-physical-sign')),
+    );
+    final logoSlotRect = tester.getRect(
+      find.byKey(const ValueKey('dashboard-brand-logo-slot')),
+    );
+    final wordmarkRect = tester.getRect(neonWordmark);
+    final perimeterLeft =
+        signRect.left +
+        DashboardNeonTubeGeometry.physicalFrameStrokeWidth +
+        DashboardNeonTubeGeometry.signHorizontalPadding +
+        DashboardNeonTubeGeometry.perimeterHorizontalInset;
+    final perimeterRight =
+        signRect.right -
+        DashboardNeonTubeGeometry.physicalFrameStrokeWidth -
+        DashboardNeonTubeGeometry.signHorizontalPadding -
+        DashboardNeonTubeGeometry.perimeterHorizontalInset;
+    final wordmarkCoreLeft =
+        wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
+    final wordmarkCoreRight =
+        wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(6, 7));
+    expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
+    expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(7, 8));
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),
@@ -2161,7 +2196,7 @@ void main() {
   });
 
   testWidgets(
-    'square brand emblem retains its compact geometry at supported widths',
+    'neon physical sign retains its compact geometry at supported widths',
     (tester) async {
       for (final width in [320.0, 390.0, 900.0]) {
         final database = FakeIndexedDbDatabase();
@@ -2172,18 +2207,26 @@ void main() {
         await _pumpDashboard(tester, width: width);
         await _settleDashboard(tester);
 
-        final emblem = find.byKey(
-          const ValueKey('dashboard-brand-emblem-canvas'),
+        final sign = find.byKey(const ValueKey('dashboard-neon-physical-sign'));
+        final perimeter = find.byKey(
+          const ValueKey('dashboard-neon-perimeter-tube'),
         );
         final mark = find.byKey(const ValueKey('dashboard-neon-brand-mark'));
-        expect(emblem, findsOneWidget);
-        expect(tester.getSize(emblem), const Size(42, 42));
+        expect(sign, findsOneWidget);
+        expect(perimeter, findsOneWidget);
         expect(
-          tester.getRect(emblem).left,
+          tester.getSize(sign),
+          const Size(
+            DashboardNeonTubeGeometry.signWidth,
+            DashboardNeonTubeGeometry.signHeight,
+          ),
+        );
+        expect(
+          tester.getRect(sign).left,
           greaterThanOrEqualTo(tester.getRect(mark).left),
         );
         expect(
-          tester.getRect(emblem).right,
+          tester.getRect(sign).right,
           lessThanOrEqualTo(tester.getRect(mark).right),
         );
         expect(tester.takeException(), isNull);

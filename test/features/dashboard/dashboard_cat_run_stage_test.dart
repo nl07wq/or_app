@@ -489,9 +489,7 @@ void main() {
       final paw = find.byKey(
         const ValueKey('dashboard-ambient-manual-trigger'),
       );
-      final emblem = find.byKey(
-        const ValueKey('dashboard-brand-emblem-canvas'),
-      );
+      final sign = find.byKey(const ValueKey('dashboard-neon-physical-sign'));
       for (final width in [320.0, 390.0, 900.0]) {
         tester.view.physicalSize = Size(width, 844);
         await tester.pumpWidget(const MaterialApp(home: DashboardPage()));
@@ -503,10 +501,10 @@ void main() {
           tester.getSemantics(paw).label,
           contains('Run ambient wildlife'),
         );
-        expect(emblem, findsOneWidget, reason: 'width $width');
+        expect(sign, findsOneWidget, reason: 'width $width');
         expect(
           tester.getRect(paw).right,
-          lessThan(tester.getRect(emblem).left - 10),
+          lessThan(tester.getRect(sign).left - 10),
         );
         expect(tester.takeException(), isNull, reason: 'width $width');
       }
