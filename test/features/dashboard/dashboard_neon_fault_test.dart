@@ -61,11 +61,12 @@ void main() {
       expect(DashboardNeonTubeGeometry.logoSize, closeTo(30.36, .001));
       expect(DashboardNeonTubeGeometry.logoVisibleWidth, closeTo(29.63, .01));
       expect(DashboardNeonTubeGeometry.logoVisibleHeight, closeTo(27.89, .01));
-      expect(DashboardNeonTubeGeometry.logoOuterGlowOpacity, .16);
-      expect(DashboardNeonTubeGeometry.logoInnerGlowOpacity, .58);
-      expect(DashboardNeonTubeGeometry.logoCoreOpacity, .88);
-      expect(DashboardNeonTubeGeometry.logoOuterGlowSigma, 3);
-      expect(DashboardNeonTubeGeometry.logoInnerGlowSigma, 1.05);
+      expect(DashboardNeonTubeGeometry.logoPaintOffsetX, -2);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowOpacity, .24);
+      expect(DashboardNeonTubeGeometry.logoInnerGlowOpacity, .72);
+      expect(DashboardNeonTubeGeometry.logoCoreOpacity, .96);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowSigma, 3.6);
+      expect(DashboardNeonTubeGeometry.logoInnerGlowSigma, 1.25);
       expect(
         DashboardNeonTubeGeometry.leftContentClearance,
         closeTo(7.14, .01),
@@ -73,6 +74,18 @@ void main() {
       expect(
         DashboardNeonTubeGeometry.rightContentClearance,
         closeTo(5.2, .01),
+      );
+      expect(
+        DashboardNeonTubeGeometry.paintedLogoLeftClearance,
+        closeTo(5.14, .01),
+      );
+      expect(
+        DashboardNeonTubeGeometry.logoVisibleLeftClearance,
+        closeTo(5.50, .01),
+      );
+      expect(
+        DashboardNeonTubeGeometry.logoWordmarkVisibleGap,
+        closeTo(4.36, .01),
       );
       expect(DashboardNeonTubeGeometry.wordmarkOriginX, 41);
       expect(
@@ -139,9 +152,21 @@ void main() {
                 left.logoIntensity < right.logoIntensity ? left : right,
           );
 
-      expect(DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable), .16);
-      expect(DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(stable), .58);
-      expect(DashboardNeonTubeGeometry.logoCoreAlphaFor(stable), .88);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable), .24);
+      expect(DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(stable), .72);
+      expect(DashboardNeonTubeGeometry.logoCoreAlphaFor(stable), .96);
+      expect(
+        DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable),
+        greaterThan(.16),
+      );
+      expect(
+        DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(stable),
+        greaterThan(.58),
+      );
+      expect(
+        DashboardNeonTubeGeometry.logoCoreAlphaFor(stable),
+        greaterThan(.88),
+      );
       expect(
         DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(deepestLogoFault),
         lessThan(.01),

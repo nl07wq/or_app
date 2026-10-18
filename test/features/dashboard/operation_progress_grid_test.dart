@@ -2166,8 +2166,8 @@ void main() {
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(7, 8));
-    expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(5, 6));
+    expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(3, 5));
     expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(5, 7));
     expect(
       wordmarkRect.left,
@@ -2252,7 +2252,7 @@ void main() {
     },
   );
 
-  testWidgets('Dashboard neon logo V2.1 matches the stable visual reference', (
+  testWidgets('Dashboard neon logo V2.2 matches the stable visual reference', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -2266,7 +2266,7 @@ void main() {
 
     await expectLater(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
-      matchesGoldenFile('goldens/dashboard_neon_logo_v2_1.png'),
+      matchesGoldenFile('goldens/dashboard_neon_logo_v2_2.png'),
     );
   });
 
