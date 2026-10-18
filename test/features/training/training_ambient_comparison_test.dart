@@ -391,6 +391,78 @@ void main() {
     }
   });
 
+  test('V11.7 supports attach only to fixed RECORD and REPORT SYNC pivots', () {
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 844),
+    );
+    final rockerDrive = gears.singleWhere((gear) => gear.id == 'right-crown');
+    final reportDrive = gears.singleWhere((gear) => gear.id == 'mid-crown');
+    final root = TrainingAmbientComparison.kineticRecordRootSupportFor(
+      rockerDrive,
+    );
+    final supports =
+        TrainingAmbientComparison.kineticReportSyncSupportGeometryFor(
+          reportDrive,
+        );
+
+    expect(root.role, 'fixed-rocker-pivot');
+    expect(root.mounts, hasLength(3));
+    expect(
+      supports.map((support) => support.id),
+      orderedEquals([
+        'report-sync-left-support',
+        'report-sync-center-support',
+        'report-sync-right-support',
+      ]),
+    );
+    expect(supports.every((support) => support.mounts.length == 2), isTrue);
+
+    for (final phase in [0.0, math.pi / 2, math.pi, math.pi * 1.5]) {
+      final rocker = TrainingAmbientComparison.kineticRockerLinkagePoseFor(
+        rockerDrive,
+        phase,
+      );
+      expect(root.anchor, rocker.fixedPivot);
+      expect((root.anchor - rocker.crankPin).distance, greaterThan(10));
+
+      final transmission =
+          TrainingAmbientComparison.kineticReportSyncTransmissionPoseFor(
+            reportDrive,
+            phase,
+          );
+      expect(transmission.axleCenters, hasLength(3));
+      expect(transmission.beltLoopLengths, hasLength(2));
+      for (var i = 0; i < supports.length; i++) {
+        expect(supports[i].anchor, transmission.axleCenters[i]);
+      }
+      for (final length in transmission.beltLoopLengths) {
+        expect(length, greaterThan(transmission.pulleyRadius * math.pi * 2));
+      }
+    }
+  });
+
+  test('V11.7 REPORT SYNC belt loops retain constant length and phase', () {
+    final drive = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 844),
+    ).singleWhere((gear) => gear.id == 'mid-crown');
+    final baseline =
+        TrainingAmbientComparison.kineticReportSyncTransmissionPoseFor(
+          drive,
+          0,
+        );
+    for (final phase in [math.pi / 2, math.pi, math.pi * 1.5, math.pi * 2]) {
+      final pose =
+          TrainingAmbientComparison.kineticReportSyncTransmissionPoseFor(
+            drive,
+            phase,
+          );
+      expect(pose.pulleyRadius, baseline.pulleyRadius);
+      expect(pose.axleCenters, baseline.axleCenters);
+      expect(pose.beltLoopLengths, orderedEquals(baseline.beltLoopLengths));
+      expect(pose.phase, isNot(baseline.phase));
+    }
+  });
+
   test('V11.6 hub glow cycles continuously with deterministic ID offsets', () {
     expect(TrainingAmbientComparison.kineticHubGlowPeriodSeconds, 24);
     const id = 'main-drive';
@@ -543,7 +615,7 @@ void main() {
     },
   );
 
-  testWidgets('V11.6 covers and multi-color hubs render through four phases', (
+  testWidgets('V11.7 supports, covers and hubs render through four phases', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -556,7 +628,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: TrainingAmbientComparison(
-              key: const ValueKey('v11-6-kinetic-phase'),
+              key: const ValueKey('v11-7-kinetic-phase'),
               variant: TrainingAmbientVariant.kineticEngine,
               debugTime: phase * 12,
             ),
@@ -566,9 +638,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await expectLater(
-        find.byKey(const ValueKey('v11-6-kinetic-phase')),
+        find.byKey(const ValueKey('v11-7-kinetic-phase')),
         matchesGoldenFile(
-          'goldens/training_kinetic_engine_v11_6_phase_$phase.png',
+          'goldens/training_kinetic_engine_v11_7_phase_$phase.png',
         ),
       );
       expect(tester.takeException(), isNull);
@@ -602,50 +674,78 @@ void main() {
     },
   );
 
-  testWidgets('V11.6 UI goldens show transparent header while scrolling', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await _precacheKineticBackground(tester);
-    await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
-    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
-    expect(scaffold.extendBodyBehindAppBar, isTrue);
-    final appBar = tester.widget<AppBar>(
-      find.byKey(const ValueKey('training-page-transparent-appbar')),
-    );
-    expect(appBar.backgroundColor, Colors.transparent);
-    expect(appBar.surfaceTintColor, Colors.transparent);
-    await tester.tap(
-      find.byKey(const ValueKey('training-ambient-kineticEngine')),
-    );
-    await tester.pump(const Duration(milliseconds: 1450));
-    await tester.pump();
-    await expectLater(
-      find.byType(TrainingPage),
-      matchesGoldenFile('goldens/training_kinetic_engine_v11_6_top.png'),
-    );
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -620),
-    );
-    await tester.pump(const Duration(milliseconds: 2300));
-    await expectLater(
-      find.byType(TrainingPage),
-      matchesGoldenFile('goldens/training_kinetic_engine_v11_6_middle.png'),
-    );
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -700),
-    );
-    await tester.pump(const Duration(milliseconds: 1700));
-    await expectLater(
-      find.byType(TrainingPage),
-      matchesGoldenFile('goldens/training_kinetic_engine_v11_6_lower.png'),
-    );
-  });
+  testWidgets(
+    'V11.7 UI goldens preserve the transparent header while scrolling',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _precacheKineticBackground(tester);
+      await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+      expect(scaffold.extendBodyBehindAppBar, isTrue);
+      final appBar = tester.widget<AppBar>(
+        find.byKey(const ValueKey('training-page-transparent-appbar')),
+      );
+      expect(appBar.backgroundColor, Colors.transparent);
+      expect(appBar.surfaceTintColor, Colors.transparent);
+      await tester.tap(
+        find.byKey(const ValueKey('training-ambient-kineticEngine')),
+      );
+      await tester.pump(const Duration(milliseconds: 1450));
+      await tester.pump();
+      await expectLater(
+        find.byType(TrainingPage),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_top.png'),
+      );
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -620),
+      );
+      await tester.pump(const Duration(milliseconds: 2300));
+      await expectLater(
+        find.byType(TrainingPage),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_middle.png'),
+      );
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -700),
+      );
+      await tester.pump(const Duration(milliseconds: 1700));
+      await expectLater(
+        find.byType(TrainingPage),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_lower.png'),
+      );
+    },
+  );
+
+  testWidgets(
+    'V11.7 RECORD root and REPORT SYNC supports are visible in close-up',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 520);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _precacheKineticBackground(tester);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Column(
+            children: [
+              _KineticAmbientCrop(top: 300),
+              _KineticAmbientCrop(top: 505),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/training_kinetic_engine_v11_7_linkages.png'),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('TRAINING actions use STATUS glass buttons without outer cards', (
     tester,
@@ -739,6 +839,34 @@ void main() {
         expect(tester.takeException(), isNull);
       }
     },
+  );
+}
+
+class _KineticAmbientCrop extends StatelessWidget {
+  const _KineticAmbientCrop({required this.top});
+
+  final double top;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 390,
+    height: 260,
+    child: ClipRect(
+      child: Transform.translate(
+        offset: Offset(0, -top),
+        child: const OverflowBox(
+          minWidth: 390,
+          maxWidth: 390,
+          minHeight: 844,
+          maxHeight: 844,
+          alignment: Alignment.topCenter,
+          child: TrainingAmbientComparison(
+            variant: TrainingAmbientVariant.kineticEngine,
+            debugTime: 3,
+          ),
+        ),
+      ),
+    ),
   );
 }
 

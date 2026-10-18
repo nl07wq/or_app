@@ -106,6 +106,39 @@ class KineticRockerLinkagePose {
   final double rockerLength;
 }
 
+/// A fixed, machined support for a linkage pivot.  It deliberately exposes
+/// only fixed anchors: moving crank pins stay free to rotate or reciprocate.
+class KineticLinkageSupportGeometry {
+  const KineticLinkageSupportGeometry({
+    required this.id,
+    required this.anchor,
+    required this.mounts,
+    required this.role,
+  });
+
+  final String id;
+  final Offset anchor;
+  final List<Offset> mounts;
+  final String role;
+}
+
+/// The REPORT SYNC transmission is a pair of constant-length open belts over
+/// three fixed, coaxial wheel centers.  The center wheel uses two grooves so
+/// each belt remains independently readable and mechanically plausible.
+class KineticReportSyncTransmissionPose {
+  const KineticReportSyncTransmissionPose({
+    required this.axleCenters,
+    required this.pulleyRadius,
+    required this.beltLoopLengths,
+    required this.phase,
+  });
+
+  final List<Offset> axleCenters;
+  final double pulleyRadius;
+  final List<double> beltLoopLengths;
+  final double phase;
+}
+
 /// Static, PNG-replaceable structure behind the two V7 gear layers.  It has
 /// no drive state, so adding it cannot affect transmission geometry or motion.
 class KineticBaseplateGeometry {
@@ -617,6 +650,76 @@ class TrainingAmbientComparison extends StatefulWidget {
     );
   }
 
+  /// The RECORD-side support attaches to the rocker’s actual fixed pivot,
+  /// never to the drive gear’s rotating crank pin.
+  static KineticLinkageSupportGeometry kineticRecordRootSupportFor(
+    KineticGearGeometry driveGear,
+  ) {
+    final pose = kineticRockerLinkagePoseFor(driveGear, 0);
+    final scale = driveGear.module;
+    final anchor = pose.fixedPivot;
+    return KineticLinkageSupportGeometry(
+      id: 'record-rocker-root-support',
+      anchor: anchor,
+      role: 'fixed-rocker-pivot',
+      mounts: [
+        anchor + Offset(-scale * 8.7, scale * 8.2),
+        anchor + Offset(scale * 8.1, scale * 7.4),
+        anchor + Offset(-scale * 5.8, -scale * 7.2),
+      ],
+    );
+  }
+
+  /// REPORT SYNC has three fixed wheel centers.  Two equal-radius open belts
+  /// connect left→center and center→right; with fixed centers their loop
+  /// lengths are invariant at every animation phase.
+  static KineticReportSyncTransmissionPose kineticReportSyncTransmissionPoseFor(
+    KineticGearGeometry driveGear,
+    double drivePhase,
+  ) {
+    final steam = kineticSteamLinkagePoseFor(driveGear, drivePhase);
+    final pulleyRadius = driveGear.module * 7.4;
+    final beltLoopLengths = <double>[
+      for (var i = 0; i < steam.axleCenters.length - 1; i++)
+        2 * (steam.axleCenters[i + 1] - steam.axleCenters[i]).distance +
+            2 * math.pi * pulleyRadius,
+    ];
+    return KineticReportSyncTransmissionPose(
+      axleCenters: steam.axleCenters,
+      pulleyRadius: pulleyRadius,
+      beltLoopLengths: beltLoopLengths,
+      phase: driveGear.phaseAt(drivePhase),
+    );
+  }
+
+  static List<KineticLinkageSupportGeometry>
+  kineticReportSyncSupportGeometryFor(KineticGearGeometry driveGear) {
+    final transmission = kineticReportSyncTransmissionPoseFor(driveGear, 0);
+    final scale = driveGear.module;
+    const ids = [
+      'report-sync-left-support',
+      'report-sync-center-support',
+      'report-sync-right-support',
+    ];
+    const roles = [
+      'left-fixed-pulley',
+      'center-dual-groove-pulley',
+      'right-drive-flange',
+    ];
+    return [
+      for (var i = 0; i < transmission.axleCenters.length; i++)
+        KineticLinkageSupportGeometry(
+          id: ids[i],
+          anchor: transmission.axleCenters[i],
+          role: roles[i],
+          mounts: [
+            transmission.axleCenters[i] + Offset(-scale * 7.3, scale * 8.1),
+            transmission.axleCenters[i] + Offset(scale * 7.3, scale * 8.1),
+          ],
+        ),
+    ];
+  }
+
   /// V8 baseplate topology. Plates overlap but are deliberately broken into
   /// separate machined sections instead of becoming a decorative rectangle.
   /// Every mounting point resolves to a V7 primary or background gear pivot.
@@ -995,6 +1098,11 @@ class _TrainingAmbientPainter extends CustomPainter {
     for (var i = 0; i < gears.length; i++) {
       _gear(canvas, gears[i], gears[i].phaseAt(drivePhase), i);
     }
+    // Fixed supports are painted before the moving members.  This gives the
+    // RECORD rocker root and REPORT SYNC axles a visible machine-frame
+    // attachment without constraining the existing animation geometry.
+    _reportSyncSupports(canvas, byId['mid-crown']!);
+    _recordRockerRootSupport(canvas, byId['right-crown']!);
     _steamLinkage(canvas, byId['mid-crown']!, drivePhase);
     _rockerLinkage(canvas, byId['right-crown']!, drivePhase);
     final output = byId['output-crown']!;
@@ -1040,6 +1148,30 @@ class _TrainingAmbientPainter extends CustomPainter {
       Paint()..color = const Color(0xff80dcf5),
     );
     _mechanicalCovers(canvas, size);
+    // The lower-left V11.6 cover passes in front of REPORT SYNC’s left axle.
+    // A fixed bearing cap on that existing cover makes the support explicit
+    // without moving, resizing, or otherwise changing the cover itself.
+    _reportSyncCoveredBearingCap(canvas, byId['mid-crown']!);
+  }
+
+  void _reportSyncCoveredBearingCap(
+    Canvas canvas,
+    KineticGearGeometry driveGear,
+  ) {
+    final left = TrainingAmbientComparison.kineticReportSyncSupportGeometryFor(
+      driveGear,
+    ).first;
+    _fixedBearingHousing(
+      canvas,
+      left.anchor,
+      scale: driveGear.module,
+      radius: 6.4,
+    );
+    _supportBolt(
+      canvas,
+      left.anchor + Offset(driveGear.module * 9, driveGear.module * 3.8),
+      driveGear.module * 1.55,
+    );
   }
 
   void _mechanicalCovers(Canvas canvas, Size size) {
@@ -1252,6 +1384,191 @@ class _TrainingAmbientPainter extends CustomPainter {
     );
   }
 
+  void _recordRockerRootSupport(Canvas canvas, KineticGearGeometry driveGear) {
+    final support = TrainingAmbientComparison.kineticRecordRootSupportFor(
+      driveGear,
+    );
+    final scale = driveGear.module;
+    _fixedSupportPlate(
+      canvas,
+      support,
+      scale: scale,
+      width: scale * 24,
+      height: scale * 20,
+      direction: -1,
+    );
+    // The outer race belongs to the static bracket.  The rocker’s inner
+    // bearing is painted later by _rockerLinkage and remains free to rotate.
+    _fixedBearingHousing(canvas, support.anchor, scale: scale, radius: 7.4);
+    _supportRib(
+      canvas,
+      support.anchor + Offset(-scale * 10.5, scale * 8.6),
+      support.anchor + Offset(-scale * 17, scale * 15.5),
+      scale,
+    );
+  }
+
+  void _reportSyncSupports(Canvas canvas, KineticGearGeometry driveGear) {
+    final supports =
+        TrainingAmbientComparison.kineticReportSyncSupportGeometryFor(
+          driveGear,
+        );
+    final scale = driveGear.module;
+    for (var i = 0; i < supports.length; i++) {
+      _fixedSupportPlate(
+        canvas,
+        supports[i],
+        scale: scale,
+        width: scale * (i == 1 ? 21 : 18),
+        height: scale * 16,
+        direction: i == 0 ? -1 : 1,
+      );
+      _fixedBearingHousing(
+        canvas,
+        supports[i].anchor,
+        scale: scale,
+        radius: i == 1 ? 6.9 : 6.4,
+      );
+    }
+  }
+
+  void _fixedSupportPlate(
+    Canvas canvas,
+    KineticLinkageSupportGeometry support, {
+    required double scale,
+    required double width,
+    required double height,
+    required double direction,
+  }) {
+    final anchor = support.anchor;
+    final left = anchor.dx - width * .5;
+    final right = anchor.dx + width * .5;
+    final top = anchor.dy - height * .42;
+    final bottom = anchor.dy + height * .70;
+    final plate = Path()
+      ..moveTo(left, bottom)
+      ..lineTo(left + width * .10, top + height * .22)
+      ..lineTo(anchor.dx - width * .12, top)
+      ..lineTo(right - width * .08, top + height * .16)
+      ..lineTo(right, bottom - height * .23)
+      ..lineTo(anchor.dx + direction * width * .24, bottom)
+      ..lineTo(left + width * .13, bottom)
+      ..close();
+    final bounds = Rect.fromLTRB(left, top, right, bottom);
+    canvas.saveLayer(bounds.inflate(scale * 2), Paint());
+    canvas.drawPath(
+      plate,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: const [
+            Color(0xee365d75),
+            Color(0xee19384f),
+            Color(0xee0d2032),
+          ],
+        ).createShader(bounds),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: anchor + Offset(direction * width * .13, height * .23),
+          width: width * .23,
+          height: height * .15,
+        ),
+        Radius.circular(height * .08),
+      ),
+      Paint()..blendMode = BlendMode.clear,
+    );
+    canvas.restore();
+    canvas.drawPath(
+      plate,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1, scale * .78)
+        ..color = const Color(0xff76d9ed),
+    );
+    canvas.drawLine(
+      Offset(left + width * .14, bottom - height * .13),
+      Offset(right - width * .16, bottom - height * .30),
+      Paint()
+        ..strokeWidth = math.max(1, scale * 1.05)
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xaa0d2032),
+    );
+    for (final mount in support.mounts) {
+      _supportBolt(canvas, mount, scale * 2.15);
+    }
+  }
+
+  void _fixedBearingHousing(
+    Canvas canvas,
+    Offset center, {
+    required double scale,
+    required double radius,
+  }) {
+    canvas.drawCircle(
+      center,
+      scale * radius,
+      Paint()..color = const Color(0xff102b40),
+    );
+    canvas.drawCircle(
+      center,
+      scale * radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1, scale * .9)
+        ..color = const Color(0xff74d8ee),
+    );
+    canvas.drawCircle(
+      center,
+      scale * radius * .68,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(.8, scale * .75)
+        ..color = const Color(0xff355f78),
+    );
+  }
+
+  void _supportBolt(Canvas canvas, Offset center, double radius) {
+    canvas.drawCircle(center, radius, Paint()..color = const Color(0xff0b1b2b));
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .9
+        ..color = const Color(0xff7194a6),
+    );
+    canvas.drawLine(
+      center + Offset(-radius * .42, 0),
+      center + Offset(radius * .42, 0),
+      Paint()
+        ..strokeWidth = .9
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff9fc6d4),
+    );
+  }
+
+  void _supportRib(Canvas canvas, Offset start, Offset end, double scale) {
+    canvas.drawLine(
+      start,
+      end,
+      Paint()
+        ..strokeWidth = scale * 3.2
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff173a52),
+    );
+    canvas.drawLine(
+      start.translate(0, -scale * .5),
+      end.translate(0, -scale * .5),
+      Paint()
+        ..strokeWidth = math.max(.8, scale * .62)
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff75d9ec),
+    );
+  }
+
   void _steamLinkage(
     Canvas canvas,
     KineticGearGeometry driveGear,
@@ -1261,7 +1578,35 @@ class _TrainingAmbientPainter extends CustomPainter {
       driveGear,
       drivePhase,
     );
+    final transmission =
+        TrainingAmbientComparison.kineticReportSyncTransmissionPoseFor(
+          driveGear,
+          drivePhase,
+        );
     final scale = driveGear.module;
+    // The two open belts are valid because all three REPORT SYNC axle centers
+    // are fixed. Their loop lengths therefore do not vary while the crank
+    // pins and coupling rods move above them.
+    for (var i = 0; i < transmission.axleCenters.length - 1; i++) {
+      _openBelt(
+        canvas,
+        transmission.axleCenters[i],
+        transmission.axleCenters[i + 1],
+        radius: transmission.pulleyRadius,
+        phase: transmission.phase + i * .31,
+      );
+    }
+    for (var i = 0; i < transmission.axleCenters.length; i++) {
+      _reportSyncPulley(
+        canvas,
+        transmission.axleCenters[i],
+        scale: scale,
+        radius: transmission.pulleyRadius,
+        phase: transmission.phase,
+        dualGroove: i == 1,
+        driveFlange: i == transmission.axleCenters.length - 1,
+      );
+    }
     final railPaint = Paint()
       ..strokeCap = StrokeCap.round
       ..strokeWidth = scale * 2.4
@@ -1351,6 +1696,117 @@ class _TrainingAmbientPainter extends CustomPainter {
       radius: 4.5,
       coreRadius: 1.65,
     );
+  }
+
+  void _openBelt(
+    Canvas canvas,
+    Offset start,
+    Offset end, {
+    required double radius,
+    required double phase,
+  }) {
+    final span = end.dx - start.dx;
+    if (span <= radius * 2.2 || (end.dy - start.dy).abs() > .01) return;
+    final upperStart = start + Offset(0, -radius);
+    final upperEnd = end + Offset(0, -radius);
+    final lowerStart = start + Offset(0, radius);
+    final path = Path()
+      ..moveTo(upperStart.dx, upperStart.dy)
+      ..lineTo(upperEnd.dx, upperEnd.dy)
+      ..arcTo(
+        Rect.fromCircle(center: end, radius: radius),
+        -math.pi / 2,
+        math.pi,
+        false,
+      )
+      ..lineTo(lowerStart.dx, lowerStart.dy)
+      ..arcTo(
+        Rect.fromCircle(center: start, radius: radius),
+        math.pi / 2,
+        math.pi,
+        false,
+      )
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(4, radius * .52)
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xee132a3b),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.1, radius * .11)
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xff4f778e),
+    );
+    final markerSpacing = math.max(10, radius * 1.55);
+    final markerOffset = (phase * radius * 2.1) % markerSpacing;
+    for (
+      var distance = markerOffset;
+      distance < span;
+      distance += markerSpacing
+    ) {
+      final x = start.dx + distance;
+      final slant = math.min(4.2, radius * .35);
+      for (final y in [start.dy - radius, start.dy + radius]) {
+        canvas.drawLine(
+          Offset(x - slant, y - 1.1),
+          Offset(x + slant, y + 1.1),
+          Paint()
+            ..strokeWidth = math.max(.7, radius * .075)
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xff77b5c9),
+        );
+      }
+    }
+  }
+
+  void _reportSyncPulley(
+    Canvas canvas,
+    Offset center, {
+    required double scale,
+    required double radius,
+    required double phase,
+    required bool dualGroove,
+    required bool driveFlange,
+  }) {
+    final fill = driveFlange
+        ? const Color(0xff315e78)
+        : const Color(0xff24485f);
+    canvas.drawCircle(center, radius, Paint()..color = fill);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1, scale * .85)
+        ..color = const Color(0xff83e6fa),
+    );
+    if (dualGroove) {
+      canvas.drawCircle(
+        center,
+        radius * .70,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.2, scale * 1.05)
+          ..color = const Color(0xff102b40),
+      );
+    }
+    for (var i = 0; i < 4; i++) {
+      final angle = phase + i * math.pi / 2;
+      canvas.drawLine(
+        center + Offset.fromDirection(angle, radius * .24),
+        center + Offset.fromDirection(angle, radius * .72),
+        Paint()
+          ..strokeWidth = math.max(.9, scale * .8)
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff75a8bd),
+      );
+    }
   }
 
   void _rockerLinkage(
