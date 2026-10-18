@@ -2094,6 +2094,7 @@ void main() {
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
 
+    await _precacheDashboardEmblem(tester);
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
 
@@ -2108,6 +2109,11 @@ void main() {
     expect(
       (logoImage.image as AssetImage).assetName,
       'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+    );
+    final logoSlot = find.byKey(const ValueKey('dashboard-brand-logo-slot'));
+    expect(
+      find.descendant(of: logoSlot, matching: find.byType(ImageFiltered)),
+      findsNWidgets(2),
     );
     final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
     expect(
@@ -2160,9 +2166,13 @@ void main() {
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintLeft;
     final wordmarkCoreRight =
         wordmarkRect.left + DashboardNeonTubeGeometry.wordmarkPaintRight;
-    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(4, 5));
+    expect(logoSlotRect.left - perimeterLeft, inInclusiveRange(7, 8));
     expect(wordmarkCoreLeft - logoSlotRect.right, inInclusiveRange(0, 4));
     expect(perimeterRight - wordmarkCoreRight, inInclusiveRange(5, 7));
+    expect(
+      wordmarkRect.left,
+      closeTo(signRect.left + DashboardNeonTubeGeometry.wordmarkOriginX, .01),
+    );
     final dailyCommandCard = find.ancestor(
       of: find.text('OPERATION STATUS'),
       matching: find.byType(OperationCard),
@@ -2242,7 +2252,7 @@ void main() {
     },
   );
 
-  testWidgets('Dashboard neon logo V2 matches the stable visual reference', (
+  testWidgets('Dashboard neon logo V2.1 matches the stable visual reference', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -2250,12 +2260,13 @@ void main() {
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
 
+    await _precacheDashboardEmblem(tester);
     await _pumpDashboard(tester, width: 390);
     await _settleDashboard(tester);
 
     await expectLater(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
-      matchesGoldenFile('goldens/dashboard_neon_logo_v2.png'),
+      matchesGoldenFile('goldens/dashboard_neon_logo_v2_1.png'),
     );
   });
 
@@ -3634,5 +3645,27 @@ MorningBriefRecord _brief(
     actions: const [],
     createdAt: timestamp,
     updatedAt: timestamp,
+  );
+}
+
+Future<void> _precacheDashboardEmblem(WidgetTester tester) async {
+  late BuildContext context;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (value) {
+          context = value;
+          return const SizedBox.expand();
+        },
+      ),
+    ),
+  );
+  await tester.runAsync(
+    () => precacheImage(
+      const AssetImage(
+        'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+      ),
+      context,
+    ),
   );
 }

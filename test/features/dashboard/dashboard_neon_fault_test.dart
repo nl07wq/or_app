@@ -56,16 +56,25 @@ void main() {
         lessThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right),
       );
       expect(DashboardNeonTubeGeometry.signHorizontalPadding, 1);
-      expect(DashboardNeonTubeGeometry.logoSize, 33);
-      expect(DashboardNeonTubeGeometry.logoVisibleWidth, closeTo(32.21, .01));
-      expect(DashboardNeonTubeGeometry.logoVisibleHeight, closeTo(30.31, .01));
-      expect(DashboardNeonTubeGeometry.logoGlowOpacity, .34);
-      expect(DashboardNeonTubeGeometry.logoCoreOpacity, .90);
-      expect(DashboardNeonTubeGeometry.leftContentClearance, 4.5);
+      expect(DashboardNeonTubeGeometry.v2LogoSize, 33);
+      expect(DashboardNeonTubeGeometry.logoScaleFromV2, .92);
+      expect(DashboardNeonTubeGeometry.logoSize, closeTo(30.36, .001));
+      expect(DashboardNeonTubeGeometry.logoVisibleWidth, closeTo(29.63, .01));
+      expect(DashboardNeonTubeGeometry.logoVisibleHeight, closeTo(27.89, .01));
+      expect(DashboardNeonTubeGeometry.logoOuterGlowOpacity, .16);
+      expect(DashboardNeonTubeGeometry.logoInnerGlowOpacity, .58);
+      expect(DashboardNeonTubeGeometry.logoCoreOpacity, .88);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowSigma, 3);
+      expect(DashboardNeonTubeGeometry.logoInnerGlowSigma, 1.05);
+      expect(
+        DashboardNeonTubeGeometry.leftContentClearance,
+        closeTo(7.14, .01),
+      );
       expect(
         DashboardNeonTubeGeometry.rightContentClearance,
         closeTo(5.2, .01),
       );
+      expect(DashboardNeonTubeGeometry.wordmarkOriginX, 41);
       expect(
         DashboardNeonTubeGeometry.lockupWidth,
         DashboardNeonTubeGeometry.logoSize +
@@ -118,6 +127,32 @@ void main() {
       expect(
         DashboardNeonTubeGeometry.contentSafeBounds.right,
         lessThan(DashboardNeonTubeGeometry.innerNeonPerimeterBounds.right),
+      );
+    });
+
+    test('logo neon layers follow wordmark intensities during faults', () {
+      const stable = DashboardNeonFaultPatterns.stable;
+      final deepestLogoFault = DashboardNeonFaultPatterns.patterns
+          .expand((pattern) => pattern)
+          .reduce(
+            (left, right) =>
+                left.logoIntensity < right.logoIntensity ? left : right,
+          );
+
+      expect(DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable), .16);
+      expect(DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(stable), .58);
+      expect(DashboardNeonTubeGeometry.logoCoreAlphaFor(stable), .88);
+      expect(
+        DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(deepestLogoFault),
+        lessThan(.01),
+      );
+      expect(
+        DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(deepestLogoFault),
+        lessThan(.01),
+      );
+      expect(
+        DashboardNeonTubeGeometry.logoCoreAlphaFor(deepestLogoFault),
+        lessThan(.01),
       );
     });
   });
