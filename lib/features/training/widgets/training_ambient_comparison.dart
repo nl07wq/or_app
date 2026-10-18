@@ -46,6 +46,22 @@ class KineticGearGeometry {
   double phaseAt(double drivePhase) => phaseOffset + driveRatio * drivePhase;
 }
 
+/// Static, PNG-replaceable structure behind the two V7 gear layers.  It has
+/// no drive state, so adding it cannot affect transmission geometry or motion.
+class KineticBaseplateGeometry {
+  const KineticBaseplateGeometry({
+    required this.plate,
+    required this.mountGearIds,
+    required this.bridgeGearIds,
+  });
+
+  /// A normalized, irregular plate outline.  Keeping this normalized makes
+  /// the machine scale with the scrollable TRAINING ambient extent.
+  final List<Offset> plate;
+  final List<String> mountGearIds;
+  final List<(String, String)> bridgeGearIds;
+}
+
 class TrainingAmbientComparison extends StatefulWidget {
   const TrainingAmbientComparison({super.key, required this.variant});
   final TrainingAmbientVariant variant;
@@ -285,6 +301,96 @@ class TrainingAmbientComparison extends StatefulWidget {
     ];
   }
 
+  /// V8 baseplate topology. Plates overlap but are deliberately broken into
+  /// separate machined sections instead of becoming a decorative rectangle.
+  /// Every mounting point resolves to a V7 primary or background gear pivot.
+  static List<KineticBaseplateGeometry> kineticBaseplateGeometryFor(
+    Size size, {
+    List<KineticGearGeometry>? primaryGears,
+    List<KineticGearGeometry>? backgroundGears,
+  }) {
+    final primary = primaryGears ?? kineticGearGeometryFor(size);
+    final background =
+        backgroundGears ?? kineticBackgroundGearGeometryFor(size);
+    final ids = {
+      for (final gear in [...primary, ...background]) gear.id,
+    };
+    final plates = <KineticBaseplateGeometry>[
+      const KineticBaseplateGeometry(
+        plate: [
+          Offset(-.08, .00), Offset(.38, -.02), Offset(.56, .16),
+          Offset(.47, .31), Offset(.17, .35), Offset(-.04, .22),
+        ],
+        mountGearIds: ['main-drive', 'upper-left', 'upper-right'],
+        bridgeGearIds: [('main-drive', 'upper-left'), ('main-drive', 'upper-right')],
+      ),
+      const KineticBaseplateGeometry(
+        plate: [
+          Offset(.56, .08), Offset(1.08, .05), Offset(1.06, .38),
+          Offset(.79, .47), Offset(.57, .33),
+        ],
+        mountGearIds: [
+          'background-north-right-drive', 'background-north-right-outer',
+          'right-crown',
+        ],
+        bridgeGearIds: [
+          ('background-north-right-drive', 'background-north-right-outer'),
+          ('right-crown', 'right-transfer'),
+        ],
+      ),
+      const KineticBaseplateGeometry(
+        plate: [
+          Offset(-.08, .31), Offset(.34, .28), Offset(.58, .45),
+          Offset(.45, .68), Offset(.09, .70), Offset(-.06, .54),
+        ],
+        mountGearIds: [
+          'left-crown', 'mid-drive', 'background-south-left-drive',
+        ],
+        bridgeGearIds: [
+          ('left-crown', 'left-transfer'),
+          ('mid-drive', 'mid-crown'),
+          ('background-south-left-drive', 'background-south-left-outer'),
+        ],
+      ),
+      const KineticBaseplateGeometry(
+        plate: [
+          Offset(.52, .48), Offset(1.07, .43), Offset(1.05, .78),
+          Offset(.77, .89), Offset(.48, .75),
+        ],
+        mountGearIds: [
+          'output-crown', 'bottom-drive', 'background-south-right-drive',
+        ],
+        bridgeGearIds: [
+          ('output-crown', 'output-pinion'),
+          ('bottom-drive', 'bottom-crown'),
+          ('background-south-right-drive', 'background-south-right-upper'),
+        ],
+      ),
+      const KineticBaseplateGeometry(
+        plate: [
+          Offset(-.07, .69), Offset(.44, .66), Offset(.61, .84),
+          Offset(.51, 1.05), Offset(.04, 1.04), Offset(-.08, .89),
+        ],
+        mountGearIds: ['escapement', 'bottom-crown', 'background-south-left-crown'],
+        bridgeGearIds: [
+          ('escapement', 'bottom-drive'),
+          ('background-south-left-crown', 'background-south-left-lower'),
+        ],
+      ),
+    ];
+    assert(
+      plates.expand((plate) => plate.mountGearIds).every(ids.contains),
+      'Baseplate mounts must resolve to an existing V7 gear pivot.',
+    );
+    assert(
+      plates
+          .expand((plate) => plate.bridgeGearIds)
+          .every((bridge) => ids.contains(bridge.$1) && ids.contains(bridge.$2)),
+      'Baseplate bridges must resolve to existing V7 gear pivots.',
+    );
+    return plates;
+  }
+
   @override
   State<TrainingAmbientComparison> createState() =>
       _TrainingAmbientComparisonState();
@@ -484,12 +590,25 @@ class _TrainingAmbientPainter extends CustomPainter {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(size);
     final backgroundGears =
         TrainingAmbientComparison.kineticBackgroundGearGeometryFor(size);
+    final baseplates = TrainingAmbientComparison.kineticBaseplateGeometryFor(
+      size,
+      primaryGears: gears,
+      backgroundGears: backgroundGears,
+    );
     final byId = {for (final gear in gears) gear.id: gear};
+    final allGears = {
+      for (final gear in [...gears, ...backgroundGears]) gear.id: gear,
+    };
     final drivePhase = TrainingAmbientComparison.kineticDrivePhase(time);
     canvas.drawRect(
       Offset.zero & size,
       Paint()..color = const Color(0x99101924),
     );
+
+    // V8: the motionless baseplate is intentionally rendered first.  Its
+    // mounting seats make the V7 pivots read as one watch-like assembly while
+    // leaving every gear profile and animation untouched.
+    _baseplates(canvas, size, baseplates, allGears);
 
     // The independent lower layer is deliberately painted before the V6.2
     // transmission so its subdued gear groups create depth without competing
@@ -571,6 +690,114 @@ class _TrainingAmbientPainter extends CustomPainter {
       output.module * 2,
       Paint()..color = const Color(0xff80dcf5),
     );
+  }
+
+  void _baseplates(
+    Canvas canvas,
+    Size size,
+    List<KineticBaseplateGeometry> plates,
+    Map<String, KineticGearGeometry> gears,
+  ) {
+    for (var index = 0; index < plates.length; index++) {
+      final plate = plates[index];
+      final path = Path();
+      for (var pointIndex = 0; pointIndex < plate.plate.length; pointIndex++) {
+        final point = Offset(
+          plate.plate[pointIndex].dx * size.width,
+          plate.plate[pointIndex].dy * size.height,
+        );
+        if (pointIndex == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+      path.close();
+      final bounds = path.getBounds();
+      final plateFill = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: index.isEven
+            ? const [Color(0xc30b1620), Color(0xa3162733), Color(0xc309121a)]
+            : const [Color(0xc311202b), Color(0xa51a2b37), Color(0xc30a141d)],
+      ).createShader(bounds);
+      canvas.drawPath(path, Paint()..shader = plateFill);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = const Color(0x665f8495),
+      );
+      canvas.drawPath(
+        path.shift(const Offset(0, 2)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = const Color(0x6610151a),
+      );
+
+      for (final bridge in plate.bridgeGearIds) {
+        final start = gears[bridge.$1]!.center;
+        final end = gears[bridge.$2]!.center;
+        canvas.drawLine(
+          start,
+          end,
+          Paint()
+            ..strokeWidth = 5.2
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0x9c14232e),
+        );
+        canvas.drawLine(
+          start,
+          end,
+          Paint()
+            ..strokeWidth = 1.0
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0x5a6f99aa),
+        );
+      }
+      for (final id in plate.mountGearIds) {
+        final gear = gears[id]!;
+        final seatRadius = gear.pitchRadius * .32 + 7;
+        canvas.drawCircle(
+          gear.center,
+          seatRadius,
+          Paint()..color = const Color(0xc4091218),
+        );
+        canvas.drawCircle(
+          gear.center,
+          seatRadius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = const Color(0x725a7d8c),
+        );
+        for (var screw = 0; screw < 3; screw++) {
+          final position =
+              gear.center +
+              Offset.fromDirection(
+                screw * math.pi * 2 / 3 + index * .31,
+                seatRadius * .72,
+              );
+          canvas.drawCircle(position, 1.7, Paint()..color = const Color(0xff111d26));
+          canvas.drawCircle(
+            position,
+            1.05,
+            Paint()..color = const Color(0x886b8996),
+          );
+        }
+      }
+      // A restrained recessed seam implies machining without adding a grid or
+      // crossing the foreground UI with bright decoration.
+      canvas.drawLine(
+        Offset(bounds.left + 14, bounds.top + 14),
+        Offset(bounds.right - 14, bounds.top + 14),
+        Paint()
+          ..strokeWidth = .75
+          ..color = const Color(0x443b5a68),
+      );
+    }
   }
 
   void _gear(
