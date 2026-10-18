@@ -32,14 +32,14 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('CHROMATIC FLUID V3 visual frame is stable', (tester) async {
+  testWidgets('CHROMATIC FLUID V3.1 visual frame is stable', (tester) async {
     await pumpFood(tester, FoodAmbientVariant.chromaticFluid);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_phase_a.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_1_phase_a.png'),
     );
   });
 
@@ -76,7 +76,7 @@ void main() {
     );
   });
 
-  testWidgets('CHROMATIC FLUID V3 remains deterministic at a later phase', (
+  testWidgets('CHROMATIC FLUID V3.1 remains deterministic at a later phase', (
     tester,
   ) async {
     await pumpFood(
@@ -89,7 +89,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_phase_b.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_1_phase_b.png'),
     );
   });
 

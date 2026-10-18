@@ -22,17 +22,23 @@ class ChromaticFluidDrop {
     required this.id,
     required this.center,
     required this.radius,
+    required this.baseRadius,
     required this.color,
     required this.size,
     required this.surfacePhase,
+    this.absorption = 0,
+    this.hostId,
   });
 
   final int id;
   final Offset center;
   final double radius;
+  final double baseRadius;
   final Color color;
   final ChromaticFluidDropSize size;
   final double surfacePhase;
+  final double absorption;
+  final int? hostId;
 }
 
 @immutable
@@ -61,10 +67,32 @@ class ChromaticFluidContact {
 
 @immutable
 class ChromaticFluidFrame {
-  const ChromaticFluidFrame({required this.drops, required this.contacts});
+  const ChromaticFluidFrame({
+    required this.drops,
+    required this.contacts,
+    required this.particles,
+  });
 
   final List<ChromaticFluidDrop> drops;
   final List<ChromaticFluidContact> contacts;
+  final List<ChromaticFluidParticle> particles;
+}
+
+@immutable
+class ChromaticFluidParticle {
+  const ChromaticFluidParticle({
+    required this.center,
+    required this.radius,
+    required this.color,
+    required this.opacity,
+    required this.isBubble,
+  });
+
+  final Offset center;
+  final double radius;
+  final Color color;
+  final double opacity;
+  final bool isBubble;
 }
 
 @immutable
@@ -119,16 +147,16 @@ typedef _ChromaticFluidFieldNode = (int orientation, int x, int y);
 
 /// Deterministic, bounded implicit-field geometry for Chromatic Fluid V3.
 ///
-/// Each scheduled pair and each independent small drop is sampled only inside
-/// its local influence rectangle. A smooth iso-contour is extracted from the
-/// summed field, so approach, fusion and pinch-off all come from one scalar
-/// surface instead of a separately drawn connector.
+/// Nearby drops are linked dynamically into bounded local field groups. A
+/// smooth iso-contour is extracted from the summed scalar surface, so every
+/// approach, merge, absorption, split, and pinch-off comes from one field
+/// instead of from fixed pair connectors.
 abstract final class ChromaticFluidMetaballs {
   static const dropCount = 12;
-  static const maximumContactCount = 3;
-  static const maximumFieldGroupCount = 9;
+  static const maximumContactCount = 5;
+  static const maximumFieldGroupCount = 12;
   static const maximumFieldSampleCount = 18000;
-  static const cycleSeconds = 18.0;
+  static const cycleSeconds = 24.0;
   static const fieldIsoValue = 1.0;
   static const _palette = <Color>[
     Color(0xff32ddd0),
@@ -142,56 +170,56 @@ abstract final class ChromaticFluidMetaballs {
   static ChromaticFluidFrame frame(Size size, double seconds) {
     final shortest = size.shortestSide;
     final drops = <ChromaticFluidDrop>[];
-    const pairAnchors = <Offset>[
-      Offset(.33, .20),
-      Offset(.68, .49),
-      Offset(.36, .78),
+    const majorAnchors = <Offset>[
+      Offset(.20, .17),
+      Offset(.72, .20),
+      Offset(.32, .47),
+      Offset(.73, .52),
+      Offset(.18, .80),
+      Offset(.69, .82),
     ];
-    const pairRadii = <(double, double)>[
-      (.145, .086),
-      (.122, .072),
-      (.132, .078),
-    ];
-    const pairAngles = <double>[-.18, 2.82, .34];
+    const majorRadii = <double>[.142, .086, .126, .076, .136, .082];
 
-    for (var pair = 0; pair < 3; pair++) {
-      final phase = seconds / cycleSeconds * math.pi * 2 + pair * 2.07;
-      final approach = .5 + .5 * math.sin(phase);
-      final easedApproach = _smoothStep(approach);
-      final firstRadius = shortest * pairRadii[pair].$1;
-      final secondRadius = shortest * pairRadii[pair].$2;
-      final distanceFactor = 1.52 - easedApproach * .91;
-      final distance = (firstRadius + secondRadius) * distanceFactor;
-      final angle = pairAngles[pair] + math.sin(seconds * .075 + pair) * .22;
-      final direction = Offset.fromDirection(angle);
-      final anchor = pairAnchors[pair];
-      final midpoint = Offset(
-        size.width * anchor.dx + math.sin(seconds * .11 + pair * 1.7) * 13,
-        size.height * anchor.dy + math.cos(seconds * .09 + pair * 2.1) * 17,
+    for (var id = 0; id < majorAnchors.length; id++) {
+      final phase = seconds * (.105 + id * .009) + id * 1.41;
+      final anchor = majorAnchors[id];
+      final center = Offset(
+        size.width * anchor.dx +
+            math.sin(phase * .91) * (24 + (id % 3) * 8) +
+            math.cos(phase * .37 + id) * 13,
+        size.height * anchor.dy +
+            math.cos(phase * .73) * (31 + (id % 2) * 10) +
+            math.sin(phase * .41 + id) * 16,
       );
-      final radiusSum = firstRadius + secondRadius;
-      final firstCenter =
-          midpoint - direction * distance * (secondRadius / radiusSum);
-      final secondCenter =
-          midpoint + direction * distance * (firstRadius / radiusSum);
+      final baseRadius = shortest * majorRadii[id];
+      // Alternating currents gather a changing local triad without assigning
+      // any contact pair in advance. The field still decides whether the
+      // neighbouring drops actually merge at this phase.
+      final triadPhase = seconds * .13 + (id.isEven ? 0 : math.pi);
+      final triadPull = _smoothStep(
+        ((.5 + .5 * math.sin(triadPhase) - .70) / .30).clamp(0.0, 1.0),
+      );
+      final triadIndex = id ~/ 2;
+      final triadCenter = Offset(
+        size.width * (id.isEven ? .41 : .63) + math.sin(seconds * .07) * 18,
+        size.height * (.48 + math.cos(seconds * .06) * .12),
+      );
+      final gatheredCenter =
+          triadCenter +
+          Offset.fromDirection(triadIndex * math.pi * 2 / 3 + seconds * .11) *
+              baseRadius *
+              .30;
       drops.add(
         ChromaticFluidDrop(
-          id: pair * 2,
-          center: firstCenter,
-          radius: firstRadius,
-          color: _palette[pair * 2],
-          size: ChromaticFluidDropSize.large,
-          surfacePhase: seconds * (.34 + pair * .025) + pair * 1.3,
-        ),
-      );
-      drops.add(
-        ChromaticFluidDrop(
-          id: pair * 2 + 1,
-          center: secondCenter,
-          radius: secondRadius,
-          color: _palette[pair * 2 + 1],
-          size: ChromaticFluidDropSize.medium,
-          surfacePhase: seconds * (.41 + pair * .021) + pair * 1.8,
+          id: id,
+          center: Offset.lerp(center, gatheredCenter, triadPull)!,
+          radius: baseRadius,
+          baseRadius: baseRadius,
+          color: _palette[id],
+          size: id.isEven
+              ? ChromaticFluidDropSize.large
+              : ChromaticFluidDropSize.medium,
+          surfacePhase: seconds * (.31 + id * .018) + id * 1.23,
         ),
       );
     }
@@ -207,38 +235,101 @@ abstract final class ChromaticFluidMetaballs {
     for (var i = 0; i < smallAnchors.length; i++) {
       final phase = seconds * (.15 + i * .012) + i * 1.47;
       final anchor = smallAnchors[i];
+      final freeCenter = Offset(
+        size.width * anchor.dx + math.sin(phase * .83) * (13 + i % 3 * 4),
+        size.height * anchor.dy + math.cos(phase * .67) * (16 + i % 2 * 5),
+      );
+      final host = drops
+          .where((drop) => drop.size != ChromaticFluidDropSize.small)
+          .reduce(
+            (nearest, candidate) =>
+                (candidate.center - freeCenter).distance <
+                    (nearest.center - freeCenter).distance
+                ? candidate
+                : nearest,
+          );
+      final absorption = _smoothStep(
+        ((.5 + .5 * math.sin(seconds * (.19 + i * .011) + i * 1.91)) - .44)
+                .clamp(0.0, 1.0) /
+            .56,
+      );
+      final direction = Offset.fromDirection(phase * .72 + i * .83);
+      final hostPosition =
+          host.center +
+          direction * host.radius * (.20 + (1 - absorption) * .62);
+      final center = Offset.lerp(freeCenter, hostPosition, absorption)!;
+      final baseRadius = shortest * (.020 + (i % 3) * .008);
       drops.add(
         ChromaticFluidDrop(
           id: 6 + i,
-          center: Offset(
-            size.width * anchor.dx + math.sin(phase * .83) * (13 + i % 3 * 4),
-            size.height * anchor.dy + math.cos(phase * .67) * (16 + i % 2 * 5),
-          ),
-          radius: shortest * (.020 + (i % 3) * .008),
+          center: center,
+          radius: baseRadius * (1 - absorption * .82),
+          baseRadius: baseRadius,
           color: _palette[(i + 1) % _palette.length],
           size: ChromaticFluidDropSize.small,
           surfacePhase: phase,
+          absorption: absorption,
+          hostId: absorption > .02 ? host.id : null,
         ),
       );
     }
 
     final contacts = <ChromaticFluidContact>[];
-    for (var pair = 0; pair < 3; pair++) {
-      final first = drops[pair * 2];
-      final second = drops[pair * 2 + 1];
-      final normalizedDistance =
-          (second.center - first.center).distance /
-          (first.radius + second.radius);
-      final strength = contactStrength(normalizedDistance);
-      if (strength <= .005) continue;
-      contacts.add(
-        ChromaticFluidContact(first: first, second: second, strength: strength),
-      );
+    for (var firstIndex = 0; firstIndex < drops.length - 1; firstIndex++) {
+      for (
+        var secondIndex = firstIndex + 1;
+        secondIndex < drops.length;
+        secondIndex++
+      ) {
+        final first = drops[firstIndex];
+        final second = drops[secondIndex];
+        final normalizedDistance =
+            (second.center - first.center).distance /
+            (first.radius + second.radius);
+        final strength = contactStrength(normalizedDistance);
+        if (strength <= .005) continue;
+        contacts.add(
+          ChromaticFluidContact(
+            first: first,
+            second: second,
+            strength: strength,
+          ),
+        );
+      }
     }
+    contacts.sort((first, second) => second.strength.compareTo(first.strength));
     return ChromaticFluidFrame(
       drops: List.unmodifiable(drops),
-      contacts: List.unmodifiable(contacts),
+      contacts: List.unmodifiable(contacts.take(maximumContactCount)),
+      particles: List.unmodifiable(_particles(size, seconds)),
     );
+  }
+
+  static List<ChromaticFluidParticle> _particles(Size size, double seconds) {
+    const particleCount = 26;
+    return List<ChromaticFluidParticle>.generate(particleCount, (index) {
+      final speed = .030 + (index % 5) * .006;
+      final progress = (seconds * speed + index * .173) % 1;
+      final edgeFade = _smoothStep(
+        math.min(progress / .13, (1 - progress) / .13),
+      );
+      final isBubble = index % 3 != 0;
+      final radius = isBubble
+          ? 1.4 + (index % 4) * .72
+          : .55 + (index % 3) * .22;
+      return ChromaticFluidParticle(
+        center: Offset(
+          size.width * (.06 + ((index * .371) % .88)) +
+              math.sin(seconds * (.42 + index * .013) + index) * 7,
+          size.height * (1.08 - progress * 1.20) +
+              math.cos(seconds * (.31 + index * .017) + index) * 4,
+        ),
+        radius: radius,
+        color: _palette[(index + 1) % _palette.length],
+        opacity: edgeFade * (isBubble ? .20 : .25),
+        isBubble: isBubble,
+      );
+    });
   }
 
   static double contactStrength(double normalizedDistance) {
@@ -255,16 +346,39 @@ abstract final class ChromaticFluidMetaballs {
     double? spacing,
   }) {
     final byId = {for (final drop in frame.drops) drop.id: drop};
-    final groups = <List<ChromaticFluidDrop>>[
-      for (var pair = 0; pair < 3; pair++)
-        [byId[pair * 2]!, byId[pair * 2 + 1]!],
-      for (var id = 6; id < dropCount; id++) [byId[id]!],
-    ];
+    final parent = <int, int>{for (final id in byId.keys) id: id};
+    int root(int id) {
+      var current = id;
+      while (parent[current] != current) {
+        current = parent[current]!;
+      }
+      return current;
+    }
+
+    for (final contact in frame.contacts) {
+      if (contact.strength < .025) continue;
+      final firstRoot = root(contact.first.id);
+      final secondRoot = root(contact.second.id);
+      if (firstRoot != secondRoot) parent[secondRoot] = firstRoot;
+    }
+    final grouped = <int, List<ChromaticFluidDrop>>{};
+    for (final drop in frame.drops) {
+      grouped
+          .putIfAbsent(root(drop.id), () => <ChromaticFluidDrop>[])
+          .add(drop);
+    }
+    final groups = grouped.values.toList(growable: false);
     final contours = <ChromaticFluidFieldContour>[];
     var sampleCount = 0;
     final fieldSpacing = spacing ?? fieldSpacingFor(size);
     for (final group in groups) {
-      final result = _contoursForGroup(group, fieldSpacing);
+      // Small standalone drops need a denser *local* contour to remain
+      // round rather than reading as a low-polygon background point.
+      final localSpacing =
+          group.every((drop) => drop.size == ChromaticFluidDropSize.small)
+          ? fieldSpacing * .72
+          : fieldSpacing;
+      final result = _contoursForGroup(group, localSpacing);
       contours.addAll(result.$1);
       sampleCount += result.$2;
     }
@@ -473,14 +587,30 @@ abstract final class ChromaticFluidMetaballs {
           current = next;
         }
         if (!closed || points.length < 8) continue;
-        final path = _closedSmoothPath(points);
+        // Marching Squares can legitimately produce a compact eight-edge
+        // loop for a tiny particle. Insert midpoint controls before the
+        // cubic smoothing pass so that it keeps a rounded liquid silhouette
+        // instead of exposing the coarse local sampling grid.
+        final contourPoints = points.length < 12
+            ? <Offset>[
+                for (var index = 0; index < points.length; index++) ...[
+                  points[index],
+                  Offset.lerp(
+                    points[index],
+                    points[(index + 1) % points.length],
+                    .5,
+                  )!,
+                ],
+              ]
+            : points;
+        final path = _closedSmoothPath(contourPoints);
         contours.add(
           ChromaticFluidFieldContour(
             path: path,
             bounds: path.getBounds(),
             dropIds: Set.unmodifiable(drops.map((drop) => drop.id)),
-            pointCount: points.length,
-            samplePoints: List.unmodifiable(points),
+            pointCount: contourPoints.length,
+            samplePoints: List.unmodifiable(contourPoints),
           ),
         );
       }
@@ -679,6 +809,45 @@ class _FoodAmbientPainter extends CustomPainter {
     final dropsById = {for (final drop in frame.drops) drop.id: drop};
     final viewport = Offset.zero & s;
 
+    // The particle layer lives behind the field: it adds depth without
+    // obscuring either the liquid contours or the FOOD foreground UI.
+    for (final particle in frame.particles) {
+      if (!viewport.inflate(particle.radius * 2).contains(particle.center)) {
+        continue;
+      }
+      final rect = Rect.fromCircle(
+        center: particle.center,
+        radius: particle.radius * 1.8,
+      );
+      c.drawCircle(
+        particle.center,
+        particle.radius * 1.8,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: particle.opacity * .78),
+              particle.color.withValues(alpha: particle.opacity * .54),
+              particle.color.withValues(alpha: 0),
+            ],
+            stops: const [0, .38, 1],
+          ).createShader(rect),
+      );
+      if (particle.isBubble) {
+        c.drawCircle(
+          particle.center,
+          particle.radius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = .55
+            ..color = Color.lerp(
+              particle.color,
+              Colors.white,
+              .55,
+            )!.withValues(alpha: particle.opacity),
+        );
+      }
+    }
+
     for (final contour in field.contours) {
       if (!contour.bounds.overlaps(viewport)) continue;
       final contourDrops = [for (final id in contour.dropIds) dropsById[id]!];
@@ -706,22 +875,34 @@ class _FoodAmbientPainter extends CustomPainter {
           ).createShader(contour.bounds),
       );
 
-      if (contourDrops.length == 2) {
-        final first = contourDrops.first;
-        final second = contourDrops.last;
-        final mixed = Color.lerp(first.color, second.color, .5)!;
+      if (contourDrops.length >= 2) {
+        final ordered = [...contourDrops]
+          ..sort((first, second) => first.id.compareTo(second.id));
+        final first = ordered.first;
+        final second = ordered.last;
+        final mixed = ordered
+            .skip(1)
+            .fold(
+              first.color,
+              (color, drop) => Color.lerp(color, drop.color, .5)!,
+            );
+        final flow = .5 + .5 * math.sin(t * .33 + first.id * .7 + second.id);
         c.drawRect(
           contour.bounds,
           Paint()
             ..shader = ui.Gradient.linear(
-              first.center,
-              second.center,
+              Offset.lerp(first.center, second.center, .15 + flow * .18)!,
+              Offset.lerp(second.center, first.center, .12 + flow * .16)!,
               [
                 first.color.withValues(alpha: .42),
-                Color.lerp(mixed, Colors.white, .10)!.withValues(alpha: .54),
+                Color.lerp(
+                  mixed,
+                  Colors.white,
+                  .10,
+                )!.withValues(alpha: .48 + contourDrops.length * .025),
                 second.color.withValues(alpha: .42),
               ],
-              const [0, .5, 1],
+              [.0, .38 + flow * .20, 1],
             ),
         );
       } else {
@@ -808,9 +989,15 @@ class _FoodAmbientPainter extends CustomPainter {
             !contour.dropIds.contains(contact.second.id)) {
           continue;
         }
-        final mixRadius = contact.radius;
-        c.drawCircle(
+        final mixRadius =
+            contact.radius * (1 + math.sin(t * .38 + contact.first.id) * .10);
+        final mixCenter = Offset.lerp(
           contact.center,
+          contact.first.center,
+          .08 * math.sin(t * .41 + contact.second.id),
+        )!;
+        c.drawCircle(
+          mixCenter,
           mixRadius,
           Paint()
             ..shader =
@@ -828,7 +1015,7 @@ class _FoodAmbientPainter extends CustomPainter {
                   ],
                   stops: const [0, .54, 1],
                 ).createShader(
-                  Rect.fromCircle(center: contact.center, radius: mixRadius),
+                  Rect.fromCircle(center: mixCenter, radius: mixRadius),
                 ),
         );
       }

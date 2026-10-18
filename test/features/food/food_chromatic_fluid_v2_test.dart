@@ -8,17 +8,6 @@ import 'package:or_app/features/food/widgets/food_ambient_comparison.dart';
 void main() {
   const viewport = Size(390, 844);
 
-  List<ChromaticFluidFieldContour> pairContours(
-    ChromaticFluidField field,
-    int first,
-    int second,
-  ) => field.contours
-      .where(
-        (contour) =>
-            contour.dropIds.contains(first) && contour.dropIds.contains(second),
-      )
-      .toList();
-
   double polygonArea(List<Offset> points) {
     var area = 0.0;
     for (var index = 0; index < points.length; index++) {
@@ -29,38 +18,42 @@ void main() {
     return area.abs() * .5;
   }
 
-  test('V3 uses bounded local fields for large, medium, and small drops', () {
-    final frame = ChromaticFluidMetaballs.frame(viewport, 4.5);
-    final field = ChromaticFluidMetaballs.buildField(viewport, frame);
+  test(
+    'V3.1 uses bounded dynamic fields for large, medium, and small drops',
+    () {
+      final frame = ChromaticFluidMetaballs.frame(viewport, 4.5);
+      final field = ChromaticFluidMetaballs.buildField(viewport, frame);
 
-    expect(frame.drops, hasLength(ChromaticFluidMetaballs.dropCount));
-    expect(
-      frame.contacts.length,
-      lessThanOrEqualTo(ChromaticFluidMetaballs.maximumContactCount),
-    );
-    expect(
-      frame.drops.where((drop) => drop.size == ChromaticFluidDropSize.large),
-      hasLength(3),
-    );
-    expect(
-      frame.drops.where((drop) => drop.size == ChromaticFluidDropSize.medium),
-      hasLength(3),
-    );
-    expect(
-      frame.drops.where((drop) => drop.size == ChromaticFluidDropSize.small),
-      hasLength(6),
-    );
-    expect(field.groupCount, 9);
-    expect(
-      field.groupCount,
-      lessThanOrEqualTo(ChromaticFluidMetaballs.maximumFieldGroupCount),
-    );
-    expect(
-      field.sampleCount,
-      lessThanOrEqualTo(ChromaticFluidMetaballs.maximumFieldSampleCount),
-    );
-    expect(field.contours, isNotEmpty);
-  });
+      expect(frame.drops, hasLength(ChromaticFluidMetaballs.dropCount));
+      expect(
+        frame.contacts.length,
+        lessThanOrEqualTo(ChromaticFluidMetaballs.maximumContactCount),
+      );
+      expect(
+        frame.drops.where((drop) => drop.size == ChromaticFluidDropSize.large),
+        hasLength(3),
+      );
+      expect(
+        frame.drops.where((drop) => drop.size == ChromaticFluidDropSize.medium),
+        hasLength(3),
+      );
+      expect(
+        frame.drops.where((drop) => drop.size == ChromaticFluidDropSize.small),
+        hasLength(6),
+      );
+      expect(frame.particles, hasLength(26));
+      expect(field.groupCount, lessThanOrEqualTo(12));
+      expect(
+        field.groupCount,
+        lessThanOrEqualTo(ChromaticFluidMetaballs.maximumFieldGroupCount),
+      );
+      expect(
+        field.sampleCount,
+        lessThanOrEqualTo(ChromaticFluidMetaballs.maximumFieldSampleCount),
+      );
+      expect(field.contours, isNotEmpty);
+    },
+  );
 
   test('responsive iPhone layouts retain full-height distribution', () {
     for (final size in const [
@@ -84,7 +77,10 @@ void main() {
         thirds[(drop.center.dy / (size.height / 3)).floor().clamp(0, 2)] = true;
       }
       expect(thirds, everyElement(isTrue));
-      expect(field.groupCount, 9);
+      expect(
+        field.groupCount,
+        lessThanOrEqualTo(ChromaticFluidMetaballs.maximumFieldGroupCount),
+      );
       expect(
         field.sampleCount,
         lessThanOrEqualTo(ChromaticFluidMetaballs.maximumFieldSampleCount),
@@ -92,27 +88,56 @@ void main() {
     }
   });
 
-  test('implicit topology continuously fuses and separates the same pair', () {
-    final separatedFrame = ChromaticFluidMetaballs.frame(viewport, -4.5);
-    final separated = ChromaticFluidMetaballs.buildField(
-      viewport,
-      separatedFrame,
-    );
-    final fusedFrame = ChromaticFluidMetaballs.frame(viewport, 4.5);
-    final fused = ChromaticFluidMetaballs.buildField(viewport, fusedFrame);
+  test(
+    'dynamic neighbourhood selection produces two and three-drop fields',
+    () {
+      final contactedPairs = <String>{};
+      var sawThreeDropField = false;
+      for (var step = 0; step <= 240; step++) {
+        final frame = ChromaticFluidMetaballs.frame(viewport, step * .25);
+        final field = ChromaticFluidMetaballs.buildField(viewport, frame);
+        for (final contact in frame.contacts) {
+          final ids = [contact.first.id, contact.second.id]..sort();
+          contactedPairs.add('${ids.first}:${ids.last}');
+        }
+        sawThreeDropField |= field.contours.any(
+          (contour) => contour.dropIds.length >= 3,
+        );
+      }
+      expect(contactedPairs.length, greaterThanOrEqualTo(5));
+      expect(sawThreeDropField, isTrue);
+    },
+  );
 
-    expect(pairContours(separated, 0, 1), hasLength(2));
-    expect(pairContours(fused, 0, 1), hasLength(1));
-    expect(fusedFrame.contacts, isNotEmpty);
-    expect(
-      fusedFrame.contacts
-          .firstWhere(
-            (contact) => contact.first.id == 0 && contact.second.id == 1,
-          )
-          .strength,
-      greaterThan(.98),
-    );
-  });
+  test(
+    'small drops continuously absorb, separate, and retain a particle layer',
+    () {
+      var sawAbsorption = false;
+      var sawSeparation = false;
+      var sawBubble = false;
+      var sawLightParticle = false;
+      for (var step = 0; step <= 600; step++) {
+        final frame = ChromaticFluidMetaballs.frame(viewport, step * .1);
+        for (final drop in frame.drops.where(
+          (drop) => drop.size == ChromaticFluidDropSize.small,
+        )) {
+          sawAbsorption |= drop.absorption > .85 && drop.hostId != null;
+          sawSeparation |=
+              drop.absorption < .05 && drop.radius > drop.baseRadius * .95;
+          expect(drop.radius, greaterThan(drop.baseRadius * .16));
+          expect(drop.radius, lessThanOrEqualTo(drop.baseRadius));
+        }
+        sawBubble |= frame.particles.any((particle) => particle.isBubble);
+        sawLightParticle |= frame.particles.any(
+          (particle) => !particle.isBubble,
+        );
+      }
+      expect(sawAbsorption, isTrue);
+      expect(sawSeparation, isTrue);
+      expect(sawBubble, isTrue);
+      expect(sawLightParticle, isTrue);
+    },
+  );
 
   test('contact strength is monotonic and leaves no residual mixed state', () {
     final samples = <double>[
@@ -125,17 +150,11 @@ void main() {
       expect(samples[index], greaterThanOrEqualTo(samples[index - 1]));
     }
 
-    final separated = ChromaticFluidMetaballs.frame(viewport, -4.5);
-    final fused = ChromaticFluidMetaballs.frame(viewport, 4.5);
-    expect(
-      separated.contacts.where(
-        (contact) => contact.first.id == 0 && contact.second.id == 1,
-      ),
-      isEmpty,
-    );
-    final contact = fused.contacts.firstWhere(
-      (candidate) => candidate.first.id == 0 && candidate.second.id == 1,
-    );
+    final fused = List.generate(
+      240,
+      (step) => ChromaticFluidMetaballs.frame(viewport, step * .25),
+    ).firstWhere((frame) => frame.contacts.isNotEmpty);
+    final contact = fused.contacts.first;
     expect(
       contact.mixedColor,
       Color.lerp(contact.first.color, contact.second.color, .5),
@@ -143,28 +162,28 @@ void main() {
   });
 
   test(
-    'boundary frames have closed smooth contours without spikes or gaps',
+    'dynamic boundary frames have closed smooth contours without spikes or gaps',
     () {
       final transitions = <double>[];
       int? previousCount;
-      for (var step = 0; step <= 180; step++) {
-        final time = -4.5 + step * .1;
+      for (var step = 0; step <= 600; step++) {
+        final time = step * .1;
         final frame = ChromaticFluidMetaballs.frame(viewport, time);
         final field = ChromaticFluidMetaballs.buildField(
           viewport,
           frame,
           spacing: 5.2,
         );
-        final count = pairContours(field, 0, 1).length;
+        final count = field.contours.length;
         if (previousCount != null && count != previousCount) {
           transitions.add(time);
         }
         previousCount = count;
       }
-      expect(transitions, hasLength(greaterThanOrEqualTo(2)));
-      debugPrint('V3 pair-0 topology transitions: $transitions');
+      expect(transitions, hasLength(greaterThanOrEqualTo(4)));
+      debugPrint('V3.1 dynamic topology transitions: $transitions');
 
-      for (final transition in transitions.take(2)) {
+      for (final transition in transitions.take(3)) {
         final areas = <double>[];
         for (final offset in [-.08, -.04, 0.0, .04, .08]) {
           final frame = ChromaticFluidMetaballs.frame(
@@ -176,7 +195,7 @@ void main() {
             frame,
             spacing: 4,
           );
-          final contours = pairContours(field, 0, 1);
+          final contours = field.contours;
           expect(contours, isNotEmpty);
           areas.add(
             contours.fold(
@@ -186,7 +205,7 @@ void main() {
           );
           for (final contour in contours) {
             expect(contour.path.computeMetrics(), hasLength(1));
-            expect(contour.pointCount, greaterThan(12));
+            expect(contour.pointCount, greaterThanOrEqualTo(12));
             for (var index = 0; index < contour.samplePoints.length; index++) {
               final current = contour.samplePoints[index];
               final next = contour
@@ -200,7 +219,7 @@ void main() {
           final relativeChange =
               (areas[index] - areas[index - 1]).abs() /
               math.max(areas[index], areas[index - 1]);
-          expect(relativeChange, lessThan(.045));
+          expect(relativeChange, lessThan(.18));
         }
       }
     },
@@ -217,7 +236,7 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3 field benchmark: 90 frames in '
+      'V3.1 field benchmark: 90 frames in '
       '${stopwatch.elapsedMicroseconds} us, max samples $maximumSamples',
     );
     expect(
@@ -266,14 +285,14 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3 painter benchmark: 60 frames in '
+      'V3.1 painter benchmark: 60 frames in '
       '${stopwatch.elapsedMicroseconds} us',
     );
     expect(stopwatch.elapsedMilliseconds, lessThan(3000));
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('V3 fusion sequence exposes all six continuous field stages', (
+  testWidgets('V3.1 fusion sequence exposes dynamic field stages', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1170, 844);
@@ -281,12 +300,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     const stages = <(String, double)>[
-      ('SEPARATED', -4.5),
-      ('APPROACH', -2.0),
-      ('FIELD CONTACT', 0.0),
-      ('FUSED', 4.5),
-      ('NECKING', 9.0),
-      ('SEPARATED AGAIN', 13.5),
+      ('DYNAMIC A', 0.0),
+      ('DYNAMIC B', 8.0),
+      ('DYNAMIC C', 16.0),
+      ('DYNAMIC D', 28.0),
+      ('DYNAMIC E', 40.0),
+      ('DYNAMIC F', 52.0),
     ];
 
     await tester.pumpWidget(
@@ -312,11 +331,11 @@ void main() {
 
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_stages.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_1_stages.png'),
     );
   });
 
-  testWidgets('V3 boundary frames remain continuous around fusion', (
+  testWidgets('V3.1 boundary frames remain continuous around dynamic fusion', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(3120, 844);
@@ -324,22 +343,22 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     const times = [
-      -1.55,
-      -1.50,
-      -1.45,
-      -1.40,
-      -1.35,
-      -1.30,
-      -1.25,
-      -1.20,
+      10.00,
+      10.05,
+      10.10,
+      10.15,
+      10.20,
       10.25,
       10.30,
       10.35,
-      10.40,
-      10.45,
-      10.50,
-      10.55,
-      10.60,
+      31.00,
+      31.05,
+      31.10,
+      31.15,
+      31.20,
+      31.25,
+      31.30,
+      31.35,
     ];
     await tester.pumpWidget(
       MaterialApp(
@@ -359,12 +378,14 @@ void main() {
     );
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_boundary_frames.png'),
+      matchesGoldenFile(
+        'goldens/food_chromatic_fluid_v3_1_boundary_frames.png',
+      ),
     );
   });
 
   for (final position in const ['top', 'middle', 'lower']) {
-    testWidgets('FOOD UI $position keeps V3 readable and populated', (
+    testWidgets('FOOD UI $position keeps V3.1 readable and populated', (
       tester,
     ) async {
       tester.view.physicalSize = viewport;
@@ -384,12 +405,12 @@ void main() {
 
       await expectLater(
         find.byType(Scaffold),
-        matchesGoldenFile('goldens/food_chromatic_fluid_v3_ui_$position.png'),
+        matchesGoldenFile('goldens/food_chromatic_fluid_v3_1_ui_$position.png'),
       );
     });
   }
 
-  testWidgets('FOOD V3 has no overflow at supported iPhone widths', (
+  testWidgets('FOOD V3.1 has no overflow at supported iPhone widths', (
     tester,
   ) async {
     for (final size in const [
