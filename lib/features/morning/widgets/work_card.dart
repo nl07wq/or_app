@@ -7,7 +7,7 @@ import '../../../core/models/shift_preset.dart';
 import '../../../core/services/shift_preset_preferences.dart';
 import '../../../core/widgets/inputs/time/time_input_card.dart';
 import '../../../core/widgets/inputs/wheel/wheel_selector_card.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/services/work_calculator.dart';
 
@@ -197,7 +197,7 @@ class _WorkCardState extends State<WorkCard> {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

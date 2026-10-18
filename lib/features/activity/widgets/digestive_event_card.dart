@@ -4,7 +4,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/models/digestive_event.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../models/activity_draft.dart';
 
 class DigestiveEventCard extends StatelessWidget {
@@ -26,7 +26,7 @@ class DigestiveEventCard extends StatelessWidget {
     return Semantics(
       label: '排便イベント${event.sequence}',
       container: true,
-      child: OperationCard(
+      child: DashboardGlassCard(
         key: ValueKey('digestive-event-${event.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

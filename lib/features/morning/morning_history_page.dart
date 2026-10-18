@@ -8,13 +8,15 @@ import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
-import '../../core/widgets/operation_card.dart';
 import '../../core/state/app_initialization_state.dart';
+import '../../core/widgets/ambient_page_scaffold.dart';
+import '../../core/widgets/dashboard_glass_card.dart';
 
 import 'models/morning_fact_state.dart';
 import 'morning_fact_page.dart';
 import 'widgets/status_crt_back_button.dart';
 import 'widgets/status_crt_monitor_title.dart';
+import 'widgets/status_radial_spectrum_ambient.dart';
 
 class MorningHistoryPage extends StatefulWidget {
   const MorningHistoryPage({super.key});
@@ -71,14 +73,26 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    return AmbientPageScaffold(
       appBar: AppBar(
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        forceMaterialTransparency: true,
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
         title: const StatusCrtMonitorTitle(),
       ),
+      ambient: const StatusAmbientBackground(),
       body: Padding(
-        padding: AppSpacing.cardPadding,
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.cardPadding.left,
+          topInset + AppSpacing.cardPadding.top,
+          AppSpacing.cardPadding.right,
+          AppSpacing.cardPadding.bottom,
+        ),
         child: FutureBuilder<List<MorningData>>(
           future: _records,
           builder: (context, snapshot) {
@@ -98,7 +112,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
               itemBuilder: (context, index) {
                 final data = records[index];
 
-                return OperationCard(
+                return DashboardGlassCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

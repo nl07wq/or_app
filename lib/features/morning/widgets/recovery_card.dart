@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/morning_data.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/inputs/time/time_input_card.dart';
 import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
@@ -29,7 +29,7 @@ class RecoveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

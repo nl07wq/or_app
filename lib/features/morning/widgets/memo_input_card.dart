@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/operation_text_field.dart';
 
@@ -38,7 +38,7 @@ class _MemoInputCardState extends State<MemoInputCard> {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -70,6 +70,7 @@ class _MemoInputCardState extends State<MemoInputCard> {
               controller: widget.controller,
               label: "Memo",
               maxLines: 4,
+              glass: true,
             ),
 
             const SizedBox(height: 12),

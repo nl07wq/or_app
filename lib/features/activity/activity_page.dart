@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
-import '../../core/services/device_settings_controller.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/state/app_initialization_state.dart';
 import '../../core/widgets/operation_button.dart';
+import '../../core/widgets/ambient_page_scaffold.dart';
 import '../../core/widgets/dashboard_glass_card.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/section_header.dart';
@@ -184,8 +184,7 @@ class _ActivityPageState extends State<ActivityPage> {
   @override
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.paddingOf(context);
-    return Scaffold(
-      extendBodyBehindAppBar: true,
+    return AmbientPageScaffold(
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -198,118 +197,105 @@ class _ActivityPageState extends State<ActivityPage> {
             : null,
         title: const ActivityMechanicalCounterTitle(),
       ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          ValueListenableBuilder<DeviceSettings>(
-            valueListenable: DeviceSettingsController.instance,
-            builder: (context, settings, _) => Positioned.fill(
-              child: ActivityAmbientKineticField(
-                enabled: settings.ambientKineticFieldEnabled,
+      ambient: const ActivityAmbientBackground(),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          viewPadding.top + kToolbarHeight + AppSpacing.lg,
+          AppSpacing.lg,
+          viewPadding.bottom + AppSpacing.lg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeader(
+              icon: Icons.directions_walk_outlined,
+              title: 'ACTIVITY ENTRY',
+            ),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(
+              text:
+                  '本日の歩数・排便など\n'
+                  '本日の活動を記録します。',
+            ),
+
+            AppSpacing.gapMD,
+
+            FutureBuilder<bool>(
+              future: _activityExists,
+              builder: (context, snapshot) {
+                final activityExists = snapshot.data ?? false;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ActivityGlassAction(
+                      child: OperationButton(
+                        key: const ValueKey('activity-entry-button'),
+                        icon: Icons.edit_outlined,
+                        text: 'ACTIVITY ENTRY',
+                        transparentSurface: true,
+                        reportUnavailableTap:
+                            !appInitializationController.value.isReadOnly &&
+                            snapshot.connectionState == ConnectionState.done &&
+                            !snapshot.hasError &&
+                            activityExists,
+                        onPressed:
+                            appInitializationController.value.isReadOnly ||
+                                snapshot.connectionState !=
+                                    ConnectionState.done ||
+                                snapshot.hasError ||
+                                activityExists
+                            ? null
+                            : _openEntry,
+                      ),
+                    ),
+                    if (activityExists) ...[
+                      AppSpacing.gapSM,
+                      const OperationDescription(
+                        text:
+                            '本日のACTIVITYは登録済みです。\n'
+                            '編集する場合はRECORDから行ってください。',
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+
+            AppSpacing.gapXL,
+
+            const SectionHeader(icon: Icons.history, title: 'RECORD'),
+
+            AppSpacing.gapSM,
+
+            const OperationDescription(
+              text:
+                  '過去の活動履歴を\n'
+                  '確認・編集できます。',
+            ),
+
+            AppSpacing.gapMD,
+
+            _ActivityGlassAction(
+              child: OperationButton(
+                icon: Icons.history_outlined,
+                text: 'RECORD',
+                transparentSurface: true,
+                onPressed: () async {
+                  await Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ActivityHistoryPage(),
+                    ),
+                  );
+                  if (mounted) _refreshActivityEntry();
+                },
               ),
             ),
-          ),
-          SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              viewPadding.top + kToolbarHeight + AppSpacing.lg,
-              AppSpacing.lg,
-              viewPadding.bottom + AppSpacing.lg,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SectionHeader(
-                  icon: Icons.directions_walk_outlined,
-                  title: 'ACTIVITY ENTRY',
-                ),
-
-                AppSpacing.gapSM,
-
-                const OperationDescription(
-                  text:
-                      '本日の歩数・排便など\n'
-                      '本日の活動を記録します。',
-                ),
-
-                AppSpacing.gapMD,
-
-                FutureBuilder<bool>(
-                  future: _activityExists,
-                  builder: (context, snapshot) {
-                    final activityExists = snapshot.data ?? false;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _ActivityGlassAction(
-                          child: OperationButton(
-                            key: const ValueKey('activity-entry-button'),
-                            icon: Icons.edit_outlined,
-                            text: 'ACTIVITY ENTRY',
-                            transparentSurface: true,
-                            reportUnavailableTap:
-                                !appInitializationController.value.isReadOnly &&
-                                snapshot.connectionState ==
-                                    ConnectionState.done &&
-                                !snapshot.hasError &&
-                                activityExists,
-                            onPressed:
-                                appInitializationController.value.isReadOnly ||
-                                    snapshot.connectionState !=
-                                        ConnectionState.done ||
-                                    snapshot.hasError ||
-                                    activityExists
-                                ? null
-                                : _openEntry,
-                          ),
-                        ),
-                        if (activityExists) ...[
-                          AppSpacing.gapSM,
-                          const OperationDescription(
-                            text:
-                                '本日のACTIVITYは登録済みです。\n'
-                                '編集する場合はRECORDから行ってください。',
-                          ),
-                        ],
-                      ],
-                    );
-                  },
-                ),
-
-                AppSpacing.gapXL,
-
-                const SectionHeader(icon: Icons.history, title: 'RECORD'),
-
-                AppSpacing.gapSM,
-
-                const OperationDescription(
-                  text:
-                      '過去の活動履歴を\n'
-                      '確認・編集できます。',
-                ),
-
-                AppSpacing.gapMD,
-
-                _ActivityGlassAction(
-                  child: OperationButton(
-                    icon: Icons.history_outlined,
-                    text: 'RECORD',
-                    transparentSurface: true,
-                    onPressed: () async {
-                      await Navigator.push<void>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ActivityHistoryPage(),
-                        ),
-                      );
-                      if (mounted) _refreshActivityEntry();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

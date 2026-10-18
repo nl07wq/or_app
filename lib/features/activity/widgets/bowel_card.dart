@@ -5,7 +5,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import '../../../core/models/bowel_amount.dart';
 import '../../../core/models/bowel_shape.dart';
 
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 
 class BowelCard extends StatefulWidget {
@@ -65,7 +65,7 @@ class _BowelCardState extends State<BowelCard> {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -28,15 +28,19 @@ import '../widgets/shared_date_time_recurrence_editor.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
+import '../../morning/widgets/status_radial_spectrum_ambient.dart';
 import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
 import '../models/schedule_plan_revision.dart';
 import '../services/schedule_recurrence_service.dart';
 import '../weather_forecast_summary.dart';
 
+enum CalendarAmbientContext { status }
+
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key, this.initialDate});
+  const CalendarPage({super.key, this.initialDate, this.ambientContext});
   final DateTime? initialDate;
+  final CalendarAmbientContext? ambientContext;
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -405,7 +409,11 @@ class _CalendarPageState extends State<CalendarPage> {
     final result = await Navigator.of(context).push<ScheduleRecord>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => _ScheduleEditor(record: record, initialDate: _selected),
+        builder: (_) => _ScheduleEditor(
+          record: record,
+          initialDate: _selected,
+          ambientContext: widget.ambientContext,
+        ),
       ),
     );
     if (result == null) {
@@ -432,8 +440,17 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     _measureDailyTimeline(_selectedSchedules);
+    final isStatusAmbient =
+        widget.ambientContext == CalendarAmbientContext.status;
+    final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     return Scaffold(
+      extendBodyBehindAppBar: isStatusAmbient,
       appBar: AppBar(
+        backgroundColor: isStatusAmbient ? Colors.transparent : null,
+        surfaceTintColor: isStatusAmbient ? Colors.transparent : null,
+        shadowColor: isStatusAmbient ? Colors.transparent : null,
+        scrolledUnderElevation: isStatusAmbient ? 0 : null,
+        forceMaterialTransparency: isStatusAmbient,
         leading: Navigator.of(context).canPop()
             ? BackButton(
                 onPressed: () => Navigator.of(context).maybePop(),
@@ -455,12 +472,22 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
       body: Stack(
         children: [
-          const Positioned.fill(child: HolographicAmbientBackground()),
+          Positioned.fill(
+            child: isStatusAmbient
+                ? const StatusAmbientBackground()
+                : const HolographicAmbientBackground(),
+          ),
           Positioned.fill(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : SingleChildScrollView(
-                    padding: AppSpacing.cardPadding,
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.cardPadding.left,
+                      AppSpacing.cardPadding.top +
+                          (isStatusAmbient ? topInset : 0),
+                      AppSpacing.cardPadding.right,
+                      AppSpacing.cardPadding.bottom,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -5598,9 +5625,14 @@ String _monthName(int month) => const [
 ][month - 1];
 
 class _ScheduleEditor extends StatefulWidget {
-  const _ScheduleEditor({this.record, required this.initialDate});
+  const _ScheduleEditor({
+    this.record,
+    required this.initialDate,
+    this.ambientContext,
+  });
   final ScheduleRecord? record;
   final DateTime initialDate;
+  final CalendarAmbientContext? ambientContext;
   @override
   State<_ScheduleEditor> createState() => _ScheduleEditorState();
 }
@@ -5673,119 +5705,157 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.check),
-          onPressed: _save,
-        ).actionableFeedback(),
-      ],
-    ),
-    body: SafeArea(
-      child: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<ScheduleType>(
-              initialValue: _type,
-              items: ScheduleType.values
-                  .map(
-                    (value) => DropdownMenuItem(
-                      value: value,
-                      child: Text(_scheduleTypeLabel(value)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _type = value!),
-            ).inputFeedback(),
-            OperationTextField(controller: _title, label: 'タイトル'),
-            SharedDateTimeEditor(
-              date: _date,
-              allDay: _allDay,
-              startTime: _start.text.isEmpty
-                  ? null
-                  : timeOfDayFromClock(_start.text),
-              endTime: _end.text.isEmpty ? null : timeOfDayFromClock(_end.text),
-              onDateChanged: (value) => setState(() => _date = value),
-              onAllDayChanged: (value) => setState(() => _allDay = value),
-              onStartTimeChanged: (value) => setState(
-                () => _start.text = value == null
-                    ? ''
-                    : clockFromTimeOfDay(value),
-              ),
-              onEndTimeChanged: (value) => setState(
-                () =>
-                    _end.text = value == null ? '' : clockFromTimeOfDay(value),
-              ),
-            ),
-            if (!_allDay && _end.text.trim().isNotEmpty)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('終了日'),
-                subtitle: Text(
-                  _endDate == null
-                      ? '開始日と同じ（終了時刻が開始時刻以前なら翌日）'
-                      : _key(_endDate!),
-                ),
-                trailing: const Icon(Icons.calendar_today_outlined),
-                onTap: _pickEndDate,
-              ).inputFeedback(),
-            if (_type == ScheduleType.work && !_allDay)
-              _DurationControl(label: '休憩', controller: _break),
-            SharedRecurrenceEditor(
-              startDate: _date,
-              value: SharedRecurrenceValue(
-                recurrence: _recurrence,
-                end: _recurrenceEnd,
-                weekdays: _recurrenceWeekdays,
-                monthDays: _recurrenceMonthDays,
-                monthEnd: _recurrenceMonthEnd,
-                monthWeek: _recurrenceMonthWeek,
-                monthWeeks: _recurrenceMonthWeeks,
-              ),
-              onChanged: (value) => setState(() {
-                _recurrence = value.recurrence;
-                _recurrenceEnd = value.end;
-                _recurrenceWeekdays
-                  ..clear()
-                  ..addAll(value.weekdays);
-                _recurrenceMonthDays
-                  ..clear()
-                  ..addAll(value.monthDays);
-                _recurrenceMonthEnd = value.monthEnd;
-                _recurrenceMonthWeek = value.monthWeek;
-                _recurrenceMonthWeeks
-                  ..clear()
-                  ..addAll(value.monthWeeks);
-              }),
-            ),
-            SharedNotificationEditor(
-              value: _notification,
-              calendarStyle: true,
-              onChanged: (value) => setState(() => _notification = value),
-            ),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            OperationTextField(controller: _memo, label: 'メモ', maxLines: 3),
-            AppSpacing.gapLG,
-            OperationButton(
-              text: '保存',
-              icon: Icons.check,
-              role: OperationActionRole.primary,
-              onPressed: _save,
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) {
+    final isStatusAmbient =
+        widget.ambientContext == CalendarAmbientContext.status;
+    final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    return Scaffold(
+      extendBodyBehindAppBar: isStatusAmbient,
+      appBar: AppBar(
+        backgroundColor: isStatusAmbient ? Colors.transparent : null,
+        surfaceTintColor: isStatusAmbient ? Colors.transparent : null,
+        shadowColor: isStatusAmbient ? Colors.transparent : null,
+        scrolledUnderElevation: isStatusAmbient ? 0 : null,
+        forceMaterialTransparency: isStatusAmbient,
+        leading: const ActionableBackButton(),
+        title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _save,
+          ).actionableFeedback(),
+        ],
       ),
-    ),
-  );
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (isStatusAmbient) const StatusAmbientBackground(),
+          SafeArea(
+            top: !isStatusAmbient,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.cardPadding.left,
+                AppSpacing.cardPadding.top + (isStatusAmbient ? topInset : 0),
+                AppSpacing.cardPadding.right,
+                AppSpacing.cardPadding.bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<ScheduleType>(
+                    initialValue: _type,
+                    items: ScheduleType.values
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(_scheduleTypeLabel(value)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _type = value!),
+                  ).inputFeedback(),
+                  OperationTextField(
+                    controller: _title,
+                    label: 'タイトル',
+                    glass: isStatusAmbient,
+                  ),
+                  SharedDateTimeEditor(
+                    date: _date,
+                    allDay: _allDay,
+                    startTime: _start.text.isEmpty
+                        ? null
+                        : timeOfDayFromClock(_start.text),
+                    endTime: _end.text.isEmpty
+                        ? null
+                        : timeOfDayFromClock(_end.text),
+                    onDateChanged: (value) => setState(() => _date = value),
+                    onAllDayChanged: (value) => setState(() => _allDay = value),
+                    onStartTimeChanged: (value) => setState(
+                      () => _start.text = value == null
+                          ? ''
+                          : clockFromTimeOfDay(value),
+                    ),
+                    onEndTimeChanged: (value) => setState(
+                      () => _end.text = value == null
+                          ? ''
+                          : clockFromTimeOfDay(value),
+                    ),
+                  ),
+                  if (!_allDay && _end.text.trim().isNotEmpty)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('終了日'),
+                      subtitle: Text(
+                        _endDate == null
+                            ? '開始日と同じ（終了時刻が開始時刻以前なら翌日）'
+                            : _key(_endDate!),
+                      ),
+                      trailing: const Icon(Icons.calendar_today_outlined),
+                      onTap: _pickEndDate,
+                    ).inputFeedback(),
+                  if (_type == ScheduleType.work && !_allDay)
+                    _DurationControl(label: '休憩', controller: _break),
+                  SharedRecurrenceEditor(
+                    startDate: _date,
+                    value: SharedRecurrenceValue(
+                      recurrence: _recurrence,
+                      end: _recurrenceEnd,
+                      weekdays: _recurrenceWeekdays,
+                      monthDays: _recurrenceMonthDays,
+                      monthEnd: _recurrenceMonthEnd,
+                      monthWeek: _recurrenceMonthWeek,
+                      monthWeeks: _recurrenceMonthWeeks,
+                    ),
+                    onChanged: (value) => setState(() {
+                      _recurrence = value.recurrence;
+                      _recurrenceEnd = value.end;
+                      _recurrenceWeekdays
+                        ..clear()
+                        ..addAll(value.weekdays);
+                      _recurrenceMonthDays
+                        ..clear()
+                        ..addAll(value.monthDays);
+                      _recurrenceMonthEnd = value.monthEnd;
+                      _recurrenceMonthWeek = value.monthWeek;
+                      _recurrenceMonthWeeks
+                        ..clear()
+                        ..addAll(value.monthWeeks);
+                    }),
+                  ),
+                  SharedNotificationEditor(
+                    value: _notification,
+                    calendarStyle: true,
+                    onChanged: (value) => setState(() => _notification = value),
+                  ),
+                  if (_error != null)
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  OperationTextField(
+                    controller: _memo,
+                    label: 'メモ',
+                    maxLines: 3,
+                    glass: isStatusAmbient,
+                  ),
+                  AppSpacing.gapLG,
+                  OperationButton(
+                    text: '保存',
+                    icon: Icons.check,
+                    role: OperationActionRole.primary,
+                    dashboardGlass: isStatusAmbient,
+                    onPressed: _save,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _save() {
     if (_title.text.trim().isEmpty) {

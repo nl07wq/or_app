@@ -4,7 +4,8 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/models/activity_data.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
-import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/ambient_page_scaffold.dart';
+import '../../core/widgets/dashboard_glass_card.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/state/app_initialization_state.dart';
@@ -14,6 +15,7 @@ import 'repository/activity_repository.dart';
 import 'services/activity_digestive_record_presentation.dart';
 import 'widgets/activity_mechanical_counter_title.dart';
 import 'widgets/activity_mechanical_back_button.dart';
+import 'widgets/activity_ambient_kinetic_field.dart';
 
 class ActivityHistoryPage extends StatefulWidget {
   const ActivityHistoryPage({super.key});
@@ -47,14 +49,21 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final viewPadding = MediaQuery.paddingOf(context);
+    return AmbientPageScaffold(
       appBar: AppBar(
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        forceMaterialTransparency: true,
         leading: Navigator.canPop(context)
             ? const ActivityMechanicalBackButton()
             : null,
         title: const ActivityMechanicalCounterTitle(),
       ),
+      ambient: const ActivityAmbientBackground(),
       body: FutureBuilder<List<ActivityData>>(
         future: _records,
         builder: (context, snapshot) {
@@ -68,7 +77,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              viewPadding.top + kToolbarHeight + 16,
+              16,
+              viewPadding.bottom + 16,
+            ),
             itemCount: records.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
@@ -79,7 +93,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               );
               final officialSteps = data.officialStepsFor(previousCarryOver);
 
-              return OperationCard(
+              return DashboardGlassCard(
                 child: ListTile(
                   title: Text(
                     '${data.date.year}-${data.date.month.toString().padLeft(2, '0')}-${data.date.day.toString().padLeft(2, '0')}',

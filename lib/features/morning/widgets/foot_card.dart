@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 
 class FootCard extends StatefulWidget {
@@ -133,7 +133,7 @@ class _FootCardState extends State<FootCard> {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
+    return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

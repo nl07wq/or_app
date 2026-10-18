@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/device_settings_controller.dart';
+
 /// STATUS-only native ambient: a deterministic radial spectrum behind the
 /// existing form. It is visual-only and deliberately has no audio input.
 class StatusRadialSpectrumAmbient extends StatefulWidget {
@@ -38,6 +40,24 @@ class StatusRadialSpectrumAmbient extends StatefulWidget {
   @override
   State<StatusRadialSpectrumAmbient> createState() =>
       _StatusRadialSpectrumAmbientState();
+}
+
+/// Reuses the production STATUS ambient for every STATUS-owned route.
+/// Keeping the settings and reduced-motion resolution here prevents route
+/// pages from drifting from the main STATUS presentation.
+class StatusAmbientBackground extends StatelessWidget {
+  const StatusAmbientBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<DeviceSettings>(
+    valueListenable: DeviceSettingsController.instance,
+    builder: (context, settings, _) => StatusRadialSpectrumAmbient(
+      enabled: settings.ambientKineticFieldEnabled,
+      reducedMotion: settings.resolvesReducedMotion(
+        MediaQuery.disableAnimationsOf(context),
+      ),
+    ),
+  );
 }
 
 class _StatusRadialSpectrumAmbientState
@@ -305,8 +325,7 @@ class _StatusRadialSpectrumPainter extends CustomPainter {
         // as an extension of the ring rather than a detached halo.
         (index) =>
             center +
-            directions[index] *
-                (donutOuterRadius - donutThickness * .12),
+            directions[index] * (donutOuterRadius - donutThickness * .12),
         growable: false,
       ),
     );

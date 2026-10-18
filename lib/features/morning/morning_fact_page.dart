@@ -7,6 +7,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
+import '../../core/widgets/ambient_page_scaffold.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../command_center/pages/command_center_page.dart';
 import '../command_center/widgets/brief_debrief_page.dart';
@@ -23,6 +24,7 @@ import 'widgets/recovery_card.dart';
 import 'widgets/status_crt_monitor_title.dart';
 import 'widgets/status_crt_back_button.dart';
 import 'widgets/work_card.dart';
+import 'widgets/status_radial_spectrum_ambient.dart';
 
 import '../../core/models/morning_data.dart';
 
@@ -279,18 +281,30 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final viewPadding = MediaQuery.paddingOf(context);
+    return AmbientPageScaffold(
       appBar: AppBar(
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        forceMaterialTransparency: true,
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
         title: const StatusCrtMonitorTitle(mode: StatusCrtMonitorMode.entry),
       ),
+      ambient: const StatusAmbientBackground(),
       body: _operationDateError != null
           ? const Center(child: Text('Operation Dateを取得できませんでした。'))
           : !_initialValuesLoaded
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: AppSpacing.cardPadding,
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.cardPadding.left,
+                viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
+                AppSpacing.cardPadding.right,
+                viewPadding.bottom + AppSpacing.cardPadding.bottom,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

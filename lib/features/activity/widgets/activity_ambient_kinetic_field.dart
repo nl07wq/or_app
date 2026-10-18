@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/device_settings_controller.dart';
+
 import 'activity_ambient_aurora_glass_candidate.dart';
 import 'activity_ambient_native_candidate.dart';
 import 'activity_ambient_reference_media.dart';
@@ -139,6 +141,19 @@ class ActivityAmbientKineticField extends StatefulWidget {
   @override
   State<ActivityAmbientKineticField> createState() =>
       _ActivityAmbientKineticFieldState();
+}
+
+/// Reuses the production ACTIVITY ambient for every ACTIVITY-owned route.
+class ActivityAmbientBackground extends StatelessWidget {
+  const ActivityAmbientBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<DeviceSettings>(
+    valueListenable: DeviceSettingsController.instance,
+    builder: (context, settings, _) => ActivityAmbientKineticField(
+      enabled: settings.ambientKineticFieldEnabled,
+    ),
+  );
 }
 
 enum ActivityKineticPhase {

@@ -13,7 +13,8 @@ import '../../core/services/persistence_access.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/operation_button.dart';
-import '../../core/widgets/operation_card.dart';
+import '../../core/widgets/ambient_page_scaffold.dart';
+import '../../core/widgets/dashboard_glass_card.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
@@ -28,6 +29,7 @@ import 'services/bowel_movement_resolver.dart';
 import 'widgets/bowel_card.dart';
 import 'widgets/digestive_event_card.dart';
 import 'widgets/activity_mechanical_back_button.dart';
+import 'widgets/activity_ambient_kinetic_field.dart';
 import 'widgets/activity_mechanical_counter_title.dart';
 
 enum _EditableStepField { measuredSteps, carryOver }
@@ -647,9 +649,15 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final viewPadding = MediaQuery.paddingOf(context);
+    return AmbientPageScaffold(
       appBar: AppBar(
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        forceMaterialTransparency: true,
         leading: Navigator.canPop(context)
             ? const ActivityMechanicalBackButton()
             : null,
@@ -657,6 +665,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           mode: ActivityMechanicalCounterMode.entry,
         ),
       ),
+      ambient: const ActivityAmbientBackground(),
       body: switch (_mode) {
         _EntryMode.loading => const Center(child: CircularProgressIndicator()),
         _EntryMode.error => _LoadError(
@@ -665,17 +674,22 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               _initializeForDate(_date, suppliedRecord: widget.initialData),
         ),
         _EntryMode.locked => _ConfirmedActivityLock(date: _date),
-        _EntryMode.draft || _EntryMode.formal => _buildEntryBody(),
+        _EntryMode.draft || _EntryMode.formal => _buildEntryBody(viewPadding),
       },
     );
   }
 
-  Widget _buildEntryBody() {
+  Widget _buildEntryBody(EdgeInsets viewPadding) {
     final officialSteps = _officialSteps;
     return Padding(
-      padding: AppSpacing.cardPadding,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.cardPadding.left,
+        viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
+        AppSpacing.cardPadding.right,
+        viewPadding.bottom + AppSpacing.cardPadding.bottom,
+      ),
       child: SingleChildScrollView(
-        child: OperationCard(
+        child: DashboardGlassCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -774,6 +788,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   children: [
                     OperationButton(
                       text: 'SAVE ACTIVITY',
+                      dashboardGlass: true,
                       onPressed: _isBusy ? null : _saveExisting,
                     ),
                     AppSpacing.gapSM,
@@ -787,6 +802,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   child: OperationButton(
                     icon: Icons.save_outlined,
                     text: 'SAVE DRAFT',
+                    dashboardGlass: true,
                     onPressed: _isBusy ? null : _saveDraft,
                   ),
                 ),
@@ -798,6 +814,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   button: true,
                   child: OperationButton(
                     text: 'SAVE ACTIVITY',
+                    dashboardGlass: true,
                     onPressed: _isBusy ? null : _finalizeDraft,
                   ),
                 ),
@@ -873,7 +890,7 @@ class _ConfirmedActivityLock extends StatelessWidget {
     return Center(
       child: Padding(
         padding: AppSpacing.cardPadding,
-        child: OperationCard(
+        child: DashboardGlassCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -889,6 +906,7 @@ class _ConfirmedActivityLock extends StatelessWidget {
               OperationButton(
                 text: 'BACK TO DASHBOARD',
                 icon: Icons.arrow_back,
+                dashboardGlass: true,
                 onPressed: () => Navigator.popUntil(
                   context,
                   ModalRoute.withName(AppRoutes.dashboard),
@@ -974,6 +992,7 @@ class _MeasuredStepsField extends StatelessWidget {
           label: label,
           keyboardType: TextInputType.number,
           onChanged: onChanged,
+          glass: true,
         ),
       ),
       const SizedBox(width: AppSpacing.xs),
