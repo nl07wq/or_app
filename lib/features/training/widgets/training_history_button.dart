@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
 
 import '../training_history_page.dart';
 
@@ -10,17 +9,16 @@ class TrainingHistoryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
-      child: OperationButton(
-        icon: Icons.history,
-        text: 'RECORD',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const TrainingHistoryPage()),
-          );
-        },
-      ),
+    return OperationButton(
+      icon: Icons.history,
+      text: 'RECORD',
+      dashboardGlass: true,
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TrainingHistoryPage()),
+        );
+      },
     );
   }
 }

@@ -67,11 +67,19 @@ class KineticSteamLinkagePose {
     required this.axleCenters,
     required this.crankPins,
     required this.crankRadius,
+    required this.crosshead,
+    required this.guideStart,
+    required this.guideEnd,
+    required this.connectingRodLength,
   });
 
   final List<Offset> axleCenters;
   final List<Offset> crankPins;
   final double crankRadius;
+  final Offset crosshead;
+  final Offset guideStart;
+  final Offset guideEnd;
+  final double connectingRodLength;
 
   List<double> get rodLengths => [
     for (var i = 1; i < crankPins.length; i++)
@@ -466,10 +474,26 @@ class TrainingAmbientComparison extends StatefulWidget {
       driveGear.phaseAt(drivePhase),
       crankRadius,
     );
+    final crankPins = [for (final center in centers) center + eccentric];
+    final guideY = driveGear.center.dy - crankRadius * 1.55;
+    final connectingRodLength = spacing * 1.18;
+    final drivingPin = crankPins.last;
+    final vertical = guideY - drivingPin.dy;
+    final travel = math.sqrt(
+      math.max(
+        0,
+        connectingRodLength * connectingRodLength - vertical * vertical,
+      ),
+    );
+    final crosshead = Offset(drivingPin.dx + travel, guideY);
     return KineticSteamLinkagePose(
       axleCenters: centers,
-      crankPins: [for (final center in centers) center + eccentric],
+      crankPins: crankPins,
       crankRadius: crankRadius,
+      crosshead: crosshead,
+      guideStart: Offset(driveGear.center.dx + spacing * .42, guideY),
+      guideEnd: Offset(driveGear.center.dx + spacing * 1.52, guideY),
+      connectingRodLength: connectingRodLength,
     );
   }
 
@@ -944,61 +968,95 @@ class _TrainingAmbientPainter extends CustomPainter {
       drivePhase,
     );
     final scale = driveGear.module;
-    final rear = Paint()
+    final railPaint = Paint()
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = scale * 9.2
-      ..color = const Color(0xd01a3d57);
-    final body = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = scale * 6.3
-      ..color = const Color(0xf04f7f98);
-    final edge = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = scale * 1.05
-      ..color = const Color(0xee8cecff);
+      ..strokeWidth = scale * 2.4
+      ..color = const Color(0xc6386078);
+    canvas.drawLine(
+      pose.guideStart + Offset(0, -scale * 5.2),
+      pose.guideEnd + Offset(0, -scale * 5.2),
+      railPaint,
+    );
+    canvas.drawLine(
+      pose.guideStart + Offset(0, scale * 5.2),
+      pose.guideEnd + Offset(0, scale * 5.2),
+      railPaint,
+    );
 
+    // The three equal cranks keep the rigid coupling rod mechanically exact.
+    // A separate drive rod creates the visible SL-style angular swing and
+    // reciprocating crosshead travel without stretching either connection.
     for (var i = 0; i < pose.crankPins.length - 1; i++) {
-      final start = pose.crankPins[i];
-      final end = pose.crankPins[i + 1];
-      canvas.drawLine(start, end, rear);
-      canvas.drawLine(start, end, body);
-      canvas.drawLine(start, end, edge);
+      _mechanicalRod(
+        canvas,
+        pose.crankPins[i],
+        pose.crankPins[i + 1],
+        scale: scale,
+        bodyWidth: 7.4,
+        endRadius: 5.2,
+        bodyColor: const Color(0xff456f87),
+      );
     }
+    _mechanicalRod(
+      canvas,
+      pose.crankPins.last,
+      pose.crosshead,
+      scale: scale,
+      bodyWidth: 8.6,
+      endRadius: 5.8,
+      bodyColor: const Color(0xff527f96),
+    );
+
     for (var i = 0; i < pose.axleCenters.length; i++) {
       final center = pose.axleCenters[i];
       final pin = pose.crankPins[i];
-      canvas.drawLine(
+      _mechanicalRod(
+        canvas,
         center,
         pin,
-        Paint()
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = scale * 5.2
-          ..color = const Color(0xe332617c),
+        scale: scale,
+        bodyWidth: 4.7,
+        endRadius: 3.6,
+        bodyColor: const Color(0xff315b73),
       );
-      canvas.drawCircle(
+      _bearingJoint(
+        canvas,
         center,
-        scale * 4.4,
-        Paint()..color = const Color(0xee18364f),
+        scale: scale,
+        radius: 4.8,
+        coreRadius: 1.7,
+        fixed: true,
       );
-      canvas.drawCircle(
-        center,
-        scale * 4.4,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = scale * .9
-          ..color = const Color(0xcc70d9f5),
-      );
-      canvas.drawCircle(
-        pin,
-        scale * 4.6,
-        Paint()..color = const Color(0xff315f79),
-      );
-      canvas.drawCircle(
-        pin,
-        scale * 2.2,
-        Paint()..color = const Color(0xff9aefff),
-      );
+      _bearingJoint(canvas, pin, scale: scale, radius: 5, coreRadius: 2);
     }
+
+    final crossheadRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: pose.crosshead,
+        width: scale * 15.5,
+        height: scale * 14,
+      ),
+      Radius.circular(scale * 3),
+    );
+    canvas.drawRRect(crossheadRect, Paint()..color = const Color(0xff19384f));
+    canvas.drawRRect(
+      crossheadRect.deflate(scale * 1.25),
+      Paint()..color = const Color(0xff426c83),
+    );
+    canvas.drawRRect(
+      crossheadRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = scale * .9
+        ..color = const Color(0xff8cecff),
+    );
+    _bearingJoint(
+      canvas,
+      pose.crosshead,
+      scale: scale,
+      radius: 4.5,
+      coreRadius: 1.65,
+    );
   }
 
   void _rockerLinkage(
@@ -1011,65 +1069,191 @@ class _TrainingAmbientPainter extends CustomPainter {
       drivePhase,
     );
     final scale = driveGear.module;
-    void member(Offset a, Offset b, double width, Color color) {
-      canvas.drawLine(
-        a,
-        b,
-        Paint()
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = width + scale * 2.2
-          ..color = const Color(0xcc102b42),
-      );
-      canvas.drawLine(
-        a,
-        b,
-        Paint()
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = width
-          ..color = color,
-      );
-      canvas.drawLine(
-        a,
-        b,
-        Paint()
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = scale * .8
-          ..color = const Color(0xd68cecff),
-      );
-    }
+    final rockerDirection = pose.rockerJoint - pose.fixedPivot;
+    final counterArm =
+        pose.fixedPivot -
+        rockerDirection / rockerDirection.distance * scale * 16;
 
-    member(
+    _mechanicalRod(
+      canvas,
       pose.crankPin,
       pose.rockerJoint,
-      scale * 5.4,
-      const Color(0xee456f89),
+      scale: scale,
+      bodyWidth: 6.8,
+      endRadius: 4.6,
+      bodyColor: const Color(0xff4b788f),
     );
-    member(
-      pose.fixedPivot,
+    _mechanicalRod(
+      canvas,
+      counterArm,
       pose.rockerJoint,
-      scale * 7.2,
-      const Color(0xee2d5871),
+      scale: scale,
+      bodyWidth: 9,
+      endRadius: 5.2,
+      bodyColor: const Color(0xff355f78),
     );
-    for (final joint in [pose.crankPin, pose.rockerJoint, pose.fixedPivot]) {
-      canvas.drawCircle(
-        joint,
-        scale * 4.2,
-        Paint()..color = const Color(0xff244b64),
-      );
-      canvas.drawCircle(
-        joint,
-        scale * 4.2,
+    _bearingJoint(
+      canvas,
+      pose.crankPin,
+      scale: scale,
+      radius: 4.5,
+      coreRadius: 1.7,
+    );
+    _bearingJoint(
+      canvas,
+      pose.rockerJoint,
+      scale: scale,
+      radius: 5,
+      coreRadius: 1.85,
+    );
+    _bearingJoint(
+      canvas,
+      pose.fixedPivot,
+      scale: scale,
+      radius: 5.5,
+      coreRadius: 2,
+      fixed: true,
+    );
+    _bearingJoint(
+      canvas,
+      counterArm,
+      scale: scale,
+      radius: 3.8,
+      coreRadius: 1.35,
+    );
+  }
+
+  void _mechanicalRod(
+    Canvas canvas,
+    Offset start,
+    Offset end, {
+    required double scale,
+    required double bodyWidth,
+    required double endRadius,
+    required Color bodyColor,
+  }) {
+    final delta = end - start;
+    final length = delta.distance;
+    if (length <= .0001) return;
+    final direction = delta / length;
+    final normal = Offset(-direction.dy, direction.dx);
+    final waist = scale * bodyWidth * .5;
+    final shoulder = scale * bodyWidth * .72;
+    final endR = math.min(scale * endRadius, length * .22);
+    final shoulderInset = math.min(endR * 1.3, length * .24);
+    final startShoulder = start + direction * shoulderInset;
+    final endShoulder = end - direction * shoulderInset;
+    final path = Path()
+      ..moveTo(start.dx + normal.dx * endR, start.dy + normal.dy * endR)
+      ..quadraticBezierTo(
+        startShoulder.dx + normal.dx * shoulder,
+        startShoulder.dy + normal.dy * shoulder,
+        startShoulder.dx + normal.dx * waist,
+        startShoulder.dy + normal.dy * waist,
+      )
+      ..lineTo(
+        endShoulder.dx + normal.dx * waist,
+        endShoulder.dy + normal.dy * waist,
+      )
+      ..quadraticBezierTo(
+        endShoulder.dx + normal.dx * shoulder,
+        endShoulder.dy + normal.dy * shoulder,
+        end.dx + normal.dx * endR,
+        end.dy + normal.dy * endR,
+      )
+      ..arcToPoint(
+        end - normal * endR,
+        radius: Radius.circular(endR),
+        clockwise: true,
+      )
+      ..quadraticBezierTo(
+        endShoulder.dx - normal.dx * shoulder,
+        endShoulder.dy - normal.dy * shoulder,
+        endShoulder.dx - normal.dx * waist,
+        endShoulder.dy - normal.dy * waist,
+      )
+      ..lineTo(
+        startShoulder.dx - normal.dx * waist,
+        startShoulder.dy - normal.dy * waist,
+      )
+      ..quadraticBezierTo(
+        startShoulder.dx - normal.dx * shoulder,
+        startShoulder.dy - normal.dy * shoulder,
+        start.dx - normal.dx * endR,
+        start.dy - normal.dy * endR,
+      )
+      ..arcToPoint(
+        start + normal * endR,
+        radius: Radius.circular(endR),
+        clockwise: true,
+      )
+      ..close();
+    canvas.drawPath(path, Paint()..color = bodyColor);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = scale * 1.05
+        ..color = const Color(0xff83e6fa),
+    );
+
+    final innerStart = start + direction * (endR * 1.45);
+    final innerEnd = end - direction * (endR * 1.45);
+    if ((innerEnd - innerStart).distance > scale * 4) {
+      canvas.drawLine(
+        innerStart,
+        innerEnd,
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = scale * .9
-          ..color = const Color(0xff83e6fa),
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = scale * bodyWidth * .34
+          ..color = const Color(0xff17384f),
       );
-      canvas.drawCircle(
-        joint,
-        scale * 1.75,
-        Paint()..color = const Color(0xffb5f4ff),
+      canvas.drawLine(
+        innerStart - normal * scale * .42,
+        innerEnd - normal * scale * .42,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = scale * .52
+          ..color = const Color(0xff6ea4b9),
       );
     }
+  }
+
+  void _bearingJoint(
+    Canvas canvas,
+    Offset center, {
+    required double scale,
+    required double radius,
+    required double coreRadius,
+    bool fixed = false,
+  }) {
+    canvas.drawCircle(
+      center,
+      scale * radius,
+      Paint()
+        ..color = fixed ? const Color(0xff142f45) : const Color(0xff244b64),
+    );
+    canvas.drawCircle(
+      center,
+      scale * radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = scale * .92
+        ..color = const Color(0xff83e6fa),
+    );
+    canvas.drawCircle(
+      center,
+      scale * (radius * .6),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = scale * .72
+        ..color = const Color(0xff456f87),
+    );
+    canvas.drawCircle(
+      center,
+      scale * coreRadius,
+      Paint()..color = const Color(0xffb5f4ff),
+    );
   }
 
   void _gear(

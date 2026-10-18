@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_description.dart';
-import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
@@ -93,15 +92,14 @@ class _TrainingPageState extends State<TrainingPage> {
 
                     AppSpacing.gapMD,
 
-                    OperationCard(
-                      child: OperationButton(
-                        icon: Icons.event_note_outlined,
-                        text: 'TRAINING PLAN',
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TrainingPlanImportPage(),
-                          ),
+                    OperationButton(
+                      icon: Icons.event_note_outlined,
+                      text: 'TRAINING PLAN',
+                      dashboardGlass: true,
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TrainingPlanImportPage(),
                         ),
                       ),
                     ),
@@ -137,15 +135,14 @@ class _TrainingPageState extends State<TrainingPage> {
 
                     AppSpacing.gapMD,
 
-                    OperationCard(
-                      child: OperationButton(
-                        icon: Icons.analytics_outlined,
-                        text: 'TRAINING ANALYSIS REPORT',
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TrainingAnalysisPage(),
-                          ),
+                    OperationButton(
+                      icon: Icons.analytics_outlined,
+                      text: 'TRAINING ANALYSIS REPORT',
+                      dashboardGlass: true,
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TrainingAnalysisPage(),
                         ),
                       ),
                     ),

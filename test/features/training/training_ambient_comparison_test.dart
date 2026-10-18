@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 
@@ -320,7 +322,7 @@ void main() {
     );
   });
 
-  test('V11.4 locomotive coupling rods keep fixed lengths at four phases', () {
+  test('V11.5 locomotive linkage stays constrained and reciprocates', () {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 844),
     );
@@ -329,6 +331,8 @@ void main() {
       drive,
       0,
     );
+    final crossheadXs = <double>[];
+    final connectingRodAngles = <double>[];
 
     expect(reference.axleCenters, hasLength(3));
     expect(reference.crankPins, hasLength(3));
@@ -346,10 +350,27 @@ void main() {
       for (var i = 0; i < pose.rodLengths.length; i++) {
         expect(pose.rodLengths[i], closeTo(reference.rodLengths[i], .000001));
       }
+      expect(
+        (pose.crosshead - pose.crankPins.last).distance,
+        closeTo(pose.connectingRodLength, .000001),
+      );
+      expect(pose.crosshead.dy, closeTo(pose.guideStart.dy, .000001));
+      expect(pose.crosshead.dy, closeTo(pose.guideEnd.dy, .000001));
+      crossheadXs.add(pose.crosshead.dx);
+      connectingRodAngles.add((pose.crosshead - pose.crankPins.last).direction);
     }
+    expect(
+      crossheadXs.reduce(math.max) - crossheadXs.reduce(math.min),
+      greaterThan(reference.crankRadius * 1.5),
+    );
+    expect(
+      connectingRodAngles.reduce(math.max) -
+          connectingRodAngles.reduce(math.min),
+      greaterThan(.15),
+    );
   });
 
-  test('V11.4 rocker keeps both articulated members connected', () {
+  test('V11.5 rocker keeps both articulated members connected', () {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 844),
     );
@@ -436,7 +457,7 @@ void main() {
     },
   );
 
-  testWidgets('V11.4 moving mechanisms remain visible through four phases', (
+  testWidgets('V11.5 moving mechanisms remain visible through four phases', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -449,7 +470,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: TrainingAmbientComparison(
-              key: const ValueKey('v11-4-kinetic-phase'),
+              key: const ValueKey('v11-5-kinetic-phase'),
               variant: TrainingAmbientVariant.kineticEngine,
               debugTime: phase * 12,
             ),
@@ -459,9 +480,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await expectLater(
-        find.byKey(const ValueKey('v11-4-kinetic-phase')),
+        find.byKey(const ValueKey('v11-5-kinetic-phase')),
         matchesGoldenFile(
-          'goldens/training_kinetic_engine_v11_4_phase_$phase.png',
+          'goldens/training_kinetic_engine_v11_5_phase_$phase.png',
         ),
       );
       expect(tester.takeException(), isNull);
@@ -496,44 +517,74 @@ void main() {
     },
   );
 
-  testWidgets(
-    'V9 anime background remains behind both frozen gear layers while scrolling',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await _precacheKineticBackground(tester);
-      await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
-      await tester.tap(
-        find.byKey(const ValueKey('training-ambient-kineticEngine')),
+  testWidgets('V11.5 UI goldens preserve the fixed ambient while scrolling', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _precacheKineticBackground(tester);
+    await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+    await tester.tap(
+      find.byKey(const ValueKey('training-ambient-kineticEngine')),
+    );
+    await tester.pump(const Duration(milliseconds: 1450));
+    await tester.pump();
+    await expectLater(
+      find.byType(TrainingPage),
+      matchesGoldenFile('goldens/training_kinetic_engine_v11_5_top.png'),
+    );
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -620),
+    );
+    await tester.pump(const Duration(milliseconds: 2300));
+    await expectLater(
+      find.byType(TrainingPage),
+      matchesGoldenFile('goldens/training_kinetic_engine_v11_5_middle.png'),
+    );
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -700),
+    );
+    await tester.pump(const Duration(milliseconds: 1700));
+    await expectLater(
+      find.byType(TrainingPage),
+      matchesGoldenFile('goldens/training_kinetic_engine_v11_5_lower.png'),
+    );
+  });
+
+  testWidgets('TRAINING actions use STATUS glass buttons without outer cards', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+
+    for (final label in const [
+      'TRAINING ENTRY',
+      'TRAINING PLAN',
+      'RECORD',
+      'TRAINING ANALYSIS REPORT',
+      'SYNC TRAINING',
+    ]) {
+      final buttonFinder = find.byWidgetPredicate(
+        (widget) => widget is OperationButton && widget.text == label,
       );
-      await tester.pump(const Duration(milliseconds: 1450));
-      await tester.pump();
-      await expectLater(
-        find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v9_top.png'),
+      expect(buttonFinder, findsOneWidget);
+      expect(
+        tester.widget<OperationButton>(buttonFinder).dashboardGlass,
+        isTrue,
       );
-      await tester.drag(
-        find.byType(SingleChildScrollView),
-        const Offset(0, -620),
+      expect(
+        find.ancestor(of: buttonFinder, matching: find.byType(OperationCard)),
+        findsNothing,
       );
-      await tester.pump(const Duration(milliseconds: 2300));
-      await expectLater(
-        find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v9_middle.png'),
-      );
-      await tester.drag(
-        find.byType(SingleChildScrollView),
-        const Offset(0, -700),
-      );
-      await tester.pump(const Duration(milliseconds: 1700));
-      await expectLater(
-        find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v9_lower.png'),
-      );
-    },
-  );
+    }
+  });
 
   test('meshed kinetic gears retain opposite tooth-count velocity ratio', () {
     expect(

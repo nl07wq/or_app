@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../../core/services/daily_state_restore_service.dart';
 import '../../report_sync/models/report_sync_envelope.dart';
@@ -14,28 +13,27 @@ class TrainingSyncCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OperationCard(
-      child: OperationButton(
-        icon: Icons.sync,
-        text: 'SYNC TRAINING',
-        onPressed: appInitializationController.value.isReadOnly
-            ? null
-            : () async {
-                await Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ReportSyncExchangePage(
-                      exchangeType: ReportSyncExchangeType.training,
-                      appBarTitle: TrainingDotMatrixTitle(
-                        title: 'TRAINING REPORT SYNC',
-                      ),
-                      appBarLeading: TrainingLedBackButton(),
+    return OperationButton(
+      icon: Icons.sync,
+      text: 'SYNC TRAINING',
+      dashboardGlass: true,
+      onPressed: appInitializationController.value.isReadOnly
+          ? null
+          : () async {
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ReportSyncExchangePage(
+                    exchangeType: ReportSyncExchangeType.training,
+                    appBarTitle: TrainingDotMatrixTitle(
+                      title: 'TRAINING REPORT SYNC',
                     ),
+                    appBarLeading: TrainingLedBackButton(),
                   ),
-                );
-                await DailyStateRestoreService.restore(force: true);
-              },
-      ),
+                ),
+              );
+              await DailyStateRestoreService.restore(force: true);
+            },
     );
   }
 }
