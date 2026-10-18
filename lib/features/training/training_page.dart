@@ -59,8 +59,10 @@ class _TrainingPageState extends State<TrainingPage> {
                   children: [
                     TrainingAmbientComparisonSelector(
                       selected: _ambientVariant,
-                      onChanged: (variant) =>
-                          setState(() => _ambientVariant = variant),
+                      onChanged: (variant) {
+                        if (variant == _ambientVariant) return;
+                        setState(() => _ambientVariant = variant);
+                      },
                     ),
                     AppSpacing.gapMD,
                     const SectionHeader(

@@ -16,7 +16,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
-  testWidgets('food database production segmented tabs are silent', (
+  testWidgets('food database segmented tabs emit CURSOR once per change', (
     tester,
   ) async {
     AppRepositoryRegistry.install(
@@ -45,7 +45,10 @@ void main() {
     await tester.tap(find.text('FOOD'));
     await tester.pumpAndSettle();
 
-    expect(audio.played, isEmpty);
+    expect(
+      audio.played,
+      orderedEquals(List.filled(3, TouchFeedbackSound.cursor)),
+    );
     expect(rippleEvents, 0);
   });
   testWidgets('food database uses Japanese human-facing description', (
@@ -828,54 +831,58 @@ void main() {
     expect(saved.nutrition.calories, 154);
   });
 
-  testWidgets('catalog save requires each nutrition field and preserves input', (
-    tester,
-  ) async {
-    const labels = ['CALORIES', 'PROTEIN', 'FAT', 'CARBOHYDRATE'];
-    for (final missing in labels) {
+  testWidgets(
+    'catalog save requires each nutrition field and preserves input',
+    (tester) async {
+      const labels = ['CALORIES', 'PROTEIN', 'FAT', 'CARBOHYDRATE'];
+      for (final missing in labels) {
+        final repository = _MemoryCatalogRepository(const []);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: FoodCatalogEditorPage(
+              key: ValueKey('catalog-editor-missing-$missing'),
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'NAME'),
+          'New Food',
+        );
+        for (final label in labels.where((label) => label != missing)) {
+          await tester.enterText(find.widgetWithText(TextField, label), '0');
+        }
+        await tester.ensureVisible(find.text('SAVE'));
+        await tester.tap(find.text('SAVE'));
+        await tester.pump();
+
+        expect(find.textContaining('$missing IS REQUIRED'), findsOneWidget);
+        expect(await repository.list(), isEmpty);
+      }
+
       final repository = _MemoryCatalogRepository(const []);
       await tester.pumpWidget(
-        MaterialApp(
-          home: FoodCatalogEditorPage(
-            key: ValueKey('catalog-editor-missing-$missing'),
-            repository: repository,
-          ),
-        ),
+        MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
       );
       await tester.enterText(
         find.widgetWithText(TextField, 'NAME'),
         'New Food',
       );
-      for (final label in labels.where((label) => label != missing)) {
+      for (final label in labels) {
         await tester.enterText(find.widgetWithText(TextField, label), '0');
       }
       await tester.ensureVisible(find.text('SAVE'));
       await tester.tap(find.text('SAVE'));
-      await tester.pump();
-
-      expect(find.textContaining('$missing IS REQUIRED'), findsOneWidget);
-      expect(await repository.list(), isEmpty);
-    }
-
-    final repository = _MemoryCatalogRepository(const []);
-    await tester.pumpWidget(
-      MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
-    );
-    await tester.enterText(find.widgetWithText(TextField, 'NAME'), 'New Food');
-    for (final label in labels) {
-      await tester.enterText(find.widgetWithText(TextField, label), '0');
-    }
-    await tester.ensureVisible(find.text('SAVE'));
-    await tester.tap(find.text('SAVE'));
-    await tester.pumpAndSettle();
-    final saved = (await repository.list()).single;
-    expect(saved.nutrition.toJson(), {
-      'calories': 0.0,
-      'protein': 0.0,
-      'fat': 0.0,
-      'carbohydrate': 0.0,
-    });
-  });
+      await tester.pumpAndSettle();
+      final saved = (await repository.list()).single;
+      expect(saved.nutrition.toJson(), {
+        'calories': 0.0,
+        'protein': 0.0,
+        'fat': 0.0,
+        'carbohydrate': 0.0,
+      });
+    },
+  );
 
   testWidgets('catalog save rejects invalid nutrition input without mutation', (
     tester,

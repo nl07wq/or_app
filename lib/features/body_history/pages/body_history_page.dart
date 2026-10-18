@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -183,7 +184,11 @@ class _PeriodSelector extends StatelessWidget {
           ChoiceChip(
             label: Text(period.label),
             selected: period == selected,
-            onSelected: (_) => onSelected(period),
+            onSelected: (_) {
+              if (period == selected) return;
+              GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+              onSelected(period);
+            },
           ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),

@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/models/operation_calendar_period.dart';
@@ -264,7 +265,11 @@ class _PeriodSelector extends StatelessWidget {
           ChoiceChip(
             label: Text(period.label),
             selected: period == selected,
-            onSelected: (_) => onSelected(period),
+            onSelected: (_) {
+              if (period == selected) return;
+              GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+              onSelected(period);
+            },
           ).actionableFeedback(role: ActionableFeedbackRole.silent),
       ],
     ),

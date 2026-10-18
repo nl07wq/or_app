@@ -215,6 +215,8 @@ class GlobalTouchRipple extends StatefulWidget {
       ..sound = switch (role) {
         ActionableFeedbackRole.command => TouchFeedbackSound.success,
         ActionableFeedbackRole.exit => TouchFeedbackSound.exit,
+        ActionableFeedbackRole.cursor => TouchFeedbackSound.cursor,
+        ActionableFeedbackRole.enter => TouchFeedbackSound.enter,
         ActionableFeedbackRole.silent => null,
       }
       ..downPosition = position
@@ -284,6 +286,8 @@ class GlobalTouchRipple extends StatefulWidget {
         : switch (ownership.role) {
             ActionableFeedbackRole.command => TouchFeedbackSound.success,
             ActionableFeedbackRole.exit => TouchFeedbackSound.exit,
+            ActionableFeedbackRole.cursor => TouchFeedbackSound.cursor,
+            ActionableFeedbackRole.enter => TouchFeedbackSound.enter,
             ActionableFeedbackRole.silent => null,
             null => null,
           };
@@ -633,7 +637,7 @@ class InputFeedbackRegion extends StatelessWidget {
 /// Feature code describes the operation, never an audio file. An unavailable
 /// action resolves to [ActionableFeedbackResult.unavailable] regardless of its
 /// normal [ActionableFeedbackRole].
-enum ActionableFeedbackRole { command, exit, silent }
+enum ActionableFeedbackRole { command, exit, cursor, enter, silent }
 
 /// The result of an actionable interaction.
 enum ActionableFeedbackResult { accepted, unavailable }

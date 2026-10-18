@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/state/app_initialization_state.dart';
@@ -153,6 +154,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
 
   Future<void> _selectView(_FoodDatabaseView view) async {
     if (_view == view) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
     setState(() {
       _view = view;
       _search.clear();

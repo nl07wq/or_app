@@ -1081,7 +1081,7 @@ class _BootSequenceVisualState extends State<_BootSequenceVisual>
                         letterSpacing: 1.35,
                       ),
                     ),
-                  ).actionableFeedback(),
+                  ).actionableFeedback(role: ActionableFeedbackRole.enter),
                 ),
               ),
             ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
@@ -51,6 +52,7 @@ class _RemindersPageState extends State<RemindersPage>
       <int, Map<String, ReminderOccurrence>>{};
   bool _loading = true;
   int _loadGeneration = 0;
+  int _selectedTab = 0;
 
   ReminderOccurrenceService get _occurrences =>
       ReminderOccurrenceService(AppRepositoryRegistry.container.reminders);
@@ -58,7 +60,7 @@ class _RemindersPageState extends State<RemindersPage>
   @override
   void initState() {
     super.initState();
-    _tabs.addListener(_clearTransientCompleteRetention);
+    _tabs.addListener(_onTabControllerChanged);
     schedulePlanRevisionNotifier.addListener(_handlePlanRevision);
     _load();
     _scheduleDayRollover();
@@ -68,7 +70,7 @@ class _RemindersPageState extends State<RemindersPage>
   void dispose() {
     schedulePlanRevisionNotifier.removeListener(_handlePlanRevision);
     _dayRollover?.cancel();
-    _tabs.removeListener(_clearTransientCompleteRetention);
+    _tabs.removeListener(_onTabControllerChanged);
     _tabs.dispose();
     super.dispose();
   }
@@ -89,6 +91,17 @@ class _RemindersPageState extends State<RemindersPage>
         _scheduleDayRollover();
       },
     );
+  }
+
+  void _playCursorForTabChange(int index) {
+    if (index == _selectedTab) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    _selectedTab = index;
+  }
+
+  void _onTabControllerChanged() {
+    if (!_tabs.indexIsChanging) _selectedTab = _tabs.index;
+    _clearTransientCompleteRetention();
   }
 
   void _clearTransientCompleteRetention() {
@@ -384,7 +397,10 @@ class _RemindersPageState extends State<RemindersPage>
                 child: _ReminderFloatingSurface(
                   child: Column(
                     children: [
-                      _ReminderHudTabs(controller: _tabs),
+                      _ReminderHudTabs(
+                        controller: _tabs,
+                        onTabSelected: _playCursorForTabChange,
+                      ),
                       Expanded(
                         child: _loading
                             ? const Center(child: CircularProgressIndicator())
@@ -510,8 +526,12 @@ class _ReminderFloatingSurface extends StatelessWidget {
 }
 
 class _ReminderHudTabs extends StatelessWidget {
-  const _ReminderHudTabs({required this.controller});
+  const _ReminderHudTabs({
+    required this.controller,
+    required this.onTabSelected,
+  });
   final TabController controller;
+  final ValueChanged<int> onTabSelected;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -521,6 +541,7 @@ class _ReminderHudTabs extends StatelessWidget {
       role: ActionableFeedbackRole.silent,
       child: TabBar(
         controller: controller,
+        onTap: onTabSelected,
         isScrollable: true,
         indicatorSize: TabBarIndicatorSize.tab,
         indicator: ShapeDecoration(

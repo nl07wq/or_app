@@ -10,6 +10,7 @@ import 'package:or_app/core/services/operation_system_metadata.dart';
 import 'package:or_app/core/services/startup_initialization_service.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/boot_sequence.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/core/widgets/startup_gate.dart';
 
 const _timing = BootSequenceTiming(
@@ -1266,6 +1267,20 @@ void main() {
     await _elapse(tester, const Duration(seconds: 2));
     expect(find.text('MAIN UI'), findsOneWidget);
     expect(find.text('SYSTEM READY'), findsNothing);
+  });
+
+  testWidgets('TAP TO SKIP uses ENTER semantic feedback', (tester) async {
+    final controller = AppInitializationController()..markReady();
+    await tester.pumpWidget(_gate(controller));
+
+    final feedback = tester
+        .widgetList<ActionableFeedbackRegion>(
+          find.byWidgetPredicate(
+            (widget) => widget is ActionableFeedbackRegion,
+          ),
+        )
+        .where((region) => region.role == ActionableFeedbackRole.enter);
+    expect(feedback, hasLength(1));
   });
 
   testWidgets(

@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/touch_ripple_audio.dart';
+import '../../../core/widgets/global_touch_ripple.dart';
+
 enum TrainingAmbientVariant {
   magneticFlux('MAGNETIC FLUX'),
   kineticEngine('KINETIC ENGINE'),
@@ -347,12 +350,21 @@ class TrainingAmbientComparisonSelector extends StatelessWidget {
           for (final value in TrainingAmbientVariant.values)
             Semantics(
               selected: value == selected,
-              child: ChoiceChip(
-                key: ValueKey('training-ambient-${value.name}'),
-                label: Text(value.label),
-                selected: value == selected,
-                onSelected: (_) => onChanged(value),
-                visualDensity: VisualDensity.compact,
+              child: ActionableFeedbackRegion(
+                role: ActionableFeedbackRole.silent,
+                child: ChoiceChip(
+                  key: ValueKey('training-ambient-${value.name}'),
+                  label: Text(value.label),
+                  selected: value == selected,
+                  onSelected: (_) {
+                    if (value == selected) return;
+                    GlobalTouchRipple.previewFeedback(
+                      TouchFeedbackSound.cursor,
+                    );
+                    onChanged(value);
+                  },
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
             ),
         ],

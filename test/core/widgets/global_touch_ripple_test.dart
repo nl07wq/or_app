@@ -724,6 +724,39 @@ void main() {
     expect(audio.played, List.filled(6, TouchFeedbackSound.success));
   });
 
+  testWidgets('cursor and enter roles dispatch their dedicated sounds once', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: Scaffold(
+            body: Column(
+              children: [
+                TextButton(
+                  onPressed: () {},
+                  child: const Text('CURSOR'),
+                ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                TextButton(
+                  onPressed: () {},
+                  child: const Text('ENTER'),
+                ).actionableFeedback(role: ActionableFeedbackRole.enter),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('CURSOR'));
+    await tester.tap(find.text('ENTER'));
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(audio.played, [TouchFeedbackSound.cursor, TouchFeedbackSound.enter]);
+  });
+
   testWidgets('failure claim suppresses Water Drop and success', (
     tester,
   ) async {
@@ -991,6 +1024,14 @@ void main() {
     expect(
       touchRippleExitAudioAssetUrl,
       'assets/assets/audio/touch/button-09.mp3',
+    );
+    expect(
+      touchRippleCursorAudioAssetUrl,
+      'assets/assets/audio/touch/Cursor_sound.mp3',
+    );
+    expect(
+      touchRippleEnterAudioAssetUrl,
+      'assets/assets/audio/touch/Enter_sound.mp3',
     );
   });
 }
