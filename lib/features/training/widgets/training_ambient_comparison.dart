@@ -181,6 +181,107 @@ class TrainingAmbientComparison extends StatefulWidget {
     return gears;
   }
 
+  /// Four independent, low-contrast drive groups behind the V6.2 primary
+  /// train. They use tree-shaped meshes, rather than a second vertical chain.
+  /// Each stable pivot can later be selectively replaced with a PNG asset.
+  static List<KineticGearGeometry> kineticBackgroundGearGeometryFor(Size size) {
+    final module = (size.width * .0044).clamp(1.22, 1.82);
+
+    KineticGearGeometry root(
+      String id,
+      Offset center,
+      int teeth,
+      double driveRatio,
+      double phase,
+    ) => KineticGearGeometry(
+      id: id,
+      center: center,
+      toothCount: teeth,
+      module: module,
+      pitchRadius: module * teeth,
+      rootRadius: module * (teeth - .95),
+      tipRadius: module * (teeth + 1.35),
+      phaseOffset: phase,
+      driveRatio: driveRatio,
+    );
+
+    KineticGearGeometry mesh(
+      KineticGearGeometry parent,
+      String id,
+      double angle,
+      int teeth,
+    ) {
+      final pitchRadius = module * teeth;
+      return KineticGearGeometry(
+        id: id,
+        parentId: parent.id,
+        center:
+            parent.center +
+            Offset.fromDirection(angle, parent.pitchRadius + pitchRadius),
+        toothCount: teeth,
+        module: module,
+        pitchRadius: pitchRadius,
+        rootRadius: module * (teeth - .95),
+        tipRadius: module * (teeth + 1.35),
+        phaseOffset:
+            angle +
+            math.pi -
+            math.pi / teeth -
+            parent.phaseOffset * parent.toothCount / teeth,
+        driveRatio: -parent.driveRatio * parent.toothCount / teeth,
+      );
+    }
+
+    List<KineticGearGeometry> cluster(
+      String id,
+      Offset center,
+      double direction,
+      double driveRatio,
+      double phase,
+    ) {
+      final drive = root('$id-drive', center, 34, driveRatio, phase);
+      final upper = mesh(drive, '$id-upper', direction - .85, 16);
+      final outer = mesh(drive, '$id-outer', direction + .35, 24);
+      final lower = mesh(drive, '$id-lower', direction + 1.52, 14);
+      final transfer = mesh(upper, '$id-transfer', direction - 1.72, 22);
+      final pinion = mesh(outer, '$id-pinion', direction + .96, 12);
+      final crown = mesh(lower, '$id-crown', direction + 2.44, 20);
+      final escape = mesh(transfer, '$id-escape', direction - .54, 14);
+      return [drive, upper, outer, lower, transfer, pinion, crown, escape];
+    }
+
+    return [
+      ...cluster(
+        'background-north-left',
+        Offset(size.width * .03, size.height * .105),
+        .18,
+        .27,
+        .34,
+      ),
+      ...cluster(
+        'background-north-right',
+        Offset(size.width * .95, size.height * .31),
+        math.pi - .26,
+        -.21,
+        1.08,
+      ),
+      ...cluster(
+        'background-south-left',
+        Offset(size.width * .06, size.height * .57),
+        .06,
+        .24,
+        2.22,
+      ),
+      ...cluster(
+        'background-south-right',
+        Offset(size.width * .94, size.height * .83),
+        math.pi - .12,
+        -.25,
+        2.88,
+      ),
+    ];
+  }
+
   @override
   State<TrainingAmbientComparison> createState() =>
       _TrainingAmbientComparisonState();
@@ -369,12 +470,37 @@ class _TrainingAmbientPainter extends CustomPainter {
 
   void _engine(Canvas canvas, Size size) {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(size);
+    final backgroundGears =
+        TrainingAmbientComparison.kineticBackgroundGearGeometryFor(size);
     final byId = {for (final gear in gears) gear.id: gear};
     final drivePhase = TrainingAmbientComparison.kineticDrivePhase(time);
     canvas.drawRect(
       Offset.zero & size,
       Paint()..color = const Color(0x99101924),
     );
+
+    // The independent lower layer is deliberately painted before the V6.2
+    // transmission so its subdued gear groups create depth without competing
+    // with the established primary train.
+    final backgroundById = {for (final gear in backgroundGears) gear.id: gear};
+    for (final gear in backgroundGears) {
+      final parentId = gear.parentId;
+      if (parentId == null) continue;
+      final parent = backgroundById[parentId]!;
+      canvas.drawLine(
+        parent.center,
+        gear.center,
+        Paint()
+          ..strokeWidth = gear.module * 3.6
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0x7a172633),
+      );
+    }
+    for (var i = 0; i < backgroundGears.length; i++) {
+      final gear = backgroundGears[i];
+      _gear(canvas, gear, gear.phaseAt(drivePhase), i, background: true);
+    }
+
     for (final gear in gears) {
       final parentId = gear.parentId;
       if (parentId == null) continue;
@@ -435,7 +561,13 @@ class _TrainingAmbientPainter extends CustomPainter {
     );
   }
 
-  void _gear(Canvas canvas, KineticGearGeometry gear, double angle, int index) {
+  void _gear(
+    Canvas canvas,
+    KineticGearGeometry gear,
+    double angle,
+    int index, {
+    bool background = false,
+  }) {
     final profile = Path();
     for (var tooth = 0; tooth < gear.renderedToothTipCount; tooth++) {
       final base = angle + tooth * math.pi * 2 / gear.toothCount;
@@ -459,18 +591,27 @@ class _TrainingAmbientPainter extends CustomPainter {
       }
     }
     profile.close();
-    canvas.drawPath(profile, Paint()..color = const Color(0xff2c4253));
+    final fill = background ? const Color(0x9220323f) : const Color(0xff2c4253);
+    final edge = background
+        ? const Color(0x494d7488)
+        : const Color(0xff7acdf0).withValues(alpha: .62);
+    final well = background ? const Color(0xc90b1620) : const Color(0xff162634);
+    final rim = background ? const Color(0x66456278) : const Color(0xff46687e);
+    final spokeColor = background
+        ? const Color(0x77344a59)
+        : const Color(0xff38566a);
+    canvas.drawPath(profile, Paint()..color = fill);
     canvas.drawPath(
       profile,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0
-        ..color = const Color(0xff7acdf0).withValues(alpha: .62),
+        ..color = edge,
     );
     canvas.drawCircle(
       gear.center,
       gear.pitchRadius * .72,
-      Paint()..color = const Color(0xff162634),
+      Paint()..color = well,
     );
     canvas.drawCircle(
       gear.center,
@@ -478,7 +619,7 @@ class _TrainingAmbientPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = gear.pitchRadius * .07
-        ..color = const Color(0xff46687e),
+        ..color = rim,
     );
     for (var spoke = 0; spoke < 6; spoke++) {
       final a = angle + spoke * math.pi / 3;
@@ -488,20 +629,25 @@ class _TrainingAmbientPainter extends CustomPainter {
         Paint()
           ..strokeWidth = gear.pitchRadius * .07
           ..strokeCap = StrokeCap.round
-          ..color = const Color(0xff38566a),
+          ..color = spokeColor,
+      );
+    }
+    if (!background) {
+      canvas.drawCircle(
+        gear.center,
+        gear.pitchRadius * .22,
+        Paint()
+          ..color = const Color(0xff68dfff)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
     }
     canvas.drawCircle(
       gear.center,
-      gear.pitchRadius * .22,
-      Paint()
-        ..color = const Color(0xff68dfff)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    canvas.drawCircle(
-      gear.center,
       gear.pitchRadius * .12,
-      Paint()..color = const Color(0xffffbe74),
+      Paint()
+        ..color = background
+            ? const Color(0x88617a89)
+            : const Color(0xffffbe74),
     );
     canvas.drawArc(
       Rect.fromCircle(center: gear.center, radius: gear.pitchRadius * .82),
@@ -512,7 +658,9 @@ class _TrainingAmbientPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = gear.pitchRadius * .035
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xffc1f8ff).withValues(alpha: .62),
+        ..color = background
+            ? const Color(0x335b879a)
+            : const Color(0xffc1f8ff).withValues(alpha: .62),
     );
   }
 

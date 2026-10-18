@@ -4,7 +4,7 @@ import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 
 void main() {
-  test('V6.2 has a connected full-viewport gear train', () {
+  test('V7 preserves the connected full-viewport primary gear train', () {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 2200),
     );
@@ -27,7 +27,7 @@ void main() {
     }
   });
 
-  test('V6.2 meshing and drive phases remain mechanically coupled', () {
+  test('V7 primary meshing and drive phases remain mechanically coupled', () {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 2200),
     );
@@ -59,17 +59,68 @@ void main() {
     }
   });
 
-  test('V6.2 distributes connected pivots through training scroll regions', () {
-    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+  test(
+    'V7 primary train distributes connected pivots through scroll regions',
+    () {
+      final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+        const Size(390, 2200),
+      );
+      for (final band in [(0.0, 550.0), (550.0, 1300.0), (1300.0, 2200.0)]) {
+        expect(
+          gears.where(
+            (gear) => gear.center.dy >= band.$1 && gear.center.dy < band.$2,
+          ),
+          isNotEmpty,
+        );
+      }
+    },
+  );
+
+  test('V7 background adds dense, mechanically connected drive groups', () {
+    final background =
+        TrainingAmbientComparison.kineticBackgroundGearGeometryFor(
+          const Size(390, 2200),
+        );
+    final byId = {for (final gear in background) gear.id: gear};
+    final roots = background.where((gear) => gear.parentId == null).toList();
+
+    expect(background, hasLength(32));
+    expect(roots, hasLength(4));
+    expect(background.map((gear) => gear.id).toSet(), hasLength(32));
+    for (final gear in background) {
+      expect(gear.renderedToothTipCount, gear.toothCount);
+      expect(gear.module, greaterThan(0));
+      final parentId = gear.parentId;
+      if (parentId == null) continue;
+      final parent = byId[parentId]!;
+      expect(
+        (gear.center - parent.center).distance,
+        closeTo(gear.pitchRadius + parent.pitchRadius, .000001),
+      );
+      expect(
+        gear.driveRatio,
+        closeTo(
+          -parent.driveRatio * parent.toothCount / gear.toothCount,
+          .000001,
+        ),
+      );
+    }
+  });
+
+  test('V7 background covers both sides across the training scroll extent', () {
+    final gears = TrainingAmbientComparison.kineticBackgroundGearGeometryFor(
       const Size(390, 2200),
     );
     for (final band in [(0.0, 550.0), (550.0, 1300.0), (1300.0, 2200.0)]) {
-      expect(
-        gears.where(
-          (gear) => gear.center.dy >= band.$1 && gear.center.dy < band.$2,
-        ),
-        isNotEmpty,
-      );
+      final inBand = gears
+          .where(
+            (gear) =>
+                gear.center.dy >= band.$1 - 160 &&
+                gear.center.dy < band.$2 + 160,
+          )
+          .toList();
+      expect(inBand.where((gear) => gear.center.dx < 195), isNotEmpty);
+      expect(inBand.where((gear) => gear.center.dx >= 195), isNotEmpty);
     }
   });
 
@@ -93,7 +144,7 @@ void main() {
     },
   );
 
-  testWidgets('V6.2 kinetic ambient remains active through training scroll', (
+  testWidgets('V7 kinetic ambient remains active through training scroll', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -119,7 +170,7 @@ void main() {
   });
 
   testWidgets(
-    'V6.2 full-page mechanical composition remains visible while scrolling',
+    'V7 dual-layer mechanical composition remains visible while scrolling',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -132,7 +183,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1450));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v6_2_top.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v7_top.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -141,7 +192,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 2300));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v6_2_middle.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v7_middle.png'),
+      );
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -700),
+      );
+      await tester.pump(const Duration(milliseconds: 1700));
+      await expectLater(
+        find.byType(TrainingPage),
+        matchesGoldenFile('goldens/training_kinetic_engine_v7_lower.png'),
       );
     },
   );
