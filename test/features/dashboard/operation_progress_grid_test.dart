@@ -2105,7 +2105,7 @@ void main() {
     );
     final logoImage = tester.widget<Image>(logoFinder);
     expect(logoImage.fit, BoxFit.contain);
-    expect(logoImage.colorBlendMode, BlendMode.modulate);
+    expect(logoImage.colorBlendMode, isNull);
     expect(
       (logoImage.image as AssetImage).assetName,
       'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
@@ -2114,6 +2114,20 @@ void main() {
     expect(
       find.descendant(of: logoSlot, matching: find.byType(ImageFiltered)),
       findsNWidgets(2),
+    );
+    expect(
+      find.descendant(of: logoSlot, matching: find.byType(ColorFiltered)),
+      findsOneWidget,
+    );
+    final logoLayers = tester
+        .widgetList<Image>(
+          find.descendant(of: logoSlot, matching: find.byType(Image)),
+        )
+        .toList();
+    expect(logoLayers, hasLength(3));
+    expect(
+      logoLayers.map((image) => image.colorBlendMode),
+      containsAll([BlendMode.srcIn, BlendMode.plus, null]),
     );
     final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
     expect(
@@ -2252,7 +2266,7 @@ void main() {
     },
   );
 
-  testWidgets('Dashboard neon logo V2.2 matches the stable visual reference', (
+  testWidgets('Dashboard neon logo V2.3 matches the stable visual reference', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -2266,7 +2280,7 @@ void main() {
 
     await expectLater(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
-      matchesGoldenFile('goldens/dashboard_neon_logo_v2_2.png'),
+      matchesGoldenFile('goldens/dashboard_neon_logo_v2_3.png'),
     );
   });
 

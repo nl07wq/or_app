@@ -62,11 +62,19 @@ void main() {
       expect(DashboardNeonTubeGeometry.logoVisibleWidth, closeTo(29.63, .01));
       expect(DashboardNeonTubeGeometry.logoVisibleHeight, closeTo(27.89, .01));
       expect(DashboardNeonTubeGeometry.logoPaintOffsetX, -2);
-      expect(DashboardNeonTubeGeometry.logoOuterGlowOpacity, .24);
-      expect(DashboardNeonTubeGeometry.logoInnerGlowOpacity, .72);
-      expect(DashboardNeonTubeGeometry.logoCoreOpacity, .96);
-      expect(DashboardNeonTubeGeometry.logoOuterGlowSigma, 3.6);
-      expect(DashboardNeonTubeGeometry.logoInnerGlowSigma, 1.25);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowOpacity, .48);
+      expect(DashboardNeonTubeGeometry.logoNeonEdgeOpacity, 1);
+      expect(DashboardNeonTubeGeometry.logoHotCoreOpacity, 1);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowSigma, 3.8);
+      expect(DashboardNeonTubeGeometry.logoNeonEdgeSigma, .35);
+      expect(DashboardNeonTubeGeometry.logoHotCoreColorMatrix, hasLength(20));
+      expect(DashboardNeonTubeGeometry.logoHotCoreColorMatrix[4], 226);
+      expect(DashboardNeonTubeGeometry.logoHotCoreColorMatrix[9], 249);
+      expect(DashboardNeonTubeGeometry.logoHotCoreColorMatrix[14], 255);
+      double extractedAlpha(double red, double green, double blue) =>
+          (red * 2.126 + green * 7.152 + blue * .722 - 2000).clamp(0, 255);
+      expect(extractedAlpha(255, 255, 255), 255);
+      expect(extractedAlpha(35, 165, 235), 0);
       expect(
         DashboardNeonTubeGeometry.leftContentClearance,
         closeTo(7.14, .01),
@@ -152,19 +160,19 @@ void main() {
                 left.logoIntensity < right.logoIntensity ? left : right,
           );
 
-      expect(DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable), .24);
-      expect(DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(stable), .72);
-      expect(DashboardNeonTubeGeometry.logoCoreAlphaFor(stable), .96);
+      expect(DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable), .48);
+      expect(DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(stable), 1);
+      expect(DashboardNeonTubeGeometry.logoHotCoreAlphaFor(stable), 1);
       expect(
         DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(stable),
         greaterThan(.16),
       );
       expect(
-        DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(stable),
+        DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(stable),
         greaterThan(.58),
       );
       expect(
-        DashboardNeonTubeGeometry.logoCoreAlphaFor(stable),
+        DashboardNeonTubeGeometry.logoHotCoreAlphaFor(stable),
         greaterThan(.88),
       );
       expect(
@@ -172,11 +180,11 @@ void main() {
         lessThan(.01),
       );
       expect(
-        DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(deepestLogoFault),
+        DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(deepestLogoFault),
         lessThan(.01),
       );
       expect(
-        DashboardNeonTubeGeometry.logoCoreAlphaFor(deepestLogoFault),
+        DashboardNeonTubeGeometry.logoHotCoreAlphaFor(deepestLogoFault),
         lessThan(.01),
       );
     });

@@ -609,11 +609,36 @@ abstract final class DashboardNeonTubeGeometry {
   static const logoVisibleWidth = logoSize * logoVisibleWidthFraction;
   static const logoVisibleHeight = logoSize * logoVisibleHeightFraction;
   static const logoPaintOffsetX = -2.0;
-  static const logoOuterGlowOpacity = .24;
-  static const logoInnerGlowOpacity = .72;
-  static const logoCoreOpacity = .96;
-  static const logoOuterGlowSigma = 3.6;
-  static const logoInnerGlowSigma = 1.25;
+  static const logoOuterGlowOpacity = .48;
+  static const logoNeonEdgeOpacity = 1.0;
+  static const logoHotCoreOpacity = 1.0;
+  static const logoOuterGlowSigma = 3.8;
+  static const logoNeonEdgeSigma = .35;
+  // The alpha row retains only the supplied PNG's brightest white/ice-blue
+  // line work. Transparent and mid-blue pixels remain transparent, producing
+  // a narrow Hot Core without redrawing or thickening the emblem geometry.
+  static const logoHotCoreColorMatrix = <double>[
+    0,
+    0,
+    0,
+    0,
+    226,
+    0,
+    0,
+    0,
+    0,
+    249,
+    0,
+    0,
+    0,
+    0,
+    255,
+    2.126,
+    7.152,
+    .722,
+    0,
+    -2000,
+  ];
   // Compensate the centred row by half the V2 size reduction so the frozen
   // wordmark origin remains exactly where it was in V2.
   static const lockupOffsetX = (v2LogoSize - logoSize) / 2;
@@ -724,10 +749,10 @@ abstract final class DashboardNeonTubeGeometry {
 
   static double logoOuterGlowAlphaFor(DashboardNeonFaultPhase phase) =>
       logoOuterGlowOpacity * phase.outerGlowIntensity * phase.logoIntensity;
-  static double logoInnerGlowAlphaFor(DashboardNeonFaultPhase phase) =>
-      logoInnerGlowOpacity * phase.innerGlowIntensity * phase.logoIntensity;
-  static double logoCoreAlphaFor(DashboardNeonFaultPhase phase) =>
-      logoCoreOpacity * phase.coreIntensity * phase.logoIntensity;
+  static double logoNeonEdgeAlphaFor(DashboardNeonFaultPhase phase) =>
+      logoNeonEdgeOpacity * phase.innerGlowIntensity * phase.logoIntensity;
+  static double logoHotCoreAlphaFor(DashboardNeonFaultPhase phase) =>
+      logoHotCoreOpacity * phase.coreIntensity * phase.logoIntensity;
 }
 
 class DashboardPage extends StatefulWidget {
@@ -3991,7 +4016,6 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
   @override
   Widget build(BuildContext context) {
     final glowColor = AppColors.information;
-    final hotCoreColor = Color.lerp(glowColor, const Color(0xFFE2F9FF), .86)!;
     final physicalFrameColor = Color.lerp(
       const Color(0xFF18262C),
       const Color(0xFF24414A),
@@ -4103,37 +4127,41 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                               ),
                               Opacity(
                                 opacity:
-                                    DashboardNeonTubeGeometry.logoInnerGlowAlphaFor(
+                                    DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(
                                       _phase,
                                     ),
                                 child: ImageFiltered(
                                   imageFilter: ImageFilter.blur(
                                     sigmaX: DashboardNeonTubeGeometry
-                                        .logoInnerGlowSigma,
+                                        .logoNeonEdgeSigma,
                                     sigmaY: DashboardNeonTubeGeometry
-                                        .logoInnerGlowSigma,
+                                        .logoNeonEdgeSigma,
                                   ),
                                   child: Image.asset(
                                     'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
                                     height: DashboardNeonTubeGeometry.logoSize,
                                     fit: BoxFit.contain,
-                                    color: glowColor,
-                                    colorBlendMode: BlendMode.srcIn,
+                                    color: const Color(0x3035dcff),
+                                    colorBlendMode: BlendMode.plus,
                                   ),
                                 ),
                               ),
                               Opacity(
                                 opacity:
-                                    DashboardNeonTubeGeometry.logoCoreAlphaFor(
+                                    DashboardNeonTubeGeometry.logoHotCoreAlphaFor(
                                       _phase,
                                     ),
-                                child: Image.asset(
-                                  'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
-                                  key: const ValueKey('dashboard-brand-logo'),
-                                  height: DashboardNeonTubeGeometry.logoSize,
-                                  fit: BoxFit.contain,
-                                  color: hotCoreColor,
-                                  colorBlendMode: BlendMode.modulate,
+                                child: ColorFiltered(
+                                  colorFilter: const ColorFilter.matrix(
+                                    DashboardNeonTubeGeometry
+                                        .logoHotCoreColorMatrix,
+                                  ),
+                                  child: Image.asset(
+                                    'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+                                    key: const ValueKey('dashboard-brand-logo'),
+                                    height: DashboardNeonTubeGeometry.logoSize,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                             ],
