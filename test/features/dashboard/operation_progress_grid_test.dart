@@ -2108,7 +2108,7 @@ void main() {
     expect(logoImage.colorBlendMode, isNull);
     expect(
       (logoImage.image as AssetImage).assetName,
-      'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+      'assets/icons/dashboard_orlo_emblem_128_transparent.png',
     );
     final logoSlot = find.byKey(const ValueKey('dashboard-brand-logo-slot'));
     expect(
@@ -2274,7 +2274,7 @@ void main() {
     },
   );
 
-  testWidgets('Dashboard neon logo V2.4 matches the stable visual reference', (
+  testWidgets('Dashboard neon logo V2.5 matches the stable visual reference', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -3685,7 +3685,7 @@ Future<void> _precacheDashboardEmblem(WidgetTester tester) async {
   await tester.runAsync(
     () => precacheImage(
       const AssetImage(
-        'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+        'assets/icons/dashboard_orlo_emblem_128_transparent.png',
       ),
       context,
     ),

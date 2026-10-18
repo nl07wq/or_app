@@ -1,12 +1,16 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 
 void main() {
   const probeSize = 90.0;
+  const logoAsset = 'assets/icons/dashboard_orlo_emblem_128_transparent.png';
+  const masterAsset = 'assets/icons/dashboard_orlo_emblem_1290_transparent.png';
 
   Future<ui.Image> captureLogo(
     WidgetTester tester,
@@ -56,6 +60,93 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets(
+    'uses the supplied 128px RGBA emblem without changing its visible bounds',
+    (tester) async {
+      Future<ui.Image> decodeAsset(String asset) async {
+        final data = await rootBundle.load(asset);
+        final codec = await ui.instantiateImageCodec(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        );
+        final frame = await codec.getNextFrame();
+        codec.dispose();
+        return frame.image;
+      }
+
+      final logo = await tester.runAsync(() => decodeAsset(logoAsset));
+      final master = await tester.runAsync(() => decodeAsset(masterAsset));
+      expect(logo, isNotNull);
+      expect(master, isNotNull);
+      expect(logo!.width, 128);
+      expect(logo.height, 128);
+
+      Future<List<int>> cornersOf(ui.Image image) async {
+        final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final rgba = data!.buffer.asUint8List();
+        int alphaAt(int x, int y) => rgba[(y * image.width + x) * 4 + 3];
+        return [
+          alphaAt(0, 0),
+          alphaAt(image.width - 1, 0),
+          alphaAt(0, image.height - 1),
+          alphaAt(image.width - 1, image.height - 1),
+        ];
+      }
+
+      expect(await tester.runAsync(() => cornersOf(logo)), [0, 0, 0, 0]);
+      expect(await tester.runAsync(() => cornersOf(master!)), [0, 0, 0, 0]);
+
+      final logoPixels = await tester.runAsync(
+        () => logo.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      final masterPixels = await tester.runAsync(
+        () => master!.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      Rect nonTransparentBounds(ui.Image image, ByteData pixels) {
+        final rgba = pixels.buffer.asUint8List();
+        var minX = image.width;
+        var minY = image.height;
+        var maxX = -1;
+        var maxY = -1;
+        for (var y = 0; y < image.height; y++) {
+          for (var x = 0; x < image.width; x++) {
+            if (rgba[(y * image.width + x) * 4 + 3] == 0) continue;
+            minX = math.min(minX, x);
+            minY = math.min(minY, y);
+            maxX = math.max(maxX, x);
+            maxY = math.max(maxY, y);
+          }
+        }
+        return Rect.fromLTRB(
+          minX.toDouble(),
+          minY.toDouble(),
+          maxX + 1.0,
+          maxY + 1.0,
+        );
+      }
+
+      final logoBounds = nonTransparentBounds(logo, logoPixels!);
+      final masterBounds = nonTransparentBounds(master!, masterPixels!);
+      expect(
+        logoBounds.left / logo.width,
+        closeTo(masterBounds.left / master.width, .01),
+      );
+      expect(
+        logoBounds.top / logo.height,
+        closeTo(masterBounds.top / master.height, .01),
+      );
+      expect(
+        logoBounds.right / logo.width,
+        closeTo(masterBounds.right / master.width, .01),
+      );
+      expect(
+        logoBounds.bottom / logo.height,
+        closeTo(masterBounds.bottom / master.height, .01),
+      );
+      logo.dispose();
+      master.dispose();
+    },
+  );
 
   testWidgets('pixels away from the local glow remain fully transparent', (
     tester,

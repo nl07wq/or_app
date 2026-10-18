@@ -760,30 +760,49 @@ abstract final class DashboardNeonTubeGeometry {
 /// Keeping these layers together guarantees that every colour and blur pass
 /// uses the supplied PNG alpha. In particular, [BlendMode.srcIn] prevents the
 /// Neon Edge colour from being added to transparent canvas pixels.
-class DashboardNeonLogo extends StatelessWidget {
+class DashboardNeonLogo extends StatefulWidget {
   const DashboardNeonLogo({required this.phase, this.boundaryKey, super.key});
 
   final DashboardNeonFaultPhase phase;
   final Key? boundaryKey;
 
   @override
+  State<DashboardNeonLogo> createState() => _DashboardNeonLogoState();
+}
+
+class _DashboardNeonLogoState extends State<DashboardNeonLogo> {
+  static const _emblemImage = AssetImage(
+    'assets/icons/dashboard_orlo_emblem_128_transparent.png',
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Begin decoding before this widget's first paint without delaying the
+    // Dashboard frame. The three neon layers then resolve the same cache key.
+    unawaited(precacheImage(_emblemImage, context));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final glowColor = AppColors.information;
     return RepaintBoundary(
-      key: boundaryKey,
+      key: widget.boundaryKey,
       child: Stack(
         clipBehavior: Clip.none,
         alignment: Alignment.center,
         children: [
           Opacity(
-            opacity: DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(phase),
+            opacity: DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(
+              widget.phase,
+            ),
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(
                 sigmaX: DashboardNeonTubeGeometry.logoOuterGlowSigma,
                 sigmaY: DashboardNeonTubeGeometry.logoOuterGlowSigma,
               ),
-              child: Image.asset(
-                'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+              child: Image(
+                image: _emblemImage,
                 height: DashboardNeonTubeGeometry.logoSize,
                 fit: BoxFit.contain,
                 color: glowColor,
@@ -792,14 +811,16 @@ class DashboardNeonLogo extends StatelessWidget {
             ),
           ),
           Opacity(
-            opacity: DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(phase),
+            opacity: DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(
+              widget.phase,
+            ),
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(
                 sigmaX: DashboardNeonTubeGeometry.logoNeonEdgeSigma,
                 sigmaY: DashboardNeonTubeGeometry.logoNeonEdgeSigma,
               ),
-              child: Image.asset(
-                'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+              child: Image(
+                image: _emblemImage,
                 height: DashboardNeonTubeGeometry.logoSize,
                 fit: BoxFit.contain,
                 color: const Color(0xff35dcff),
@@ -808,13 +829,15 @@ class DashboardNeonLogo extends StatelessWidget {
             ),
           ),
           Opacity(
-            opacity: DashboardNeonTubeGeometry.logoHotCoreAlphaFor(phase),
+            opacity: DashboardNeonTubeGeometry.logoHotCoreAlphaFor(
+              widget.phase,
+            ),
             child: ColorFiltered(
               colorFilter: const ColorFilter.matrix(
                 DashboardNeonTubeGeometry.logoHotCoreColorMatrix,
               ),
-              child: Image.asset(
-                'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+              child: Image(
+                image: _emblemImage,
                 key: const ValueKey('dashboard-brand-logo'),
                 height: DashboardNeonTubeGeometry.logoSize,
                 fit: BoxFit.contain,
