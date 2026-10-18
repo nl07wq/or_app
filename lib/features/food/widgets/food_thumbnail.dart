@@ -56,7 +56,7 @@ abstract final class FoodThumbnailAssetResolver {
     FoodVisualKey.condiment ||
     FoodVisualKey.surimi ||
     FoodVisualKey.plate => '$_directory/${key!.stableId}.png',
-    FoodVisualKey.riceBall => '$_directory/rice_ball.jpg',
+    FoodVisualKey.riceBall => '$_directory/rice_ball.png',
     _ => null,
   };
 }

@@ -17,7 +17,7 @@ void main() {
     FoodVisualKey.condiment: 'condiment.png',
     FoodVisualKey.surimi: 'surimi.png',
     FoodVisualKey.plate: 'plate.png',
-    FoodVisualKey.riceBall: 'rice_ball.jpg',
+    FoodVisualKey.riceBall: 'rice_ball.png',
   };
 
   const materialIcons = <FoodVisualKey, IconData>{
