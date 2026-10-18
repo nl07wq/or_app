@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -243,6 +245,12 @@ void main() {
     );
     expect(
       TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
+        KineticGearVisualVariant.ringShortSpoke,
+      ),
+      .86,
+    );
+    expect(
+      TrainingAmbientComparison.kineticRimInnerRadiusFactorFor(
         KineticGearVisualVariant.cutoutDisc,
       ),
       .84,
@@ -259,6 +267,107 @@ void main() {
       ),
       .84,
     );
+  });
+
+  test('V11.4 assigns four unmistakable interior families on-screen', () {
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 844),
+    );
+    final byId = {for (final gear in gears) gear.id: gear};
+    int indexOf(String id) => gears.indexWhere((gear) => gear.id == id);
+
+    expect(
+      TrainingAmbientComparison.kineticGearVisualVariantFor(
+        byId['upper-left']!,
+        indexOf('upper-left'),
+      ),
+      KineticGearVisualVariant.openSpoke,
+    );
+    expect(
+      TrainingAmbientComparison.kineticGearVisualVariantFor(
+        byId['left-transfer']!,
+        indexOf('left-transfer'),
+      ),
+      KineticGearVisualVariant.thinRim,
+    );
+    expect(
+      TrainingAmbientComparison.kineticGearVisualVariantFor(
+        byId['main-drive']!,
+        indexOf('main-drive'),
+      ),
+      KineticGearVisualVariant.ringShortSpoke,
+    );
+    expect(
+      TrainingAmbientComparison.kineticGearVisualVariantFor(
+        byId['left-crown']!,
+        indexOf('left-crown'),
+      ),
+      KineticGearVisualVariant.cutoutDisc,
+    );
+    expect(
+      TrainingAmbientComparison.kineticGearVisualVariantFor(
+        byId['left-pinion']!,
+        indexOf('left-pinion'),
+      ),
+      KineticGearVisualVariant.pinion,
+    );
+    expect(
+      TrainingAmbientComparison.kineticGearVisualVariantFor(
+        byId['upper-right']!,
+        indexOf('upper-right'),
+      ),
+      KineticGearVisualVariant.asymmetric,
+    );
+  });
+
+  test('V11.4 locomotive coupling rods keep fixed lengths at four phases', () {
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 844),
+    );
+    final drive = gears.singleWhere((gear) => gear.id == 'mid-crown');
+    final reference = TrainingAmbientComparison.kineticSteamLinkagePoseFor(
+      drive,
+      0,
+    );
+
+    expect(reference.axleCenters, hasLength(3));
+    expect(reference.crankPins, hasLength(3));
+    for (final phase in [0.0, math.pi / 2, math.pi, math.pi * 1.5]) {
+      final pose = TrainingAmbientComparison.kineticSteamLinkagePoseFor(
+        drive,
+        phase,
+      );
+      for (var i = 0; i < pose.crankPins.length; i++) {
+        expect(
+          (pose.crankPins[i] - pose.axleCenters[i]).distance,
+          closeTo(pose.crankRadius, .000001),
+        );
+      }
+      for (var i = 0; i < pose.rodLengths.length; i++) {
+        expect(pose.rodLengths[i], closeTo(reference.rodLengths[i], .000001));
+      }
+    }
+  });
+
+  test('V11.4 rocker keeps both articulated members connected', () {
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 844),
+    );
+    final drive = gears.singleWhere((gear) => gear.id == 'right-crown');
+    for (final phase in [0.0, math.pi / 2, math.pi, math.pi * 1.5]) {
+      final pose = TrainingAmbientComparison.kineticRockerLinkagePoseFor(
+        drive,
+        phase,
+      );
+      expect(
+        (pose.rockerJoint - pose.crankPin).distance,
+        closeTo(pose.couplerLength, .000001),
+      );
+      expect(
+        (pose.rockerJoint - pose.fixedPivot).distance,
+        closeTo(pose.rockerLength, .000001),
+      );
+    }
   });
 
   test('V11.3 keeps tooth and transmission geometry frozen', () {
@@ -327,6 +436,38 @@ void main() {
     },
   );
 
+  testWidgets('V11.4 moving mechanisms remain visible through four phases', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _precacheKineticBackground(tester);
+    for (var phase = 0; phase < 4; phase++) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TrainingAmbientComparison(
+              key: const ValueKey('v11-4-kinetic-phase'),
+              variant: TrainingAmbientVariant.kineticEngine,
+              debugTime: phase * 12,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await expectLater(
+        find.byKey(const ValueKey('v11-4-kinetic-phase')),
+        matchesGoldenFile(
+          'goldens/training_kinetic_engine_v11_4_phase_$phase.png',
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets(
     'V9 kinetic ambient remains fixed while training content scrolls',
     (tester) async {
@@ -334,6 +475,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      await _precacheKineticBackground(tester);
       await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
       await tester.tap(
         find.byKey(const ValueKey('training-ambient-kineticEngine')),
@@ -361,11 +503,13 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      await _precacheKineticBackground(tester);
       await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
       await tester.tap(
         find.byKey(const ValueKey('training-ambient-kineticEngine')),
       );
       await tester.pump(const Duration(milliseconds: 1450));
+      await tester.pump();
       await expectLater(
         find.byType(TrainingPage),
         matchesGoldenFile('goldens/training_kinetic_engine_v9_top.png'),
@@ -452,5 +596,25 @@ void main() {
         expect(tester.takeException(), isNull);
       }
     },
+  );
+}
+
+Future<void> _precacheKineticBackground(WidgetTester tester) async {
+  late BuildContext context;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (value) {
+          context = value;
+          return const SizedBox.expand();
+        },
+      ),
+    ),
+  );
+  await tester.runAsync(
+    () => precacheImage(
+      const AssetImage(TrainingAmbientComparison.kineticEngineBackgroundAsset),
+      context,
+    ),
   );
 }

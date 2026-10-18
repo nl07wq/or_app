@@ -53,9 +53,49 @@ class KineticGearGeometry {
 enum KineticGearVisualVariant {
   openSpoke,
   thinRim,
+  ringShortSpoke,
   cutoutDisc,
   pinion,
   asymmetric,
+}
+
+/// A locomotive-style coupling rod driven by one primary gear. All three
+/// crank pins share the same eccentric vector, so both rod spans remain
+/// exactly constant through a complete revolution.
+class KineticSteamLinkagePose {
+  const KineticSteamLinkagePose({
+    required this.axleCenters,
+    required this.crankPins,
+    required this.crankRadius,
+  });
+
+  final List<Offset> axleCenters;
+  final List<Offset> crankPins;
+  final double crankRadius;
+
+  List<double> get rodLengths => [
+    for (var i = 1; i < crankPins.length; i++)
+      (crankPins[i] - crankPins[i - 1]).distance,
+  ];
+}
+
+/// A four-bar-like rocker driven from an eccentric gear pin. The coupler and
+/// rocker endpoints are found from two intersecting circles, preserving both
+/// member lengths instead of visually stretching a decorative line.
+class KineticRockerLinkagePose {
+  const KineticRockerLinkagePose({
+    required this.crankPin,
+    required this.fixedPivot,
+    required this.rockerJoint,
+    required this.couplerLength,
+    required this.rockerLength,
+  });
+
+  final Offset crankPin;
+  final Offset fixedPivot;
+  final Offset rockerJoint;
+  final double couplerLength;
+  final double rockerLength;
 }
 
 /// Static, PNG-replaceable structure behind the two V7 gear layers.  It has
@@ -75,8 +115,13 @@ class KineticBaseplateGeometry {
 }
 
 class TrainingAmbientComparison extends StatefulWidget {
-  const TrainingAmbientComparison({super.key, required this.variant});
+  const TrainingAmbientComparison({
+    super.key,
+    required this.variant,
+    this.debugTime,
+  });
   final TrainingAmbientVariant variant;
+  final double? debugTime;
 
   static const kineticEngineBackgroundAsset =
       'assets/images/training/kinetic_engine_v9_background.png';
@@ -348,11 +393,31 @@ class TrainingAmbientComparison extends StatefulWidget {
     bool background = false,
   }) {
     if (gear.toothCount <= 14) return KineticGearVisualVariant.pinion;
+    const deliberatePrimaryAssignments = <String, KineticGearVisualVariant>{
+      'main-drive': KineticGearVisualVariant.ringShortSpoke,
+      'upper-left': KineticGearVisualVariant.openSpoke,
+      'left-crown': KineticGearVisualVariant.cutoutDisc,
+      'left-transfer': KineticGearVisualVariant.thinRim,
+      'upper-right': KineticGearVisualVariant.asymmetric,
+      'right-crown': KineticGearVisualVariant.ringShortSpoke,
+      'right-transfer': KineticGearVisualVariant.thinRim,
+      'mid-drive': KineticGearVisualVariant.cutoutDisc,
+      'mid-pinion': KineticGearVisualVariant.openSpoke,
+      'mid-crown': KineticGearVisualVariant.ringShortSpoke,
+    };
+    final deliberate = deliberatePrimaryAssignments[gear.id];
+    if (deliberate != null) return deliberate;
     final stableSeed = gear.id.codeUnits.fold<int>(
       index,
       (sum, code) => sum + code,
     );
-    final variants = KineticGearVisualVariant.values;
+    const variants = <KineticGearVisualVariant>[
+      KineticGearVisualVariant.openSpoke,
+      KineticGearVisualVariant.thinRim,
+      KineticGearVisualVariant.ringShortSpoke,
+      KineticGearVisualVariant.cutoutDisc,
+      KineticGearVisualVariant.asymmetric,
+    ];
     // Rear gears favour open negative space so they remain subordinate.
     final adjusted = background ? stableSeed + 1 : stableSeed;
     return variants[adjusted % variants.length];
@@ -377,10 +442,73 @@ class TrainingAmbientComparison extends StatefulWidget {
   ) => switch (variant) {
     KineticGearVisualVariant.openSpoke => .85,
     KineticGearVisualVariant.thinRim => .88,
+    KineticGearVisualVariant.ringShortSpoke => .86,
     KineticGearVisualVariant.cutoutDisc => .84,
     KineticGearVisualVariant.pinion => .76,
     KineticGearVisualVariant.asymmetric => .84,
   };
+
+  static KineticSteamLinkagePose kineticSteamLinkagePoseFor(
+    KineticGearGeometry driveGear,
+    double drivePhase,
+  ) {
+    final crankRadius = math.min(
+      driveGear.pitchRadius * .29,
+      driveGear.module * 9.5,
+    );
+    final spacing = driveGear.module * 55;
+    final centers = <Offset>[
+      driveGear.center - Offset(spacing * 2, 0),
+      driveGear.center - Offset(spacing, 0),
+      driveGear.center,
+    ];
+    final eccentric = Offset.fromDirection(
+      driveGear.phaseAt(drivePhase),
+      crankRadius,
+    );
+    return KineticSteamLinkagePose(
+      axleCenters: centers,
+      crankPins: [for (final center in centers) center + eccentric],
+      crankRadius: crankRadius,
+    );
+  }
+
+  static KineticRockerLinkagePose kineticRockerLinkagePoseFor(
+    KineticGearGeometry driveGear,
+    double drivePhase,
+  ) {
+    final crankPin =
+        driveGear.center +
+        Offset.fromDirection(
+          driveGear.phaseAt(drivePhase) + .42,
+          driveGear.pitchRadius * .42,
+        );
+    final fixedPivot =
+        driveGear.center +
+        Offset(-driveGear.module * 42, driveGear.module * 34);
+    final couplerLength = driveGear.module * 38;
+    final rockerLength = driveGear.module * 31;
+    final delta = crankPin - fixedPivot;
+    final distance = delta.distance;
+    final along =
+        (rockerLength * rockerLength -
+            couplerLength * couplerLength +
+            distance * distance) /
+        (2 * distance);
+    final height = math.sqrt(
+      math.max(0, rockerLength * rockerLength - along * along),
+    );
+    final unit = delta / distance;
+    final perpendicular = Offset(-unit.dy, unit.dx);
+    final rockerJoint = fixedPivot + unit * along + perpendicular * height;
+    return KineticRockerLinkagePose(
+      crankPin: crankPin,
+      fixedPivot: fixedPivot,
+      rockerJoint: rockerJoint,
+      couplerLength: couplerLength,
+      rockerLength: rockerLength,
+    );
+  }
 
   /// V8 baseplate topology. Plates overlap but are deliberately broken into
   /// separate machined sections instead of becoming a decorative rectangle.
@@ -546,7 +674,7 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
             CustomPaint(
               painter: _TrainingAmbientPainter(
                 variant: widget.variant,
-                time: _controller.value * 48,
+                time: widget.debugTime ?? _controller.value * 48,
               ),
               child: const SizedBox.expand(),
             ),
@@ -760,6 +888,8 @@ class _TrainingAmbientPainter extends CustomPainter {
     for (var i = 0; i < gears.length; i++) {
       _gear(canvas, gears[i], gears[i].phaseAt(drivePhase), i);
     }
+    _steamLinkage(canvas, byId['mid-crown']!, drivePhase);
+    _rockerLinkage(canvas, byId['right-crown']!, drivePhase);
     final output = byId['output-crown']!;
     final outputAngle = output.phaseAt(drivePhase);
     final crankPin =
@@ -802,6 +932,144 @@ class _TrainingAmbientPainter extends CustomPainter {
       output.module * 2,
       Paint()..color = const Color(0xff80dcf5),
     );
+  }
+
+  void _steamLinkage(
+    Canvas canvas,
+    KineticGearGeometry driveGear,
+    double drivePhase,
+  ) {
+    final pose = TrainingAmbientComparison.kineticSteamLinkagePoseFor(
+      driveGear,
+      drivePhase,
+    );
+    final scale = driveGear.module;
+    final rear = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = scale * 9.2
+      ..color = const Color(0xd01a3d57);
+    final body = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = scale * 6.3
+      ..color = const Color(0xf04f7f98);
+    final edge = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = scale * 1.05
+      ..color = const Color(0xee8cecff);
+
+    for (var i = 0; i < pose.crankPins.length - 1; i++) {
+      final start = pose.crankPins[i];
+      final end = pose.crankPins[i + 1];
+      canvas.drawLine(start, end, rear);
+      canvas.drawLine(start, end, body);
+      canvas.drawLine(start, end, edge);
+    }
+    for (var i = 0; i < pose.axleCenters.length; i++) {
+      final center = pose.axleCenters[i];
+      final pin = pose.crankPins[i];
+      canvas.drawLine(
+        center,
+        pin,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = scale * 5.2
+          ..color = const Color(0xe332617c),
+      );
+      canvas.drawCircle(
+        center,
+        scale * 4.4,
+        Paint()..color = const Color(0xee18364f),
+      );
+      canvas.drawCircle(
+        center,
+        scale * 4.4,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = scale * .9
+          ..color = const Color(0xcc70d9f5),
+      );
+      canvas.drawCircle(
+        pin,
+        scale * 4.6,
+        Paint()..color = const Color(0xff315f79),
+      );
+      canvas.drawCircle(
+        pin,
+        scale * 2.2,
+        Paint()..color = const Color(0xff9aefff),
+      );
+    }
+  }
+
+  void _rockerLinkage(
+    Canvas canvas,
+    KineticGearGeometry driveGear,
+    double drivePhase,
+  ) {
+    final pose = TrainingAmbientComparison.kineticRockerLinkagePoseFor(
+      driveGear,
+      drivePhase,
+    );
+    final scale = driveGear.module;
+    void member(Offset a, Offset b, double width, Color color) {
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = width + scale * 2.2
+          ..color = const Color(0xcc102b42),
+      );
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = width
+          ..color = color,
+      );
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = scale * .8
+          ..color = const Color(0xd68cecff),
+      );
+    }
+
+    member(
+      pose.crankPin,
+      pose.rockerJoint,
+      scale * 5.4,
+      const Color(0xee456f89),
+    );
+    member(
+      pose.fixedPivot,
+      pose.rockerJoint,
+      scale * 7.2,
+      const Color(0xee2d5871),
+    );
+    for (final joint in [pose.crankPin, pose.rockerJoint, pose.fixedPivot]) {
+      canvas.drawCircle(
+        joint,
+        scale * 4.2,
+        Paint()..color = const Color(0xff244b64),
+      );
+      canvas.drawCircle(
+        joint,
+        scale * 4.2,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = scale * .9
+          ..color = const Color(0xff83e6fa),
+      );
+      canvas.drawCircle(
+        joint,
+        scale * 1.75,
+        Paint()..color = const Color(0xffb5f4ff),
+      );
+    }
   }
 
   void _gear(
@@ -992,24 +1260,42 @@ class _TrainingAmbientPainter extends CustomPainter {
     switch (variant) {
       case KineticGearVisualVariant.openSpoke:
         clearWell();
-        for (var i = 0; i < spokeCount; i++) {
-          wedgeSpoke(angle + i * math.pi * 2 / spokeCount, .16, .87, .092);
+        for (var i = 0; i < 3; i++) {
+          wedgeSpoke(angle + i * math.pi * 2 / 3, .16, .87, .102);
         }
         hub(.20);
         outline(r * innerRim, .018, alpha: .78);
       case KineticGearVisualVariant.thinRim:
         clearWell();
-        final thinSpokes = spokeCount.clamp(3, 4);
-        for (var i = 0; i < thinSpokes; i++) {
-          wedgeSpoke(
-            angle + .25 + i * math.pi * 2 / thinSpokes,
-            .14,
-            .90,
-            .046,
-          );
+        for (var i = 0; i < 4; i++) {
+          wedgeSpoke(angle + .25 + i * math.pi / 2, .14, .90, .052);
         }
         hub(.17);
         outline(r * innerRim, .013, alpha: .68);
+      case KineticGearVisualVariant.ringShortSpoke:
+        clearWell();
+        final innerRingRadius = r * .58;
+        canvas.drawCircle(
+          gear.center,
+          innerRingRadius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = math.max(2.2, r * .105)
+            ..color = material,
+        );
+        canvas.drawCircle(
+          gear.center,
+          innerRingRadius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = math.max(.7, r * .014)
+            ..color = edge.withValues(alpha: edge.a * .72),
+        );
+        for (var i = 0; i < 6; i++) {
+          wedgeSpoke(angle + i * math.pi / 3, .63, .88, .042);
+        }
+        hub(.18);
+        outline(r * innerRim, .014, alpha: .72);
       case KineticGearVisualVariant.cutoutDisc:
         final holeCount = spokeCount.clamp(4, 6);
         for (var i = 0; i < holeCount; i++) {
