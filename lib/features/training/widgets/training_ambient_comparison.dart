@@ -122,6 +122,31 @@ class KineticBaseplateGeometry {
   final List<(String, String)> bridgeGearIds;
 }
 
+/// Deterministic visual state for one of V11.6's existing luminous hubs.
+/// It is independent from gear rotation so transmission timing stays frozen.
+class KineticHubGlowState {
+  const KineticHubGlowState({required this.phase, required this.color});
+
+  final double phase;
+  final Color color;
+}
+
+/// Static cover metadata used by focused geometry tests and the painter.
+/// Coordinates are normalized to the fixed TRAINING ambient viewport.
+class KineticMechanicalCoverGeometry {
+  const KineticMechanicalCoverGeometry({
+    required this.id,
+    required this.bounds,
+    required this.mounts,
+    required this.apertureCount,
+  });
+
+  final String id;
+  final Rect bounds;
+  final List<Offset> mounts;
+  final int apertureCount;
+}
+
 class TrainingAmbientComparison extends StatefulWidget {
   const TrainingAmbientComparison({
     super.key,
@@ -142,6 +167,64 @@ class TrainingAmbientComparison extends StatefulWidget {
   static const kineticToothRootDedendum = 1.45;
   static const kineticToothTipAddendum = 1.85;
   static const kineticToothTipAngularWidthFraction = .33;
+  static const kineticHubGlowPeriodSeconds = 24.0;
+
+  static double kineticHubGlowPhaseOffsetFor(String gearId) {
+    var signature = 17;
+    for (var i = 0; i < gearId.length; i++) {
+      signature = (signature * 37 + gearId.codeUnitAt(i) * (i + 3)) % 997;
+    }
+    return signature / 997;
+  }
+
+  static KineticHubGlowState kineticHubGlowStateFor(
+    String gearId,
+    double time,
+  ) {
+    final phase =
+        (time / kineticHubGlowPeriodSeconds +
+            kineticHubGlowPhaseOffsetFor(gearId)) %
+        1;
+    const orange = Color(0xffff9f43);
+    const white = Color(0xffeefcff);
+    const neonBlue = Color(0xff35dcff);
+    final segment = phase * 4;
+    final color = switch (segment.floor()) {
+      0 => Color.lerp(orange, white, segment)!,
+      1 => Color.lerp(white, neonBlue, segment - 1)!,
+      2 => Color.lerp(neonBlue, white, segment - 2)!,
+      _ => Color.lerp(white, orange, segment - 3)!,
+    };
+    return KineticHubGlowState(phase: phase, color: color);
+  }
+
+  static List<KineticMechanicalCoverGeometry> kineticMechanicalCoversFor(
+    Size size,
+  ) => [
+    KineticMechanicalCoverGeometry(
+      id: 'upper-right-support-bridge',
+      bounds: Rect.fromLTRB(size.width * .57, 0, size.width, size.height * .31),
+      mounts: [
+        Offset(size.width * .78, size.height * .105),
+        Offset(size.width * .91, size.height * .225),
+      ],
+      apertureCount: 2,
+    ),
+    KineticMechanicalCoverGeometry(
+      id: 'lower-left-curved-cover',
+      bounds: Rect.fromLTRB(
+        0,
+        size.height * .68,
+        size.width * .48,
+        size.height,
+      ),
+      mounts: [
+        Offset(size.width * .12, size.height * .865),
+        Offset(size.width * .35, size.height * .925),
+      ],
+      apertureCount: 3,
+    ),
+  ];
 
   /// V6.2 inventory. Each entry becomes one visibly emitted tooth profile.
   static const kineticGearToothCounts = <int>[
@@ -956,6 +1039,217 @@ class _TrainingAmbientPainter extends CustomPainter {
       output.module * 2,
       Paint()..color = const Color(0xff80dcf5),
     );
+    _mechanicalCovers(canvas, size);
+  }
+
+  void _mechanicalCovers(Canvas canvas, Size size) {
+    final covers = TrainingAmbientComparison.kineticMechanicalCoversFor(size);
+    final right = covers[0];
+    final lower = covers[1];
+    final platePaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xee35566c), Color(0xee172d42), Color(0xee0c1c2d)],
+        stops: [0, .55, 1],
+      ).createShader(Offset.zero & size);
+    final edgePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.25
+      ..color = const Color(0xb66fd7ed);
+    final recessPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..color = const Color(0x99102135);
+    final clearPaint = Paint()..blendMode = BlendMode.clear;
+
+    final rightPath = Path()
+      ..moveTo(right.bounds.right, right.bounds.top)
+      ..lineTo(right.bounds.left + right.bounds.width * .20, right.bounds.top)
+      ..lineTo(right.bounds.left, right.bounds.top + right.bounds.height * .16)
+      ..lineTo(
+        right.bounds.left + right.bounds.width * .12,
+        right.bounds.top + right.bounds.height * .34,
+      )
+      ..lineTo(
+        right.bounds.left + right.bounds.width * .03,
+        right.bounds.top + right.bounds.height * .53,
+      )
+      ..lineTo(
+        right.bounds.left + right.bounds.width * .31,
+        right.bounds.top + right.bounds.height * .82,
+      )
+      ..lineTo(
+        right.bounds.left + right.bounds.width * .54,
+        right.bounds.top + right.bounds.height * .73,
+      )
+      ..lineTo(
+        right.bounds.left + right.bounds.width * .76,
+        right.bounds.bottom,
+      )
+      ..lineTo(right.bounds.right, right.bounds.bottom * .94)
+      ..close();
+    canvas.drawShadow(rightPath, const Color(0xdd000713), 8, false);
+    canvas.saveLayer(right.bounds.inflate(10), Paint());
+    canvas.drawPath(rightPath, platePaint);
+    final rightRoundOpening = Rect.fromCenter(
+      center: Offset(
+        right.bounds.left + right.bounds.width * .47,
+        right.bounds.top + right.bounds.height * .32,
+      ),
+      width: right.bounds.width * .22,
+      height: right.bounds.height * .18,
+    );
+    final rightSlot = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(
+          right.bounds.left + right.bounds.width * .60,
+          right.bounds.top + right.bounds.height * .63,
+        ),
+        width: right.bounds.width * .35,
+        height: right.bounds.height * .105,
+      ),
+      Radius.circular(right.bounds.height * .05),
+    );
+    canvas.drawOval(rightRoundOpening, clearPaint);
+    canvas.drawRRect(rightSlot, clearPaint);
+    canvas.drawPath(rightPath, edgePaint);
+    canvas.drawOval(rightRoundOpening, recessPaint);
+    canvas.drawRRect(rightSlot, recessPaint);
+    canvas.restore();
+    _coverRib(
+      canvas,
+      Offset(right.bounds.left + right.bounds.width * .19, right.bounds.top),
+      Offset(
+        right.bounds.left + right.bounds.width * .43,
+        right.bounds.top + right.bounds.height * .75,
+      ),
+      5.5,
+    );
+    for (final mount in right.mounts) {
+      _coverMount(canvas, mount, size.width * .023);
+    }
+
+    final lowerPath = Path()
+      ..moveTo(lower.bounds.left, lower.bounds.top + lower.bounds.height * .08)
+      ..cubicTo(
+        lower.bounds.left + lower.bounds.width * .22,
+        lower.bounds.top,
+        lower.bounds.left + lower.bounds.width * .62,
+        lower.bounds.top + lower.bounds.height * .12,
+        lower.bounds.left + lower.bounds.width * .83,
+        lower.bounds.top + lower.bounds.height * .35,
+      )
+      ..quadraticBezierTo(
+        lower.bounds.right,
+        lower.bounds.top + lower.bounds.height * .56,
+        lower.bounds.left + lower.bounds.width * .72,
+        lower.bounds.top + lower.bounds.height * .69,
+      )
+      ..lineTo(
+        lower.bounds.left + lower.bounds.width * .93,
+        lower.bounds.bottom,
+      )
+      ..lineTo(lower.bounds.left, lower.bounds.bottom)
+      ..close();
+    canvas.drawShadow(lowerPath, const Color(0xdd000713), 9, false);
+    canvas.saveLayer(lower.bounds.inflate(10), Paint());
+    canvas.drawPath(lowerPath, platePaint);
+    final lowerArcOpening = Rect.fromCenter(
+      center: Offset(
+        lower.bounds.left + lower.bounds.width * .30,
+        lower.bounds.top + lower.bounds.height * .42,
+      ),
+      width: lower.bounds.width * .29,
+      height: lower.bounds.width * .29,
+    );
+    final lowerSlot = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(
+          lower.bounds.left + lower.bounds.width * .62,
+          lower.bounds.top + lower.bounds.height * .50,
+        ),
+        width: lower.bounds.width * .28,
+        height: lower.bounds.height * .09,
+      ),
+      Radius.circular(lower.bounds.height * .045),
+    );
+    final lowerSmallOpening = Rect.fromCenter(
+      center: Offset(
+        lower.bounds.left + lower.bounds.width * .18,
+        lower.bounds.top + lower.bounds.height * .73,
+      ),
+      width: lower.bounds.width * .13,
+      height: lower.bounds.width * .13,
+    );
+    canvas.drawOval(lowerArcOpening, clearPaint);
+    canvas.drawRRect(lowerSlot, clearPaint);
+    canvas.drawOval(lowerSmallOpening, clearPaint);
+    canvas.drawPath(lowerPath, edgePaint);
+    canvas.drawOval(lowerArcOpening, recessPaint);
+    canvas.drawRRect(lowerSlot, recessPaint);
+    canvas.drawOval(lowerSmallOpening, recessPaint);
+    canvas.restore();
+    _coverRib(
+      canvas,
+      Offset(lower.bounds.left, lower.bounds.top + lower.bounds.height * .18),
+      Offset(
+        lower.bounds.left + lower.bounds.width * .76,
+        lower.bounds.top + lower.bounds.height * .62,
+      ),
+      6,
+    );
+    for (final mount in lower.mounts) {
+      _coverMount(canvas, mount, size.width * .023);
+    }
+  }
+
+  void _coverRib(Canvas canvas, Offset start, Offset end, double width) {
+    canvas.drawLine(
+      start,
+      end,
+      Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = width
+        ..color = const Color(0xaa132b40),
+    );
+    canvas.drawLine(
+      start.translate(0, -1),
+      end.translate(0, -1),
+      Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 1
+        ..color = const Color(0x885cbbd4),
+    );
+  }
+
+  void _coverMount(Canvas canvas, Offset center, double radius) {
+    canvas.drawCircle(
+      center,
+      radius * 1.42,
+      Paint()..color = const Color(0xff10283b),
+    );
+    canvas.drawCircle(
+      center,
+      radius * 1.42,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xaa6ad3e9),
+    );
+    canvas.drawCircle(
+      center,
+      radius * .68,
+      Paint()..color = const Color(0xff58798c),
+    );
+    canvas.drawLine(
+      center + Offset(-radius * .42, 0),
+      center + Offset(radius * .42, 0),
+      Paint()
+        ..strokeWidth = 1.1
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff0a1a29),
+    );
   }
 
   void _steamLinkage(
@@ -1318,22 +1612,92 @@ class _TrainingAmbientPainter extends CustomPainter {
       background: background,
     );
     canvas.restore();
-    if (!background) {
+    if (background) {
       canvas.drawCircle(
         gear.center,
-        gear.pitchRadius * .22,
-        Paint()
-          ..color = const Color(0x8844d9ff)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        gear.pitchRadius * .12,
+        Paint()..color = const Color(0x886aa4c8),
       );
+    } else {
+      _luminousHub(canvas, gear);
     }
+  }
+
+  void _luminousHub(Canvas canvas, KineticGearGeometry gear) {
+    final state = TrainingAmbientComparison.kineticHubGlowStateFor(
+      gear.id,
+      time,
+    );
+    final color = state.color;
+    final outerRadius = gear.pitchRadius * .31;
+    final innerRadius = gear.pitchRadius * .205;
+    final coreRadius = gear.pitchRadius * .115;
+    final outerBounds = Rect.fromCircle(
+      center: gear.center,
+      radius: outerRadius,
+    );
+    final innerBounds = Rect.fromCircle(
+      center: gear.center,
+      radius: innerRadius,
+    );
+    final coreBounds = Rect.fromCircle(center: gear.center, radius: coreRadius);
     canvas.drawCircle(
       gear.center,
-      gear.pitchRadius * .12,
+      outerRadius,
       Paint()
-        ..color = background
-            ? const Color(0x886aa4c8)
-            : const Color(0xffffa74f),
+        ..blendMode = BlendMode.plus
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: .28),
+            color.withValues(alpha: .10),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, .48, 1],
+        ).createShader(outerBounds)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          math.max(2.2, gear.module * 2.4),
+        ),
+    );
+    canvas.drawCircle(
+      gear.center,
+      innerRadius,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = RadialGradient(
+          colors: [
+            Color.lerp(color, Colors.white, .30)!.withValues(alpha: .90),
+            color.withValues(alpha: .62),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, .46, 1],
+        ).createShader(innerBounds)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          math.max(1.2, gear.module * 1.15),
+        ),
+    );
+    canvas.drawCircle(
+      gear.center,
+      coreRadius,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = RadialGradient(
+          colors: [
+            Color.lerp(color, Colors.white, .68)!.withValues(alpha: .98),
+            color.withValues(alpha: .78),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, .55, 1],
+        ).createShader(coreBounds),
+    );
+    canvas.drawCircle(
+      gear.center,
+      gear.pitchRadius * .235,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(.7, gear.module * .46)
+        ..color = color.withValues(alpha: .18),
     );
   }
 

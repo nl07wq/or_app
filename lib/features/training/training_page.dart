@@ -26,8 +26,19 @@ class _TrainingPageState extends State<TrainingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final horizontalPadding = mediaQuery.size.width < 360 ? 4.0 : AppSpacing.lg;
+    final contentTopPadding =
+        mediaQuery.padding.top + kToolbarHeight + AppSpacing.lg;
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        key: const ValueKey('training-page-transparent-appbar'),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         leading: Navigator.canPop(context)
             ? const TrainingLedBackButton()
@@ -44,9 +55,12 @@ class _TrainingPageState extends State<TrainingPage> {
           // foreground content below scrolls.
           TrainingAmbientComparison(variant: _ambientVariant),
           SingleChildScrollView(
-            padding: MediaQuery.sizeOf(context).width < 360
-                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)
-                : AppSpacing.cardPadding,
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              contentTopPadding,
+              horizontalPadding,
+              AppSpacing.lg,
+            ),
             child: Stack(
               children: [
                 Column(

@@ -391,6 +391,92 @@ void main() {
     }
   });
 
+  test('V11.6 hub glow cycles continuously with deterministic ID offsets', () {
+    expect(TrainingAmbientComparison.kineticHubGlowPeriodSeconds, 24);
+    const id = 'main-drive';
+    final offset = TrainingAmbientComparison.kineticHubGlowPhaseOffsetFor(id);
+    double timeForPhase(double phase) =>
+        ((phase - offset) % 1) *
+        TrainingAmbientComparison.kineticHubGlowPeriodSeconds;
+    void expectColorClose(Color actual, Color target) {
+      expect(actual.r, closeTo(target.r, .001));
+      expect(actual.g, closeTo(target.g, .001));
+      expect(actual.b, closeTo(target.b, .001));
+    }
+
+    expectColorClose(
+      TrainingAmbientComparison.kineticHubGlowStateFor(
+        id,
+        timeForPhase(0),
+      ).color,
+      const Color(0xffff9f43),
+    );
+    expectColorClose(
+      TrainingAmbientComparison.kineticHubGlowStateFor(
+        id,
+        timeForPhase(.25),
+      ).color,
+      const Color(0xffeefcff),
+    );
+    expectColorClose(
+      TrainingAmbientComparison.kineticHubGlowStateFor(
+        id,
+        timeForPhase(.5),
+      ).color,
+      const Color(0xff35dcff),
+    );
+    final beforeLoop = TrainingAmbientComparison.kineticHubGlowStateFor(
+      id,
+      timeForPhase(1) - .0001,
+    ).color;
+    final afterLoop = TrainingAmbientComparison.kineticHubGlowStateFor(
+      id,
+      timeForPhase(0) + .0001,
+    ).color;
+    expect((beforeLoop.r - afterLoop.r).abs(), lessThan(.001));
+    expect((beforeLoop.g - afterLoop.g).abs(), lessThan(.001));
+    expect((beforeLoop.b - afterLoop.b).abs(), lessThan(.001));
+
+    final offsets = {
+      for (final gearId in const [
+        'main-drive',
+        'upper-left',
+        'right-crown',
+        'bottom-crown',
+      ])
+        TrainingAmbientComparison.kineticHubGlowPhaseOffsetFor(gearId),
+    };
+    expect(offsets, hasLength(4));
+    final simultaneousColors = {
+      for (final gearId in const [
+        'main-drive',
+        'upper-left',
+        'right-crown',
+        'bottom-crown',
+      ])
+        TrainingAmbientComparison.kineticHubGlowStateFor(gearId, 7.5).color,
+    };
+    expect(simultaneousColors.length, greaterThan(1));
+  });
+
+  test('V11.6 covers occupy distinct corners with real aperture metadata', () {
+    final covers = TrainingAmbientComparison.kineticMechanicalCoversFor(
+      const Size(390, 844),
+    );
+    expect(covers, hasLength(2));
+    expect(covers[0].id, 'upper-right-support-bridge');
+    expect(covers[0].bounds.top, 0);
+    expect(covers[0].bounds.right, 390);
+    expect(covers[0].apertureCount, 2);
+    expect(covers[0].mounts, hasLength(2));
+    expect(covers[1].id, 'lower-left-curved-cover');
+    expect(covers[1].bounds.left, 0);
+    expect(covers[1].bounds.bottom, 844);
+    expect(covers[1].apertureCount, 3);
+    expect(covers[1].mounts, hasLength(2));
+    expect(covers[0].bounds.overlaps(covers[1].bounds), isFalse);
+  });
+
   test('V11.3 keeps tooth and transmission geometry frozen', () {
     final primary = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 2200),
@@ -457,7 +543,7 @@ void main() {
     },
   );
 
-  testWidgets('V11.5 moving mechanisms remain visible through four phases', (
+  testWidgets('V11.6 covers and multi-color hubs render through four phases', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -470,7 +556,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: TrainingAmbientComparison(
-              key: const ValueKey('v11-5-kinetic-phase'),
+              key: const ValueKey('v11-6-kinetic-phase'),
               variant: TrainingAmbientVariant.kineticEngine,
               debugTime: phase * 12,
             ),
@@ -480,9 +566,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await expectLater(
-        find.byKey(const ValueKey('v11-5-kinetic-phase')),
+        find.byKey(const ValueKey('v11-6-kinetic-phase')),
         matchesGoldenFile(
-          'goldens/training_kinetic_engine_v11_5_phase_$phase.png',
+          'goldens/training_kinetic_engine_v11_6_phase_$phase.png',
         ),
       );
       expect(tester.takeException(), isNull);
@@ -490,7 +576,7 @@ void main() {
   });
 
   testWidgets(
-    'V9 kinetic ambient remains fixed while training content scrolls',
+    'V11.6 kinetic ambient fills the header viewport and remains fixed',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -505,8 +591,7 @@ void main() {
       final ambient = find.byType(TrainingAmbientComparison);
       expect(ambient, findsOneWidget);
       final ambientHeight = tester.getSize(ambient).height;
-      expect(ambientHeight, greaterThan(0));
-      expect(ambientHeight, lessThan(tester.view.physicalSize.height));
+      expect(ambientHeight, tester.view.physicalSize.height);
       await tester.drag(
         find.byType(SingleChildScrollView),
         const Offset(0, -620),
@@ -517,7 +602,7 @@ void main() {
     },
   );
 
-  testWidgets('V11.5 UI goldens preserve the fixed ambient while scrolling', (
+  testWidgets('V11.6 UI goldens show transparent header while scrolling', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -526,6 +611,13 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await _precacheKineticBackground(tester);
     await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(scaffold.extendBodyBehindAppBar, isTrue);
+    final appBar = tester.widget<AppBar>(
+      find.byKey(const ValueKey('training-page-transparent-appbar')),
+    );
+    expect(appBar.backgroundColor, Colors.transparent);
+    expect(appBar.surfaceTintColor, Colors.transparent);
     await tester.tap(
       find.byKey(const ValueKey('training-ambient-kineticEngine')),
     );
@@ -533,7 +625,7 @@ void main() {
     await tester.pump();
     await expectLater(
       find.byType(TrainingPage),
-      matchesGoldenFile('goldens/training_kinetic_engine_v11_5_top.png'),
+      matchesGoldenFile('goldens/training_kinetic_engine_v11_6_top.png'),
     );
     await tester.drag(
       find.byType(SingleChildScrollView),
@@ -542,7 +634,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 2300));
     await expectLater(
       find.byType(TrainingPage),
-      matchesGoldenFile('goldens/training_kinetic_engine_v11_5_middle.png'),
+      matchesGoldenFile('goldens/training_kinetic_engine_v11_6_middle.png'),
     );
     await tester.drag(
       find.byType(SingleChildScrollView),
@@ -551,7 +643,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1700));
     await expectLater(
       find.byType(TrainingPage),
-      matchesGoldenFile('goldens/training_kinetic_engine_v11_5_lower.png'),
+      matchesGoldenFile('goldens/training_kinetic_engine_v11_6_lower.png'),
     );
   });
 
