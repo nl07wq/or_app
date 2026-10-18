@@ -1,6 +1,5 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
@@ -126,48 +125,15 @@ void main() {
     }
   });
 
-  test('V8 baseplate mounts and bridges resolve to frozen V7 gear pivots', () {
-    const size = Size(390, 2200);
-    final primary = TrainingAmbientComparison.kineticGearGeometryFor(size);
-    final background =
-        TrainingAmbientComparison.kineticBackgroundGearGeometryFor(size);
-    final plates = TrainingAmbientComparison.kineticBaseplateGeometryFor(
-      size,
-      primaryGears: primary,
-      backgroundGears: background,
+  test('V9 static anime background asset is bundled unchanged', () async {
+    expect(
+      TrainingAmbientComparison.kineticEngineBackgroundAsset,
+      'assets/images/training/kinetic_engine_v9_background.jpg',
     );
-    final ids = {...primary.map((gear) => gear.id), ...background.map((gear) => gear.id)};
-
-    expect(primary, hasLength(22));
-    expect(background, hasLength(32));
-    expect(plates, hasLength(5));
-    expect(plates.expand((plate) => plate.mountGearIds), isNotEmpty);
-    expect(plates.expand((plate) => plate.bridgeGearIds), isNotEmpty);
-    for (final plate in plates) {
-      expect(plate.plate.length, greaterThanOrEqualTo(5));
-      expect(plate.plate.every((point) => point.dx > -.1 && point.dx < 1.1), isTrue);
-      expect(plate.plate.every((point) => point.dy > -.1 && point.dy < 1.1), isTrue);
-      expect(plate.mountGearIds.every(ids.contains), isTrue);
-      for (final bridge in plate.bridgeGearIds) {
-        expect(ids.contains(bridge.$1), isTrue);
-        expect(ids.contains(bridge.$2), isTrue);
-      }
-    }
-  });
-
-  test('V8 baseplate spans top, middle and lower scroll regions', () {
-    const size = Size(390, 2200);
-    final plates = TrainingAmbientComparison.kineticBaseplateGeometryFor(size);
-    for (final band in [(0.0, 550.0), (550.0, 1300.0), (1300.0, 2200.0)]) {
-      expect(
-        plates.where((plate) {
-          final top = plate.plate.map((point) => point.dy * size.height).reduce(math.min);
-          final bottom = plate.plate.map((point) => point.dy * size.height).reduce(math.max);
-          return bottom >= band.$1 && top <= band.$2;
-        }),
-        isNotEmpty,
-      );
-    }
+    final asset = await rootBundle.load(
+      TrainingAmbientComparison.kineticEngineBackgroundAsset,
+    );
+    expect(asset.lengthInBytes, greaterThan(100000));
   });
 
   testWidgets(
@@ -216,7 +182,7 @@ void main() {
   });
 
   testWidgets(
-    'V8 baseplate remains behind both V7 gear layers while scrolling',
+    'V9 anime background remains behind both frozen gear layers while scrolling',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -229,7 +195,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1450));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v8_top.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v9_top.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -238,7 +204,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 2300));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v8_middle.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v9_middle.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -247,7 +213,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1700));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v8_lower.png'),
+        matchesGoldenFile('goldens/training_kinetic_engine_v9_lower.png'),
       );
     },
   );

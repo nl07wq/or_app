@@ -66,6 +66,9 @@ class TrainingAmbientComparison extends StatefulWidget {
   const TrainingAmbientComparison({super.key, required this.variant});
   final TrainingAmbientVariant variant;
 
+  static const kineticEngineBackgroundAsset =
+      'assets/images/training/kinetic_engine_v9_background.jpg';
+
   /// V6.2 inventory. Each entry becomes one visibly emitted tooth profile.
   static const kineticGearToothCounts = <int>[
     40,
@@ -318,19 +321,30 @@ class TrainingAmbientComparison extends StatefulWidget {
     final plates = <KineticBaseplateGeometry>[
       const KineticBaseplateGeometry(
         plate: [
-          Offset(-.08, .00), Offset(.38, -.02), Offset(.56, .16),
-          Offset(.47, .31), Offset(.17, .35), Offset(-.04, .22),
+          Offset(-.08, .00),
+          Offset(.38, -.02),
+          Offset(.56, .16),
+          Offset(.47, .31),
+          Offset(.17, .35),
+          Offset(-.04, .22),
         ],
         mountGearIds: ['main-drive', 'upper-left', 'upper-right'],
-        bridgeGearIds: [('main-drive', 'upper-left'), ('main-drive', 'upper-right')],
+        bridgeGearIds: [
+          ('main-drive', 'upper-left'),
+          ('main-drive', 'upper-right'),
+        ],
       ),
       const KineticBaseplateGeometry(
         plate: [
-          Offset(.56, .08), Offset(1.08, .05), Offset(1.06, .38),
-          Offset(.79, .47), Offset(.57, .33),
+          Offset(.56, .08),
+          Offset(1.08, .05),
+          Offset(1.06, .38),
+          Offset(.79, .47),
+          Offset(.57, .33),
         ],
         mountGearIds: [
-          'background-north-right-drive', 'background-north-right-outer',
+          'background-north-right-drive',
+          'background-north-right-outer',
           'right-crown',
         ],
         bridgeGearIds: [
@@ -340,11 +354,17 @@ class TrainingAmbientComparison extends StatefulWidget {
       ),
       const KineticBaseplateGeometry(
         plate: [
-          Offset(-.08, .31), Offset(.34, .28), Offset(.58, .45),
-          Offset(.45, .68), Offset(.09, .70), Offset(-.06, .54),
+          Offset(-.08, .31),
+          Offset(.34, .28),
+          Offset(.58, .45),
+          Offset(.45, .68),
+          Offset(.09, .70),
+          Offset(-.06, .54),
         ],
         mountGearIds: [
-          'left-crown', 'mid-drive', 'background-south-left-drive',
+          'left-crown',
+          'mid-drive',
+          'background-south-left-drive',
         ],
         bridgeGearIds: [
           ('left-crown', 'left-transfer'),
@@ -354,11 +374,16 @@ class TrainingAmbientComparison extends StatefulWidget {
       ),
       const KineticBaseplateGeometry(
         plate: [
-          Offset(.52, .48), Offset(1.07, .43), Offset(1.05, .78),
-          Offset(.77, .89), Offset(.48, .75),
+          Offset(.52, .48),
+          Offset(1.07, .43),
+          Offset(1.05, .78),
+          Offset(.77, .89),
+          Offset(.48, .75),
         ],
         mountGearIds: [
-          'output-crown', 'bottom-drive', 'background-south-right-drive',
+          'output-crown',
+          'bottom-drive',
+          'background-south-right-drive',
         ],
         bridgeGearIds: [
           ('output-crown', 'output-pinion'),
@@ -368,10 +393,18 @@ class TrainingAmbientComparison extends StatefulWidget {
       ),
       const KineticBaseplateGeometry(
         plate: [
-          Offset(-.07, .69), Offset(.44, .66), Offset(.61, .84),
-          Offset(.51, 1.05), Offset(.04, 1.04), Offset(-.08, .89),
+          Offset(-.07, .69),
+          Offset(.44, .66),
+          Offset(.61, .84),
+          Offset(.51, 1.05),
+          Offset(.04, 1.04),
+          Offset(-.08, .89),
         ],
-        mountGearIds: ['escapement', 'bottom-crown', 'background-south-left-crown'],
+        mountGearIds: [
+          'escapement',
+          'bottom-crown',
+          'background-south-left-crown',
+        ],
         bridgeGearIds: [
           ('escapement', 'bottom-drive'),
           ('background-south-left-crown', 'background-south-left-lower'),
@@ -385,7 +418,9 @@ class TrainingAmbientComparison extends StatefulWidget {
     assert(
       plates
           .expand((plate) => plate.bridgeGearIds)
-          .every((bridge) => ids.contains(bridge.$1) && ids.contains(bridge.$2)),
+          .every(
+            (bridge) => ids.contains(bridge.$1) && ids.contains(bridge.$2),
+          ),
       'Baseplate bridges must resolve to existing V7 gear pivots.',
     );
     return plates;
@@ -420,12 +455,24 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     child: RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,
-        builder: (context, _) => CustomPaint(
-          painter: _TrainingAmbientPainter(
-            variant: widget.variant,
-            time: _controller.value * 48,
-          ),
-          child: const SizedBox.expand(),
+        builder: (context, _) => Stack(
+          fit: StackFit.expand,
+          children: [
+            if (widget.variant == TrainingAmbientVariant.kineticEngine)
+              Image.asset(
+                TrainingAmbientComparison.kineticEngineBackgroundAsset,
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                filterQuality: FilterQuality.medium,
+              ),
+            CustomPaint(
+              painter: _TrainingAmbientPainter(
+                variant: widget.variant,
+                time: _controller.value * 48,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ],
         ),
       ),
     ),
@@ -486,16 +533,20 @@ class _TrainingAmbientPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xff030914),
-    );
     switch (variant) {
       case TrainingAmbientVariant.magneticFlux:
+        canvas.drawRect(
+          Offset.zero & size,
+          Paint()..color = const Color(0xff030914),
+        );
         _flux(canvas, size);
       case TrainingAmbientVariant.kineticEngine:
         _engine(canvas, size);
       case TrainingAmbientVariant.vectorImpulse:
+        canvas.drawRect(
+          Offset.zero & size,
+          Paint()..color = const Color(0xff030914),
+        );
         _vectors(canvas, size);
     }
   }
@@ -590,25 +641,8 @@ class _TrainingAmbientPainter extends CustomPainter {
     final gears = TrainingAmbientComparison.kineticGearGeometryFor(size);
     final backgroundGears =
         TrainingAmbientComparison.kineticBackgroundGearGeometryFor(size);
-    final baseplates = TrainingAmbientComparison.kineticBaseplateGeometryFor(
-      size,
-      primaryGears: gears,
-      backgroundGears: backgroundGears,
-    );
     final byId = {for (final gear in gears) gear.id: gear};
-    final allGears = {
-      for (final gear in [...gears, ...backgroundGears]) gear.id: gear,
-    };
     final drivePhase = TrainingAmbientComparison.kineticDrivePhase(time);
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0x99101924),
-    );
-
-    // V8: the motionless baseplate is intentionally rendered first.  Its
-    // mounting seats make the V7 pivots read as one watch-like assembly while
-    // leaving every gear profile and animation untouched.
-    _baseplates(canvas, size, baseplates, allGears);
 
     // The independent lower layer is deliberately painted before the V6.2
     // transmission so its subdued gear groups create depth without competing
@@ -622,9 +656,9 @@ class _TrainingAmbientPainter extends CustomPainter {
         parent.center,
         gear.center,
         Paint()
-          ..strokeWidth = gear.module * 3.6
+          ..strokeWidth = gear.module * 2.3
           ..strokeCap = StrokeCap.round
-          ..color = const Color(0x7a172633),
+          ..color = const Color(0x552e75a8),
       );
     }
     for (var i = 0; i < backgroundGears.length; i++) {
@@ -640,9 +674,9 @@ class _TrainingAmbientPainter extends CustomPainter {
         parent.center,
         gear.center,
         Paint()
-          ..strokeWidth = gear.module * 4.6
+          ..strokeWidth = gear.module * 2.8
           ..strokeCap = StrokeCap.round
-          ..color = const Color(0xff263442),
+          ..color = const Color(0x886bd6ff),
       );
     }
     for (var i = 0; i < gears.length; i++) {
@@ -692,114 +726,6 @@ class _TrainingAmbientPainter extends CustomPainter {
     );
   }
 
-  void _baseplates(
-    Canvas canvas,
-    Size size,
-    List<KineticBaseplateGeometry> plates,
-    Map<String, KineticGearGeometry> gears,
-  ) {
-    for (var index = 0; index < plates.length; index++) {
-      final plate = plates[index];
-      final path = Path();
-      for (var pointIndex = 0; pointIndex < plate.plate.length; pointIndex++) {
-        final point = Offset(
-          plate.plate[pointIndex].dx * size.width,
-          plate.plate[pointIndex].dy * size.height,
-        );
-        if (pointIndex == 0) {
-          path.moveTo(point.dx, point.dy);
-        } else {
-          path.lineTo(point.dx, point.dy);
-        }
-      }
-      path.close();
-      final bounds = path.getBounds();
-      final plateFill = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: index.isEven
-            ? const [Color(0xc30b1620), Color(0xa3162733), Color(0xc309121a)]
-            : const [Color(0xc311202b), Color(0xa51a2b37), Color(0xc30a141d)],
-      ).createShader(bounds);
-      canvas.drawPath(path, Paint()..shader = plateFill);
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.1
-          ..color = const Color(0x665f8495),
-      );
-      canvas.drawPath(
-        path.shift(const Offset(0, 2)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = const Color(0x6610151a),
-      );
-
-      for (final bridge in plate.bridgeGearIds) {
-        final start = gears[bridge.$1]!.center;
-        final end = gears[bridge.$2]!.center;
-        canvas.drawLine(
-          start,
-          end,
-          Paint()
-            ..strokeWidth = 5.2
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0x9c14232e),
-        );
-        canvas.drawLine(
-          start,
-          end,
-          Paint()
-            ..strokeWidth = 1.0
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0x5a6f99aa),
-        );
-      }
-      for (final id in plate.mountGearIds) {
-        final gear = gears[id]!;
-        final seatRadius = gear.pitchRadius * .32 + 7;
-        canvas.drawCircle(
-          gear.center,
-          seatRadius,
-          Paint()..color = const Color(0xc4091218),
-        );
-        canvas.drawCircle(
-          gear.center,
-          seatRadius,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = const Color(0x725a7d8c),
-        );
-        for (var screw = 0; screw < 3; screw++) {
-          final position =
-              gear.center +
-              Offset.fromDirection(
-                screw * math.pi * 2 / 3 + index * .31,
-                seatRadius * .72,
-              );
-          canvas.drawCircle(position, 1.7, Paint()..color = const Color(0xff111d26));
-          canvas.drawCircle(
-            position,
-            1.05,
-            Paint()..color = const Color(0x886b8996),
-          );
-        }
-      }
-      // A restrained recessed seam implies machining without adding a grid or
-      // crossing the foreground UI with bright decoration.
-      canvas.drawLine(
-        Offset(bounds.left + 14, bounds.top + 14),
-        Offset(bounds.right - 14, bounds.top + 14),
-        Paint()
-          ..strokeWidth = .75
-          ..color = const Color(0x443b5a68),
-      );
-    }
-  }
-
   void _gear(
     Canvas canvas,
     KineticGearGeometry gear,
@@ -830,21 +756,32 @@ class _TrainingAmbientPainter extends CustomPainter {
       }
     }
     profile.close();
-    final fill = background ? const Color(0x9220323f) : const Color(0xff2c4253);
+    // V9 uses crisp cel-shaded graphic layers rather than V8's metal discs.
+    // The profile is still emitted tooth-for-tooth from the frozen geometry.
+    final fill = background ? const Color(0x7412264a) : const Color(0xa5155a93);
     final edge = background
-        ? const Color(0x494d7488)
-        : const Color(0xff7acdf0).withValues(alpha: .62);
-    final well = background ? const Color(0xc90b1620) : const Color(0xff162634);
-    final rim = background ? const Color(0x66456278) : const Color(0xff46687e);
+        ? const Color(0x555eabdc)
+        : const Color(0xff78e7ff).withValues(alpha: .88);
+    final well = background ? const Color(0xb6051230) : const Color(0xe1061e45);
+    final rim = background ? const Color(0x664785bb) : const Color(0xff4ecbff);
     final spokeColor = background
-        ? const Color(0x77344a59)
-        : const Color(0xff38566a);
+        ? const Color(0x553e7bb0)
+        : const Color(0xcc348dcc);
     canvas.drawPath(profile, Paint()..color = fill);
+    canvas.drawPath(
+      profile.shift(const Offset(1.5, 2.2)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.3
+        ..color = background
+            ? const Color(0x44010a1f)
+            : const Color(0x99030a24),
+    );
     canvas.drawPath(
       profile,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
+        ..strokeWidth = background ? .75 : 1.35
         ..color = edge,
     );
     canvas.drawCircle(
@@ -857,27 +794,38 @@ class _TrainingAmbientPainter extends CustomPainter {
       gear.pitchRadius * .61,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = gear.pitchRadius * .07
+        ..strokeWidth = gear.pitchRadius * .045
         ..color = rim,
     );
-    for (var spoke = 0; spoke < 6; spoke++) {
-      final a = angle + spoke * math.pi / 3;
+    final spokeCount = 4 + index % 4;
+    for (var spoke = 0; spoke < spokeCount; spoke++) {
+      final a = angle + spoke * math.pi * 2 / spokeCount;
+      final start =
+          gear.center + Offset.fromDirection(a, gear.pitchRadius * .23);
+      final end = gear.center + Offset.fromDirection(a, gear.pitchRadius * .59);
       canvas.drawLine(
-        gear.center + Offset.fromDirection(a, gear.pitchRadius * .18),
-        gear.center + Offset.fromDirection(a, gear.pitchRadius * .58),
+        start,
+        end,
         Paint()
-          ..strokeWidth = gear.pitchRadius * .07
-          ..strokeCap = StrokeCap.round
+          ..strokeWidth = math.max(1.5, gear.pitchRadius * .045)
+          ..strokeCap = StrokeCap.square
           ..color = spokeColor,
       );
+      if ((spoke + index).isEven) {
+        canvas.drawCircle(
+          gear.center + Offset.fromDirection(a + .32, gear.pitchRadius * .44),
+          math.max(1.4, gear.module * 1.35),
+          Paint()..color = well,
+        );
+      }
     }
     if (!background) {
       canvas.drawCircle(
         gear.center,
         gear.pitchRadius * .22,
         Paint()
-          ..color = const Color(0xff68dfff)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..color = const Color(0x8844d9ff)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
       );
     }
     canvas.drawCircle(
@@ -885,8 +833,8 @@ class _TrainingAmbientPainter extends CustomPainter {
       gear.pitchRadius * .12,
       Paint()
         ..color = background
-            ? const Color(0x88617a89)
-            : const Color(0xffffbe74),
+            ? const Color(0x886aa4c8)
+            : const Color(0xffffa74f),
     );
     canvas.drawArc(
       Rect.fromCircle(center: gear.center, radius: gear.pitchRadius * .82),
@@ -898,8 +846,8 @@ class _TrainingAmbientPainter extends CustomPainter {
         ..strokeWidth = gear.pitchRadius * .035
         ..strokeCap = StrokeCap.round
         ..color = background
-            ? const Color(0x335b879a)
-            : const Color(0xffc1f8ff).withValues(alpha: .62),
+            ? const Color(0x3355b9e8)
+            : const Color(0xffd3f8ff).withValues(alpha: .82),
     );
   }
 
