@@ -39,7 +39,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v2_phase_a.png'),
     );
   });
 
@@ -76,13 +76,27 @@ void main() {
     );
   });
 
+  testWidgets('CHROMATIC FLUID V2 remains deterministic at a later phase', (
+    tester,
+  ) async {
+    await pumpFood(
+      tester,
+      FoodAmbientVariant.chromaticFluid,
+      const Duration(milliseconds: 5100),
+    );
+    await expectLater(
+      find.descendant(
+        of: find.byType(FoodAmbientComparison),
+        matching: find.byType(RepaintBoundary),
+      ),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v2_phase_b.png'),
+    );
+  });
+
   testWidgets('V4 renderers remain deterministic at a later phase', (
     tester,
   ) async {
-    for (final variant in const [
-      FoodAmbientVariant.chromaticFluid,
-      FoodAmbientVariant.metabolicCells,
-    ]) {
+    for (final variant in const [FoodAmbientVariant.metabolicCells]) {
       await pumpFood(tester, variant, const Duration(milliseconds: 5100));
       await expectLater(
         find.descendant(

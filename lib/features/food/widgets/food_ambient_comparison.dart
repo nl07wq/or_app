@@ -13,9 +13,310 @@ enum FoodAmbientVariant {
   final String label;
 }
 
+enum ChromaticFluidDropSize { large, medium, small }
+
+@immutable
+class ChromaticFluidDrop {
+  const ChromaticFluidDrop({
+    required this.id,
+    required this.center,
+    required this.radius,
+    required this.color,
+    required this.size,
+    required this.surfacePhase,
+  });
+
+  final int id;
+  final Offset center;
+  final double radius;
+  final Color color;
+  final ChromaticFluidDropSize size;
+  final double surfacePhase;
+}
+
+@immutable
+class ChromaticFluidBridge {
+  const ChromaticFluidBridge({
+    required this.first,
+    required this.second,
+    required this.strength,
+    required this.neckWidth,
+    required this.path,
+  });
+
+  final ChromaticFluidDrop first;
+  final ChromaticFluidDrop second;
+  final double strength;
+  final double neckWidth;
+  final Path path;
+
+  Color get mixedColor => Color.lerp(first.color, second.color, .5)!;
+}
+
+@immutable
+class ChromaticFluidFrame {
+  const ChromaticFluidFrame({required this.drops, required this.bridges});
+
+  final List<ChromaticFluidDrop> drops;
+  final List<ChromaticFluidBridge> bridges;
+}
+
+/// Deterministic, bounded geometry for the lightweight Phase 1 metaballs.
+///
+/// Three scheduled pairs travel through separation, contact, fusion and
+/// pinch-off at different phases. Six independent droplets keep the field
+/// alive without adding an unbounded all-pairs solver.
+abstract final class ChromaticFluidMetaballs {
+  static const dropCount = 12;
+  static const maximumBridgeCount = 3;
+  static const cycleSeconds = 18.0;
+  static const _palette = <Color>[
+    Color(0xff32ddd0),
+    Color(0xff438cff),
+    Color(0xff9368ff),
+    Color(0xffed5fbb),
+    Color(0xffff9b55),
+    Color(0xff58d58a),
+  ];
+
+  static ChromaticFluidFrame frame(Size size, double seconds) {
+    final shortest = size.shortestSide;
+    final drops = <ChromaticFluidDrop>[];
+    const pairAnchors = <Offset>[
+      Offset(.33, .20),
+      Offset(.68, .49),
+      Offset(.36, .78),
+    ];
+    const pairRadii = <(double, double)>[
+      (.145, .086),
+      (.122, .072),
+      (.132, .078),
+    ];
+    const pairAngles = <double>[-.18, 2.82, .34];
+
+    for (var pair = 0; pair < 3; pair++) {
+      final phase = seconds / cycleSeconds * math.pi * 2 + pair * 2.07;
+      final approach = .5 + .5 * math.sin(phase);
+      final easedApproach = _smoothStep(approach);
+      final firstRadius = shortest * pairRadii[pair].$1;
+      final secondRadius = shortest * pairRadii[pair].$2;
+      final distanceFactor = 1.52 - easedApproach * .91;
+      final distance = (firstRadius + secondRadius) * distanceFactor;
+      final angle = pairAngles[pair] + math.sin(seconds * .075 + pair) * .22;
+      final direction = Offset.fromDirection(angle);
+      final anchor = pairAnchors[pair];
+      final midpoint = Offset(
+        size.width * anchor.dx + math.sin(seconds * .11 + pair * 1.7) * 13,
+        size.height * anchor.dy + math.cos(seconds * .09 + pair * 2.1) * 17,
+      );
+      final radiusSum = firstRadius + secondRadius;
+      final firstCenter =
+          midpoint - direction * distance * (secondRadius / radiusSum);
+      final secondCenter =
+          midpoint + direction * distance * (firstRadius / radiusSum);
+      drops.add(
+        ChromaticFluidDrop(
+          id: pair * 2,
+          center: firstCenter,
+          radius: firstRadius,
+          color: _palette[pair * 2],
+          size: ChromaticFluidDropSize.large,
+          surfacePhase: seconds * (.34 + pair * .025) + pair * 1.3,
+        ),
+      );
+      drops.add(
+        ChromaticFluidDrop(
+          id: pair * 2 + 1,
+          center: secondCenter,
+          radius: secondRadius,
+          color: _palette[pair * 2 + 1],
+          size: ChromaticFluidDropSize.medium,
+          surfacePhase: seconds * (.41 + pair * .021) + pair * 1.8,
+        ),
+      );
+    }
+
+    const smallAnchors = <Offset>[
+      Offset(.09, .10),
+      Offset(.80, .16),
+      Offset(.12, .43),
+      Offset(.89, .67),
+      Offset(.16, .91),
+      Offset(.76, .90),
+    ];
+    for (var i = 0; i < smallAnchors.length; i++) {
+      final phase = seconds * (.15 + i * .012) + i * 1.47;
+      final anchor = smallAnchors[i];
+      drops.add(
+        ChromaticFluidDrop(
+          id: 6 + i,
+          center: Offset(
+            size.width * anchor.dx + math.sin(phase * .83) * (13 + i % 3 * 4),
+            size.height * anchor.dy + math.cos(phase * .67) * (16 + i % 2 * 5),
+          ),
+          radius: shortest * (.020 + (i % 3) * .008),
+          color: _palette[(i + 1) % _palette.length],
+          size: ChromaticFluidDropSize.small,
+          surfacePhase: phase,
+        ),
+      );
+    }
+
+    final bridges = <ChromaticFluidBridge>[];
+    for (var pair = 0; pair < 3; pair++) {
+      final first = drops[pair * 2];
+      final second = drops[pair * 2 + 1];
+      final normalizedDistance =
+          (second.center - first.center).distance /
+          (first.radius + second.radius);
+      final strength = contactStrength(normalizedDistance);
+      if (strength <= .005) continue;
+      final bridge = bridgePath(first, second, strength);
+      bridges.add(
+        ChromaticFluidBridge(
+          first: first,
+          second: second,
+          strength: strength,
+          neckWidth:
+              math.min(first.radius, second.radius) *
+              (.025 + .36 * math.pow(strength, 1.18)),
+          path: bridge,
+        ),
+      );
+    }
+    return ChromaticFluidFrame(
+      drops: List.unmodifiable(drops),
+      bridges: List.unmodifiable(bridges),
+    );
+  }
+
+  static double contactStrength(double normalizedDistance) {
+    final raw = ((1.43 - normalizedDistance) / .82).clamp(0.0, 1.0);
+    return _smoothStep(raw);
+  }
+
+  static Path dropPath(ChromaticFluidDrop drop) {
+    final samples = switch (drop.size) {
+      ChromaticFluidDropSize.large => 30,
+      ChromaticFluidDropSize.medium => 24,
+      ChromaticFluidDropSize.small => 18,
+    };
+    final amplitude = switch (drop.size) {
+      ChromaticFluidDropSize.large => .065,
+      ChromaticFluidDropSize.medium => .078,
+      ChromaticFluidDropSize.small => .032,
+    };
+    final points = <Offset>[];
+    for (var index = 0; index < samples; index++) {
+      final angle = index / samples * math.pi * 2;
+      final deformation =
+          1 +
+          amplitude *
+              (.62 * math.sin(angle * 3 + drop.surfacePhase) +
+                  .25 * math.sin(angle * 5 - drop.surfacePhase * .71) +
+                  .13 * math.sin(angle * 2 + drop.id * 1.31));
+      points.add(
+        drop.center + Offset.fromDirection(angle, drop.radius * deformation),
+      );
+    }
+    return _closedSmoothPath(points);
+  }
+
+  static Path bridgePath(
+    ChromaticFluidDrop first,
+    ChromaticFluidDrop second,
+    double strength,
+  ) {
+    final delta = second.center - first.center;
+    final distance = math.max(delta.distance, .001);
+    final direction = delta / distance;
+    final normal = Offset(-direction.dy, direction.dx);
+    final smallerRadius = math.min(first.radius, second.radius);
+    final shoulder = smallerRadius * (.10 + strength * .24);
+    final neck = smallerRadius * (.025 + .36 * math.pow(strength, 1.18));
+    final firstRoot =
+        first.center + direction * first.radius * (1 - strength * .24);
+    final secondRoot =
+        second.center - direction * second.radius * (1 - strength * .24);
+    final midpoint = Offset.lerp(firstRoot, secondRoot, .5)!;
+    final path = Path()
+      ..moveTo(
+        (firstRoot + normal * shoulder).dx,
+        (firstRoot + normal * shoulder).dy,
+      )
+      ..cubicTo(
+        firstRoot.dx + direction.dx * distance * .18,
+        firstRoot.dy + direction.dy * distance * .18,
+        midpoint.dx - direction.dx * distance * .10 + normal.dx * neck,
+        midpoint.dy - direction.dy * distance * .10 + normal.dy * neck,
+        (midpoint + normal * neck).dx,
+        (midpoint + normal * neck).dy,
+      )
+      ..cubicTo(
+        midpoint.dx + direction.dx * distance * .10 + normal.dx * neck,
+        midpoint.dy + direction.dy * distance * .10 + normal.dy * neck,
+        secondRoot.dx - direction.dx * distance * .18,
+        secondRoot.dy - direction.dy * distance * .18,
+        (secondRoot + normal * shoulder).dx,
+        (secondRoot + normal * shoulder).dy,
+      )
+      ..lineTo(
+        (secondRoot - normal * shoulder).dx,
+        (secondRoot - normal * shoulder).dy,
+      )
+      ..cubicTo(
+        secondRoot.dx - direction.dx * distance * .18,
+        secondRoot.dy - direction.dy * distance * .18,
+        midpoint.dx + direction.dx * distance * .10 - normal.dx * neck,
+        midpoint.dy + direction.dy * distance * .10 - normal.dy * neck,
+        (midpoint - normal * neck).dx,
+        (midpoint - normal * neck).dy,
+      )
+      ..cubicTo(
+        midpoint.dx - direction.dx * distance * .10 - normal.dx * neck,
+        midpoint.dy - direction.dy * distance * .10 - normal.dy * neck,
+        firstRoot.dx + direction.dx * distance * .18,
+        firstRoot.dy + direction.dy * distance * .18,
+        (firstRoot - normal * shoulder).dx,
+        (firstRoot - normal * shoulder).dy,
+      )
+      ..close();
+    return path;
+  }
+
+  static Path _closedSmoothPath(List<Offset> points) {
+    final path = Path();
+    final firstMidpoint = Offset.lerp(points.last, points.first, .5)!;
+    path.moveTo(firstMidpoint.dx, firstMidpoint.dy);
+    for (var index = 0; index < points.length; index++) {
+      final previous = points[(index - 1 + points.length) % points.length];
+      final current = points[index];
+      final next = points[(index + 1) % points.length];
+      final midpoint = Offset.lerp(current, next, .5)!;
+      final tangent = next - previous;
+      path.cubicTo(
+        current.dx - tangent.dx * .12,
+        current.dy - tangent.dy * .12,
+        current.dx + tangent.dx * .12,
+        current.dy + tangent.dy * .12,
+        midpoint.dx,
+        midpoint.dy,
+      );
+    }
+    return path..close();
+  }
+
+  static double _smoothStep(double value) => value * value * (3 - 2 * value);
+}
+
 class FoodAmbientComparison extends StatefulWidget {
-  const FoodAmbientComparison({required this.variant, super.key});
+  const FoodAmbientComparison({
+    required this.variant,
+    this.debugTime,
+    super.key,
+  });
   final FoodAmbientVariant variant;
+  final double? debugTime;
   static double motionSignatureFor(FoodAmbientVariant v, double t) =>
       math.sin(t * (v.index + 1.17)) + math.cos(t * (v.index + .43));
   @override
@@ -40,7 +341,10 @@ class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
       child: AnimatedBuilder(
         animation: _clock,
         builder: (context, child) => CustomPaint(
-          painter: _FoodAmbientPainter(widget.variant, _clock.value * 48),
+          painter: _FoodAmbientPainter(
+            widget.variant,
+            widget.debugTime ?? _clock.value * 48,
+          ),
           child: const SizedBox.expand(),
         ),
       ),
@@ -121,174 +425,123 @@ class _FoodAmbientPainter extends CustomPainter {
   }
 
   void _fluid(Canvas c, Size s) {
-    // Each mass has a slow advective drift and a separate, faster surface
-    // current.  The closed paths are cubic through their sampled anchors so
-    // no polygon edges survive on a small phone display.
-    final bodies =
-        <({Offset center, double radius, double phase, Color color})>[];
-    for (var i = 0; i < 5; i++) {
-      final q = t * (.105 + i * .021) + i * 2.13;
-      final center = Offset(
-        s.width * (.50 + .34 * math.sin(q * .63 + i * .7)),
-        s.height * (.48 + .31 * math.cos(q * .49 + i * 1.1)),
-      );
-      final radius = s.shortestSide * (.235 + (i % 3) * .028);
-      bodies.add((
-        center: center,
-        radius: radius,
-        phase: q,
-        color: _cool[i % _cool.length],
-      ));
-      final path = _smoothOrganicPath(center, radius, q, i, 16, .25);
-      final color = _cool[i % _cool.length];
-      c.drawPath(
-        path,
-        Paint()
-          ..color = color.withValues(alpha: .09)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
-      );
-      c.drawPath(
-        path,
-        Paint()
-          ..shader = RadialGradient(
-            center: Alignment(
-              math.sin(q * 1.7) * .32,
-              math.cos(q * 1.31) * .32,
-            ),
-            radius: 1.05,
-            colors: [
-              Color.lerp(color, Colors.white, .32)!.withValues(alpha: .24),
-              color.withValues(alpha: .105),
-              color.withValues(alpha: .018),
-            ],
-            stops: const [.0, .57, 1],
-          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.2)),
-      );
-      c.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.15
-          ..color = Color.lerp(
-            color,
-            Colors.white,
-            .42,
-          )!.withValues(alpha: .22),
-      );
-      // Moving internal caustic; it gives the mass thickness rather than a
-      // flat gradient-circle appearance.
+    final frame = ChromaticFluidMetaballs.frame(s, t);
+    final dropPaths = <int, Path>{
+      for (final drop in frame.drops)
+        drop.id: ChromaticFluidMetaballs.dropPath(drop),
+    };
+    final silhouette = Path();
+    for (final path in dropPaths.values) {
+      silhouette.addPath(path, Offset.zero);
+    }
+    for (final bridge in frame.bridges) {
+      silhouette.addPath(bridge.path, Offset.zero);
+    }
+
+    // A single filled silhouette means intersecting drops and their necks have
+    // no internal seam. The restrained exterior bloom softens only the outer
+    // liquid boundary rather than blurring the entire viewport.
+    c.drawPath(
+      silhouette,
+      Paint()
+        ..color = const Color(0xff49bad4).withValues(alpha: .075)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11),
+    );
+    c.save();
+    c.clipPath(silhouette);
+    c.drawRect(
+      Offset.zero & s,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x20102b48), Color(0x2813092f), Color(0x1c07372e)],
+        ).createShader(Offset.zero & s),
+    );
+
+    for (final drop in frame.drops) {
+      final highlightCenter =
+          drop.center +
+          Offset(
+                math.cos(drop.surfacePhase * .73),
+                math.sin(drop.surfacePhase * .61),
+              ) *
+              drop.radius *
+              .27;
       c.drawCircle(
-        center + Offset(math.cos(q * 1.4), math.sin(q * 1.1)) * radius * .28,
-        radius * .22,
+        drop.center,
+        drop.radius * 1.52,
         Paint()
-          ..color = Colors.white.withValues(alpha: .035)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 13),
+          ..shader =
+              RadialGradient(
+                center: const Alignment(-.28, -.32),
+                radius: 1.0,
+                colors: [
+                  Color.lerp(
+                    drop.color,
+                    Colors.white,
+                    .34,
+                  )!.withValues(alpha: .43),
+                  drop.color.withValues(alpha: .28),
+                  Color.lerp(
+                    drop.color,
+                    const Color(0xff091523),
+                    .52,
+                  )!.withValues(alpha: .10),
+                  drop.color.withValues(alpha: 0),
+                ],
+                stops: const [0, .42, .78, 1],
+              ).createShader(
+                Rect.fromCircle(
+                  center: drop.center,
+                  radius: drop.radius * 1.52,
+                ),
+              ),
+      );
+      c.drawCircle(
+        highlightCenter,
+        drop.radius * .24,
+        Paint()
+          ..color = Colors.white.withValues(
+            alpha: drop.size == ChromaticFluidDropSize.small ? .09 : .055,
+          )
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            math.max(2, drop.radius * .16),
+          ),
       );
     }
-    // Contact bridges narrow and relax continuously. They visually join bodies
-    // only while their surfaces approach, producing necking/pinch-off instead
-    // of five unrelated translated blobs.
-    for (var i = 0; i < bodies.length; i++) {
-      final a = bodies[i];
-      final b = bodies[(i + 1) % bodies.length];
-      final distance = (b.center - a.center).distance;
-      final reach = (a.radius + b.radius) * 1.12;
-      final contact = ((reach - distance) / (reach * .42)).clamp(0.0, 1.0);
-      if (contact <= .02) continue;
-      final direction = (b.center - a.center) / math.max(distance, 1);
-      final normal = Offset(-direction.dy, direction.dx);
-      final root = math.min(a.radius, b.radius) * (.10 + contact * .17);
-      final neck = Path()
-        ..moveTo(
-          (a.center + direction * a.radius * .68 + normal * root).dx,
-          (a.center + direction * a.radius * .68 + normal * root).dy,
-        )
-        ..cubicTo(
-          a.center.dx + direction.dx * a.radius,
-          a.center.dy + direction.dy * a.radius,
-          b.center.dx - direction.dx * b.radius,
-          b.center.dy - direction.dy * b.radius,
-          (b.center - direction * b.radius * .68 + normal * root).dx,
-          (b.center - direction * b.radius * .68 + normal * root).dy,
-        )
-        ..lineTo(
-          (b.center - direction * b.radius * .68 - normal * root).dx,
-          (b.center - direction * b.radius * .68 - normal * root).dy,
-        )
-        ..cubicTo(
-          b.center.dx - direction.dx * b.radius,
-          b.center.dy - direction.dy * b.radius,
-          a.center.dx + direction.dx * a.radius,
-          a.center.dy + direction.dy * a.radius,
-          (a.center + direction * a.radius * .68 - normal * root).dx,
-          (a.center + direction * a.radius * .68 - normal * root).dy,
-        )
-        ..close();
+
+    // Explicit bridge gradients create a local intermediate colour. Their
+    // area shrinks with the same continuous contact strength as the geometry,
+    // so no mixed colour remains after pinch-off.
+    for (final bridge in frame.bridges) {
+      final rect = Rect.fromPoints(
+        bridge.first.center,
+        bridge.second.center,
+      ).inflate(bridge.neckWidth * 1.5);
       c.drawPath(
-        neck,
+        bridge.path,
         Paint()
           ..shader = LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
             colors: [
-              a.color.withValues(alpha: .12 * contact),
-              b.color.withValues(alpha: .15 * contact),
-            ],
-          ).createShader(Rect.fromPoints(a.center, b.center)),
-      );
-    }
-    // Bound droplets follow separate trajectories and periodically approach a
-    // parent mass, reading as pinch-off and re-merging without unbounded state.
-    for (var i = 0; i < 11; i++) {
-      final parent = bodies[i % bodies.length];
-      final phase = t * (.24 + _h(i, 93) * .11) + i * 1.73;
-      final orbit = parent.radius * (.82 + .42 * math.sin(phase * .37).abs());
-      final center = parent.center + Offset.fromDirection(phase, orbit);
-      final radius = s.shortestSide * (.012 + _h(i, 97) * .018);
-      final droplet = _smoothOrganicPath(
-        center,
-        radius,
-        phase,
-        i + 90,
-        10,
-        .09,
-      );
-      c.drawPath(
-        droplet,
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
+              bridge.first.color.withValues(alpha: .18 + bridge.strength * .15),
               Color.lerp(
-                parent.color,
+                bridge.mixedColor,
                 Colors.white,
-                .38,
-              )!.withValues(alpha: .28),
-              parent.color.withValues(alpha: .08),
+                .12,
+              )!.withValues(alpha: .28 + bridge.strength * .17),
+              bridge.second.color.withValues(
+                alpha: .18 + bridge.strength * .15,
+              ),
             ],
-          ).createShader(Rect.fromCircle(center: center, radius: radius)),
+            stops: const [0, .5, 1],
+          ).createShader(rect),
       );
     }
-    for (var i = 0; i < 7; i++) {
-      final q = t * (.18 + i * .017) + i * 1.91;
-      final left = Offset(-18, s.height * (.12 + i * .125));
-      final right = Offset(s.width + 18, s.height * (.18 + i * .115));
-      final filament = Path()
-        ..moveTo(left.dx, left.dy)
-        ..cubicTo(
-          s.width * .22,
-          left.dy + s.height * .19 * math.sin(q),
-          s.width * .72,
-          right.dy - s.height * .21 * math.cos(q * .83),
-          right.dx,
-          right.dy,
-        );
-      c.drawPath(
-        filament,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 1.1 + (i % 3) * .72
-          ..color = _cool[i % 4].withValues(alpha: .17),
-      );
-    }
+    c.restore();
   }
 
   void _cells(Canvas c, Size s) {
