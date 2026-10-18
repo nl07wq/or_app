@@ -125,6 +125,67 @@ void main() {
     }
   });
 
+  test(
+    'V10 assigns stable varied interiors without changing 54 gear geometry',
+    () {
+      final primary = TrainingAmbientComparison.kineticGearGeometryFor(
+        const Size(390, 788),
+      );
+      final rear = TrainingAmbientComparison.kineticBackgroundGearGeometryFor(
+        const Size(390, 788),
+      );
+      final variants = <KineticGearVisualVariant>{
+        for (var i = 0; i < primary.length; i++)
+          TrainingAmbientComparison.kineticGearVisualVariantFor(primary[i], i),
+        for (var i = 0; i < rear.length; i++)
+          TrainingAmbientComparison.kineticGearVisualVariantFor(
+            rear[i],
+            i,
+            background: true,
+          ),
+      };
+
+      expect([...primary, ...rear], hasLength(54));
+      expect(variants, containsAll(KineticGearVisualVariant.values));
+      expect(
+        TrainingAmbientComparison.kineticGearVisualVariantFor(primary.first, 0),
+        TrainingAmbientComparison.kineticGearVisualVariantFor(primary.first, 0),
+      );
+      expect(primary.first.renderedToothTipCount, 40);
+    },
+  );
+
+  test(
+    'V10 compound carrier and linkages use deterministic constrained motion',
+    () {
+      final compounds =
+          TrainingAmbientComparison.kineticCompoundGearGeometryFor(
+            const Size(390, 788),
+          );
+      final linkages = TrainingAmbientComparison.kineticLinkageGeometryFor(
+        const Size(390, 788),
+      );
+
+      expect(compounds, hasLength(1));
+      final compound = compounds.single;
+      expect(compound.outerToothCount, 36);
+      expect(compound.renderedToothTipCount, 36);
+      expect(compound.outerPhaseAt(0), isNot(compound.outerPhaseAt(2.5)));
+      expect(compound.carrierPhaseAt(0), isNot(compound.carrierPhaseAt(2.5)));
+      expect(
+        linkages.map((linkage) => linkage.id),
+        orderedEquals(['eccentric-mid', 'rocker-lower']),
+      );
+      for (final linkage in linkages) {
+        final (pin0, carriage0) = linkage.positionsAt(0);
+        final (pin1, carriage1) = linkage.positionsAt(3.1);
+        expect((carriage0 - pin0).distance, closeTo(linkage.rodLength, .00001));
+        expect((carriage1 - pin1).distance, closeTo(linkage.rodLength, .00001));
+        expect(carriage1, isNot(carriage0));
+      }
+    },
+  );
+
   test('V9 static anime background asset is bundled unchanged', () async {
     expect(
       TrainingAmbientComparison.kineticEngineBackgroundAsset,

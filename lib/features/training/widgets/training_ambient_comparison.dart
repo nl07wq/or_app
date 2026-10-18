@@ -46,6 +46,86 @@ class KineticGearGeometry {
   double phaseAt(double drivePhase) => phaseOffset + driveRatio * drivePhase;
 }
 
+/// The tooth profile remains driven by [KineticGearGeometry]; this only
+/// selects the anime-mechanical construction painted inside that profile.
+/// Keeping it separate makes individual gear bodies PNG-replaceable later
+/// without changing pivots, tooth counts, or transmission timing.
+enum KineticGearVisualVariant { openSpoke, ring, cutout, pinion, asymmetric }
+
+/// An additional mechanism, deliberately independent of the frozen 54-gear
+/// transmission. Its own outer gear and carrier share a deterministic phase.
+class KineticCompoundGearGeometry {
+  const KineticCompoundGearGeometry({
+    required this.id,
+    required this.center,
+    required this.outerToothCount,
+    required this.module,
+    required this.pitchRadius,
+    required this.rootRadius,
+    required this.tipRadius,
+    required this.phaseOffset,
+    required this.driveRatio,
+    required this.carrierRatio,
+  });
+
+  final String id;
+  final Offset center;
+  final int outerToothCount;
+  final double module;
+  final double pitchRadius;
+  final double rootRadius;
+  final double tipRadius;
+  final double phaseOffset;
+  final double driveRatio;
+  final double carrierRatio;
+
+  int get renderedToothTipCount => outerToothCount;
+  double outerPhaseAt(double drivePhase) =>
+      phaseOffset + driveRatio * drivePhase;
+  double carrierPhaseAt(double drivePhase) =>
+      phaseOffset * .6 + carrierRatio * drivePhase;
+}
+
+/// Static pivots for the V10 crank, rocker, and guide mechanisms. The moving
+/// endpoints are calculated from these anchors at paint time, so rods remain
+/// constrained and attached throughout the animation.
+class KineticLinkageGeometry {
+  const KineticLinkageGeometry({
+    required this.id,
+    required this.crankPivot,
+    required this.railOrigin,
+    required this.railDirection,
+    required this.crankRadius,
+    required this.rodLength,
+    required this.driveRatio,
+  });
+
+  final String id;
+  final Offset crankPivot;
+  final Offset railOrigin;
+  final Offset railDirection;
+  final double crankRadius;
+  final double rodLength;
+  final double driveRatio;
+
+  /// Constrained crank-slider solution used by the painter and tests.
+  /// The distance from pin to carriage is always [rodLength].
+  (Offset pin, Offset carriage) positionsAt(double drivePhase) {
+    final angle = drivePhase * driveRatio + (id == 'rocker-lower' ? .9 : .15);
+    final pin = crankPivot + Offset.fromDirection(angle, crankRadius);
+    final direction = railDirection / railDirection.distance;
+    final normal = Offset(-direction.dy, direction.dx);
+    final pinFromRail = pin - railOrigin;
+    final normalDistance =
+        pinFromRail.dx * normal.dx + pinFromRail.dy * normal.dy;
+    final reach = math.sqrt(
+      math.max(0, rodLength * rodLength - normalDistance * normalDistance),
+    );
+    final along = pinFromRail.dx * direction.dx + pinFromRail.dy * direction.dy;
+    return (pin, railOrigin + direction * (along + reach));
+  }
+}
+
 /// Static, PNG-replaceable structure behind the two V7 gear layers.  It has
 /// no drive state, so adding it cannot affect transmission geometry or motion.
 class KineticBaseplateGeometry {
@@ -303,6 +383,69 @@ class TrainingAmbientComparison extends StatefulWidget {
       ),
     ];
   }
+
+  /// V10's gear interiors vary by stable identity, not by frame. The existing
+  /// 54 pitch circles and tooth profiles therefore remain mechanically frozen.
+  static KineticGearVisualVariant kineticGearVisualVariantFor(
+    KineticGearGeometry gear,
+    int index, {
+    bool background = false,
+  }) {
+    if (gear.toothCount <= 14) return KineticGearVisualVariant.pinion;
+    final stableSeed = gear.id.codeUnits.fold<int>(
+      index,
+      (sum, code) => sum + code,
+    );
+    final variants = KineticGearVisualVariant.values;
+    // Rear gears favour open negative space so they remain subordinate.
+    final adjusted = background ? stableSeed + 1 : stableSeed;
+    return variants[adjusted % variants.length];
+  }
+
+  /// Additional V10 mechanisms are positioned in the fixed viewport ambient;
+  /// they intentionally do not alter the established transmission inventory.
+  static List<KineticCompoundGearGeometry> kineticCompoundGearGeometryFor(
+    Size size,
+  ) {
+    final module = (size.width * .00365).clamp(.92, 1.55);
+    return [
+      KineticCompoundGearGeometry(
+        id: 'compound-orbital',
+        center: Offset(size.width * .84, size.height * .18),
+        outerToothCount: 36,
+        module: module,
+        pitchRadius: module * 36,
+        rootRadius: module * 35.05,
+        tipRadius: module * 37.3,
+        phaseOffset: .42,
+        driveRatio: -.31,
+        carrierRatio: .23,
+      ),
+    ];
+  }
+
+  static List<KineticLinkageGeometry> kineticLinkageGeometryFor(Size size) => [
+    KineticLinkageGeometry(
+      id: 'eccentric-mid',
+      crankPivot: Offset(size.width * .15, size.height * .48),
+      railOrigin: Offset(size.width * .18, size.height * .60),
+      railDirection: const Offset(1, 0),
+      crankRadius: size.width * .047,
+      rodLength: size.width * .24,
+      driveRatio: .52,
+    ),
+    KineticLinkageGeometry(
+      id: 'rocker-lower',
+      crankPivot: Offset(size.width * .81, size.height * .76),
+      railOrigin: Offset(size.width * .73, size.height * .87),
+      railDirection: const Offset(-1, 0),
+      crankRadius: size.width * .038,
+      // Must exceed the maximum normal rail offset so the crank-slider has
+      // a real solution at every deterministic animation phase.
+      rodLength: size.width * .24,
+      driveRatio: -.44,
+    ),
+  ];
 
   /// V8 baseplate topology. Plates overlap but are deliberately broken into
   /// separate machined sections instead of becoming a decorative rectangle.
@@ -666,6 +809,19 @@ class _TrainingAmbientPainter extends CustomPainter {
       _gear(canvas, gear, gear.phaseAt(drivePhase), i, background: true);
     }
 
+    // V10 motion additions sit between the subdued rear groups and the frozen
+    // main transmission. They give the fixed viewport an operating-machine
+    // cadence without changing any of the 54 existing gear relationships.
+    for (final compound
+        in TrainingAmbientComparison.kineticCompoundGearGeometryFor(size)) {
+      _compoundGear(canvas, compound, drivePhase);
+    }
+    for (final linkage in TrainingAmbientComparison.kineticLinkageGeometryFor(
+      size,
+    )) {
+      _linkage(canvas, linkage, drivePhase);
+    }
+
     for (final gear in gears) {
       final parentId = gear.parentId;
       if (parentId == null) continue;
@@ -733,31 +889,20 @@ class _TrainingAmbientPainter extends CustomPainter {
     int index, {
     bool background = false,
   }) {
-    final profile = Path();
-    for (var tooth = 0; tooth < gear.renderedToothTipCount; tooth++) {
-      final base = angle + tooth * math.pi * 2 / gear.toothCount;
-      for (final (fraction, radius) in [
-        (-.50, gear.rootRadius),
-        (-.27, gear.tipRadius),
-        (.22, gear.tipRadius),
-        (.50, gear.rootRadius),
-      ]) {
-        final point =
-            gear.center +
-            Offset.fromDirection(
-              base + fraction * math.pi * 2 / gear.toothCount,
-              radius,
-            );
-        if (tooth == 0 && fraction == -.50) {
-          profile.moveTo(point.dx, point.dy);
-        } else {
-          profile.lineTo(point.dx, point.dy);
-        }
-      }
-    }
-    profile.close();
-    // V9 uses crisp cel-shaded graphic layers rather than V8's metal discs.
-    // The profile is still emitted tooth-for-tooth from the frozen geometry.
+    final profile = _toothProfile(
+      gear.center,
+      gear.toothCount,
+      gear.rootRadius,
+      gear.tipRadius,
+      angle,
+    );
+    final variant = TrainingAmbientComparison.kineticGearVisualVariantFor(
+      gear,
+      index,
+      background: background,
+    );
+    // V10 preserves the exact tooth profile while replacing V9's repeated
+    // spoke-and-ring interior with stable, visibly different constructions.
     final fill = background ? const Color(0x7412264a) : const Color(0xa5155a93);
     final edge = background
         ? const Color(0x555eabdc)
@@ -784,41 +929,16 @@ class _TrainingAmbientPainter extends CustomPainter {
         ..strokeWidth = background ? .75 : 1.35
         ..color = edge,
     );
-    canvas.drawCircle(
-      gear.center,
-      gear.pitchRadius * .72,
-      Paint()..color = well,
+    _gearInterior(
+      canvas,
+      gear,
+      angle,
+      variant,
+      well: well,
+      rim: rim,
+      spokeColor: spokeColor,
+      background: background,
     );
-    canvas.drawCircle(
-      gear.center,
-      gear.pitchRadius * .61,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = gear.pitchRadius * .045
-        ..color = rim,
-    );
-    final spokeCount = 4 + index % 4;
-    for (var spoke = 0; spoke < spokeCount; spoke++) {
-      final a = angle + spoke * math.pi * 2 / spokeCount;
-      final start =
-          gear.center + Offset.fromDirection(a, gear.pitchRadius * .23);
-      final end = gear.center + Offset.fromDirection(a, gear.pitchRadius * .59);
-      canvas.drawLine(
-        start,
-        end,
-        Paint()
-          ..strokeWidth = math.max(1.5, gear.pitchRadius * .045)
-          ..strokeCap = StrokeCap.square
-          ..color = spokeColor,
-      );
-      if ((spoke + index).isEven) {
-        canvas.drawCircle(
-          gear.center + Offset.fromDirection(a + .32, gear.pitchRadius * .44),
-          math.max(1.4, gear.module * 1.35),
-          Paint()..color = well,
-        );
-      }
-    }
     if (!background) {
       canvas.drawCircle(
         gear.center,
@@ -849,6 +969,271 @@ class _TrainingAmbientPainter extends CustomPainter {
             ? const Color(0x3355b9e8)
             : const Color(0xffd3f8ff).withValues(alpha: .82),
     );
+  }
+
+  Path _toothProfile(
+    Offset center,
+    int teeth,
+    double rootRadius,
+    double tipRadius,
+    double angle,
+  ) {
+    final profile = Path();
+    for (var tooth = 0; tooth < teeth; tooth++) {
+      final base = angle + tooth * math.pi * 2 / teeth;
+      for (final (fraction, radius) in [
+        (-.50, rootRadius),
+        (-.27, tipRadius),
+        (.22, tipRadius),
+        (.50, rootRadius),
+      ]) {
+        final point =
+            center +
+            Offset.fromDirection(base + fraction * math.pi * 2 / teeth, radius);
+        if (tooth == 0 && fraction == -.50) {
+          profile.moveTo(point.dx, point.dy);
+        } else {
+          profile.lineTo(point.dx, point.dy);
+        }
+      }
+    }
+    return profile..close();
+  }
+
+  void _gearInterior(
+    Canvas canvas,
+    KineticGearGeometry gear,
+    double angle,
+    KineticGearVisualVariant variant, {
+    required Color well,
+    required Color rim,
+    required Color spokeColor,
+    required bool background,
+  }) {
+    final r = gear.pitchRadius;
+    final ringStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(.8, r * .047)
+      ..color = rim;
+    void ring(double radius, {double alpha = 1}) => canvas.drawCircle(
+      gear.center,
+      radius,
+      ringStroke..color = rim.withValues(alpha: rim.a * alpha),
+    );
+    void spoke(double a, double from, double to, {double width = 1}) =>
+        canvas.drawLine(
+          gear.center + Offset.fromDirection(a, r * from),
+          gear.center + Offset.fromDirection(a, r * to),
+          Paint()
+            ..strokeWidth = math.max(1, r * width)
+            ..strokeCap = StrokeCap.square
+            ..color = spokeColor,
+        );
+
+    switch (variant) {
+      case KineticGearVisualVariant.openSpoke:
+        canvas.drawCircle(gear.center, r * .68, Paint()..color = well);
+        ring(r * .62);
+        final count = gear.toothCount >= 30 ? 7 : 5;
+        for (var i = 0; i < count; i++) {
+          spoke(angle + i * math.pi * 2 / count, .18, .60, width: .055);
+        }
+      case KineticGearVisualVariant.ring:
+        canvas.drawCircle(gear.center, r * .76, Paint()..color = well);
+        ring(r * .72);
+        ring(r * .45, alpha: .72);
+        for (var i = 0; i < 4; i++) {
+          final a = angle + i * math.pi / 2;
+          canvas.drawCircle(
+            gear.center + Offset.fromDirection(a, r * .58),
+            math.max(1.2, r * .075),
+            Paint()..color = const Color(0xff071a3a),
+          );
+        }
+      case KineticGearVisualVariant.cutout:
+        canvas.drawCircle(gear.center, r * .69, Paint()..color = well);
+        ring(r * .65);
+        final count = gear.toothCount >= 26 ? 6 : 4;
+        for (var i = 0; i < count; i++) {
+          final a = angle + .24 + i * math.pi * 2 / count;
+          canvas.drawCircle(
+            gear.center + Offset.fromDirection(a, r * .43),
+            math.max(1.4, r * .13),
+            Paint()..color = const Color(0xff061633),
+          );
+        }
+      case KineticGearVisualVariant.pinion:
+        canvas.drawCircle(gear.center, r * .65, Paint()..color = well);
+        ring(r * .48);
+        for (var i = 0; i < 3; i++) {
+          spoke(angle + i * math.pi * 2 / 3, .16, .48, width: .07);
+        }
+      case KineticGearVisualVariant.asymmetric:
+        canvas.drawCircle(gear.center, r * .70, Paint()..color = well);
+        ring(r * .66);
+        const widths = [.057, .035, .072, .044, .062];
+        for (var i = 0; i < widths.length; i++) {
+          final a = angle + .16 + i * math.pi * 2 / widths.length;
+          spoke(a, .20, i.isEven ? .62 : .51, width: widths[i]);
+        }
+        canvas.drawArc(
+          Rect.fromCircle(center: gear.center, radius: r * .36),
+          angle - .72,
+          2.15,
+          false,
+          ringStroke..strokeWidth = math.max(1, r * .075),
+        );
+    }
+  }
+
+  void _compoundGear(
+    Canvas canvas,
+    KineticCompoundGearGeometry mechanism,
+    double drivePhase,
+  ) {
+    final outerPhase = mechanism.outerPhaseAt(drivePhase);
+    final carrierPhase = mechanism.carrierPhaseAt(drivePhase);
+    final outer = _toothProfile(
+      mechanism.center,
+      mechanism.outerToothCount,
+      mechanism.rootRadius,
+      mechanism.tipRadius,
+      outerPhase,
+    );
+    final center = mechanism.center;
+    final r = mechanism.pitchRadius;
+    canvas.drawPath(outer, Paint()..color = const Color(0x77144475));
+    canvas.drawPath(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.25
+        ..color = const Color(0xaa68dfff),
+    );
+    // A large structural opening keeps the compound unit distinct from the
+    // closed disc gears, while its carrier and satellites remain animated.
+    canvas.drawCircle(
+      center,
+      r * .63,
+      Paint()..color = const Color(0xdd061630),
+    );
+    canvas.drawCircle(
+      center,
+      r * .64,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = r * .06
+        ..color = const Color(0xff2f9ed5),
+    );
+    final carrierRadius = r * .39;
+    for (var i = 0; i < 3; i++) {
+      final a = carrierPhase + i * math.pi * 2 / 3;
+      final satellite = center + Offset.fromDirection(a, carrierRadius);
+      canvas.drawLine(
+        center,
+        satellite,
+        Paint()
+          ..strokeWidth = r * .075
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff2f86b7),
+      );
+      final satelliteTeeth = 12;
+      final satelliteRadius = r * .145;
+      final satelliteProfile = _toothProfile(
+        satellite,
+        satelliteTeeth,
+        satelliteRadius * .88,
+        satelliteRadius * 1.10,
+        -outerPhase * mechanism.outerToothCount / satelliteTeeth + a,
+      );
+      canvas.drawPath(
+        satelliteProfile,
+        Paint()..color = const Color(0xff16466f),
+      );
+      canvas.drawPath(
+        satelliteProfile,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .85
+          ..color = const Color(0xff81eaff),
+      );
+      canvas.drawCircle(
+        satellite,
+        satelliteRadius * .24,
+        Paint()..color = const Color(0xffffa74f),
+      );
+    }
+    canvas.drawCircle(
+      center,
+      r * .13,
+      Paint()..color = const Color(0xff0d355e),
+    );
+    canvas.drawCircle(
+      center,
+      r * .09,
+      Paint()
+        ..color = const Color(0x9949d8ff)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+  }
+
+  void _linkage(
+    Canvas canvas,
+    KineticLinkageGeometry linkage,
+    double drivePhase,
+  ) {
+    final pivot = linkage.crankPivot;
+    final (pin, carriage) = linkage.positionsAt(drivePhase);
+    final direction = linkage.railDirection / linkage.railDirection.distance;
+    final railStart = linkage.railOrigin - direction * linkage.rodLength * .82;
+    final railEnd = linkage.railOrigin + direction * linkage.rodLength * 1.18;
+    canvas.drawLine(
+      railStart,
+      railEnd,
+      Paint()
+        ..strokeWidth = linkage.crankRadius * .38
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0x88315f83),
+    );
+    canvas.drawLine(
+      pivot,
+      pin,
+      Paint()
+        ..strokeWidth = linkage.crankRadius * .28
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff55bde8),
+    );
+    canvas.drawLine(
+      pin,
+      carriage,
+      Paint()
+        ..strokeWidth = linkage.crankRadius * .23
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xff9ac7dc),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: carriage,
+          width: linkage.crankRadius * 1.7,
+          height: linkage.crankRadius * .72,
+        ),
+        Radius.circular(linkage.crankRadius * .18),
+      ),
+      Paint()..color = const Color(0xff1b527a),
+    );
+    for (final joint in [pivot, pin, carriage]) {
+      canvas.drawCircle(
+        joint,
+        linkage.crankRadius * .22,
+        Paint()..color = const Color(0xffffa74f),
+      );
+      canvas.drawCircle(
+        joint,
+        linkage.crankRadius * .11,
+        Paint()..color = const Color(0xff07182d),
+      );
+    }
   }
 
   List<Offset> _integrateField(
