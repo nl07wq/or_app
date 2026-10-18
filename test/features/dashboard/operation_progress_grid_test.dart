@@ -2127,7 +2127,15 @@ void main() {
     expect(logoLayers, hasLength(3));
     expect(
       logoLayers.map((image) => image.colorBlendMode),
-      containsAll([BlendMode.srcIn, BlendMode.plus, null]),
+      containsAll([BlendMode.srcIn, BlendMode.srcIn, null]),
+    );
+    expect(
+      logoLayers.where((image) => image.colorBlendMode == BlendMode.srcIn),
+      hasLength(2),
+    );
+    expect(
+      logoLayers.where((image) => image.colorBlendMode == BlendMode.plus),
+      isEmpty,
     );
     final neonWordmark = find.byKey(const ValueKey('dashboard-brand-wordmark'));
     expect(
@@ -2266,7 +2274,7 @@ void main() {
     },
   );
 
-  testWidgets('Dashboard neon logo V2.3 matches the stable visual reference', (
+  testWidgets('Dashboard neon logo V2.4 matches the stable visual reference', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
@@ -2280,7 +2288,7 @@ void main() {
 
     await expectLater(
       find.byKey(const ValueKey('dashboard-neon-physical-sign')),
-      matchesGoldenFile('goldens/dashboard_neon_logo_v2_3.png'),
+      matchesGoldenFile('goldens/dashboard_neon_logo_v2_4.png'),
     );
   });
 

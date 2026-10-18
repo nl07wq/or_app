@@ -755,6 +755,78 @@ abstract final class DashboardNeonTubeGeometry {
       logoHotCoreOpacity * phase.coreIntensity * phase.logoIntensity;
 }
 
+/// The emblem's three alpha-constrained neon layers.
+///
+/// Keeping these layers together guarantees that every colour and blur pass
+/// uses the supplied PNG alpha. In particular, [BlendMode.srcIn] prevents the
+/// Neon Edge colour from being added to transparent canvas pixels.
+class DashboardNeonLogo extends StatelessWidget {
+  const DashboardNeonLogo({required this.phase, this.boundaryKey, super.key});
+
+  final DashboardNeonFaultPhase phase;
+  final Key? boundaryKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final glowColor = AppColors.information;
+    return RepaintBoundary(
+      key: boundaryKey,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Opacity(
+            opacity: DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(phase),
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: DashboardNeonTubeGeometry.logoOuterGlowSigma,
+                sigmaY: DashboardNeonTubeGeometry.logoOuterGlowSigma,
+              ),
+              child: Image.asset(
+                'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+                height: DashboardNeonTubeGeometry.logoSize,
+                fit: BoxFit.contain,
+                color: glowColor,
+                colorBlendMode: BlendMode.srcIn,
+              ),
+            ),
+          ),
+          Opacity(
+            opacity: DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(phase),
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: DashboardNeonTubeGeometry.logoNeonEdgeSigma,
+                sigmaY: DashboardNeonTubeGeometry.logoNeonEdgeSigma,
+              ),
+              child: Image.asset(
+                'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+                height: DashboardNeonTubeGeometry.logoSize,
+                fit: BoxFit.contain,
+                color: const Color(0xff35dcff),
+                colorBlendMode: BlendMode.srcIn,
+              ),
+            ),
+          ),
+          Opacity(
+            opacity: DashboardNeonTubeGeometry.logoHotCoreAlphaFor(phase),
+            child: ColorFiltered(
+              colorFilter: const ColorFilter.matrix(
+                DashboardNeonTubeGeometry.logoHotCoreColorMatrix,
+              ),
+              child: Image.asset(
+                'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
+                key: const ValueKey('dashboard-brand-logo'),
+                height: DashboardNeonTubeGeometry.logoSize,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -4100,71 +4172,11 @@ class _DashboardNeonBrandMarkState extends State<_DashboardNeonBrandMark>
                           key: const ValueKey('dashboard-brand-logo-slot'),
                           height: DashboardNeonTubeGeometry.logoSize,
                           width: DashboardNeonTubeGeometry.logoSize,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.center,
-                            children: [
-                              Opacity(
-                                opacity:
-                                    DashboardNeonTubeGeometry.logoOuterGlowAlphaFor(
-                                      _phase,
-                                    ),
-                                child: ImageFiltered(
-                                  imageFilter: ImageFilter.blur(
-                                    sigmaX: DashboardNeonTubeGeometry
-                                        .logoOuterGlowSigma,
-                                    sigmaY: DashboardNeonTubeGeometry
-                                        .logoOuterGlowSigma,
-                                  ),
-                                  child: Image.asset(
-                                    'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
-                                    height: DashboardNeonTubeGeometry.logoSize,
-                                    fit: BoxFit.contain,
-                                    color: glowColor,
-                                    colorBlendMode: BlendMode.srcIn,
-                                  ),
-                                ),
-                              ),
-                              Opacity(
-                                opacity:
-                                    DashboardNeonTubeGeometry.logoNeonEdgeAlphaFor(
-                                      _phase,
-                                    ),
-                                child: ImageFiltered(
-                                  imageFilter: ImageFilter.blur(
-                                    sigmaX: DashboardNeonTubeGeometry
-                                        .logoNeonEdgeSigma,
-                                    sigmaY: DashboardNeonTubeGeometry
-                                        .logoNeonEdgeSigma,
-                                  ),
-                                  child: Image.asset(
-                                    'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
-                                    height: DashboardNeonTubeGeometry.logoSize,
-                                    fit: BoxFit.contain,
-                                    color: const Color(0x3035dcff),
-                                    colorBlendMode: BlendMode.plus,
-                                  ),
-                                ),
-                              ),
-                              Opacity(
-                                opacity:
-                                    DashboardNeonTubeGeometry.logoHotCoreAlphaFor(
-                                      _phase,
-                                    ),
-                                child: ColorFiltered(
-                                  colorFilter: const ColorFilter.matrix(
-                                    DashboardNeonTubeGeometry
-                                        .logoHotCoreColorMatrix,
-                                  ),
-                                  child: Image.asset(
-                                    'assets/icons/dashboard_orlo_emblem_1290_transparent.png',
-                                    key: const ValueKey('dashboard-brand-logo'),
-                                    height: DashboardNeonTubeGeometry.logoSize,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: DashboardNeonLogo(
+                            phase: _phase,
+                            boundaryKey: const ValueKey(
+                              'dashboard-neon-logo-alpha-boundary',
+                            ),
                           ),
                         ),
                       ),
