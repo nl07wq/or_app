@@ -11,6 +11,11 @@ class FoodSavedFloatingHud {
   static const _iceBlue = Color(0xffe2f9ff);
   static const _confirmed = Color(0xff65a5b8);
 
+  static Widget _surface() => const _FoodSavedFloatingHudSurface();
+
+  @visibleForTesting
+  static Widget surfaceForTesting() => _surface();
+
   static void show(BuildContext context) {
     final messenger = ScaffoldMessenger.of(context);
     messenger
@@ -24,7 +29,7 @@ class FoodSavedFloatingHud {
           margin: const EdgeInsets.fromLTRB(32, 0, 32, 16),
           duration: const Duration(seconds: 2),
           dismissDirection: DismissDirection.down,
-          content: const _FoodSavedFloatingHudSurface(),
+          content: _surface(),
         ),
       );
   }
@@ -42,11 +47,12 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
         child: DecoratedBox(
+          key: const ValueKey('food-saved-floating-hud-glass'),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xd62d4b60), Color(0xbf162b3d)],
+              colors: [Color(0xbc2d4b60), Color(0x9c162b3d)],
             ),
             border: Border.all(color: const Color(0xc078a8b8)),
             borderRadius: BorderRadius.circular(14),
@@ -61,54 +67,58 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
           child: Stack(
             children: [
               const Positioned.fill(
-                // A non-positioned Stack child receives loose constraints,
-                // so the intrinsic-height Row was placed at the top on
-                // mobile web. Reserve one pixel for the lower accent and
-                // make the remaining content area explicit.
-                bottom: 1,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                // Keep the row constrained to the full HUD so its center is
+                // stable on mobile web. The accent belongs to the label
+                // group, not to the outer bottom border.
+                child: Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 19,
-                        color: FoodSavedFloatingHud._accent,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: 19,
+                            color: FoodSavedFloatingHud._accent,
+                          ),
+                          SizedBox(width: 9),
+                          Text(
+                            'MEAL SAVED',
+                            style: TextStyle(
+                              color: FoodSavedFloatingHud._iceBlue,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.05,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'CONFIRMED',
+                            style: TextStyle(
+                              color: FoodSavedFloatingHud._confirmed,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: .7,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 9),
-                      Text(
-                        'MEAL SAVED',
-                        style: TextStyle(
-                          color: FoodSavedFloatingHud._iceBlue,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.05,
-                        ),
-                      ),
-                      Spacer(),
-                      Text(
-                        'CONFIRMED',
-                        style: TextStyle(
-                          color: FoodSavedFloatingHud._confirmed,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: .7,
+                      Positioned(
+                        key: ValueKey('food-saved-floating-hud-inner-line'),
+                        left: 28,
+                        right: 0,
+                        top: 19,
+                        child: SizedBox(
+                          height: 1,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: FoodSavedFloatingHud._accent,
+                            ),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-              const Positioned(
-                key: ValueKey('food-saved-floating-hud-bottom-line'),
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: SizedBox(
-                  height: 1,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: Color(0xdd33d6f2)),
                   ),
                 ),
               ),

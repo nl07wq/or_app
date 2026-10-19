@@ -30,6 +30,29 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
   }
 
+  Future<void> pumpHudGolden(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390, 160);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DecoratedBox(
+            decoration: const BoxDecoration(color: Color(0xff10253c)),
+            child: Center(
+              child: SizedBox(
+                width: 294,
+                child: FoodSavedFloatingHud.surfaceForTesting(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   testWidgets(
     'renders the FOOD success HUD as a compact floating glass surface',
     (tester) async {
@@ -58,23 +81,39 @@ void main() {
       final icon = tester.getRect(find.byIcon(Icons.check_circle_rounded));
       final mealSaved = tester.getRect(find.text('MEAL SAVED'));
       final confirmed = tester.getRect(find.text('CONFIRMED'));
-      final bottomLine = tester.getRect(
-        find.byKey(const ValueKey('food-saved-floating-hud-bottom-line')),
+      final innerLine = tester.getRect(
+        find.byKey(const ValueKey('food-saved-floating-hud-inner-line')),
       );
-      expect(icon.center.dy, closeTo(surface.center.dy - .5, 1));
-      expect(mealSaved.center.dy, closeTo(surface.center.dy - .5, 1));
-      expect(confirmed.center.dy, closeTo(surface.center.dy - .5, 1));
+      expect(icon.center.dy, closeTo(surface.center.dy, 1));
+      expect(mealSaved.center.dy, closeTo(surface.center.dy, 1));
+      expect(confirmed.center.dy, closeTo(surface.center.dy, 1));
       expect(mealSaved.left, greaterThan(icon.right));
-      expect(confirmed.right, lessThanOrEqualTo(surface.right - 13));
-      expect(bottomLine.height, closeTo(1, .01));
-      expect(bottomLine.top, closeTo(surface.bottom - 1, .01));
+      expect(confirmed.left - mealSaved.right, closeTo(10, 1));
+      expect((icon.left + confirmed.right) / 2, closeTo(surface.center.dx, 1));
+      expect(innerLine.height, closeTo(1, .01));
+      expect(innerLine.left, closeTo(mealSaved.left, 1));
+      expect(innerLine.right, closeTo(confirmed.right, 1));
+      expect(innerLine.top, greaterThan(mealSaved.bottom));
+      expect(innerLine.bottom, lessThan(surface.bottom - 6));
 
-      await expectLater(
-        find.byKey(const ValueKey('food-saved-floating-hud')),
-        matchesGoldenFile('goldens/food_saved_floating_hud.png'),
+      final glass = tester.widget<DecoratedBox>(
+        find.byKey(const ValueKey('food-saved-floating-hud-glass')),
       );
+      final gradient = glass.decoration as BoxDecoration;
+      expect(gradient.gradient, isA<LinearGradient>());
+      expect((gradient.gradient!.colors.first.a * 255).round(), lessThan(0xd6));
+      expect((gradient.gradient!.colors.last.a * 255).round(), lessThan(0xbf));
     },
   );
+
+  testWidgets('renders the centered FOOD HUD content golden', (tester) async {
+    await pumpHudGolden(tester);
+
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/food_saved_floating_hud.png'),
+    );
+  });
 
   testWidgets(
     'replaces a prior FOOD success HUD instead of accumulating notices',
