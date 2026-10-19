@@ -24,7 +24,7 @@ void main() {
       (first.b - second.b).abs();
 
   test(
-    'V3.5 uses bounded dynamic fields for large, medium, and small drops',
+    'V3.6 uses bounded dynamic fields for large, medium, and small drops',
     () {
       final frame = ChromaticFluidMetaballs.frame(viewport, 4.5);
       final field = ChromaticFluidMetaballs.buildField(viewport, frame);
@@ -98,7 +98,10 @@ void main() {
     () {
       final contactedPairs = <String>{};
       var sawThreeDropField = false;
-      for (var step = 0; step <= 240; step++) {
+      // The V3.6 material cycle is 48 seconds. Cover two full cycles so the
+      // deliberately slower gathering channels can still prove 2/3-body
+      // topology without reintroducing the former rapid pull.
+      for (var step = 0; step <= 480; step++) {
         final frame = ChromaticFluidMetaballs.frame(viewport, step * .25);
         final field = ChromaticFluidMetaballs.buildField(viewport, frame);
         for (final contact in frame.contacts) {
@@ -145,7 +148,7 @@ void main() {
   );
 
   test(
-    'V3.5 keeps every absorbed small-drop field contribution continuous',
+    'V3.6 keeps every absorbed small-drop field contribution continuous',
     () {
       for (var step = 0; step <= 900; step++) {
         final frame = ChromaticFluidMetaballs.frame(viewport, step / 10);
@@ -159,7 +162,7 @@ void main() {
     },
   );
 
-  test('V3.5 reconstructs one smooth multi-pigment velocity-density fluid', () {
+  test('V3.6 reconstructs one smooth multi-pigment velocity-density fluid', () {
     final first = HighFidelityChromaticFluid.frame(viewport, 2.0);
     final later = HighFidelityChromaticFluid.frame(viewport, 7.0);
     expect(first.cells, isNotEmpty);
@@ -182,9 +185,14 @@ void main() {
     );
     expect(first.cells.any((cell) => cell.velocity.distance > .1), isTrue);
     expect(first.ribbons, hasLength(5));
+    expect(first.pigmentParcels.length, greaterThanOrEqualTo(40));
+    expect(
+      first.pigmentParcels.map((parcel) => parcel.color).toSet().length,
+      greaterThan(10),
+    );
   });
 
-  test('V3.5 preserves geometry, pigment, and flow across loop boundaries', () {
+  test('V3.6 preserves geometry, pigment, and flow across loop boundaries', () {
     final start = ChromaticFluidMetaballs.frame(viewport, 0);
     final end = ChromaticFluidMetaballs.frame(
       viewport,
@@ -282,7 +290,7 @@ void main() {
     }
   });
 
-  test('V3.5 high-fidelity fluid remains a bounded local workload', () {
+  test('V3.6 high-fidelity fluid remains a bounded local workload', () {
     final stopwatch = Stopwatch()..start();
     var maximumSamples = 0;
     for (var frameIndex = 0; frameIndex < 90; frameIndex++) {
@@ -292,7 +300,7 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3.5 fluid benchmark: 90 frames in '
+      'V3.6 fluid benchmark: 90 frames in '
       '${stopwatch.elapsedMicroseconds} us, max samples $maximumSamples',
     );
     expect(
@@ -344,7 +352,7 @@ void main() {
         previousCount = count;
       }
       expect(transitions, hasLength(greaterThanOrEqualTo(4)));
-      debugPrint('V3.5 dynamic topology transitions: $transitions');
+      debugPrint('V3.6 dynamic topology transitions: $transitions');
 
       for (final transition in transitions.take(3)) {
         final areas = <double>[];
@@ -399,7 +407,7 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3.5 field benchmark: 90 frames in '
+      'V3.6 field benchmark: 90 frames in '
       '${stopwatch.elapsedMicroseconds} us, max samples $maximumSamples',
     );
     expect(
@@ -448,14 +456,14 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3.5 painter benchmark: 60 frames in '
+      'V3.6 painter benchmark: 60 frames in '
       '${stopwatch.elapsedMicroseconds} us',
     );
     expect(stopwatch.elapsedMilliseconds, lessThan(3000));
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('V3.5 fusion sequence exposes organic dynamic field stages', (
+  testWidgets('V3.6 fusion sequence exposes organic dynamic field stages', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1170, 844);
@@ -494,11 +502,11 @@ void main() {
 
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_stages.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_stages.png'),
     );
   });
 
-  testWidgets('V3.5 boundary frames remain continuous around dynamic fusion', (
+  testWidgets('V3.6 boundary frames remain continuous around dynamic fusion', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(3120, 844);
@@ -542,12 +550,12 @@ void main() {
     await expectLater(
       find.byType(GridView),
       matchesGoldenFile(
-        'goldens/food_chromatic_fluid_v3_5_boundary_frames.png',
+        'goldens/food_chromatic_fluid_v3_6_boundary_frames.png',
       ),
     );
   });
 
-  testWidgets('V3.5 loop boundary has no visual rewind', (tester) async {
+  testWidgets('V3.6 loop boundary has no visual rewind', (tester) async {
     tester.view.physicalSize = const Size(2340, 422);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -571,11 +579,11 @@ void main() {
     );
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_loop_boundary.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_loop_boundary.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.5 liquid spheres evolve continuously', (
+  testWidgets('METABOLIC CELLS V3.6 retain individual cell anatomy', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1560, 844);
@@ -601,11 +609,11 @@ void main() {
     );
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_metabolic_cells_v3_5_evolution.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v3_6_evolution.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.5 loop boundary has no reset', (
+  testWidgets('METABOLIC CELLS V3.6 loop boundary has no reset', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1560, 844);
@@ -631,11 +639,11 @@ void main() {
     );
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_metabolic_cells_v3_5_loop_boundary.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v3_6_loop_boundary.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.5 fits supported iPhone widths', (
+  testWidgets('METABOLIC CELLS V3.6 fits supported iPhone widths', (
     tester,
   ) async {
     for (final size in const [
@@ -661,7 +669,7 @@ void main() {
   });
 
   for (final position in const ['top', 'middle', 'lower']) {
-    testWidgets('FOOD UI $position keeps V3.5 readable and populated', (
+    testWidgets('FOOD UI $position keeps V3.6 readable and populated', (
       tester,
     ) async {
       tester.view.physicalSize = viewport;
@@ -681,12 +689,12 @@ void main() {
 
       await expectLater(
         find.byType(Scaffold),
-        matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_ui_$position.png'),
+        matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_ui_$position.png'),
       );
     });
   }
 
-  testWidgets('FOOD V3.5 has no overflow at supported iPhone widths', (
+  testWidgets('FOOD V3.6 has no overflow at supported iPhone widths', (
     tester,
   ) async {
     for (final size in const [

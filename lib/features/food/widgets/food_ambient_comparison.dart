@@ -144,7 +144,7 @@ class _ChromaticFluidFieldSource {
 
 typedef _ChromaticFluidFieldNode = (int orientation, int x, int y);
 
-/// Deterministic, bounded implicit-field geometry for Chromatic Fluid V3.4.
+/// Deterministic, bounded implicit-field geometry for Chromatic Fluid V3.6.
 ///
 /// Nearby drops are linked dynamically into bounded local field groups. A
 /// smooth iso-contour is extracted from the summed scalar surface, so every
@@ -155,7 +155,11 @@ abstract final class ChromaticFluidMetaballs {
   static const maximumContactCount = 5;
   static const maximumFieldGroupCount = 12;
   static const maximumFieldSampleCount = 18000;
-  static const cycleSeconds = 24.0;
+  // The controller already repeats every 48 seconds. Keeping the liquid on
+  // that same cycle removes the former mid-controller rewind and gives a
+  // complete approach/contact/separation enough time to read as material
+  // motion rather than an accelerated pull.
+  static const cycleSeconds = 48.0;
   static const fieldIsoValue = 1.0;
   static const _palette = <Color>[
     Color(0xff32ddd0),
@@ -214,8 +218,9 @@ abstract final class ChromaticFluidMetaballs {
       drops.add(
         ChromaticFluidDrop(
           id: id,
-          // Keep the driving orbit dominant. The earlier full triad pull was
-          // the visual source of a sudden suction-like centre shift.
+          // Keep the independent orbit dominant. The gathering field is a
+          // gentle, long-lived bias; it never takes ownership of a body's
+          // centre or compresses the approach into a few frames.
           center: Offset.lerp(center, gatheredCenter, triadPull * .48)!,
           radius: baseRadius,
           baseRadius: baseRadius,
@@ -344,9 +349,10 @@ abstract final class ChromaticFluidMetaballs {
   }
 
   static double contactStrength(double normalizedDistance) {
-    // Do not allow remote neighbours to fuse early: a shorter, eased contact
-    // window avoids the previous "pulled into the other drop" silhouette.
-    final raw = ((1.20 - normalizedDistance) / .40).clamp(0.0, 1.0);
+    // A long eased contact window lets pigment and the implicit neck begin
+    // changing before the bodies visually overlap. This avoids the binary,
+    // suction-like transition that the shorter V3.5 window produced.
+    final raw = ((1.28 - normalizedDistance) / .52).clamp(0.0, 1.0);
     return _smoothStep(raw);
   }
 
@@ -798,6 +804,23 @@ class HighFidelityFluidRibbon {
   final double width;
 }
 
+@immutable
+class HighFidelityFluidPigmentParcel {
+  const HighFidelityFluidPigmentParcel({
+    required this.center,
+    required this.velocity,
+    required this.color,
+    required this.density,
+    required this.progress,
+  });
+
+  final Offset center;
+  final Offset velocity;
+  final Color color;
+  final double density;
+  final double progress;
+}
+
 /// A bounded local velocity/density/pigment field for the quality fluid.
 ///
 /// It deliberately stays independent from the twelve implicit metaballs. The
@@ -812,6 +835,7 @@ class HighFidelityFluidFrame {
     required this.outline,
     required this.cells,
     required this.ribbons,
+    required this.pigmentParcels,
     required this.sampleCount,
   });
 
@@ -819,6 +843,7 @@ class HighFidelityFluidFrame {
   final Path outline;
   final List<HighFidelityFluidCell> cells;
   final List<HighFidelityFluidRibbon> ribbons;
+  final List<HighFidelityFluidPigmentParcel> pigmentParcels;
   final int sampleCount;
 }
 
@@ -889,8 +914,51 @@ abstract final class HighFidelityChromaticFluid {
       outline: _outline(center, diameter, phase),
       cells: List.unmodifiable(cells),
       ribbons: List.unmodifiable(_ribbons(bounds, phase)),
+      pigmentParcels: List.unmodifiable(_pigmentParcels(bounds, phase)),
       sampleCount: cells.length,
     );
+  }
+
+  // These parcels are display samples of the same velocity/density field as
+  // the 30x30 bounded simulation. They are deliberately not cells: painting
+  // them as overlapping, advected kernels removes the coarse colour bands
+  // caused by V3.5's 12x12 bucket reconstruction.
+  static List<HighFidelityFluidPigmentParcel> _pigmentParcels(
+    Rect bounds,
+    double phase,
+  ) {
+    final parcels = <HighFidelityFluidPigmentParcel>[];
+    for (final source in _pigmentSources(phase)) {
+      var local = source.$1;
+      for (var step = 0; step < 15; step++) {
+        if (local.distance > 1.08) break;
+        final velocity = _velocity(local, phase + step * .055);
+        final density = _density(local, phase);
+        if (density > .045) {
+          final pigment = _pigment(
+            local - velocity * (.11 + step * .006),
+            phase - step * .018,
+          );
+          parcels.add(
+            HighFidelityFluidPigmentParcel(
+              center: Offset(
+                bounds.center.dx + local.dx * bounds.width * .5,
+                bounds.center.dy + local.dy * bounds.height * .5,
+              ),
+              velocity: velocity,
+              color: Color.lerp(source.$2, pigment, .58)!,
+              density: density,
+              progress: step / 14,
+            ),
+          );
+        }
+        // RK2 keeps advection curved and coupled to the local vortices
+        // without introducing a stateful simulation reset at the loop seam.
+        final midpoint = local + velocity * .034;
+        local += _velocity(midpoint, phase + step * .055 + .03) * .068;
+      }
+    }
+    return parcels;
   }
 
   static List<HighFidelityFluidRibbon> _ribbons(Rect bounds, double phase) {
@@ -924,7 +992,7 @@ abstract final class HighFidelityChromaticFluid {
   static Offset _velocity(Offset point, double phase) {
     final radial = point.distance;
     final primaryVortex =
-        1.02 * (1 - radial.clamp(0.0, 1.0)) +
+        .58 * (1 - radial.clamp(0.0, 1.0)) +
         math.sin(phase * 2 + point.dx * 4 + point.dy * 2) * .16;
     final secondaryCenter = Offset(
       math.cos(phase * 2) * .27,
@@ -932,7 +1000,7 @@ abstract final class HighFidelityChromaticFluid {
     );
     final aroundSecondary = point - secondaryCenter;
     final secondaryVortex =
-        .54 * (1 - aroundSecondary.distance.clamp(0.0, 1.0));
+        .36 * (1 - aroundSecondary.distance.clamp(0.0, 1.0));
     final tangent =
         Offset(-point.dy, point.dx) * primaryVortex +
         Offset(-aroundSecondary.dy, aroundSecondary.dx) * secondaryVortex;
@@ -944,7 +1012,16 @@ abstract final class HighFidelityChromaticFluid {
       point.dy * math.sin(phase * 2 + point.dx * 3) * .15,
       -point.dx * math.cos(phase * 2 - point.dy * 3) * .13,
     );
-    return tangent + shear + folding;
+    // Cross-stream transport prevents every pigment parcel from settling
+    // into the same circular orbit. Alternating entrainment pulls colour
+    // through the core, then releases it into the folding/shear field.
+    final entrainment =
+        point * (-.36 + math.sin(phase + point.dx * 2 - point.dy * 3) * .12) +
+        Offset(
+          math.cos(phase * 2 + point.dy * 4) * .10,
+          math.sin(phase * 2 - point.dx * 4) * .10,
+        );
+    return tangent + shear + folding + entrainment;
   }
 
   static double _density(Offset point, double phase) {
@@ -1417,22 +1494,59 @@ class _FoodAmbientPainter extends CustomPainter {
         ).createShader(fluid.bounds),
     );
 
-    // The velocity-advected density cells are reconstructed through a dense,
-    // overlapping kernel field. This deliberately separates calculation from
-    // display: pigment retains its advection detail without revealing the
-    // simulation lattice as bands or square patches.
-    for (final cell in _smoothedFluidPatches(fluid)) {
-      final speed = cell.velocity.distance;
-      final radius = fluid.bounds.width / 12 * (1.72 + cell.density * .68);
+    // Fold a broad portion of every advected colour plume through the core.
+    // This is a density-weighted view of the same parcels below, not a static
+    // background gradient: it changes with their velocity and phase while
+    // preventing the quality fluid from reading as a hollow ribbon ring.
+    for (
+      var sourceIndex = 0;
+      sourceIndex < fluid.pigmentParcels.length;
+      sourceIndex += 15
+    ) {
+      final parcel = fluid.pigmentParcels[sourceIndex];
+      final center = Offset.lerp(parcel.center, fluid.bounds.center, .42)!;
       final stamp = Rect.fromCenter(
-        center: cell.center,
-        width: radius * (2.25 + speed * .46),
-        height: radius * (1.54 + speed * .18),
+        center: center,
+        width: fluid.bounds.width * .52,
+        height: fluid.bounds.height * .30,
       );
       c.save();
-      c.translate(cell.center.dx, cell.center.dy);
-      c.rotate(math.atan2(cell.velocity.dy, cell.velocity.dx));
-      c.translate(-cell.center.dx, -cell.center.dy);
+      c.translate(center.dx, center.dy);
+      c.rotate(math.atan2(parcel.velocity.dy, parcel.velocity.dx));
+      c.translate(-center.dx, -center.dy);
+      c.drawOval(
+        stamp,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-.22, -.16),
+            colors: [
+              parcel.color.withValues(alpha: .24 * parcel.density),
+              parcel.color.withValues(alpha: .10 * parcel.density),
+              parcel.color.withValues(alpha: 0),
+            ],
+            stops: const [0, .48, 1],
+          ).createShader(stamp),
+      );
+      c.restore();
+    }
+
+    // Draw sparse, broad parcels advected through the same field. The source
+    // grid is never sampled in the final raster: each parcel is an RK2 flow
+    // trace, so overlapping plumes read as pigment rather than dots/cells.
+    for (final (index, parcel) in fluid.pigmentParcels.indexed) {
+      if (index % 3 != 0) continue;
+      final speed = parcel.velocity.distance;
+      final radius = fluid.bounds.width * (.070 + parcel.density * .038);
+      final center = parcel.center;
+      final stamp = Rect.fromCenter(
+        center: center,
+        width: radius * (1.82 + speed * .34),
+        height: radius * (1.22 + speed * .13),
+      );
+      c.save();
+      c.translate(center.dx, center.dy);
+      c.rotate(math.atan2(parcel.velocity.dy, parcel.velocity.dx));
+      c.translate(-center.dx, -center.dy);
       c.drawOval(
         stamp,
         Paint()
@@ -1441,12 +1555,12 @@ class _FoodAmbientPainter extends CustomPainter {
             radius: 1,
             colors: [
               Color.lerp(
-                cell.color,
+                parcel.color,
                 Colors.white,
                 .20,
-              )!.withValues(alpha: .285 * cell.density),
-              cell.color.withValues(alpha: .205 * cell.density),
-              cell.color.withValues(alpha: 0),
+              )!.withValues(alpha: .32 * parcel.density),
+              parcel.color.withValues(alpha: .26 * parcel.density),
+              parcel.color.withValues(alpha: 0),
             ],
             stops: const [0, .48, 1],
           ).createShader(stamp),
@@ -1454,40 +1568,6 @@ class _FoodAmbientPainter extends CustomPainter {
       c.restore();
     }
 
-    // Streamlines are deliberately subordinate to the density reconstruction:
-    // they make the same advected flow legible without turning the fluid into
-    // a ribbon-only effect.
-    for (final ribbon in fluid.ribbons) {
-      c.drawPath(
-        ribbon.path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = ribbon.width * 2.5
-          ..color = ribbon.color.withValues(alpha: .11)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-      c.drawPath(
-        ribbon.path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = ribbon.width * .52
-          ..shader = LinearGradient(
-            colors: [
-              ribbon.color.withValues(alpha: .03),
-              ribbon.color.withValues(alpha: .23),
-              Color.lerp(
-                ribbon.color,
-                Colors.white,
-                .22,
-              )!.withValues(alpha: .22),
-              ribbon.color.withValues(alpha: .04),
-            ],
-            stops: const [0, .25, .67, 1],
-          ).createShader(fluid.bounds),
-      );
-    }
     c.restore();
     c.drawPath(
       fluid.outline,
@@ -1496,68 +1576,6 @@ class _FoodAmbientPainter extends CustomPainter {
         ..strokeWidth = .85
         ..color = const Color(0xff78dfff).withValues(alpha: .22),
     );
-  }
-
-  List<({Offset center, Offset velocity, double density, Color color})>
-  _smoothedFluidPatches(HighFidelityFluidFrame fluid) {
-    const resolution = 12;
-    final buckets = List.generate(
-      resolution * resolution,
-      (_) => <HighFidelityFluidCell>[],
-    );
-    for (final cell in fluid.cells) {
-      final x =
-          ((cell.center.dx - fluid.bounds.left) /
-                  fluid.bounds.width *
-                  resolution)
-              .floor()
-              .clamp(0, resolution - 1);
-      final y =
-          ((cell.center.dy - fluid.bounds.top) /
-                  fluid.bounds.height *
-                  resolution)
-              .floor()
-              .clamp(0, resolution - 1);
-      buckets[y * resolution + x].add(cell);
-    }
-
-    final patches =
-        <({Offset center, Offset velocity, double density, Color color})>[];
-    for (final cells in buckets) {
-      if (cells.isEmpty) continue;
-      var weight = 0.0;
-      var x = 0.0;
-      var y = 0.0;
-      var dx = 0.0;
-      var dy = 0.0;
-      var red = 0.0;
-      var green = 0.0;
-      var blue = 0.0;
-      for (final cell in cells) {
-        final contribution = cell.density * cell.density;
-        weight += contribution;
-        x += cell.center.dx * contribution;
-        y += cell.center.dy * contribution;
-        dx += cell.velocity.dx * contribution;
-        dy += cell.velocity.dy * contribution;
-        red += cell.color.r * contribution;
-        green += cell.color.g * contribution;
-        blue += cell.color.b * contribution;
-      }
-      if (weight <= 0) continue;
-      patches.add((
-        center: Offset(x / weight, y / weight),
-        velocity: Offset(dx / weight, dy / weight),
-        density: (weight / cells.length).clamp(0.0, 1.0),
-        color: Color.fromARGB(
-          255,
-          (red / weight * 255).round().clamp(0, 255),
-          (green / weight * 255).round().clamp(0, 255),
-          (blue / weight * 255).round().clamp(0, 255),
-        ),
-      ));
-    }
-    return patches;
   }
 
   void _cells(Canvas c, Size s) {
@@ -1600,10 +1618,10 @@ class _FoodAmbientPainter extends CustomPainter {
       ));
     }
 
-    final contacts =
-        <
-          ({int first, int second, double strength, Offset center, Color color})
-        >[];
+    final contacts = List.generate(
+      cells.length,
+      (_) => <({Offset direction, double strength})>[],
+    );
     for (var first = 0; first < cells.length - 1; first++) {
       for (var second = first + 1; second < cells.length; second++) {
         final a = cells[first];
@@ -1613,55 +1631,12 @@ class _FoodAmbientPainter extends CustomPainter {
         final raw = ((1.12 - ratio) / .30).clamp(0.0, 1.0);
         final strength = raw * raw * (3 - 2 * raw);
         if (strength < .02) continue;
-        contacts.add((
-          first: first,
-          second: second,
-          strength: strength,
-          center: Offset.lerp(a.center, b.center, .5)!,
-          color: Color.lerp(a.color, b.color, .5)!,
-        ));
+        final direction = distance < .0001
+            ? const Offset(1, 0)
+            : (b.center - a.center) / distance;
+        contacts[first].add((direction: direction, strength: strength));
+        contacts[second].add((direction: -direction, strength: strength));
       }
-    }
-
-    // A low-opacity bridge is painted first and is only present while cells
-    // genuinely approach.  The eased strength gives the eye a gradual neck,
-    // rather than a binary bridge or a rigid line between arbitrary cells.
-    for (final contact in contacts) {
-      final a = cells[contact.first];
-      final b = cells[contact.second];
-      final tangent = b.center - a.center;
-      final tangentLength = tangent.distance;
-      final normal = tangentLength == 0
-          ? const Offset(0, 1)
-          : Offset(-tangent.dy / tangentLength, tangent.dx / tangentLength);
-      final neck =
-          math.min(a.radius, b.radius) * (.10 + contact.strength * .18);
-      final bridge = Path()
-        ..moveTo(a.center.dx, a.center.dy)
-        ..cubicTo(
-          a.center.dx + tangent.dx * .30 + normal.dx * neck,
-          a.center.dy + tangent.dy * .30 + normal.dy * neck,
-          b.center.dx - tangent.dx * .30 + normal.dx * neck,
-          b.center.dy - tangent.dy * .30 + normal.dy * neck,
-          b.center.dx,
-          b.center.dy,
-        );
-      c.drawPath(
-        bridge,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = neck * 2.4
-          ..color = contact.color.withValues(alpha: .075 * contact.strength)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-      c.drawCircle(
-        contact.center,
-        neck * (1.3 + contact.strength),
-        Paint()
-          ..color = contact.color.withValues(alpha: .06 * contact.strength)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-      );
     }
 
     for (var i = 0; i < cells.length; i++) {
@@ -1676,6 +1651,15 @@ class _FoodAmbientPainter extends CustomPainter {
           Offset(math.cos(cell.phase * 2), math.sin(cell.phase)) *
               cell.radius *
               .045;
+      var contactVector = Offset.zero;
+      var contactStrength = 0.0;
+      for (final contact in contacts[i]) {
+        contactVector += contact.direction * contact.strength;
+        contactStrength += contact.strength;
+      }
+      final contactDirection = contactVector.distanceSquared < .00001
+          ? const Offset(1, 0)
+          : contactVector / contactVector.distance;
       final membrane = _smoothOrganicPath(
         cell.center + surfaceOffset,
         cell.radius,
@@ -1685,6 +1669,8 @@ class _FoodAmbientPainter extends CustomPainter {
         .075 + speed * .030,
         x: 1 + speed * .11,
         y: 1 - speed * .045,
+        contactDirection: contactDirection,
+        contactStrength: (contactStrength / 1.6).clamp(0.0, .16),
       );
       final bounds = membrane.getBounds();
       c.drawPath(
@@ -1744,17 +1730,63 @@ class _FoodAmbientPainter extends CustomPainter {
             ).createShader(dyeRect),
         );
       }
+      // A recognisable cell needs a stable nucleus and nucleolus rather than
+      // an anonymous colour blob. Both drift gently within the cytoplasm but
+      // stay enclosed by the membrane during contact deformation.
+      final nucleusCenter =
+          cell.center +
+          Offset(
+                math.cos(cell.phase * .72 + i),
+                math.sin(cell.phase * .58 - i),
+              ) *
+              cell.radius *
+              .22;
+      final nucleusRect = Rect.fromCircle(
+        center: nucleusCenter,
+        radius: cell.radius * .235,
+      );
+      c.drawOval(
+        nucleusRect,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-.28, -.25),
+            colors: [
+              Color.lerp(cell.color, Colors.white, .30)!.withValues(alpha: .28),
+              Color.lerp(
+                cell.color,
+                const Color(0xff14213d),
+                .72,
+              )!.withValues(alpha: .31),
+              const Color(0xff08101f).withValues(alpha: .21),
+            ],
+            stops: const [0, .58, 1],
+          ).createShader(nucleusRect),
+      );
+      c.drawCircle(
+        nucleusCenter + Offset(cell.radius * .045, -cell.radius * .028),
+        cell.radius * .060,
+        Paint()
+          ..color = Colors.white.withValues(alpha: .28)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.4),
+      );
       c.restore();
       c.drawPath(
         membrane,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = .82 + seed * .42
+          ..strokeWidth = 1.05 + seed * .42
           ..color = Color.lerp(
             cell.color,
             Colors.white,
             .34,
-          )!.withValues(alpha: .28),
+          )!.withValues(alpha: .38),
+      );
+      c.drawPath(
+        membrane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .44
+          ..color = const Color(0xff071522).withValues(alpha: .48),
       );
       c.drawCircle(
         cell.center +
@@ -1842,6 +1874,8 @@ class _FoodAmbientPainter extends CustomPainter {
     double d, {
     double x = 1,
     double y = 1,
+    Offset? contactDirection,
+    double contactStrength = 0,
   }) {
     final points = <Offset>[];
     for (var i = 0; i < n; i++) {
@@ -1850,7 +1884,18 @@ class _FoodAmbientPainter extends CustomPainter {
           1 +
           d *
               (.58 * math.sin(a * 3 + q + seed) +
-                  .3 * math.sin(a * 7 - q * .7));
+                  .3 * math.sin(a * 7 - q * .7)) -
+          contactStrength *
+              math.max(
+                0,
+                math.cos(
+                  a -
+                      math.atan2(
+                        contactDirection?.dy ?? 0,
+                        contactDirection?.dx ?? 1,
+                      ),
+                ),
+              );
       points.add(
         Offset(o.dx + math.cos(a) * r * w * x, o.dy + math.sin(a) * r * w * y),
       );

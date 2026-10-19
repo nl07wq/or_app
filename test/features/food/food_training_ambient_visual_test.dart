@@ -32,25 +32,25 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('CHROMATIC FLUID V3.5 visual frame is stable', (tester) async {
+  testWidgets('CHROMATIC FLUID V3.6 visual frame is stable', (tester) async {
     await pumpFood(tester, FoodAmbientVariant.chromaticFluid);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_phase_a.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_phase_a.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.5 visual frame is stable', (tester) async {
+  testWidgets('METABOLIC CELLS V3.6 visual frame is stable', (tester) async {
     await pumpFood(tester, FoodAmbientVariant.metabolicCells);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolic_cells_v3_5.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v3_6.png'),
     );
   });
 
@@ -76,7 +76,7 @@ void main() {
     );
   });
 
-  testWidgets('CHROMATIC FLUID V3.5 remains deterministic at a later phase', (
+  testWidgets('CHROMATIC FLUID V3.6 remains deterministic at a later phase', (
     tester,
   ) async {
     await pumpFood(
@@ -89,11 +89,11 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_phase_b.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_phase_b.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.5 remains deterministic at a later phase', (
+  testWidgets('METABOLIC CELLS V3.6 remains deterministic at a later phase', (
     tester,
   ) async {
     await pumpFood(
@@ -106,7 +106,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolicCells_v3_5_phase_b.png'),
+      matchesGoldenFile('goldens/food_metabolicCells_v3_6_phase_b.png'),
     );
   });
 
