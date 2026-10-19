@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
@@ -118,7 +116,7 @@ class OperationButton extends StatelessWidget {
       ),
     );
     final surfaced = frostedGradient || frostedGlass
-        ? _OperationFrostedGradientSurface(child: button)
+        ? _OperationSafeGlassSurface(colorScheme: colorScheme, child: button)
         : dashboardGlass
         ? Container(
             decoration: DashboardGlassCard.decoration(
@@ -144,99 +142,28 @@ class OperationButton extends StatelessWidget {
   }
 }
 
-/// The weak full-surface pass keeps the right edge glass-like. Two tapered,
-/// clipped backdrop layers increase the blur toward the left without using a
-/// ShaderMask. This keeps the filtered backdrop separate from the foreground
-/// button on Safari's web renderer.
-class _OperationFrostedGradientSurface extends StatelessWidget {
-  const _OperationFrostedGradientSurface({required this.child});
-
-  final Widget child;
-
-  static const _weakBlur = 1.4;
-  static const _mediumBlur = 3.8;
-  static const _strongBlur = 7.2;
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-    key: const ValueKey('operation-frosted-gradient'),
-    borderRadius: AppRadius.medium,
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: _weakBlur, sigmaY: _weakBlur),
-          child: const SizedBox.expand(),
-        ),
-        _LeftTaperedBackdropBlur(
-          sigma: _mediumBlur,
-          rightExtent: .78,
-        ),
-        _LeftTaperedBackdropBlur(
-          sigma: _strongBlur,
-          rightExtent: .48,
-        ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0x9c213b4d), Color(0x7c1b3345), Color(0x5415293a)],
-              stops: [0, .42, 1],
-            ),
-            border: Border.all(color: const Color(0x8878a8b8)),
-            borderRadius: AppRadius.medium,
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33020c16),
-                blurRadius: 4,
-                offset: Offset(0, 1),
-              ),
-            ],
-          ),
-        ),
-        child,
-      ],
-    ),
-  );
-}
-
-class _LeftTaperedBackdropBlur extends StatelessWidget {
-  const _LeftTaperedBackdropBlur({
-    required this.sigma,
-    required this.rightExtent,
+/// WebKit-safe material for primary operation controls.
+///
+/// V1 and V1.1 both relied on clipped [BackdropFilter] compositor passes;
+/// iPhone Safari can discard that filtered subtree, including its foreground.
+/// Preserve every existing frosted call site and interaction while rendering
+/// the established Dashboard glass material without a filtered layer.
+class _OperationSafeGlassSurface extends StatelessWidget {
+  const _OperationSafeGlassSurface({
+    required this.colorScheme,
+    required this.child,
   });
 
-  final double sigma;
-  final double rightExtent;
+  final ColorScheme colorScheme;
+  final Widget child;
 
   @override
-  Widget build(BuildContext context) => ClipPath(
-    clipper: _LeftTaperClipper(rightExtent),
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-      child: const SizedBox.expand(),
+  Widget build(BuildContext context) => DecoratedBox(
+    key: const ValueKey('operation-safe-glass'),
+    decoration: DashboardGlassCard.decoration(
+      colorScheme,
+      borderRadius: AppRadius.medium,
     ),
+    child: child,
   );
-}
-
-class _LeftTaperClipper extends CustomClipper<Path> {
-  const _LeftTaperClipper(this.rightExtent);
-
-  final double rightExtent;
-
-  @override
-  Path getClip(Size size) {
-    final edge = size.width * rightExtent;
-    return Path()
-      ..moveTo(0, 0)
-      ..lineTo(edge * .88, 0)
-      ..cubicTo(edge * 1.03, size.height * .20, edge * .75, size.height * .76, edge, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-  }
-
-  @override
-  bool shouldReclip(covariant _LeftTaperClipper oldClipper) =>
-      oldClipper.rightExtent != rightExtent;
 }

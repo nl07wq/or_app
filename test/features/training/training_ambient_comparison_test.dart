@@ -756,7 +756,7 @@ void main() {
   );
 
   testWidgets(
-    'V11.8 TRAINING actions use localized frosted glass without outer cards',
+    'V1.2 recovery uses safe glass without filtered foreground subtrees',
     (tester) async {
       tester.view.physicalSize = const Size(390, 1600);
       tester.view.devicePixelRatio = 1;
@@ -792,8 +792,17 @@ void main() {
           find.ancestor(of: buttonFinder, matching: find.byType(OperationCard)),
           findsNothing,
         );
+        expect(
+          find.descendant(
+            of: buttonFinder,
+            matching: find.byKey(const ValueKey('operation-safe-glass')),
+          ),
+          findsOneWidget,
+        );
       }
-      expect(find.byType(BackdropFilter), findsNWidgets(5));
+      expect(find.byType(BackdropFilter), findsNothing);
+      expect(find.byType(ClipPath), findsNothing);
+      expect(find.byType(ShaderMask), findsNothing);
     },
   );
 

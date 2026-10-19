@@ -58,29 +58,67 @@ void main() {
     expect(region.role, ActionableFeedbackRole.silent);
   });
 
-  testWidgets(
-    'frosted gradient keeps foreground content outside tapered backdrop filters',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: OperationButton(
-              text: 'FROSTED',
-              frostedGradient: true,
-              onPressed: () {},
+  testWidgets('frosted operation button uses the WebKit-safe glass surface', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OperationButton(
+            text: 'FROSTED',
+            frostedGradient: true,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('operation-safe-glass')), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.byType(ClipPath), findsNothing);
+    expect(find.byType(ShaderMask), findsNothing);
+    expect(find.text('FROSTED'), findsOneWidget);
+    expect(tester.getSize(find.byType(ElevatedButton)), const Size(800, 52));
+  });
+
+  testWidgets('safe glass material renders its foreground pixels', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 160));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: RepaintBoundary(
+          key: const ValueKey('safe-glass-golden'),
+          child: Scaffold(
+            body: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xff071522), Color(0xff23445a)],
+                ),
+              ),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: OperationButton(
+                    text: 'OPERATION READY',
+                    icon: Icons.play_arrow_rounded,
+                    frostedGradient: true,
+                    onPressed: () {},
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      expect(
-        find.byKey(const ValueKey('operation-frosted-gradient')),
-        findsOneWidget,
-      );
-      expect(find.byType(BackdropFilter), findsNWidgets(3));
-      expect(find.byType(ClipPath), findsNWidgets(2));
-      expect(find.byType(ShaderMask), findsNothing);
-      expect(find.text('FROSTED'), findsOneWidget);
-    },
-  );
+    await expectLater(
+      find.byKey(const ValueKey('safe-glass-golden')),
+      matchesGoldenFile('goldens/operation_button_safe_glass.png'),
+    );
+  });
 }
