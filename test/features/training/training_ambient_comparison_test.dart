@@ -65,6 +65,93 @@ void main() {
     }
   });
 
+  test(
+    'V12 continuous drive phase and velocity have no former 48-second reset',
+    () {
+      final before = TrainingAmbientComparison.kineticDrivePhase(47.99);
+      final boundary = TrainingAmbientComparison.kineticDrivePhase(48);
+      final after = TrainingAmbientComparison.kineticDrivePhase(48.01);
+      expect(boundary - before, greaterThan(0));
+      expect(after - boundary, greaterThan(0));
+      expect(boundary - before, closeTo(after - boundary, .0003));
+      expect(
+        TrainingAmbientComparison.kineticDriveAngularVelocity(47.99),
+        closeTo(
+          TrainingAmbientComparison.kineticDriveAngularVelocity(48.01),
+          .001,
+        ),
+      );
+    },
+  );
+
+  test('V12 uses one finite common phase over long active sessions', () {
+    final gears = TrainingAmbientComparison.kineticGearGeometryFor(
+      const Size(390, 844),
+    );
+    const durations = <double>[48, 300, 600, 1800, 3600, 8 * 3600, 24 * 3600];
+    for (final seconds in durations) {
+      final phase = TrainingAmbientComparison.kineticDrivePhase(seconds);
+      expect(phase.isFinite, isTrue);
+      expect(
+        TrainingAmbientComparison.kineticDriveAngularVelocity(seconds),
+        greaterThan(.60),
+      );
+      for (final gear in gears) {
+        expect(gear.phaseAt(phase).isFinite, isTrue);
+      }
+    }
+  });
+
+  test(
+    'V12 has no implicit rebase at five minutes or long active intervals',
+    () {
+      const boundaries = <double>[300, 600, 1800, 3600, 8 * 3600, 24 * 3600];
+      for (final boundary in boundaries) {
+        final before = TrainingAmbientComparison.kineticDrivePhase(
+          boundary - .01,
+        );
+        final at = TrainingAmbientComparison.kineticDrivePhase(boundary);
+        final after = TrainingAmbientComparison.kineticDrivePhase(
+          boundary + .01,
+        );
+        expect(at - before, greaterThan(0));
+        expect(after - at, greaterThan(0));
+        expect(at - before, closeTo(after - at, .0003));
+      }
+    },
+  );
+
+  test(
+    'V12 active clock freezes lifecycle gaps and resumes without catch-up',
+    () {
+      final clock = KineticActiveClock();
+      for (var second = 1; second <= 48; second++) {
+        clock.advance(Duration(seconds: second));
+      }
+      expect(clock.elapsedSeconds, closeTo(48, .000001));
+      clock.pause(const Duration(seconds: 48, milliseconds: 10));
+      final paused = clock.elapsedSeconds;
+      clock.advance(const Duration(minutes: 30));
+      expect(clock.elapsedSeconds, closeTo(paused, .000001));
+      clock.resume();
+      clock.advance(const Duration(minutes: 30));
+      clock.advance(const Duration(minutes: 30, milliseconds: 100));
+      expect(clock.elapsedSeconds, closeTo(paused + .1, .000001));
+    },
+  );
+
+  test(
+    'V12 ignores only pathological scheduler gaps, not normal delayed frames',
+    () {
+      final clock = KineticActiveClock();
+      clock.advance(Duration.zero);
+      clock.advance(const Duration(milliseconds: 400));
+      expect(clock.elapsedSeconds, closeTo(.4, .000001));
+      clock.advance(const Duration(seconds: 3));
+      expect(clock.elapsedSeconds, closeTo(.4, .000001));
+    },
+  );
+
   test('V11.1 tooth envelope is taller and tips are narrower than V11', () {
     final primary = TrainingAmbientComparison.kineticGearGeometryFor(
       const Size(390, 788),
@@ -655,6 +742,39 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets(
+    'V12 continuous mechanics render across the former 48-second boundary',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _precacheKineticBackground(tester);
+      const times = [47.8, 47.99, 48.0, 48.01, 48.2];
+      for (var index = 0; index < times.length; index++) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: TrainingAmbientComparison(
+                key: const ValueKey('v12-continuous-boundary'),
+                variant: TrainingAmbientVariant.kineticEngine,
+                debugTime: times[index],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await expectLater(
+          find.byKey(const ValueKey('v12-continuous-boundary')),
+          matchesGoldenFile(
+            'goldens/training_kinetic_engine_v12_boundary_$index.png',
+          ),
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets(
     'V11.6 kinetic ambient fills the header viewport and remains fixed',

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
@@ -12,6 +13,48 @@ enum TrainingAmbientVariant {
 
   const TrainingAmbientVariant(this.label);
   final String label;
+}
+
+/// Accumulates only frames during which a KINETIC ENGINE view is active.
+///
+/// This deliberately owns elapsed mechanical time separately from the ticker
+/// that requests paints: a scheduler ticker may be restarted after lifecycle
+/// changes without rewinding the connected gear train.
+class KineticActiveClock {
+  KineticActiveClock({this.maximumUnexpectedGap = const Duration(seconds: 1)});
+
+  final Duration maximumUnexpectedGap;
+  // A fresh ticker reports elapsed time from zero. Starting from that epoch
+  // retains the first displayed frame interval; resume explicitly clears it.
+  Duration? _lastFrameTimestamp = Duration.zero;
+  double _elapsedSeconds = 0;
+  bool _isActive = true;
+
+  double get elapsedSeconds => _elapsedSeconds;
+  bool get isActive => _isActive;
+
+  void advance(Duration timestamp) {
+    final previous = _lastFrameTimestamp;
+    _lastFrameTimestamp = timestamp;
+    if (!_isActive || previous == null) return;
+    final delta = timestamp - previous;
+    // A regular delayed frame must retain its true phase. A multi-second gap
+    // means the browser stopped scheduling without a lifecycle callback; it
+    // is treated as an inactive interval rather than a catch-up jump.
+    if (delta <= Duration.zero || delta > maximumUnexpectedGap) return;
+    _elapsedSeconds += delta.inMicroseconds / Duration.microsecondsPerSecond;
+  }
+
+  void pause(Duration timestamp) {
+    advance(timestamp);
+    _isActive = false;
+  }
+
+  void resume() {
+    _isActive = true;
+    // The first new scheduler timestamp establishes the next frame origin.
+    _lastFrameTimestamp = null;
+  }
 }
 
 /// Stable, PNG-replaceable mechanical geometry.  The same tooth count drives
@@ -409,6 +452,11 @@ class TrainingAmbientComparison extends StatefulWidget {
 
   static double kineticDrivePhase(double time) =>
       .72 * time + .11 / .17 * (1 - math.cos(time * .17));
+
+  /// First derivative of [kineticDrivePhase].  Keeping it explicit makes the
+  /// continuous-clock contract testable at former controller boundaries.
+  static double kineticDriveAngularVelocity(double time) =>
+      .72 + .11 * math.sin(time * .17);
 
   /// Builds one connected, vertically distributed train for the actual
   /// scrollable painting extent. All gears share one module and every child
@@ -947,20 +995,43 @@ class TrainingAmbientComparison extends StatefulWidget {
 }
 
 class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const _kineticBackgroundImage = AssetImage(
     TrainingAmbientComparison.kineticEngineBackgroundAsset,
   );
-  late final AnimationController _controller;
+  late final Ticker _ticker;
+  final KineticActiveClock _machineClock = KineticActiveClock();
+  Duration? _lastTickerElapsed;
   bool _didPrecacheKineticBackground = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 48),
-    )..repeat();
+    WidgetsBinding.instance.addObserver(this);
+    _ticker = createTicker(_onFrame)..start();
+  }
+
+  void _onFrame(Duration elapsed) {
+    _lastTickerElapsed = elapsed;
+    _machineClock.advance(elapsed);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _machineClock.resume();
+        if (!_ticker.isActive) _ticker.start();
+        return;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        final timestamp = _lastTickerElapsed;
+        if (timestamp != null) _machineClock.pause(timestamp);
+        _ticker.stop();
+    }
   }
 
   @override
@@ -978,35 +1049,33 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
 
   @override
   void dispose() {
-    _controller.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _ticker.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
     child: RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) => Stack(
-          fit: StackFit.expand,
-          children: [
-            if (widget.variant == TrainingAmbientVariant.kineticEngine)
-              Image(
-                image: _kineticBackgroundImage,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                filterQuality: FilterQuality.medium,
-                gaplessPlayback: true,
-              ),
-            CustomPaint(
-              painter: _TrainingAmbientPainter(
-                variant: widget.variant,
-                time: widget.debugTime ?? _controller.value * 48,
-              ),
-              child: const SizedBox.expand(),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (widget.variant == TrainingAmbientVariant.kineticEngine)
+            Image(
+              image: _kineticBackgroundImage,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              filterQuality: FilterQuality.medium,
+              gaplessPlayback: true,
             ),
-          ],
-        ),
+          CustomPaint(
+            painter: _TrainingAmbientPainter(
+              variant: widget.variant,
+              time: widget.debugTime ?? _machineClock.elapsedSeconds,
+            ),
+            child: const SizedBox.expand(),
+          ),
+        ],
       ),
     ),
   );
