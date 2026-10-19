@@ -9,6 +9,7 @@ void main() {
   Future<void> pumpHistory(
     WidgetTester tester, {
     Size size = const Size(390, 844),
+    bool animateAmbient = false,
   }) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -20,7 +21,7 @@ void main() {
       MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: StandardTheme.theme,
-        home: const DataCenterHistoryPage(animateAmbient: false),
+        home: DataCenterHistoryPage(animateAmbient: animateAmbient),
       ),
     );
     await tester.pump();
@@ -146,6 +147,56 @@ void main() {
           ),
         );
       }
+    }
+  });
+
+  testWidgets('renders distinct title comparison goldens', (tester) async {
+    await pumpHistory(tester);
+    for (final title in HistoryTitleVariant.values) {
+      await tester.tap(
+        find.text(switch (title) {
+          HistoryTitleVariant.archiveDisplay => 'A DISPLAY',
+          HistoryTitleVariant.archivePlate => 'B PLATE',
+          HistoryTitleVariant.memoryModule => 'C MODULE',
+        }),
+      );
+      await tester.pump();
+      await expectLater(
+        find.byKey(ValueKey('history-title-${title.name}')),
+        matchesGoldenFile('goldens/history_title_${title.name}.png'),
+      );
+    }
+  });
+
+  testWidgets('keeps each animated ambient continuous at loop boundary', (
+    tester,
+  ) async {
+    await pumpHistory(tester, animateAmbient: true);
+    for (final ambient in HistoryAmbientVariant.values) {
+      await tester.tap(
+        find.text(switch (ambient) {
+          HistoryAmbientVariant.chronoArchive => 'A CHRONO',
+          HistoryAmbientVariant.dataVault => 'B VAULT',
+          HistoryAmbientVariant.memoryStream => 'C STREAM',
+        }),
+      );
+      await tester.pump();
+      await expectLater(
+        find.byKey(ValueKey('history-ambient-${ambient.name}')),
+        matchesGoldenFile('goldens/history_ambient_${ambient.name}_start.png'),
+      );
+      await tester.pump(const Duration(seconds: 9));
+      await expectLater(
+        find.byKey(ValueKey('history-ambient-${ambient.name}')),
+        matchesGoldenFile(
+          'goldens/history_ambient_${ambient.name}_quarter.png',
+        ),
+      );
+      await tester.pump(const Duration(seconds: 27));
+      await expectLater(
+        find.byKey(ValueKey('history-ambient-${ambient.name}')),
+        matchesGoldenFile('goldens/history_ambient_${ambient.name}_loop.png'),
+      );
     }
   });
 }

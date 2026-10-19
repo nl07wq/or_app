@@ -329,7 +329,10 @@ class _HistoryAppBarTitle extends StatelessWidget {
     child: CustomPaint(
       key: ValueKey('history-title-${variant.name}'),
       painter: _HistoryTitlePainter(variant),
-      child: Center(
+      child: Align(
+        alignment: variant == HistoryTitleVariant.memoryModule
+            ? const Alignment(.17, 0)
+            : Alignment.center,
         child: Text(
           'HISTORY',
           style: TextStyle(
@@ -337,14 +340,25 @@ class _HistoryAppBarTitle extends StatelessWidget {
                 ? const Color(0xffdcebf2)
                 : const Color(0xffd8faff),
             fontFamily: 'ShareTechMono',
-            fontSize: 19,
+            fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
             fontWeight: FontWeight.w400,
             letterSpacing: variant == HistoryTitleVariant.memoryModule
-                ? 1.3
+                ? 1.0
+                : variant == HistoryTitleVariant.archivePlate
+                ? 1.45
                 : 2.1,
-            shadows: variant == HistoryTitleVariant.archiveDisplay
-                ? const [Shadow(color: Color(0xff3edff5), blurRadius: 7)]
-                : null,
+            shadows: switch (variant) {
+              HistoryTitleVariant.archiveDisplay => const [
+                Shadow(color: Color(0xff3edff5), blurRadius: 7),
+              ],
+              HistoryTitleVariant.archivePlate => const [
+                Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
+                Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
+              ],
+              HistoryTitleVariant.memoryModule => const [
+                Shadow(color: Color(0xff37dff7), blurRadius: 4),
+              ],
+            },
           ),
         ),
       ),
@@ -359,69 +373,179 @@ class _HistoryTitlePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final frame = RRect.fromRectAndRadius(
-      Rect.fromLTWH(1, 3, size.width - 2, size.height - 6),
-      const Radius.circular(5),
-    );
-    final fill = Paint()
-      ..color = switch (variant) {
-        HistoryTitleVariant.archiveDisplay => const Color(
-          0xff06141b,
-        ).withValues(alpha: .88),
-        HistoryTitleVariant.archivePlate => const Color(
-          0xff1a252b,
-        ).withValues(alpha: .9),
-        HistoryTitleVariant.memoryModule => const Color(
-          0xff07101a,
-        ).withValues(alpha: .92),
-      };
-    canvas.drawRRect(frame, fill);
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = switch (variant) {
-        HistoryTitleVariant.archiveDisplay => const Color(
-          0xff54ddec,
-        ).withValues(alpha: .72),
-        HistoryTitleVariant.archivePlate => const Color(
-          0xff9ab4c0,
-        ).withValues(alpha: .72),
-        HistoryTitleVariant.memoryModule => const Color(
-          0xff4a94bd,
-        ).withValues(alpha: .82),
-      };
-    canvas.drawRRect(frame, border);
     switch (variant) {
       case HistoryTitleVariant.archiveDisplay:
-        final scan = Paint()
-          ..color = const Color(0xff7af1ff).withValues(alpha: .10);
-        for (var y = 8.0; y < size.height - 4; y += 4) {
-          canvas.drawLine(Offset(6, y), Offset(size.width - 6, y), scan);
-        }
+        _paintArchiveDisplay(canvas, size);
       case HistoryTitleVariant.archivePlate:
-        final line = Paint()
-          ..color = const Color(0xffa7cbd8).withValues(alpha: .46)
-          ..strokeWidth = .8;
-        canvas.drawLine(Offset(9, 10), Offset(size.width - 9, 10), line);
-        canvas.drawLine(
-          Offset(9, size.height - 10),
-          Offset(size.width - 9, size.height - 10),
-          line,
-        );
+        _paintArchivePlate(canvas, size);
       case HistoryTitleVariant.memoryModule:
-        final indicator = Paint()
-          ..color = const Color(0xff3ee5fc).withValues(alpha: .85);
-        for (final x in [10.0, 15.0, size.width - 15, size.width - 10]) {
-          canvas.drawCircle(Offset(x, size.height / 2), 1.4, indicator);
-        }
-        final access = Paint()
-          ..color = const Color(0xff5fd4f3).withValues(alpha: .55);
-        canvas.drawLine(
-          Offset(24, size.height - 8),
-          Offset(size.width - 24, size.height - 8),
-          access,
-        );
+        _paintMemoryModule(canvas, size);
     }
+  }
+
+  void _paintArchiveDisplay(Canvas canvas, Size size) {
+    final outer = RRect.fromRectAndRadius(
+      Rect.fromLTWH(2, 4, size.width - 4, size.height - 8),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xff234450), Color(0xff07151b), Color(0xff183943)],
+        ).createShader(outer.outerRect),
+    );
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xff5be7f5).withValues(alpha: .72),
+    );
+    final bezel = RRect.fromRectAndRadius(
+      Rect.fromLTWH(8, 8, size.width - 16, size.height - 16),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(bezel, Paint()..color = const Color(0xff02090d));
+    canvas.drawRRect(
+      bezel,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0xff366d79),
+    );
+    final scan = Paint()
+      ..color = const Color(0xff9cf8ff).withValues(alpha: .07);
+    for (var y = bezel.top + 3; y < bezel.bottom; y += 3.2) {
+      canvas.drawLine(
+        Offset(bezel.left + 3, y),
+        Offset(bezel.right - 3, y),
+        scan,
+      );
+    }
+    final rail = Paint()
+      ..strokeWidth = 1.2
+      ..color = const Color(0xff78eaf7).withValues(alpha: .45);
+    canvas.drawLine(Offset(5, 11), Offset(5, size.height - 11), rail);
+    canvas.drawLine(
+      Offset(size.width - 5, 11),
+      Offset(size.width - 5, size.height - 11),
+      rail,
+    );
+  }
+
+  void _paintArchivePlate(Canvas canvas, Size size) {
+    final shadowPath = _beveledPlatePath(size, yOffset: 3);
+    canvas.drawPath(shadowPath, Paint()..color = const Color(0xff05090b));
+    final platePath = _beveledPlatePath(size);
+    final bounds = Rect.fromLTWH(5, 6, size.width - 10, size.height - 12);
+    canvas.drawPath(
+      platePath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xff7894a1), Color(0xff283d47), Color(0xff0c151b)],
+          stops: [.0, .42, 1],
+        ).createShader(bounds),
+    );
+    canvas.drawPath(
+      platePath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.15
+        ..color = const Color(0xffc0d9e1).withValues(alpha: .72),
+    );
+    final inner = RRect.fromRectAndRadius(
+      Rect.fromLTWH(12, 12, size.width - 24, size.height - 24),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(
+      inner,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8
+        ..color = const Color(0xffd0e7ed).withValues(alpha: .36),
+    );
+    for (final x in [14.0, size.width - 14]) {
+      for (final y in [13.0, size.height - 13]) {
+        canvas.drawCircle(
+          Offset(x, y),
+          2.2,
+          Paint()..color = const Color(0xff111d23),
+        );
+        canvas.drawCircle(
+          Offset(x - .45, y - .45),
+          .85,
+          Paint()..color = const Color(0xffd3e5e9).withValues(alpha: .72),
+        );
+      }
+    }
+  }
+
+  Path _beveledPlatePath(Size size, {double yOffset = 0}) => Path()
+    ..moveTo(10, 6 + yOffset)
+    ..lineTo(size.width - 10, 6 + yOffset)
+    ..lineTo(size.width - 5, 11 + yOffset)
+    ..lineTo(size.width - 5, size.height - 11 + yOffset)
+    ..lineTo(size.width - 10, size.height - 6 + yOffset)
+    ..lineTo(10, size.height - 6 + yOffset)
+    ..lineTo(5, size.height - 11 + yOffset)
+    ..lineTo(5, 11 + yOffset)
+    ..close();
+
+  void _paintMemoryModule(Canvas canvas, Size size) {
+    final housing = Path()
+      ..moveTo(8, 7)
+      ..lineTo(size.width - 37, 7)
+      ..lineTo(size.width - 30, 12)
+      ..lineTo(size.width - 17, 12)
+      ..lineTo(size.width - 17, size.height - 11)
+      ..lineTo(size.width - 30, size.height - 11)
+      ..lineTo(size.width - 37, size.height - 6)
+      ..lineTo(8, size.height - 6)
+      ..lineTo(4, size.height - 10)
+      ..lineTo(4, 12)
+      ..close();
+    canvas.drawPath(
+      housing,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xff1b3c4b), Color(0xff07121a), Color(0xff0d2632)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+    canvas.drawPath(
+      housing,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = const Color(0xff47cbe4).withValues(alpha: .7),
+    );
+    final trace = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .8
+      ..color = const Color(0xff56e1f4).withValues(alpha: .5);
+    for (final y in [13.0, 18.0, size.height - 13, size.height - 18]) {
+      canvas.drawLine(Offset(14, y), Offset(32, y), trace);
+      canvas.drawLine(Offset(32, y), Offset(38, size.height / 2), trace);
+    }
+    final contact = Paint()
+      ..color = const Color(0xff9dc8d2).withValues(alpha: .78);
+    for (var index = 0; index < 5; index++) {
+      final top = 11 + index * 4.4;
+      canvas.drawRect(Rect.fromLTWH(size.width - 15, top, 7, 2.4), contact);
+    }
+    final led = Paint()..color = const Color(0xff51ebf7);
+    canvas.drawCircle(Offset(13, size.height / 2), 1.5, led);
+    canvas.drawCircle(
+      Offset(19, size.height / 2),
+      1.5,
+      led..color = const Color(0xff32788b),
+    );
   }
 
   @override
@@ -452,94 +576,273 @@ class _HistoryAmbientPainter extends CustomPainter {
   }
 
   void _paintChronoArchive(Canvas canvas, Size size) {
-    final center = Offset(size.width * .54, size.height * .42);
+    final center = Offset(size.width * .54, size.height * .43);
     final rotation = phase * math.pi * 2;
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xff4bd9ef).withValues(alpha: .12);
-    for (var index = 1; index <= 5; index++) {
-      canvas.drawCircle(
-        center,
-        42.0 * index + math.sin(rotation + index) * 5,
-        ring,
-      );
-    }
-    final arc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xff76e9fb).withValues(alpha: .25);
-    for (var index = 0; index < 3; index++) {
-      final radius = 72.0 + index * 61;
+      ..color = const Color(0xff4bd9ef).withValues(alpha: .14);
+    for (var index = 0; index < 5; index++) {
+      final radius = 46.0 + index * 43;
+      canvas.drawCircle(center, radius, ring);
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
-        rotation + index * 1.9,
-        .55,
+        -math.pi / 2 + rotation * (index.isEven ? 1 : -.55),
+        .62 + index * .08,
         false,
-        arc,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff71e8f8).withValues(alpha: .26),
       );
     }
-    _drawPoints(canvas, size, const Color(0xff61e5f6), 18, rotation);
+    final tick = Paint()
+      ..strokeWidth = .9
+      ..color = const Color(0xff8beefa).withValues(alpha: .24);
+    for (var index = 0; index < 60; index++) {
+      final angle = index / 60 * math.pi * 2 - math.pi / 2;
+      final outer = 168.0;
+      final inner = outer - (index % 5 == 0 ? 10 : 5);
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      canvas.drawLine(
+        center + direction * inner,
+        center + direction * outer,
+        tick,
+      );
+    }
+    _drawPointer(
+      canvas,
+      center,
+      rotation * 1.0,
+      130,
+      const Color(0xff7cf0ff),
+      2.2,
+    );
+    _drawPointer(
+      canvas,
+      center,
+      -rotation * .37 + .8,
+      104,
+      const Color(0xff7ea7e8),
+      1.6,
+    );
+    _drawPointer(
+      canvas,
+      center,
+      rotation * 1.8 + 2.3,
+      72,
+      const Color(0xffe184e1),
+      1.1,
+    );
+    canvas.drawCircle(center, 6, Paint()..color = const Color(0xff08171e));
+    canvas.drawCircle(
+      center,
+      6,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xff78eafa).withValues(alpha: .65),
+    );
+    _drawPoints(canvas, size, const Color(0xff61e5f6), 13, rotation);
   }
 
   void _paintDataVault(Canvas canvas, Size size) {
-    final channel = Paint()
-      ..color = const Color(0xff4a7f92).withValues(alpha: .12);
-    final edge = Paint()
+    final vanishing = Offset(size.width * .53, size.height * .19);
+    final far = Offset(size.width * .5, size.height * .52);
+    final rail = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xff63cde3).withValues(alpha: .18);
-    for (var index = 0; index < 6; index++) {
-      final x =
-          size.width * (.08 + index * .17) +
-          math.sin(phase * math.pi * 2 + index) * 3;
-      final rect = Rect.fromLTWH(x, 0, size.width * .09, size.height);
-      canvas.drawRect(rect, channel);
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), edge);
+      ..color = const Color(0xff66cddd).withValues(alpha: .17);
+    for (var index = 0; index <= 8; index++) {
+      final floorX = size.width * (index / 8);
+      canvas.drawLine(vanishing, Offset(floorX, size.height), rail);
     }
-    final slot = Paint()
-      ..color = const Color(0xff0d2831).withValues(alpha: .34)
-      ..style = PaintingStyle.fill;
-    final slotEdge = Paint()
-      ..color = const Color(0xff77dce8).withValues(alpha: .18)
-      ..style = PaintingStyle.stroke;
-    for (var y = 40.0; y < size.height; y += 82) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(18, y, size.width - 36, 38),
-          const Radius.circular(4),
-        ),
-        slot,
+    for (var row = 0; row < 7; row++) {
+      final t = row / 7;
+      final y = far.dy + (size.height - far.dy) * t * t;
+      final width = size.width * (.18 + .82 * t);
+      final left = size.width / 2 - width / 2;
+      final height = 18 + t * 28;
+      final rack = Path()
+        ..moveTo(left, y)
+        ..lineTo(left + width, y)
+        ..lineTo(left + width - 8 * t, y + height)
+        ..lineTo(left + 8 * t, y + height)
+        ..close();
+      canvas.drawPath(
+        rack,
+        Paint()
+          ..color = const Color(0xff0d2933).withValues(alpha: .36 + t * .14),
       );
-      canvas.drawLine(Offset(18, y), Offset(size.width - 18, y), slotEdge);
+      canvas.drawPath(rack, rail);
+      final slotCount = 3 + (t * 3).round();
+      for (var slot = 0; slot < slotCount; slot++) {
+        final fraction = slot / slotCount;
+        final slotLeft = left + width * fraction + 5;
+        final slotWidth = width / slotCount - 10;
+        final slotRect = Rect.fromLTWH(slotLeft, y + 4, slotWidth, height - 8);
+        canvas.drawRect(
+          slotRect,
+          Paint()..color = const Color(0xff02090e).withValues(alpha: .54),
+        );
+        final access = (phase * 2.7 + row * .19 + slot * .13) % 1;
+        if (access > .78) {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              slotLeft + 2,
+              y + height / 2 - 1,
+              math.max(2, slotWidth - 4),
+              2,
+            ),
+            Paint()..color = const Color(0xff5ce7f5).withValues(alpha: .65),
+          );
+        }
+      }
     }
-    _drawPoints(canvas, size, const Color(0xff78e5f2), 12, phase * math.pi * 2);
+    final sideWall = Paint()
+      ..color = const Color(0xff12333e).withValues(alpha: .18);
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, 0)
+        ..lineTo(vanishing.dx, vanishing.dy)
+        ..lineTo(0, size.height)
+        ..close(),
+      sideWall,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width, 0)
+        ..lineTo(vanishing.dx, vanishing.dy)
+        ..lineTo(size.width, size.height)
+        ..close(),
+      sideWall,
+    );
   }
 
   void _paintMemoryStream(Canvas canvas, Size size) {
-    final trace = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..strokeCap = StrokeCap.round;
-    for (var index = 0; index < 9; index++) {
-      final baseY = size.height * (.08 + index * .11);
-      final path = Path()..moveTo(0, baseY);
-      for (var x = 0.0; x <= size.width; x += 16) {
-        final y =
-            baseY +
-            math.sin(x / 42 + phase * math.pi * 2 + index) *
-                (5 + index % 3 * 2);
-        path.lineTo(x, y);
+    final paths = <Path>[
+      Path()
+        ..moveTo(-10, size.height * .2)
+        ..cubicTo(
+          size.width * .16,
+          size.height * .16,
+          size.width * .22,
+          size.height * .53,
+          size.width * .48,
+          size.height * .42,
+        )
+        ..cubicTo(
+          size.width * .7,
+          size.height * .32,
+          size.width * .77,
+          size.height * .15,
+          size.width + 10,
+          size.height * .25,
+        ),
+      Path()
+        ..moveTo(-10, size.height * .68)
+        ..cubicTo(
+          size.width * .22,
+          size.height * .77,
+          size.width * .3,
+          size.height * .29,
+          size.width * .54,
+          size.height * .46,
+        )
+        ..cubicTo(
+          size.width * .75,
+          size.height * .61,
+          size.width * .78,
+          size.height * .78,
+          size.width + 10,
+          size.height * .7,
+        ),
+      Path()
+        ..moveTo(size.width * .05, size.height + 8)
+        ..cubicTo(
+          size.width * .19,
+          size.height * .72,
+          size.width * .37,
+          size.height * .62,
+          size.width * .53,
+          size.height * .47,
+        )
+        ..cubicTo(
+          size.width * .69,
+          size.height * .31,
+          size.width * .91,
+          size.height * .49,
+          size.width + 10,
+          size.height * .45,
+        ),
+      Path()
+        ..moveTo(-8, size.height * .43)
+        ..cubicTo(
+          size.width * .18,
+          size.height * .38,
+          size.width * .3,
+          size.height * .44,
+          size.width * .48,
+          size.height * .42,
+        ),
+    ];
+    final colors = [
+      const Color(0xff54dff3),
+      const Color(0xff718fe5),
+      const Color(0xff9a75c7),
+      const Color(0xff3abfd9),
+    ];
+    for (var index = 0; index < paths.length; index++) {
+      final trace = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = index == 3 ? 1 : 1.7
+        ..strokeCap = StrokeCap.round
+        ..color = colors[index].withValues(alpha: .23);
+      canvas.drawPath(paths[index], trace);
+      final metrics = paths[index].computeMetrics().toList(growable: false);
+      if (metrics.isEmpty) continue;
+      final metric = metrics.single;
+      for (var particle = 0; particle < 3; particle++) {
+        final progress =
+            (phase * (0.38 + index * .11) + particle / 3 + index * .17) % 1;
+        final tangent = metric.getTangentForOffset(metric.length * progress);
+        if (tangent == null) continue;
+        canvas.drawCircle(
+          tangent.position,
+          2.0 - index * .15,
+          Paint()..color = colors[index].withValues(alpha: .68),
+        );
       }
-      trace.color = Color.lerp(
-        const Color(0xff2d8faf),
-        const Color(0xff9e7bc5),
-        index / 9,
-      )!.withValues(alpha: .2);
-      canvas.drawPath(path, trace);
     }
-    _drawPoints(canvas, size, const Color(0xff83e8fa), 16, phase * math.pi * 2);
+    final node = Paint()
+      ..color = const Color(0xff80ebf8).withValues(alpha: .42);
+    for (final point in [
+      Offset(size.width * .48, size.height * .42),
+      Offset(size.width * .54, size.height * .46),
+    ]) {
+      canvas.drawCircle(point, 5 + math.sin(phase * math.pi * 2) * 1.5, node);
+      canvas.drawCircle(point, 1.7, Paint()..color = const Color(0xffb5fbff));
+    }
+  }
+
+  void _drawPointer(
+    Canvas canvas,
+    Offset center,
+    double angle,
+    double length,
+    Color color,
+    double width,
+  ) {
+    final end = center + Offset(math.cos(angle), math.sin(angle)) * length;
+    canvas.drawLine(
+      center,
+      end,
+      Paint()
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: .62),
+    );
   }
 
   void _drawPoints(
