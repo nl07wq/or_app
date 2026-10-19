@@ -6,7 +6,7 @@ void main() {
   testWidgets('FOOD ambient comparison exposes and switches all candidates', (
     tester,
   ) async {
-    FoodAmbientVariant selected = FoodAmbientVariant.chromaticFluid;
+    FoodAmbientVariant selected = FoodAmbientVariant.gravityFlip;
     late StateSetter update;
 
     await tester.pumpWidget(
@@ -30,9 +30,10 @@ void main() {
       ),
     );
 
-    expect(FoodAmbientVariant.values, hasLength(3));
+    expect(FoodAmbientVariant.values, hasLength(4));
     expect(find.byType(FoodAmbientComparison), findsOneWidget);
-    expect(find.text('CHROMATIC FLUID'), findsOneWidget);
+    expect(find.text('GRAVITY FLIP'), findsOneWidget);
+    expect(find.text('CONTINUOUS CIRCULATION'), findsOneWidget);
     expect(find.text('METABOLIC CELLS'), findsOneWidget);
     expect(find.text('THERMAL CURRENT'), findsOneWidget);
 

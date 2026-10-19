@@ -58,20 +58,13 @@ void main() {
     final audio = _RecordingTouchRippleAudio();
     await tester.pumpWidget(
       MaterialApp(
-        home: GlobalTouchRipple(
-          audio: audio,
-          child: const FoodPage(),
-        ),
+        home: GlobalTouchRipple(audio: audio, child: const FoodPage()),
       ),
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('food-ambient-chromaticFluid')),
-    );
+    await tester.tap(find.byKey(const ValueKey('food-ambient-gravityFlip')));
     await tester.pump();
-    await tester.tap(
-      find.byKey(const ValueKey('food-ambient-metabolicCells')),
-    );
+    await tester.tap(find.byKey(const ValueKey('food-ambient-metabolicCells')));
     await tester.pump();
 
     expect(audio.played, [TouchFeedbackSound.cursor]);

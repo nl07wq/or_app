@@ -32,25 +32,25 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('CHROMATIC FLUID V3.6 visual frame is stable', (tester) async {
-    await pumpFood(tester, FoodAmbientVariant.chromaticFluid);
+  testWidgets('GRAVITY FLIP V4 visual frame is stable', (tester) async {
+    await pumpFood(tester, FoodAmbientVariant.gravityFlip);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_phase_a.png'),
+      matchesGoldenFile('goldens/food_gravity_flip_v4_phase_a.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.6 visual frame is stable', (tester) async {
+  testWidgets('METABOLIC CELLS V4 visual frame is stable', (tester) async {
     await pumpFood(tester, FoodAmbientVariant.metabolicCells);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolic_cells_v3_6.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v4.png'),
     );
   });
 
@@ -76,12 +76,12 @@ void main() {
     );
   });
 
-  testWidgets('CHROMATIC FLUID V3.6 remains deterministic at a later phase', (
+  testWidgets('CONTINUOUS CIRCULATION V4 remains deterministic later', (
     tester,
   ) async {
     await pumpFood(
       tester,
-      FoodAmbientVariant.chromaticFluid,
+      FoodAmbientVariant.continuousCirculation,
       const Duration(milliseconds: 5100),
     );
     await expectLater(
@@ -89,11 +89,11 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_6_phase_b.png'),
+      matchesGoldenFile('goldens/food_continuous_circulation_v4_phase_b.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS V3.6 remains deterministic at a later phase', (
+  testWidgets('METABOLIC CELLS V4 remains deterministic at a later phase', (
     tester,
   ) async {
     await pumpFood(
@@ -106,7 +106,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolicCells_v3_6_phase_b.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v4_phase_b.png'),
     );
   });
 

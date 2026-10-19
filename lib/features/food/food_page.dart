@@ -23,7 +23,7 @@ class FoodPage extends StatefulWidget {
 }
 
 class _FoodPageState extends State<FoodPage> {
-  FoodAmbientVariant _ambientVariant = FoodAmbientVariant.chromaticFluid;
+  FoodAmbientVariant _ambientVariant = FoodAmbientVariant.gravityFlip;
 
   @override
   Widget build(BuildContext context) {
