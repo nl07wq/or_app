@@ -205,22 +205,17 @@ void main() {
     }
   });
 
-  testWidgets('renders DATA VAULT corridor at the required animation phases', (
+  testWidgets('renders V1.5 DATA VAULT transfer trails through its loop', (
     tester,
   ) async {
     const phases = <(String, Duration)>[
-      ('cruise_0', Duration.zero),
-      ('cruise_7', Duration(seconds: 7)),
-      ('cruise_13', Duration(seconds: 13)),
-      ('sprint_16', Duration(seconds: 16)),
-      ('sprint_20', Duration(seconds: 20)),
-      ('sprint_24', Duration(seconds: 24)),
-      ('corner_27', Duration(seconds: 27)),
-      ('corner_32', Duration(seconds: 32)),
-      ('corner_37', Duration(seconds: 37)),
-      ('return_42', Duration(seconds: 42)),
-      ('return_4799', Duration(milliseconds: 47990)),
-      ('return_4801', Duration(milliseconds: 48010)),
+      ('start', Duration.zero),
+      ('eighth', Duration(seconds: 6)),
+      ('quarter', Duration(seconds: 12)),
+      ('half', Duration(seconds: 24)),
+      ('three_quarters', Duration(seconds: 36)),
+      ('boundary_before', Duration(milliseconds: 47990)),
+      ('boundary_after', Duration(milliseconds: 48010)),
     ];
 
     for (final phase in phases) {
@@ -231,21 +226,27 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('history-ambient-dataVault')),
         matchesGoldenFile(
-          'goldens/history_data_vault_v14_phase_${phase.$1}.png',
+          'goldens/history_data_vault_v15_phase_${phase.$1}.png',
         ),
       );
     }
   });
 
   test('DATA VAULT motion is monotonic with smooth periodic speed', () {
-    expect(HistoryDataVaultMotion.speedAt(0), 4);
-    expect(HistoryDataVaultMotion.speedAt(12), 4);
-    expect(HistoryDataVaultMotion.speedAt(17), 11);
-    expect(HistoryDataVaultMotion.speedAt(22), 11);
-    expect(HistoryDataVaultMotion.speedAt(27), 7);
-    expect(HistoryDataVaultMotion.speedAt(36), 7);
-    expect(HistoryDataVaultMotion.speedAt(42), 4);
-    expect(HistoryDataVaultMotion.speedAt(48), 4);
+    expect(HistoryDataVaultMotion.speedAt(0), 7);
+    expect(HistoryDataVaultMotion.speedAt(12), 7);
+    expect(HistoryDataVaultMotion.speedAt(17), 16);
+    expect(HistoryDataVaultMotion.speedAt(22), 16);
+    expect(HistoryDataVaultMotion.speedAt(27), 11);
+    expect(HistoryDataVaultMotion.speedAt(36), 11);
+    expect(HistoryDataVaultMotion.speedAt(42), 7);
+    expect(HistoryDataVaultMotion.speedAt(48), 7);
+    for (var milliseconds = 0; milliseconds <= 48000; milliseconds += 250) {
+      expect(
+        HistoryDataVaultMotion.speedAt(milliseconds / 1000),
+        greaterThanOrEqualTo(7),
+      );
+    }
     for (final transition in [0.0, 12.0, 17.0, 22.0, 27.0, 36.0, 42.0, 48.0]) {
       expect(
         (HistoryDataVaultMotion.speedAt(transition - .001) -
@@ -276,5 +277,27 @@ void main() {
       HistoryDataVaultMotion.distanceAt(48.01),
       greaterThan(HistoryDataVaultMotion.distanceAt(48)),
     );
+    expect(
+      HistoryDataVaultMotion.distanceAt(48.001) -
+          HistoryDataVaultMotion.distanceAt(47.999),
+      closeTo(.014, .0002),
+    );
+    for (var index = 0; index < 6; index++) {
+      final justBefore = HistoryDataVaultMotion.transferDepth(
+        47.999,
+        index,
+        rate: 38,
+        spacing: 15,
+      );
+      final justAfter = HistoryDataVaultMotion.transferDepth(
+        48.001,
+        index,
+        rate: 38,
+        spacing: 15,
+      );
+      // A packet may recycle only outside the visible depth interval.
+      final recycled = (justAfter - justBefore).abs() > 20;
+      expect(!recycled || justBefore < 0 || justBefore > 94, isTrue);
+    }
   });
 }
