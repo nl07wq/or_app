@@ -17,6 +17,7 @@ import 'models/food_summary_state.dart';
 import 'services/food_catalog_meal_mapper.dart';
 
 import 'widgets/food_input_form.dart';
+import 'widgets/food_saved_floating_hud.dart';
 import 'widgets/food_summary_card.dart';
 import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
@@ -136,9 +137,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       return false;
     }
     if (!mounted) return true;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
+    FoodSavedFloatingHud.show(context);
     _returnToFood();
     return true;
   }
@@ -177,9 +176,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       return false;
     }
     if (!mounted) return true;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('MEAL SAVED')));
+    FoodSavedFloatingHud.show(context);
     _returnToFood();
     return true;
   }
