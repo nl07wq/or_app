@@ -9,16 +9,21 @@ import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../services/history_visual_preference.dart';
+import '../widgets/history_data_vault_hyperspace.dart';
 
 class DataCenterHistoryPage extends StatefulWidget {
   const DataCenterHistoryPage({
     super.key,
     this.visualPreference,
     this.animateAmbient = true,
+    this.dataVaultSimulationTime,
   });
 
   final HistoryVisualPreference? visualPreference;
   final bool animateAmbient;
+
+  /// Test-only deterministic world time. Production uses a monotonic clock.
+  final Duration? dataVaultSimulationTime;
 
   @override
   State<DataCenterHistoryPage> createState() => _DataCenterHistoryPageState();
@@ -28,6 +33,7 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     with SingleTickerProviderStateMixin {
   late final HistoryVisualPreference _visualPreference;
   late final AnimationController _ambientController;
+  final Stopwatch _dataVaultClock = Stopwatch();
   HistoryVisualSelection _selection = const HistoryVisualSelection.defaults();
 
   @override
@@ -38,6 +44,7 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
       vsync: this,
       duration: const Duration(seconds: 36),
     );
+    _dataVaultClock.start();
     if (widget.animateAmbient) _ambientController.repeat();
     _restoreSelection();
   }
@@ -79,6 +86,10 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
             painter: _HistoryAmbientPainter(
               variant: _selection.ambient,
               phase: _ambientController.value,
+              dataVaultSeconds:
+                  (widget.dataVaultSimulationTime?.inMicroseconds ??
+                      _dataVaultClock.elapsedMicroseconds) /
+                  Duration.microsecondsPerSecond,
             ),
           ),
         ),
@@ -608,10 +619,15 @@ class _HistoryTitlePainter extends CustomPainter {
 }
 
 class _HistoryAmbientPainter extends CustomPainter {
-  const _HistoryAmbientPainter({required this.variant, required this.phase});
+  const _HistoryAmbientPainter({
+    required this.variant,
+    required this.phase,
+    required this.dataVaultSeconds,
+  });
 
   final HistoryAmbientVariant variant;
   final double phase;
+  final double dataVaultSeconds;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -715,357 +731,8 @@ class _HistoryAmbientPainter extends CustomPainter {
     _drawPoints(canvas, size, const Color(0xff61e5f6), 10, cycle);
   }
 
-  void _paintDataVault(Canvas canvas, Size size) {
-    // DATA VAULT V1.3: a filled architectural corridor, deliberately not a
-    // wireframe. Geometry is normalized to keep its depth hierarchy stable.
-    final viewport = Offset.zero & size;
-    final w = size.width;
-    final h = size.height;
-    final aperture = Rect.fromLTRB(w * .4, h * .33, w * .6, h * .66);
-    final focal = Offset(w * .5, h * .33);
-    final leftWall = Path()
-      ..moveTo(0, 0)
-      ..lineTo(aperture.left, aperture.top)
-      ..lineTo(aperture.left, aperture.bottom)
-      ..lineTo(0, h)
-      ..close();
-    final rightWall = Path()
-      ..moveTo(w, 0)
-      ..lineTo(aperture.right, aperture.top)
-      ..lineTo(aperture.right, aperture.bottom)
-      ..lineTo(w, h)
-      ..close();
-    final ceiling = Path()
-      ..moveTo(0, 0)
-      ..lineTo(w, 0)
-      ..lineTo(aperture.right, aperture.top)
-      ..lineTo(aperture.left, aperture.top)
-      ..close();
-    final floor = Path()
-      ..moveTo(0, h)
-      ..lineTo(aperture.left, aperture.bottom)
-      ..lineTo(aperture.right, aperture.bottom)
-      ..lineTo(w, h)
-      ..close();
-
-    canvas.save();
-    canvas.clipRect(viewport);
-    // 1–2: opaque base and recessed atmospheric depth.
-    canvas.drawRect(viewport, Paint()..color = const Color(0xff030a14));
-    canvas.drawRect(
-      viewport,
-      Paint()
-        ..shader =
-            RadialGradient(
-              center: Alignment.center,
-              radius: 1,
-              colors: [
-                const Color(0xff164467).withValues(alpha: .5),
-                const Color(0xff092139).withValues(alpha: .55),
-                const Color(0xff030a14),
-              ],
-              stops: const [.0, .48, 1],
-            ).createShader(
-              Rect.fromCircle(center: Offset(w * .5, h * .39), radius: h * .85),
-            ),
-    );
-
-    // 3–5: solid room planes around the deliberately dark rear aperture.
-    canvas.drawPath(
-      ceiling,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xff07192a).withValues(alpha: .8),
-            const Color(0xff020811).withValues(alpha: .82),
-          ],
-        ).createShader(ceiling.getBounds()),
-    );
-    canvas.drawPath(
-      leftWall,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            const Color(0xff071627).withValues(alpha: .84),
-            const Color(0xff0e314b).withValues(alpha: .68),
-            const Color(0xff020811).withValues(alpha: .8),
-          ],
-        ).createShader(leftWall.getBounds()),
-    );
-    canvas.drawPath(
-      rightWall,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.centerRight,
-          end: Alignment.centerLeft,
-          colors: [
-            const Color(0xff071627).withValues(alpha: .84),
-            const Color(0xff0e314b).withValues(alpha: .68),
-            const Color(0xff020811).withValues(alpha: .8),
-          ],
-        ).createShader(rightWall.getBounds()),
-    );
-    canvas.drawRect(
-      aperture,
-      Paint()..color = const Color(0xff020b16).withValues(alpha: .85),
-    );
-    canvas.drawRect(
-      aperture,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0xff46c7ed).withValues(alpha: .28),
-    );
-    canvas.drawPath(
-      floor,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xff0b2c48).withValues(alpha: .76),
-            const Color(0xff020811).withValues(alpha: .94),
-          ],
-        ).createShader(floor.getBounds()),
-    );
-    _paintVaultFloorChannels(canvas, size, aperture, floor);
-
-    // 6–8: six depth-projected pillar pairs, back to front.
-    const depths = [.10, .24, .39, .55, .73, .92];
-    for (var group = 0; group < 3; group++) {
-      final start = group * 2;
-      for (var index = start; index < start + 2; index++) {
-        for (final side in [-1.0, 1.0]) {
-          _paintVaultPillar(
-            canvas,
-            size,
-            depth: depths[index],
-            index: index,
-            side: side,
-            clip: side < 0 ? leftWall : rightWall,
-          );
-        }
-      }
-    }
-
-    // 9: short, clipped reflections only for middle and near columns.
-    canvas.save();
-    canvas.clipPath(floor);
-    for (var index = 2; index < depths.length; index++) {
-      for (final side in [-1.0, 1.0]) {
-        _paintVaultReflection(canvas, size, depths[index], side);
-      }
-    }
-    canvas.restore();
-
-    // 10: pulses use a zero-alpha envelope at the cyclic boundary.
-    _paintVaultPulses(canvas, size, focal);
-    // 11: sparse surface accents, intentionally subordinate to volume.
-    final accent = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .7
-      ..color = const Color(0xff75e5f7).withValues(alpha: .12);
-    canvas.drawLine(
-      Offset(0, h * .06),
-      Offset(aperture.left, aperture.top),
-      accent,
-    );
-    canvas.drawLine(
-      Offset(w, h * .06),
-      Offset(aperture.right, aperture.top),
-      accent,
-    );
-    canvas.restore();
-  }
-
-  void _paintVaultFloorChannels(
-    Canvas canvas,
-    Size size,
-    Rect aperture,
-    Path floor,
-  ) {
-    final w = size.width;
-    final h = size.height;
-    final channelPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    const near = [.10, .30, .50, .70, .90];
-    const far = [.42, .46, .50, .54, .58];
-    for (var index = 0; index < near.length; index++) {
-      channelPaint
-        ..strokeWidth = .7 + index * .17
-        ..color = const Color(0xff40b4df).withValues(alpha: .12 + index * .035);
-      canvas.drawLine(
-        Offset(w * far[index], aperture.bottom),
-        Offset(w * near[index], h),
-        channelPaint,
-      );
-    }
-    for (final v in [.72, .79, .88, .98]) {
-      final progress = ((v - .66) / .34).clamp(0.0, 1.0);
-      final halfWidth = w * (.1 + .4 * progress);
-      channelPaint
-        ..strokeWidth = .8
-        ..color = const Color(
-          0xff40b4df,
-        ).withValues(alpha: .1 + progress * .08);
-      canvas.drawLine(
-        Offset(w * .5 - halfWidth, h * v),
-        Offset(w * .5 + halfWidth, h * v),
-        channelPaint,
-      );
-    }
-  }
-
-  void _paintVaultPillar(
-    Canvas canvas,
-    Size size, {
-    required double depth,
-    required int index,
-    required double side,
-    required Path clip,
-  }) {
-    final w = size.width;
-    final h = size.height;
-    final p = depth * depth;
-    final centerX = w * (side < 0 ? .4 - .38 * p : .6 + .38 * p);
-    final top = h * (.33 - .33 * p);
-    final bottom = h * (.66 + .34 * p);
-    final bodyWidth = math.min(3 + 14 * p, math.max(3.0, w * .052));
-    final lean = side * (1 + 3 * p);
-    final body = Path()
-      ..moveTo(centerX - bodyWidth / 2 + lean, top)
-      ..lineTo(centerX + bodyWidth / 2 + lean, top)
-      ..lineTo(centerX + bodyWidth / 2, bottom)
-      ..lineTo(centerX - bodyWidth / 2, bottom)
-      ..close();
-    final bright = .18 + .57 * p;
-    final blueBias = index.isOdd;
-    final base = blueBias ? const Color(0xff4b9eff) : const Color(0xff29bce4);
-    canvas.save();
-    canvas.clipPath(clip);
-    canvas.drawPath(
-      body,
-      Paint()..color = base.withValues(alpha: .06 + .06 * p),
-    );
-    final volume = body.getBounds().inflate(bodyWidth * .9);
-    canvas.drawRect(
-      volume,
-      Paint()
-        ..shader = LinearGradient(
-          colors: [
-            base.withValues(alpha: .0),
-            base.withValues(alpha: .12 * bright),
-            base.withValues(alpha: .0),
-          ],
-          stops: const [0, .5, 1],
-        ).createShader(volume),
-    );
-    canvas.drawPath(
-      body,
-      Paint()
-        ..shader = LinearGradient(
-          colors: [
-            const Color(0xff2e9ebf).withValues(alpha: .03 * bright),
-            (blueBias ? const Color(0xff62c9ff) : const Color(0xff29bce4))
-                .withValues(alpha: .30 * bright),
-            const Color(0xff91f4ff).withValues(alpha: .90 * bright),
-            (blueBias ? const Color(0xff62c9ff) : const Color(0xff25b9e3))
-                .withValues(alpha: .30 * bright),
-            const Color(0xff2e9ebf).withValues(alpha: .03 * bright),
-          ],
-          stops: const [0, .3, .5, .7, 1],
-        ).createShader(body.getBounds()),
-    );
-    final stripWidth = math.max(1, bodyWidth * .2).toDouble();
-    final strip = Rect.fromCenter(
-      center: Offset(centerX + lean * .45, (top + bottom) / 2),
-      width: stripWidth,
-      height: bottom - top,
-    );
-    canvas.drawRect(
-      strip,
-      Paint()..color = const Color(0xffc7fbff).withValues(alpha: .45 + .35 * p),
-    );
-    final edge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .7
-      ..color = const Color(0xffb5f7ff).withValues(alpha: .2 * bright);
-    canvas.drawPath(body, edge);
-    canvas.restore();
-  }
-
-  void _paintVaultReflection(
-    Canvas canvas,
-    Size size,
-    double depth,
-    double side,
-  ) {
-    final p = depth * depth;
-    final centerX = size.width * (side < 0 ? .4 - .38 * p : .6 + .38 * p);
-    final contactY = size.height * (.66 + .34 * p);
-    final width = math.min(3 + 14 * p, math.max(3.0, size.width * .052)) * 1.5;
-    final length = math.min(size.height * .12, 50 + 40 * p);
-    final reflection = Rect.fromCenter(
-      center: Offset(centerX, contactY + length / 2),
-      width: width,
-      height: length,
-    );
-    canvas.drawRect(
-      reflection,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xff75eafa).withValues(alpha: .12),
-            const Color(0xff75eafa).withValues(alpha: 0),
-          ],
-        ).createShader(reflection),
-    );
-  }
-
-  void _paintVaultPulses(Canvas canvas, Size size, Offset focal) {
-    final theta = phase * math.pi * 2;
-    for (var index = 0; index < 3; index++) {
-      final q = (phase + index / 3) % 1;
-      final smooth = q * q * (3 - 2 * q);
-      final envelope = math.pow(math.sin(math.pi * q), 2).toDouble();
-      final side = index == 1 ? 1.0 : -1.0;
-      Offset position;
-      if (index == 2) {
-        final far = Offset(size.width * .5, size.height * .66);
-        final near = Offset(size.width * .9, size.height);
-        position = Offset.lerp(far, near, smooth)!;
-      } else {
-        final p = smooth * smooth;
-        final x = size.width * (side < 0 ? .4 - .38 * p : .6 + .38 * p);
-        final top = size.height * (.33 - .33 * p);
-        final bottom = size.height * (.66 + .34 * p);
-        position = Offset(
-          x,
-          top + (bottom - top) * (.36 + .22 * math.sin(theta + index)),
-        );
-      }
-      canvas.drawCircle(
-        position,
-        1 + 1.5 * smooth,
-        Paint()
-          ..color = const Color(0xffa8f8ff).withValues(alpha: .4 * envelope),
-      );
-    }
-    // Keep the specified focal point part of the architectural coordinate
-    // contract while retaining a dark aperture.
-    canvas.drawCircle(
-      focal,
-      .65,
-      Paint()..color = const Color(0xff8df4ff).withValues(alpha: .12),
-    );
-  }
+  void _paintDataVault(Canvas canvas, Size size) =>
+      HistoryDataVaultHyperspace(seconds: dataVaultSeconds).paint(canvas, size);
 
   void _paintMemoryStream(Canvas canvas, Size size) {
     final paths = <Path>[
@@ -1193,5 +860,7 @@ class _HistoryAmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HistoryAmbientPainter oldDelegate) =>
-      oldDelegate.variant != variant || oldDelegate.phase != phase;
+      oldDelegate.variant != variant ||
+      oldDelegate.phase != phase ||
+      oldDelegate.dataVaultSeconds != dataVaultSeconds;
 }

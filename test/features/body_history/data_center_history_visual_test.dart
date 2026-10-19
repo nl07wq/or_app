@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/body_history/pages/data_center_history_page.dart';
 import 'package:or_app/features/body_history/services/history_visual_preference.dart';
+import 'package:or_app/features/body_history/widgets/history_data_vault_hyperspace.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -10,6 +11,7 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(390, 844),
     bool animateAmbient = false,
+    Duration dataVaultSimulationTime = Duration.zero,
   }) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -21,7 +23,10 @@ void main() {
       MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: StandardTheme.theme,
-        home: DataCenterHistoryPage(animateAmbient: animateAmbient),
+        home: DataCenterHistoryPage(
+          animateAmbient: animateAmbient,
+          dataVaultSimulationTime: dataVaultSimulationTime,
+        ),
       ),
     );
     await tester.pump();
@@ -204,24 +209,72 @@ void main() {
     tester,
   ) async {
     const phases = <(String, Duration)>[
-      ('0', Duration.zero),
-      ('25', Duration(seconds: 9)),
-      ('50', Duration(seconds: 18)),
-      ('75', Duration(seconds: 27)),
-      ('999', Duration(milliseconds: 35964)),
+      ('cruise_0', Duration.zero),
+      ('cruise_7', Duration(seconds: 7)),
+      ('cruise_13', Duration(seconds: 13)),
+      ('sprint_16', Duration(seconds: 16)),
+      ('sprint_20', Duration(seconds: 20)),
+      ('sprint_24', Duration(seconds: 24)),
+      ('corner_27', Duration(seconds: 27)),
+      ('corner_32', Duration(seconds: 32)),
+      ('corner_37', Duration(seconds: 37)),
+      ('return_42', Duration(seconds: 42)),
+      ('return_4799', Duration(milliseconds: 47990)),
+      ('return_4801', Duration(milliseconds: 48010)),
     ];
 
     for (final phase in phases) {
-      await pumpHistory(tester, animateAmbient: true);
+      await pumpHistory(tester, dataVaultSimulationTime: phase.$2);
       await tester.tap(find.text('B VAULT'));
       await tester.pump();
       if (phase.$2 != Duration.zero) await tester.pump(phase.$2);
       await expectLater(
         find.byKey(const ValueKey('history-ambient-dataVault')),
         matchesGoldenFile(
-          'goldens/history_data_vault_v13_phase_${phase.$1}.png',
+          'goldens/history_data_vault_v14_phase_${phase.$1}.png',
         ),
       );
     }
+  });
+
+  test('DATA VAULT motion is monotonic with smooth periodic speed', () {
+    expect(HistoryDataVaultMotion.speedAt(0), 4);
+    expect(HistoryDataVaultMotion.speedAt(12), 4);
+    expect(HistoryDataVaultMotion.speedAt(17), 11);
+    expect(HistoryDataVaultMotion.speedAt(22), 11);
+    expect(HistoryDataVaultMotion.speedAt(27), 7);
+    expect(HistoryDataVaultMotion.speedAt(36), 7);
+    expect(HistoryDataVaultMotion.speedAt(42), 4);
+    expect(HistoryDataVaultMotion.speedAt(48), 4);
+    for (final transition in [0.0, 12.0, 17.0, 22.0, 27.0, 36.0, 42.0, 48.0]) {
+      expect(
+        (HistoryDataVaultMotion.speedAt(transition - .001) -
+                HistoryDataVaultMotion.speedAt(transition + .001))
+            .abs(),
+        lessThan(.001),
+      );
+    }
+    for (final boundary in [40.0, 105.0, 130.0, 195.0, 240.0]) {
+      expect(
+        (HistoryDataVaultMotion.curvatureAt(boundary - .001) -
+                HistoryDataVaultMotion.curvatureAt(boundary + .001))
+            .abs(),
+        lessThan(.001),
+      );
+    }
+    for (var second = 0; second < 240; second++) {
+      expect(
+        HistoryDataVaultMotion.distanceAt((second + 1).toDouble()),
+        greaterThan(HistoryDataVaultMotion.distanceAt(second.toDouble())),
+      );
+    }
+    expect(
+      HistoryDataVaultMotion.distanceAt(48),
+      closeTo(HistoryDataVaultMotion.distancePerCycle, .0001),
+    );
+    expect(
+      HistoryDataVaultMotion.distanceAt(48.01),
+      greaterThan(HistoryDataVaultMotion.distanceAt(48)),
+    );
   });
 }
