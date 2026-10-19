@@ -49,6 +49,9 @@ void main() {
     expect(find.byType(CalendarRingBinderTitle), findsOneWidget);
     expect(find.bySemanticsLabel('CALENDAR'), findsOneWidget);
     expect(find.text('CALENDAR'), findsOneWidget);
+    final titleText = tester.widget<Text>(find.text('CALENDAR'));
+    expect(titleText.style?.fontFamily, 'ShareTechMono');
+    expect(titleText.style?.fontWeight, FontWeight.w400);
     expect(
       tester.getSize(find.byType(CalendarRingBinderTitle)),
       CalendarRingBinderTitle.preferredSize,

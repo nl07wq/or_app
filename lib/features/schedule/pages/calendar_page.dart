@@ -57,10 +57,10 @@ class CalendarRingBinderTitle extends StatelessWidget {
               child: CustomPaint(painter: _CalendarRingBinderPainter()),
             ),
             const Positioned(
-              left: 12,
-              top: 13,
-              right: 12,
-              bottom: 5,
+              left: 14,
+              top: 16,
+              right: 14,
+              bottom: 4,
               child: Center(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -68,9 +68,10 @@ class CalendarRingBinderTitle extends StatelessWidget {
                     'CALENDAR',
                     style: TextStyle(
                       color: Color(0xffe2f9ff),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.7,
+                      fontFamily: 'ShareTechMono',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 1.35,
                       height: 1,
                     ),
                   ),
@@ -91,10 +92,10 @@ class _CalendarRingBinderPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final plate = RRect.fromRectAndRadius(
-      Rect.fromLTWH(3, 9, size.width - 6, size.height - 12),
+      Rect.fromLTWH(3.5, 8, size.width - 7, size.height - 10),
       const Radius.circular(5),
     );
-    final header = Rect.fromLTWH(4, 10, size.width - 8, 10);
+    final header = Rect.fromLTWH(4.5, 8.8, size.width - 9, 8.5);
 
     canvas.drawRRect(
       plate,
@@ -130,8 +131,8 @@ class _CalendarRingBinderPainter extends CustomPainter {
         ..strokeWidth = .8,
     );
     canvas.drawLine(
-      Offset(18, size.height - 8),
-      Offset(size.width - 18, size.height - 8),
+      Offset(18, size.height - 6.5),
+      Offset(size.width - 18, size.height - 6.5),
       Paint()
         ..color = const Color(0xff87dced).withValues(alpha: .22)
         ..strokeWidth = .7,
@@ -151,37 +152,44 @@ class _CalendarRingBinderPainter extends CustomPainter {
     for (var index = 0; index < ringCount; index++) {
       final x = first + spacing * index;
       final mount = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(x, 12), width: 13, height: 7),
+        Rect.fromCenter(center: Offset(x, 12.2), width: 9, height: 4.8),
         const Radius.circular(2),
       );
       canvas.drawRRect(
         mount,
         Paint()..color = const Color(0xff0c1721).withValues(alpha: .92),
       );
+      canvas.drawRRect(
+        mount,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .45
+          ..color = const Color(0xff6f9eb2).withValues(alpha: .52),
+      );
       final ring = Path()
-        ..moveTo(x - 4.5, 16)
-        ..lineTo(x - 4.5, 7.2)
-        ..cubicTo(x - 4.5, 1.5, x + 4.5, 1.5, x + 4.5, 7.2)
-        ..lineTo(x + 4.5, 16);
+        ..moveTo(x - 3.2, 14.8)
+        ..lineTo(x - 3.2, 7.1)
+        ..cubicTo(x - 3.2, 3.45, x + 3.2, 3.45, x + 3.2, 7.1)
+        ..lineTo(x + 3.2, 14.8);
       canvas.drawPath(
         ring,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
-          ..strokeWidth = 2.25
+          ..strokeWidth = 1.35
           ..shader =
               const LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 colors: [
-                  Color(0xff7fa9bd),
-                  Color(0xffecfbff),
-                  Color(0xff5e8b9f),
+                  Color(0xff638699),
+                  Color(0xffc6e5ed),
+                  Color(0xff537686),
                 ],
-                stops: [0, .46, 1],
+                stops: [0, .5, 1],
               ).createShader(
-                Rect.fromCenter(center: Offset(x, 9), width: 11, height: 17),
+                Rect.fromCenter(center: Offset(x, 9.3), width: 8, height: 12),
               ),
       );
       canvas.drawPath(
@@ -189,8 +197,8 @@ class _CalendarRingBinderPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = .55
-          ..color = const Color(0xffd9f8ff).withValues(alpha: .78),
+          ..strokeWidth = .3
+          ..color = const Color(0xffe1f8ff).withValues(alpha: .62),
       );
     }
   }
