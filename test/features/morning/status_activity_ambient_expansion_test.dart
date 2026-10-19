@@ -81,20 +81,20 @@ void main() {
   });
 
   test(
-    'V1.2 ambient scaffold shares one extended Scaffold surface with its header',
+    'ambient scaffold paints its one production field across the whole route',
     () {
       final scaffold = source('lib/core/widgets/ambient_page_scaffold.dart');
       expect(scaffold, contains('backgroundColor: Colors.transparent'));
-      expect(scaffold, contains('body: Stack('));
+      expect(
+        scaffold,
+        contains('Widget build(BuildContext context) => Stack('),
+      );
       expect(
         scaffold,
         contains('Positioned.fill(child: ExcludeSemantics(child: ambient))'),
       );
       expect(scaffold, contains('extendBodyBehindAppBar: true'));
-      expect(
-        scaffold,
-        isNot(contains('Widget build(BuildContext context) => Stack(')),
-      );
+      expect(scaffold, isNot(contains('body: Stack(')));
     },
   );
 
