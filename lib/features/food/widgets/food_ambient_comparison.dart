@@ -181,21 +181,23 @@ abstract final class ChromaticFluidMetaballs {
     const majorRadii = <double>[.142, .086, .126, .076, .136, .082];
 
     for (var id = 0; id < majorAnchors.length; id++) {
-      final phase = loop * (2 + id % 3) + id * 1.41;
+      // Independent slow orbit and gathering channels keep local contact from
+      // looking like an accelerated pull into a shared centre.
+      final phase = loop * (1 + id % 2) + id * 1.41;
       final anchor = majorAnchors[id];
       final center = Offset(
         size.width * anchor.dx +
-            math.sin(phase) * (24 + (id % 3) * 8) +
-            math.cos(loop * (3 + id % 2) + id) * 13,
+            math.sin(phase) * (20 + (id % 3) * 7) +
+            math.cos(loop * (2 + id % 2) + id) * 11,
         size.height * anchor.dy +
-            math.cos(phase * 2) * (31 + (id % 2) * 10) +
-            math.sin(phase * 3 + id) * 16,
+            math.cos(loop * (2 + id % 2) + id) * (26 + (id % 2) * 9) +
+            math.sin(loop * (3 + id % 2) + id) * 13,
       );
       final baseRadius = shortest * majorRadii[id];
       // Alternating currents gather a changing local triad without assigning
       // any contact pair in advance. The field still decides whether the
       // neighbouring drops actually merge at this phase.
-      final triadPhase = loop * 3 + (id.isEven ? 0 : math.pi);
+      final triadPhase = loop * (1 + id % 2) + (id.isEven ? 0 : math.pi);
       final triadPull = _smoothStep(
         ((.5 + .5 * math.sin(triadPhase) - .70) / .30).clamp(0.0, 1.0),
       );
@@ -214,7 +216,7 @@ abstract final class ChromaticFluidMetaballs {
           id: id,
           // Keep the driving orbit dominant. The earlier full triad pull was
           // the visual source of a sudden suction-like centre shift.
-          center: Offset.lerp(center, gatheredCenter, triadPull * .52)!,
+          center: Offset.lerp(center, gatheredCenter, triadPull * .48)!,
           radius: baseRadius,
           baseRadius: baseRadius,
           color: _palette[id],
@@ -235,12 +237,12 @@ abstract final class ChromaticFluidMetaballs {
       Offset(.76, .90),
     ];
     for (var i = 0; i < smallAnchors.length; i++) {
-      final phase = loop * (2 + i % 4) + i * 1.47;
+      final phase = loop * (1 + i % 3) + i * 1.47;
       final anchor = smallAnchors[i];
       final freeCenter = Offset(
         size.width * anchor.dx + math.sin(phase) * (13 + i % 3 * 4),
         size.height * anchor.dy +
-            math.cos(loop * (3 + i % 3) + i) * (16 + i % 2 * 5),
+            math.cos(loop * (2 + i % 2) + i) * (16 + i % 2 * 5),
       );
       final host = drops
           .where((drop) => drop.size != ChromaticFluidDropSize.small)
@@ -252,7 +254,7 @@ abstract final class ChromaticFluidMetaballs {
                 : nearest,
           );
       final absorption = _smoothStep(
-        ((.5 + .5 * math.sin(loop * (4 + i % 3) + i * 1.91)) - .44).clamp(
+        ((.5 + .5 * math.sin(loop * (1 + i % 2) + i * 1.91)) - .44).clamp(
               0.0,
               1.0,
             ) /
@@ -344,7 +346,7 @@ abstract final class ChromaticFluidMetaballs {
   static double contactStrength(double normalizedDistance) {
     // Do not allow remote neighbours to fuse early: a shorter, eased contact
     // window avoids the previous "pulled into the other drop" silhouette.
-    final raw = ((1.28 - normalizedDistance) / .52).clamp(0.0, 1.0);
+    final raw = ((1.20 - normalizedDistance) / .40).clamp(0.0, 1.0);
     return _smoothStep(raw);
   }
 
@@ -381,7 +383,7 @@ abstract final class ChromaticFluidMetaballs {
         final normalizedDistance =
             (first.center - second.center).distance /
             (first.radius + second.radius);
-        if (normalizedDistance > 1.46) continue;
+        if (normalizedDistance > 1.60) continue;
         final firstRoot = root(first.id);
         final secondRoot = root(second.id);
         if (firstRoot != secondRoot) parent[secondRoot] = firstRoot;
@@ -796,11 +798,13 @@ class HighFidelityFluidRibbon {
   final double width;
 }
 
-/// A bounded local velocity/density/pigment field for the one V3.4 quality
-/// fluid. It is intentionally separate from the twelve implicit metaballs.
-/// Semi-Lagrangian samples establish local density and pigment state. The
-/// painter reconstructs them through broad velocity-weighted kernels, while
-/// streamlines reveal the same flow without exposing the low-cost grid.
+/// A bounded local velocity/density/pigment field for the quality fluid.
+///
+/// It deliberately stays independent from the twelve implicit metaballs. The
+/// simulation samples a velocity-driven, semi-Lagrangian pigment field, but
+/// display reconstruction uses overlapping density kernels rather than its
+/// calculation cells. This keeps the inexpensive local simulation from
+/// leaking square cell boundaries into the painted liquid.
 @immutable
 class HighFidelityFluidFrame {
   const HighFidelityFluidFrame({
@@ -819,7 +823,7 @@ class HighFidelityFluidFrame {
 }
 
 abstract final class HighFidelityChromaticFluid {
-  static const gridResolution = 28;
+  static const gridResolution = 30;
   static const cycleSeconds = ChromaticFluidMetaballs.cycleSeconds;
   static const maximumSampleCount = gridResolution * gridResolution;
   static const _pigments = <Color>[
@@ -855,9 +859,11 @@ abstract final class HighFidelityChromaticFluid {
         final velocity = _velocity(local, phase);
         // Semi-Lagrangian backtrace: pigment reads from where this cell was,
         // rather than merely rotating a gradient at its current position.
-        final traced = local - velocity * .22;
-        final upstreamVelocity = _velocity(traced, phase - .12);
-        final diffused = traced - upstreamVelocity * .07;
+        final traced = local - velocity * .18;
+        final upstreamVelocity = _velocity(traced, phase - .10);
+        // Two backtraces give colour a visible folded history.  This is still
+        // bounded to the local field, unlike a full-screen fluid simulation.
+        final diffused = traced - upstreamVelocity * .085;
         final pigment = _pigment(diffused, phase);
         final diffusion = _density(local + velocity * .035, phase) * .18;
         final density = (_density(diffused, phase) + diffusion).clamp(0.0, 1.0);
@@ -892,7 +898,7 @@ abstract final class HighFidelityChromaticFluid {
     for (final (index, source) in _pigmentSources(phase).indexed) {
       var local = source.$1;
       final points = <Offset>[];
-      for (var step = 0; step < 22; step++) {
+      for (var step = 0; step < 26; step++) {
         if (local.distance > 1.16) break;
         points.add(
           Offset(
@@ -901,14 +907,14 @@ abstract final class HighFidelityChromaticFluid {
           ),
         );
         final velocity = _velocity(local, phase + step * .12);
-        local += velocity * .052;
+        local += velocity * .045;
       }
       if (points.length < 4) continue;
       ribbons.add(
         HighFidelityFluidRibbon(
           path: _openSmoothPath(points),
           color: source.$2,
-          width: bounds.width * (.043 + (index % 2) * .010),
+          width: bounds.width * (.029 + (index % 2) * .008),
         ),
       );
     }
@@ -918,11 +924,11 @@ abstract final class HighFidelityChromaticFluid {
   static Offset _velocity(Offset point, double phase) {
     final radial = point.distance;
     final primaryVortex =
-        1.08 * (1 - radial.clamp(0.0, 1.0)) +
-        math.sin(phase * 3 + point.dx * 4) * .19;
+        1.02 * (1 - radial.clamp(0.0, 1.0)) +
+        math.sin(phase * 2 + point.dx * 4 + point.dy * 2) * .16;
     final secondaryCenter = Offset(
-      math.cos(phase * 2) * .28,
-      math.sin(phase * 3) * .22,
+      math.cos(phase * 2) * .27,
+      math.sin(phase * 2 - .7) * .22,
     );
     final aroundSecondary = point - secondaryCenter;
     final secondaryVortex =
@@ -930,23 +936,29 @@ abstract final class HighFidelityChromaticFluid {
     final tangent =
         Offset(-point.dy, point.dx) * primaryVortex +
         Offset(-aroundSecondary.dy, aroundSecondary.dx) * secondaryVortex;
-    final drift = Offset(
-      math.sin(phase * 2 + point.dy * 5) * .17,
-      math.cos(phase * 3 - point.dx * 4) * .15,
+    final shear = Offset(
+      math.sin(phase + point.dy * 5) * (.10 + point.dy.abs() * .09),
+      math.cos(phase * 2 - point.dx * 4) * (.08 + point.dx.abs() * .08),
     );
-    return tangent + drift;
+    final folding = Offset(
+      point.dy * math.sin(phase * 2 + point.dx * 3) * .15,
+      -point.dx * math.cos(phase * 2 - point.dy * 3) * .13,
+    );
+    return tangent + shear + folding;
   }
 
   static double _density(Offset point, double phase) {
     final angle = math.atan2(point.dy, point.dx);
     final edgeWave =
-        math.sin(angle * 3 + phase * 3) * .075 +
-        math.cos(angle * 5 - phase * 2) * .045;
+        math.sin(angle * 3 + phase * 2) * .070 +
+        math.cos(angle * 5 - phase * 2) * .042 +
+        math.sin(angle * 7 + phase) * .022;
     final envelope = (1.10 + edgeWave - point.distance).clamp(0.0, 1.0);
     final wave =
         .67 +
-        math.sin(point.dx * 5.7 + point.dy * 4.1 - phase * 4) * .13 +
-        math.cos(point.dy * 6.8 + phase * 3) * .10;
+        math.sin(point.dx * 5.7 + point.dy * 4.1 - phase * 3) * .13 +
+        math.cos(point.dy * 6.8 + phase * 2) * .10 +
+        math.sin((point.dx - point.dy) * 4.6 + phase) * .055;
     return (envelope * wave).clamp(0.0, 1.0);
   }
 
@@ -978,7 +990,7 @@ abstract final class HighFidelityChromaticFluid {
     (
       Offset(
         -.50 + math.sin(phase * 2) * .12,
-        -.16 + math.cos(phase * 3) * .13,
+        -.16 + math.cos(phase * 2 - .4) * .13,
       ),
       _pigments[0],
     ),
@@ -989,7 +1001,7 @@ abstract final class HighFidelityChromaticFluid {
     (
       Offset(
         .49 + math.sin(phase * 2 + 1.4) * .13,
-        .18 + math.cos(phase * 3) * .12,
+        .18 + math.cos(phase * 2 + .3) * .12,
       ),
       _pigments[2],
     ),
@@ -1405,17 +1417,17 @@ class _FoodAmbientPainter extends CustomPainter {
         ).createShader(fluid.bounds),
     );
 
-    // The velocity-advected density cells are first reconstructed through a
-    // seven-by-seven weighted kernel.  This deliberately separates the
-    // 28-by-28 simulation from display resolution: pigment and velocity are
-    // preserved, while no individual simulation cell can become visible.
+    // The velocity-advected density cells are reconstructed through a dense,
+    // overlapping kernel field. This deliberately separates calculation from
+    // display: pigment retains its advection detail without revealing the
+    // simulation lattice as bands or square patches.
     for (final cell in _smoothedFluidPatches(fluid)) {
       final speed = cell.velocity.distance;
-      final radius = fluid.bounds.width / 7 * (1.75 + cell.density * .72);
+      final radius = fluid.bounds.width / 12 * (1.72 + cell.density * .68);
       final stamp = Rect.fromCenter(
         center: cell.center,
-        width: radius * (2.1 + speed * .35),
-        height: radius * 1.45,
+        width: radius * (2.25 + speed * .46),
+        height: radius * (1.54 + speed * .18),
       );
       c.save();
       c.translate(cell.center.dx, cell.center.dy);
@@ -1431,9 +1443,9 @@ class _FoodAmbientPainter extends CustomPainter {
               Color.lerp(
                 cell.color,
                 Colors.white,
-                .10,
-              )!.withValues(alpha: .18 * cell.density),
-              cell.color.withValues(alpha: .13 * cell.density),
+                .20,
+              )!.withValues(alpha: .285 * cell.density),
+              cell.color.withValues(alpha: .205 * cell.density),
               cell.color.withValues(alpha: 0),
             ],
             stops: const [0, .48, 1],
@@ -1442,29 +1454,29 @@ class _FoodAmbientPainter extends CustomPainter {
       c.restore();
     }
 
-    // Streamlines are secondary: they reveal shear and folding already
-    // present in the advected pigment field without becoming ribbon-only
-    // rendering.
+    // Streamlines are deliberately subordinate to the density reconstruction:
+    // they make the same advected flow legible without turning the fluid into
+    // a ribbon-only effect.
     for (final ribbon in fluid.ribbons) {
       c.drawPath(
         ribbon.path,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = ribbon.width * 3.0
-          ..color = ribbon.color.withValues(alpha: .14)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..strokeWidth = ribbon.width * 2.5
+          ..color = ribbon.color.withValues(alpha: .11)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
       );
       c.drawPath(
         ribbon.path,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = ribbon.width * .72
+          ..strokeWidth = ribbon.width * .52
           ..shader = LinearGradient(
             colors: [
               ribbon.color.withValues(alpha: .03),
-              ribbon.color.withValues(alpha: .30),
+              ribbon.color.withValues(alpha: .23),
               Color.lerp(
                 ribbon.color,
                 Colors.white,
@@ -1488,7 +1500,7 @@ class _FoodAmbientPainter extends CustomPainter {
 
   List<({Offset center, Offset velocity, double density, Color color})>
   _smoothedFluidPatches(HighFidelityFluidFrame fluid) {
-    const resolution = 7;
+    const resolution = 12;
     final buckets = List.generate(
       resolution * resolution,
       (_) => <HighFidelityFluidCell>[],
@@ -1521,14 +1533,8 @@ class _FoodAmbientPainter extends CustomPainter {
       var red = 0.0;
       var green = 0.0;
       var blue = 0.0;
-      var dominant = cells.first.color;
-      var dominantContribution = 0.0;
       for (final cell in cells) {
         final contribution = cell.density * cell.density;
-        if (contribution > dominantContribution) {
-          dominantContribution = contribution;
-          dominant = cell.color;
-        }
         weight += contribution;
         x += cell.center.dx * contribution;
         y += cell.center.dy * contribution;
@@ -1543,105 +1549,100 @@ class _FoodAmbientPainter extends CustomPainter {
         center: Offset(x / weight, y / weight),
         velocity: Offset(dx / weight, dy / weight),
         density: (weight / cells.length).clamp(0.0, 1.0),
-        color: Color.lerp(
-          Color.fromARGB(
-            255,
-            (red / weight * 255).round().clamp(0, 255),
-            (green / weight * 255).round().clamp(0, 255),
-            (blue / weight * 255).round().clamp(0, 255),
-          ),
-          dominant,
-          .62,
-        )!,
+        color: Color.fromARGB(
+          255,
+          (red / weight * 255).round().clamp(0, 255),
+          (green / weight * 255).round().clamp(0, 255),
+          (blue / weight * 255).round().clamp(0, 255),
+        ),
       ));
     }
     return patches;
   }
 
   void _cells(Canvas c, Size s) {
+    // METABOLIC CELLS intentionally has its own liquid-sphere construction.
+    // It keeps the established fifteen-cell population and spatial rhythm,
+    // while avoiding the chromatic fluid's denser scalar field and ribbons.
+    // Every term is periodic over the controller's 48-second cycle so there
+    // is no state or velocity jump when the ticker repeats.
+    final loop = t / 48 * math.pi * 2;
     final cells =
-        <({Offset center, double radius, double phase, Color color})>[];
+        <
+          ({
+            Offset center,
+            Offset velocity,
+            double radius,
+            double phase,
+            Color color,
+          })
+        >[];
     for (var i = 0; i < 15; i++) {
       final seed = _h(i, 9);
-      final q = t * (.23 + seed * .18) + i;
+      final frequency = 1 + i % 3;
+      final q = loop * frequency + i;
       final o = Offset(
-        s.width * (.06 + .88 * _h(i, 11)) + 18 * math.sin(q * .7),
-        s.height * (.05 + .9 * _h(i, 13)) + 20 * math.cos(q * .63),
+        s.width * (.06 + .88 * _h(i, 11)) + 18 * math.sin(q),
+        s.height * (.05 + .9 * _h(i, 13)) + 20 * math.cos(q * 2),
       );
       final r = s.shortestSide * (.052 + seed * .072);
-      final split = i % 5 == 0 ? math.sin(q * .36).abs() : 0.0;
       final col = _cool[i % 3];
-      cells.add((center: o, radius: r, phase: q, color: col));
-      final membrane = _smoothOrganicPath(
-        o,
-        r,
-        q,
-        i + 30,
-        14,
-        .16 + split * .09,
-        x: 1 + split * .62,
-        y: 1 - split * .24,
+      final velocity = Offset(
+        18 * frequency * math.cos(q),
+        -40 * frequency * math.sin(q * 2),
       );
-      c.drawPath(membrane, Paint()..color = col.withValues(alpha: .07));
-      c.drawPath(
-        membrane,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3 + seed * .8
-          ..color = Color.lerp(col, Colors.white, .30)!.withValues(alpha: .35),
-      );
-      c.drawPath(
-        _smoothOrganicPath(o, r * .76, q + .55, i + 60, 14, .11),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = .75
-          ..color = col.withValues(alpha: .15),
-      );
-      c.drawCircle(
-        o + Offset(math.cos(q * .8), math.sin(q * .67)) * r * .12,
-        r * .30,
-        Paint()
-          ..color = Color.lerp(col, Colors.white, .22)!.withValues(alpha: .21)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-      );
-      c.drawCircle(
-        o + Offset(math.cos(q * .8), math.sin(q * .67)) * r * .12,
-        r * .15,
-        Paint()..color = col.withValues(alpha: .44),
-      );
-      for (var organelle = 0; organelle < 3; organelle++) {
-        final a = q * (1.1 + organelle * .13) + organelle * 2.1;
-        c.drawCircle(
-          o + Offset(math.cos(a), math.sin(a)) * r * (.35 + organelle * .08),
-          r * (.045 + organelle * .012),
-          Paint()..color = col.withValues(alpha: .30),
-        );
-      }
-      if (split > .45) {
-        final d = Offset(math.cos(q), math.sin(q)) * r * split * .55;
-        c.drawCircle(
-          o - d,
-          r * .13,
-          Paint()..color = col.withValues(alpha: .4),
-        );
-        c.drawCircle(
-          o + d,
-          r * .13,
-          Paint()..color = col.withValues(alpha: .4),
-        );
+      cells.add((
+        center: o,
+        velocity: velocity,
+        radius: r,
+        phase: q,
+        color: col,
+      ));
+    }
+
+    final contacts =
+        <
+          ({int first, int second, double strength, Offset center, Color color})
+        >[];
+    for (var first = 0; first < cells.length - 1; first++) {
+      for (var second = first + 1; second < cells.length; second++) {
+        final a = cells[first];
+        final b = cells[second];
+        final distance = (a.center - b.center).distance;
+        final ratio = distance / (a.radius + b.radius);
+        final raw = ((1.12 - ratio) / .30).clamp(0.0, 1.0);
+        final strength = raw * raw * (3 - 2 * raw);
+        if (strength < .02) continue;
+        contacts.add((
+          first: first,
+          second: second,
+          strength: strength,
+          center: Offset.lerp(a.center, b.center, .5)!,
+          color: Color.lerp(a.color, b.color, .5)!,
+        ));
       }
     }
-    // Short-lived membrane bridges make local contacts read as a living
-    // environment, instead of a uniform field of isolated outlines.
-    for (var i = 0; i < cells.length - 1; i += 4) {
-      final a = cells[i], b = cells[i + 1];
+
+    // A low-opacity bridge is painted first and is only present while cells
+    // genuinely approach.  The eased strength gives the eye a gradual neck,
+    // rather than a binary bridge or a rigid line between arbitrary cells.
+    for (final contact in contacts) {
+      final a = cells[contact.first];
+      final b = cells[contact.second];
+      final tangent = b.center - a.center;
+      final tangentLength = tangent.distance;
+      final normal = tangentLength == 0
+          ? const Offset(0, 1)
+          : Offset(-tangent.dy / tangentLength, tangent.dx / tangentLength);
+      final neck =
+          math.min(a.radius, b.radius) * (.10 + contact.strength * .18);
       final bridge = Path()
         ..moveTo(a.center.dx, a.center.dy)
         ..cubicTo(
-          a.center.dx + (b.center.dx - a.center.dx) * .32,
-          a.center.dy + 18 * math.sin(a.phase),
-          b.center.dx - (b.center.dx - a.center.dx) * .30,
-          b.center.dy - 18 * math.cos(b.phase),
+          a.center.dx + tangent.dx * .30 + normal.dx * neck,
+          a.center.dy + tangent.dy * .30 + normal.dy * neck,
+          b.center.dx - tangent.dx * .30 + normal.dx * neck,
+          b.center.dy - tangent.dy * .30 + normal.dy * neck,
           b.center.dx,
           b.center.dy,
         );
@@ -1649,27 +1650,125 @@ class _FoodAmbientPainter extends CustomPainter {
         bridge,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0 + math.sin(t * .41 + i).abs() * 1.8
-          ..color = Color.lerp(a.color, b.color, .5)!.withValues(alpha: .12),
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = neck * 2.4
+          ..color = contact.color.withValues(alpha: .075 * contact.strength)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
       );
-      final exchange = (t * (.18 + i * .006) + i * .17) % 1;
-      final reaction =
-          Offset.lerp(a.center, b.center, exchange)! +
-          Offset(0, math.sin(exchange * math.pi * 2 + a.phase) * 7);
       c.drawCircle(
-        reaction,
-        2.2 + math.sin(exchange * math.pi).abs() * 1.8,
+        contact.center,
+        neck * (1.3 + contact.strength),
         Paint()
+          ..color = contact.color.withValues(alpha: .06 * contact.strength)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+    }
+
+    for (var i = 0; i < cells.length; i++) {
+      final cell = cells[i];
+      final seed = _h(i, 9);
+      final speed = cell.velocity.distance / 20;
+      final travel = cell.velocity.distance == 0
+          ? Offset.zero
+          : cell.velocity / cell.velocity.distance;
+      final surfaceOffset =
+          travel * cell.radius * (.055 + speed * .050) +
+          Offset(math.cos(cell.phase * 2), math.sin(cell.phase)) *
+              cell.radius *
+              .045;
+      final membrane = _smoothOrganicPath(
+        cell.center + surfaceOffset,
+        cell.radius,
+        cell.phase,
+        i + 30,
+        18,
+        .075 + speed * .030,
+        x: 1 + speed * .11,
+        y: 1 - speed * .045,
+      );
+      final bounds = membrane.getBounds();
+      c.drawPath(
+        membrane,
+        Paint()
+          ..color = cell.color.withValues(alpha: .075)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+      c.save();
+      c.clipPath(membrane);
+      c.drawRect(
+        bounds,
+        Paint()
+          ..shader = RadialGradient(
+            center: Alignment(
+              -.30 + math.sin(cell.phase) * .10,
+              -.34 + math.cos(cell.phase) * .08,
+            ),
+            radius: 1.04,
+            colors: [
+              Color.lerp(cell.color, Colors.white, .42)!.withValues(alpha: .27),
+              cell.color.withValues(alpha: .19),
+              Color.lerp(
+                cell.color,
+                const Color(0xff071522),
+                .52,
+              )!.withValues(alpha: .07),
+              cell.color.withValues(alpha: 0),
+            ],
+            stops: const [0, .32, .73, 1],
+          ).createShader(bounds),
+      );
+      for (var dye = 0; dye < 2; dye++) {
+        final dyePhase = cell.phase * (1 + dye) + dye * 2.1;
+        final dyeCenter =
+            cell.center +
+            Offset(math.cos(dyePhase), math.sin(dyePhase * .84)) *
+                cell.radius *
+                (.22 + dye * .10);
+        final dyeRect = Rect.fromCircle(
+          center: dyeCenter,
+          radius: cell.radius * .66,
+        );
+        c.drawOval(
+          dyeRect,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                Color.lerp(
+                  cell.color,
+                  _cool[(i + dye + 1) % _cool.length],
+                  .58,
+                )!.withValues(alpha: .12),
+                cell.color.withValues(alpha: 0),
+              ],
+              stops: const [0, 1],
+            ).createShader(dyeRect),
+        );
+      }
+      c.restore();
+      c.drawPath(
+        membrane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .82 + seed * .42
           ..color = Color.lerp(
-            a.color,
-            b.color,
-            exchange,
-          )!.withValues(alpha: .48)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+            cell.color,
+            Colors.white,
+            .34,
+          )!.withValues(alpha: .28),
+      );
+      c.drawCircle(
+        cell.center +
+            Offset(math.cos(cell.phase), math.sin(cell.phase * 2)) *
+                cell.radius *
+                .34,
+        cell.radius * .25,
+        Paint()
+          ..color = Colors.white.withValues(alpha: .12)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
       );
     }
     for (var i = 0; i < 30; i++) {
-      final q = t * (.32 + _h(i, 33) * .2) + i;
+      final q = loop * (1 + i % 3) + i;
       c.drawCircle(
         Offset(
           s.width * (.5 + .48 * math.sin(q)),

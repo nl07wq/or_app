@@ -32,25 +32,25 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('CHROMATIC FLUID V3.1 visual frame is stable', (tester) async {
+  testWidgets('CHROMATIC FLUID V3.5 visual frame is stable', (tester) async {
     await pumpFood(tester, FoodAmbientVariant.chromaticFluid);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_1_phase_a.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_phase_a.png'),
     );
   });
 
-  testWidgets('METABOLIC CELLS visual frame is stable', (tester) async {
+  testWidgets('METABOLIC CELLS V3.5 visual frame is stable', (tester) async {
     await pumpFood(tester, FoodAmbientVariant.metabolicCells);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolic_cells_v3.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v3_5.png'),
     );
   });
 
@@ -76,7 +76,7 @@ void main() {
     );
   });
 
-  testWidgets('CHROMATIC FLUID V3.1 remains deterministic at a later phase', (
+  testWidgets('CHROMATIC FLUID V3.5 remains deterministic at a later phase', (
     tester,
   ) async {
     await pumpFood(
@@ -89,23 +89,30 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_1_phase_b.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_5_phase_b.png'),
     );
   });
 
-  testWidgets('V4 renderers remain deterministic at a later phase', (
+  testWidgets('METABOLIC CELLS V3.5 remains deterministic at a later phase', (
     tester,
   ) async {
-    for (final variant in const [FoodAmbientVariant.metabolicCells]) {
-      await pumpFood(tester, variant, const Duration(milliseconds: 5100));
-      await expectLater(
-        find.descendant(
-          of: find.byType(FoodAmbientComparison),
-          matching: find.byType(RepaintBoundary),
-        ),
-        matchesGoldenFile('goldens/food_${variant.name}_v4_phase_b.png'),
-      );
-    }
+    await pumpFood(
+      tester,
+      FoodAmbientVariant.metabolicCells,
+      const Duration(milliseconds: 5100),
+    );
+    await expectLater(
+      find.descendant(
+        of: find.byType(FoodAmbientComparison),
+        matching: find.byType(RepaintBoundary),
+      ),
+      matchesGoldenFile('goldens/food_metabolicCells_v3_5_phase_b.png'),
+    );
+  });
+
+  testWidgets('V4 TRAINING renderers remain deterministic at a later phase', (
+    tester,
+  ) async {
     for (final variant in const [
       TrainingAmbientVariant.magneticFlux,
       TrainingAmbientVariant.kineticEngine,
