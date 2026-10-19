@@ -144,16 +144,17 @@ class OperationButton extends StatelessWidget {
   }
 }
 
-/// The weak full-surface pass keeps the right edge glass-like. A second,
-/// masked pass adds blur only toward the left. Because the mask fades instead
-/// of dividing the button into strips, the resulting backdrop blur is a
-/// continuous left-to-right material change rather than a color gradient.
+/// The weak full-surface pass keeps the right edge glass-like. Two tapered,
+/// clipped backdrop layers increase the blur toward the left without using a
+/// ShaderMask. This keeps the filtered backdrop separate from the foreground
+/// button on Safari's web renderer.
 class _OperationFrostedGradientSurface extends StatelessWidget {
   const _OperationFrostedGradientSurface({required this.child});
 
   final Widget child;
 
   static const _weakBlur = 1.4;
+  static const _mediumBlur = 3.8;
   static const _strongBlur = 7.2;
 
   @override
@@ -167,18 +168,13 @@ class _OperationFrostedGradientSurface extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: _weakBlur, sigmaY: _weakBlur),
           child: const SizedBox.expand(),
         ),
-        ShaderMask(
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (bounds) => const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [Colors.white, Color(0xccffffff), Color(0x00ffffff)],
-            stops: [0, .30, 1],
-          ).createShader(bounds),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: _strongBlur, sigmaY: _strongBlur),
-            child: const SizedBox.expand(),
-          ),
+        _LeftTaperedBackdropBlur(
+          sigma: _mediumBlur,
+          rightExtent: .78,
+        ),
+        _LeftTaperedBackdropBlur(
+          sigma: _strongBlur,
+          rightExtent: .48,
         ),
         DecoratedBox(
           decoration: BoxDecoration(
@@ -203,4 +199,44 @@ class _OperationFrostedGradientSurface extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _LeftTaperedBackdropBlur extends StatelessWidget {
+  const _LeftTaperedBackdropBlur({
+    required this.sigma,
+    required this.rightExtent,
+  });
+
+  final double sigma;
+  final double rightExtent;
+
+  @override
+  Widget build(BuildContext context) => ClipPath(
+    clipper: _LeftTaperClipper(rightExtent),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      child: const SizedBox.expand(),
+    ),
+  );
+}
+
+class _LeftTaperClipper extends CustomClipper<Path> {
+  const _LeftTaperClipper(this.rightExtent);
+
+  final double rightExtent;
+
+  @override
+  Path getClip(Size size) {
+    final edge = size.width * rightExtent;
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(edge * .88, 0)
+      ..cubicTo(edge * 1.03, size.height * .20, edge * .75, size.height * .76, edge, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant _LeftTaperClipper oldClipper) =>
+      oldClipper.rightExtent != rightExtent;
 }

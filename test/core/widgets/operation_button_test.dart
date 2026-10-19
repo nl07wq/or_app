@@ -59,7 +59,7 @@ void main() {
   });
 
   testWidgets(
-    'frosted gradient uses overlapping weak and left-weighted strong backdrop filters',
+    'frosted gradient keeps foreground content outside tapered backdrop filters',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -77,8 +77,10 @@ void main() {
         find.byKey(const ValueKey('operation-frosted-gradient')),
         findsOneWidget,
       );
-      expect(find.byType(BackdropFilter), findsNWidgets(2));
-      expect(find.byType(ShaderMask), findsOneWidget);
+      expect(find.byType(BackdropFilter), findsNWidgets(3));
+      expect(find.byType(ClipPath), findsNWidgets(2));
+      expect(find.byType(ShaderMask), findsNothing);
+      expect(find.text('FROSTED'), findsOneWidget);
     },
   );
 }
