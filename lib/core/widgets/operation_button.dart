@@ -5,6 +5,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
 import 'dashboard_glass_card.dart';
 import 'global_touch_ripple.dart';
+import 'operation_card.dart';
 
 enum OperationActionRole { primary, secondary, danger }
 
@@ -72,6 +73,11 @@ class OperationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final dashboardReferenceGlass =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useDashboardGlass ??
+        false;
     final foregroundColor = onPressed == null
         ? Theme.of(context).disabledColor
         : switch (role) {
@@ -80,7 +86,11 @@ class OperationButton extends StatelessWidget {
             OperationActionRole.danger => colorScheme.error,
           };
     final usesTransparentButtonMaterial =
-        transparentSurface || dashboardGlass || frostedGlass || frostedGradient;
+        transparentSurface ||
+        dashboardGlass ||
+        frostedGlass ||
+        frostedGradient ||
+        dashboardReferenceGlass;
     final button = SizedBox(
       width: double.infinity,
       height: 52,
@@ -121,10 +131,12 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
-    final surfaced = frostedGradient || frostedGlass
+    final surfaced = frostedGradient || frostedGlass || dashboardReferenceGlass
         ? _OperationSafeGlassSurface(
             colorScheme: colorScheme,
-            transparencyFactor: safeGlassTransparencyFactor,
+            transparencyFactor: dashboardReferenceGlass
+                ? 1
+                : safeGlassTransparencyFactor,
             child: button,
           )
         : dashboardGlass

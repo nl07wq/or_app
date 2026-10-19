@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/operation_card.dart';
+
 import 'training_ambient_comparison.dart';
 
 /// Keeps the KINETIC ENGINE in viewport coordinates while the route body
@@ -38,6 +40,10 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
     final inheritedTheme = Theme.of(context);
     return Theme(
       data: inheritedTheme.copyWith(
+        extensions: [
+          ...inheritedTheme.extensions.values,
+          const OperationSurfaceTheme(useDashboardGlass: true),
+        ],
         scaffoldBackgroundColor: Colors.transparent,
         appBarTheme: inheritedTheme.appBarTheme.copyWith(
           backgroundColor: Colors.transparent,

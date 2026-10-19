@@ -942,6 +942,42 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'TRAINING scope applies Dashboard-reference glass to cards and buttons',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrainingKineticScaffold(
+            body: ListView(
+              children: [
+                OperationCard(child: const Text('SESSION')),
+                OperationButton(
+                  icon: Icons.fitness_center,
+                  text: 'TRAINING ENTRY',
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('SESSION'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('operation-safe-glass')),
+        findsOneWidget,
+      );
+      expect(
+        Theme.of(
+          tester.element(find.text('SESSION')),
+        ).extension<OperationSurfaceTheme>()?.useDashboardGlass,
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _KineticAmbientCrop extends StatelessWidget {
