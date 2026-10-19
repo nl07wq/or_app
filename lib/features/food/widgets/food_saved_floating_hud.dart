@@ -60,47 +60,55 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_rounded,
-                      size: 19,
-                      color: FoodSavedFloatingHud._accent,
-                    ),
-                    SizedBox(width: 9),
-                    Text(
-                      'MEAL SAVED',
-                      style: TextStyle(
-                        color: FoodSavedFloatingHud._iceBlue,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.05,
+              const Positioned.fill(
+                // A non-positioned Stack child receives loose constraints,
+                // so the intrinsic-height Row was placed at the top on
+                // mobile web. Reserve one pixel for the lower accent and
+                // make the remaining content area explicit.
+                bottom: 1,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 19,
+                        color: FoodSavedFloatingHud._accent,
                       ),
-                    ),
-                    Spacer(),
-                    Text(
-                      'CONFIRMED',
-                      style: TextStyle(
-                        color: FoodSavedFloatingHud._confirmed,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: .7,
+                      SizedBox(width: 9),
+                      Text(
+                        'MEAL SAVED',
+                        style: TextStyle(
+                          color: FoodSavedFloatingHud._iceBlue,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.05,
+                        ),
                       ),
-                    ),
-                  ],
+                      Spacer(),
+                      Text(
+                        'CONFIRMED',
+                        style: TextStyle(
+                          color: FoodSavedFloatingHud._confirmed,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .7,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Align(
-                alignment: Alignment.bottomCenter,
+              const Positioned(
+                key: ValueKey('food-saved-floating-hud-bottom-line'),
+                left: 0,
+                right: 0,
+                bottom: 0,
                 child: SizedBox(
                   height: 1,
-                  width: double.infinity,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: FoodSavedFloatingHud._accent,
-                    ),
+                    decoration: BoxDecoration(color: Color(0xdd33d6f2)),
                   ),
                 ),
               ),

@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/widgets/food_saved_floating_hud.dart';
@@ -54,6 +52,23 @@ void main() {
         closeTo(46, 1),
       );
 
+      final surface = tester.getRect(
+        find.byKey(const ValueKey('food-saved-floating-hud')),
+      );
+      final icon = tester.getRect(find.byIcon(Icons.check_circle_rounded));
+      final mealSaved = tester.getRect(find.text('MEAL SAVED'));
+      final confirmed = tester.getRect(find.text('CONFIRMED'));
+      final bottomLine = tester.getRect(
+        find.byKey(const ValueKey('food-saved-floating-hud-bottom-line')),
+      );
+      expect(icon.center.dy, closeTo(surface.center.dy - .5, 1));
+      expect(mealSaved.center.dy, closeTo(surface.center.dy - .5, 1));
+      expect(confirmed.center.dy, closeTo(surface.center.dy - .5, 1));
+      expect(mealSaved.left, greaterThan(icon.right));
+      expect(confirmed.right, lessThanOrEqualTo(surface.right - 13));
+      expect(bottomLine.height, closeTo(1, .01));
+      expect(bottomLine.top, closeTo(surface.bottom - 1, .01));
+
       await expectLater(
         find.byKey(const ValueKey('food-saved-floating-hud')),
         matchesGoldenFile('goldens/food_saved_floating_hud.png'),
@@ -85,6 +100,7 @@ void main() {
             .width,
         lessThan(width),
       );
+      expect(tester.takeException(), isNull);
     });
   }
 }
