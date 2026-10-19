@@ -81,6 +81,38 @@ void main() {
     expect(tester.getSize(find.byType(ElevatedButton)), const Size(800, 52));
   });
 
+  testWidgets('safe glass can retain seventy percent of its transparency', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: Scaffold(
+          body: OperationButton(
+            text: 'TRAINING',
+            frostedGlass: true,
+            safeGlassTransparencyFactor: .70,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('operation-safe-glass')),
+                )
+                .decoration
+            as BoxDecoration;
+    final colors = (decoration.gradient! as LinearGradient).colors;
+    // Existing alphas .085, .24, and .13 retain 70% of their transparency:
+    // alpha' = 1 - (1 - alpha) * .70.
+    expect(colors[0].a, closeTo(.3595, .0001));
+    expect(colors[1].a, closeTo(.4680, .0001));
+    expect(colors[2].a, closeTo(.3910, .0001));
+  });
+
   testWidgets('safe glass material renders its foreground pixels', (
     tester,
   ) async {

@@ -56,24 +56,38 @@ class DashboardGlassCard extends StatelessWidget {
     ColorScheme scheme, {
     Color? stateColor,
     bool stateActive = false,
+    double backgroundTransparencyFactor = 1,
   }) => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      (stateColor ?? scheme.primary).withValues(
-        alpha: stateActive || stateColor != null ? .11 : .085,
+      _withBackgroundTransparency(
+        (stateColor ?? scheme.primary).withValues(
+          alpha: stateActive || stateColor != null ? .11 : .085,
+        ),
+        backgroundTransparencyFactor,
       ),
-      scheme.surface.withValues(alpha: .24),
-      scheme.surfaceContainerHigh.withValues(alpha: .13),
+      _withBackgroundTransparency(
+        scheme.surface.withValues(alpha: .24),
+        backgroundTransparencyFactor,
+      ),
+      _withBackgroundTransparency(
+        scheme.surfaceContainerHigh.withValues(alpha: .13),
+        backgroundTransparencyFactor,
+      ),
     ],
   );
 
   static BoxDecoration decoration(
     ColorScheme scheme, {
     BorderRadius? borderRadius,
+    double backgroundTransparencyFactor = 1,
   }) => BoxDecoration(
     borderRadius: borderRadius ?? AppRadius.large,
-    gradient: gradient(scheme),
+    gradient: gradient(
+      scheme,
+      backgroundTransparencyFactor: backgroundTransparencyFactor,
+    ),
     border: Border.all(color: scheme.primary.withValues(alpha: .16)),
     boxShadow: [
       BoxShadow(
@@ -88,4 +102,12 @@ class DashboardGlassCard extends StatelessWidget {
       ),
     ],
   );
+
+  /// Reduces visual transparency without changing the hue or underlying
+  /// material structure. A factor of .70 means 70% of the original
+  /// transparency remains, not 70% absolute opacity.
+  static Color _withBackgroundTransparency(Color color, double factor) {
+    assert(factor >= 0 && factor <= 1);
+    return color.withValues(alpha: 1 - (1 - color.a) * factor);
+  }
 }

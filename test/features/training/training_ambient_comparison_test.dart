@@ -683,7 +683,7 @@ void main() {
   );
 
   testWidgets(
-    'V11.8 UI goldens preserve the transparent header while scrolling',
+    'V1.4 TRAINING glass goldens preserve the transparent header while scrolling',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -705,7 +705,7 @@ void main() {
       await tester.pump();
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_top.png'),
+        matchesGoldenFile('goldens/training_button_glass_v1_4_top.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -714,7 +714,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 2300));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_middle.png'),
+        matchesGoldenFile('goldens/training_button_glass_v1_4_middle.png'),
       );
       await tester.drag(
         find.byType(SingleChildScrollView),
@@ -723,7 +723,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1700));
       await expectLater(
         find.byType(TrainingPage),
-        matchesGoldenFile('goldens/training_kinetic_engine_v11_8_lower.png'),
+        matchesGoldenFile('goldens/training_button_glass_v1_4_lower.png'),
       );
     },
   );
@@ -780,6 +780,12 @@ void main() {
           isTrue,
         );
         expect(
+          tester
+              .widget<OperationButton>(buttonFinder)
+              .safeGlassTransparencyFactor,
+          .70,
+        );
+        expect(
           find.descendant(
             of: buttonFinder,
             matching: find.byWidgetPredicate(
@@ -803,6 +809,45 @@ void main() {
       expect(find.byType(BackdropFilter), findsNothing);
       expect(find.byType(ClipPath), findsNothing);
       expect(find.byType(ShaderMask), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'V1.4 keeps all five TRAINING glass actions sized at iPhone widths',
+    (tester) async {
+      for (final size in const [
+        Size(320, 568),
+        Size(375, 812),
+        Size(390, 844),
+        Size(430, 932),
+      ]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        await _precacheKineticBackground(tester);
+        await tester.pumpWidget(const MaterialApp(home: TrainingPage()));
+
+        for (final label in const [
+          'TRAINING ENTRY',
+          'TRAINING PLAN',
+          'RECORD',
+          'TRAINING ANALYSIS REPORT',
+          'SYNC TRAINING',
+        ]) {
+          final button = find.byWidgetPredicate(
+            (widget) => widget is OperationButton && widget.text == label,
+          );
+          expect(button, findsOneWidget);
+          expect(tester.getSize(button).height, 52);
+          expect(tester.getSize(button).width, lessThanOrEqualTo(size.width));
+          expect(
+            tester.widget<OperationButton>(button).safeGlassTransparencyFactor,
+            .70,
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
     },
   );
 

@@ -13,6 +13,7 @@ class TrainingHistoryButton extends StatelessWidget {
       icon: Icons.history,
       text: 'RECORD',
       frostedGlass: true,
+      safeGlassTransparencyFactor: .70,
       onPressed: () {
         Navigator.push(
           context,

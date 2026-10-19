@@ -14,6 +14,7 @@ class TrainingManualCard extends StatelessWidget {
       icon: Icons.fitness_center,
       text: 'TRAINING ENTRY',
       frostedGlass: true,
+      safeGlassTransparencyFactor: .70,
       onPressed: appInitializationController.value.isReadOnly
           ? null
           : () {

@@ -110,6 +110,7 @@ class _TrainingPageState extends State<TrainingPage> {
                       icon: Icons.event_note_outlined,
                       text: 'TRAINING PLAN',
                       frostedGlass: true,
+                      safeGlassTransparencyFactor: .70,
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -153,6 +154,7 @@ class _TrainingPageState extends State<TrainingPage> {
                       icon: Icons.analytics_outlined,
                       text: 'TRAINING ANALYSIS REPORT',
                       frostedGlass: true,
+                      safeGlassTransparencyFactor: .70,
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(

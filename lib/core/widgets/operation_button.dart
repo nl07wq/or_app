@@ -42,6 +42,11 @@ class OperationButton extends StatelessWidget {
   /// unrelated controls retain their approved materials.
   final bool frostedGradient;
 
+  /// Preserves a configurable fraction of the Safe Glass background's
+  /// existing transparency. It is opt-in for contrast-sensitive surfaces;
+  /// all other operation buttons retain the default material unchanged.
+  final double safeGlassTransparencyFactor;
+
   /// Limits comparison-only controls to their requested audio route without
   /// emitting a COMMAND confirmation for the diagnostic control itself.
   final ActionableFeedbackRole feedbackRole;
@@ -59,6 +64,7 @@ class OperationButton extends StatelessWidget {
     this.dashboardGlass = false,
     this.frostedGlass = false,
     this.frostedGradient = false,
+    this.safeGlassTransparencyFactor = 1,
     this.feedbackRole = ActionableFeedbackRole.command,
     this.onUnavailableTap,
   });
@@ -116,7 +122,11 @@ class OperationButton extends StatelessWidget {
       ),
     );
     final surfaced = frostedGradient || frostedGlass
-        ? _OperationSafeGlassSurface(colorScheme: colorScheme, child: button)
+        ? _OperationSafeGlassSurface(
+            colorScheme: colorScheme,
+            transparencyFactor: safeGlassTransparencyFactor,
+            child: button,
+          )
         : dashboardGlass
         ? Container(
             decoration: DashboardGlassCard.decoration(
@@ -151,10 +161,12 @@ class OperationButton extends StatelessWidget {
 class _OperationSafeGlassSurface extends StatelessWidget {
   const _OperationSafeGlassSurface({
     required this.colorScheme,
+    required this.transparencyFactor,
     required this.child,
   });
 
   final ColorScheme colorScheme;
+  final double transparencyFactor;
   final Widget child;
 
   @override
@@ -163,6 +175,7 @@ class _OperationSafeGlassSurface extends StatelessWidget {
     decoration: DashboardGlassCard.decoration(
       colorScheme,
       borderRadius: AppRadius.medium,
+      backgroundTransparencyFactor: transparencyFactor,
     ),
     child: child,
   );

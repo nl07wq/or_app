@@ -17,6 +17,7 @@ class TrainingSyncCard extends StatelessWidget {
       icon: Icons.sync,
       text: 'SYNC TRAINING',
       frostedGlass: true,
+      safeGlassTransparencyFactor: .70,
       onPressed: appInitializationController.value.isReadOnly
           ? null
           : () async {
