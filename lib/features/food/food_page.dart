@@ -23,7 +23,23 @@ class FoodPage extends StatefulWidget {
 }
 
 class _FoodPageState extends State<FoodPage> {
-  FoodAmbientVariant _ambientVariant = FoodAmbientVariant.gravityFlip;
+  FoodAmbientVariant _ambientVariant = FoodAmbientVariant.continuousCirculation;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreAmbient();
+  }
+
+  Future<void> _restoreAmbient() async {
+    final restored = await FoodAmbientPreference.load();
+    if (mounted) setState(() => _ambientVariant = restored);
+  }
+
+  void _selectAmbient(FoodAmbientVariant variant) {
+    setState(() => _ambientVariant = variant);
+    FoodAmbientPreference.save(variant);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,8 +61,7 @@ class _FoodPageState extends State<FoodPage> {
               children: [
                 FoodAmbientComparisonSelector(
                   selected: _ambientVariant,
-                  onChanged: (variant) =>
-                      setState(() => _ambientVariant = variant),
+                  onChanged: _selectAmbient,
                 ),
                 AppSpacing.gapMD,
                 SectionHeader(icon: Icons.edit_note, title: 'MANUAL ENTRY'),

@@ -1,17 +1,39 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 enum FoodAmbientVariant {
-  gravityFlip('GRAVITY FLIP'),
   continuousCirculation('CONTINUOUS CIRCULATION'),
   metabolicCells('METABOLIC CELLS'),
   thermalCurrent('THERMAL CURRENT');
 
   const FoodAmbientVariant(this.label);
   final String label;
+
+  static FoodAmbientVariant fromPersistedName(String? value) {
+    // V4.0's removed mode deliberately migrates to the surviving oil system.
+    if (value == 'gravityFlip') return FoodAmbientVariant.continuousCirculation;
+    return FoodAmbientVariant.values.firstWhere(
+      (variant) => variant.name == value,
+      orElse: () => FoodAmbientVariant.continuousCirculation,
+    );
+  }
+}
+
+abstract final class FoodAmbientPreference {
+  static const _key = 'food.ambient.variant.v4';
+
+  static Future<FoodAmbientVariant> load() async =>
+      FoodAmbientVariant.fromPersistedName(
+        (await SharedPreferences.getInstance()).getString(_key),
+      );
+
+  static Future<void> save(FoodAmbientVariant variant) async {
+    await (await SharedPreferences.getInstance()).setString(_key, variant.name);
+  }
 }
 
 @immutable
@@ -37,35 +59,46 @@ class OilTimerDrop {
 
 @immutable
 class OilTimerFrame {
-  const OilTimerFrame({required this.drops, required this.rotationRadians});
+  const OilTimerFrame({required this.drops, this.collisionCount = 0});
 
   final List<OilTimerDrop> drops;
-  final double rotationRadians;
+  final int collisionCount;
 }
 
-class _RawOilDrop {
-  const _RawOilDrop({
+enum _OilTravelState { descending, exiting, returning, entering }
+
+class _OilDropState {
+  _OilDropState({
     required this.id,
     required this.center,
+    required this.velocity,
     required this.radius,
     required this.color,
-    required this.surfacePhase,
+    required this.entryX,
   });
 
   final int id;
-  final Offset center;
+  Offset center;
+  Offset velocity;
   final double radius;
   final Color color;
-  final double surfacePhase;
+  final double entryX;
+  _OilTravelState state = _OilTravelState.descending;
+  Offset returnLane = Offset.zero;
+  int routeSegment = 0;
+  double compression = 0;
+  Offset compressionNormal = const Offset(1, 0);
 }
 
-/// A bounded, deterministic oil-timer model. Droplets remain separate and
-/// only compress and slide at contact, avoiding the former implicit field,
-/// shared contour, and pigment mixing computation.
-abstract final class OilTimerMotion {
-  static const cycleSeconds = 48.0;
-  static const dropCount = 11;
-  static const maximumContactCount = 18;
+/// Stateful, fixed-step oil dynamics. The controller is only a repaint clock;
+/// no visible position is derived from a wrapped animation phase.
+class OilTimerSimulation {
+  OilTimerSimulation(Size size) : _size = Size.zero {
+    if (size != Size.zero) _reset(size);
+  }
+
+  static const dropCount = 18;
+  static const _dt = 1 / 60;
   static const _palette = <Color>[
     Color(0xff32ddd0),
     Color(0xff438cff),
@@ -74,152 +107,219 @@ abstract final class OilTimerMotion {
     Color(0xffff8db5),
   ];
 
-  static OilTimerFrame gravityFlipFrame(Size size, double seconds) {
-    final local = seconds % cycleSeconds;
-    final rotation = _gravityRotation(local);
-    final firstFall = local <= 10 ? _ease(local / 10) : 1.0;
-    final secondFall = local < 20
-        ? 0.0
-        : local <= 30
-        ? _ease((local - 20) / 10)
-        : 1.0;
-    final isSecondHalf = local >= 20;
-    final raw = <_RawOilDrop>[];
-    final viewportCenter = Offset(size.width / 2, size.height / 2);
-    final min = size.shortestSide;
-    for (var index = 0; index < dropCount; index++) {
-      final seed = _hash(index, 17);
-      final delay = .035 + _hash(index, 23) * .19;
-      final progress = isSecondHalf
-          ? _stagger(secondFall, delay)
-          : _stagger(firstFall, delay);
-      final startY = size.height * -.36 + seed * size.height * .12;
-      final endY = size.height * .34 - seed * size.height * .08;
-      final localY = isSecondHalf
-          ? endY + (startY - endY) * progress
-          : startY + (endY - startY) * progress;
-      final localX =
-          (seed - .5) * size.width * .75 +
-          math.sin(index * 1.71) * size.width * .045;
-      raw.add(
-        _RawOilDrop(
-          id: index,
-          center: _rotate(
-            viewportCenter + Offset(localX, localY),
-            viewportCenter,
-            rotation,
-          ),
-          radius: min * (.040 + _hash(index, 31) * .061),
-          color: _colorFor(index),
-          surfacePhase: local / cycleSeconds * math.pi * 2 + index * .71,
-        ),
-      );
+  Size _size;
+  final List<_OilDropState> _drops = [];
+  double _accumulator = 0;
+  double _elapsed = 0;
+  int collisionCount = 0;
+
+  OilTimerFrame advanceTo(double seconds, Size size) {
+    if (size != _size) _reset(size);
+    final delta = (seconds - _elapsed).clamp(0.0, 4 * _dt);
+    _elapsed = seconds;
+    _accumulator = math.min(_accumulator + delta, 4 * _dt);
+    var steps = 0;
+    while (_accumulator >= _dt && steps < 4) {
+      _step(_dt);
+      _accumulator -= _dt;
+      steps++;
     }
-    return OilTimerFrame(
-      drops: _resolveContacts(raw),
-      rotationRadians: rotation,
-    );
+    return _frame();
   }
 
-  static OilTimerFrame continuousCirculationFrame(Size size, double seconds) {
-    final raw = <_RawOilDrop>[];
+  void advanceForTest(double seconds) {
+    final steps = (seconds / _dt).floor();
+    for (var step = 0; step < steps; step++) {
+      _step(_dt);
+    }
+    final remainder = seconds - steps * _dt;
+    if (remainder > 0) _step(remainder);
+    _elapsed += seconds;
+  }
+
+  OilTimerFrame snapshot() => _frame();
+
+  void _reset(Size size) {
+    _size = size;
+    _drops.clear();
+    _accumulator = 0;
+    _elapsed = 0;
+    collisionCount = 0;
     final min = size.shortestSide;
     for (var index = 0; index < dropCount; index++) {
-      final seed = _hash(index, 43);
-      final speed = .030 + _hash(index, 47) * .015;
-      final progress =
-          (seconds * speed + index / dropCount + _hash(index, 53) * .04) % 1;
-      final travel = progress < .72
-          ? _ease(progress / .72) * .84
-          : .84 + (progress - .72) / .28 * .55;
-      raw.add(
-        _RawOilDrop(
+      final h = OilTimerMotion.hash(index, 13);
+      final xSeed = (index * .61803398875 + OilTimerMotion.hash(index, 31)) % 1;
+      final radius = min * (.032 + .050 * h);
+      _drops.add(
+        _OilDropState(
           id: index,
           center: Offset(
-            size.width * (.12 + seed * .76) +
-                math.sin(progress * math.pi * 2 + index) * size.width * .025,
-            size.height * (-.18 + travel),
+            radius + 8 + xSeed * math.max(1, size.width - 2 * radius - 16),
+            size.height * (-.25 + OilTimerMotion.hash(index, 19) * 1.35),
           ),
-          radius: min * (.038 + _hash(index, 59) * .056),
-          color: _colorFor(index + 2),
-          surfacePhase: progress * math.pi * 2 + index * .89,
+          velocity: Offset(
+            (OilTimerMotion.hash(index, 23) - .5) * 12,
+            28 + OilTimerMotion.hash(index, 29) * 32,
+          ),
+          radius: radius,
+          color: _palette[index % _palette.length],
+          entryX:
+              radius +
+              8 +
+              OilTimerMotion.hash(index, 37) *
+                  math.max(1, size.width - 2 * radius - 16),
         ),
       );
     }
-    return OilTimerFrame(drops: _resolveContacts(raw), rotationRadians: 0);
   }
 
-  static List<OilTimerDrop> _resolveContacts(List<_RawOilDrop> raw) {
-    final displacement = List<Offset>.filled(raw.length, Offset.zero);
-    final squash = List<double>.filled(raw.length, 0);
-    for (var first = 0; first < raw.length - 1; first++) {
-      for (var second = first + 1; second < raw.length; second++) {
-        final a = raw[first];
-        final b = raw[second];
-        final delta = b.center - a.center;
-        final distance = delta.distance;
-        final limit = a.radius + b.radius;
-        if (distance >= limit * 1.04) continue;
-        final direction = distance < .001
-            ? const Offset(1, 0)
-            : delta / distance;
-        final strength = _ease(
-          ((limit * 1.04 - distance) / (limit * .26)).clamp(0.0, 1.0),
+  void _step(double dt) {
+    for (final drop in _drops) {
+      drop.compression *= math.exp(-dt / .22);
+      if (drop.state == _OilTravelState.descending ||
+          drop.state == _OilTravelState.entering) {
+        final ax = 12 * math.sin(.35 * _elapsed + .9 * drop.id);
+        final vx = ((drop.velocity.dx + ax * dt) * math.exp(-1.8 * dt)).clamp(
+          -22.0,
+          22.0,
         );
-        displacement[first] -= direction * a.radius * strength * .14;
-        displacement[second] += direction * b.radius * strength * .14;
-        squash[first] += strength;
-        squash[second] += strength;
+        final vy = math.min(90.0, drop.velocity.dy + 65 * dt);
+        drop.velocity = Offset(vx, vy);
+        drop.center += drop.velocity * dt;
+        if (drop.center.dx - drop.radius < 0 ||
+            drop.center.dx + drop.radius > _size.width) {
+          final x = drop.center.dx.clamp(
+            drop.radius,
+            _size.width - drop.radius,
+          );
+          drop.center = Offset(x, drop.center.dy);
+          drop.velocity = Offset(-drop.velocity.dx * .65, drop.velocity.dy);
+        }
+        if (drop.state == _OilTravelState.entering &&
+            drop.center.dy - drop.radius >= 0) {
+          drop.state = _OilTravelState.descending;
+        }
+        if (drop.center.dy - drop.radius > _size.height + 12) {
+          drop.state = _OilTravelState.exiting;
+        }
+      } else if (drop.state == _OilTravelState.exiting) {
+        final side = drop.id.isEven ? -1.0 : 1.0;
+        drop.returnLane = Offset(
+          side < 0 ? -drop.radius - 24 : _size.width + drop.radius + 24,
+          _size.height + drop.radius + 18,
+        );
+        drop.routeSegment = 0;
+        drop.state = _OilTravelState.returning;
+      } else {
+        _advanceReturn(drop, dt);
       }
     }
-    return List<OilTimerDrop>.generate(raw.length, (index) {
-      final direction = displacement[index].distanceSquared < .0001
-          ? const Offset(1, 0)
-          : displacement[index] / displacement[index].distance;
-      return OilTimerDrop(
-        id: raw[index].id,
-        center: raw[index].center + displacement[index],
-        radius: raw[index].radius,
-        color: raw[index].color,
-        surfacePhase: raw[index].surfacePhase,
-        squashDirection: direction,
-        squashStrength: squash[index].clamp(0.0, .58),
-      );
-    });
+    _solveContacts(dt);
+    _elapsed += dt;
   }
 
-  static double _gravityRotation(double time) {
-    if (time < 14) return 0;
-    if (time < 20) return math.pi * _ease((time - 14) / 6);
-    if (time < 34) return math.pi;
-    if (time < 40) return math.pi + math.pi * _ease((time - 34) / 6);
-    return math.pi * 2;
+  void _advanceReturn(_OilDropState drop, double dt) {
+    final top = -drop.radius - 18;
+    final targets = [
+      drop.returnLane,
+      Offset(drop.returnLane.dx, top),
+      Offset(drop.entryX, top),
+    ];
+    var remaining = 110 * dt;
+    while (remaining > 0 && drop.routeSegment < targets.length) {
+      final target = targets[drop.routeSegment];
+      final delta = target - drop.center;
+      final distance = delta.distance;
+      if (distance <= remaining || distance < .01) {
+        drop.center = target;
+        remaining -= distance;
+        drop.routeSegment++;
+      } else {
+        drop.center += delta / distance * remaining;
+        remaining = 0;
+      }
+    }
+    if (drop.routeSegment >= targets.length) {
+      drop.state = _OilTravelState.entering;
+      drop.velocity = Offset(0, 24 + OilTimerMotion.hash(drop.id, 41) * 18);
+    }
   }
 
-  static double _stagger(double value, double delay) =>
-      _ease(((value - delay) / (1 - delay)).clamp(0.0, 1.0));
-
-  static double _ease(double value) => value * value * (3 - 2 * value);
-
-  static Offset _rotate(Offset point, Offset center, double radians) {
-    final translated = point - center;
-    final cos = math.cos(radians);
-    final sin = math.sin(radians);
-    return center +
-        Offset(
-          translated.dx * cos - translated.dy * sin,
-          translated.dx * sin + translated.dy * cos,
-        );
+  void _solveContacts(double dt) {
+    for (var iteration = 0; iteration < 2; iteration++) {
+      for (var first = 0; first < _drops.length - 1; first++) {
+        final a = _drops[first];
+        if (a.state != _OilTravelState.descending) continue;
+        for (var second = first + 1; second < _drops.length; second++) {
+          final b = _drops[second];
+          if (b.state != _OilTravelState.descending) continue;
+          final delta = b.center - a.center;
+          final distance = math.max(.001, delta.distance);
+          final limit = a.radius + b.radius;
+          if (distance >= limit) continue;
+          final normal = delta / distance;
+          final overlap = limit - distance;
+          final ma = a.radius * a.radius;
+          final mb = b.radius * b.radius;
+          final inverseMass = 1 / ma + 1 / mb;
+          a.center -= normal * (overlap * (1 / ma / inverseMass) * .82);
+          b.center += normal * (overlap * (1 / mb / inverseMass) * .82);
+          final relative =
+              (b.velocity - a.velocity).dx * normal.dx +
+              (b.velocity - a.velocity).dy * normal.dy;
+          if (relative < 0) {
+            final impulse = -(1 + .35) * relative / inverseMass;
+            a.velocity -= normal * (impulse / ma);
+            b.velocity += normal * (impulse / mb);
+            final tangent = Offset(-normal.dy, normal.dx);
+            final tangentSpeed =
+                (b.velocity - a.velocity).dx * tangent.dx +
+                (b.velocity - a.velocity).dy * tangent.dy;
+            final friction = tangentSpeed * .08 / inverseMass;
+            a.velocity += tangent * (friction / ma);
+            b.velocity -= tangent * (friction / mb);
+          }
+          final compression = math.min(
+            .28,
+            .20 * overlap / math.min(a.radius, b.radius) +
+                .06 * relative.abs() / 90,
+          );
+          a.compression = math.min(.28, a.compression + compression);
+          b.compression = math.min(.28, b.compression + compression);
+          a.compressionNormal = -normal;
+          b.compressionNormal = normal;
+          if (iteration == 0) collisionCount++;
+        }
+      }
+    }
   }
 
-  static double _hash(int a, int b) =>
+  OilTimerFrame _frame() => OilTimerFrame(
+    drops: [
+      for (final drop in _drops)
+        OilTimerDrop(
+          id: drop.id,
+          center: drop.center,
+          radius: drop.radius,
+          color: drop.color,
+          surfacePhase: _elapsed * .32 + drop.id * .71,
+          squashDirection: drop.compressionNormal,
+          squashStrength: drop.compression,
+        ),
+    ],
+    collisionCount: collisionCount,
+  );
+}
+
+abstract final class OilTimerMotion {
+  static OilTimerFrame continuousCirculationFrame(Size size, double seconds) {
+    final simulation = OilTimerSimulation(size);
+    simulation.advanceForTest(seconds);
+    return simulation.snapshot();
+  }
+
+  static double hash(int a, int b) =>
       (math.sin(a * 12.9898 + b * 78.233) * 43758.5453).abs() % 1;
-
-  static Color _colorFor(int index) => Color.lerp(
-    _palette[index % _palette.length],
-    Colors.white,
-    .025 * (index % 4),
-  )!;
 }
 
 class FoodAmbientComparison extends StatefulWidget {
@@ -242,6 +342,8 @@ class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
     vsync: this,
     duration: const Duration(seconds: 48),
   )..repeat();
+  final Stopwatch _worldClock = Stopwatch()..start();
+  final OilTimerSimulation _circulation = OilTimerSimulation(Size.zero);
   @override
   void dispose() {
     _clock.dispose();
@@ -253,12 +355,27 @@ class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
     child: RepaintBoundary(
       child: AnimatedBuilder(
         animation: _clock,
-        builder: (context, child) => CustomPaint(
-          painter: _FoodAmbientPainter(
-            widget.variant,
-            widget.debugTime ?? _clock.value * 48,
-          ),
-          child: const SizedBox.expand(),
+        builder: (context, child) => LayoutBuilder(
+          builder: (context, constraints) {
+            final size = Size(constraints.maxWidth, constraints.maxHeight);
+            final seconds =
+                widget.debugTime ??
+                _worldClock.elapsedMicroseconds /
+                    Duration.microsecondsPerSecond;
+            final frame =
+                widget.variant == FoodAmbientVariant.continuousCirculation
+                ? (widget.debugTime == null
+                      ? _circulation.advanceTo(seconds, size)
+                      : OilTimerMotion.continuousCirculationFrame(
+                          size,
+                          seconds,
+                        ))
+                : null;
+            return CustomPaint(
+              painter: _FoodAmbientPainter(widget.variant, seconds, frame),
+              child: const SizedBox.expand(),
+            );
+          },
         ),
       ),
     ),
@@ -315,18 +432,17 @@ class FoodAmbientComparisonSelector extends StatelessWidget {
 }
 
 class _FoodAmbientPainter extends CustomPainter {
-  const _FoodAmbientPainter(this.variant, this.t);
+  const _FoodAmbientPainter(this.variant, this.t, this.circulationFrame);
   final FoodAmbientVariant variant;
   final double t;
+  final OilTimerFrame? circulationFrame;
 
   @override
   void paint(Canvas c, Size s) {
     c.drawRect(Offset.zero & s, Paint()..color = const Color(0xff05080d));
     switch (variant) {
-      case FoodAmbientVariant.gravityFlip:
-        _oilTimer(c, s, OilTimerMotion.gravityFlipFrame(s, t));
       case FoodAmbientVariant.continuousCirculation:
-        _oilTimer(c, s, OilTimerMotion.continuousCirculationFrame(s, t));
+        _oilTimer(c, s, circulationFrame!);
       case FoodAmbientVariant.metabolicCells:
         _restoredCells(c, s);
       case FoodAmbientVariant.thermalCurrent:
@@ -344,18 +460,13 @@ class _FoodAmbientPainter extends CustomPainter {
         drop.radius,
         drop.surfacePhase,
         drop.id,
-        16,
+        22,
         .050,
         contactDirection: drop.squashDirection,
         contactStrength: drop.squashStrength,
       );
       final bounds = path.getBounds();
-      c.drawPath(
-        path,
-        Paint()
-          ..color = drop.color.withValues(alpha: .11)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-      );
+      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .07));
       c.save();
       c.clipPath(path);
       c.drawRect(
@@ -448,105 +559,120 @@ class _FoodAmbientPainter extends CustomPainter {
   }
 
   void _restoredCells(Canvas c, Size s) {
-    // Restored from f8d5faf3: a cell-specific grid population and palette.
-    // V4 adds anatomy but deliberately avoids oil paths or merged fields.
+    // f8d5faf3 supplied the restrained membrane palette and breathing
+    // character. V4.1 intentionally replaces its grid with cached, seeded
+    // dart-thrown positions so a screenshot reads as a cell population.
     const palette = [Color(0xff55d5c0), Color(0xff74a4ff), Color(0xffd184c7)];
-    final columns = math.max(4, (s.width / 96).floor());
-    final rows = math.max(7, (s.height / 92).floor());
-    final cellWidth = s.width / columns;
-    final cellHeight = s.height / rows;
-    for (var row = 0; row < rows; row++) {
-      for (var column = 0; column < columns; column++) {
-        final seed = _h(column, row);
-        final phase = t * (.34 + seed * .15) + seed * math.pi * 2;
-        final pulse = .78 + .12 * math.sin(phase);
-        final center = Offset(
-          (column + .5 + .075 * math.sin(phase * .7)) * cellWidth,
-          (row + .5 + .062 * math.cos(phase * .8)) * cellHeight,
-        );
-        final radius = (cellWidth + cellHeight) * (.16 + seed * .09) * pulse;
-        final color = palette[(seed * palette.length).floor() % palette.length];
-        final membrane = _smoothOrganicPath(
-          center,
-          radius,
-          phase,
-          row * 7 + column,
-          14,
-          .035,
-        );
-        final bounds = membrane.getBounds();
-        c.drawPath(
-          membrane,
-          Paint()
-            ..color = color.withValues(alpha: .055)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-        );
-        c.save();
-        c.clipPath(membrane);
-        c.drawRect(
-          bounds,
-          Paint()
-            ..shader = RadialGradient(
-              center: Alignment(
-                -.25 + math.sin(phase) * .07,
-                -.25 + math.cos(phase * .8) * .06,
-              ),
-              colors: [
-                Color.lerp(color, Colors.white, .36)!.withValues(alpha: .25),
-                color.withValues(alpha: .15),
-                Color.lerp(
-                  color,
-                  const Color(0xff08101e),
-                  .56,
-                )!.withValues(alpha: .10),
-                color.withValues(alpha: 0),
-              ],
-              stops: const [0, .34, .76, 1],
-            ).createShader(bounds),
-        );
-        final nucleusCenter =
-            center +
-            Offset(math.cos(phase * .58), math.sin(phase * .72)) * radius * .18;
-        final nucleus = Rect.fromCircle(
-          center: nucleusCenter,
-          radius: radius * .27,
-        );
-        c.drawOval(
-          nucleus,
-          Paint()
-            ..shader = RadialGradient(
-              center: const Alignment(-.25, -.22),
-              colors: [
-                Color.lerp(color, Colors.white, .22)!.withValues(alpha: .28),
-                Color.lerp(
-                  color,
-                  const Color(0xff11152b),
-                  .72,
-                )!.withValues(alpha: .34),
-                const Color(0xff050914).withValues(alpha: .25),
-              ],
-              stops: const [0, .56, 1],
-            ).createShader(nucleus),
-        );
+    for (final cell in _cellsFor(s)) {
+      final phase = cell.phase;
+      final center = Offset(
+        (cell.x + .020 * math.sin(.13 * t + phase)) * s.width,
+        (cell.y + .016 * math.cos(.11 * t + phase * 1.3)) * s.height,
+      );
+      final radius = cell.radius * (.90 + .10 * math.sin(.32 * t + phase));
+      final color = palette[cell.id % palette.length];
+      final membrane = _smoothOrganicPath(
+        center,
+        radius,
+        phase + t * .08,
+        cell.id,
+        20,
+        .035,
+      );
+      final bounds = membrane.getBounds();
+      c.save();
+      c.clipPath(membrane);
+      c.drawRect(
+        bounds,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-.22, -.18),
+            colors: [
+              Color.lerp(color, Colors.white, .30)!.withValues(alpha: .16),
+              color.withValues(alpha: .09),
+              color.withValues(alpha: .025),
+              color.withValues(alpha: 0),
+            ],
+            stops: const [0, .38, .78, 1],
+          ).createShader(bounds),
+      );
+      final nucleusCenter =
+          center +
+          Offset(math.cos(phase * 1.7), math.sin(phase * .83)) *
+              radius *
+              (.12 + cell.nucleusOffset * .13);
+      final nucleus = Rect.fromCircle(
+        center: nucleusCenter,
+        radius: radius * (.22 + cell.nucleusOffset * .10),
+      );
+      c.drawOval(
+        nucleus,
+        Paint()
+          ..color = Color.lerp(
+            color,
+            const Color(0xff12172a),
+            .66,
+          )!.withValues(alpha: .27),
+      );
+      c.drawCircle(
+        nucleusCenter + Offset(radius * .045, -radius * .035),
+        radius * .06,
+        Paint()..color = Colors.white.withValues(alpha: .27),
+      );
+      for (var organelle = 0; organelle < 2 + cell.id % 3; organelle++) {
+        final angle = phase + organelle * 2.21;
         c.drawCircle(
-          nucleusCenter + Offset(radius * .05, -radius * .04),
-          radius * .07,
-          Paint()..color = Colors.white.withValues(alpha: .31),
-        );
-        c.restore();
-        c.drawPath(
-          membrane,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = .85 + seed * .35
-            ..color = Color.lerp(
-              color,
-              Colors.white,
-              .34,
-            )!.withValues(alpha: .34),
+          center + Offset(math.cos(angle), math.sin(angle)) * radius * .48,
+          radius * (.025 + (organelle % 2) * .012),
+          Paint()..color = color.withValues(alpha: .10),
         );
       }
+      c.restore();
+      c.drawPath(
+        membrane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1 + cell.nucleusOffset * .3
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            .25,
+          )!.withValues(alpha: .18 + cell.nucleusOffset * .14),
+      );
     }
+  }
+
+  static final Map<String, List<_CellSeed>> _cellLayouts = {};
+
+  List<_CellSeed> _cellsFor(Size size) {
+    final key = '${size.width.round()}x${size.height.round()}';
+    return _cellLayouts.putIfAbsent(key, () {
+      final min = size.shortestSide;
+      final target = (26 * size.width * size.height / (390 * 844))
+          .round()
+          .clamp(14, 38);
+      final cells = <_CellSeed>[];
+      for (var attempt = 0; attempt < 400 && cells.length < target; attempt++) {
+        final id = attempt;
+        final radius = min * (.035 + .050 * _h(id, 211));
+        final candidate = _CellSeed(
+          id: id,
+          x: .06 + .88 * _h(id, 223),
+          y: .05 + .90 * _h(id, 227),
+          radius: radius,
+          phase: _h(id, 229) * math.pi * 2,
+          nucleusOffset: _h(id, 233),
+        );
+        final valid = cells.every((other) {
+          final dx = (candidate.x - other.x) * size.width;
+          final dy = (candidate.y - other.y) * size.height;
+          return math.sqrt(dx * dx + dy * dy) >=
+              .75 * (candidate.radius + other.radius);
+        });
+        if (valid) cells.add(candidate);
+      }
+      return cells;
+    });
   }
 
   void _thermal(Canvas c, Size s) {
@@ -632,6 +758,20 @@ class _FoodAmbientPainter extends CustomPainter {
                         contactDirection?.dx ?? 1,
                       ),
                 ),
+              ) +
+          contactStrength *
+              .12 *
+              math.max(
+                0,
+                math
+                    .sin(
+                      a -
+                          math.atan2(
+                            contactDirection?.dy ?? 0,
+                            contactDirection?.dx ?? 1,
+                          ),
+                    )
+                    .abs(),
               );
       points.add(
         Offset(o.dx + math.cos(a) * r * w * x, o.dy + math.sin(a) * r * w * y),
@@ -668,5 +808,25 @@ class _FoodAmbientPainter extends CustomPainter {
       (math.sin(a * 12.9898 + b * 78.233) * 43758.5453).abs() % 1;
   @override
   bool shouldRepaint(covariant _FoodAmbientPainter old) =>
-      old.variant != variant || old.t != t;
+      old.variant != variant ||
+      old.t != t ||
+      old.circulationFrame != circulationFrame;
+}
+
+class _CellSeed {
+  const _CellSeed({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.radius,
+    required this.phase,
+    required this.nucleusOffset,
+  });
+
+  final int id;
+  final double x;
+  final double y;
+  final double radius;
+  final double phase;
+  final double nucleusOffset;
 }

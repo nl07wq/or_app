@@ -6,7 +6,7 @@ void main() {
   testWidgets('FOOD ambient comparison exposes and switches all candidates', (
     tester,
   ) async {
-    FoodAmbientVariant selected = FoodAmbientVariant.gravityFlip;
+    FoodAmbientVariant selected = FoodAmbientVariant.continuousCirculation;
     late StateSetter update;
 
     await tester.pumpWidget(
@@ -30,9 +30,9 @@ void main() {
       ),
     );
 
-    expect(FoodAmbientVariant.values, hasLength(4));
+    expect(FoodAmbientVariant.values, hasLength(3));
     expect(find.byType(FoodAmbientComparison), findsOneWidget);
-    expect(find.text('GRAVITY FLIP'), findsOneWidget);
+    expect(find.text('GRAVITY FLIP'), findsNothing);
     expect(find.text('CONTINUOUS CIRCULATION'), findsOneWidget);
     expect(find.text('METABOLIC CELLS'), findsOneWidget);
     expect(find.text('THERMAL CURRENT'), findsOneWidget);
@@ -50,5 +50,20 @@ void main() {
       await tester.pump(const Duration(milliseconds: 120));
       expect(tester.takeException(), isNull);
     }
+  });
+
+  test('migrates removed GRAVITY FLIP preference to circulation', () {
+    expect(
+      FoodAmbientVariant.fromPersistedName('gravityFlip'),
+      FoodAmbientVariant.continuousCirculation,
+    );
+    expect(
+      FoodAmbientVariant.fromPersistedName('metabolicCells'),
+      FoodAmbientVariant.metabolicCells,
+    );
+    expect(
+      FoodAmbientVariant.fromPersistedName('thermalCurrent'),
+      FoodAmbientVariant.thermalCurrent,
+    );
   });
 }

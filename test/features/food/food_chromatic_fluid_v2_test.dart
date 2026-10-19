@@ -20,93 +20,74 @@ void main() {
     await tester.pump();
   }
 
-  test('gravity flip has a continuous 48-second loop', () {
-    final start = OilTimerMotion.gravityFlipFrame(viewport, 0);
-    final end = OilTimerMotion.gravityFlipFrame(
-      viewport,
-      OilTimerMotion.cycleSeconds,
+  test('stateful circulation has stable IDs, bounded speed and collisions', () {
+    final simulation = OilTimerSimulation(viewport);
+    final initial = simulation.snapshot();
+    simulation.advanceForTest(60);
+    final later = simulation.snapshot();
+    expect(initial.drops, hasLength(OilTimerSimulation.dropCount));
+    expect(
+      later.drops.map((drop) => drop.id),
+      orderedEquals(initial.drops.map((drop) => drop.id)),
     );
-
-    expect(start.drops, hasLength(OilTimerMotion.dropCount));
-    expect(end.drops, hasLength(OilTimerMotion.dropCount));
-    for (var index = 0; index < start.drops.length; index++) {
-      expect(
-        (start.drops[index].center - end.drops[index].center).distance,
-        lessThan(.001),
-      );
-      expect(start.drops[index].radius, end.drops[index].radius);
-    }
+    expect(later.drops.every((drop) => drop.squashStrength <= .28), isTrue);
+    expect(later.collisionCount, greaterThan(0));
   });
 
-  test('oil timer contact only compresses and separates droplets', () {
-    final frame = OilTimerMotion.gravityFlipFrame(viewport, 9.5);
-    var contacts = 0;
-    for (var first = 0; first < frame.drops.length - 1; first++) {
-      for (var second = first + 1; second < frame.drops.length; second++) {
-        final a = frame.drops[first];
-        final b = frame.drops[second];
-        if ((a.center - b.center).distance < a.radius + b.radius) {
-          contacts++;
-          expect(a.color, isNot(b.color));
-        }
+  test('circulation is continuous through a nominal 48-second boundary', () {
+    final simulation = OilTimerSimulation(viewport);
+    simulation.advanceForTest(47.99);
+    final before = simulation.snapshot();
+    simulation.advanceForTest(.02);
+    final after = simulation.snapshot();
+    for (var i = 0; i < before.drops.length; i++) {
+      final a = before.drops[i];
+      final b = after.drops[i];
+      if (a.center.dy >= -a.radius &&
+          a.center.dy <= viewport.height + a.radius &&
+          b.center.dy >= -b.radius &&
+          b.center.dy <= viewport.height + b.radius) {
+        expect((a.center - b.center).distance, lessThan(4));
       }
     }
-    expect(contacts, lessThanOrEqualTo(OilTimerMotion.maximumContactCount));
-    expect(frame.drops.every((drop) => drop.squashStrength <= .58), isTrue);
-  });
-
-  test('continuous circulation only wraps outside the visible viewport', () {
-    final before = OilTimerMotion.continuousCirculationFrame(viewport, 0);
-    final later = OilTimerMotion.continuousCirculationFrame(viewport, 8);
-
-    expect(before.drops, hasLength(OilTimerMotion.dropCount));
-    expect(later.drops, hasLength(OilTimerMotion.dropCount));
-    expect(
-      before.drops.any((drop) => drop.center.dy < 0) &&
-          before.drops.any((drop) => drop.center.dy > viewport.height),
-      isTrue,
-    );
-  });
-
-  testWidgets('renders gravity flip progression golden', (tester) async {
-    await pumpAmbient(tester, FoodAmbientVariant.gravityFlip, 0);
-    await expectLater(
-      find.byType(FoodAmbientComparison),
-      matchesGoldenFile('goldens/food_gravity_flip_v4_start.png'),
-    );
-    await pumpAmbient(tester, FoodAmbientVariant.gravityFlip, 17);
-    await expectLater(
-      find.byType(FoodAmbientComparison),
-      matchesGoldenFile('goldens/food_gravity_flip_v4_flip.png'),
-    );
-    await pumpAmbient(tester, FoodAmbientVariant.gravityFlip, 26);
-    await expectLater(
-      find.byType(FoodAmbientComparison),
-      matchesGoldenFile('goldens/food_gravity_flip_v4_settle.png'),
-    );
   });
 
   testWidgets('renders continuous circulation progression golden', (
     tester,
   ) async {
-    await pumpAmbient(tester, FoodAmbientVariant.continuousCirculation, 1);
-    await expectLater(
-      find.byType(FoodAmbientComparison),
-      matchesGoldenFile('goldens/food_continuous_circulation_v4_top.png'),
-    );
-    await pumpAmbient(tester, FoodAmbientVariant.continuousCirculation, 16);
-    await expectLater(
-      find.byType(FoodAmbientComparison),
-      matchesGoldenFile('goldens/food_continuous_circulation_v4_lower.png'),
-    );
+    for (final second in [
+      0.0,
+      3.0,
+      8.0,
+      15.0,
+      25.0,
+      40.0,
+      47.99,
+      48.01,
+      60.0,
+    ]) {
+      await pumpAmbient(
+        tester,
+        FoodAmbientVariant.continuousCirculation,
+        second,
+      );
+      await expectLater(
+        find.byType(FoodAmbientComparison),
+        matchesGoldenFile(
+          'goldens/food_continuous_circulation_v41_$second.png',
+        ),
+      );
+    }
   });
 
   testWidgets('renders restored cellular anatomy golden', (tester) async {
-    await pumpAmbient(tester, FoodAmbientVariant.metabolicCells, 6);
-    await expectLater(
-      find.byType(FoodAmbientComparison),
-      matchesGoldenFile('goldens/food_metabolic_cells_v4_anatomy.png'),
-    );
+    for (final second in [0.0, 5.0, 10.0, 20.0]) {
+      await pumpAmbient(tester, FoodAmbientVariant.metabolicCells, second);
+      await expectLater(
+        find.byType(FoodAmbientComparison),
+        matchesGoldenFile('goldens/food_metabolic_cells_v41_$second.png'),
+      );
+    }
   });
 
   for (final width in const [320.0, 375.0, 390.0, 430.0]) {

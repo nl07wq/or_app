@@ -62,7 +62,9 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const ValueKey('food-ambient-gravityFlip')));
+    await tester.tap(
+      find.byKey(const ValueKey('food-ambient-continuousCirculation')),
+    );
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('food-ambient-metabolicCells')));
     await tester.pump();

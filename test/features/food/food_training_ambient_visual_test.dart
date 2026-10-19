@@ -11,7 +11,12 @@ void main() {
   ]) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: SizedBox.expand(child: FoodAmbientComparison(variant: variant)),
+        home: SizedBox.expand(
+          child: FoodAmbientComparison(
+            variant: variant,
+            debugTime: elapsed.inMicroseconds / Duration.microsecondsPerSecond,
+          ),
+        ),
       ),
     );
     await tester.pump(elapsed);
@@ -32,14 +37,16 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('GRAVITY FLIP V4 visual frame is stable', (tester) async {
-    await pumpFood(tester, FoodAmbientVariant.gravityFlip);
+  testWidgets('CONTINUOUS CIRCULATION V4.1 visual frame is stable', (
+    tester,
+  ) async {
+    await pumpFood(tester, FoodAmbientVariant.continuousCirculation);
     await expectLater(
       find.descendant(
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_gravity_flip_v4_phase_a.png'),
+      matchesGoldenFile('goldens/food_continuous_circulation_v41_phase_a.png'),
     );
   });
 
@@ -50,7 +57,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolic_cells_v4.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v41.png'),
     );
   });
 
@@ -89,7 +96,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_continuous_circulation_v4_phase_b.png'),
+      matchesGoldenFile('goldens/food_continuous_circulation_v41_phase_b.png'),
     );
   });
 
@@ -106,7 +113,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_metabolic_cells_v4_phase_b.png'),
+      matchesGoldenFile('goldens/food_metabolic_cells_v41_phase_b.png'),
     );
   });
 
