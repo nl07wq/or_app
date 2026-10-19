@@ -144,7 +144,7 @@ class _ChromaticFluidFieldSource {
 
 typedef _ChromaticFluidFieldNode = (int orientation, int x, int y);
 
-/// Deterministic, bounded implicit-field geometry for Chromatic Fluid V3.3.
+/// Deterministic, bounded implicit-field geometry for Chromatic Fluid V3.4.
 ///
 /// Nearby drops are linked dynamically into bounded local field groups. A
 /// smooth iso-contour is extracted from the summed scalar surface, so every
@@ -167,6 +167,7 @@ abstract final class ChromaticFluidMetaballs {
   ];
 
   static ChromaticFluidFrame frame(Size size, double seconds) {
+    final loop = _cycleAngle(seconds);
     final shortest = size.shortestSide;
     final drops = <ChromaticFluidDrop>[];
     const majorAnchors = <Offset>[
@@ -180,32 +181,32 @@ abstract final class ChromaticFluidMetaballs {
     const majorRadii = <double>[.142, .086, .126, .076, .136, .082];
 
     for (var id = 0; id < majorAnchors.length; id++) {
-      final phase = seconds * (.105 + id * .009) + id * 1.41;
+      final phase = loop * (2 + id % 3) + id * 1.41;
       final anchor = majorAnchors[id];
       final center = Offset(
         size.width * anchor.dx +
-            math.sin(phase * .91) * (24 + (id % 3) * 8) +
-            math.cos(phase * .37 + id) * 13,
+            math.sin(phase) * (24 + (id % 3) * 8) +
+            math.cos(loop * (3 + id % 2) + id) * 13,
         size.height * anchor.dy +
-            math.cos(phase * .73) * (31 + (id % 2) * 10) +
-            math.sin(phase * .41 + id) * 16,
+            math.cos(phase * 2) * (31 + (id % 2) * 10) +
+            math.sin(phase * 3 + id) * 16,
       );
       final baseRadius = shortest * majorRadii[id];
       // Alternating currents gather a changing local triad without assigning
       // any contact pair in advance. The field still decides whether the
       // neighbouring drops actually merge at this phase.
-      final triadPhase = seconds * .13 + (id.isEven ? 0 : math.pi);
+      final triadPhase = loop * 3 + (id.isEven ? 0 : math.pi);
       final triadPull = _smoothStep(
         ((.5 + .5 * math.sin(triadPhase) - .70) / .30).clamp(0.0, 1.0),
       );
       final triadIndex = id ~/ 2;
       final triadCenter = Offset(
-        size.width * (id.isEven ? .41 : .63) + math.sin(seconds * .07) * 18,
-        size.height * (.48 + math.cos(seconds * .06) * .12),
+        size.width * (id.isEven ? .41 : .63) + math.sin(loop) * 18,
+        size.height * (.48 + math.cos(loop * 2) * .12),
       );
       final gatheredCenter =
           triadCenter +
-          Offset.fromDirection(triadIndex * math.pi * 2 / 3 + seconds * .11) *
+          Offset.fromDirection(triadIndex * math.pi * 2 / 3 + loop * 2) *
               baseRadius *
               .22;
       drops.add(
@@ -220,7 +221,7 @@ abstract final class ChromaticFluidMetaballs {
           size: id.isEven
               ? ChromaticFluidDropSize.large
               : ChromaticFluidDropSize.medium,
-          surfacePhase: seconds * (.31 + id * .018) + id * 1.23,
+          surfacePhase: loop * (4 + id % 3) + id * 1.23,
         ),
       );
     }
@@ -234,11 +235,12 @@ abstract final class ChromaticFluidMetaballs {
       Offset(.76, .90),
     ];
     for (var i = 0; i < smallAnchors.length; i++) {
-      final phase = seconds * (.15 + i * .012) + i * 1.47;
+      final phase = loop * (2 + i % 4) + i * 1.47;
       final anchor = smallAnchors[i];
       final freeCenter = Offset(
-        size.width * anchor.dx + math.sin(phase * .83) * (13 + i % 3 * 4),
-        size.height * anchor.dy + math.cos(phase * .67) * (16 + i % 2 * 5),
+        size.width * anchor.dx + math.sin(phase) * (13 + i % 3 * 4),
+        size.height * anchor.dy +
+            math.cos(loop * (3 + i % 3) + i) * (16 + i % 2 * 5),
       );
       final host = drops
           .where((drop) => drop.size != ChromaticFluidDropSize.small)
@@ -250,11 +252,13 @@ abstract final class ChromaticFluidMetaballs {
                 : nearest,
           );
       final absorption = _smoothStep(
-        ((.5 + .5 * math.sin(seconds * (.19 + i * .011) + i * 1.91)) - .44)
-                .clamp(0.0, 1.0) /
+        ((.5 + .5 * math.sin(loop * (4 + i % 3) + i * 1.91)) - .44).clamp(
+              0.0,
+              1.0,
+            ) /
             .56,
       );
-      final direction = Offset.fromDirection(phase * .72 + i * .83);
+      final direction = Offset.fromDirection(loop * (2 + i % 3) + i * .83);
       final hostPosition =
           host.center +
           direction * host.radius * (.20 + (1 - absorption) * .62);
@@ -310,9 +314,11 @@ abstract final class ChromaticFluidMetaballs {
 
   static List<ChromaticFluidParticle> _particles(Size size, double seconds) {
     const particleCount = 26;
+    final loop = _cycleAngle(seconds);
     return List<ChromaticFluidParticle>.generate(particleCount, (index) {
-      final speed = .030 + (index % 5) * .006;
-      final progress = (seconds * speed + index * .173) % 1;
+      // Every particle completes exactly one transparent-edge traversal per
+      // ambient loop, so its wrap is invisible at both endpoints.
+      final progress = (seconds / cycleSeconds + index * .173) % 1;
       final edgeFade = _smoothStep(
         math.min(progress / .13, (1 - progress) / .13),
       );
@@ -323,9 +329,9 @@ abstract final class ChromaticFluidMetaballs {
       return ChromaticFluidParticle(
         center: Offset(
           size.width * (.06 + ((index * .371) % .88)) +
-              math.sin(seconds * (.42 + index * .013) + index) * 7,
+              math.sin(loop * (3 + index % 3) + index) * 7,
           size.height * (1.08 - progress * 1.20) +
-              math.cos(seconds * (.31 + index * .017) + index) * 4,
+              math.cos(loop * (2 + index % 4) + index) * 4,
         ),
         radius: radius,
         color: _palette[(index + 1) % _palette.length],
@@ -360,11 +366,26 @@ abstract final class ChromaticFluidMetaballs {
       return current;
     }
 
-    for (final contact in frame.contacts) {
-      if (contact.strength < .025) continue;
-      final firstRoot = root(contact.first.id);
-      final secondRoot = root(contact.second.id);
-      if (firstRoot != secondRoot) parent[secondRoot] = firstRoot;
+    // Group on a generous local influence radius rather than a binary
+    // contact threshold. The implicit field can then form and release a neck
+    // continuously instead of switching between two separate evaluations.
+    final drops = frame.drops;
+    for (var firstIndex = 0; firstIndex < drops.length - 1; firstIndex++) {
+      for (
+        var secondIndex = firstIndex + 1;
+        secondIndex < drops.length;
+        secondIndex++
+      ) {
+        final first = drops[firstIndex];
+        final second = drops[secondIndex];
+        final normalizedDistance =
+            (first.center - second.center).distance /
+            (first.radius + second.radius);
+        if (normalizedDistance > 1.46) continue;
+        final firstRoot = root(first.id);
+        final secondRoot = root(second.id);
+        if (firstRoot != secondRoot) parent[secondRoot] = firstRoot;
+      }
     }
     final grouped = <int, List<ChromaticFluidDrop>>{};
     for (final drop in frame.drops) {
@@ -609,11 +630,30 @@ abstract final class ChromaticFluidMetaballs {
               ]
             : points;
         final path = _closedSmoothPath(contourPoints);
+        final pathBounds = path.getBounds();
+        final contributingDrops = drops
+            .where((drop) => pathBounds.contains(drop.center))
+            .toSet();
+        // A proximity group can still contain two disconnected contours.
+        // Associate pigment with the contour that actually encloses its drop,
+        // otherwise separated drops would inherit each other's full colour
+        // field before the liquid neck exists.
+        if (contributingDrops.isEmpty) {
+          contributingDrops.add(
+            drops.reduce(
+              (nearest, candidate) =>
+                  (candidate.center - pathBounds.center).distance <
+                      (nearest.center - pathBounds.center).distance
+                  ? candidate
+                  : nearest,
+            ),
+          );
+        }
         contours.add(
           ChromaticFluidFieldContour(
             path: path,
-            bounds: path.getBounds(),
-            dropIds: Set.unmodifiable(drops.map((drop) => drop.id)),
+            bounds: pathBounds,
+            dropIds: Set.unmodifiable(contributingDrops.map((drop) => drop.id)),
             pointCount: contourPoints.length,
             samplePoints: List.unmodifiable(contourPoints),
           ),
@@ -624,17 +664,17 @@ abstract final class ChromaticFluidMetaballs {
   }
 
   static List<_ChromaticFluidFieldSource> _sourcesFor(ChromaticFluidDrop drop) {
-    final shapePhase = drop.surfacePhase * .63 + drop.id * .71;
-    final rotation = shapePhase * .37;
-    final xScale = 1 + math.sin(shapePhase) * .072;
-    final yScale = 1 + math.cos(shapePhase * .83) * .066;
-    final driftDirection = Offset.fromDirection(shapePhase * .52 + drop.id);
-    final firstLobeDirection = Offset.fromDirection(shapePhase * .71 + drop.id);
+    final shapePhase = drop.surfacePhase + drop.id * .71;
+    final rotation = shapePhase;
+    final xScale = 1 + math.sin(shapePhase) * .102;
+    final yScale = 1 + math.cos(shapePhase * 2) * .092;
+    final driftDirection = Offset.fromDirection(shapePhase * 2 + drop.id);
+    final firstLobeDirection = Offset.fromDirection(shapePhase * 3 + drop.id);
     final secondLobeDirection = Offset.fromDirection(
-      shapePhase * -.49 + drop.id * 1.83,
+      shapePhase * -2 + drop.id * 1.83,
     );
     final rippleDirection = Offset.fromDirection(
-      shapePhase * 1.17 - drop.id * .61,
+      shapePhase * 4 - drop.id * .61,
     );
     return [
       _ChromaticFluidFieldSource(
@@ -646,35 +686,35 @@ abstract final class ChromaticFluidMetaballs {
         radiusY: drop.radius * yScale,
         cosRotation: math.cos(rotation),
         sinRotation: math.sin(rotation),
-        weight: .72,
+        weight: .68,
       ),
       _ChromaticFluidFieldSource(
-        center: drop.center + firstLobeDirection * drop.radius * .39,
-        radiusX: drop.radius * .60,
-        radiusY: drop.radius * .42,
+        center: drop.center + firstLobeDirection * drop.radius * .42,
+        radiusX: drop.radius * .62,
+        radiusY: drop.radius * .40,
         cosRotation: math.cos(rotation + .8),
         sinRotation: math.sin(rotation + .8),
-        weight: .24,
+        weight: .29,
       ),
       _ChromaticFluidFieldSource(
-        center: drop.center + secondLobeDirection * drop.radius * .52,
-        radiusX: drop.radius * .38,
-        radiusY: drop.radius * .29,
+        center: drop.center + secondLobeDirection * drop.radius * .58,
+        radiusX: drop.radius * .41,
+        radiusY: drop.radius * .27,
         cosRotation: math.cos(rotation - .72),
         sinRotation: math.sin(rotation - .72),
-        weight: .11,
+        weight: .15,
       ),
       _ChromaticFluidFieldSource(
         center:
             drop.center +
             rippleDirection *
                 drop.radius *
-                (.61 + math.sin(shapePhase * 1.31) * .055),
-        radiusX: drop.radius * .25,
-        radiusY: drop.radius * .19,
+                (.62 + math.sin(shapePhase * 3) * .055),
+        radiusX: drop.radius * .28,
+        radiusY: drop.radius * .17,
         cosRotation: math.cos(rotation + 1.56),
         sinRotation: math.sin(rotation + 1.56),
-        weight: .037,
+        weight: .055,
       ),
     ];
   }
@@ -721,6 +761,9 @@ abstract final class ChromaticFluidMetaballs {
   }
 
   static double _smoothStep(double value) => value * value * (3 - 2 * value);
+
+  static double _cycleAngle(double seconds) =>
+      (seconds % cycleSeconds) / cycleSeconds * math.pi * 2;
 }
 
 @immutable
@@ -753,7 +796,7 @@ class HighFidelityFluidRibbon {
   final double width;
 }
 
-/// A bounded local velocity/density/pigment field for the one V3.3 quality
+/// A bounded local velocity/density/pigment field for the one V3.4 quality
 /// fluid. It is intentionally separate from the twelve implicit metaballs.
 /// Semi-Lagrangian samples establish local density and pigment state, while
 /// velocity-advected ribbons reconstruct the final pixels without exposing
@@ -777,6 +820,7 @@ class HighFidelityFluidFrame {
 
 abstract final class HighFidelityChromaticFluid {
   static const gridResolution = 28;
+  static const cycleSeconds = ChromaticFluidMetaballs.cycleSeconds;
   static const maximumSampleCount = gridResolution * gridResolution;
   static const _pigments = <Color>[
     Color(0xff2fe3d5),
@@ -787,10 +831,11 @@ abstract final class HighFidelityChromaticFluid {
   ];
 
   static HighFidelityFluidFrame frame(Size size, double seconds) {
+    final phase = _cycleAngle(seconds);
     final diameter = size.shortestSide * .30;
     final center = Offset(
-      size.width * (.70 + math.sin(seconds * .055) * .055),
-      size.height * (.34 + math.cos(seconds * .047) * .075),
+      size.width * (.70 + math.sin(phase) * .055),
+      size.height * (.34 + math.cos(phase * 2) * .075),
     );
     final bounds = Rect.fromCenter(
       center: center,
@@ -807,18 +852,15 @@ abstract final class HighFidelityChromaticFluid {
         );
         final radius = local.distance;
         if (radius > 1.06) continue;
-        final velocity = _velocity(local, seconds);
+        final velocity = _velocity(local, phase);
         // Semi-Lagrangian backtrace: pigment reads from where this cell was,
         // rather than merely rotating a gradient at its current position.
         final traced = local - velocity * .22;
-        final upstreamVelocity = _velocity(traced, seconds - .12);
+        final upstreamVelocity = _velocity(traced, phase - .12);
         final diffused = traced - upstreamVelocity * .07;
-        final pigment = _pigment(diffused, seconds);
-        final diffusion = _density(local + velocity * .035, seconds) * .18;
-        final density = (_density(diffused, seconds) + diffusion).clamp(
-          0.0,
-          1.0,
-        );
+        final pigment = _pigment(diffused, phase);
+        final diffusion = _density(local + velocity * .035, phase) * .18;
+        final density = (_density(diffused, phase) + diffusion).clamp(0.0, 1.0);
         if (density < .025) continue;
         cells.add(
           HighFidelityFluidCell(
@@ -838,16 +880,16 @@ abstract final class HighFidelityChromaticFluid {
     }
     return HighFidelityFluidFrame(
       bounds: bounds,
-      outline: _outline(center, diameter, seconds),
+      outline: _outline(center, diameter, phase),
       cells: List.unmodifiable(cells),
-      ribbons: List.unmodifiable(_ribbons(bounds, seconds)),
+      ribbons: List.unmodifiable(_ribbons(bounds, phase)),
       sampleCount: cells.length,
     );
   }
 
-  static List<HighFidelityFluidRibbon> _ribbons(Rect bounds, double seconds) {
+  static List<HighFidelityFluidRibbon> _ribbons(Rect bounds, double phase) {
     final ribbons = <HighFidelityFluidRibbon>[];
-    for (final (index, source) in _pigmentSources(seconds).indexed) {
+    for (final (index, source) in _pigmentSources(phase).indexed) {
       var local = source.$1;
       final points = <Offset>[];
       for (var step = 0; step < 22; step++) {
@@ -858,7 +900,7 @@ abstract final class HighFidelityChromaticFluid {
             bounds.center.dy + local.dy * bounds.height * .5,
           ),
         );
-        final velocity = _velocity(local, seconds + step * .035);
+        final velocity = _velocity(local, phase + step * .12);
         local += velocity * .052;
       }
       if (points.length < 4) continue;
@@ -873,14 +915,14 @@ abstract final class HighFidelityChromaticFluid {
     return ribbons;
   }
 
-  static Offset _velocity(Offset point, double seconds) {
+  static Offset _velocity(Offset point, double phase) {
     final radial = point.distance;
     final primaryVortex =
         1.08 * (1 - radial.clamp(0.0, 1.0)) +
-        math.sin(seconds * .34 + point.dx * 4) * .19;
+        math.sin(phase * 3 + point.dx * 4) * .19;
     final secondaryCenter = Offset(
-      math.cos(seconds * .17) * .28,
-      math.sin(seconds * .13) * .22,
+      math.cos(phase * 2) * .28,
+      math.sin(phase * 3) * .22,
     );
     final aroundSecondary = point - secondaryCenter;
     final secondaryVortex =
@@ -889,27 +931,27 @@ abstract final class HighFidelityChromaticFluid {
         Offset(-point.dy, point.dx) * primaryVortex +
         Offset(-aroundSecondary.dy, aroundSecondary.dx) * secondaryVortex;
     final drift = Offset(
-      math.sin(seconds * .23 + point.dy * 5) * .17,
-      math.cos(seconds * .19 - point.dx * 4) * .15,
+      math.sin(phase * 2 + point.dy * 5) * .17,
+      math.cos(phase * 3 - point.dx * 4) * .15,
     );
     return tangent + drift;
   }
 
-  static double _density(Offset point, double seconds) {
+  static double _density(Offset point, double phase) {
     final angle = math.atan2(point.dy, point.dx);
     final edgeWave =
-        math.sin(angle * 3 + seconds * .31) * .075 +
-        math.cos(angle * 5 - seconds * .23) * .045;
+        math.sin(angle * 3 + phase * 3) * .075 +
+        math.cos(angle * 5 - phase * 2) * .045;
     final envelope = (1.10 + edgeWave - point.distance).clamp(0.0, 1.0);
     final wave =
         .67 +
-        math.sin(point.dx * 5.7 + point.dy * 4.1 - seconds * .72) * .13 +
-        math.cos(point.dy * 6.8 + seconds * .49) * .10;
+        math.sin(point.dx * 5.7 + point.dy * 4.1 - phase * 4) * .13 +
+        math.cos(point.dy * 6.8 + phase * 3) * .10;
     return (envelope * wave).clamp(0.0, 1.0);
   }
 
-  static Color _pigment(Offset point, double seconds) {
-    final sources = _pigmentSources(seconds);
+  static Color _pigment(Offset point, double phase) {
+    final sources = _pigmentSources(phase);
     var total = 0.0;
     var red = 0.0;
     var green = 0.0;
@@ -930,44 +972,42 @@ abstract final class HighFidelityChromaticFluid {
     );
   }
 
-  static List<(Offset, Color)> _pigmentSources(double seconds) =>
-      <(Offset, Color)>[
-        (
-          Offset(
-            -.50 + math.sin(seconds * .23) * .12,
-            -.16 + math.cos(seconds * .17) * .13,
-          ),
-          _pigments[0],
-        ),
-        (
-          Offset(
-            .27 + math.cos(seconds * .19) * .15,
-            -.43 + math.sin(seconds * .29) * .11,
-          ),
-          _pigments[1],
-        ),
-        (
-          Offset(
-            .49 + math.sin(seconds * .16 + 1.4) * .13,
-            .18 + math.cos(seconds * .21) * .12,
-          ),
-          _pigments[2],
-        ),
-        (
-          Offset(
-            -.12 + math.cos(seconds * .27 + .7) * .17,
-            .48 + math.sin(seconds * .15) * .12,
-          ),
-          _pigments[3],
-        ),
-        (
-          Offset(
-            -.42 + math.sin(seconds * .20 + 2.1) * .12,
-            .31 + math.cos(seconds * .24 + .6) * .13,
-          ),
-          _pigments[4],
-        ),
-      ];
+  static List<(Offset, Color)> _pigmentSources(
+    double phase,
+  ) => <(Offset, Color)>[
+    (
+      Offset(
+        -.50 + math.sin(phase * 2) * .12,
+        -.16 + math.cos(phase * 3) * .13,
+      ),
+      _pigments[0],
+    ),
+    (
+      Offset(.27 + math.cos(phase * 3) * .15, -.43 + math.sin(phase * 2) * .11),
+      _pigments[1],
+    ),
+    (
+      Offset(
+        .49 + math.sin(phase * 2 + 1.4) * .13,
+        .18 + math.cos(phase * 3) * .12,
+      ),
+      _pigments[2],
+    ),
+    (
+      Offset(
+        -.12 + math.cos(phase * 4 + .7) * .17,
+        .48 + math.sin(phase * 2) * .12,
+      ),
+      _pigments[3],
+    ),
+    (
+      Offset(
+        -.42 + math.sin(phase * 3 + 2.1) * .12,
+        .31 + math.cos(phase * 4 + .6) * .13,
+      ),
+      _pigments[4],
+    ),
+  ];
 
   static Path _openSmoothPath(List<Offset> points) {
     final path = Path()..moveTo(points.first.dx, points.first.dy);
@@ -985,18 +1025,18 @@ abstract final class HighFidelityChromaticFluid {
     return path..lineTo(last.dx, last.dy);
   }
 
-  static Path _outline(Offset center, double diameter, double seconds) {
+  static Path _outline(Offset center, double diameter, double phase) {
     final points = <Offset>[];
     for (var index = 0; index < 28; index++) {
       final angle = index * math.pi * 2 / 28;
       final probe = Offset(math.cos(angle), math.sin(angle));
-      final flow = _velocity(probe * .82, seconds);
+      final flow = _velocity(probe * .82, phase);
       final projectedFlow = flow.dx * probe.dx + flow.dy * probe.dy;
       final radius =
           diameter *
           (.47 +
-              math.sin(angle * 3 + seconds * .43) * .050 +
-              math.cos(angle * 5 - seconds * .31) * .034 +
+              math.sin(angle * 3 + phase * 3) * .050 +
+              math.cos(angle * 5 - phase * 2) * .034 +
               projectedFlow * .040);
       points.add(
         center +
@@ -1005,6 +1045,9 @@ abstract final class HighFidelityChromaticFluid {
     }
     return ChromaticFluidMetaballs._closedSmoothPath(points);
   }
+
+  static double _cycleAngle(double seconds) =>
+      (seconds % cycleSeconds) / cycleSeconds * math.pi * 2;
 }
 
 class FoodAmbientComparison extends StatefulWidget {
@@ -1103,6 +1146,15 @@ class _FoodAmbientPainter extends CustomPainter {
   const _FoodAmbientPainter(this.variant, this.t);
   final FoodAmbientVariant variant;
   final double t;
+
+  /// The chromatic field is periodic independently of the screen ticker.
+  /// Keeping paint-only flow on this same phase prevents a visible rewind at
+  /// either the 24-second field seam or the enclosing 48-second controller.
+  double get _chromaticPhase =>
+      (t % ChromaticFluidMetaballs.cycleSeconds) /
+      ChromaticFluidMetaballs.cycleSeconds *
+      math.pi *
+      2;
   static const _cool = [
     Color(0xff36d8ca),
     Color(0xffdc5bb3),
@@ -1210,15 +1262,15 @@ class _FoodAmbientPainter extends CustomPainter {
       // radial fields curve and circulate independently inside the contour.
       c.drawPath(
         contour.path,
-        Paint()..color = averageColor.withValues(alpha: .17),
+        Paint()..color = averageColor.withValues(alpha: .09),
       );
 
       for (final drop in contourDrops) {
         final flowCenter =
             drop.center +
             Offset(
-                  math.cos(drop.surfacePhase * .73),
-                  math.sin(drop.surfacePhase * .61),
+                  math.cos(drop.surfacePhase * 2),
+                  math.sin(drop.surfacePhase * 3),
                 ) *
                 drop.radius *
                 .24;
@@ -1229,8 +1281,8 @@ class _FoodAmbientPainter extends CustomPainter {
             ..shader =
                 RadialGradient(
                   center: Alignment(
-                    math.sin(drop.surfacePhase * .27) * .22,
-                    math.cos(drop.surfacePhase * .31) * .18,
+                    math.sin(drop.surfacePhase * 2) * .22,
+                    math.cos(drop.surfacePhase * 3) * .18,
                   ),
                   radius: 1,
                   colors: [
@@ -1260,7 +1312,7 @@ class _FoodAmbientPainter extends CustomPainter {
         // independent from both centre translation and contour deformation.
         c.save();
         c.translate(flowCenter.dx, flowCenter.dy);
-        c.rotate(drop.surfacePhase * .19 + drop.id * .37);
+        c.rotate(drop.surfacePhase * 2 + drop.id * .37);
         final flowRect = Rect.fromCenter(
           center: Offset.zero,
           width: drop.radius * 1.34,
@@ -1294,11 +1346,12 @@ class _FoodAmbientPainter extends CustomPainter {
           continue;
         }
         final mixRadius =
-            contact.radius * (1 + math.sin(t * .38 + contact.first.id) * .10);
+            contact.radius *
+            (1 + math.sin(_chromaticPhase * 2 + contact.first.id) * .10);
         final mixCenter = Offset.lerp(
           contact.center,
           contact.first.center,
-          .08 * math.sin(t * .41 + contact.second.id),
+          .08 * math.sin(_chromaticPhase * 3 + contact.second.id),
         )!;
         c.drawCircle(
           mixCenter,
@@ -1311,9 +1364,9 @@ class _FoodAmbientPainter extends CustomPainter {
                       contact.mixedColor,
                       Colors.white,
                       .12,
-                    )!.withValues(alpha: .18 + contact.strength * .28),
+                    )!.withValues(alpha: contact.strength * .34),
                     contact.mixedColor.withValues(
-                      alpha: .10 + contact.strength * .17,
+                      alpha: contact.strength * .21,
                     ),
                     contact.mixedColor.withValues(alpha: 0),
                   ],
@@ -1351,6 +1404,47 @@ class _FoodAmbientPainter extends CustomPainter {
           stops: [.0, .58, 1],
         ).createShader(fluid.bounds),
     );
+
+    // The velocity-advected density cells are first reconstructed through a
+    // seven-by-seven weighted kernel.  This deliberately separates the
+    // 28-by-28 simulation from display resolution: pigment and velocity are
+    // preserved, while no individual simulation cell can become visible.
+    for (final cell in _smoothedFluidPatches(fluid)) {
+      final speed = cell.velocity.distance;
+      final radius = fluid.bounds.width / 7 * (1.75 + cell.density * .72);
+      final stamp = Rect.fromCenter(
+        center: cell.center,
+        width: radius * (2.1 + speed * .35),
+        height: radius * 1.45,
+      );
+      c.save();
+      c.translate(cell.center.dx, cell.center.dy);
+      c.rotate(math.atan2(cell.velocity.dy, cell.velocity.dx));
+      c.translate(-cell.center.dx, -cell.center.dy);
+      c.drawOval(
+        stamp,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-.18, -.10),
+            radius: 1,
+            colors: [
+              Color.lerp(
+                cell.color,
+                Colors.white,
+                .10,
+              )!.withValues(alpha: .18 * cell.density),
+              cell.color.withValues(alpha: .13 * cell.density),
+              cell.color.withValues(alpha: 0),
+            ],
+            stops: const [0, .48, 1],
+          ).createShader(stamp),
+      );
+      c.restore();
+    }
+
+    // Streamlines are secondary: they reveal shear and folding already
+    // present in the advected pigment field without becoming ribbon-only
+    // rendering.
     for (final ribbon in fluid.ribbons) {
       c.drawPath(
         ribbon.path,
@@ -1358,8 +1452,8 @@ class _FoodAmbientPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = ribbon.width * 3.0
-          ..color = ribbon.color.withValues(alpha: .19)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          ..color = ribbon.color.withValues(alpha: .14)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
       c.drawPath(
         ribbon.path,
@@ -1370,12 +1464,12 @@ class _FoodAmbientPainter extends CustomPainter {
           ..shader = LinearGradient(
             colors: [
               ribbon.color.withValues(alpha: .03),
-              ribbon.color.withValues(alpha: .36),
+              ribbon.color.withValues(alpha: .30),
               Color.lerp(
                 ribbon.color,
                 Colors.white,
                 .22,
-              )!.withValues(alpha: .26),
+              )!.withValues(alpha: .22),
               ribbon.color.withValues(alpha: .04),
             ],
             stops: const [0, .25, .67, 1],
@@ -1390,6 +1484,78 @@ class _FoodAmbientPainter extends CustomPainter {
         ..strokeWidth = .85
         ..color = const Color(0xff78dfff).withValues(alpha: .22),
     );
+  }
+
+  List<({Offset center, Offset velocity, double density, Color color})>
+  _smoothedFluidPatches(HighFidelityFluidFrame fluid) {
+    const resolution = 7;
+    final buckets = List.generate(
+      resolution * resolution,
+      (_) => <HighFidelityFluidCell>[],
+    );
+    for (final cell in fluid.cells) {
+      final x =
+          ((cell.center.dx - fluid.bounds.left) /
+                  fluid.bounds.width *
+                  resolution)
+              .floor()
+              .clamp(0, resolution - 1);
+      final y =
+          ((cell.center.dy - fluid.bounds.top) /
+                  fluid.bounds.height *
+                  resolution)
+              .floor()
+              .clamp(0, resolution - 1);
+      buckets[y * resolution + x].add(cell);
+    }
+
+    final patches =
+        <({Offset center, Offset velocity, double density, Color color})>[];
+    for (final cells in buckets) {
+      if (cells.isEmpty) continue;
+      var weight = 0.0;
+      var x = 0.0;
+      var y = 0.0;
+      var dx = 0.0;
+      var dy = 0.0;
+      var red = 0.0;
+      var green = 0.0;
+      var blue = 0.0;
+      var dominant = cells.first.color;
+      var dominantContribution = 0.0;
+      for (final cell in cells) {
+        final contribution = cell.density * cell.density;
+        if (contribution > dominantContribution) {
+          dominantContribution = contribution;
+          dominant = cell.color;
+        }
+        weight += contribution;
+        x += cell.center.dx * contribution;
+        y += cell.center.dy * contribution;
+        dx += cell.velocity.dx * contribution;
+        dy += cell.velocity.dy * contribution;
+        red += cell.color.r * contribution;
+        green += cell.color.g * contribution;
+        blue += cell.color.b * contribution;
+      }
+      if (weight <= 0) continue;
+      patches.add((
+        center: Offset(x / weight, y / weight),
+        velocity: Offset(dx / weight, dy / weight),
+        density: (weight / cells.length).clamp(0.0, 1.0),
+        color: Color.lerp(
+          Color.fromARGB(
+            255,
+            (red / weight * 255).round().clamp(0, 255),
+            (green / weight * 255).round().clamp(0, 255),
+            (blue / weight * 255).round().clamp(0, 255),
+          ),
+          dominant,
+          .62,
+        )!,
+      ));
+    }
+    return patches;
   }
 
   void _cells(Canvas c, Size s) {

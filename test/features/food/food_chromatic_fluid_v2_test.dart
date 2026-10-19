@@ -18,8 +18,13 @@ void main() {
     return area.abs() * .5;
   }
 
+  double colorDistance(Color first, Color second) =>
+      (first.r - second.r).abs() +
+      (first.g - second.g).abs() +
+      (first.b - second.b).abs();
+
   test(
-    'V3.3 uses bounded dynamic fields for large, medium, and small drops',
+    'V3.4 uses bounded dynamic fields for large, medium, and small drops',
     () {
       final frame = ChromaticFluidMetaballs.frame(viewport, 4.5);
       final field = ChromaticFluidMetaballs.buildField(viewport, frame);
@@ -140,7 +145,7 @@ void main() {
   );
 
   test(
-    'V3.3 keeps every absorbed small-drop field contribution continuous',
+    'V3.4 keeps every absorbed small-drop field contribution continuous',
     () {
       for (var step = 0; step <= 900; step++) {
         final frame = ChromaticFluidMetaballs.frame(viewport, step / 10);
@@ -154,7 +159,7 @@ void main() {
     },
   );
 
-  test('V3.3 reconstructs one smooth multi-pigment velocity-density fluid', () {
+  test('V3.4 reconstructs one smooth multi-pigment velocity-density fluid', () {
     final first = HighFidelityChromaticFluid.frame(viewport, 2.0);
     final later = HighFidelityChromaticFluid.frame(viewport, 7.0);
     expect(first.cells, isNotEmpty);
@@ -179,7 +184,97 @@ void main() {
     expect(first.ribbons, hasLength(5));
   });
 
-  test('V3.3 high-fidelity fluid remains a bounded local workload', () {
+  test('V3.4 preserves geometry, pigment, and flow across loop boundaries', () {
+    final start = ChromaticFluidMetaballs.frame(viewport, 0);
+    final end = ChromaticFluidMetaballs.frame(
+      viewport,
+      ChromaticFluidMetaballs.cycleSeconds,
+    );
+    expect(end.drops, hasLength(start.drops.length));
+    for (var index = 0; index < start.drops.length; index++) {
+      expect(
+        (start.drops[index].center - end.drops[index].center).distance,
+        lessThan(.001),
+      );
+      expect(
+        (start.drops[index].radius - end.drops[index].radius).abs(),
+        lessThan(.001),
+      );
+      expect(
+        colorDistance(start.drops[index].color, end.drops[index].color),
+        lessThan(.001),
+      );
+    }
+    expect(end.particles, hasLength(start.particles.length));
+    for (var index = 0; index < start.particles.length; index++) {
+      expect(
+        (start.particles[index].center - end.particles[index].center).distance,
+        lessThan(.001),
+      );
+      expect(
+        (start.particles[index].opacity - end.particles[index].opacity).abs(),
+        lessThan(.001),
+      );
+    }
+
+    final startField = ChromaticFluidMetaballs.buildField(viewport, start);
+    final endField = ChromaticFluidMetaballs.buildField(viewport, end);
+    expect(endField.sampleCount, startField.sampleCount);
+    expect(endField.contours.length, startField.contours.length);
+    final startArea = startField.contours.fold<double>(
+      0,
+      (sum, contour) => sum + polygonArea(contour.samplePoints),
+    );
+    final endArea = endField.contours.fold<double>(
+      0,
+      (sum, contour) => sum + polygonArea(contour.samplePoints),
+    );
+    expect((startArea - endArea).abs(), lessThan(.01));
+
+    final startFluid = HighFidelityChromaticFluid.frame(viewport, 0);
+    final endFluid = HighFidelityChromaticFluid.frame(
+      viewport,
+      HighFidelityChromaticFluid.cycleSeconds,
+    );
+    expect(
+      (startFluid.bounds.center - endFluid.bounds.center).distance,
+      lessThan(.001),
+    );
+    expect(startFluid.cells.length, endFluid.cells.length);
+    for (var index = 0; index < startFluid.cells.length; index += 19) {
+      final first = startFluid.cells[index];
+      final last = endFluid.cells[index];
+      expect((first.center - last.center).distance, lessThan(.001));
+      expect((first.density - last.density).abs(), lessThan(.001));
+      expect(colorDistance(first.color, last.color), lessThan(.001));
+      expect((first.velocity - last.velocity).distance, lessThan(.001));
+    }
+
+    final before = ChromaticFluidMetaballs.frame(
+      viewport,
+      ChromaticFluidMetaballs.cycleSeconds - .05,
+    );
+    final after = ChromaticFluidMetaballs.frame(viewport, .05);
+    for (var index = 0; index < before.drops.length; index++) {
+      expect(
+        (before.drops[index].center - after.drops[index].center).distance,
+        lessThan(viewport.shortestSide * .04),
+      );
+    }
+
+    // The enclosing controller repeats at 48 seconds, exactly two field
+    // cycles. Verify that its own seam carries the same state as frame zero.
+    final controllerEnd = ChromaticFluidMetaballs.frame(viewport, 48);
+    for (var index = 0; index < start.drops.length; index++) {
+      expect(
+        (start.drops[index].center - controllerEnd.drops[index].center)
+            .distance,
+        lessThan(.001),
+      );
+    }
+  });
+
+  test('V3.4 high-fidelity fluid remains a bounded local workload', () {
     final stopwatch = Stopwatch()..start();
     var maximumSamples = 0;
     for (var frameIndex = 0; frameIndex < 90; frameIndex++) {
@@ -189,7 +284,7 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3.3 fluid benchmark: 90 frames in '
+      'V3.4 fluid benchmark: 90 frames in '
       '${stopwatch.elapsedMicroseconds} us, max samples $maximumSamples',
     );
     expect(
@@ -241,7 +336,7 @@ void main() {
         previousCount = count;
       }
       expect(transitions, hasLength(greaterThanOrEqualTo(4)));
-      debugPrint('V3.3 dynamic topology transitions: $transitions');
+      debugPrint('V3.4 dynamic topology transitions: $transitions');
 
       for (final transition in transitions.take(3)) {
         final areas = <double>[];
@@ -296,7 +391,7 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3.3 field benchmark: 90 frames in '
+      'V3.4 field benchmark: 90 frames in '
       '${stopwatch.elapsedMicroseconds} us, max samples $maximumSamples',
     );
     expect(
@@ -345,14 +440,14 @@ void main() {
     }
     stopwatch.stop();
     debugPrint(
-      'V3.3 painter benchmark: 60 frames in '
+      'V3.4 painter benchmark: 60 frames in '
       '${stopwatch.elapsedMicroseconds} us',
     );
     expect(stopwatch.elapsedMilliseconds, lessThan(3000));
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('V3.3 fusion sequence exposes organic dynamic field stages', (
+  testWidgets('V3.4 fusion sequence exposes organic dynamic field stages', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1170, 844);
@@ -391,11 +486,11 @@ void main() {
 
     await expectLater(
       find.byType(GridView),
-      matchesGoldenFile('goldens/food_chromatic_fluid_v3_3_stages.png'),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_4_stages.png'),
     );
   });
 
-  testWidgets('V3.3 boundary frames remain continuous around dynamic fusion', (
+  testWidgets('V3.4 boundary frames remain continuous around dynamic fusion', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(3120, 844);
@@ -439,13 +534,41 @@ void main() {
     await expectLater(
       find.byType(GridView),
       matchesGoldenFile(
-        'goldens/food_chromatic_fluid_v3_3_boundary_frames.png',
+        'goldens/food_chromatic_fluid_v3_4_boundary_frames.png',
       ),
     );
   });
 
+  testWidgets('V3.4 loop boundary has no visual rewind', (tester) async {
+    tester.view.physicalSize = const Size(2340, 422);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const times = [23.70, 23.85, 23.95, 0.0, .05, .15];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GridView.count(
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 6,
+          childAspectRatio: 390 / 422,
+          children: [
+            for (final time in times)
+              FoodAmbientComparison(
+                variant: FoodAmbientVariant.chromaticFluid,
+                debugTime: time,
+              ),
+          ],
+        ),
+      ),
+    );
+    await expectLater(
+      find.byType(GridView),
+      matchesGoldenFile('goldens/food_chromatic_fluid_v3_4_loop_boundary.png'),
+    );
+  });
+
   for (final position in const ['top', 'middle', 'lower']) {
-    testWidgets('FOOD UI $position keeps V3.3 readable and populated', (
+    testWidgets('FOOD UI $position keeps V3.4 readable and populated', (
       tester,
     ) async {
       tester.view.physicalSize = viewport;
@@ -465,12 +588,12 @@ void main() {
 
       await expectLater(
         find.byType(Scaffold),
-        matchesGoldenFile('goldens/food_chromatic_fluid_v3_3_ui_$position.png'),
+        matchesGoldenFile('goldens/food_chromatic_fluid_v3_4_ui_$position.png'),
       );
     });
   }
 
-  testWidgets('FOOD V3.3 has no overflow at supported iPhone widths', (
+  testWidgets('FOOD V3.4 has no overflow at supported iPhone widths', (
     tester,
   ) async {
     for (final size in const [
