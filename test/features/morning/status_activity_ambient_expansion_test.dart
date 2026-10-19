@@ -44,6 +44,7 @@ void main() {
         expect(page, contains('AmbientPageScaffold'));
         expect(page, contains('ActivityAmbientBackground'));
         expect(page, contains('forceMaterialTransparency: true'));
+        expect(page, contains('elevation: 0'));
       }
 
       expect(
@@ -79,15 +80,23 @@ void main() {
     expect(status, contains('ambientContext: CalendarAmbientContext.status'));
   });
 
-  test('ambient scaffold keeps the field above transparent route material', () {
-    final scaffold = source('lib/core/widgets/ambient_page_scaffold.dart');
-    expect(scaffold, contains('backgroundColor: Colors.transparent'));
-    expect(
-      scaffold,
-      contains('Positioned.fill(child: ExcludeSemantics(child: ambient))'),
-    );
-    expect(scaffold, contains('extendBodyBehindAppBar: true'));
-  });
+  test(
+    'V1.2 ambient scaffold shares one extended Scaffold surface with its header',
+    () {
+      final scaffold = source('lib/core/widgets/ambient_page_scaffold.dart');
+      expect(scaffold, contains('backgroundColor: Colors.transparent'));
+      expect(scaffold, contains('body: Stack('));
+      expect(
+        scaffold,
+        contains('Positioned.fill(child: ExcludeSemantics(child: ambient))'),
+      );
+      expect(scaffold, contains('extendBodyBehindAppBar: true'));
+      expect(
+        scaffold,
+        isNot(contains('Widget build(BuildContext context) => Stack(')),
+      );
+    },
+  );
 
   test(
     'glass input treatment is opt-in and does not affect unrelated inputs',
