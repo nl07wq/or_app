@@ -798,9 +798,9 @@ class HighFidelityFluidRibbon {
 
 /// A bounded local velocity/density/pigment field for the one V3.4 quality
 /// fluid. It is intentionally separate from the twelve implicit metaballs.
-/// Semi-Lagrangian samples establish local density and pigment state, while
-/// velocity-advected ribbons reconstruct the final pixels without exposing
-/// the low-cost simulation grid.
+/// Semi-Lagrangian samples establish local density and pigment state. The
+/// painter reconstructs them through broad velocity-weighted kernels, while
+/// streamlines reveal the same flow without exposing the low-cost grid.
 @immutable
 class HighFidelityFluidFrame {
   const HighFidelityFluidFrame({
