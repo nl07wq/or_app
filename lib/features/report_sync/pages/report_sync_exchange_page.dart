@@ -27,6 +27,8 @@ import '../services/report_sync_persistence_service.dart';
 import '../widgets/report_sync_action_bar.dart';
 
 typedef ReportSyncClipboardWriter = Future<void> Function(String text);
+typedef ReportSyncPageScaffoldBuilder =
+    Widget Function({PreferredSizeWidget? appBar, required Widget body});
 
 enum StatusSourceVisualState { success, failure, neutral }
 
@@ -90,6 +92,7 @@ class ReportSyncExchangePage extends StatelessWidget {
     this.currentOperationDateValidation,
     this.appBarTitle,
     this.appBarLeading,
+    this.scaffoldBuilder,
   });
 
   final ReportSyncExchangeType exchangeType;
@@ -103,10 +106,11 @@ class ReportSyncExchangePage extends StatelessWidget {
   final DailyLogValidationResult? currentOperationDateValidation;
   final Widget? appBarTitle;
   final Widget? appBarLeading;
+  final ReportSyncPageScaffoldBuilder? scaffoldBuilder;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+  Widget build(BuildContext context) {
+    final appBar = AppBar(
       centerTitle: appBarTitle != null,
       leading:
           appBarLeading ??
@@ -114,8 +118,8 @@ class ReportSyncExchangePage extends StatelessWidget {
               ? const ActionableBackButton()
               : null),
       title: appBarTitle ?? Text(_title(exchangeType)),
-    ),
-    body: ReportSyncExchangePanel(
+    );
+    final panel = ReportSyncExchangePanel(
       exchangeType: exchangeType,
       gateway: gateway,
       fileGateway: fileGateway,
@@ -125,8 +129,10 @@ class ReportSyncExchangePage extends StatelessWidget {
       onTargetDateChanged: onTargetDateChanged,
       initialTargetDate: initialTargetDate,
       currentOperationDateValidation: currentOperationDateValidation,
-    ),
-  );
+    );
+    return scaffoldBuilder?.call(appBar: appBar, body: panel) ??
+        Scaffold(appBar: appBar, body: panel);
+  }
 }
 
 class ReportSyncExchangePanel extends StatefulWidget {

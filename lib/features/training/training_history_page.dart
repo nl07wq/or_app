@@ -19,6 +19,7 @@ import 'models/persisted_training_record.dart';
 import 'services/training_v2_statistics_service.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
+import 'widgets/training_kinetic_scaffold.dart';
 
 class TrainingHistoryPage extends StatefulWidget {
   const TrainingHistoryPage({super.key});
@@ -64,7 +65,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return TrainingKineticScaffold(
       appBar: AppBar(
         centerTitle: true,
         leading: Navigator.canPop(context)

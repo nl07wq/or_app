@@ -7,6 +7,7 @@ import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
+import 'package:or_app/features/training/widgets/training_kinetic_scaffold.dart';
 
 void main() {
   test('V7 preserves the connected full-viewport primary gear train', () {
@@ -911,6 +912,34 @@ void main() {
         await tester.pump(const Duration(milliseconds: 120));
         expect(tester.takeException(), isNull);
       }
+    },
+  );
+
+  testWidgets(
+    'KINETIC ENGINE stays viewport-fixed while TRAINING content scrolls',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrainingKineticScaffold(
+            appBar: AppBar(title: const Text('TRAINING')),
+            body: ListView.builder(
+              itemCount: 24,
+              itemExtent: 72,
+              itemBuilder: (_, index) => Text('ROW $index'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final ambient = find.byType(TrainingAmbientComparison);
+      final before = tester.getTopLeft(ambient);
+      await tester.drag(find.text('ROW 2'), const Offset(0, -280));
+      await tester.pump();
+
+      expect(tester.getTopLeft(ambient), before);
+      expect(find.text('ROW 8'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     },
   );
 }

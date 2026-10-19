@@ -15,6 +15,7 @@ import '../../training/services/training_volume_formatter.dart';
 import '../../training/training_plan_import_page.dart';
 import '../../training/widgets/training_dot_matrix_title.dart';
 import '../../training/widgets/training_led_back_button.dart';
+import '../../training/widgets/training_kinetic_scaffold.dart';
 import '../../report_sync/widgets/report_sync_action_bar.dart';
 import '../models/training_analysis_report.dart';
 import '../services/training_analysis_service.dart';
@@ -72,7 +73,7 @@ class _TrainingAnalysisPageState extends State<TrainingAnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return TrainingKineticScaffold(
       appBar: AppBar(
         centerTitle: true,
         leading: Navigator.canPop(context)
@@ -370,7 +371,7 @@ class _TrainingAnalysisCreatePageState
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => TrainingKineticScaffold(
     appBar: AppBar(
       centerTitle: true,
       leading: Navigator.canPop(context) ? const TrainingLedBackButton() : null,

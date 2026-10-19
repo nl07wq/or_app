@@ -13,6 +13,7 @@ import 'services/training_plan_service.dart';
 import 'training_entry_page.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
+import 'widgets/training_kinetic_scaffold.dart';
 
 class TrainingPlanImportPage extends StatefulWidget {
   const TrainingPlanImportPage({super.key, this.sourceRecordId, this.service});
@@ -131,7 +132,7 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => TrainingKineticScaffold(
     appBar: AppBar(
       centerTitle: true,
       leading: Navigator.canPop(context) ? const TrainingLedBackButton() : null,

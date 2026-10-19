@@ -7,6 +7,7 @@ import '../../report_sync/models/report_sync_envelope.dart';
 import '../../report_sync/pages/report_sync_exchange_page.dart';
 import 'training_dot_matrix_title.dart';
 import 'training_led_back_button.dart';
+import 'training_kinetic_scaffold.dart';
 
 class TrainingSyncCard extends StatelessWidget {
   const TrainingSyncCard({super.key});
@@ -24,12 +25,14 @@ class TrainingSyncCard extends StatelessWidget {
               await Navigator.push<void>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const ReportSyncExchangePage(
+                  builder: (_) => ReportSyncExchangePage(
                     exchangeType: ReportSyncExchangeType.training,
                     appBarTitle: TrainingDotMatrixTitle(
                       title: 'TRAINING REPORT SYNC',
                     ),
                     appBarLeading: TrainingLedBackButton(),
+                    scaffoldBuilder: ({appBar, required body}) =>
+                        TrainingKineticScaffold(appBar: appBar, body: body),
                   ),
                 ),
               );

@@ -6,6 +6,7 @@ import '../../core/data/default_training_templates.dart';
 import '../../core/widgets/operation_card.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
+import 'widgets/training_kinetic_scaffold.dart';
 
 class TrainingPlanPage extends StatelessWidget {
   final Function(List<String>) onSelect;
@@ -14,7 +15,7 @@ class TrainingPlanPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return TrainingKineticScaffold(
       appBar: AppBar(
         centerTitle: true,
         leading: Navigator.canPop(context)

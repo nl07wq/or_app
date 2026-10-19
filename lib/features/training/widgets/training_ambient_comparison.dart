@@ -948,7 +948,11 @@ class TrainingAmbientComparison extends StatefulWidget {
 
 class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     with SingleTickerProviderStateMixin {
+  static const _kineticBackgroundImage = AssetImage(
+    TrainingAmbientComparison.kineticEngineBackgroundAsset,
+  );
   late final AnimationController _controller;
+  bool _didPrecacheKineticBackground = false;
 
   @override
   void initState() {
@@ -957,6 +961,19 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
       vsync: this,
       duration: const Duration(seconds: 48),
     )..repeat();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didPrecacheKineticBackground ||
+        widget.variant != TrainingAmbientVariant.kineticEngine) {
+      return;
+    }
+    _didPrecacheKineticBackground = true;
+    // Decode once in Flutter's image cache. The CustomPainter below remains
+    // available on the first frame while a web decoder resolves the PNG.
+    precacheImage(_kineticBackgroundImage, context).catchError((_) {});
   }
 
   @override
@@ -974,11 +991,12 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
           fit: StackFit.expand,
           children: [
             if (widget.variant == TrainingAmbientVariant.kineticEngine)
-              Image.asset(
-                TrainingAmbientComparison.kineticEngineBackgroundAsset,
+              Image(
+                image: _kineticBackgroundImage,
                 fit: BoxFit.cover,
                 alignment: Alignment.topCenter,
                 filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
               ),
             CustomPaint(
               painter: _TrainingAmbientPainter(

@@ -15,6 +15,7 @@ import 'widgets/training_session_summary_card.dart';
 import 'widgets/training_v2_record_detail.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
+import 'widgets/training_kinetic_scaffold.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
 class TrainingDetailPage extends StatelessWidget {
@@ -25,7 +26,7 @@ class TrainingDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (record.readModel.v2Data != null) {
-      return Scaffold(
+      return TrainingKineticScaffold(
         appBar: AppBar(
           leading: Navigator.canPop(context)
               ? const TrainingLedBackButton()
@@ -101,7 +102,7 @@ class TrainingDetailPage extends StatelessWidget {
           sum + exercise.sets.fold<int>(0, (rep, set) => rep + set.reps),
     );
 
-    return Scaffold(
+    return TrainingKineticScaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context)
             ? const TrainingLedBackButton()

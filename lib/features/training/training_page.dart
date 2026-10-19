@@ -22,7 +22,7 @@ class TrainingPage extends StatefulWidget {
 }
 
 class _TrainingPageState extends State<TrainingPage> {
-  TrainingAmbientVariant _ambientVariant = TrainingAmbientVariant.magneticFlux;
+  TrainingAmbientVariant _ambientVariant = TrainingAmbientVariant.kineticEngine;
 
   @override
   Widget build(BuildContext context) {

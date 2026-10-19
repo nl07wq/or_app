@@ -30,6 +30,7 @@ import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
+import 'widgets/training_kinetic_scaffold.dart';
 import 'widgets/training_exercise_v2_editor.dart';
 import 'widgets/training_session_v2_form.dart';
 
@@ -491,10 +492,12 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingDate) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const TrainingKineticScaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
     if (_dateLoadError != null) {
-      return Scaffold(
+      return TrainingKineticScaffold(
         appBar: AppBar(
           leading: Navigator.canPop(context)
               ? const TrainingLedBackButton()
@@ -511,7 +514,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       isPaused: _form.isPaused,
       isEditing: _isEditing,
     );
-    return Scaffold(
+    return TrainingKineticScaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context)
             ? TrainingLedBackButton(
