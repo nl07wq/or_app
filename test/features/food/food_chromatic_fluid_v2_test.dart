@@ -139,6 +139,37 @@ void main() {
     },
   );
 
+  test(
+    'V3.2 keeps every absorbed small-drop field contribution continuous',
+    () {
+      for (var step = 0; step <= 900; step++) {
+        final frame = ChromaticFluidMetaballs.frame(viewport, step / 10);
+        for (final drop in frame.drops) {
+          expect(drop.radius, greaterThanOrEqualTo(drop.baseRadius * .48));
+          expect(drop.center.dx.isFinite && drop.center.dy.isFinite, isTrue);
+        }
+        final field = ChromaticFluidMetaballs.buildField(viewport, frame);
+        expect(field.contours, isNotEmpty);
+      }
+    },
+  );
+
+  test('V3.2 adds one bounded local velocity-density-pigment fluid', () {
+    final first = HighFidelityChromaticFluid.frame(viewport, 2.0);
+    final later = HighFidelityChromaticFluid.frame(viewport, 7.0);
+    expect(first.cells, isNotEmpty);
+    expect(
+      first.sampleCount,
+      lessThanOrEqualTo(HighFidelityChromaticFluid.maximumSampleCount),
+    );
+    expect(first.outline.getBounds().overlaps(Offset.zero & viewport), isTrue);
+    expect(
+      first.cells.map((cell) => cell.color).toSet(),
+      isNot(equals(later.cells.map((cell) => cell.color).toSet())),
+    );
+    expect(first.cells.any((cell) => cell.velocity.distance > .1), isTrue);
+  });
+
   test('contact strength is monotonic and leaves no residual mixed state', () {
     final samples = <double>[
       for (final distance in [1.5, 1.4, 1.2, 1.0, .8, .6])
