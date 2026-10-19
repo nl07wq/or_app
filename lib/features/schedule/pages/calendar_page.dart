@@ -57,10 +57,10 @@ class CalendarRingBinderTitle extends StatelessWidget {
               child: CustomPaint(painter: _CalendarRingBinderPainter()),
             ),
             const Positioned(
-              left: 14,
-              top: 16,
-              right: 14,
-              bottom: 4,
+              left: 10,
+              top: 15,
+              right: 10,
+              bottom: 3,
               child: Center(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -69,9 +69,9 @@ class CalendarRingBinderTitle extends StatelessWidget {
                     style: TextStyle(
                       color: Color(0xffe2f9ff),
                       fontFamily: 'ShareTechMono',
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.w400,
-                      letterSpacing: 1.35,
+                      letterSpacing: 1.6,
                       height: 1,
                     ),
                   ),
@@ -91,6 +91,53 @@ class _CalendarRingBinderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
+    const ringCount = 5;
+    const ringHalfWidth = 2.15;
+    const ringTop = 5.0;
+    const ringShoulder = 6.8;
+    const ringFoot = 14.1;
+    final first = size.width * .17;
+    final spacing = size.width * .165;
+
+    // The rear arch sits behind the paper. The exposed 3.0px section above
+    // the plate gives each binder a compact vertical U rather than a clip.
+    for (var index = 0; index < ringCount; index++) {
+      final x = first + spacing * index;
+      final rearArch = Path()
+        ..moveTo(x - ringHalfWidth, ringShoulder)
+        ..cubicTo(
+          x - ringHalfWidth,
+          ringTop,
+          x + ringHalfWidth,
+          ringTop,
+          x + ringHalfWidth,
+          ringShoulder,
+        );
+      canvas.drawPath(
+        rearArch,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 1.05
+          ..shader =
+              const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xff536f7e),
+                  Color(0xffc3e4ed),
+                  Color(0xff4e6c7b),
+                ],
+              ).createShader(
+                Rect.fromCenter(
+                  center: Offset(x, ringShoulder),
+                  width: ringHalfWidth * 2 + 1,
+                  height: 4,
+                ),
+              ),
+      );
+    }
+
     final plate = RRect.fromRectAndRadius(
       Rect.fromLTWH(3.5, 8, size.width - 7, size.height - 10),
       const Radius.circular(5),
@@ -146,59 +193,65 @@ class _CalendarRingBinderPainter extends CustomPainter {
         ..color = const Color(0xff65cee8).withValues(alpha: .58),
     );
 
-    const ringCount = 5;
-    final first = size.width * .17;
-    final spacing = size.width * .165;
     for (var index = 0; index < ringCount; index++) {
       final x = first + spacing * index;
-      final mount = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(x, 12.2), width: 9, height: 4.8),
-        const Radius.circular(2),
-      );
-      canvas.drawRRect(
-        mount,
-        Paint()..color = const Color(0xff0c1721).withValues(alpha: .92),
-      );
-      canvas.drawRRect(
-        mount,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = .45
-          ..color = const Color(0xff6f9eb2).withValues(alpha: .52),
-      );
-      final ring = Path()
-        ..moveTo(x - 3.2, 14.8)
-        ..lineTo(x - 3.2, 7.1)
-        ..cubicTo(x - 3.2, 3.45, x + 3.2, 3.45, x + 3.2, 7.1)
-        ..lineTo(x + 3.2, 14.8);
+      for (final holeX in [x - ringHalfWidth, x + ringHalfWidth]) {
+        final rim = RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(holeX, 11.2),
+            width: 2.25,
+            height: 4.6,
+          ),
+          const Radius.circular(1.1),
+        );
+        final hole = RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(holeX, 11.2),
+            width: 1.25,
+            height: 3.35,
+          ),
+          const Radius.circular(.65),
+        );
+        canvas.drawRRect(
+          rim,
+          Paint()..color = const Color(0xff6f94a5).withValues(alpha: .62),
+        );
+        canvas.drawRRect(
+          hole,
+          Paint()..color = const Color(0xff0c1721).withValues(alpha: .94),
+        );
+      }
+
+      // The front legs overlap the two holes, making the metal line read as
+      // passing through the paper instead of sitting on top of it.
+      final frontLegs = Path()
+        ..moveTo(x - ringHalfWidth, ringShoulder)
+        ..lineTo(x - ringHalfWidth, ringFoot)
+        ..moveTo(x + ringHalfWidth, ringShoulder)
+        ..lineTo(x + ringHalfWidth, ringFoot);
       canvas.drawPath(
-        ring,
+        frontLegs,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..strokeWidth = 1.35
+          ..strokeWidth = 1.05
           ..shader =
               const LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 colors: [
-                  Color(0xff638699),
-                  Color(0xffc6e5ed),
-                  Color(0xff537686),
+                  Color(0xff607f8d),
+                  Color(0xffd3f0f5),
+                  Color(0xff587786),
                 ],
                 stops: [0, .5, 1],
               ).createShader(
-                Rect.fromCenter(center: Offset(x, 9.3), width: 8, height: 12),
+                Rect.fromCenter(
+                  center: Offset(x, 10.5),
+                  width: ringHalfWidth * 2 + 1,
+                  height: 9,
+                ),
               ),
-      );
-      canvas.drawPath(
-        ring,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = .3
-          ..color = const Color(0xffe1f8ff).withValues(alpha: .62),
       );
     }
   }

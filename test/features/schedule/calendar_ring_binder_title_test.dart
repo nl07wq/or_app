@@ -52,6 +52,7 @@ void main() {
     final titleText = tester.widget<Text>(find.text('CALENDAR'));
     expect(titleText.style?.fontFamily, 'ShareTechMono');
     expect(titleText.style?.fontWeight, FontWeight.w400);
+    expect(titleText.style?.fontSize, 18);
     expect(
       tester.getSize(find.byType(CalendarRingBinderTitle)),
       CalendarRingBinderTitle.preferredSize,
