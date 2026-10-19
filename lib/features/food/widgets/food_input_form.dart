@@ -3078,6 +3078,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       text: widget.initialMeal == null
                           ? 'SAVE MEAL'
                           : 'UPDATE MEAL',
+                      frostedGradient: true,
                       onPressed: _isSaving ? null : saveMeal,
                     ),
                   ],

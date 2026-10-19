@@ -12,6 +12,7 @@ class MorningSyncCard extends StatelessWidget {
     return OperationButton(
       icon: Icons.sync,
       text: "SYNC STATUS",
+      frostedGradient: true,
       onPressed: appInitializationController.value.isReadOnly
           ? null
           : () => Navigator.pushNamed(context, AppRoutes.backupRestore),

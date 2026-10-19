@@ -795,7 +795,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   children: [
                     OperationButton(
                       text: 'SAVE ACTIVITY',
-                      dashboardGlass: true,
+                      frostedGradient: true,
                       onPressed: _isBusy ? null : _saveExisting,
                     ),
                     AppSpacing.gapSM,
@@ -809,7 +809,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   child: OperationButton(
                     icon: Icons.save_outlined,
                     text: 'SAVE DRAFT',
-                    dashboardGlass: true,
+                    frostedGradient: true,
                     onPressed: _isBusy ? null : _saveDraft,
                   ),
                 ),
@@ -821,7 +821,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   button: true,
                   child: OperationButton(
                     text: 'SAVE ACTIVITY',
-                    dashboardGlass: true,
+                    frostedGradient: true,
                     onPressed: _isBusy ? null : _finalizeDraft,
                   ),
                 ),
@@ -913,7 +913,7 @@ class _ConfirmedActivityLock extends StatelessWidget {
               OperationButton(
                 text: 'BACK TO DASHBOARD',
                 icon: Icons.arrow_back,
-                dashboardGlass: true,
+                frostedGradient: true,
                 onPressed: () => Navigator.popUntil(
                   context,
                   ModalRoute.withName(AppRoutes.dashboard),

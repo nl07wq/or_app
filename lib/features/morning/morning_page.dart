@@ -120,7 +120,7 @@ class _MorningPageState extends State<MorningPage> {
             OperationButton(
               icon: Icons.calendar_month,
               text: 'OPEN CALENDAR',
-              dashboardGlass: true,
+              frostedGradient: true,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const CalendarPage(

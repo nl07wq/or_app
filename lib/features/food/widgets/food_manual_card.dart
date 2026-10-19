@@ -11,9 +11,11 @@ class FoodManualCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationCard(
+      transparentSurface: true,
       child: OperationButton(
         icon: Icons.edit_note,
         text: "FOOD ENTRY",
+        frostedGradient: true,
         onPressed: appInitializationController.value.isReadOnly
             ? null
             : () {

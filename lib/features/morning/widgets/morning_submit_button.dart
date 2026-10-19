@@ -16,7 +16,7 @@ class MorningSubmitButton extends StatelessWidget {
     return OperationButton(
       icon: Icons.save,
       text: isEdit ? 'UPDATE STATUS' : 'SAVE STATUS',
-      dashboardGlass: true,
+      frostedGradient: true,
       onPressed: onPressed,
     );
   }

@@ -38,6 +38,12 @@ class OperationButton extends StatelessWidget {
   /// their established button surfaces.
   final bool frostedGlass;
 
+  /// Applies the operation-only frosted material whose actual backdrop blur
+  /// transitions continuously from strong at the left edge to weak at the
+  /// right edge. It is deliberately opt-in so Dashboard Quick Access and
+  /// unrelated controls retain their approved materials.
+  final bool frostedGradient;
+
   /// Limits comparison-only controls to their requested audio route without
   /// emitting a COMMAND confirmation for the diagnostic control itself.
   final ActionableFeedbackRole feedbackRole;
@@ -54,6 +60,7 @@ class OperationButton extends StatelessWidget {
     this.transparentSurface = false,
     this.dashboardGlass = false,
     this.frostedGlass = false,
+    this.frostedGradient = false,
     this.feedbackRole = ActionableFeedbackRole.command,
     this.onUnavailableTap,
   });
@@ -68,20 +75,22 @@ class OperationButton extends StatelessWidget {
             OperationActionRole.secondary => AppTextStyles.label.color!,
             OperationActionRole.danger => colorScheme.error,
           };
+    final usesTransparentButtonMaterial =
+        transparentSurface || dashboardGlass || frostedGlass || frostedGradient;
     final button = SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          elevation: transparentSurface ? 0 : 4,
-          backgroundColor: transparentSurface || dashboardGlass || frostedGlass
+          elevation: usesTransparentButtonMaterial ? 0 : 4,
+          backgroundColor: usesTransparentButtonMaterial
               ? Colors.transparent
               : null,
-          shadowColor: transparentSurface || dashboardGlass || frostedGlass
+          shadowColor: usesTransparentButtonMaterial
               ? Colors.transparent
               : null,
-          surfaceTintColor: transparentSurface || dashboardGlass || frostedGlass
+          surfaceTintColor: usesTransparentButtonMaterial
               ? Colors.transparent
               : null,
           foregroundColor: foregroundColor,
@@ -108,32 +117,8 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
-    final surfaced = frostedGlass
-        ? ClipRRect(
-            borderRadius: AppRadius.medium,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xd62d4b60), Color(0xbf162b3d)],
-                  ),
-                  borderRadius: AppRadius.medium,
-                  border: Border.all(color: const Color(0xc078a8b8)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x55020c16),
-                      blurRadius: 5,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: button,
-              ),
-            ),
-          )
+    final surfaced = frostedGradient || frostedGlass
+        ? _OperationFrostedGradientSurface(child: button)
         : dashboardGlass
         ? Container(
             decoration: DashboardGlassCard.decoration(
@@ -157,4 +142,65 @@ class OperationButton extends StatelessWidget {
       child: surfaced,
     );
   }
+}
+
+/// The weak full-surface pass keeps the right edge glass-like. A second,
+/// masked pass adds blur only toward the left. Because the mask fades instead
+/// of dividing the button into strips, the resulting backdrop blur is a
+/// continuous left-to-right material change rather than a color gradient.
+class _OperationFrostedGradientSurface extends StatelessWidget {
+  const _OperationFrostedGradientSurface({required this.child});
+
+  final Widget child;
+
+  static const _weakBlur = 1.4;
+  static const _strongBlur = 7.2;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    key: const ValueKey('operation-frosted-gradient'),
+    borderRadius: AppRadius.medium,
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: _weakBlur, sigmaY: _weakBlur),
+          child: const SizedBox.expand(),
+        ),
+        ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Colors.white, Color(0xccffffff), Color(0x00ffffff)],
+            stops: [0, .30, 1],
+          ).createShader(bounds),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: _strongBlur, sigmaY: _strongBlur),
+            child: const SizedBox.expand(),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0x9c213b4d), Color(0x7c1b3345), Color(0x5415293a)],
+              stops: [0, .42, 1],
+            ),
+            border: Border.all(color: const Color(0x8878a8b8)),
+            borderRadius: AppRadius.medium,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33020c16),
+                blurRadius: 4,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+        ),
+        child,
+      ],
+    ),
+  );
 }

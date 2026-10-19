@@ -95,9 +95,11 @@ class _FoodPageState extends State<FoodPage> {
                 AppSpacing.gapMD,
 
                 OperationCard(
+                  transparentSurface: true,
                   child: OperationButton(
                     icon: Icons.storage_outlined,
                     text: 'OPEN FOOD DATABASE',
+                    frostedGradient: true,
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(

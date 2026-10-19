@@ -14,7 +14,7 @@ class MorningHistoryButton extends StatelessWidget {
     return OperationButton(
       icon: Icons.history,
       text: "RECORD",
-      dashboardGlass: true,
+      frostedGradient: true,
       onPressed: () async {
         await Navigator.push<void>(
           context,

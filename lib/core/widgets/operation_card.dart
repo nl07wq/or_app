@@ -17,6 +17,10 @@ class OperationCard extends StatefulWidget {
 
   final BorderRadius? borderRadius;
 
+  /// Preserves this card's established spacing while letting an opt-in child
+  /// blur the route ambient instead of an opaque intermediate surface.
+  final bool transparentSurface;
+
   const OperationCard({
     super.key,
     required this.child,
@@ -25,6 +29,7 @@ class OperationCard extends StatefulWidget {
     this.padding = AppSpacing.cardPadding,
     this.margin = AppSpacing.cardMargin,
     this.borderRadius,
+    this.transparentSurface = false,
   });
 
   @override
@@ -43,8 +48,11 @@ class _OperationCardState extends State<OperationCard> {
       onExit: (_) => setState(() => _hovering = false),
       child: Card(
         margin: widget.margin,
-        elevation: 6,
-        color: Theme.of(context).cardColor,
+        elevation: widget.transparentSurface ? 0 : 6,
+        color: widget.transparentSurface
+            ? Colors.transparent
+            : Theme.of(context).cardColor,
+        shadowColor: widget.transparentSurface ? Colors.transparent : null,
         shape: RoundedRectangleBorder(
           borderRadius: borderRadius,
           side: BorderSide(

@@ -57,4 +57,28 @@ void main() {
     );
     expect(region.role, ActionableFeedbackRole.silent);
   });
+
+  testWidgets(
+    'frosted gradient uses overlapping weak and left-weighted strong backdrop filters',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: OperationButton(
+              text: 'FROSTED',
+              frostedGradient: true,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('operation-frosted-gradient')),
+        findsOneWidget,
+      );
+      expect(find.byType(BackdropFilter), findsNWidgets(2));
+      expect(find.byType(ShaderMask), findsOneWidget);
+    },
+  );
 }

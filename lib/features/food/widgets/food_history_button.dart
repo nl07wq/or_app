@@ -11,9 +11,11 @@ class FoodHistoryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationCard(
+      transparentSurface: true,
       child: OperationButton(
         icon: Icons.history,
         text: "RECORD",
+        frostedGradient: true,
         onPressed: () {
           Navigator.push(
             context,

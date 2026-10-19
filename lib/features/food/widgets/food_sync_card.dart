@@ -13,9 +13,11 @@ class FoodSyncCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OperationCard(
+      transparentSurface: true,
       child: OperationButton(
         icon: Icons.sync,
         text: 'SYNC FOOD',
+        frostedGradient: true,
         onPressed: appInitializationController.value.isReadOnly
             ? null
             : () async {
