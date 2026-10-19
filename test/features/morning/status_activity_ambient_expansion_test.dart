@@ -99,6 +99,26 @@ void main() {
   );
 
   test(
+    'iOS standalone shell leaves the status-bar safe area available to Flutter',
+    () {
+      final webShell = source('web/index.html');
+      expect(webShell, contains('viewport-fit=cover'));
+      expect(
+        webShell,
+        contains(
+          'apple-mobile-web-app-status-bar-style" content="black-translucent"',
+        ),
+      );
+      expect(
+        webShell,
+        isNot(
+          contains('apple-mobile-web-app-status-bar-style" content="black"'),
+        ),
+      );
+    },
+  );
+
+  test(
     'glass input treatment is opt-in and does not affect unrelated inputs',
     () {
       final input = source('lib/core/widgets/operation_text_field.dart');
