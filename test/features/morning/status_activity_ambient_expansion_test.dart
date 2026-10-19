@@ -1,6 +1,7 @@
 import 'dart:io';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/ambient_page_scaffold.dart';
 
 void main() {
   String source(String path) => File(path).readAsStringSync();
@@ -95,6 +96,97 @@ void main() {
       );
       expect(scaffold, contains('extendBodyBehindAppBar: true'));
       expect(scaffold, isNot(contains('body: Stack(')));
+    },
+  );
+
+  test(
+    'STATUS and ACTIVITY detail routes put their header inset inside the scroll viewport',
+    () {
+      final statusEntry = source('lib/features/morning/morning_fact_page.dart');
+      final statusRecord = source(
+        'lib/features/morning/morning_history_page.dart',
+      );
+      final activityEntry = source(
+        'lib/features/activity/activity_entry_page.dart',
+      );
+      final activityRecord = source(
+        'lib/features/activity/activity_history_page.dart',
+      );
+
+      expect(statusEntry, contains(': SingleChildScrollView('));
+      expect(statusRecord, contains('body: FutureBuilder<List<MorningData>>('));
+      expect(
+        statusRecord,
+        matches(RegExp(r'ListView\.separated\(\s+padding:')),
+      );
+      expect(activityEntry, contains('return SingleChildScrollView('));
+      expect(
+        activityRecord,
+        matches(RegExp(r'ListView\.separated\(\s+padding:')),
+      );
+    },
+  );
+
+  testWidgets(
+    'scroll content paints behind a transparent fixed header without a band',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 300);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = ScrollController();
+      final boundaryKey = GlobalKey();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: boundaryKey,
+            child: MediaQuery(
+              data: const MediaQueryData(padding: EdgeInsets.only(top: 24)),
+              child: AmbientPageScaffold(
+                ambient: const ColoredBox(color: Color(0xff121820)),
+                appBar: AppBar(
+                  automaticallyImplyLeading: false,
+                  title: const Text('FIXED HEADER'),
+                  centerTitle: true,
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  forceMaterialTransparency: true,
+                ),
+                body: SingleChildScrollView(
+                  controller: controller,
+                  padding: const EdgeInsets.fromLTRB(16, 88, 16, 16),
+                  child: Container(
+                    key: const ValueKey('scrolling-card'),
+                    height: 420,
+                    color: const Color(0xff236a8c),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final headerBefore = tester.getCenter(find.text('FIXED HEADER'));
+      controller.jumpTo(72);
+      await tester.pump();
+      expect(tester.getCenter(find.text('FIXED HEADER')), headerBefore);
+
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('scrolling-card'))).dy,
+        lessThan(kToolbarHeight),
+      );
+      await expectLater(
+        find.byKey(boundaryKey),
+        matchesGoldenFile('goldens/status_activity_scroll_through_header.png'),
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 

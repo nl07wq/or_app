@@ -299,135 +299,133 @@ class _MorningFactPageState extends State<MorningFactPage> {
           ? const Center(child: Text('Operation Dateを取得できませんでした。'))
           : !_initialValuesLoaded
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
+          : SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
                 AppSpacing.cardPadding.left,
                 viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
                 AppSpacing.cardPadding.right,
                 viewPadding.bottom + AppSpacing.cardPadding.bottom,
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    BodyCard(
-                      weightController: weightController,
-                      bodyFatController: bodyFatController,
-                      weightUnmeasured: weightUnmeasured,
-                      onWeightUnmeasured: _markBodyUnmeasured,
-                      onWeightMeasured: _restoreMeasuredBody,
-                    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  BodyCard(
+                    weightController: weightController,
+                    bodyFatController: bodyFatController,
+                    weightUnmeasured: weightUnmeasured,
+                    onWeightUnmeasured: _markBodyUnmeasured,
+                    onWeightMeasured: _restoreMeasuredBody,
+                  ),
 
-                    AppSpacing.gapMD,
+                  AppSpacing.gapMD,
 
-                    RecoveryCard(
-                      sleepController: sleepController,
-                      sleepScoreController: sleepScoreController,
-                      sleepType: selectedSleepType,
-                      sleepTimeUnmeasured: sleepTimeUnmeasured,
-                      onSleepTimeUnmeasured: _markSleepTimeUnmeasured,
-                      onSleepTimeMeasured: _restoreMeasuredSleepTime,
-                      onSleepTypeChanged: (value) {
-                        setState(() {
-                          selectedSleepType = value;
-                          if (value == SleepType.nap) {
-                            sleepScoreController.clear();
-                          }
-                        });
-                      },
-                    ),
+                  RecoveryCard(
+                    sleepController: sleepController,
+                    sleepScoreController: sleepScoreController,
+                    sleepType: selectedSleepType,
+                    sleepTimeUnmeasured: sleepTimeUnmeasured,
+                    onSleepTimeUnmeasured: _markSleepTimeUnmeasured,
+                    onSleepTimeMeasured: _restoreMeasuredSleepTime,
+                    onSleepTypeChanged: (value) {
+                      setState(() {
+                        selectedSleepType = value;
+                        if (value == SleepType.nap) {
+                          sleepScoreController.clear();
+                        }
+                      });
+                    },
+                  ),
 
-                    AppSpacing.gapMD,
+                  AppSpacing.gapMD,
 
-                    FootCard(controller: footPainController),
+                  FootCard(controller: footPainController),
 
-                    AppSpacing.gapMD,
+                  AppSpacing.gapMD,
 
-                    WorkCard(
-                      workType: selectedWorkType,
-                      onChanged: (value) {
-                        setState(() {
-                          selectedWorkType = value;
-                        });
-                      },
-                      startController: workStartController,
-                      endController: workEndController,
-                      breakController: workBreakController,
-                    ),
+                  WorkCard(
+                    workType: selectedWorkType,
+                    onChanged: (value) {
+                      setState(() {
+                        selectedWorkType = value;
+                      });
+                    },
+                    startController: workStartController,
+                    endController: workEndController,
+                    breakController: workBreakController,
+                  ),
 
-                    AppSpacing.gapMD,
+                  AppSpacing.gapMD,
 
-                    MemoInputCard(controller: memoController),
+                  MemoInputCard(controller: memoController),
 
-                    AppSpacing.gapXL,
+                  AppSpacing.gapXL,
 
-                    MorningSubmitButton(
-                      isEdit: widget.isEdit,
-                      onPressed: () async {
-                        if (_submitting) return;
-                        setState(() => _submitting = true);
-                        String? error;
-                        try {
-                          error = await MorningSubmitService.submit(
-                            existingData: widget.data,
-                            workType: selectedWorkType,
-                            weightText: weightController.text,
-                            bodyFatText: bodyFatController.text,
-                            sleepText: sleepController.text,
-                            sleepScoreText: sleepScoreController.text,
-                            sleepType: selectedSleepType,
-                            footPainText: footPainController.text,
-                            workStart: workStartController.text,
-                            workEnd: workEndController.text,
-                            workBreak: workBreakController.text,
-                            memo: memoController.text,
-                            operationLocalDate: _operationLocalDate,
-                          );
+                  MorningSubmitButton(
+                    isEdit: widget.isEdit,
+                    onPressed: () async {
+                      if (_submitting) return;
+                      setState(() => _submitting = true);
+                      String? error;
+                      try {
+                        error = await MorningSubmitService.submit(
+                          existingData: widget.data,
+                          workType: selectedWorkType,
+                          weightText: weightController.text,
+                          bodyFatText: bodyFatController.text,
+                          sleepText: sleepController.text,
+                          sleepScoreText: sleepScoreController.text,
+                          sleepType: selectedSleepType,
+                          footPainText: footPainController.text,
+                          workStart: workStartController.text,
+                          workEnd: workEndController.text,
+                          workBreak: workBreakController.text,
+                          memo: memoController.text,
+                          operationLocalDate: _operationLocalDate,
+                        );
 
-                          if (!context.mounted) return;
+                        if (!context.mounted) return;
 
-                          if (error != null) {
-                            if (mounted) {
-                              setState(() => _submitting = false);
-                            }
-                            _showError(error);
-                            return;
-                          }
-
-                          if (!widget.isEdit &&
-                              await _confirmDailyBriefCreation()) {
-                            if (!context.mounted) return;
-                            await _openDailyBriefCreation();
-                            return;
-                          }
-
-                          if (!context.mounted) return;
-
-                          if (widget.returnAfterSave) {
-                            Navigator.pop(context, true);
-                          } else {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              AppRoutes.dashboard,
-                              (route) => false,
-                            );
-                          }
-                        } on ConfirmedDailyLogException catch (exception) {
-                          if (context.mounted) {
+                        if (error != null) {
+                          if (mounted) {
                             setState(() => _submitting = false);
-                            showConfirmedLogMessage(context, exception);
                           }
-                          return;
-                        } catch (_) {
-                          if (context.mounted) {
-                            setState(() => _submitting = false);
-                            _showError('Operation Dateを取得できませんでした。');
-                          }
+                          _showError(error);
                           return;
                         }
-                      },
-                    ),
-                  ],
-                ),
+
+                        if (!widget.isEdit &&
+                            await _confirmDailyBriefCreation()) {
+                          if (!context.mounted) return;
+                          await _openDailyBriefCreation();
+                          return;
+                        }
+
+                        if (!context.mounted) return;
+
+                        if (widget.returnAfterSave) {
+                          Navigator.pop(context, true);
+                        } else {
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            AppRoutes.dashboard,
+                            (route) => false,
+                          );
+                        }
+                      } on ConfirmedDailyLogException catch (exception) {
+                        if (context.mounted) {
+                          setState(() => _submitting = false);
+                          showConfirmedLogMessage(context, exception);
+                        }
+                        return;
+                      } catch (_) {
+                        if (context.mounted) {
+                          setState(() => _submitting = false);
+                          _showError('Operation Dateを取得できませんでした。');
+                        }
+                        return;
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
     );

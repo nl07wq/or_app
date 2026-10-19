@@ -87,153 +87,151 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
         title: const StatusCrtMonitorTitle(),
       ),
       ambient: const StatusAmbientBackground(),
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.cardPadding.left,
-          topInset + AppSpacing.cardPadding.top,
-          AppSpacing.cardPadding.right,
-          AppSpacing.cardPadding.bottom,
-        ),
-        child: FutureBuilder<List<MorningData>>(
-          future: _records,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+      body: FutureBuilder<List<MorningData>>(
+        future: _records,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            final records = snapshot.data!;
+          final records = snapshot.data!;
 
-            if (records.isEmpty) {
-              return const Center(child: Text('No Morning Records'));
-            }
+          if (records.isEmpty) {
+            return const Center(child: Text('No Morning Records'));
+          }
 
-            return ListView.separated(
-              itemCount: records.length,
-              separatorBuilder: (_, _) => AppSpacing.gapMD,
-              itemBuilder: (context, index) {
-                final data = records[index];
+          return ListView.separated(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.cardPadding.left,
+              topInset + AppSpacing.cardPadding.top,
+              AppSpacing.cardPadding.right,
+              AppSpacing.cardPadding.bottom,
+            ),
+            itemCount: records.length,
+            separatorBuilder: (_, _) => AppSpacing.gapMD,
+            itemBuilder: (context, index) {
+              final data = records[index];
 
-                return DashboardGlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              data.date.split('T').first,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
+              return DashboardGlassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            data.date.split('T').first,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            tooltip: 'Edit',
-                            onPressed:
-                                appInitializationController.value.isReadOnly
-                                ? null
-                                : () => _editRecord(data),
-                          ).actionableFeedback(),
-                          IconButton(
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            tooltip: 'Delete',
-                            onPressed:
-                                appInitializationController.value.isReadOnly
-                                ? null
-                                : () => _deleteRecord(data),
-                          ).actionableFeedback(),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _HistoryDetailRow(
-                        icon: Icons.monitor_weight_outlined,
-                        label: '体重',
-                        value: data.weight == null
-                            ? '未計測'
-                            : '${data.weight!.toStringAsFixed(1)} kg',
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.percent,
-                        label: '体脂肪',
-                        value: data.bodyFat == null
-                            ? '未計測'
-                            : '${data.bodyFat!.toStringAsFixed(1)} %',
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.bedtime_outlined,
-                        label: '睡眠',
-                        value: data.sleepHours == null
-                            ? '未計測'
-                            : formatTime(data.sleepHours!),
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.category_outlined,
-                        label: '睡眠タイプ',
-                        value: data.sleepType.displayLabel,
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.speed,
-                        label: '睡眠スコア',
-                        value: data.sleepScore?.toString() ?? '未計測',
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.directions_walk,
-                        label: '足底筋膜炎',
-                        value: '${data.footPain}',
-                      ),
-                      if (data.bowelAmount != null)
-                        _HistoryDetailRow(
-                          icon: Icons.info_outline,
-                          label: '旧排便量',
-                          value: '${data.bowelAmount}',
                         ),
-                      if (data.bowelShape != null)
-                        _HistoryDetailRow(
-                          icon: Icons.info_outline,
-                          label: '旧排便形状',
-                          value: '${data.bowelShape}',
-                        ),
-                      _HistoryDetailRow(
-                        icon: Icons.work_outline,
-                        label: '勤務区分',
-                        value: data.workType.label,
-                      ),
-                      if (data.workType.isWorking) ...[
-                        _HistoryDetailRow(
-                          icon: Icons.login,
-                          label: '勤務開始',
-                          value: data.workStart,
-                        ),
-                        _HistoryDetailRow(
-                          icon: Icons.logout,
-                          label: '勤務終了',
-                          value: data.workEnd,
-                        ),
-                        _HistoryDetailRow(
-                          icon: Icons.pause_circle_outline,
-                          label: '休憩',
-                          value: data.workBreak,
-                        ),
-                        _HistoryDetailRow(
-                          icon: Icons.timer_outlined,
-                          label: '勤務時間',
-                          value: formatTime(data.workHours),
-                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: 'Edit',
+                          onPressed:
+                              appInitializationController.value.isReadOnly
+                              ? null
+                              : () => _editRecord(data),
+                        ).actionableFeedback(),
+                        IconButton(
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          tooltip: 'Delete',
+                          onPressed:
+                              appInitializationController.value.isReadOnly
+                              ? null
+                              : () => _deleteRecord(data),
+                        ).actionableFeedback(),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    _HistoryDetailRow(
+                      icon: Icons.monitor_weight_outlined,
+                      label: '体重',
+                      value: data.weight == null
+                          ? '未計測'
+                          : '${data.weight!.toStringAsFixed(1)} kg',
+                    ),
+                    _HistoryDetailRow(
+                      icon: Icons.percent,
+                      label: '体脂肪',
+                      value: data.bodyFat == null
+                          ? '未計測'
+                          : '${data.bodyFat!.toStringAsFixed(1)} %',
+                    ),
+                    _HistoryDetailRow(
+                      icon: Icons.bedtime_outlined,
+                      label: '睡眠',
+                      value: data.sleepHours == null
+                          ? '未計測'
+                          : formatTime(data.sleepHours!),
+                    ),
+                    _HistoryDetailRow(
+                      icon: Icons.category_outlined,
+                      label: '睡眠タイプ',
+                      value: data.sleepType.displayLabel,
+                    ),
+                    _HistoryDetailRow(
+                      icon: Icons.speed,
+                      label: '睡眠スコア',
+                      value: data.sleepScore?.toString() ?? '未計測',
+                    ),
+                    _HistoryDetailRow(
+                      icon: Icons.directions_walk,
+                      label: '足底筋膜炎',
+                      value: '${data.footPain}',
+                    ),
+                    if (data.bowelAmount != null)
                       _HistoryDetailRow(
-                        icon: Icons.note_outlined,
-                        label: 'メモ',
-                        value: data.memo.isEmpty ? 'なし' : data.memo,
+                        icon: Icons.info_outline,
+                        label: '旧排便量',
+                        value: '${data.bowelAmount}',
+                      ),
+                    if (data.bowelShape != null)
+                      _HistoryDetailRow(
+                        icon: Icons.info_outline,
+                        label: '旧排便形状',
+                        value: '${data.bowelShape}',
+                      ),
+                    _HistoryDetailRow(
+                      icon: Icons.work_outline,
+                      label: '勤務区分',
+                      value: data.workType.label,
+                    ),
+                    if (data.workType.isWorking) ...[
+                      _HistoryDetailRow(
+                        icon: Icons.login,
+                        label: '勤務開始',
+                        value: data.workStart,
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.logout,
+                        label: '勤務終了',
+                        value: data.workEnd,
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.pause_circle_outline,
+                        label: '休憩',
+                        value: data.workBreak,
+                      ),
+                      _HistoryDetailRow(
+                        icon: Icons.timer_outlined,
+                        label: '勤務時間',
+                        value: formatTime(data.workHours),
                       ),
                     ],
-                  ),
-                );
-              },
-            );
-          },
-        ),
+                    _HistoryDetailRow(
+                      icon: Icons.note_outlined,
+                      label: 'メモ',
+                      value: data.memo.isEmpty ? 'なし' : data.memo,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

@@ -682,156 +682,154 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
   Widget _buildEntryBody(EdgeInsets viewPadding) {
     final officialSteps = _officialSteps;
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.cardPadding.left,
         viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
         AppSpacing.cardPadding.right,
         viewPadding.bottom + AppSpacing.cardPadding.bottom,
       ),
-      child: SingleChildScrollView(
-        child: DashboardGlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: SectionHeader(
-                    icon: Icons.directions_walk_outlined,
-                    title: _isToday ? 'DAILY ACTIVITY' : 'PAST ACTIVITY',
-                  ),
+      child: DashboardGlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SectionHeader(
+                  icon: Icons.directions_walk_outlined,
+                  title: _isToday ? 'DAILY ACTIVITY' : 'PAST ACTIVITY',
                 ),
               ),
-              if (!_isToday) ...[
-                AppSpacing.gapSM,
-                Semantics(
-                  label: '${_formatDate(_date)}のActivity入力',
-                  child: Text(
-                    '${_formatDate(_date)} のActivity入力',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+            ),
+            if (!_isToday) ...[
+              AppSpacing.gapSM,
+              Semantics(
+                label: '${_formatDate(_date)}のActivity入力',
+                child: Text(
+                  '${_formatDate(_date)} のActivity入力',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+            if (_hasDraftConflict) ...[
+              AppSpacing.gapMD,
+              const MaterialBanner(
+                backgroundColor: Colors.transparent,
+                content: Text('同じ日付の未確定Draftがあります。正式Recordを優先して表示しています。'),
+                actions: [SizedBox.shrink()],
+              ),
+            ],
+            AppSpacing.gapMD,
+            DecoratedBox(
+              decoration: DashboardGlassCard.decoration(
+                Theme.of(context).colorScheme,
+              ),
+              child: ListTile(
+                title: const Text('Date'),
+                trailing: Text(_formatDate(_date)),
+                onTap: _isFormal ? null : _pickDate,
+              ).inputFeedback(),
+            ),
+            AppSpacing.gapMD,
+            _MeasuredStepsField(
+              controller: _measuredStepsController,
+              focusNode: _measuredStepsFocusNode,
+              enabled: !_isBusy,
+              onChanged: (_) => setState(() {}),
+              onIncrement: () => _adjustMeasuredSteps(1),
+              onDecrement: () => _adjustMeasuredSteps(-1),
+            ),
+            AppSpacing.gapMD,
+            _MeasuredStepsField(
+              controller: _carryOverController,
+              focusNode: _carryOverFocusNode,
+              label: 'Carry Over',
+              onChanged: (_) => setState(() {}),
+              enabled: !_isBusy,
+              incrementKey: const ValueKey('activity-carry-over-increment'),
+              incrementTooltip: 'Increase Carry Over by 1',
+              onIncrement: () => _adjustCarryOver(1),
+              decrementKey: const ValueKey('activity-carry-over-decrement'),
+              decrementTooltip: 'Decrease Carry Over by 1',
+              onDecrement: () => _adjustCarryOver(-1),
+            ),
+            AppSpacing.gapMD,
+            _ReadOnlyStepDisplay(
+              label: 'Previous day Carry Over deduction',
+              value: _previousCarryOverDeduction,
+              prefix: '-',
+            ),
+            AppSpacing.gapMD,
+            _OfficialStepsDisplay(officialSteps: officialSteps),
+            AppSpacing.gapMD,
+            Column(
+              children: [
+                _QuickStepRow(
+                  values: const [10, 50, 100, 500, 1000],
+                  enabled: !_isBusy,
+                  onPressed: _addQuickSteps,
+                ),
+                const SizedBox(height: 8),
+                _QuickStepRow(
+                  values: const [2500, 5000, 7500, 10000],
+                  enabled: !_isBusy,
+                  onPressed: _addQuickSteps,
                 ),
               ],
-              if (_hasDraftConflict) ...[
-                AppSpacing.gapMD,
-                const MaterialBanner(
-                  backgroundColor: Colors.transparent,
-                  content: Text('同じ日付の未確定Draftがあります。正式Recordを優先して表示しています。'),
-                  actions: [SizedBox.shrink()],
-                ),
-              ],
-              AppSpacing.gapMD,
-              DecoratedBox(
-                decoration: DashboardGlassCard.decoration(
-                  Theme.of(context).colorScheme,
-                ),
-                child: ListTile(
-                  title: const Text('Date'),
-                  trailing: Text(_formatDate(_date)),
-                  onTap: _isFormal ? null : _pickDate,
-                ).inputFeedback(),
+            ),
+            AppSpacing.gapLG,
+            if (_usesDigestiveEvents)
+              _buildDigestiveEvents()
+            else
+              BowelCard(
+                amountController: _bowelAmountController,
+                shapeController: _bowelShapeController,
               ),
-              AppSpacing.gapMD,
-              _MeasuredStepsField(
-                controller: _measuredStepsController,
-                focusNode: _measuredStepsFocusNode,
-                enabled: !_isBusy,
-                onChanged: (_) => setState(() {}),
-                onIncrement: () => _adjustMeasuredSteps(1),
-                onDecrement: () => _adjustMeasuredSteps(-1),
-              ),
-              AppSpacing.gapMD,
-              _MeasuredStepsField(
-                controller: _carryOverController,
-                focusNode: _carryOverFocusNode,
-                label: 'Carry Over',
-                onChanged: (_) => setState(() {}),
-                enabled: !_isBusy,
-                incrementKey: const ValueKey('activity-carry-over-increment'),
-                incrementTooltip: 'Increase Carry Over by 1',
-                onIncrement: () => _adjustCarryOver(1),
-                decrementKey: const ValueKey('activity-carry-over-decrement'),
-                decrementTooltip: 'Decrease Carry Over by 1',
-                onDecrement: () => _adjustCarryOver(-1),
-              ),
-              AppSpacing.gapMD,
-              _ReadOnlyStepDisplay(
-                label: 'Previous day Carry Over deduction',
-                value: _previousCarryOverDeduction,
-                prefix: '-',
-              ),
-              AppSpacing.gapMD,
-              _OfficialStepsDisplay(officialSteps: officialSteps),
-              AppSpacing.gapMD,
+            AppSpacing.gapLG,
+            if (_isFormal)
               Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _QuickStepRow(
-                    values: const [10, 50, 100, 500, 1000],
-                    enabled: !_isBusy,
-                    onPressed: _addQuickSteps,
-                  ),
-                  const SizedBox(height: 8),
-                  _QuickStepRow(
-                    values: const [2500, 5000, 7500, 10000],
-                    enabled: !_isBusy,
-                    onPressed: _addQuickSteps,
-                  ),
-                ],
-              ),
-              AppSpacing.gapLG,
-              if (_usesDigestiveEvents)
-                _buildDigestiveEvents()
-              else
-                BowelCard(
-                  amountController: _bowelAmountController,
-                  shapeController: _bowelShapeController,
-                ),
-              AppSpacing.gapLG,
-              if (_isFormal)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    OperationButton(
-                      text: 'SAVE ACTIVITY',
-                      frostedGradient: true,
-                      onPressed: _isBusy ? null : _saveExisting,
-                    ),
-                    AppSpacing.gapSM,
-                    const OperationDescription(text: 'Activity記録を更新'),
-                  ],
-                )
-              else ...[
-                Semantics(
-                  label: '入力途中の内容を一時保存',
-                  button: true,
-                  child: OperationButton(
-                    icon: Icons.save_outlined,
-                    text: 'SAVE DRAFT',
-                    frostedGradient: true,
-                    onPressed: _isBusy ? null : _saveDraft,
-                  ),
-                ),
-                AppSpacing.gapSM,
-                const OperationDescription(text: '入力途中の内容を一時保存'),
-                AppSpacing.gapMD,
-                Semantics(
-                  label: '${_formatDate(_date)}のActivity記録を確定',
-                  button: true,
-                  child: OperationButton(
+                  OperationButton(
                     text: 'SAVE ACTIVITY',
                     frostedGradient: true,
-                    onPressed: _isBusy ? null : _finalizeDraft,
+                    onPressed: _isBusy ? null : _saveExisting,
                   ),
+                  AppSpacing.gapSM,
+                  const OperationDescription(text: 'Activity記録を更新'),
+                ],
+              )
+            else ...[
+              Semantics(
+                label: '入力途中の内容を一時保存',
+                button: true,
+                child: OperationButton(
+                  icon: Icons.save_outlined,
+                  text: 'SAVE DRAFT',
+                  frostedGradient: true,
+                  onPressed: _isBusy ? null : _saveDraft,
                 ),
-                AppSpacing.gapSM,
-                OperationDescription(
-                  text: _isToday ? '本日のActivity記録を確定' : 'この日のActivity記録を確定',
+              ),
+              AppSpacing.gapSM,
+              const OperationDescription(text: '入力途中の内容を一時保存'),
+              AppSpacing.gapMD,
+              Semantics(
+                label: '${_formatDate(_date)}のActivity記録を確定',
+                button: true,
+                child: OperationButton(
+                  text: 'SAVE ACTIVITY',
+                  frostedGradient: true,
+                  onPressed: _isBusy ? null : _finalizeDraft,
                 ),
-              ],
+              ),
+              AppSpacing.gapSM,
+              OperationDescription(
+                text: _isToday ? '本日のActivity記録を確定' : 'この日のActivity記録を確定',
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
