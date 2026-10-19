@@ -199,4 +199,29 @@ void main() {
       );
     }
   });
+
+  testWidgets('renders DATA VAULT corridor at the required animation phases', (
+    tester,
+  ) async {
+    const phases = <(String, Duration)>[
+      ('0', Duration.zero),
+      ('25', Duration(seconds: 9)),
+      ('50', Duration(seconds: 18)),
+      ('75', Duration(seconds: 27)),
+      ('999', Duration(milliseconds: 35964)),
+    ];
+
+    for (final phase in phases) {
+      await pumpHistory(tester, animateAmbient: true);
+      await tester.tap(find.text('B VAULT'));
+      await tester.pump();
+      if (phase.$2 != Duration.zero) await tester.pump(phase.$2);
+      await expectLater(
+        find.byKey(const ValueKey('history-ambient-dataVault')),
+        matchesGoldenFile(
+          'goldens/history_data_vault_v13_phase_${phase.$1}.png',
+        ),
+      );
+    }
+  });
 }
