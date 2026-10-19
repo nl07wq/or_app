@@ -36,6 +36,169 @@ import '../weather_forecast_summary.dart';
 
 enum CalendarAmbientContext { status }
 
+/// Static AppBar title shared by the Dashboard and STATUS calendar routes.
+/// It only draws within the existing centered title slot.
+class CalendarRingBinderTitle extends StatelessWidget {
+  const CalendarRingBinderTitle({super.key});
+
+  static const Size preferredSize = Size(164, 46);
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'CALENDAR',
+    child: ExcludeSemantics(
+      child: SizedBox(
+        width: preferredSize.width,
+        height: preferredSize.height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const RepaintBoundary(
+              child: CustomPaint(painter: _CalendarRingBinderPainter()),
+            ),
+            const Positioned(
+              left: 12,
+              top: 13,
+              right: 12,
+              bottom: 5,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'CALENDAR',
+                    style: TextStyle(
+                      color: Color(0xffe2f9ff),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.7,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _CalendarRingBinderPainter extends CustomPainter {
+  const _CalendarRingBinderPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final plate = RRect.fromRectAndRadius(
+      Rect.fromLTWH(3, 9, size.width - 6, size.height - 12),
+      const Radius.circular(5),
+    );
+    final header = Rect.fromLTWH(4, 10, size.width - 8, 10);
+
+    canvas.drawRRect(
+      plate,
+      Paint()
+        ..color = const Color(0xff1b2d3a).withValues(alpha: .82)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    canvas.drawRRect(
+      plate,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xe92e4658), Color(0xe914222f)],
+        ).createShader(plate.outerRect),
+    );
+    canvas.save();
+    canvas.clipRRect(plate);
+    canvas.drawRect(
+      header,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xd94f6c7e), Color(0xc52b4354)],
+        ).createShader(header),
+    );
+    canvas.drawLine(
+      Offset(header.left, header.bottom),
+      Offset(header.right, header.bottom),
+      Paint()
+        ..color = const Color(0xff48cce6).withValues(alpha: .72)
+        ..strokeWidth = .8,
+    );
+    canvas.drawLine(
+      Offset(18, size.height - 8),
+      Offset(size.width - 18, size.height - 8),
+      Paint()
+        ..color = const Color(0xff87dced).withValues(alpha: .22)
+        ..strokeWidth = .7,
+    );
+    canvas.restore();
+    canvas.drawRRect(
+      plate,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .9
+        ..color = const Color(0xff65cee8).withValues(alpha: .58),
+    );
+
+    const ringCount = 5;
+    final first = size.width * .17;
+    final spacing = size.width * .165;
+    for (var index = 0; index < ringCount; index++) {
+      final x = first + spacing * index;
+      final mount = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, 12), width: 13, height: 7),
+        const Radius.circular(2),
+      );
+      canvas.drawRRect(
+        mount,
+        Paint()..color = const Color(0xff0c1721).withValues(alpha: .92),
+      );
+      final ring = Path()
+        ..moveTo(x - 4.5, 16)
+        ..lineTo(x - 4.5, 7.2)
+        ..cubicTo(x - 4.5, 1.5, x + 4.5, 1.5, x + 4.5, 7.2)
+        ..lineTo(x + 4.5, 16);
+      canvas.drawPath(
+        ring,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..strokeWidth = 2.25
+          ..shader =
+              const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xff7fa9bd),
+                  Color(0xffecfbff),
+                  Color(0xff5e8b9f),
+                ],
+                stops: [0, .46, 1],
+              ).createShader(
+                Rect.fromCenter(center: Offset(x, 9), width: 11, height: 17),
+              ),
+      );
+      canvas.drawPath(
+        ring,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = .55
+          ..color = const Color(0xffd9f8ff).withValues(alpha: .78),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CalendarRingBinderPainter oldDelegate) => false;
+}
+
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key, this.initialDate, this.ambientContext});
   final DateTime? initialDate;
@@ -455,7 +618,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 onPressed: () => Navigator.of(context).maybePop(),
               ).actionableFeedback(role: ActionableFeedbackRole.exit)
             : null,
-        title: const Text('CALENDAR'),
+        title: const CalendarRingBinderTitle(),
         centerTitle: true,
         actions: [
           ActionableFeedbackButton(
