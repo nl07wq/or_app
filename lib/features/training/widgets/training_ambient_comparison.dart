@@ -332,7 +332,7 @@ class TrainingAmbientComparison extends StatefulWidget {
   final double? debugTime;
 
   static const kineticEngineBackgroundAsset =
-      'assets/images/training/kinetic_engine_v9_background.png';
+      'assets/images/training/kinetic_engine_v9_background_q90.webp';
 
   /// V11.1 profile parameters. Pitch circles remain frozen; only the radial
   /// envelope and angular occupancy around each pitch circle change.
@@ -1043,7 +1043,7 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     }
     _didPrecacheKineticBackground = true;
     // Decode once in Flutter's image cache. The CustomPainter below remains
-    // available on the first frame while a web decoder resolves the PNG.
+    // available on the first frame while a web decoder resolves the WebP.
     precacheImage(_kineticBackgroundImage, context).catchError((_) {});
   }
 

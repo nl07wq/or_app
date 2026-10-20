@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -680,15 +681,21 @@ void main() {
     );
   });
 
-  test('V9 static anime background asset is bundled unchanged', () async {
+  test('V12.1 WebP kinetic background asset is bundled unchanged', () async {
     expect(
       TrainingAmbientComparison.kineticEngineBackgroundAsset,
-      'assets/images/training/kinetic_engine_v9_background.png',
+      'assets/images/training/kinetic_engine_v9_background_q90.webp',
     );
     final asset = await rootBundle.load(
       TrainingAmbientComparison.kineticEngineBackgroundAsset,
     );
-    expect(asset.lengthInBytes, greaterThan(100000));
+    expect(asset.lengthInBytes, 188308);
+    final codec = await ui.instantiateImageCodec(asset.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    expect(frame.image.width, 798);
+    expect(frame.image.height, 1688);
+    frame.image.dispose();
+    codec.dispose();
   });
 
   testWidgets(
