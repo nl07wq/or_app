@@ -43,7 +43,6 @@ class HistoryDataVaultHyperspace {
       _paintNavigationTrail(canvas, camera, cameraDistance, guide.sHead);
       _paintNavigationBeacon(canvas, guide, size);
     }
-    _paintAccessLights(canvas, camera, cameraDistance);
     canvas.restore();
   }
 
@@ -257,37 +256,6 @@ class HistoryDataVaultHyperspace {
     );
   }
 
-  void _paintAccessLights(Canvas canvas, _VaultCamera camera, double distance) {
-    for (var index = 0; index < 3; index++) {
-      final target = distance + 18 + index * 22;
-      final lattice =
-          ((target + distance) / HistoryDataVaultMotion.floorPacketSpacing)
-              .round();
-      final worldS = HistoryDataVaultMotion.packetWorldDistance(
-        distance,
-        lattice,
-        spacing: HistoryDataVaultMotion.floorPacketSpacing,
-        laneOffset: index * 4.6,
-      );
-      final sample = _world.sample(worldS);
-      final offset = index == 2 ? 0.0 : (index == 0 ? -3.2 : 3.2);
-      final point = sample.point(offset, index == 1 ? 1.8 : 0);
-      final projected = camera.project(point);
-      if (projected == null) continue;
-      final visibility =
-          ((projected.z - .5) / 7).clamp(0.0, 1.0) *
-          ((90 - projected.z) / 15).clamp(0.0, 1.0);
-      _strokeWorldLine(
-        canvas,
-        camera,
-        _world.sample(worldS - .32).point(offset, index == 1 ? 1.8 : 0),
-        _world.sample(worldS + .32).point(offset, index == 1 ? 1.8 : 0),
-        const Color(0xffa8f8ff).withValues(alpha: .38 * visibility),
-        .7,
-      );
-    }
-  }
-
   /// Renders incoming line impulses bound to the physical corridor rails.
   /// They flow from the distant aperture toward the viewer while the route
   /// beacon remains the sole representation of the viewer's own position.
@@ -296,110 +264,73 @@ class HistoryDataVaultHyperspace {
     _VaultCamera camera,
     double cameraDistance,
   ) {
-    const floorLanes = [-3.2, -1.6, 0.0, 1.6, 3.2];
-    var floorHeads = 0;
-    for (var lane = 0; lane < floorLanes.length; lane++) {
-      floorHeads += _paintPacketLattice(
+    // Each rail owns an independent deterministic launch schedule.  This
+    // deliberately prevents the old lattice's symmetric bundles from moving
+    // as a set while retaining stable Golden output and physical projection.
+    const rails = <_DataVaultRail>[
+      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -3.2, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 1, -1.6, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 2, 0, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 3, 1.6, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 4, 3.2, .035),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.94, 1.12),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 1, -3.94, 3.72),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.94, 1.12),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 1, 3.94, 3.72),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, -2, 4.88),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 0, 4.88),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 2, 2, 4.88),
+    ];
+    for (final rail in rails) {
+      _paintScheduledRailImpulses(
         canvas,
         camera,
         cameraDistance,
-        spacing: HistoryDataVaultMotion.floorPacketSpacing,
-        laneOffset: lane * 4.6,
-        lateral: floorLanes[lane],
-        height: .035,
-        tailLength: 7,
-        color: const Color(0xff5ae5ff),
-        widths: const [3.2, 1.6, .75],
-        alphas: const [.12, .34, .78],
-        maximum: math.max(0, 18 - floorHeads),
+        rail: rail,
+        lane: rail.lane,
       );
-      if (floorHeads >= 18) break;
-    }
-
-    var wallHeads = 0;
-    for (final side in [-1.0, 1.0]) {
-      for (var rail = 0; rail < 2; rail++) {
-        wallHeads += _paintPacketLattice(
-          canvas,
-          camera,
-          cameraDistance,
-          spacing: HistoryDataVaultMotion.wallPacketSpacing,
-          laneOffset: side * 7.5 + rail * 11.2,
-          lateral: side * 3.94,
-          height: rail == 0 ? 1.12 : 3.72,
-          tailLength: 5,
-          color: const Color(0xff51c9ef),
-          widths: const [2.4, 1.2, .65],
-          alphas: const [.10, .30, .66],
-          maximum: math.max(0, 12 - wallHeads),
-        );
-        if (wallHeads >= 12) break;
-      }
-      if (wallHeads >= 12) break;
-    }
-
-    var ceilingHeads = 0;
-    for (var rail = 0; rail < 3; rail++) {
-      ceilingHeads += _paintPacketLattice(
-        canvas,
-        camera,
-        cameraDistance,
-        spacing: HistoryDataVaultMotion.ceilingPacketSpacing,
-        laneOffset: rail * 12.7,
-        lateral: const [-2.0, 0.0, 2.0][rail],
-        height: 4.88,
-        tailLength: 4,
-        color: const Color(0xff76dcff),
-        widths: const [2, 1, .55],
-        alphas: const [.09, .25, .58],
-        maximum: math.max(0, 8 - ceilingHeads),
-      );
-      if (ceilingHeads >= 8) break;
     }
   }
 
-  int _paintPacketLattice(
+  void _paintScheduledRailImpulses(
     Canvas canvas,
     _VaultCamera camera,
     double cameraDistance, {
-    required double spacing,
-    required double laneOffset,
-    required double lateral,
-    required double height,
-    required double tailLength,
-    required Color color,
-    required List<double> widths,
-    required List<double> alphas,
-    required int maximum,
+    required _DataVaultRail rail,
+    required int lane,
   }) {
-    if (maximum <= 0) return 0;
-    final first =
-        ((cameraDistance * 1.85 + 2 - laneOffset) / spacing).floor() - 2;
-    final last =
-        ((cameraDistance * 2.15 + 90 - laneOffset) / spacing).ceil() + 2;
+    final profile = HistoryDataVaultMotion.impulseProfileFor(
+      rail.surface,
+      lane,
+    );
+    // A lane can show one impulse normally and two only during the short
+    // overlap that is intentionally defined by its own interval/duration.
+    final event = ((seconds - profile.launchOffset) / profile.repeatInterval)
+        .floor();
     var painted = 0;
-    for (var packet = first; packet <= last && painted < maximum; packet++) {
-      final headS = HistoryDataVaultMotion.packetWorldDistance(
-        cameraDistance,
-        packet,
-        spacing: spacing,
-        laneOffset: laneOffset,
+    for (var index = event; index >= event - 2 && painted < 2; index--) {
+      final launch = profile.launchOffset + index * profile.repeatInterval;
+      final elapsed = seconds - launch;
+      if (elapsed < 0 || elapsed > profile.visibleDuration) continue;
+      final headS = HistoryDataVaultMotion.impulseHeadDistance(
+        seconds: seconds,
+        launchSeconds: launch,
+        speedMultiplier: profile.speedMultiplier,
       );
       if (_paintPacketTrail(
         canvas,
         camera,
         headS,
-        lateral: lateral,
-        height: height,
-        tailLength: tailLength,
-        color: color,
-        widths: widths,
-        alphas: alphas,
+        lateral: rail.lateral,
+        height: rail.height,
+        tailLength: profile.tailLength,
+        headLength: profile.headLength,
+        brightness: profile.brightness,
+        surface: rail.surface,
       )) {
         painted++;
       }
     }
-    return painted;
   }
 
   bool _paintPacketTrail(
@@ -409,37 +340,45 @@ class HistoryDataVaultHyperspace {
     required double lateral,
     required double height,
     required double tailLength,
-    required Color color,
-    required List<double> widths,
-    required List<double> alphas,
+    required double headLength,
+    required double brightness,
+    required DataVaultImpulseSurface surface,
   }) {
     final projectedHead = camera.project(
       _world.sample(headS).point(lateral, height),
     );
     if (projectedHead == null) return false;
-    final visibility = HistoryDataVaultMotion.packetVisibility(projectedHead.z);
+    final visibility = HistoryDataVaultMotion.impulseVisibility(projectedHead.z);
     if (visibility <= 0) return false;
+    final material = _DataVaultImpulseMaterial.forSurface(surface);
     final points = <_WorldPoint>[];
-    for (var tail = tailLength; tail >= 0; tail -= .75) {
+    // The packet head travels from aperture to viewer. Its fading tail is
+    // therefore further away (positive arc length), never an approaching
+    // round node or a free-floating 2D curve.
+    for (var tail = tailLength; tail >= 0; tail -= .65) {
       points.add(_world.sample(headS + tail).point(lateral, height));
     }
-    for (var layer = 0; layer < widths.length; layer++) {
+    for (var layer = 0; layer < material.widths.length; layer++) {
       _strokeWorldPolyline(
         canvas,
         camera,
         points,
-        (layer == widths.length - 1 ? const Color(0xffd9fbff) : color)
-            .withValues(alpha: alphas[layer] * visibility),
-        widths[layer],
+        (layer == material.widths.length - 1
+                ? const Color(0xffd9fbff)
+                : material.color)
+            .withValues(
+              alpha: material.alphas[layer] * brightness * visibility,
+            ),
+        material.widths[layer],
       );
     }
     _strokeWorldLine(
       canvas,
       camera,
-      _world.sample(headS - .28).point(lateral, height),
-      _world.sample(headS + .12).point(lateral, height),
-      const Color(0xffd9fbff).withValues(alpha: .78 * visibility),
-      widths.last,
+      _world.sample(headS - headLength * .35).point(lateral, height),
+      _world.sample(headS + headLength * .65).point(lateral, height),
+      const Color(0xffd9fbff).withValues(alpha: .82 * brightness * visibility),
+      material.widths.last,
     );
     return true;
   }
@@ -625,15 +564,130 @@ class _NavigationGuide {
   final _Projected projected;
 }
 
+/// Physical surface a DATA VAULT communication rail belongs to.  Values are
+/// public so timing tests can validate the same independent schedules used by
+/// the painter without coupling to its private render objects.
+enum DataVaultImpulseSurface { floor, leftWall, rightWall, ceiling }
+
+class DataVaultImpulseProfile {
+  const DataVaultImpulseProfile({
+    required this.launchOffset,
+    required this.repeatInterval,
+    required this.speedMultiplier,
+    required this.visibleDuration,
+    required this.headLength,
+    required this.tailLength,
+    required this.brightness,
+  });
+
+  final double launchOffset;
+  final double repeatInterval;
+  final double speedMultiplier;
+  final double visibleDuration;
+  final double headLength;
+  final double tailLength;
+  final double brightness;
+}
+
+class _DataVaultRail {
+  const _DataVaultRail(this.surface, this.lane, this.lateral, this.height);
+
+  final DataVaultImpulseSurface surface;
+  final int lane;
+  final double lateral;
+  final double height;
+}
+
+class _DataVaultImpulseMaterial {
+  const _DataVaultImpulseMaterial(this.color, this.widths, this.alphas);
+
+  final Color color;
+  final List<double> widths;
+  final List<double> alphas;
+
+  factory _DataVaultImpulseMaterial.forSurface(
+    DataVaultImpulseSurface surface,
+  ) => switch (surface) {
+    DataVaultImpulseSurface.floor => const _DataVaultImpulseMaterial(
+      Color(0xff5ae5ff),
+      [3.2, 1.6, .75],
+      [.12, .34, .78],
+    ),
+    DataVaultImpulseSurface.leftWall ||
+    DataVaultImpulseSurface.rightWall => const _DataVaultImpulseMaterial(
+      Color(0xff51c9ef),
+      [2.4, 1.2, .65],
+      [.10, .30, .66],
+    ),
+    DataVaultImpulseSurface.ceiling => const _DataVaultImpulseMaterial(
+      Color(0xff76dcff),
+      [2, 1, .55],
+      [.09, .25, .58],
+    ),
+  };
+}
+
 class HistoryDataVaultMotion {
   static const cycleSeconds = 48.0;
   static const _speedMultiplier = 2.025;
   static const distancePerCycle = 980.1;
   static const navigationHeadOffset = 5.5;
   static const navigationTrailOffset = 1.2;
-  static const floorPacketSpacing = 23.0;
-  static const wallPacketSpacing = 30.0;
-  static const ceilingPacketSpacing = 38.0;
+
+  /// Stable pseudo-random lane configuration.  The sequence is intentionally
+  /// derived once from surface/lane identity rather than randomised per frame:
+  /// independent launches remain reproducible for Goldens and never form
+  /// mirrored or same-phase surface bundles.
+  static DataVaultImpulseProfile impulseProfileFor(
+    DataVaultImpulseSurface surface,
+    int lane,
+  ) {
+    final seed = _impulseSeed(surface.index * 97 + lane * 31 + 17);
+    final offset = _unit(seed) * 3.3;
+    final interval = 1.1 + _unit(_impulseSeed(seed + 11)) * 2.6;
+    final speed = .85 + _unit(_impulseSeed(seed + 29)) * .40;
+    final surfaceTail = switch (surface) {
+      DataVaultImpulseSurface.floor => 6.0,
+      DataVaultImpulseSurface.leftWall ||
+      DataVaultImpulseSurface.rightWall => 4.0,
+      DataVaultImpulseSurface.ceiling => 3.0,
+    };
+    return DataVaultImpulseProfile(
+      launchOffset: offset,
+      repeatInterval: interval,
+      speedMultiplier: speed,
+      // Events begin fully faded at the aperture and finish behind the near
+      // plane. This upper bound only limits reconstruction, not movement.
+      visibleDuration: 5.2 + _unit(_impulseSeed(seed + 47)) * 1.1,
+      headLength: .30 + _unit(_impulseSeed(seed + 61)) * .34,
+      tailLength: surfaceTail + _unit(_impulseSeed(seed + 73)) * 1.4,
+      brightness: .82 + _unit(_impulseSeed(seed + 89)) * .20,
+    );
+  }
+
+  static int _impulseSeed(int value) {
+    var x = value & 0x7fffffff;
+    x = (x ^ (x << 13)) & 0x7fffffff;
+    x = (x ^ (x >> 17)) & 0x7fffffff;
+    return (x ^ (x << 5)) & 0x7fffffff;
+  }
+
+  static double _unit(int value) => (value & 0xffff) / 0xffff;
+
+  /// An incoming impulse starts beyond the usable far range at its own launch
+  /// time and advances toward the viewer along the curved world coordinate.
+  /// It has no modulo reset while inside the projected corridor.
+  static double impulseHeadDistance({
+    required double seconds,
+    required double launchSeconds,
+    required double speedMultiplier,
+  }) {
+    final launchDistance = distanceAt(launchSeconds);
+    return launchDistance +
+        96 -
+        speedMultiplier * (distanceAt(seconds) - launchDistance);
+  }
+
   static double smooth(double u) {
     final c = u.clamp(0.0, 1.0);
     return c * c * (3 - 2 * c);
@@ -698,29 +752,7 @@ class HistoryDataVaultMotion {
     return distance + 109.35 + 14.175 * (t - 42);
   }
 
-  /// Packet identities are an unbounded spatial lattice, so recycling never
-  /// happens in the visible frustum. They travel toward the viewer along the
-  /// corridor, becoming line impulses that pass through the near plane.
-  static double packetWorldDistance(
-    double cameraDistance,
-    int packetIndex, {
-    required double spacing,
-    required double laneOffset,
-  }) =>
-      packetIndex * spacing -
-      packetRateFor(packetIndex) * cameraDistance +
-      laneOffset;
-
-  static double packetRateFor(int packetIndex) =>
-      .85 + ((packetIndex * 37).abs() % 31) / 100;
-
-  static double packetSpeedAt(double seconds, {int packetIndex = 0}) =>
-      -packetRateFor(packetIndex) * speedAt(seconds);
-
-  static double packetRelativeSpeedAt(double seconds, {int packetIndex = 0}) =>
-      -(1 + packetRateFor(packetIndex)) * speedAt(seconds);
-
-  static double packetVisibility(double depth) =>
+  static double impulseVisibility(double depth) =>
       ((depth - 3) / 5).clamp(0.0, 1.0) * ((90 - depth) / 18).clamp(0.0, 1.0);
 
   static double pillarAccessResponse(
@@ -730,22 +762,17 @@ class HistoryDataVaultMotion {
   ) {
     var response = 0.0;
     for (var lane = 0; lane < 5; lane++) {
-      final offset = lane * 4.6;
-      final nearest =
-          ((pillarDistance + cameraDistance - offset) / floorPacketSpacing)
-              .round();
-      for (final packet in [
-        nearest - 2,
-        nearest - 1,
-        nearest,
-        nearest + 1,
-        nearest + 2,
-      ]) {
-        final head = packetWorldDistance(
-          cameraDistance,
-          packet,
-          spacing: floorPacketSpacing,
-          laneOffset: offset,
+      final profile = impulseProfileFor(DataVaultImpulseSurface.floor, lane);
+      final current =
+          ((seconds - profile.launchOffset) / profile.repeatInterval).floor();
+      for (var packet = current; packet >= current - 2; packet--) {
+        final launch = profile.launchOffset + packet * profile.repeatInterval;
+        final elapsed = seconds - launch;
+        if (elapsed < 0 || elapsed > profile.visibleDuration) continue;
+        final head = impulseHeadDistance(
+          seconds: seconds,
+          launchSeconds: launch,
+          speedMultiplier: profile.speedMultiplier,
         );
         final difference = (pillarDistance - head).abs();
         if (difference >= 4.4) continue;

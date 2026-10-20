@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/dashboard_glass_card.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/body_history/pages/data_center_history_page.dart';
 import 'package:or_app/features/body_history/services/history_visual_preference.dart';
@@ -99,6 +101,28 @@ void main() {
       lessThan(cardBefore.dy),
     );
   });
+
+  testWidgets(
+    'applies the Dashboard glass material only to HISTORY link cards',
+    (tester) async {
+      await pumpHistory(tester);
+
+    // ListView lazily builds the three visible cards at this viewport; every
+    // built link card must use the Dashboard source material.
+    expect(find.byType(DashboardGlassCard), findsNWidgets(3));
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is OperationButton && widget.dashboardGlass == true,
+        ),
+      findsNWidgets(3),
+      );
+      expect(
+        find.byKey(const ValueKey('history-visual-selector')),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final size in const [
     Size(320, 844),
@@ -207,7 +231,7 @@ void main() {
     }
   });
 
-  testWidgets('renders V1.7 beacon and incoming line impulses', (tester) async {
+  testWidgets('renders V1.8 independent incoming line impulses', (tester) async {
     const phases = <(String, Duration)>[
       ('start', Duration.zero),
       ('cruise_7', Duration(seconds: 7)),
@@ -234,13 +258,13 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('history-ambient-dataVault')),
         matchesGoldenFile(
-          'goldens/history_data_vault_v17_phase_${phase.$1}.png',
+          'goldens/history_data_vault_v18_phase_${phase.$1}.png',
         ),
       );
     }
   });
 
-  test('DATA VAULT V1.7 motion is fast, monotonic and continuous', () {
+  test('DATA VAULT V1.8 motion is fast, monotonic and continuous', () {
     expect(HistoryDataVaultMotion.speedAt(0), closeTo(14.175, .000001));
     expect(HistoryDataVaultMotion.speedAt(12), closeTo(14.175, .000001));
     expect(HistoryDataVaultMotion.speedAt(17), closeTo(32.40, .000001));
@@ -306,50 +330,75 @@ void main() {
     );
 
     const seconds = 20.0;
-    final cameraDistance = HistoryDataVaultMotion.distanceAt(seconds);
-    final packetBefore = HistoryDataVaultMotion.packetWorldDistance(
-      cameraDistance,
-      4,
-      spacing: HistoryDataVaultMotion.floorPacketSpacing,
-      laneOffset: 4.6,
-    );
-    final packetAfter = HistoryDataVaultMotion.packetWorldDistance(
-      HistoryDataVaultMotion.distanceAt(seconds + .01),
-      4,
-      spacing: HistoryDataVaultMotion.floorPacketSpacing,
-      laneOffset: 4.6,
-    );
-    expect(packetAfter, lessThan(packetBefore));
+    final profiles = <DataVaultImpulseProfile>[];
+    for (final surface in DataVaultImpulseSurface.values) {
+      final laneCount = switch (surface) {
+        DataVaultImpulseSurface.floor => 5,
+        DataVaultImpulseSurface.leftWall ||
+        DataVaultImpulseSurface.rightWall => 2,
+        DataVaultImpulseSurface.ceiling => 3,
+      };
+      for (var lane = 0; lane < laneCount; lane++) {
+        final profile = HistoryDataVaultMotion.impulseProfileFor(surface, lane);
+        profiles.add(profile);
+        expect(profile.repeatInterval, inInclusiveRange(1.1, 3.7));
+        expect(profile.speedMultiplier, inInclusiveRange(.85, 1.25));
+        expect(profile.headLength, greaterThan(.29));
+        expect(profile.tailLength, greaterThan(2));
+      }
+    }
     expect(
-      HistoryDataVaultMotion.packetSpeedAt(seconds),
-      closeTo(
-        -HistoryDataVaultMotion.packetRateFor(0) *
-            HistoryDataVaultMotion.speedAt(seconds),
-        .000001,
-      ),
+      profiles.map((profile) => profile.repeatInterval).toSet().length,
+      greaterThan(6),
     );
     expect(
-      HistoryDataVaultMotion.packetRelativeSpeedAt(seconds),
-      closeTo(
-        -(1 + HistoryDataVaultMotion.packetRateFor(0)) *
-            HistoryDataVaultMotion.speedAt(seconds),
-        .000001,
-      ),
+      profiles.map((profile) => profile.launchOffset).toSet().length,
+      greaterThan(6),
     );
-    expect(HistoryDataVaultMotion.packetVisibility(3), 0);
-    expect(HistoryDataVaultMotion.packetVisibility(8), 1);
-    expect(HistoryDataVaultMotion.packetVisibility(90), 0);
 
-    final pillarHead = HistoryDataVaultMotion.packetWorldDistance(
-      cameraDistance,
-      6,
-      spacing: HistoryDataVaultMotion.floorPacketSpacing,
-      laneOffset: 0,
+    final profile = HistoryDataVaultMotion.impulseProfileFor(
+      DataVaultImpulseSurface.floor,
+      0,
+    );
+    final launch = profile.launchOffset + 7 * profile.repeatInterval;
+    final incomingBefore = HistoryDataVaultMotion.impulseHeadDistance(
+      seconds: launch + .50,
+      launchSeconds: launch,
+      speedMultiplier: profile.speedMultiplier,
+    );
+    final incomingAfter = HistoryDataVaultMotion.impulseHeadDistance(
+      seconds: launch + .51,
+      launchSeconds: launch,
+      speedMultiplier: profile.speedMultiplier,
+    );
+    expect(incomingAfter, lessThan(incomingBefore));
+    expect(
+      HistoryDataVaultMotion.impulseHeadDistance(
+            seconds: 48.01,
+            launchSeconds: 46,
+            speedMultiplier: profile.speedMultiplier,
+          ) -
+          HistoryDataVaultMotion.impulseHeadDistance(
+            seconds: 47.99,
+            launchSeconds: 46,
+            speedMultiplier: profile.speedMultiplier,
+          ),
+      lessThan(0),
+    );
+
+    final activeIndex =
+        ((seconds - profile.launchOffset) / profile.repeatInterval).floor();
+    final activeLaunch =
+        profile.launchOffset + activeIndex * profile.repeatInterval;
+    final pillarHead = HistoryDataVaultMotion.impulseHeadDistance(
+      seconds: seconds,
+      launchSeconds: activeLaunch,
+      speedMultiplier: profile.speedMultiplier,
     );
     expect(
       HistoryDataVaultMotion.pillarAccessResponse(
         seconds,
-        cameraDistance,
+        HistoryDataVaultMotion.distanceAt(seconds),
         pillarHead,
       ),
       greaterThan(.99),

@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
+import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../services/history_visual_preference.dart';
 import '../widgets/history_data_vault_hyperspace.dart';
@@ -192,7 +192,7 @@ class _HistoryLinkCard extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => OperationCard(
+  Widget build(BuildContext context) => DashboardGlassCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -202,6 +202,7 @@ class _HistoryLinkCard extends StatelessWidget {
         AppSpacing.gapMD,
         OperationButton(
           role: OperationActionRole.primary,
+          dashboardGlass: true,
           text: buttonLabel,
           icon: icon,
           onPressed: onPressed,
