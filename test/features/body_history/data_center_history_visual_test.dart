@@ -207,9 +207,7 @@ void main() {
     }
   });
 
-  testWidgets('renders V1.6 navigation route and overtaken data traffic', (
-    tester,
-  ) async {
+  testWidgets('renders V1.7 beacon and incoming line impulses', (tester) async {
     const phases = <(String, Duration)>[
       ('start', Duration.zero),
       ('cruise_7', Duration(seconds: 7)),
@@ -236,25 +234,25 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('history-ambient-dataVault')),
         matchesGoldenFile(
-          'goldens/history_data_vault_v16_phase_${phase.$1}.png',
+          'goldens/history_data_vault_v17_phase_${phase.$1}.png',
         ),
       );
     }
   });
 
-  test('DATA VAULT motion is monotonic with smooth periodic speed', () {
-    expect(HistoryDataVaultMotion.speedAt(0), closeTo(9.45, .000001));
-    expect(HistoryDataVaultMotion.speedAt(12), closeTo(9.45, .000001));
-    expect(HistoryDataVaultMotion.speedAt(17), closeTo(21.60, .000001));
-    expect(HistoryDataVaultMotion.speedAt(22), closeTo(21.60, .000001));
-    expect(HistoryDataVaultMotion.speedAt(27), closeTo(14.85, .000001));
-    expect(HistoryDataVaultMotion.speedAt(36), closeTo(14.85, .000001));
-    expect(HistoryDataVaultMotion.speedAt(42), closeTo(9.45, .000001));
-    expect(HistoryDataVaultMotion.speedAt(48), closeTo(9.45, .000001));
+  test('DATA VAULT V1.7 motion is fast, monotonic and continuous', () {
+    expect(HistoryDataVaultMotion.speedAt(0), closeTo(14.175, .000001));
+    expect(HistoryDataVaultMotion.speedAt(12), closeTo(14.175, .000001));
+    expect(HistoryDataVaultMotion.speedAt(17), closeTo(32.40, .000001));
+    expect(HistoryDataVaultMotion.speedAt(22), closeTo(32.40, .000001));
+    expect(HistoryDataVaultMotion.speedAt(27), closeTo(22.275, .000001));
+    expect(HistoryDataVaultMotion.speedAt(36), closeTo(22.275, .000001));
+    expect(HistoryDataVaultMotion.speedAt(42), closeTo(14.175, .000001));
+    expect(HistoryDataVaultMotion.speedAt(48), closeTo(14.175, .000001));
     for (var milliseconds = 0; milliseconds <= 48000; milliseconds += 250) {
       expect(
         HistoryDataVaultMotion.speedAt(milliseconds / 1000),
-        greaterThanOrEqualTo(9.45),
+        greaterThanOrEqualTo(14.17),
       );
     }
     for (final transition in [0.0, 12.0, 17.0, 22.0, 27.0, 36.0, 42.0, 48.0]) {
@@ -290,16 +288,22 @@ void main() {
     expect(
       HistoryDataVaultMotion.distanceAt(48.001) -
           HistoryDataVaultMotion.distanceAt(47.999),
-      closeTo(.0189, .0002),
+      closeTo(.02835, .0002),
     );
     expect(
       HistoryDataVaultMotion.distanceAt(96.01) -
           HistoryDataVaultMotion.distanceAt(95.99),
-      closeTo(.189, .0002),
+      closeTo(.2835, .0002),
     );
-    expect(HistoryDataVaultMotion.distanceAt(48), closeTo(653.4, .0001));
-    expect(HistoryDataVaultMotion.navigationHeadOffset, 11);
-    expect(HistoryDataVaultMotion.navigationTrailOffset, 2);
+    expect(HistoryDataVaultMotion.distanceAt(48), closeTo(980.1, .0001));
+    expect(HistoryDataVaultMotion.navigationHeadOffset, 5.5);
+    expect(HistoryDataVaultMotion.navigationTrailOffset, 1.2);
+    expect(
+      HistoryDataVaultMotion.beaconSprintAdvance(
+        HistoryDataVaultMotion.speedAt(20),
+      ),
+      greaterThan(1.9),
+    );
 
     const seconds = 20.0;
     final cameraDistance = HistoryDataVaultMotion.distanceAt(seconds);
@@ -315,14 +319,22 @@ void main() {
       spacing: HistoryDataVaultMotion.floorPacketSpacing,
       laneOffset: 4.6,
     );
-    expect(packetAfter, greaterThan(packetBefore));
+    expect(packetAfter, lessThan(packetBefore));
     expect(
       HistoryDataVaultMotion.packetSpeedAt(seconds),
-      closeTo(.2 * HistoryDataVaultMotion.speedAt(seconds), .000001),
+      closeTo(
+        -HistoryDataVaultMotion.packetRateFor(0) *
+            HistoryDataVaultMotion.speedAt(seconds),
+        .000001,
+      ),
     );
     expect(
       HistoryDataVaultMotion.packetRelativeSpeedAt(seconds),
-      closeTo(-.8 * HistoryDataVaultMotion.speedAt(seconds), .000001),
+      closeTo(
+        -(1 + HistoryDataVaultMotion.packetRateFor(0)) *
+            HistoryDataVaultMotion.speedAt(seconds),
+        .000001,
+      ),
     );
     expect(HistoryDataVaultMotion.packetVisibility(3), 0);
     expect(HistoryDataVaultMotion.packetVisibility(8), 1);

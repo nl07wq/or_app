@@ -38,10 +38,10 @@ class HistoryDataVaultHyperspace {
     _paintFloorDetail(canvas, camera, samples);
     _paintPillars(canvas, camera, cameraDistance);
     _paintDataTraffic(canvas, camera, cameraDistance);
-    final guide = _resolveNavigationGuide(camera, cameraDistance, size);
+    final guide = _resolveNavigationGuide(camera, cameraDistance, size, speed);
     if (guide != null) {
       _paintNavigationTrail(canvas, camera, cameraDistance, guide.sHead);
-      _paintNavigationStar(canvas, guide, size);
+      _paintNavigationBeacon(canvas, guide, size);
     }
     _paintAccessLights(canvas, camera, cameraDistance);
     canvas.restore();
@@ -261,7 +261,7 @@ class HistoryDataVaultHyperspace {
     for (var index = 0; index < 3; index++) {
       final target = distance + 18 + index * 22;
       final lattice =
-          ((target - distance * .2) / HistoryDataVaultMotion.floorPacketSpacing)
+          ((target + distance) / HistoryDataVaultMotion.floorPacketSpacing)
               .round();
       final worldS = HistoryDataVaultMotion.packetWorldDistance(
         distance,
@@ -277,18 +277,20 @@ class HistoryDataVaultHyperspace {
       final visibility =
           ((projected.z - .5) / 7).clamp(0.0, 1.0) *
           ((90 - projected.z) / 15).clamp(0.0, 1.0);
-      canvas.drawCircle(
-        projected.offset,
-        1.45,
-        Paint()
-          ..color = const Color(0xffa8f8ff).withValues(alpha: .45 * visibility),
+      _strokeWorldLine(
+        canvas,
+        camera,
+        _world.sample(worldS - .32).point(offset, index == 1 ? 1.8 : 0),
+        _world.sample(worldS + .32).point(offset, index == 1 ? 1.8 : 0),
+        const Color(0xffa8f8ff).withValues(alpha: .38 * visibility),
+        .7,
       );
     }
   }
 
-  /// Renders scenery/data communications in the viewer's travel direction.
-  /// The viewer moves at 5x their speed and therefore overtakes them; these
-  /// are never interpreted as oncoming headlights.
+  /// Renders incoming line impulses bound to the physical corridor rails.
+  /// They flow from the distant aperture toward the viewer while the route
+  /// beacon remains the sole representation of the viewer's own position.
   void _paintDataTraffic(
     Canvas canvas,
     _VaultCamera camera,
@@ -305,14 +307,13 @@ class HistoryDataVaultHyperspace {
         laneOffset: lane * 4.6,
         lateral: floorLanes[lane],
         height: .035,
-        tailLength: 5,
+        tailLength: 7,
         color: const Color(0xff5ae5ff),
-        headRadius: 2.3,
-        widths: const [3.0, 1.5, .7],
-        alphas: const [.09, .27, .65],
-        maximum: math.max(0, 12 - floorHeads),
+        widths: const [3.2, 1.6, .75],
+        alphas: const [.12, .34, .78],
+        maximum: math.max(0, 18 - floorHeads),
       );
-      if (floorHeads >= 12) break;
+      if (floorHeads >= 18) break;
     }
 
     var wallHeads = 0;
@@ -326,16 +327,15 @@ class HistoryDataVaultHyperspace {
           laneOffset: side * 7.5 + rail * 11.2,
           lateral: side * 3.94,
           height: rail == 0 ? 1.12 : 3.72,
-          tailLength: 3.5,
+          tailLength: 5,
           color: const Color(0xff51c9ef),
-          headRadius: 1.7,
-          widths: const [2.2, 1.1, .6],
-          alphas: const [.08, .25, .55],
-          maximum: math.max(0, 8 - wallHeads),
+          widths: const [2.4, 1.2, .65],
+          alphas: const [.10, .30, .66],
+          maximum: math.max(0, 12 - wallHeads),
         );
-        if (wallHeads >= 8) break;
+        if (wallHeads >= 12) break;
       }
-      if (wallHeads >= 8) break;
+      if (wallHeads >= 12) break;
     }
 
     var ceilingHeads = 0;
@@ -348,14 +348,13 @@ class HistoryDataVaultHyperspace {
         laneOffset: rail * 12.7,
         lateral: const [-2.0, 0.0, 2.0][rail],
         height: 4.88,
-        tailLength: 2.5,
+        tailLength: 4,
         color: const Color(0xff76dcff),
-        headRadius: 1.45,
-        widths: const [1.8, .9, .5],
-        alphas: const [.07, .20, .45],
-        maximum: math.max(0, 6 - ceilingHeads),
+        widths: const [2, 1, .55],
+        alphas: const [.09, .25, .58],
+        maximum: math.max(0, 8 - ceilingHeads),
       );
-      if (ceilingHeads >= 6) break;
+      if (ceilingHeads >= 8) break;
     }
   }
 
@@ -369,20 +368,15 @@ class HistoryDataVaultHyperspace {
     required double height,
     required double tailLength,
     required Color color,
-    required double headRadius,
     required List<double> widths,
     required List<double> alphas,
     required int maximum,
   }) {
     if (maximum <= 0) return 0;
     final first =
-        ((cameraDistance + 2 - cameraDistance * .2 - laneOffset) / spacing)
-            .floor() -
-        1;
+        ((cameraDistance * 1.85 + 2 - laneOffset) / spacing).floor() - 2;
     final last =
-        ((cameraDistance + 90 - cameraDistance * .2 - laneOffset) / spacing)
-            .ceil() +
-        1;
+        ((cameraDistance * 2.15 + 90 - laneOffset) / spacing).ceil() + 2;
     var painted = 0;
     for (var packet = first; packet <= last && painted < maximum; packet++) {
       final headS = HistoryDataVaultMotion.packetWorldDistance(
@@ -399,7 +393,6 @@ class HistoryDataVaultHyperspace {
         height: height,
         tailLength: tailLength,
         color: color,
-        headRadius: headRadius,
         widths: widths,
         alphas: alphas,
       )) {
@@ -417,7 +410,6 @@ class HistoryDataVaultHyperspace {
     required double height,
     required double tailLength,
     required Color color,
-    required double headRadius,
     required List<double> widths,
     required List<double> alphas,
   }) {
@@ -429,7 +421,7 @@ class HistoryDataVaultHyperspace {
     if (visibility <= 0) return false;
     final points = <_WorldPoint>[];
     for (var tail = tailLength; tail >= 0; tail -= .75) {
-      points.add(_world.sample(headS - tail).point(lateral, height));
+      points.add(_world.sample(headS + tail).point(lateral, height));
     }
     for (var layer = 0; layer < widths.length; layer++) {
       _strokeWorldPolyline(
@@ -441,12 +433,13 @@ class HistoryDataVaultHyperspace {
         widths[layer],
       );
     }
-    final perspective = (9 / projectedHead.z).clamp(.75, 1.25);
-    canvas.drawCircle(
-      projectedHead.offset,
-      headRadius * perspective,
-      Paint()
-        ..color = const Color(0xffd9fbff).withValues(alpha: .80 * visibility),
+    _strokeWorldLine(
+      canvas,
+      camera,
+      _world.sample(headS - .28).point(lateral, height),
+      _world.sample(headS + .12).point(lateral, height),
+      const Color(0xffd9fbff).withValues(alpha: .78 * visibility),
+      widths.last,
     );
     return true;
   }
@@ -455,10 +448,14 @@ class HistoryDataVaultHyperspace {
     _VaultCamera camera,
     double cameraDistance,
     Size size,
+    double speed,
   ) {
-    for (final factor in const [1.0, .85, 1.15]) {
+    final sprintAdvance = HistoryDataVaultMotion.beaconSprintAdvance(speed);
+    for (final factor in const [1.0, .88, 1.12]) {
       final sHead =
-          cameraDistance + HistoryDataVaultMotion.navigationHeadOffset * factor;
+          cameraDistance +
+          (HistoryDataVaultMotion.navigationHeadOffset + sprintAdvance) *
+              factor;
       final projected = camera.project(_world.sample(sHead).point(0, .14));
       if (projected == null) continue;
       if (projected.offset.dx >= 0 &&
@@ -527,44 +524,33 @@ class HistoryDataVaultHyperspace {
     }
   }
 
-  void _paintNavigationStar(Canvas canvas, _NavigationGuide guide, Size size) {
+  void _paintNavigationBeacon(
+    Canvas canvas,
+    _NavigationGuide guide,
+    Size size,
+  ) {
     final scale =
         (size.width / 390).clamp(.85, 1.15) *
         (9 / guide.projected.z).clamp(.75, 1.25);
     final center = guide.projected.offset;
+    final breath = .5 + .5 * math.sin(seconds * math.pi * 2 / 2.45 + .7);
     canvas.drawCircle(
       center,
-      13 * scale,
-      Paint()..color = const Color(0xff36c9f3).withValues(alpha: .07),
+      15 * scale,
+      Paint()
+        ..color = const Color(0xff36c9f3).withValues(alpha: .18 + .14 * breath),
     );
     canvas.drawCircle(
       center,
-      8 * scale,
-      Paint()..color = const Color(0xff70e8ff).withValues(alpha: .20),
+      8.5 * scale,
+      Paint()
+        ..color = const Color(0xff70e8ff).withValues(alpha: .20 + .12 * breath),
     );
-    final path = Path()
-      ..moveTo(center.dx, center.dy - 2.5 * scale)
-      ..lineTo(center.dx + 5 * scale, center.dy)
-      ..lineTo(center.dx, center.dy + 2.5 * scale)
-      ..lineTo(center.dx - 5 * scale, center.dy)
-      ..close();
-    canvas.drawPath(
-      path,
-      Paint()..color = const Color(0xffe8fdff).withValues(alpha: .88),
-    );
-    final rays = Paint()
-      ..color = const Color(0xffe8fdff).withValues(alpha: .82)
-      ..strokeWidth = 1.2 * scale
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(
-      center + Offset(0, -5 * scale),
-      center + Offset(0, 5 * scale),
-      rays,
-    );
-    canvas.drawLine(
-      center + Offset(-5 * scale, 0),
-      center + Offset(5 * scale, 0),
-      rays,
+    canvas.drawCircle(
+      center,
+      4.3 * scale,
+      Paint()
+        ..color = const Color(0xffe8fdff).withValues(alpha: .70 + .25 * breath),
     );
   }
 
@@ -641,10 +627,10 @@ class _NavigationGuide {
 
 class HistoryDataVaultMotion {
   static const cycleSeconds = 48.0;
-  static const _speedMultiplier = 1.35;
-  static const distancePerCycle = 653.4;
-  static const navigationHeadOffset = 11.0;
-  static const navigationTrailOffset = 2.0;
+  static const _speedMultiplier = 2.025;
+  static const distancePerCycle = 980.1;
+  static const navigationHeadOffset = 5.5;
+  static const navigationTrailOffset = 1.2;
   static const floorPacketSpacing = 23.0;
   static const wallPacketSpacing = 30.0;
   static const ceilingPacketSpacing = 38.0;
@@ -669,55 +655,70 @@ class HistoryDataVaultMotion {
     return 7 * _speedMultiplier;
   }
 
+  /// Smoothly advances the beacon up the projected route while sprinting.
+  /// The world offset, rather than a screen overlay, keeps it on the road.
+  static double beaconSprintAdvance(double speed) {
+    final u = ((speed - 14.175) / (32.4 - 14.175)).clamp(0.0, 1.0);
+    return 2.2 * smooth(u);
+  }
+
   static double distanceAt(double seconds) {
     final cycles = (seconds / cycleSeconds).floor();
     final t = seconds - cycles * cycleSeconds;
     double distance = cycles * distancePerCycle;
     if (t <= 12) {
-      return distance + 9.45 * t;
+      return distance + 14.175 * t;
     }
-    distance += 113.4;
+    distance += 170.1;
     if (t <= 17) {
       return distance +
-          47.25 * ((t - 12) / 5) +
-          60.75 * _smoothIntegral((t - 12) / 5);
+          70.875 * ((t - 12) / 5) +
+          91.125 * _smoothIntegral((t - 12) / 5);
     }
-    distance += 77.625;
+    distance += 116.4375;
     if (t <= 22) {
-      return distance + 21.6 * (t - 17);
+      return distance + 32.4 * (t - 17);
     }
-    distance += 108;
+    distance += 162;
     if (t <= 27) {
       return distance +
-          108 * ((t - 22) / 5) -
-          33.75 * _smoothIntegral((t - 22) / 5);
+          162 * ((t - 22) / 5) -
+          50.625 * _smoothIntegral((t - 22) / 5);
     }
-    distance += 91.125;
+    distance += 136.6875;
     if (t <= 36) {
-      return distance + 14.85 * (t - 27);
+      return distance + 22.275 * (t - 27);
     }
-    distance += 133.65;
+    distance += 200.475;
     if (t <= 42) {
       return distance +
-          89.1 * ((t - 36) / 6) -
-          32.4 * _smoothIntegral((t - 36) / 6);
+          133.65 * ((t - 36) / 6) -
+          48.6 * _smoothIntegral((t - 36) / 6);
     }
-    return distance + 72.9 + 9.45 * (t - 42);
+    return distance + 109.35 + 14.175 * (t - 42);
   }
 
   /// Packet identities are an unbounded spatial lattice, so recycling never
-  /// happens in the visible frustum. Packets travel with the viewer at 20%
-  /// of the viewer's velocity and are consequently overtaken at 80%.
+  /// happens in the visible frustum. They travel toward the viewer along the
+  /// corridor, becoming line impulses that pass through the near plane.
   static double packetWorldDistance(
     double cameraDistance,
     int packetIndex, {
     required double spacing,
     required double laneOffset,
-  }) => packetIndex * spacing + .2 * cameraDistance + laneOffset;
+  }) =>
+      packetIndex * spacing -
+      packetRateFor(packetIndex) * cameraDistance +
+      laneOffset;
 
-  static double packetSpeedAt(double seconds) => .2 * speedAt(seconds);
+  static double packetRateFor(int packetIndex) =>
+      .85 + ((packetIndex * 37).abs() % 31) / 100;
 
-  static double packetRelativeSpeedAt(double seconds) => -.8 * speedAt(seconds);
+  static double packetSpeedAt(double seconds, {int packetIndex = 0}) =>
+      -packetRateFor(packetIndex) * speedAt(seconds);
+
+  static double packetRelativeSpeedAt(double seconds, {int packetIndex = 0}) =>
+      -(1 + packetRateFor(packetIndex)) * speedAt(seconds);
 
   static double packetVisibility(double depth) =>
       ((depth - 3) / 5).clamp(0.0, 1.0) * ((90 - depth) / 18).clamp(0.0, 1.0);
@@ -731,9 +732,15 @@ class HistoryDataVaultMotion {
     for (var lane = 0; lane < 5; lane++) {
       final offset = lane * 4.6;
       final nearest =
-          ((pillarDistance - cameraDistance * .2 - offset) / floorPacketSpacing)
+          ((pillarDistance + cameraDistance - offset) / floorPacketSpacing)
               .round();
-      for (final packet in [nearest - 1, nearest, nearest + 1]) {
+      for (final packet in [
+        nearest - 2,
+        nearest - 1,
+        nearest,
+        nearest + 1,
+        nearest + 2,
+      ]) {
         final head = packetWorldDistance(
           cameraDistance,
           packet,
