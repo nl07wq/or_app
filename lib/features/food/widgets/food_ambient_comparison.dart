@@ -59,13 +59,30 @@ class OilTimerDrop {
 
 @immutable
 class OilTimerFrame {
-  const OilTimerFrame({required this.drops, this.collisionCount = 0});
+  const OilTimerFrame({
+    required this.drops,
+    this.collisionCount = 0,
+    this.landingCount = 0,
+    this.reboundCount = 0,
+    this.sinkOutCount = 0,
+    this.settlingDropCount = 0,
+  });
 
   final List<OilTimerDrop> drops;
   final int collisionCount;
+  final int landingCount;
+  final int reboundCount;
+  final int sinkOutCount;
+  final int settlingDropCount;
 }
 
-enum _OilTravelState { descending, exiting, returning, entering }
+enum _OilTravelState {
+  descending,
+  settling,
+  sinkOut,
+  offscreenReturn,
+  entering,
+}
 
 class _OilDropState {
   _OilDropState({
@@ -88,6 +105,10 @@ class _OilDropState {
   int routeSegment = 0;
   double compression = 0;
   Offset compressionNormal = const Offset(1, 0);
+  double settleAge = 0;
+  double settleDuration = 0;
+  double exitProgress = 0;
+  Offset stableFloorPosition = Offset.zero;
 }
 
 /// Stateful, fixed-step oil dynamics. The controller is only a repaint clock;
@@ -111,12 +132,16 @@ class OilTimerSimulation {
   final List<_OilDropState> _drops = [];
   double _accumulator = 0;
   double _elapsed = 0;
+  double _lastObservedSeconds = 0;
   int collisionCount = 0;
+  int landingCount = 0;
+  int reboundCount = 0;
+  int sinkOutCount = 0;
 
   OilTimerFrame advanceTo(double seconds, Size size) {
     if (size != _size) _reset(size);
-    final delta = (seconds - _elapsed).clamp(0.0, 4 * _dt);
-    _elapsed = seconds;
+    final delta = (seconds - _lastObservedSeconds).clamp(0.0, 4 * _dt);
+    _lastObservedSeconds = seconds;
     _accumulator = math.min(_accumulator + delta, 4 * _dt);
     var steps = 0;
     while (_accumulator >= _dt && steps < 4) {
@@ -134,7 +159,6 @@ class OilTimerSimulation {
     }
     final remainder = seconds - steps * _dt;
     if (remainder > 0) _step(remainder);
-    _elapsed += seconds;
   }
 
   OilTimerFrame snapshot() => _frame();
@@ -144,7 +168,11 @@ class OilTimerSimulation {
     _drops.clear();
     _accumulator = 0;
     _elapsed = 0;
+    _lastObservedSeconds = 0;
     collisionCount = 0;
+    landingCount = 0;
+    reboundCount = 0;
+    sinkOutCount = 0;
     final min = size.shortestSide;
     for (var index = 0; index < dropCount; index++) {
       final h = OilTimerMotion.hash(index, 13);
@@ -174,8 +202,9 @@ class OilTimerSimulation {
   }
 
   void _step(double dt) {
+    final floor = _size.height - math.max(16, _size.height * .06);
     for (final drop in _drops) {
-      drop.compression *= math.exp(-dt / .22);
+      drop.compression *= math.exp(-dt / .30);
       if (drop.state == _OilTravelState.descending ||
           drop.state == _OilTravelState.entering) {
         final ax = 12 * math.sin(.35 * _elapsed + .9 * drop.id);
@@ -199,23 +228,81 @@ class OilTimerSimulation {
             drop.center.dy - drop.radius >= 0) {
           drop.state = _OilTravelState.descending;
         }
-        if (drop.center.dy - drop.radius > _size.height + 12) {
-          drop.state = _OilTravelState.exiting;
+        if (drop.center.dy + drop.radius >= floor) {
+          _landOnFloor(drop, floor);
         }
-      } else if (drop.state == _OilTravelState.exiting) {
-        final side = drop.id.isEven ? -1.0 : 1.0;
-        drop.returnLane = Offset(
-          side < 0 ? -drop.radius - 24 : _size.width + drop.radius + 24,
-          _size.height + drop.radius + 18,
-        );
-        drop.routeSegment = 0;
-        drop.state = _OilTravelState.returning;
+      } else if (drop.state == _OilTravelState.settling) {
+        _advanceSettling(drop, dt, floor);
+      } else if (drop.state == _OilTravelState.sinkOut) {
+        _advanceSinkOut(drop, dt);
+      } else if (drop.state == _OilTravelState.offscreenReturn) {
+        _advanceReturn(drop, dt);
       } else {
         _advanceReturn(drop, dt);
       }
     }
     _solveContacts(dt);
     _elapsed += dt;
+  }
+
+  void _landOnFloor(_OilDropState drop, double floor) {
+    drop.center = Offset(drop.center.dx, floor - drop.radius);
+    final incoming = drop.velocity.dy;
+    drop.velocity = Offset(drop.velocity.dx * .46, -incoming.abs() * .18);
+    drop.state = _OilTravelState.settling;
+    drop.settleAge = 0;
+    drop.settleDuration = 2.5 + OilTimerMotion.hash(drop.id, 53) * 2;
+    drop.stableFloorPosition = drop.center;
+    landingCount++;
+  }
+
+  void _advanceSettling(_OilDropState drop, double dt, double floor) {
+    drop.settleAge += dt;
+    final sway = math.sin(_elapsed * 1.4 + drop.id * .91) * 2;
+    final vx = (drop.velocity.dx * math.exp(-dt * 4)).clamp(-8.0, 8.0);
+    final vy = drop.velocity.dy + 65 * dt;
+    drop.velocity = Offset(vx, vy);
+    drop.center += drop.velocity * dt;
+    if (drop.center.dy + drop.radius >= floor) {
+      drop.center = Offset(
+        (drop.stableFloorPosition.dx + sway).clamp(
+          drop.radius,
+          _size.width - drop.radius,
+        ),
+        floor - drop.radius,
+      );
+      if (drop.velocity.dy > 1.2) {
+        drop.velocity = Offset(drop.velocity.dx, -drop.velocity.dy * .18);
+        reboundCount++;
+      } else {
+        drop.velocity = Offset(drop.velocity.dx, 0);
+      }
+    }
+    if (drop.settleAge >= drop.settleDuration) {
+      drop.state = _OilTravelState.sinkOut;
+      drop.exitProgress = 0;
+      drop.velocity = Offset(
+        drop.velocity.dx * .35,
+        math.max(12, drop.velocity.dy),
+      );
+      sinkOutCount++;
+    }
+  }
+
+  void _advanceSinkOut(_OilDropState drop, double dt) {
+    drop.exitProgress += dt / (1.2 + OilTimerMotion.hash(drop.id, 59) * .6);
+    final vy = math.min(90.0, drop.velocity.dy + 65 * dt);
+    drop.velocity = Offset(drop.velocity.dx * math.exp(-dt * 2), vy);
+    drop.center += drop.velocity * dt;
+    if (drop.center.dy - drop.radius > _size.height + 8) {
+      final side = drop.id.isEven ? -1.0 : 1.0;
+      drop.returnLane = Offset(
+        side < 0 ? -drop.radius - 24 : _size.width + drop.radius + 24,
+        _size.height + drop.radius + 18,
+      );
+      drop.routeSegment = 0;
+      drop.state = _OilTravelState.offscreenReturn;
+    }
   }
 
   void _advanceReturn(_OilDropState drop, double dt) {
@@ -249,10 +336,10 @@ class OilTimerSimulation {
     for (var iteration = 0; iteration < 2; iteration++) {
       for (var first = 0; first < _drops.length - 1; first++) {
         final a = _drops[first];
-        if (a.state != _OilTravelState.descending) continue;
+        if (!_isContacting(a)) continue;
         for (var second = first + 1; second < _drops.length; second++) {
           final b = _drops[second];
-          if (b.state != _OilTravelState.descending) continue;
+          if (!_isContacting(b)) continue;
           final delta = b.center - a.center;
           final distance = math.max(.001, delta.distance);
           final limit = a.radius + b.radius;
@@ -268,7 +355,7 @@ class OilTimerSimulation {
               (b.velocity - a.velocity).dx * normal.dx +
               (b.velocity - a.velocity).dy * normal.dy;
           if (relative < 0) {
-            final impulse = -(1 + .35) * relative / inverseMass;
+            final impulse = -(1 + .42) * relative / inverseMass;
             a.velocity -= normal * (impulse / ma);
             b.velocity += normal * (impulse / mb);
             final tangent = Offset(-normal.dy, normal.dx);
@@ -280,12 +367,11 @@ class OilTimerSimulation {
             b.velocity -= tangent * (friction / mb);
           }
           final compression = math.min(
-            .28,
-            .20 * overlap / math.min(a.radius, b.radius) +
-                .06 * relative.abs() / 90,
+            .32,
+            .12 + .35 * overlap / math.min(a.radius, b.radius),
           );
-          a.compression = math.min(.28, a.compression + compression);
-          b.compression = math.min(.28, b.compression + compression);
+          a.compression = math.max(a.compression, compression);
+          b.compression = math.max(b.compression, compression);
           a.compressionNormal = -normal;
           b.compressionNormal = normal;
           if (iteration == 0) collisionCount++;
@@ -293,6 +379,10 @@ class OilTimerSimulation {
       }
     }
   }
+
+  bool _isContacting(_OilDropState drop) =>
+      drop.state == _OilTravelState.descending ||
+      drop.state == _OilTravelState.settling;
 
   OilTimerFrame _frame() => OilTimerFrame(
     drops: [
@@ -308,6 +398,12 @@ class OilTimerSimulation {
         ),
     ],
     collisionCount: collisionCount,
+    landingCount: landingCount,
+    reboundCount: reboundCount,
+    sinkOutCount: sinkOutCount,
+    settlingDropCount: _drops
+        .where((drop) => drop.state == _OilTravelState.settling)
+        .length,
   );
 }
 
@@ -565,23 +661,35 @@ class _FoodAmbientPainter extends CustomPainter {
     const palette = [Color(0xff55d5c0), Color(0xff74a4ff), Color(0xffd184c7)];
     for (final cell in _cellsFor(s)) {
       final phase = cell.phase;
+      final driftPeriod = 16 + _h(cell.id, 241) * 19;
+      final breathPeriod = 7 + _h(cell.id, 251) * 6;
       final center = Offset(
-        (cell.x + .020 * math.sin(.13 * t + phase)) * s.width,
-        (cell.y + .016 * math.cos(.11 * t + phase * 1.3)) * s.height,
+        (cell.x + .025 * math.sin(math.pi * 2 * t / driftPeriod + phase)) *
+            s.width,
+        (cell.y +
+                .020 *
+                    math.cos(
+                      math.pi * 2 * t / (driftPeriod * .87) + phase * 1.3,
+                    )) *
+            s.height,
       );
-      final radius = cell.radius * (.90 + .10 * math.sin(.32 * t + phase));
+      final radius =
+          cell.radius *
+          (.90 + .10 * math.sin(math.pi * 2 * t / breathPeriod + phase));
       final color = palette[cell.id % palette.length];
       final membrane = _smoothOrganicPath(
         center,
         radius,
-        phase + t * .08,
+        phase + math.pi * 2 * t / (10 + _h(cell.id, 257) * 3),
         cell.id,
-        20,
-        .035,
+        24,
+        .045,
       );
       final bounds = membrane.getBounds();
       c.save();
       c.clipPath(membrane);
+      // Cytoplasm stays translucent and non-uniform instead of becoming an
+      // oil sphere: a broad fill plus two quiet internal regions.
       c.drawRect(
         bounds,
         Paint()
@@ -589,21 +697,38 @@ class _FoodAmbientPainter extends CustomPainter {
             center: const Alignment(-.22, -.18),
             colors: [
               Color.lerp(color, Colors.white, .30)!.withValues(alpha: .16),
-              color.withValues(alpha: .09),
-              color.withValues(alpha: .025),
+              color.withValues(alpha: .15),
+              color.withValues(alpha: .05),
               color.withValues(alpha: 0),
             ],
             stops: const [0, .38, .78, 1],
           ).createShader(bounds),
       );
+      for (var region = 0; region < 2; region++) {
+        final regionAngle = phase + region * 2.73 + t / (20 + region * 5);
+        final regionCenter =
+            center +
+            Offset(math.cos(regionAngle), math.sin(regionAngle)) * radius * .42;
+        c.drawOval(
+          Rect.fromCenter(
+            center: regionCenter,
+            width: radius * (.42 + region * .08),
+            height: radius * (.26 + region * .05),
+          ),
+          Paint()..color = color.withValues(alpha: .07 + region * .04),
+        );
+      }
+      final nucleusAngle =
+          phase * 1.7 + math.pi * 2 * t / (9 + _h(cell.id, 263) * 9);
       final nucleusCenter =
           center +
-          Offset(math.cos(phase * 1.7), math.sin(phase * .83)) *
+          Offset(math.cos(nucleusAngle), math.sin(nucleusAngle)) *
               radius *
               (.12 + cell.nucleusOffset * .13);
+      final nucleusRadius = radius * (.25 + cell.nucleusOffset * .08);
       final nucleus = Rect.fromCircle(
         center: nucleusCenter,
-        radius: radius * (.22 + cell.nucleusOffset * .10),
+        radius: nucleusRadius,
       );
       c.drawOval(
         nucleus,
@@ -612,32 +737,73 @@ class _FoodAmbientPainter extends CustomPainter {
             color,
             const Color(0xff12172a),
             .66,
-          )!.withValues(alpha: .27),
+          )!.withValues(alpha: .52),
       );
-      c.drawCircle(
-        nucleusCenter + Offset(radius * .045, -radius * .035),
-        radius * .06,
-        Paint()..color = Colors.white.withValues(alpha: .27),
-      );
-      for (var organelle = 0; organelle < 2 + cell.id % 3; organelle++) {
-        final angle = phase + organelle * 2.21;
-        c.drawCircle(
-          center + Offset(math.cos(angle), math.sin(angle)) * radius * .48,
-          radius * (.025 + (organelle % 2) * .012),
-          Paint()..color = color.withValues(alpha: .10),
-        );
-      }
-      c.restore();
-      c.drawPath(
-        membrane,
+      c.drawOval(
+        nucleus,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1 + cell.nucleusOffset * .3
+          ..strokeWidth = .75
           ..color = Color.lerp(
             color,
             Colors.white,
             .25,
-          )!.withValues(alpha: .18 + cell.nucleusOffset * .14),
+          )!.withValues(alpha: .42),
+      );
+      c.drawCircle(
+        nucleusCenter + Offset(nucleusRadius * .22, -nucleusRadius * .18),
+        radius * (.08 + cell.nucleusOffset * .03),
+        Paint()..color = Colors.white.withValues(alpha: .68),
+      );
+      for (var organelle = 0; organelle < 3 + cell.id % 4; organelle++) {
+        final angle =
+            phase + organelle * 2.21 + t / (24 + organelle * 4 + cell.id % 3);
+        final localRadius = radius * (.46 + (organelle % 3) * .08);
+        final position =
+            center +
+            Offset(math.cos(angle), math.sin(angle) * .72) * localRadius;
+        // Keep organelles recognizably cytoplasmic rather than over the
+        // nucleus, while their independent phase gives the cell life.
+        if ((position - nucleusCenter).distance < nucleusRadius * 1.15) {
+          continue;
+        }
+        c.drawOval(
+          Rect.fromCenter(
+            center: position,
+            width: radius * (.05 + (organelle % 2) * .035),
+            height: radius * (.035 + (organelle % 3) * .018),
+          ),
+          Paint()
+            ..color = Color.lerp(
+              color,
+              Colors.white,
+              .18,
+            )!.withValues(alpha: .16 + (organelle % 2) * .05),
+        );
+      }
+      c.restore();
+      // The two membrane outlines make the boundary legible at phone scale.
+      c.drawPath(
+        membrane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .8
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            .25,
+          )!.withValues(alpha: .22),
+      );
+      c.drawPath(
+        membrane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.25
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            .34,
+          )!.withValues(alpha: .36),
       );
     }
   }

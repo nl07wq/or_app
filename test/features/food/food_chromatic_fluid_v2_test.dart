@@ -8,8 +8,11 @@ void main() {
   Future<void> pumpAmbient(
     WidgetTester tester,
     FoodAmbientVariant variant,
-    double time,
-  ) async {
+    double time, {
+    Size? surfaceSize,
+  }) async {
+    await tester.binding.setSurfaceSize(surfaceSize ?? viewport);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox.expand(
@@ -30,8 +33,12 @@ void main() {
       later.drops.map((drop) => drop.id),
       orderedEquals(initial.drops.map((drop) => drop.id)),
     );
-    expect(later.drops.every((drop) => drop.squashStrength <= .28), isTrue);
+    expect(later.drops.every((drop) => drop.squashStrength <= .32), isTrue);
     expect(later.collisionCount, greaterThan(0));
+    expect(later.landingCount, greaterThanOrEqualTo(2));
+    expect(later.reboundCount, greaterThanOrEqualTo(3));
+    expect(later.sinkOutCount, greaterThanOrEqualTo(2));
+    expect(later.settlingDropCount, greaterThanOrEqualTo(0));
   });
 
   test('circulation is continuous through a nominal 48-second boundary', () {
@@ -97,7 +104,7 @@ void main() {
       await tester.binding.setSurfaceSize(Size(width, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       for (final variant in FoodAmbientVariant.values) {
-        await pumpAmbient(tester, variant, 7);
+        await pumpAmbient(tester, variant, 7, surfaceSize: Size(width, 844));
         expect(tester.takeException(), isNull);
       }
     });

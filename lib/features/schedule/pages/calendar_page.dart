@@ -319,7 +319,9 @@ class _CalendarPageState extends State<CalendarPage> {
   List<ScheduleRecord> _todayCarriedOverReminders = const [];
   final _dailyTimelineKey = GlobalKey();
   final _timelineMarkerKeys = <String, GlobalKey>{};
+  final _timelineDescriptionKeys = <String, GlobalKey>{};
   List<Rect> _dailyTimelineMarkerBounds = const [];
+  List<Rect> _dailyTimelineDescriptionBounds = const [];
   bool _loading = true;
   int _loadGeneration = 0;
   Timer? _dayRollover;
@@ -570,6 +572,7 @@ class _CalendarPageState extends State<CalendarPage> {
           _dailyTimelineKey.currentContext?.findRenderObject() as RenderBox?;
       if (parent == null) return;
       final markerBounds = <Rect>[];
+      final descriptionBounds = <Rect>[];
       for (final record in records) {
         final box =
             _timelineMarkerKeys[record.id]?.currentContext?.findRenderObject()
@@ -578,15 +581,32 @@ class _CalendarPageState extends State<CalendarPage> {
           final origin = box.localToGlobal(Offset.zero, ancestor: parent);
           markerBounds.add(origin & box.size);
         }
+        final descriptionBox =
+            _timelineDescriptionKeys[record.id]?.currentContext
+                    ?.findRenderObject()
+                as RenderBox?;
+        if (descriptionBox != null) {
+          final origin = descriptionBox.localToGlobal(
+            Offset.zero,
+            ancestor: parent,
+          );
+          descriptionBounds.add(origin & descriptionBox.size);
+        }
       }
-      if (markerBounds.length != _dailyTimelineMarkerBounds.length ||
-          markerBounds.indexed.any((entry) {
-            final previous = _dailyTimelineMarkerBounds[entry.$1];
+      bool differs(List<Rect> next, List<Rect> current) =>
+          next.length != current.length ||
+          next.indexed.any((entry) {
+            final previous = current[entry.$1];
             return (entry.$2.center - previous.center).distance > .1 ||
                 (entry.$2.width - previous.width).abs() > .1 ||
                 (entry.$2.height - previous.height).abs() > .1;
-          })) {
-        setState(() => _dailyTimelineMarkerBounds = markerBounds);
+          });
+      if (differs(markerBounds, _dailyTimelineMarkerBounds) ||
+          differs(descriptionBounds, _dailyTimelineDescriptionBounds)) {
+        setState(() {
+          _dailyTimelineMarkerBounds = markerBounds;
+          _dailyTimelineDescriptionBounds = descriptionBounds;
+        });
       }
     });
   }
@@ -849,14 +869,15 @@ class _CalendarPageState extends State<CalendarPage> {
                                                   key: const ValueKey(
                                                     'calendar-daily-timeline-rail',
                                                   ),
-                                                  painter:
-                                                      _DailyTimelineRailPainter(
-                                                        color: Theme.of(
-                                                          context,
-                                                        ).colorScheme.primary,
-                                                        markerBounds:
-                                                            _dailyTimelineMarkerBounds,
-                                                      ),
+                                                  painter: _DailyTimelineRailPainter(
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.primary,
+                                                    markerBounds:
+                                                        _dailyTimelineMarkerBounds,
+                                                    descriptionBounds:
+                                                        _dailyTimelineDescriptionBounds,
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -887,6 +908,12 @@ class _CalendarPageState extends State<CalendarPage> {
                                                           ),
                                                       markerKey:
                                                           _timelineMarkerKeys
+                                                              .putIfAbsent(
+                                                                entry.$2.id,
+                                                                GlobalKey.new,
+                                                              ),
+                                                      descriptionKey:
+                                                          _timelineDescriptionKeys
                                                               .putIfAbsent(
                                                                 entry.$2.id,
                                                                 GlobalKey.new,
@@ -5140,6 +5167,7 @@ class _TimelineEntry extends StatefulWidget {
     required this.onTap,
     required this.onMove,
     required this.markerKey,
+    required this.descriptionKey,
     this.onReminderToggle,
   });
   final ScheduleRecord record;
@@ -5147,6 +5175,7 @@ class _TimelineEntry extends StatefulWidget {
   final VoidCallback onTap;
   final ValueChanged<int> onMove;
   final Key markerKey;
+  final Key descriptionKey;
   final VoidCallback? onReminderToggle;
   @override
   State<_TimelineEntry> createState() => _TimelineEntryState();
@@ -5226,12 +5255,21 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                           color: textColor,
                         ),
                       ),
-                      Text(
-                        _timelineDescription(record),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: widget.overdue
-                              ? colorScheme.error
-                              : colorScheme.primary.withValues(alpha: .72),
+                      KeyedSubtree(
+                        key: widget.descriptionKey,
+                        child: Text(
+                          key: ValueKey(
+                            'calendar-timeline-description-${record.id}',
+                          ),
+                          _timelineDescription(record),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: widget.overdue
+                                    ? colorScheme.error
+                                    : colorScheme.primary.withValues(
+                                        alpha: .72,
+                                      ),
+                              ),
                         ),
                       ),
                     ],
@@ -5293,7 +5331,20 @@ const calendarTimelineMarkerDiameter = 16.0;
 const calendarTimelineMarkerStrokeWidth = 1.5;
 const calendarTimelineScheduleAnchorSize = calendarTimelineMarkerDiameter;
 const calendarTimelineRailColumnWidth = calendarTimelineMarkerDiameter;
-const calendarTimelineTailAreaHeight = 48.0;
+// Keeps enough paint extent for a measured, text-relative tail without
+// turning the remaining Stack height into a visually long connector.
+const calendarTimelineTailAreaHeight = 28.0;
+
+/// Measured coordinates are in the selected-day Stack. The tail is bounded by
+/// content, never by arbitrary unused Stack height.
+double calendarTimelineTailEnd({
+  required Size size,
+  required Rect marker,
+  Rect? description,
+}) => math.min(
+  size.height - 4,
+  math.max(marker.bottom + 8, (description?.bottom ?? marker.bottom) + 20),
+);
 
 class _TimelineMarkerPainter extends CustomPainter {
   const _TimelineMarkerPainter({required this.color});
@@ -5324,9 +5375,11 @@ class _DailyTimelineRailPainter extends CustomPainter {
   const _DailyTimelineRailPainter({
     required this.color,
     required this.markerBounds,
+    required this.descriptionBounds,
   });
   final Color color;
   final List<Rect> markerBounds;
+  final List<Rect> descriptionBounds;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -5345,9 +5398,16 @@ class _DailyTimelineRailPainter extends CustomPainter {
     }
     if (markerBounds.isNotEmpty) {
       final last = markerBounds.last;
+      final endY = calendarTimelineTailEnd(
+        size: size,
+        marker: last,
+        description: descriptionBounds.length == markerBounds.length
+            ? descriptionBounds.last
+            : null,
+      );
       canvas.drawLine(
         Offset(last.center.dx, last.bottom),
-        Offset(last.center.dx, size.height - 4),
+        Offset(last.center.dx, endY),
         paint,
       );
     }
@@ -5355,7 +5415,9 @@ class _DailyTimelineRailPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DailyTimelineRailPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.markerBounds != markerBounds;
+      oldDelegate.color != color ||
+      oldDelegate.markerBounds != markerBounds ||
+      oldDelegate.descriptionBounds != descriptionBounds;
 }
 
 const calendarTimelineContentGap = 10.0;

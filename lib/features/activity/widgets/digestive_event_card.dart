@@ -114,11 +114,11 @@ class DigestiveEventCard extends StatelessWidget {
                 ],
               ),
               AppSpacing.gapLG,
-              _ChoiceSection(
+              _ReliefChoiceSection(
                 semanticsLabel: 'スッキリ感',
                 title: 'Relief',
                 children: [
-                  _EventChoiceChip(
+                  _ReliefChoiceButton(
                     key: ValueKey('digestive-${event.id}-relief-0'),
                     icon: Icons.sentiment_dissatisfied,
                     label: '残便感',
@@ -126,7 +126,7 @@ class DigestiveEventCard extends StatelessWidget {
                     enabled: enabled,
                     onSelected: () => onChanged(_copyEvent(event, relief: 0)),
                   ),
-                  _EventChoiceChip(
+                  _ReliefChoiceButton(
                     key: ValueKey('digestive-${event.id}-relief-1'),
                     icon: Icons.sentiment_neutral,
                     label: DigestiveEvent.reliefLabel(1),
@@ -134,7 +134,7 @@ class DigestiveEventCard extends StatelessWidget {
                     enabled: enabled,
                     onSelected: () => onChanged(_copyEvent(event, relief: 1)),
                   ),
-                  _EventChoiceChip(
+                  _ReliefChoiceButton(
                     key: ValueKey('digestive-${event.id}-relief-2'),
                     icon: Icons.sentiment_satisfied,
                     label: DigestiveEvent.reliefLabel(2),
@@ -180,6 +180,44 @@ class _ChoiceSection extends StatelessWidget {
   }
 }
 
+/// Relief has exactly three short semantic values. Keeping it in a dedicated
+/// row avoids Wrap producing an uneven second line on narrow activity cards.
+class _ReliefChoiceSection extends StatelessWidget {
+  const _ReliefChoiceSection({
+    required this.semanticsLabel,
+    required this.title,
+    required this.children,
+  });
+
+  final String semanticsLabel;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: semanticsLabel,
+    container: true,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        AppSpacing.gapSM,
+        SizedBox(
+          height: 46,
+          child: Row(
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                Expanded(child: children[index]),
+                if (index != children.length - 1) const SizedBox(width: 4),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _EventChoiceChip extends StatelessWidget {
   final IconData? icon;
   final String label;
@@ -208,6 +246,84 @@ class _EventChoiceChip extends StatelessWidget {
         label: ExcludeSemantics(child: Text(label)),
         selected: selected,
         onSelected: enabled ? (_) => onSelected() : null,
+      ).inputFeedback(),
+    );
+  }
+}
+
+class _ReliefChoiceButton extends StatelessWidget {
+  const _ReliefChoiceButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final labelSize = textScale > 1.15 ? 12.0 : 13.0;
+    final foreground = selected ? scheme.onPrimaryContainer : scheme.onSurface;
+    return Semantics(
+      label: label,
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      child: Material(
+        color: selected
+            ? scheme.primaryContainer.withValues(alpha: .82)
+            : scheme.surfaceContainerHighest.withValues(alpha: .36),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: selected
+                ? scheme.primary.withValues(alpha: .88)
+                : scheme.outline.withValues(alpha: .34),
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: enabled ? onSelected : null,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16, color: foreground),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      style: TextStyle(
+                        fontSize: labelSize,
+                        color: foreground,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (selected) ...[
+                    const SizedBox(width: 2),
+                    Icon(Icons.check, size: 12, color: foreground),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ).inputFeedback(),
     );
   }

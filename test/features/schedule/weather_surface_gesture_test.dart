@@ -537,7 +537,23 @@ void main() {
     final railBounds = tester.getRect(
       find.byKey(const ValueKey('calendar-daily-timeline-rail')),
     );
-    expect(railBounds.bottom - second.bottom, greaterThanOrEqualTo(44));
+    final lastDescription = tester.getRect(
+      find.byKey(const ValueKey('calendar-timeline-description-edge-second')),
+    );
+    // The painter endpoint is description-relative, rather than using the
+    // otherwise unused Stack height beneath the final row.
+    final stackRect = tester.getRect(
+      find.byKey(const ValueKey('calendar-daily-timeline-stack')),
+    );
+    final tailEnd = calendarTimelineTailEnd(
+      size: stackRect.size,
+      marker: second.shift(-stackRect.topLeft),
+      description: lastDescription.shift(-stackRect.topLeft),
+    );
+    expect(tailEnd, closeTo(lastDescription.bottom - stackRect.top + 20, 2));
+    // The Stack can retain ordinary row padding after the description; only
+    // the painter endpoint, verified above, controls visible tail length.
+    expect(railBounds.bottom, greaterThan(lastDescription.bottom));
     expect(
       find.byKey(const ValueKey('calendar-daily-timeline-rail')),
       findsOneWidget,
