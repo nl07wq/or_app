@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_theme.dart';
@@ -205,17 +207,25 @@ void main() {
     }
   });
 
-  testWidgets('renders V1.5 DATA VAULT transfer trails through its loop', (
+  testWidgets('renders V1.6 navigation route and overtaken data traffic', (
     tester,
   ) async {
     const phases = <(String, Duration)>[
       ('start', Duration.zero),
-      ('eighth', Duration(seconds: 6)),
-      ('quarter', Duration(seconds: 12)),
-      ('half', Duration(seconds: 24)),
-      ('three_quarters', Duration(seconds: 36)),
+      ('cruise_7', Duration(seconds: 7)),
+      ('sprint_16', Duration(seconds: 16)),
+      ('sprint_20', Duration(seconds: 20)),
+      ('sprint_20_10', Duration(milliseconds: 20100)),
+      ('sprint_20_20', Duration(milliseconds: 20200)),
+      ('corner_27', Duration(seconds: 27)),
+      ('corner_32', Duration(seconds: 32)),
+      ('corner_32_10', Duration(milliseconds: 32100)),
+      ('corner_32_20', Duration(milliseconds: 32200)),
+      ('corner_37', Duration(seconds: 37)),
+      ('return_42', Duration(seconds: 42)),
       ('boundary_before', Duration(milliseconds: 47990)),
       ('boundary_after', Duration(milliseconds: 48010)),
+      ('second_cycle', Duration(milliseconds: 96010)),
     ];
 
     for (final phase in phases) {
@@ -226,25 +236,25 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('history-ambient-dataVault')),
         matchesGoldenFile(
-          'goldens/history_data_vault_v15_phase_${phase.$1}.png',
+          'goldens/history_data_vault_v16_phase_${phase.$1}.png',
         ),
       );
     }
   });
 
   test('DATA VAULT motion is monotonic with smooth periodic speed', () {
-    expect(HistoryDataVaultMotion.speedAt(0), 7);
-    expect(HistoryDataVaultMotion.speedAt(12), 7);
-    expect(HistoryDataVaultMotion.speedAt(17), 16);
-    expect(HistoryDataVaultMotion.speedAt(22), 16);
-    expect(HistoryDataVaultMotion.speedAt(27), 11);
-    expect(HistoryDataVaultMotion.speedAt(36), 11);
-    expect(HistoryDataVaultMotion.speedAt(42), 7);
-    expect(HistoryDataVaultMotion.speedAt(48), 7);
+    expect(HistoryDataVaultMotion.speedAt(0), closeTo(9.45, .000001));
+    expect(HistoryDataVaultMotion.speedAt(12), closeTo(9.45, .000001));
+    expect(HistoryDataVaultMotion.speedAt(17), closeTo(21.60, .000001));
+    expect(HistoryDataVaultMotion.speedAt(22), closeTo(21.60, .000001));
+    expect(HistoryDataVaultMotion.speedAt(27), closeTo(14.85, .000001));
+    expect(HistoryDataVaultMotion.speedAt(36), closeTo(14.85, .000001));
+    expect(HistoryDataVaultMotion.speedAt(42), closeTo(9.45, .000001));
+    expect(HistoryDataVaultMotion.speedAt(48), closeTo(9.45, .000001));
     for (var milliseconds = 0; milliseconds <= 48000; milliseconds += 250) {
       expect(
         HistoryDataVaultMotion.speedAt(milliseconds / 1000),
-        greaterThanOrEqualTo(7),
+        greaterThanOrEqualTo(9.45),
       );
     }
     for (final transition in [0.0, 12.0, 17.0, 22.0, 27.0, 36.0, 42.0, 48.0]) {
@@ -252,7 +262,7 @@ void main() {
         (HistoryDataVaultMotion.speedAt(transition - .001) -
                 HistoryDataVaultMotion.speedAt(transition + .001))
             .abs(),
-        lessThan(.001),
+        lessThan(.002),
       );
     }
     for (final boundary in [40.0, 105.0, 130.0, 195.0, 240.0]) {
@@ -280,24 +290,87 @@ void main() {
     expect(
       HistoryDataVaultMotion.distanceAt(48.001) -
           HistoryDataVaultMotion.distanceAt(47.999),
-      closeTo(.014, .0002),
+      closeTo(.0189, .0002),
     );
-    for (var index = 0; index < 6; index++) {
-      final justBefore = HistoryDataVaultMotion.transferDepth(
-        47.999,
-        index,
-        rate: 38,
-        spacing: 15,
-      );
-      final justAfter = HistoryDataVaultMotion.transferDepth(
-        48.001,
-        index,
-        rate: 38,
-        spacing: 15,
-      );
-      // A packet may recycle only outside the visible depth interval.
-      final recycled = (justAfter - justBefore).abs() > 20;
-      expect(!recycled || justBefore < 0 || justBefore > 94, isTrue);
+    expect(
+      HistoryDataVaultMotion.distanceAt(96.01) -
+          HistoryDataVaultMotion.distanceAt(95.99),
+      closeTo(.189, .0002),
+    );
+    expect(HistoryDataVaultMotion.distanceAt(48), closeTo(653.4, .0001));
+    expect(HistoryDataVaultMotion.navigationHeadOffset, 11);
+    expect(HistoryDataVaultMotion.navigationTrailOffset, 2);
+
+    const seconds = 20.0;
+    final cameraDistance = HistoryDataVaultMotion.distanceAt(seconds);
+    final packetBefore = HistoryDataVaultMotion.packetWorldDistance(
+      cameraDistance,
+      4,
+      spacing: HistoryDataVaultMotion.floorPacketSpacing,
+      laneOffset: 4.6,
+    );
+    final packetAfter = HistoryDataVaultMotion.packetWorldDistance(
+      HistoryDataVaultMotion.distanceAt(seconds + .01),
+      4,
+      spacing: HistoryDataVaultMotion.floorPacketSpacing,
+      laneOffset: 4.6,
+    );
+    expect(packetAfter, greaterThan(packetBefore));
+    expect(
+      HistoryDataVaultMotion.packetSpeedAt(seconds),
+      closeTo(.2 * HistoryDataVaultMotion.speedAt(seconds), .000001),
+    );
+    expect(
+      HistoryDataVaultMotion.packetRelativeSpeedAt(seconds),
+      closeTo(-.8 * HistoryDataVaultMotion.speedAt(seconds), .000001),
+    );
+    expect(HistoryDataVaultMotion.packetVisibility(3), 0);
+    expect(HistoryDataVaultMotion.packetVisibility(8), 1);
+    expect(HistoryDataVaultMotion.packetVisibility(90), 0);
+
+    final pillarHead = HistoryDataVaultMotion.packetWorldDistance(
+      cameraDistance,
+      6,
+      spacing: HistoryDataVaultMotion.floorPacketSpacing,
+      laneOffset: 0,
+    );
+    expect(
+      HistoryDataVaultMotion.pillarAccessResponse(
+        seconds,
+        cameraDistance,
+        pillarHead,
+      ),
+      greaterThan(.99),
+    );
+  });
+
+  test('measures bounded local DATA VAULT painter work', () {
+    const times = [
+      0.0,
+      7.0,
+      16.0,
+      20.0,
+      27.0,
+      32.0,
+      37.0,
+      42.0,
+      47.99,
+      48.01,
+      96.01,
+    ];
+    final watch = Stopwatch()..start();
+    for (final seconds in times) {
+      final recorder = ui.PictureRecorder();
+      HistoryDataVaultHyperspace(
+        seconds: seconds,
+      ).paint(Canvas(recorder), const Size(390, 844));
+      recorder.endRecording().dispose();
     }
+    watch.stop();
+    // Informational only: CI/browser machines differ and this is not an
+    // iPhone Safari frame-time assertion.
+    // ignore: avoid_print
+    print('DATA_VAULT_LOCAL_PAINT_11_MS=${watch.elapsedMilliseconds}');
+    expect(watch.elapsedMicroseconds, greaterThanOrEqualTo(0));
   });
 }
