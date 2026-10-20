@@ -1133,6 +1133,36 @@ void main() {
     );
   });
 
+  test(
+    'V12.4 parses composite strategies without changing A/B diagnostics',
+    () {
+      expect(
+        kineticCompositeStrategyFromUri(
+          Uri.parse('https://example.test/training?kinetic_composite=c0'),
+        ),
+        KineticCompositeStrategy.c0Reference,
+      );
+      expect(
+        kineticCompositeStrategyFromUri(
+          Uri.parse('https://example.test/training?kinetic_composite=c1'),
+        ),
+        KineticCompositeStrategy.c1Isolated,
+      );
+      expect(
+        kineticCompositeStrategyFromUri(
+          Uri.parse('https://example.test/training?kinetic_composite=c2'),
+        ),
+        KineticCompositeStrategy.c2Gated,
+      );
+      expect(
+        kineticCompositeStrategyFromUri(
+          Uri.parse('https://example.test/training?kinetic_composite=invalid'),
+        ),
+        KineticCompositeStrategy.c1Isolated,
+      );
+    },
+  );
+
   testWidgets('V12.3 image mode skips the mechanical painter', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -1365,6 +1395,160 @@ void main() {
       );
     }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('V12.4 isolates static WebP and fallback boundaries in C1/C2', (
+    tester,
+  ) async {
+    for (final strategy in KineticCompositeStrategy.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TrainingAmbientComparison(
+              variant: TrainingAmbientVariant.kineticEngine,
+              debugTime: 0,
+              kineticDiagnosticMode: KineticDiagnosticMode.composite,
+              kineticCompositeStrategy: strategy,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('kinetic-engine-background-image')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('kinetic-engine-mechanical-painter')),
+        findsOneWidget,
+      );
+      if (strategy == KineticCompositeStrategy.c0Reference) {
+        expect(
+          find.byKey(const ValueKey('kinetic-composite-reference-boundary')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('kinetic-image-boundary')),
+          findsNothing,
+        );
+      } else {
+        expect(
+          find.byKey(const ValueKey('kinetic-fallback-boundary')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('kinetic-image-boundary')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('kinetic-mechanical-boundary')),
+          findsOneWidget,
+        );
+      }
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'V12.4 C2 records static image and mechanism before ticker start',
+    (tester) async {
+      KineticFirstFrameInstrumentation.dispose();
+      KineticFirstFrameInstrumentation.routeInit();
+      await _precacheKineticBackground(tester);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TrainingAmbientComparison(
+              variant: TrainingAmbientVariant.kineticEngine,
+              kineticDiagnosticMode: KineticDiagnosticMode.composite,
+              kineticCompositeStrategy: KineticCompositeStrategy.c2Gated,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final marks = KineticFirstFrameInstrumentation.marks;
+      expect(marks.containsKey('C2_t_firstFallbackPaint'), isTrue);
+      expect(marks.containsKey('C2_t_firstKineticPaint'), isTrue);
+      expect(marks.containsKey('C2_t_staticMechanicalFrameScheduled'), isTrue);
+      expect(marks.containsKey('C2_t_imageFrameScheduled'), isTrue);
+      expect(marks.containsKey('C2_t_tickerStarted'), isTrue);
+      expect(
+        marks['C2_t_tickerStarted']!,
+        greaterThanOrEqualTo(marks['C2_t_staticMechanicalFrameScheduled']!),
+      );
+      expect(
+        marks['C2_t_tickerStarted']!,
+        greaterThanOrEqualTo(marks['C2_t_imageFrameScheduled']!),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'V12.4 composite strategy goldens preserve the mechanical frame',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _precacheKineticBackground(tester);
+      for (final strategy in KineticCompositeStrategy.values) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: TrainingAmbientComparison(
+                key: ValueKey('v12-4-${strategy.name}'),
+                variant: TrainingAmbientVariant.kineticEngine,
+                debugTime: 0,
+                kineticDiagnosticMode: KineticDiagnosticMode.composite,
+                kineticCompositeStrategy: strategy,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await expectLater(
+          find.byKey(ValueKey('v12-4-${strategy.name}')),
+          matchesGoldenFile(
+            'goldens/training_kinetic_engine_v12_4_${strategy.name}.png',
+          ),
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('V12.4 isolated composite has no overflow at iPhone widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final size in const [
+      Size(320, 844),
+      Size(375, 844),
+      Size(390, 844),
+      Size(430, 844),
+    ]) {
+      tester.view
+        ..physicalSize = size
+        ..devicePixelRatio = 1;
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TrainingAmbientComparison(
+              variant: TrainingAmbientVariant.kineticEngine,
+              debugTime: 3,
+              kineticDiagnosticMode: KineticDiagnosticMode.composite,
+              kineticCompositeStrategy: KineticCompositeStrategy.c1Isolated,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }
   });
 }
 

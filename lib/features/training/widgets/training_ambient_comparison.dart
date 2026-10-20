@@ -29,6 +29,23 @@ KineticDiagnosticMode kineticDiagnosticModeFromUri(Uri uri) =>
       _ => KineticDiagnosticMode.composite,
     };
 
+/// Composite-only A/B variants. C0 preserves the V12.3 aggregate boundary as
+/// a reference. C1 is the production-safe sibling-boundary composition. C2 is
+/// profile/debug-only: it proves whether waiting for the decoded image and a
+/// static mechanical frame changes the perceived first composite.
+enum KineticCompositeStrategy { c0Reference, c1Isolated, c2Gated }
+
+KineticCompositeStrategy kineticCompositeStrategyFromUri(Uri uri) {
+  if (!(kDebugMode || kProfileMode)) {
+    return KineticCompositeStrategy.c1Isolated;
+  }
+  return switch (uri.queryParameters['kinetic_composite']) {
+    'c0' => KineticCompositeStrategy.c0Reference,
+    'c2' => KineticCompositeStrategy.c2Gated,
+    'c1' || _ => KineticCompositeStrategy.c1Isolated,
+  };
+}
+
 /// Accumulates only frames during which a KINETIC ENGINE view is active.
 ///
 /// This deliberately owns elapsed mechanical time separately from the ticker
@@ -356,6 +373,7 @@ class TrainingAmbientComparison extends StatefulWidget {
     this.kineticImageProvider,
     this.showKineticImage = true,
     this.kineticDiagnosticMode,
+    this.kineticCompositeStrategy,
   });
   final TrainingAmbientVariant variant;
   final double? debugTime;
@@ -370,6 +388,11 @@ class TrainingAmbientComparison extends StatefulWidget {
   /// Test seam; production reads `?kinetic_diag=` before the first build.
   @visibleForTesting
   final KineticDiagnosticMode? kineticDiagnosticMode;
+
+  /// Test seam; production reads the debug/profile-only
+  /// `?kinetic_composite=c0|c1|c2` value before the first build.
+  @visibleForTesting
+  final KineticCompositeStrategy? kineticCompositeStrategy;
 
   static const kineticEngineBackgroundAsset =
       'assets/images/training/kinetic_engine_v9_background_q90.webp';
@@ -1088,11 +1111,17 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   ImageStream? _imageStream;
   ImageStreamListener? _imageListener;
   var _imageFailed = false;
+  var _imageFrameScheduled = false;
+  var _staticMechanicalFrameScheduled = false;
+  var _tickerStartRequested = false;
 
   ImageProvider<Object> get _imageProvider =>
       widget.kineticImageProvider ?? _kineticBackgroundImage;
   KineticDiagnosticMode get _diagnosticMode =>
       widget.kineticDiagnosticMode ?? kineticDiagnosticModeFromUri(Uri.base);
+  KineticCompositeStrategy get _compositeStrategy =>
+      widget.kineticCompositeStrategy ??
+      kineticCompositeStrategyFromUri(Uri.base);
   bool get _showsKineticImage =>
       widget.variant == TrainingAmbientVariant.kineticEngine &&
       widget.showKineticImage &&
@@ -1101,18 +1130,50 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
       widget.variant != TrainingAmbientVariant.kineticEngine ||
       _diagnosticMode != KineticDiagnosticMode.image;
   bool get _usesMechanicalTicker => widget.debugTime == null && _showsMechanism;
+  bool get _usesIsolatedCompositeLayers =>
+      widget.variant == TrainingAmbientVariant.kineticEngine &&
+      _diagnosticMode == KineticDiagnosticMode.composite &&
+      _compositeStrategy != KineticCompositeStrategy.c0Reference;
+  bool get _gatesTickerForComposite =>
+      _usesMechanicalTicker &&
+      _diagnosticMode == KineticDiagnosticMode.composite &&
+      _compositeStrategy == KineticCompositeStrategy.c2Gated;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    KineticFirstFrameInstrumentation.ambientInit(_diagnosticMode);
+    KineticFirstFrameInstrumentation.ambientInit(
+      _diagnosticMode,
+      _compositeStrategy,
+    );
     if (_usesMechanicalTicker) {
       _ticker = createTicker(_onFrame);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _usesMechanicalTicker) _ticker?.start();
+        if (!mounted || !_usesMechanicalTicker) return;
+        if (_gatesTickerForComposite) {
+          _tryStartTicker();
+        } else {
+          _startTicker();
+        }
       });
     }
+  }
+
+  void _startTicker() {
+    if (_tickerStartRequested || !_usesMechanicalTicker) return;
+    _tickerStartRequested = true;
+    KineticFirstFrameInstrumentation.tickerStarted();
+    _ticker?.start();
+  }
+
+  void _tryStartTicker() {
+    if (!_gatesTickerForComposite ||
+        !_staticMechanicalFrameScheduled ||
+        !(_imageFrameScheduled || _imageFailed)) {
+      return;
+    }
+    _startTicker();
   }
 
   void _onFrame(Duration elapsed) {
@@ -1127,7 +1188,12 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
       case AppLifecycleState.resumed:
         _machineClock.resume();
         if (_usesMechanicalTicker && !(_ticker?.isActive ?? false)) {
-          _ticker?.start();
+          if (_gatesTickerForComposite) {
+            _tryStartTicker();
+          } else {
+            _tickerStartRequested = false;
+            _startTicker();
+          }
         }
         return;
       case AppLifecycleState.inactive:
@@ -1137,6 +1203,7 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
         final timestamp = _lastTickerElapsed;
         if (timestamp != null) _machineClock.pause(timestamp);
         _ticker?.stop();
+        _tickerStartRequested = false;
     }
   }
 
@@ -1154,7 +1221,8 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.kineticImageProvider != widget.kineticImageProvider ||
         oldWidget.showKineticImage != widget.showKineticImage ||
-        oldWidget.kineticDiagnosticMode != widget.kineticDiagnosticMode) {
+        oldWidget.kineticDiagnosticMode != widget.kineticDiagnosticMode ||
+        oldWidget.kineticCompositeStrategy != widget.kineticCompositeStrategy) {
       _stopImageListening();
       _imageFailed = false;
       if (widget.variant == TrainingAmbientVariant.kineticEngine &&
@@ -1177,7 +1245,10 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
       },
       onError: (Object error, StackTrace? stackTrace) {
         KineticFirstFrameInstrumentation.imageError(error);
-        if (mounted) setState(() => _imageFailed = true);
+        if (mounted) {
+          setState(() => _imageFailed = true);
+          _tryStartTicker();
+        }
       },
     );
     stream.addListener(_imageListener!);
@@ -1200,61 +1271,112 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: RepaintBoundary(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (widget.variant == TrainingAmbientVariant.kineticEngine)
-            CustomPaint(
-              key: const ValueKey('kinetic-first-frame-fallback'),
-              painter: const _KineticFirstFrameFallbackPainter(),
-              child: const SizedBox.expand(),
-            ),
-          if (widget.variant == TrainingAmbientVariant.kineticEngine &&
-              _showsKineticImage &&
-              !_imageFailed)
-            Image(
-              key: const ValueKey('kinetic-engine-background-image'),
-              image: _imageProvider,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              filterQuality: FilterQuality.medium,
-              gaplessPlayback: true,
-              errorBuilder: (context, error, stackTrace) {
-                KineticFirstFrameInstrumentation.imageError(error);
-                return const SizedBox.expand();
-              },
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (frame != null || wasSynchronouslyLoaded) {
-                  KineticFirstFrameInstrumentation.firstFrameAfterImageReady();
-                }
-                return child;
-              },
-            ),
-          if (_showsMechanism)
-            ValueListenableBuilder<double>(
-              valueListenable: _mechanicalTime,
-              builder: (context, elapsed, _) => RepaintBoundary(
-                child: CustomPaint(
-                  key: const ValueKey('kinetic-engine-mechanical-painter'),
-                  painter: _TrainingAmbientPainter(
-                    variant: widget.variant,
-                    time: widget.debugTime ?? elapsed,
-                    onFirstKineticPaint:
-                        widget.variant == TrainingAmbientVariant.kineticEngine
-                        ? KineticFirstFrameInstrumentation.firstKineticPaint
-                        : null,
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-            ),
-        ],
+  void _onStaticMechanicalPaint() {
+    KineticFirstFrameInstrumentation.firstKineticPaint();
+    if (_staticMechanicalFrameScheduled) return;
+    _staticMechanicalFrameScheduled = true;
+    KineticFirstFrameInstrumentation.staticMechanicalFrameScheduled();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tryStartTicker();
+    });
+  }
+
+  void _onImageFrameAvailable() {
+    KineticFirstFrameInstrumentation.firstFrameAfterImageReady();
+    if (_imageFrameScheduled) return;
+    _imageFrameScheduled = true;
+    KineticFirstFrameInstrumentation.imageFrameScheduled();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tryStartTicker();
+    });
+  }
+
+  Widget _fallbackLayer() {
+    final fallback = CustomPaint(
+      key: const ValueKey('kinetic-first-frame-fallback'),
+      painter: const _KineticFirstFrameFallbackPainter(),
+      child: const SizedBox.expand(),
+    );
+    return _usesIsolatedCompositeLayers
+        ? RepaintBoundary(
+            key: const ValueKey('kinetic-fallback-boundary'),
+            child: fallback,
+          )
+        : fallback;
+  }
+
+  Widget _imageLayer() {
+    final image = Image(
+      key: const ValueKey('kinetic-engine-background-image'),
+      image: _imageProvider,
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      filterQuality: FilterQuality.medium,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) {
+        KineticFirstFrameInstrumentation.imageError(error);
+        return const SizedBox.expand();
+      },
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        KineticFirstFrameInstrumentation.imageWidgetBuilt();
+        if (frame != null || wasSynchronouslyLoaded) {
+          _onImageFrameAvailable();
+        }
+        return child;
+      },
+    );
+    return _usesIsolatedCompositeLayers
+        ? RepaintBoundary(
+            key: const ValueKey('kinetic-image-boundary'),
+            child: image,
+          )
+        : image;
+  }
+
+  Widget _mechanicalLayer() => ValueListenableBuilder<double>(
+    valueListenable: _mechanicalTime,
+    builder: (context, elapsed, _) => RepaintBoundary(
+      key: const ValueKey('kinetic-mechanical-boundary'),
+      child: CustomPaint(
+        key: const ValueKey('kinetic-engine-mechanical-painter'),
+        painter: _TrainingAmbientPainter(
+          variant: widget.variant,
+          time: widget.debugTime ?? elapsed,
+          onFirstKineticPaint:
+              widget.variant == TrainingAmbientVariant.kineticEngine
+              ? _onStaticMechanicalPaint
+              : null,
+        ),
+        child: const SizedBox.expand(),
       ),
     ),
   );
+
+  @override
+  Widget build(BuildContext context) {
+    final layers = Stack(
+      fit: StackFit.expand,
+      children: [
+        if (widget.variant == TrainingAmbientVariant.kineticEngine)
+          _fallbackLayer(),
+        if (widget.variant == TrainingAmbientVariant.kineticEngine &&
+            _showsKineticImage &&
+            !_imageFailed)
+          _imageLayer(),
+        if (_showsMechanism) _mechanicalLayer(),
+      ],
+    );
+    return IgnorePointer(
+      child: _usesIsolatedCompositeLayers
+          ? layers
+          : RepaintBoundary(
+              key: const ValueKey('kinetic-composite-reference-boundary'),
+              child: layers,
+            ),
+    );
+  }
 }
 
 class TrainingAmbientComparisonSelector extends StatelessWidget {
@@ -1314,19 +1436,29 @@ class KineticFirstFrameInstrumentation {
   static final List<FrameTiming> _frameTimings = <FrameTiming>[];
   static Stopwatch? _clock;
   static bool _collecting = false;
-  static String _modeLabel = 'C';
+  static String _modeLabel = 'C1';
+  static int _imageWidgetBuilds = 0;
 
   static bool get _enabled => kDebugMode || kProfileMode;
   static Map<String, Duration> get marks => Map.unmodifiable(_marks);
   static List<FrameTiming> get frameTimings => List.unmodifiable(_frameTimings);
 
   static void routeInit() => _startIfNeeded();
-  static void ambientInit(KineticDiagnosticMode mode) {
+  static int get imageWidgetBuilds => _imageWidgetBuilds;
+
+  static void ambientInit(
+    KineticDiagnosticMode mode,
+    KineticCompositeStrategy compositeStrategy,
+  ) {
     _startIfNeeded();
     _modeLabel = switch (mode) {
       KineticDiagnosticMode.image => 'A',
       KineticDiagnosticMode.mechanism => 'B',
-      KineticDiagnosticMode.composite => 'C',
+      KineticDiagnosticMode.composite => switch (compositeStrategy) {
+        KineticCompositeStrategy.c0Reference => 'C0',
+        KineticCompositeStrategy.c1Isolated => 'C1',
+        KineticCompositeStrategy.c2Gated => 'C2',
+      },
     };
     _mark('${_modeLabel}_t_ambientInit');
   }
@@ -1342,12 +1474,21 @@ class KineticFirstFrameInstrumentation {
   static void firstKineticPaint() => _mark('${_modeLabel}_t_firstKineticPaint');
   static void firstFrameAfterImageReady() =>
       _mark('${_modeLabel}_t_firstFrameAfterImageReady');
+  static void imageFrameScheduled() =>
+      _mark('${_modeLabel}_t_imageFrameScheduled');
+  static void staticMechanicalFrameScheduled() =>
+      _mark('${_modeLabel}_t_staticMechanicalFrameScheduled');
+  static void tickerStarted() => _mark('${_modeLabel}_t_tickerStarted');
+  static void imageWidgetBuilt() {
+    if (_enabled) _imageWidgetBuilds++;
+  }
 
   static void _startIfNeeded() {
     if (!_enabled || _collecting) return;
     _collecting = true;
     _marks.clear();
     _frameTimings.clear();
+    _imageWidgetBuilds = 0;
     _clock = Stopwatch()..start();
     _mark('t_routeInit');
     SchedulerBinding.instance.addTimingsCallback(_onTimings);
