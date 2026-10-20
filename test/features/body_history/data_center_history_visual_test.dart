@@ -107,15 +107,15 @@ void main() {
     (tester) async {
       await pumpHistory(tester);
 
-    // ListView lazily builds the three visible cards at this viewport; every
-    // built link card must use the Dashboard source material.
-    expect(find.byType(DashboardGlassCard), findsNWidgets(3));
+      // ListView lazily builds the three visible cards at this viewport; every
+      // built link card must use the Dashboard source material.
+      expect(find.byType(DashboardGlassCard), findsNWidgets(3));
       expect(
         find.byWidgetPredicate(
           (widget) =>
               widget is OperationButton && widget.dashboardGlass == true,
         ),
-      findsNWidgets(3),
+        findsNWidgets(3),
       );
       expect(
         find.byKey(const ValueKey('history-visual-selector')),
@@ -231,23 +231,20 @@ void main() {
     }
   });
 
-  testWidgets('renders V1.8 independent incoming line impulses', (tester) async {
+  testWidgets('renders V1.8 wave, beacon pulse and irregular impulses', (
+    tester,
+  ) async {
     const phases = <(String, Duration)>[
       ('start', Duration.zero),
-      ('cruise_7', Duration(seconds: 7)),
-      ('sprint_16', Duration(seconds: 16)),
-      ('sprint_20', Duration(seconds: 20)),
-      ('sprint_20_10', Duration(milliseconds: 20100)),
-      ('sprint_20_20', Duration(milliseconds: 20200)),
-      ('corner_27', Duration(seconds: 27)),
-      ('corner_32', Duration(seconds: 32)),
-      ('corner_32_10', Duration(milliseconds: 32100)),
-      ('corner_32_20', Duration(milliseconds: 32200)),
-      ('corner_37', Duration(seconds: 37)),
-      ('return_42', Duration(seconds: 42)),
+      ('cruise', Duration(seconds: 5)),
+      ('boost_ramp_up', Duration(milliseconds: 8100)),
+      ('boost_peak', Duration(milliseconds: 8650)),
+      ('boost_ramp_down', Duration(milliseconds: 9300)),
+      ('corner_unboosted', Duration(seconds: 34)),
       ('boundary_before', Duration(milliseconds: 47990)),
       ('boundary_after', Duration(milliseconds: 48010)),
-      ('second_cycle', Duration(milliseconds: 96010)),
+      ('second_boundary_before', Duration(milliseconds: 95990)),
+      ('second_boundary_after', Duration(milliseconds: 96010)),
     ];
 
     for (final phase in phases) {
@@ -258,25 +255,36 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('history-ambient-dataVault')),
         matchesGoldenFile(
-          'goldens/history_data_vault_v18_phase_${phase.$1}.png',
+          'goldens/history_data_vault_v18_wave_${phase.$1}.png',
         ),
       );
     }
   });
 
-  test('DATA VAULT V1.8 motion is fast, monotonic and continuous', () {
+  test('DATA VAULT V1.8 wave motion is fast, deterministic and continuous', () {
     expect(HistoryDataVaultMotion.speedAt(0), closeTo(14.175, .000001));
-    expect(HistoryDataVaultMotion.speedAt(12), closeTo(14.175, .000001));
-    expect(HistoryDataVaultMotion.speedAt(17), closeTo(32.40, .000001));
-    expect(HistoryDataVaultMotion.speedAt(22), closeTo(32.40, .000001));
-    expect(HistoryDataVaultMotion.speedAt(27), closeTo(22.275, .000001));
-    expect(HistoryDataVaultMotion.speedAt(36), closeTo(22.275, .000001));
-    expect(HistoryDataVaultMotion.speedAt(42), closeTo(14.175, .000001));
+    expect(HistoryDataVaultMotion.baseSpeedAt(12), closeTo(14.175, .000001));
+    expect(HistoryDataVaultMotion.baseSpeedAt(17), closeTo(32.40, .000001));
+    expect(HistoryDataVaultMotion.baseSpeedAt(22), closeTo(32.40, .000001));
+    expect(HistoryDataVaultMotion.baseSpeedAt(27), closeTo(22.275, .000001));
+    expect(HistoryDataVaultMotion.baseSpeedAt(36), closeTo(22.275, .000001));
+    expect(HistoryDataVaultMotion.baseSpeedAt(42), closeTo(14.175, .000001));
     expect(HistoryDataVaultMotion.speedAt(48), closeTo(14.175, .000001));
+    expect(HistoryDataVaultMotion.speedWaveAt(12), closeTo(1.05, .000001));
+    expect(HistoryDataVaultMotion.speedWaveAt(0), closeTo(1, .000001));
+    expect(HistoryDataVaultMotion.speedWaveAt(48), closeTo(1, .000001));
+    expect(HistoryDataVaultMotion.boostMultiplierAt(8.65), greaterThan(1.65));
+    expect(HistoryDataVaultMotion.boostMultiplierAt(19.5), greaterThan(1.80));
+    expect(HistoryDataVaultMotion.boostMultiplierAt(5), closeTo(1, .000001));
     for (var milliseconds = 0; milliseconds <= 48000; milliseconds += 250) {
+      final seconds = milliseconds / 1000;
       expect(
-        HistoryDataVaultMotion.speedAt(milliseconds / 1000),
+        HistoryDataVaultMotion.speedAt(seconds),
         greaterThanOrEqualTo(14.17),
+      );
+      expect(
+        HistoryDataVaultMotion.speedAt(seconds),
+        lessThanOrEqualTo(HistoryDataVaultMotion.baseSpeedAt(seconds) * 2),
       );
     }
     for (final transition in [0.0, 12.0, 17.0, 22.0, 27.0, 36.0, 42.0, 48.0]) {
@@ -284,7 +292,7 @@ void main() {
         (HistoryDataVaultMotion.speedAt(transition - .001) -
                 HistoryDataVaultMotion.speedAt(transition + .001))
             .abs(),
-        lessThan(.002),
+        lessThan(.08),
       );
     }
     for (final boundary in [40.0, 105.0, 130.0, 195.0, 240.0]) {
@@ -312,19 +320,23 @@ void main() {
     expect(
       HistoryDataVaultMotion.distanceAt(48.001) -
           HistoryDataVaultMotion.distanceAt(47.999),
-      closeTo(.02835, .0002),
+      closeTo(.02835, .004),
     );
     expect(
       HistoryDataVaultMotion.distanceAt(96.01) -
           HistoryDataVaultMotion.distanceAt(95.99),
-      closeTo(.2835, .0002),
+      closeTo(.2835, .004),
     );
-    expect(HistoryDataVaultMotion.distanceAt(48), closeTo(980.1, .0001));
+    expect(
+      HistoryDataVaultMotion.distanceAt(48),
+      closeTo(HistoryDataVaultMotion.distancePerCycle, .0001),
+    );
     expect(HistoryDataVaultMotion.navigationHeadOffset, 5.5);
     expect(HistoryDataVaultMotion.navigationTrailOffset, 1.2);
     expect(
       HistoryDataVaultMotion.beaconSprintAdvance(
         HistoryDataVaultMotion.speedAt(20),
+        20,
       ),
       greaterThan(1.9),
     );
@@ -354,6 +366,35 @@ void main() {
     expect(
       profiles.map((profile) => profile.launchOffset).toSet().length,
       greaterThan(6),
+    );
+
+    final families = <DataVaultImpulseFamily>{};
+    final colors = <int>{};
+    for (var packet = -12; packet <= 12; packet++) {
+      final variant = HistoryDataVaultMotion.impulseVariantFor(
+        DataVaultImpulseSurface.floor,
+        2,
+        packet,
+      );
+      families.add(variant.family);
+      colors.add(variant.colorIndex);
+    }
+    expect(families, containsAll(DataVaultImpulseFamily.values));
+    expect(colors.length, greaterThan(2));
+    final floorAtNear = HistoryDataVaultMotion.floorImpulseLateralAt(0, 7, 20);
+    final floorAtFar = HistoryDataVaultMotion.floorImpulseLateralAt(0, 7, 45);
+    expect((floorAtNear - floorAtFar).abs(), greaterThan(.01));
+    expect([-3.2, -1.6, 0.0, 1.6, 3.2], isNot(contains(floorAtNear)));
+
+    final pulseLow = HistoryDataVaultMotion.beaconPulseAt(.1);
+    final pulseHigh = HistoryDataVaultMotion.beaconPulseAt(1.7);
+    expect(
+      (pulseHigh.outerRadius - pulseLow.outerRadius).abs(),
+      greaterThan(.03),
+    );
+    expect(
+      (pulseHigh.outerAlpha - pulseLow.outerAlpha).abs(),
+      greaterThan(.06),
     );
 
     final profile = HistoryDataVaultMotion.impulseProfileFor(

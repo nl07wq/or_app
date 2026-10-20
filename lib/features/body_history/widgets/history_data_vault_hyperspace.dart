@@ -175,10 +175,11 @@ class HistoryDataVaultHyperspace {
         distance,
         sample.s,
       );
+      final boostResponse = HistoryDataVaultMotion.boostStrengthAt(seconds);
       final brightness =
           .90 +
           .10 * math.sin(math.pi * 2 * seconds / 12 + n * .65) +
-          accessResponse * .34;
+          accessResponse * (.34 + .12 * boostResponse);
       for (final side in [-1.0, 1.0]) {
         final depth = sample.s - distance;
         final alpha = (1 - depth / 110).clamp(.12, .90) * brightness;
@@ -303,12 +304,15 @@ class HistoryDataVaultHyperspace {
       rail.surface,
       lane,
     );
-    // A lane can show one impulse normally and two only during the short
-    // overlap that is intentionally defined by its own interval/duration.
+    // A lane can show one impulse normally and two during a boost.  Every
+    // event still owns its own launch schedule, so boosts enrich density
+    // without ever creating a synchronous surface-wide burst.
     final event = ((seconds - profile.launchOffset) / profile.repeatInterval)
         .floor();
+    final boost = HistoryDataVaultMotion.boostStrengthAt(seconds);
     var painted = 0;
-    for (var index = event; index >= event - 2 && painted < 2; index--) {
+    final maximum = boost > .12 ? 3 : 2;
+    for (var index = event; index >= event - 3 && painted < maximum; index--) {
       final launch = profile.launchOffset + index * profile.repeatInterval;
       final elapsed = seconds - launch;
       if (elapsed < 0 || elapsed > profile.visibleDuration) continue;
@@ -321,11 +325,11 @@ class HistoryDataVaultHyperspace {
         canvas,
         camera,
         headS,
-        lateral: rail.lateral,
-        height: rail.height,
-        tailLength: profile.tailLength,
-        headLength: profile.headLength,
-        brightness: profile.brightness,
+        rail: rail,
+        packetIndex: index,
+        tailLength: profile.tailLength * (1 + .22 * boost),
+        headLength: profile.headLength * (1 + .18 * boost),
+        brightness: profile.brightness * (1 + .18 * boost),
         surface: rail.surface,
       )) {
         painted++;
@@ -337,26 +341,49 @@ class HistoryDataVaultHyperspace {
     Canvas canvas,
     _VaultCamera camera,
     double headS, {
-    required double lateral,
-    required double height,
+    required _DataVaultRail rail,
+    required int packetIndex,
     required double tailLength,
     required double headLength,
     required double brightness,
     required DataVaultImpulseSurface surface,
   }) {
+    if (headS < camera.distance - 8 || headS > camera.distance + 92) {
+      return false;
+    }
+    final headLateral = _packetLateral(rail, packetIndex, headS);
     final projectedHead = camera.project(
-      _world.sample(headS).point(lateral, height),
+      _world.sample(headS).point(headLateral, rail.height),
     );
     if (projectedHead == null) return false;
-    final visibility = HistoryDataVaultMotion.impulseVisibility(projectedHead.z);
+    final visibility = HistoryDataVaultMotion.impulseVisibility(
+      projectedHead.z,
+    );
     if (visibility <= 0) return false;
-    final material = _DataVaultImpulseMaterial.forSurface(surface);
+    final variant = HistoryDataVaultMotion.impulseVariantFor(
+      surface,
+      rail.lane,
+      packetIndex,
+    );
+    final material = _DataVaultImpulseMaterial.forSurface(surface, variant);
+    tailLength *= variant.tailMultiplier;
+    headLength *= switch (variant.family) {
+      DataVaultImpulseFamily.shortPacket => .78,
+      DataVaultImpulseFamily.mediumPacket => 1.0,
+      DataVaultImpulseFamily.longBurst => 1.26,
+    };
+    brightness *= variant.brightnessMultiplier;
     final points = <_WorldPoint>[];
     // The packet head travels from aperture to viewer. Its fading tail is
     // therefore further away (positive arc length), never an approaching
     // round node or a free-floating 2D curve.
     for (var tail = tailLength; tail >= 0; tail -= .65) {
-      points.add(_world.sample(headS + tail).point(lateral, height));
+      final s = headS + tail;
+      points.add(
+        _world
+            .sample(s)
+            .point(_packetLateral(rail, packetIndex, s), rail.height),
+      );
     }
     for (var layer = 0; layer < material.widths.length; layer++) {
       _strokeWorldPolyline(
@@ -375,12 +402,34 @@ class HistoryDataVaultHyperspace {
     _strokeWorldLine(
       canvas,
       camera,
-      _world.sample(headS - headLength * .35).point(lateral, height),
-      _world.sample(headS + headLength * .65).point(lateral, height),
-      const Color(0xffd9fbff).withValues(alpha: .82 * brightness * visibility),
+      _world
+          .sample(headS - headLength * .35)
+          .point(
+            _packetLateral(rail, packetIndex, headS - headLength * .35),
+            rail.height,
+          ),
+      _world
+          .sample(headS + headLength * .65)
+          .point(
+            _packetLateral(rail, packetIndex, headS + headLength * .65),
+            rail.height,
+          ),
+      material.core.withValues(alpha: .88 * brightness * visibility),
       material.widths.last,
     );
     return true;
+  }
+
+  /// Floor traffic is intentionally independent from the five decorative
+  /// floor rails.  Its seeded lateral anchor and mild world-space drift make
+  /// transmission paths cross the grid without sacrificing corridor depth.
+  double _packetLateral(_DataVaultRail rail, int packetIndex, double s) {
+    if (rail.surface != DataVaultImpulseSurface.floor) return rail.lateral;
+    return HistoryDataVaultMotion.floorImpulseLateralAt(
+      rail.lane,
+      packetIndex,
+      s,
+    );
   }
 
   _NavigationGuide? _resolveNavigationGuide(
@@ -389,7 +438,10 @@ class HistoryDataVaultHyperspace {
     Size size,
     double speed,
   ) {
-    final sprintAdvance = HistoryDataVaultMotion.beaconSprintAdvance(speed);
+    final sprintAdvance = HistoryDataVaultMotion.beaconSprintAdvance(
+      speed,
+      seconds,
+    );
     for (final factor in const [1.0, .88, 1.12]) {
       final sHead =
           cameraDistance +
@@ -413,7 +465,11 @@ class HistoryDataVaultHyperspace {
     double cameraDistance,
     double sHead,
   ) {
-    final start = cameraDistance + HistoryDataVaultMotion.navigationTrailOffset;
+    final boost = HistoryDataVaultMotion.boostStrengthAt(seconds);
+    final start =
+        cameraDistance +
+        HistoryDataVaultMotion.navigationTrailOffset -
+        .8 * boost;
     final span = sHead - start;
     if (span <= 0) return;
     final points = <_WorldPoint>[];
@@ -426,28 +482,29 @@ class HistoryDataVaultHyperspace {
     for (var index = 0; index < points.length - 1; index++) {
       final u = index / math.max(1, points.length - 2);
       final fade = .18 + .82 * u * u;
+      final headGlow = .08 * boost * u * u;
       _strokeWorldLine(
         canvas,
         camera,
         points[index],
         points[index + 1],
-        const Color(0xff36c9f3).withValues(alpha: .09 * fade),
-        6.5,
+        const Color(0xff36c9f3).withValues(alpha: (.09 + headGlow) * fade),
+        6.5 + .65 * boost,
       );
       _strokeWorldLine(
         canvas,
         camera,
         points[index],
         points[index + 1],
-        const Color(0xff5ae5ff).withValues(alpha: .28 * fade),
-        3,
+        const Color(0xff5ae5ff).withValues(alpha: (.28 + headGlow) * fade),
+        3 + .3 * boost,
       );
       _strokeWorldLine(
         canvas,
         camera,
         points[index],
         points[index + 1],
-        const Color(0xffe8fdff).withValues(alpha: .70 * fade),
+        const Color(0xffe8fdff).withValues(alpha: (.70 + headGlow) * fade),
         1.35,
       );
       if (u >= .75) {
@@ -472,24 +529,39 @@ class HistoryDataVaultHyperspace {
         (size.width / 390).clamp(.85, 1.15) *
         (9 / guide.projected.z).clamp(.75, 1.25);
     final center = guide.projected.offset;
-    final breath = .5 + .5 * math.sin(seconds * math.pi * 2 / 2.45 + .7);
+    final pulse = HistoryDataVaultMotion.beaconPulseAt(seconds);
+    final boost = HistoryDataVaultMotion.boostStrengthAt(seconds);
+    final outerRadius = (30 * pulse.outerRadius + boost * 2) * scale;
+    final midRadius = (19 * (0.94 + .10 * pulse.breath) + boost) * scale;
+    final coreRadius = (8.5 + boost * 1.5) * scale;
     canvas.drawCircle(
       center,
-      15 * scale,
+      outerRadius,
       Paint()
-        ..color = const Color(0xff36c9f3).withValues(alpha: .18 + .14 * breath),
+        ..color = const Color(
+          0xff2ac8f0,
+        ).withValues(alpha: .13 * pulse.outerAlpha + .10 * boost),
     );
     canvas.drawCircle(
       center,
-      8.5 * scale,
+      midRadius,
       Paint()
-        ..color = const Color(0xff70e8ff).withValues(alpha: .20 + .12 * breath),
+        ..color = const Color(
+          0xff70e8ff,
+        ).withValues(alpha: .22 * pulse.midAlpha + .06 * boost),
     );
     canvas.drawCircle(
       center,
-      4.3 * scale,
+      coreRadius,
       Paint()
-        ..color = const Color(0xffe8fdff).withValues(alpha: .70 + .25 * breath),
+        ..color = const Color(0xffd9fbff).withValues(
+          alpha: (.83 * pulse.coreAlpha + .08 * boost).clamp(.0, 1.0),
+        ),
+    );
+    canvas.drawCircle(
+      center,
+      2.5 * scale,
+      Paint()..color = const Color(0xfff0ffff).withValues(alpha: .97),
     );
   }
 
@@ -598,41 +670,105 @@ class _DataVaultRail {
   final double height;
 }
 
+enum DataVaultImpulseFamily { shortPacket, mediumPacket, longBurst }
+
+class DataVaultImpulseVariant {
+  const DataVaultImpulseVariant({
+    required this.family,
+    required this.colorIndex,
+    required this.tailMultiplier,
+    required this.brightnessMultiplier,
+  });
+
+  final DataVaultImpulseFamily family;
+  final int colorIndex;
+  final double tailMultiplier;
+  final double brightnessMultiplier;
+}
+
+class DataVaultBeaconPulse {
+  const DataVaultBeaconPulse({
+    required this.breath,
+    required this.outerRadius,
+    required this.outerAlpha,
+    required this.midAlpha,
+    required this.coreAlpha,
+  });
+
+  final double breath;
+  final double outerRadius, outerAlpha, midAlpha, coreAlpha;
+}
+
 class _DataVaultImpulseMaterial {
-  const _DataVaultImpulseMaterial(this.color, this.widths, this.alphas);
+  const _DataVaultImpulseMaterial(
+    this.color,
+    this.core,
+    this.widths,
+    this.alphas,
+  );
 
   final Color color;
+  final Color core;
   final List<double> widths;
   final List<double> alphas;
 
   factory _DataVaultImpulseMaterial.forSurface(
     DataVaultImpulseSurface surface,
-  ) => switch (surface) {
-    DataVaultImpulseSurface.floor => const _DataVaultImpulseMaterial(
+    DataVaultImpulseVariant variant,
+  ) {
+    const colors = [
       Color(0xff5ae5ff),
-      [3.2, 1.6, .75],
-      [.12, .34, .78],
-    ),
-    DataVaultImpulseSurface.leftWall ||
-    DataVaultImpulseSurface.rightWall => const _DataVaultImpulseMaterial(
       Color(0xff51c9ef),
-      [2.4, 1.2, .65],
-      [.10, .30, .66],
-    ),
-    DataVaultImpulseSurface.ceiling => const _DataVaultImpulseMaterial(
-      Color(0xff76dcff),
-      [2, 1, .55],
-      [.09, .25, .58],
-    ),
-  };
+      Color(0xffb8f4ff),
+      Color(0xff93b9ff),
+    ];
+    final tint = colors[variant.colorIndex];
+    return switch (surface) {
+      DataVaultImpulseSurface.floor => const _DataVaultImpulseMaterial(
+        Color(0xff5ae5ff),
+        Color(0xffd9fbff),
+        [3.8, 2.0, .85],
+        [.11, .30, .84],
+      ),
+      DataVaultImpulseSurface.leftWall ||
+      DataVaultImpulseSurface.rightWall => const _DataVaultImpulseMaterial(
+        Color(0xff51c9ef),
+        Color(0xffd9fbff),
+        [2.8, 1.4, .65],
+        [.09, .27, .70],
+      ),
+      DataVaultImpulseSurface.ceiling => const _DataVaultImpulseMaterial(
+        Color(0xff76dcff),
+        Color(0xffd9fbff),
+        [2.3, 1.15, .55],
+        [.08, .23, .62],
+      ),
+    }._tinted(tint);
+  }
+
+  _DataVaultImpulseMaterial _tinted(Color tint) => _DataVaultImpulseMaterial(
+    Color.lerp(color, tint, .62)!,
+    Color.lerp(core, tint, .24)!,
+    widths,
+    alphas,
+  );
 }
 
 class HistoryDataVaultMotion {
   static const cycleSeconds = 48.0;
   static const _speedMultiplier = 2.025;
-  static const distancePerCycle = 980.1;
   static const navigationHeadOffset = 5.5;
   static const navigationTrailOffset = 1.2;
+  static const _distanceStep = .01;
+  static final List<double> _distanceTable = _buildDistanceTable();
+  static final double distancePerCycle = _distanceTable.last;
+
+  static const _boostWindows = <(double start, double duration, double peak)>[
+    (7.7, 1.9, 1.70),
+    (18.4, 2.2, 1.82),
+    (29.5, 1.8, 1.64),
+    (43.1, 2.1, 1.76),
+  ];
 
   /// Stable pseudo-random lane configuration.  The sequence is intentionally
   /// derived once from surface/lane identity rather than randomised per frame:
@@ -674,6 +810,52 @@ class HistoryDataVaultMotion {
 
   static double _unit(int value) => (value & 0xffff) / 0xffff;
 
+  /// Stable helpers shared by the painter and focused motion tests. They are
+  /// deliberately independent of frame order, so no Golden frame flickers.
+  static int packetSeed(
+    DataVaultImpulseSurface surface,
+    int lane,
+    int packet,
+  ) => _impulseSeed(surface.index * 12289 + lane * 313 + packet * 7919 + 41);
+
+  static double seedUnit(int value) => _unit(_impulseSeed(value));
+
+  static DataVaultImpulseVariant impulseVariantFor(
+    DataVaultImpulseSurface surface,
+    int lane,
+    int packet,
+  ) {
+    final seed = packetSeed(surface, lane, packet);
+    final selector = seedUnit(seed + 3);
+    final family = selector < .50
+        ? DataVaultImpulseFamily.shortPacket
+        : selector < .85
+        ? DataVaultImpulseFamily.mediumPacket
+        : DataVaultImpulseFamily.longBurst;
+    final length = switch (family) {
+      DataVaultImpulseFamily.shortPacket => .56 + seedUnit(seed + 17) * .22,
+      DataVaultImpulseFamily.mediumPacket => .92 + seedUnit(seed + 17) * .30,
+      DataVaultImpulseFamily.longBurst => 1.42 + seedUnit(seed + 17) * .42,
+    };
+    return DataVaultImpulseVariant(
+      family: family,
+      colorIndex: (seedUnit(seed + 29) * 4).floor().clamp(0, 3),
+      tailMultiplier: length,
+      brightnessMultiplier: .84 + seedUnit(seed + 43) * .30,
+    );
+  }
+
+  /// A floor packet owns a physical, gently drifting world path. It is not
+  /// coupled to the decorative -3.2/-1.6/0/1.6/3.2 floor-grid offsets.
+  static double floorImpulseLateralAt(int lane, int packet, double s) {
+    final seed = packetSeed(DataVaultImpulseSurface.floor, lane, packet);
+    final base = -3.35 + seedUnit(seed) * 6.7;
+    final drift = (seedUnit(seed + 29) - .5) * .72;
+    final wave = .10 + seedUnit(seed + 47) * .12;
+    final phase = seedUnit(seed + 71) * math.pi * 2;
+    return (base + drift * math.sin(s * wave + phase)).clamp(-3.68, 3.68);
+  }
+
   /// An incoming impulse starts beyond the usable far range at its own launch
   /// time and advances toward the viewer along the curved world coordinate.
   /// It has no modulo reset while inside the projected corridor.
@@ -693,12 +875,7 @@ class HistoryDataVaultMotion {
     return c * c * (3 - 2 * c);
   }
 
-  static double _smoothIntegral(double u) {
-    final c = u.clamp(0.0, 1.0);
-    return c * c * c - .5 * c * c * c * c;
-  }
-
-  static double speedAt(double seconds) {
+  static double baseSpeedAt(double seconds) {
     final t = ((seconds % cycleSeconds) + cycleSeconds) % cycleSeconds;
     if (t < 12) return 7 * _speedMultiplier;
     if (t < 17) return (7 + 9 * smooth((t - 12) / 5)) * _speedMultiplier;
@@ -709,47 +886,99 @@ class HistoryDataVaultMotion {
     return 7 * _speedMultiplier;
   }
 
+  /// One low-frequency wave makes ordinary transit breathe without changing
+  /// the 48-second world schedule. It is value and derivative continuous at
+  /// the cycle boundary.
+  static double speedWaveAt(double seconds) {
+    final phase = ((seconds % cycleSeconds) + cycleSeconds) % cycleSeconds;
+    return 1.05 - .05 * math.cos(math.pi * 2 * phase / cycleSeconds);
+  }
+
+  /// Smooth, deterministic boost envelopes with zero value and derivative at
+  /// their endpoints. The peak is 1.55–1.90x the active base state.
+  static double boostStrengthAt(double seconds) {
+    final t = ((seconds % cycleSeconds) + cycleSeconds) % cycleSeconds;
+    var value = 0.0;
+    for (final window in _boostWindows) {
+      if (t < window.$1 || t > window.$1 + window.$2) continue;
+      final u = (t - window.$1) / window.$2;
+      value = math.max(value, math.sin(math.pi * u));
+    }
+    return value;
+  }
+
+  static double boostMultiplierAt(double seconds) {
+    final t = ((seconds % cycleSeconds) + cycleSeconds) % cycleSeconds;
+    var multiplier = 1.0;
+    for (final window in _boostWindows) {
+      if (t < window.$1 || t > window.$1 + window.$2) continue;
+      final u = (t - window.$1) / window.$2;
+      final envelope = .5 - .5 * math.cos(math.pi * 2 * u);
+      multiplier = math.max(multiplier, 1 + (window.$3 - 1) * envelope);
+    }
+    return multiplier;
+  }
+
+  static double speedAt(double seconds) =>
+      baseSpeedAt(seconds) * speedWaveAt(seconds) * boostMultiplierAt(seconds);
+
   /// Smoothly advances the beacon up the projected route while sprinting.
   /// The world offset, rather than a screen overlay, keeps it on the road.
-  static double beaconSprintAdvance(double speed) {
+  static double beaconSprintAdvance(double speed, [double? seconds]) {
     final u = ((speed - 14.175) / (32.4 - 14.175)).clamp(0.0, 1.0);
-    return 2.2 * smooth(u);
+    final boost = seconds == null ? 0.0 : boostStrengthAt(seconds);
+    return 2.2 * smooth(u) + 1.35 * boost;
   }
 
   static double distanceAt(double seconds) {
     final cycles = (seconds / cycleSeconds).floor();
     final t = seconds - cycles * cycleSeconds;
-    double distance = cycles * distancePerCycle;
-    if (t <= 12) {
-      return distance + 14.175 * t;
+    final index = (t / _distanceStep).floor().clamp(
+      0,
+      _distanceTable.length - 1,
+    );
+    final remaining = t - index * _distanceStep;
+    final integral =
+        _distanceTable[index] +
+        _integrateInterval(index * _distanceStep, remaining);
+    return cycles * distancePerCycle + integral;
+  }
+
+  static List<double> _buildDistanceTable() {
+    final values = <double>[0];
+    var total = 0.0;
+    for (
+      var index = 0;
+      index < (cycleSeconds / _distanceStep).round();
+      index++
+    ) {
+      total += _integrateInterval(index * _distanceStep, _distanceStep);
+      values.add(total);
     }
-    distance += 170.1;
-    if (t <= 17) {
-      return distance +
-          70.875 * ((t - 12) / 5) +
-          91.125 * _smoothIntegral((t - 12) / 5);
-    }
-    distance += 116.4375;
-    if (t <= 22) {
-      return distance + 32.4 * (t - 17);
-    }
-    distance += 162;
-    if (t <= 27) {
-      return distance +
-          162 * ((t - 22) / 5) -
-          50.625 * _smoothIntegral((t - 22) / 5);
-    }
-    distance += 136.6875;
-    if (t <= 36) {
-      return distance + 22.275 * (t - 27);
-    }
-    distance += 200.475;
-    if (t <= 42) {
-      return distance +
-          133.65 * ((t - 36) / 6) -
-          48.6 * _smoothIntegral((t - 36) / 6);
-    }
-    return distance + 109.35 + 14.175 * (t - 42);
+    return values;
+  }
+
+  static double _integrateInterval(double start, double duration) {
+    if (duration <= 0) return 0;
+    // Simpson integration keeps the cumulative world coordinate continuous
+    // while all expensive work stays bounded in a small static lookup table.
+    final middle = start + duration / 2;
+    return duration /
+        6 *
+        (speedAt(start) + 4 * speedAt(middle) + speedAt(start + duration));
+  }
+
+  static DataVaultBeaconPulse beaconPulseAt(double seconds) {
+    final slow = math.sin(math.pi * 2 * seconds / 3.2 + .43);
+    final flutter = math.sin(math.pi * 2 * seconds / .68 + 1.17);
+    final breath = ((slow + 1) / 2 + flutter * .10).clamp(0.0, 1.0);
+    return DataVaultBeaconPulse(
+      breath: breath,
+      outerRadius: .92 + .20 * breath,
+      outerAlpha: .75 + .60 * breath,
+      midAlpha: .78 + .40 * breath,
+      coreAlpha: .88 + .20 * breath,
+    );
   }
 
   static double impulseVisibility(double depth) =>
