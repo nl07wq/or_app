@@ -57,6 +57,8 @@ class _OperationOrbitalTimePickerDialogState
   late int _minute;
   var _mode = _OrbitalMode.hour;
   var _keyboard = false;
+  int? _activeDialPointer;
+  var _hourGestureStartedOnValue = false;
   late final TextEditingController _hourController;
   late final TextEditingController _minuteController;
 
@@ -110,24 +112,56 @@ class _OperationOrbitalTimePickerDialogState
     });
   }
 
-  void _selectDialValue(Offset local, Size size) {
+  bool _updateDialValue(Offset local, Size size, _OrbitalMode mode) {
     final delta = local - Offset(size.width / 2, size.height / 2);
-    if (delta.distance < size.width * .24) return;
+    if (delta.distance < size.width * .24) return false;
     var angle = math.atan2(delta.dy, delta.dx) + math.pi / 2;
     if (angle < 0) angle += math.pi * 2;
     setState(() {
-      if (_mode == _OrbitalMode.hour) {
+      if (mode == _OrbitalMode.hour) {
         final value = (angle / (math.pi * 2) * 12).round() % 12;
         _hour24 = OperationOrbitalTimeMapping.fromDialHour(
           dialHour: value == 0 ? 12 : value,
           pm: _pm,
         );
-        _mode = _OrbitalMode.minute;
       } else {
         _minute = (angle / (math.pi * 2) * 60).round() % 60;
       }
       _syncInputs();
     });
+    return true;
+  }
+
+  void _beginDialInteraction(PointerDownEvent event, Size size) {
+    if (_activeDialPointer != null) return;
+    _activeDialPointer = event.pointer;
+    final modeAtStart = _mode;
+    final selected = _updateDialValue(event.localPosition, size, modeAtStart);
+    _hourGestureStartedOnValue =
+        modeAtStart == _OrbitalMode.hour && selected;
+  }
+
+  void _moveDialInteraction(PointerMoveEvent event, Size size) {
+    if (event.pointer != _activeDialPointer ||
+        (!_hourGestureStartedOnValue && _mode == _OrbitalMode.hour)) {
+      return;
+    }
+    _updateDialValue(event.localPosition, size, _mode);
+  }
+
+  void _completeDialInteraction(PointerUpEvent event) {
+    if (event.pointer != _activeDialPointer) return;
+    final enterMinute =
+        _mode == _OrbitalMode.hour && _hourGestureStartedOnValue;
+    _activeDialPointer = null;
+    _hourGestureStartedOnValue = false;
+    if (enterMinute) setState(() => _mode = _OrbitalMode.minute);
+  }
+
+  void _cancelDialInteraction(PointerCancelEvent event) {
+    if (event.pointer != _activeDialPointer) return;
+    _activeDialPointer = null;
+    _hourGestureStartedOnValue = false;
   }
 
   void _toggleKeyboard() => setState(() {
@@ -335,12 +369,14 @@ class _OperationOrbitalTimePickerDialogState
       key: const ValueKey('orbital-time-picker-dial'),
       width: diameter,
       height: diameter,
-      child: GestureDetector(
+      child: Listener(
         behavior: HitTestBehavior.opaque,
-        onTapDown: (details) =>
-            _selectDialValue(details.localPosition, Size.square(diameter)),
-        onPanUpdate: (details) =>
-            _selectDialValue(details.localPosition, Size.square(diameter)),
+        onPointerDown: (event) =>
+            _beginDialInteraction(event, Size.square(diameter)),
+        onPointerMove: (event) =>
+            _moveDialInteraction(event, Size.square(diameter)),
+        onPointerUp: _completeDialInteraction,
+        onPointerCancel: _cancelDialInteraction,
         child: CustomPaint(
           painter: _OrbitalClockPainter(
             pm: _pm,

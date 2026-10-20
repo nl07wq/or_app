@@ -88,6 +88,31 @@ void main() {
     expect(find.textContaining('終了時刻'), findsNothing);
   });
 
+  testWidgets('date time editor always uses deterministic 24-hour rows', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SharedDateTimeEditor(
+            date: DateTime(2026, 10, 9),
+            allDay: false,
+            startTime: const TimeOfDay(hour: 7, minute: 0),
+            endTime: const TimeOfDay(hour: 18, minute: 5),
+            onDateChanged: (_) {},
+            onAllDayChanged: (_) {},
+            onStartTimeChanged: (_) {},
+            onEndTimeChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('開始時刻  7:00'), findsOneWidget);
+    expect(find.text('終了時刻  18:05'), findsOneWidget);
+    expect(find.textContaining('AM'), findsNothing);
+    expect(find.textContaining('PM'), findsNothing);
+  });
+
   test('retains every Reminder-authoritative effective rule summary', () {
     final friday = DateTime(2026, 10, 9);
     String summary(

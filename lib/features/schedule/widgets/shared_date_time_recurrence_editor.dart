@@ -102,9 +102,12 @@ class _SharedTimeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
     contentPadding: EdgeInsets.zero,
-    title: Text('$label  ${value?.format(context) ?? '未設定'}'),
+    title: Text('$label  ${value == null ? '未設定' : _format24Hour(value!)}'),
     onTap: onTap,
   ).inputFeedback();
+
+  static String _format24Hour(TimeOfDay value) =>
+      '${value.hour}:${value.minute.toString().padLeft(2, '0')}';
 }
 
 class SharedRecurrenceValue {

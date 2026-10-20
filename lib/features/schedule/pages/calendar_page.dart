@@ -836,88 +836,100 @@ class _CalendarPageState extends State<CalendarPage> {
                                         ),
                                       ),
                                     if (_selectedSchedules.isNotEmpty)
-                                      Stack(
-                                        key: _dailyTimelineKey,
-                                        children: [
-                                          Positioned.fill(
-                                            child: IgnorePointer(
-                                              child: CustomPaint(
-                                                key: const ValueKey(
-                                                  'calendar-daily-timeline-rail',
-                                                ),
-                                                painter: _DailyTimelineRailPainter(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary,
-                                                  markerBounds:
-                                                      _dailyTimelineMarkerBounds,
+                                      KeyedSubtree(
+                                        key: const ValueKey(
+                                          'calendar-daily-timeline-stack',
+                                        ),
+                                        child: Stack(
+                                          key: _dailyTimelineKey,
+                                          children: [
+                                            Positioned.fill(
+                                              child: IgnorePointer(
+                                                child: CustomPaint(
+                                                  key: const ValueKey(
+                                                    'calendar-daily-timeline-rail',
+                                                  ),
+                                                  painter:
+                                                      _DailyTimelineRailPainter(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary,
+                                                        markerBounds:
+                                                            _dailyTimelineMarkerBounds,
+                                                      ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          Column(
-                                            children: [
-                                              for (final entry
-                                                  in _selectedSchedules.indexed)
-                                                Dismissible(
-                                                  key: ValueKey(
-                                                    'schedule-entry-${entry.$2.id}',
-                                                  ),
-                                                  direction: DismissDirection
-                                                      .endToStart,
-                                                  background:
-                                                      const _TimelineDeleteBackground(),
-                                                  confirmDismiss: (_) async {
-                                                    await _deleteRecord(
-                                                      entry.$2,
-                                                    );
-                                                    return false;
-                                                  },
-                                                  child: _TimelineEntry(
-                                                    record: entry.$2,
-                                                    overdue:
-                                                        _isSelectedReminderOverdue(
-                                                          entry.$2,
-                                                        ),
-                                                    markerKey:
-                                                        _timelineMarkerKeys
-                                                            .putIfAbsent(
-                                                              entry.$2.id,
-                                                              GlobalKey.new,
-                                                            ),
-                                                    onTap: () {
-                                                      _collapseWeatherForCalendarAction();
-                                                      if (_projectedReminders
-                                                          .containsKey(
-                                                            entry.$2.id,
-                                                          )) {
-                                                        Navigator.of(
-                                                          context,
-                                                        ).pushNamed(
-                                                          AppRoutes.reminders,
-                                                        );
-                                                        return;
-                                                      }
-                                                      _openEditor(entry.$2);
+                                            Column(
+                                              children: [
+                                                for (final entry
+                                                    in _selectedSchedules
+                                                        .indexed)
+                                                  Dismissible(
+                                                    key: ValueKey(
+                                                      'schedule-entry-${entry.$2.id}',
+                                                    ),
+                                                    direction: DismissDirection
+                                                        .endToStart,
+                                                    background:
+                                                        const _TimelineDeleteBackground(),
+                                                    confirmDismiss: (_) async {
+                                                      await _deleteRecord(
+                                                        entry.$2,
+                                                      );
+                                                      return false;
                                                     },
-                                                    onReminderToggle:
-                                                        entry.$2.kind ==
-                                                            ScheduleEntryKind
-                                                                .reminder
-                                                        ? () => _toggleReminder(
+                                                    child: _TimelineEntry(
+                                                      record: entry.$2,
+                                                      overdue:
+                                                          _isSelectedReminderOverdue(
                                                             entry.$2,
-                                                          )
-                                                        : null,
-                                                    onMove: (minutes) =>
-                                                        _moveTimed(
-                                                          entry.$2,
-                                                          minutes,
-                                                        ),
+                                                          ),
+                                                      markerKey:
+                                                          _timelineMarkerKeys
+                                                              .putIfAbsent(
+                                                                entry.$2.id,
+                                                                GlobalKey.new,
+                                                              ),
+                                                      onTap: () {
+                                                        _collapseWeatherForCalendarAction();
+                                                        if (_projectedReminders
+                                                            .containsKey(
+                                                              entry.$2.id,
+                                                            )) {
+                                                          Navigator.of(
+                                                            context,
+                                                          ).pushNamed(
+                                                            AppRoutes.reminders,
+                                                          );
+                                                          return;
+                                                        }
+                                                        _openEditor(entry.$2);
+                                                      },
+                                                      onReminderToggle:
+                                                          entry.$2.kind ==
+                                                              ScheduleEntryKind
+                                                                  .reminder
+                                                          ? () =>
+                                                                _toggleReminder(
+                                                                  entry.$2,
+                                                                )
+                                                          : null,
+                                                      onMove: (minutes) =>
+                                                          _moveTimed(
+                                                            entry.$2,
+                                                            minutes,
+                                                          ),
+                                                    ),
                                                   ),
+                                                const SizedBox(
+                                                  height:
+                                                      calendarTimelineTailAreaHeight,
                                                 ),
-                                            ],
-                                          ),
-                                        ],
+                                              ],
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     AppSpacing.gapMD,
                                     Center(
@@ -5183,39 +5195,21 @@ class _TimelineEntryState extends State<_TimelineEntry> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 56,
-                child: Text(
-                  record.allDay ? '終日' : record.startTime ?? '未設定',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.primary.withValues(alpha: .82),
-                    letterSpacing: .4,
-                  ),
-                ),
-              ),
-              SizedBox(
                 width: calendarTimelineRailColumnWidth,
-                child: Column(
-                  children: [
-                    KeyedSubtree(
-                      key: widget.markerKey,
-                      child: Icon(
-                        key: record.kind == ScheduleEntryKind.reminder
-                            ? ValueKey('calendar-reminder-bell-${record.id}')
-                            : ValueKey('calendar-timeline-anchor-${record.id}'),
-                        record.kind == ScheduleEntryKind.reminder
-                            ? (record.completed
-                                  ? Icons.check_circle
-                                  : Icons.notifications_none)
-                            : Icons.circle_outlined,
+                child: KeyedSubtree(
+                  key: widget.markerKey,
+                  child: SizedBox(
+                    key: ValueKey('calendar-timeline-anchor-${record.id}'),
+                    width: calendarTimelineMarkerDiameter,
+                    height: calendarTimelineMarkerDiameter,
+                    child: CustomPaint(
+                      painter: _TimelineMarkerPainter(
                         color: colorScheme.primary.withValues(
                           alpha: holographicTimelineNodeOpacity,
                         ),
-                        size: record.kind == ScheduleEntryKind.reminder
-                            ? 16
-                            : calendarTimelineScheduleAnchorSize,
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(width: calendarTimelineContentGap),
@@ -5233,7 +5227,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                         ),
                       ),
                       Text(
-                        '${widget.overdue ? '超過  ${record.localDate}  ' : ''}${record.kind == ScheduleEntryKind.reminder ? 'リマインダー' : _scheduleTypeLabel(record.type)}${record.endTime == null ? '' : '  ${record.startTime}–${_displayEndTime(record)}'}${_previewMinutes == 0 ? '' : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m'}',
+                        _timelineDescription(record),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: widget.overdue
                               ? colorScheme.error
@@ -5259,6 +5253,25 @@ class _TimelineEntryState extends State<_TimelineEntry> {
       ),
     ).actionableFeedback();
   }
+
+  String _timelineDescription(ScheduleRecord record) {
+    final overduePrefix = widget.overdue ? '超過  ${record.localDate}  ' : '';
+    final type = record.kind == ScheduleEntryKind.reminder
+        ? 'リマインダー'
+        : _scheduleTypeLabel(record.type);
+    final hasTimeRange =
+        record.kind != ScheduleEntryKind.reminder &&
+        !record.allDay &&
+        record.startTime != null &&
+        record.endTime != null;
+    final range = hasTimeRange
+        ? '  ${record.startTime}–${_displayEndTime(record)}'
+        : '';
+    final preview = _previewMinutes == 0
+        ? ''
+        : '  → ${_previewMinutes > 0 ? '+' : ''}${_previewMinutes}m';
+    return '$overduePrefix$type$range$preview';
+  }
 }
 
 const calendarMonthGridDateTopAnchor = 4.0;
@@ -5276,8 +5289,34 @@ const calendarMonthGridUsesLocalMonthControlFrame = false;
 const calendarMonthGridTelemetryDividerOpacity = .24;
 const calendarTimelineUsesIndividualEntryCards = false;
 const calendarTimelineUsesHorizontalAnchorConnector = false;
-const calendarTimelineScheduleAnchorSize = holographicTimelineNodeIconSize;
-const calendarTimelineRailColumnWidth = holographicTimelineNodeIconSize;
+const calendarTimelineMarkerDiameter = 16.0;
+const calendarTimelineMarkerStrokeWidth = 1.5;
+const calendarTimelineScheduleAnchorSize = calendarTimelineMarkerDiameter;
+const calendarTimelineRailColumnWidth = calendarTimelineMarkerDiameter;
+const calendarTimelineTailAreaHeight = 48.0;
+
+class _TimelineMarkerPainter extends CustomPainter {
+  const _TimelineMarkerPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radius = (size.shortestSide - calendarTimelineMarkerStrokeWidth) / 2;
+    canvas.drawCircle(
+      size.center(Offset.zero),
+      radius,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = calendarTimelineMarkerStrokeWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimelineMarkerPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
 
 /// The selected-day list owns one rail, so variable-height rows cannot leave
 /// connector gaps between their measured marker bounds.
@@ -5304,6 +5343,14 @@ class _DailyTimelineRailPainter extends CustomPainter {
         paint,
       );
     }
+    if (markerBounds.isNotEmpty) {
+      final last = markerBounds.last;
+      canvas.drawLine(
+        Offset(last.center.dx, last.bottom),
+        Offset(last.center.dx, size.height - 4),
+        paint,
+      );
+    }
   }
 
   @override
@@ -5311,7 +5358,7 @@ class _DailyTimelineRailPainter extends CustomPainter {
       oldDelegate.color != color || oldDelegate.markerBounds != markerBounds;
 }
 
-const calendarTimelineContentGap = 6.0;
+const calendarTimelineContentGap = 10.0;
 
 class _CalendarTimelineAddControl extends StatelessWidget {
   const _CalendarTimelineAddControl({required this.onPressed});

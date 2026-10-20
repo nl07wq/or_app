@@ -13,11 +13,13 @@ import 'package:or_app/features/schedule/models/schedule_record.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/schedule/weather_forecast_summary.dart';
 import 'package:or_app/features/weather/weather_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues(const <String, Object>{});
     AppRepositoryRegistry.install(
       AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
     );
@@ -84,9 +86,9 @@ void main() {
     expect(calendarMonthGridTelemetryDividerOpacity, .24);
     expect(calendarTimelineUsesIndividualEntryCards, isFalse);
     expect(calendarTimelineUsesHorizontalAnchorConnector, isFalse);
-    expect(calendarTimelineScheduleAnchorSize, holographicTimelineNodeIconSize);
-    expect(calendarTimelineRailColumnWidth, holographicTimelineNodeIconSize);
-    expect(calendarTimelineContentGap, 6);
+    expect(calendarTimelineScheduleAnchorSize, 16);
+    expect(calendarTimelineRailColumnWidth, 16);
+    expect(calendarTimelineContentGap, 10);
     expect(
       calendarMonthGridWeekRowBandColor(ThemeData.dark().colorScheme),
       ThemeData.dark().colorScheme.onSurface.withValues(alpha: .020),
@@ -470,13 +472,11 @@ void main() {
       find.byKey(const ValueKey('calendar-timeline-floating-surface')),
       findsOneWidget,
     );
-    final anchor = tester.widget<Icon>(
-      find.byKey(
-        const ValueKey('calendar-timeline-anchor-open-timeline-entry'),
-      ),
+    final anchor = find.byKey(
+      const ValueKey('calendar-timeline-anchor-open-timeline-entry'),
     );
-    expect(anchor.size, calendarTimelineScheduleAnchorSize);
-    expect(anchor.icon, Icons.circle_outlined);
+    expect(anchor, findsOneWidget);
+    expect(tester.getSize(anchor), const Size(16, 16));
     await tester.pump();
     expect(
       find.byKey(const ValueKey('calendar-daily-timeline-rail')),
@@ -534,9 +534,17 @@ void main() {
     );
     expect(first.center.dx, closeTo(second.center.dx, .1));
     expect(first.bottom, lessThan(second.top));
+    final railBounds = tester.getRect(
+      find.byKey(const ValueKey('calendar-daily-timeline-rail')),
+    );
+    expect(railBounds.bottom - second.bottom, greaterThanOrEqualTo(44));
     expect(
       find.byKey(const ValueKey('calendar-daily-timeline-rail')),
       findsOneWidget,
+    );
+    await expectLater(
+      find.byKey(const ValueKey('calendar-daily-timeline-stack')),
+      matchesGoldenFile('goldens/calendar_selected_timeline_two_entries.png'),
     );
     expect(tester.takeException(), isNull);
   });
@@ -606,10 +614,10 @@ void main() {
     expect(audio.played, [TouchFeedbackSound.success]);
     await tester.tap(find.byIcon(Icons.chevron_right).first);
     await tester.pumpAndSettle();
-    expect(
-      audio.played,
-      [TouchFeedbackSound.success, TouchFeedbackSound.success],
-    );
+    expect(audio.played, [
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.success,
+    ]);
     final today = DateUtils.dateOnly(DateTime.now());
     final differentDate = DateTime(
       today.year,
@@ -623,25 +631,19 @@ void main() {
     await tester.tap(date);
     await tester.pumpAndSettle();
 
-    expect(
-      audio.played,
-      [
-        TouchFeedbackSound.success,
-        TouchFeedbackSound.success,
-        TouchFeedbackSound.success,
-      ],
-    );
+    expect(audio.played, [
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.success,
+    ]);
     await tester.tap(find.text('今日'));
     await tester.pumpAndSettle();
-    expect(
-      audio.played,
-      [
-        TouchFeedbackSound.success,
-        TouchFeedbackSound.success,
-        TouchFeedbackSound.success,
-        TouchFeedbackSound.success,
-      ],
-    );
+    expect(audio.played, [
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.success,
+      TouchFeedbackSound.success,
+    ]);
     await tester.tap(find.text('今日'));
     await tester.pumpAndSettle();
     expect(audio.played, hasLength(4));
@@ -702,13 +704,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('今日の予定'), findsOneWidget);
-      expect(find.text('終日'), findsNWidgets(6));
+      expect(find.text('終日'), findsNothing);
       expect(find.text('勤務'), findsOneWidget);
       expect(find.text('プライベート'), findsOneWidget);
       expect(find.text('アポイント'), findsOneWidget);
       expect(find.text('トレーニング'), findsOneWidget);
       expect(find.text('リマインダー'), findsOneWidget);
-      expect(find.byIcon(Icons.notifications_none), findsOneWidget);
+      expect(find.byIcon(Icons.notifications_none), findsNothing);
       expect(find.byIcon(Icons.diamond_outlined), findsNothing);
       expect(find.text('その他'), findsOneWidget);
       expect(find.text('ALL DAY'), findsNothing);

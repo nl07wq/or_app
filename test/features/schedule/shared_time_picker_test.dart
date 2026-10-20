@@ -123,6 +123,57 @@ void main() {
     expect(find.text('37'), findsWidgets);
   });
 
+  testWidgets('hour dial follows one pointer until release before minute mode', (
+    tester,
+  ) async {
+    await showPicker(tester, const TimeOfDay(hour: 13, minute: 35));
+    final dial = find.byKey(const ValueKey('orbital-time-picker-dial'));
+    final center = tester.getRect(dial).center;
+    Offset atHour(int hour) {
+      final angle = hour * 2 * math.pi / 12 - math.pi / 2;
+      return center + Offset(88 * math.cos(angle), 88 * math.sin(angle));
+    }
+
+    final gesture = await tester.createGesture(pointer: 41);
+    await gesture.down(atHour(1));
+    await tester.pump();
+    expect(find.text('13'), findsWidgets);
+    expect(find.text('HOUR SELECT'), findsOneWidget);
+    await gesture.moveTo(atHour(2));
+    await tester.pump();
+    expect(find.text('14'), findsWidgets);
+    expect(find.text('HOUR SELECT'), findsOneWidget);
+    await gesture.moveTo(atHour(4));
+    await tester.pump();
+    expect(find.text('16'), findsWidgets);
+    await gesture.up();
+    await tester.pump();
+    expect(find.text('MINUTE SELECT'), findsOneWidget);
+    expect(find.text('35'), findsWidgets);
+  });
+
+  testWidgets('hour center dead zone and cancellation do not change mode', (
+    tester,
+  ) async {
+    await showPicker(tester, const TimeOfDay(hour: 13, minute: 7));
+    final center = tester
+        .getRect(find.byKey(const ValueKey('orbital-time-picker-dial')))
+        .center;
+    final gesture = await tester.createGesture(pointer: 42);
+    await gesture.down(center);
+    await gesture.moveTo(center + const Offset(0, -88));
+    await gesture.up();
+    await tester.pump();
+    expect(find.text('HOUR SELECT'), findsOneWidget);
+    expect(find.text('13'), findsWidgets);
+
+    final cancelled = await tester.createGesture(pointer: 43);
+    await cancelled.down(center + const Offset(0, -88));
+    await cancelled.cancel();
+    await tester.pump();
+    expect(find.text('HOUR SELECT'), findsOneWidget);
+  });
+
   testWidgets('invalid keyboard input disables confirmation', (tester) async {
     await showPicker(tester, const TimeOfDay(hour: 23, minute: 35));
     await tester.tap(
