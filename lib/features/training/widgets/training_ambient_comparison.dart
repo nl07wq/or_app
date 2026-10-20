@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -327,9 +328,18 @@ class TrainingAmbientComparison extends StatefulWidget {
     super.key,
     required this.variant,
     this.debugTime,
+    this.kineticImageProvider,
+    this.showKineticImage = true,
   });
   final TrainingAmbientVariant variant;
   final double? debugTime;
+
+  /// Test-only seams for exercising the synchronous fallback while a browser
+  /// image decode is delayed or unavailable. Production always uses the WebP.
+  @visibleForTesting
+  final ImageProvider<Object>? kineticImageProvider;
+  @visibleForTesting
+  final bool showKineticImage;
 
   static const kineticEngineBackgroundAsset =
       'assets/images/training/kinetic_engine_v9_background_q90.webp';
@@ -1002,12 +1012,18 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   late final Ticker _ticker;
   final KineticActiveClock _machineClock = KineticActiveClock();
   Duration? _lastTickerElapsed;
-  bool _didPrecacheKineticBackground = false;
+  ImageStream? _imageStream;
+  ImageStreamListener? _imageListener;
+  var _imageFailed = false;
+
+  ImageProvider<Object> get _imageProvider =>
+      widget.kineticImageProvider ?? _kineticBackgroundImage;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    KineticFirstFrameInstrumentation.ambientInit();
     _ticker = createTicker(_onFrame)..start();
   }
 
@@ -1037,19 +1053,55 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_didPrecacheKineticBackground ||
-        widget.variant != TrainingAmbientVariant.kineticEngine) {
-      return;
+    if (widget.variant == TrainingAmbientVariant.kineticEngine) {
+      _resolveKineticImage();
     }
-    _didPrecacheKineticBackground = true;
-    // Decode once in Flutter's image cache. The CustomPainter below remains
-    // available on the first frame while a web decoder resolves the WebP.
-    precacheImage(_kineticBackgroundImage, context).catchError((_) {});
+  }
+
+  @override
+  void didUpdateWidget(covariant TrainingAmbientComparison oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.kineticImageProvider != widget.kineticImageProvider ||
+        oldWidget.showKineticImage != widget.showKineticImage) {
+      _stopImageListening();
+      _imageFailed = false;
+      if (widget.variant == TrainingAmbientVariant.kineticEngine) {
+        _resolveKineticImage();
+      }
+    }
+  }
+
+  void _resolveKineticImage() {
+    if (!widget.showKineticImage || _imageStream != null) return;
+    KineticFirstFrameInstrumentation.imageResolveStart();
+    final stream = _imageProvider.resolve(
+      createLocalImageConfiguration(context),
+    );
+    _imageStream = stream;
+    _imageListener = ImageStreamListener(
+      (_, _) {
+        KineticFirstFrameInstrumentation.imageReady();
+      },
+      onError: (Object error, StackTrace? stackTrace) {
+        KineticFirstFrameInstrumentation.imageError(error);
+        if (mounted) setState(() => _imageFailed = true);
+      },
+    );
+    stream.addListener(_imageListener!);
+  }
+
+  void _stopImageListening() {
+    if (_imageStream != null && _imageListener != null) {
+      _imageStream!.removeListener(_imageListener!);
+    }
+    _imageStream = null;
+    _imageListener = null;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stopImageListening();
     _ticker.dispose();
     super.dispose();
   }
@@ -1061,17 +1113,41 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
         fit: StackFit.expand,
         children: [
           if (widget.variant == TrainingAmbientVariant.kineticEngine)
+            CustomPaint(
+              key: const ValueKey('kinetic-first-frame-fallback'),
+              painter: const _KineticFirstFrameFallbackPainter(),
+              child: const SizedBox.expand(),
+            ),
+          if (widget.variant == TrainingAmbientVariant.kineticEngine &&
+              widget.showKineticImage &&
+              !_imageFailed)
             Image(
-              image: _kineticBackgroundImage,
+              key: const ValueKey('kinetic-engine-background-image'),
+              image: _imageProvider,
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
+              errorBuilder: (context, error, stackTrace) {
+                KineticFirstFrameInstrumentation.imageError(error);
+                return const SizedBox.expand();
+              },
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (frame != null || wasSynchronouslyLoaded) {
+                  KineticFirstFrameInstrumentation.firstFrameAfterImageReady();
+                }
+                return child;
+              },
             ),
           CustomPaint(
+            key: const ValueKey('kinetic-engine-mechanical-painter'),
             painter: _TrainingAmbientPainter(
               variant: widget.variant,
               time: widget.debugTime ?? _machineClock.elapsedSeconds,
+              onFirstKineticPaint:
+                  widget.variant == TrainingAmbientVariant.kineticEngine
+                  ? KineticFirstFrameInstrumentation.firstKineticPaint
+                  : null,
             ),
             child: const SizedBox.expand(),
           ),
@@ -1128,10 +1204,130 @@ class TrainingAmbientComparisonSelector extends StatelessWidget {
   );
 }
 
+/// One-shot startup diagnostics. They compile out of release behavior and are
+/// deliberately observational: Flutter frame timings are not GPU presentation
+/// measurements, especially on iPhone Safari.
+class KineticFirstFrameInstrumentation {
+  KineticFirstFrameInstrumentation._();
+
+  static final Map<String, Duration> _marks = <String, Duration>{};
+  static final List<FrameTiming> _frameTimings = <FrameTiming>[];
+  static Stopwatch? _clock;
+  static bool _collecting = false;
+
+  static bool get _enabled => kDebugMode || kProfileMode;
+  static Map<String, Duration> get marks => Map.unmodifiable(_marks);
+  static List<FrameTiming> get frameTimings => List.unmodifiable(_frameTimings);
+
+  static void routeInit() => _startIfNeeded();
+  static void ambientInit() {
+    _startIfNeeded();
+    _mark('t_routeInit');
+  }
+
+  static void firstScaffoldBuild() => _mark('t_firstScaffoldBuild');
+  static void imageResolveStart() => _mark('t_imageResolveStart');
+  static void imageReady() => _mark('t_imageReady');
+  static void imageError(Object error) => _mark('t_imageError');
+  static void firstFallbackPaint() => _mark('t_firstFallbackPaint');
+  static void firstKineticPaint() => _mark('t_firstKineticPaint');
+  static void firstFrameAfterImageReady() =>
+      _mark('t_firstFrameAfterImageReady');
+
+  static void _startIfNeeded() {
+    if (!_enabled || _collecting) return;
+    _collecting = true;
+    _marks.clear();
+    _frameTimings.clear();
+    _clock = Stopwatch()..start();
+    _mark('t_routeInit');
+    SchedulerBinding.instance.addTimingsCallback(_onTimings);
+  }
+
+  static void _onTimings(List<FrameTiming> timings) {
+    if (!_enabled || _frameTimings.length >= 30) return;
+    _frameTimings.addAll(timings.take(30 - _frameTimings.length));
+  }
+
+  static void _mark(String name) {
+    if (!_enabled || _marks.containsKey(name)) return;
+    _marks[name] = _clock?.elapsed ?? Duration.zero;
+  }
+
+  static void dispose() {
+    if (!_collecting) return;
+    SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+    _collecting = false;
+  }
+}
+
+/// Synchronous, asset-independent base used while the browser resolves WebP.
+/// It intentionally reuses only broad engine anchors so it never becomes a
+/// second mechanical composition or an asynchronous loading surface.
+class _KineticFirstFrameFallbackPainter extends CustomPainter {
+  const _KineticFirstFrameFallbackPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    KineticFirstFrameInstrumentation.firstFallbackPaint();
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xff030914),
+    );
+    final structural = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xff51d7f4).withValues(alpha: .18);
+    final anchors = <(Offset, Offset)>[
+      (
+        Offset(size.width * .08, size.height * .21),
+        Offset(size.width * .39, size.height * .34),
+      ),
+      (
+        Offset(size.width * .39, size.height * .34),
+        Offset(size.width * .70, size.height * .18),
+      ),
+      (
+        Offset(size.width * .12, size.height * .73),
+        Offset(size.width * .43, size.height * .61),
+      ),
+      (
+        Offset(size.width * .43, size.height * .61),
+        Offset(size.width * .84, size.height * .73),
+      ),
+    ];
+    for (final (start, end) in anchors) {
+      canvas.drawLine(start, end, structural..strokeWidth = 1.1);
+    }
+    final hubPaint = Paint()
+      ..color = const Color(0xff81e9fb).withValues(alpha: .18);
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xff81e9fb).withValues(alpha: .22);
+    for (final center in [
+      Offset(size.width * .39, size.height * .34),
+      Offset(size.width * .43, size.height * .61),
+    ]) {
+      canvas.drawCircle(center, size.shortestSide * .055, hubPaint);
+      canvas.drawCircle(center, size.shortestSide * .095, ring);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _KineticFirstFrameFallbackPainter oldDelegate) =>
+      false;
+}
+
 class _TrainingAmbientPainter extends CustomPainter {
-  const _TrainingAmbientPainter({required this.variant, required this.time});
+  const _TrainingAmbientPainter({
+    required this.variant,
+    required this.time,
+    this.onFirstKineticPaint,
+  });
   final TrainingAmbientVariant variant;
   final double time;
+  final VoidCallback? onFirstKineticPaint;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1143,6 +1339,7 @@ class _TrainingAmbientPainter extends CustomPainter {
         );
         _flux(canvas, size);
       case TrainingAmbientVariant.kineticEngine:
+        onFirstKineticPaint?.call();
         _engine(canvas, size);
       case TrainingAmbientVariant.vectorImpulse:
         canvas.drawRect(

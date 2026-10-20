@@ -1105,6 +1105,132 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'V12.2 renders the synchronous fallback during delayed image readiness',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                TrainingAmbientComparison(
+                  variant: TrainingAmbientVariant.kineticEngine,
+                  debugTime: 0,
+                  showKineticImage: false,
+                ),
+                Center(
+                  child: FilledButton(onPressed: null, child: Text('READY')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('kinetic-first-frame-fallback')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('kinetic-engine-mechanical-painter')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('kinetic-engine-background-image')),
+        findsNothing,
+      );
+      expect(find.text('READY'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.byKey(const ValueKey('kinetic-first-frame-fallback')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(
+        find.byKey(const ValueKey('kinetic-first-frame-fallback')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('V12.2 keeps the fallback after an image failure', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: TrainingAmbientComparison(
+            variant: TrainingAmbientVariant.kineticEngine,
+            debugTime: 0,
+            kineticImageProvider: AssetImage(
+              'assets/images/training/missing.webp',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(
+      find.byKey(const ValueKey('kinetic-first-frame-fallback')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('kinetic-engine-mechanical-painter')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('V12.2 fallback and ready composite goldens remain nonblank', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: TrainingAmbientComparison(
+            key: ValueKey('v12-2-fallback'),
+            variant: TrainingAmbientVariant.kineticEngine,
+            debugTime: 0,
+            showKineticImage: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await expectLater(
+      find.byKey(const ValueKey('v12-2-fallback')),
+      matchesGoldenFile('goldens/training_kinetic_engine_v12_2_fallback.png'),
+    );
+    await _precacheKineticBackground(tester);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: TrainingAmbientComparison(
+            key: ValueKey('v12-2-ready'),
+            variant: TrainingAmbientVariant.kineticEngine,
+            debugTime: 0,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await expectLater(
+      find.byKey(const ValueKey('v12-2-ready')),
+      matchesGoldenFile('goldens/training_kinetic_engine_v12_2_ready.png'),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _KineticAmbientCrop extends StatelessWidget {

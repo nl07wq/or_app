@@ -19,23 +19,21 @@ class TrainingKineticScaffold extends StatefulWidget {
 }
 
 class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
-  static const _backgroundImage = AssetImage(
-    TrainingAmbientComparison.kineticEngineBackgroundAsset,
-  );
-  bool _didPrecache = false;
+  @override
+  void initState() {
+    super.initState();
+    KineticFirstFrameInstrumentation.routeInit();
+  }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didPrecache) return;
-    _didPrecache = true;
-    // Starts decoding before the first route transition that needs the image.
-    // The painter remains visible while the browser finishes decoding it.
-    precacheImage(_backgroundImage, context).catchError((_) {});
+  void dispose() {
+    KineticFirstFrameInstrumentation.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    KineticFirstFrameInstrumentation.firstScaffoldBuild();
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final inheritedTheme = Theme.of(context);
     return Theme(
