@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -15,6 +16,18 @@ enum TrainingAmbientVariant {
   const TrainingAmbientVariant(this.label);
   final String label;
 }
+
+/// Opt-in, route-local first-paint comparison modes. The absence of a valid
+/// query value is always the production-equivalent composite.
+enum KineticDiagnosticMode { image, mechanism, composite }
+
+KineticDiagnosticMode kineticDiagnosticModeFromUri(Uri uri) =>
+    switch (uri.queryParameters['kinetic_diag']) {
+      'image' => KineticDiagnosticMode.image,
+      'mechanism' => KineticDiagnosticMode.mechanism,
+      'composite' => KineticDiagnosticMode.composite,
+      _ => KineticDiagnosticMode.composite,
+    };
 
 /// Accumulates only frames during which a KINETIC ENGINE view is active.
 ///
@@ -323,6 +336,18 @@ class KineticMechanicalCoverGeometry {
   final int apertureCount;
 }
 
+class KineticEngineStaticGeometry {
+  const KineticEngineStaticGeometry({
+    required this.primaryGears,
+    required this.backgroundGears,
+    required this.mechanicalCovers,
+  });
+
+  final List<KineticGearGeometry> primaryGears;
+  final List<KineticGearGeometry> backgroundGears;
+  final List<KineticMechanicalCoverGeometry> mechanicalCovers;
+}
+
 class TrainingAmbientComparison extends StatefulWidget {
   const TrainingAmbientComparison({
     super.key,
@@ -330,6 +355,7 @@ class TrainingAmbientComparison extends StatefulWidget {
     this.debugTime,
     this.kineticImageProvider,
     this.showKineticImage = true,
+    this.kineticDiagnosticMode,
   });
   final TrainingAmbientVariant variant;
   final double? debugTime;
@@ -340,6 +366,10 @@ class TrainingAmbientComparison extends StatefulWidget {
   final ImageProvider<Object>? kineticImageProvider;
   @visibleForTesting
   final bool showKineticImage;
+
+  /// Test seam; production reads `?kinetic_diag=` before the first build.
+  @visibleForTesting
+  final KineticDiagnosticMode? kineticDiagnosticMode;
 
   static const kineticEngineBackgroundAsset =
       'assets/images/training/kinetic_engine_v9_background_q90.webp';
@@ -353,6 +383,48 @@ class TrainingAmbientComparison extends StatefulWidget {
   static const kineticToothTipAddendum = 1.85;
   static const kineticToothTipAngularWidthFraction = .33;
   static const kineticHubGlowPeriodSeconds = 24.0;
+  static final LinkedHashMap<Size, KineticEngineStaticGeometry>
+  _kineticStaticGeometryCache =
+      LinkedHashMap<Size, KineticEngineStaticGeometry>();
+
+  /// Bounded cache of only time-invariant logical geometry. Dynamic phase and
+  /// all moving linkage positions remain computed from the shared drive phase.
+  static KineticEngineStaticGeometry kineticStaticGeometryFor(Size size) {
+    final cached = _kineticStaticGeometryCache.remove(size);
+    if (cached != null) {
+      _kineticStaticGeometryCache[size] = cached;
+      return cached;
+    }
+    KineticFirstFrameInstrumentation.mechanicalGeometryCreated();
+    final primary = List<KineticGearGeometry>.unmodifiable(
+      kineticGearGeometryFor(size),
+    );
+    final background = List<KineticGearGeometry>.unmodifiable(
+      kineticBackgroundGearGeometryFor(size),
+    );
+    final geometry = KineticEngineStaticGeometry(
+      primaryGears: primary,
+      backgroundGears: background,
+      mechanicalCovers: List<KineticMechanicalCoverGeometry>.unmodifiable(
+        kineticMechanicalCoversFor(size),
+      ),
+    );
+    _kineticStaticGeometryCache[size] = geometry;
+    while (_kineticStaticGeometryCache.length > 3) {
+      _kineticStaticGeometryCache.remove(
+        _kineticStaticGeometryCache.keys.first,
+      );
+    }
+    return geometry;
+  }
+
+  @visibleForTesting
+  static void clearKineticStaticGeometryCache() =>
+      _kineticStaticGeometryCache.clear();
+
+  @visibleForTesting
+  static int get kineticStaticGeometryCacheSize =>
+      _kineticStaticGeometryCache.length;
 
   static double kineticHubGlowPhaseOffsetFor(String gearId) {
     var signature = 17;
@@ -1009,8 +1081,9 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   static const _kineticBackgroundImage = AssetImage(
     TrainingAmbientComparison.kineticEngineBackgroundAsset,
   );
-  late final Ticker _ticker;
+  Ticker? _ticker;
   final KineticActiveClock _machineClock = KineticActiveClock();
+  final ValueNotifier<double> _mechanicalTime = ValueNotifier<double>(0);
   Duration? _lastTickerElapsed;
   ImageStream? _imageStream;
   ImageStreamListener? _imageListener;
@@ -1018,19 +1091,34 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
 
   ImageProvider<Object> get _imageProvider =>
       widget.kineticImageProvider ?? _kineticBackgroundImage;
+  KineticDiagnosticMode get _diagnosticMode =>
+      widget.kineticDiagnosticMode ?? kineticDiagnosticModeFromUri(Uri.base);
+  bool get _showsKineticImage =>
+      widget.variant == TrainingAmbientVariant.kineticEngine &&
+      widget.showKineticImage &&
+      _diagnosticMode != KineticDiagnosticMode.mechanism;
+  bool get _showsMechanism =>
+      widget.variant != TrainingAmbientVariant.kineticEngine ||
+      _diagnosticMode != KineticDiagnosticMode.image;
+  bool get _usesMechanicalTicker => widget.debugTime == null && _showsMechanism;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    KineticFirstFrameInstrumentation.ambientInit();
-    _ticker = createTicker(_onFrame)..start();
+    KineticFirstFrameInstrumentation.ambientInit(_diagnosticMode);
+    if (_usesMechanicalTicker) {
+      _ticker = createTicker(_onFrame);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _usesMechanicalTicker) _ticker?.start();
+      });
+    }
   }
 
   void _onFrame(Duration elapsed) {
     _lastTickerElapsed = elapsed;
     _machineClock.advance(elapsed);
-    if (mounted) setState(() {});
+    if (mounted) _mechanicalTime.value = _machineClock.elapsedSeconds;
   }
 
   @override
@@ -1038,7 +1126,9 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     switch (state) {
       case AppLifecycleState.resumed:
         _machineClock.resume();
-        if (!_ticker.isActive) _ticker.start();
+        if (_usesMechanicalTicker && !(_ticker?.isActive ?? false)) {
+          _ticker?.start();
+        }
         return;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
@@ -1046,14 +1136,15 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
       case AppLifecycleState.hidden:
         final timestamp = _lastTickerElapsed;
         if (timestamp != null) _machineClock.pause(timestamp);
-        _ticker.stop();
+        _ticker?.stop();
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (widget.variant == TrainingAmbientVariant.kineticEngine) {
+    if (widget.variant == TrainingAmbientVariant.kineticEngine &&
+        _showsKineticImage) {
       _resolveKineticImage();
     }
   }
@@ -1062,17 +1153,19 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   void didUpdateWidget(covariant TrainingAmbientComparison oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.kineticImageProvider != widget.kineticImageProvider ||
-        oldWidget.showKineticImage != widget.showKineticImage) {
+        oldWidget.showKineticImage != widget.showKineticImage ||
+        oldWidget.kineticDiagnosticMode != widget.kineticDiagnosticMode) {
       _stopImageListening();
       _imageFailed = false;
-      if (widget.variant == TrainingAmbientVariant.kineticEngine) {
+      if (widget.variant == TrainingAmbientVariant.kineticEngine &&
+          _showsKineticImage) {
         _resolveKineticImage();
       }
     }
   }
 
   void _resolveKineticImage() {
-    if (!widget.showKineticImage || _imageStream != null) return;
+    if (!_showsKineticImage || _imageStream != null) return;
     KineticFirstFrameInstrumentation.imageResolveStart();
     final stream = _imageProvider.resolve(
       createLocalImageConfiguration(context),
@@ -1102,7 +1195,8 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopImageListening();
-    _ticker.dispose();
+    _ticker?.dispose();
+    _mechanicalTime.dispose();
     super.dispose();
   }
 
@@ -1119,7 +1213,7 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
               child: const SizedBox.expand(),
             ),
           if (widget.variant == TrainingAmbientVariant.kineticEngine &&
-              widget.showKineticImage &&
+              _showsKineticImage &&
               !_imageFailed)
             Image(
               key: const ValueKey('kinetic-engine-background-image'),
@@ -1139,18 +1233,24 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
                 return child;
               },
             ),
-          CustomPaint(
-            key: const ValueKey('kinetic-engine-mechanical-painter'),
-            painter: _TrainingAmbientPainter(
-              variant: widget.variant,
-              time: widget.debugTime ?? _machineClock.elapsedSeconds,
-              onFirstKineticPaint:
-                  widget.variant == TrainingAmbientVariant.kineticEngine
-                  ? KineticFirstFrameInstrumentation.firstKineticPaint
-                  : null,
+          if (_showsMechanism)
+            ValueListenableBuilder<double>(
+              valueListenable: _mechanicalTime,
+              builder: (context, elapsed, _) => RepaintBoundary(
+                child: CustomPaint(
+                  key: const ValueKey('kinetic-engine-mechanical-painter'),
+                  painter: _TrainingAmbientPainter(
+                    variant: widget.variant,
+                    time: widget.debugTime ?? elapsed,
+                    onFirstKineticPaint:
+                        widget.variant == TrainingAmbientVariant.kineticEngine
+                        ? KineticFirstFrameInstrumentation.firstKineticPaint
+                        : null,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
             ),
-            child: const SizedBox.expand(),
-          ),
         ],
       ),
     ),
@@ -1214,25 +1314,34 @@ class KineticFirstFrameInstrumentation {
   static final List<FrameTiming> _frameTimings = <FrameTiming>[];
   static Stopwatch? _clock;
   static bool _collecting = false;
+  static String _modeLabel = 'C';
 
   static bool get _enabled => kDebugMode || kProfileMode;
   static Map<String, Duration> get marks => Map.unmodifiable(_marks);
   static List<FrameTiming> get frameTimings => List.unmodifiable(_frameTimings);
 
   static void routeInit() => _startIfNeeded();
-  static void ambientInit() {
+  static void ambientInit(KineticDiagnosticMode mode) {
     _startIfNeeded();
-    _mark('t_routeInit');
+    _modeLabel = switch (mode) {
+      KineticDiagnosticMode.image => 'A',
+      KineticDiagnosticMode.mechanism => 'B',
+      KineticDiagnosticMode.composite => 'C',
+    };
+    _mark('${_modeLabel}_t_ambientInit');
   }
 
   static void firstScaffoldBuild() => _mark('t_firstScaffoldBuild');
-  static void imageResolveStart() => _mark('t_imageResolveStart');
-  static void imageReady() => _mark('t_imageReady');
-  static void imageError(Object error) => _mark('t_imageError');
-  static void firstFallbackPaint() => _mark('t_firstFallbackPaint');
-  static void firstKineticPaint() => _mark('t_firstKineticPaint');
+  static void imageResolveStart() => _mark('${_modeLabel}_t_imageResolveStart');
+  static void imageReady() => _mark('${_modeLabel}_t_imageReady');
+  static void imageError(Object error) => _mark('${_modeLabel}_t_imageError');
+  static void firstFallbackPaint() =>
+      _mark('${_modeLabel}_t_firstFallbackPaint');
+  static void mechanicalGeometryCreated() =>
+      _mark('${_modeLabel}_t_mechanicalGeometryCreated');
+  static void firstKineticPaint() => _mark('${_modeLabel}_t_firstKineticPaint');
   static void firstFrameAfterImageReady() =>
-      _mark('t_firstFrameAfterImageReady');
+      _mark('${_modeLabel}_t_firstFrameAfterImageReady');
 
   static void _startIfNeeded() {
     if (!_enabled || _collecting) return;
@@ -1437,9 +1546,11 @@ class _TrainingAmbientPainter extends CustomPainter {
   }
 
   void _engine(Canvas canvas, Size size) {
-    final gears = TrainingAmbientComparison.kineticGearGeometryFor(size);
-    final backgroundGears =
-        TrainingAmbientComparison.kineticBackgroundGearGeometryFor(size);
+    final staticGeometry = TrainingAmbientComparison.kineticStaticGeometryFor(
+      size,
+    );
+    final gears = staticGeometry.primaryGears;
+    final backgroundGears = staticGeometry.backgroundGears;
     final byId = {for (final gear in gears) gear.id: gear};
     final drivePhase = TrainingAmbientComparison.kineticDrivePhase(time);
 
@@ -1531,7 +1642,7 @@ class _TrainingAmbientPainter extends CustomPainter {
       output.module * 2,
       Paint()..color = const Color(0xff80dcf5),
     );
-    _mechanicalCovers(canvas, size);
+    _mechanicalCovers(canvas, size, staticGeometry.mechanicalCovers);
   }
 
   void _reportSyncCoveredBearingCap(
@@ -1554,8 +1665,11 @@ class _TrainingAmbientPainter extends CustomPainter {
     );
   }
 
-  void _mechanicalCovers(Canvas canvas, Size size) {
-    final covers = TrainingAmbientComparison.kineticMechanicalCoversFor(size);
+  void _mechanicalCovers(
+    Canvas canvas,
+    Size size,
+    List<KineticMechanicalCoverGeometry> covers,
+  ) {
     final right = covers[0];
     final lower = covers[1];
     final platePaint = Paint()

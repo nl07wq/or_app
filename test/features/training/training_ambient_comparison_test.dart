@@ -1106,6 +1106,109 @@ void main() {
     },
   );
 
+  test('V12.3 parses only the supported TRAINING diagnostic modes', () {
+    expect(
+      kineticDiagnosticModeFromUri(
+        Uri.parse('https://example.test/training?kinetic_diag=image'),
+      ),
+      KineticDiagnosticMode.image,
+    );
+    expect(
+      kineticDiagnosticModeFromUri(
+        Uri.parse('https://example.test/training?kinetic_diag=mechanism'),
+      ),
+      KineticDiagnosticMode.mechanism,
+    );
+    expect(
+      kineticDiagnosticModeFromUri(
+        Uri.parse('https://example.test/training?kinetic_diag=composite'),
+      ),
+      KineticDiagnosticMode.composite,
+    );
+    expect(
+      kineticDiagnosticModeFromUri(
+        Uri.parse('https://example.test/training?kinetic_diag=invalid'),
+      ),
+      KineticDiagnosticMode.composite,
+    );
+  });
+
+  testWidgets('V12.3 image mode skips the mechanical painter', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: TrainingAmbientComparison(
+            variant: TrainingAmbientVariant.kineticEngine,
+            kineticDiagnosticMode: KineticDiagnosticMode.image,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('kinetic-first-frame-fallback')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('kinetic-engine-background-image')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('kinetic-engine-mechanical-painter')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('V12.3 mechanism mode never requests the WebP widget', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: TrainingAmbientComparison(
+            variant: TrainingAmbientVariant.kineticEngine,
+            kineticDiagnosticMode: KineticDiagnosticMode.mechanism,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('kinetic-first-frame-fallback')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('kinetic-engine-background-image')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('kinetic-engine-mechanical-painter')),
+      findsOneWidget,
+    );
+  });
+
+  test('V12.3 static geometry cache is bounded and geometry-preserving', () {
+    TrainingAmbientComparison.clearKineticStaticGeometryCache();
+    final sizes = [
+      const Size(320, 844),
+      const Size(375, 844),
+      const Size(390, 844),
+      const Size(430, 844),
+    ];
+    for (final size in sizes) {
+      final cached = TrainingAmbientComparison.kineticStaticGeometryFor(size);
+      final direct = TrainingAmbientComparison.kineticGearGeometryFor(size);
+      expect(cached.primaryGears.length, direct.length);
+      for (var i = 0; i < direct.length; i++) {
+        expect(cached.primaryGears[i].center, direct[i].center);
+        expect(cached.primaryGears[i].phaseAt(0), direct[i].phaseAt(0));
+        expect(cached.primaryGears[i].phaseAt(48), direct[i].phaseAt(48));
+        expect(cached.primaryGears[i].phaseAt(300), direct[i].phaseAt(300));
+      }
+    }
+    expect(TrainingAmbientComparison.kineticStaticGeometryCacheSize, 3);
+  });
+
   testWidgets(
     'V12.2 renders the synchronous fallback during delayed image readiness',
     (tester) async {
@@ -1229,6 +1332,38 @@ void main() {
       find.byKey(const ValueKey('v12-2-ready')),
       matchesGoldenFile('goldens/training_kinetic_engine_v12_2_ready.png'),
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('V12.3 diagnostic A B C goldens retain the fixed composition', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _precacheKineticBackground(tester);
+    for (final mode in KineticDiagnosticMode.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TrainingAmbientComparison(
+              key: ValueKey('v12-3-${mode.name}'),
+              variant: TrainingAmbientVariant.kineticEngine,
+              debugTime: 0,
+              kineticDiagnosticMode: mode,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await expectLater(
+        find.byKey(ValueKey('v12-3-${mode.name}')),
+        matchesGoldenFile(
+          'goldens/training_kinetic_engine_v12_3_${mode.name}.png',
+        ),
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 }
