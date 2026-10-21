@@ -448,6 +448,27 @@ void main() {
       matchesGoldenFile('goldens/dashboard_schedule_continuous_timeline.png'),
     );
   });
+
+  test('final schedule tail ends one text line after the subtitle', () {
+    const marker = Rect.fromLTWH(54, 108, 16, 16);
+    expect(
+      dashboardScheduleFinalTailY(
+        lastMarker: marker,
+        subtitleBottom: 136,
+        paintHeight: 280,
+      ),
+      156,
+    );
+    expect(
+      dashboardScheduleFinalTailY(
+        lastMarker: marker,
+        subtitleBottom: 136,
+        paintHeight: 280,
+        controlTop: 154,
+      ),
+      150,
+    );
+  });
 }
 
 DashboardPlanInformationEntry _entry(

@@ -140,9 +140,12 @@ class OilTimerSimulation {
 
   OilTimerFrame advanceTo(double seconds, Size size) {
     if (size != _size) _reset(size);
-    final delta = (seconds - _lastObservedSeconds).clamp(0.0, 4 * _dt);
+    // Keep an active-time backlog rather than throwing away normal frame
+    // intervals. A long suspended gap contributes at most a short recovery
+    // window, then subsequent frames drain it without a visible teleport.
+    final observed = math.max(0.0, seconds - _lastObservedSeconds);
     _lastObservedSeconds = seconds;
-    _accumulator = math.min(_accumulator + delta, 4 * _dt);
+    _accumulator = math.min(_accumulator + observed, .25);
     var steps = 0;
     while (_accumulator >= _dt && steps < 4) {
       _step(_dt);
@@ -186,8 +189,8 @@ class OilTimerSimulation {
             size.height * (-.25 + OilTimerMotion.hash(index, 19) * 1.35),
           ),
           velocity: Offset(
-            (OilTimerMotion.hash(index, 23) - .5) * 12,
-            28 + OilTimerMotion.hash(index, 29) * 32,
+            (OilTimerMotion.hash(index, 23) - .5) * 8,
+            14 + OilTimerMotion.hash(index, 29) * 12,
           ),
           radius: radius,
           color: _palette[index % _palette.length],
@@ -207,12 +210,34 @@ class OilTimerSimulation {
       drop.compression *= math.exp(-dt / .30);
       if (drop.state == _OilTravelState.descending ||
           drop.state == _OilTravelState.entering) {
-        final ax = 12 * math.sin(.35 * _elapsed + .9 * drop.id);
-        final vx = ((drop.velocity.dx + ax * dt) * math.exp(-1.8 * dt)).clamp(
-          -22.0,
-          22.0,
-        );
-        final vy = math.min(90.0, drop.velocity.dy + 65 * dt);
+        final tauY = .60 + OilTimerMotion.hash(drop.id, 71) * .50;
+        final targetVy = 22 + OilTimerMotion.hash(drop.id, 73) * 16;
+        final buoyancy =
+            math.sin(
+              _elapsed * (.72 + OilTimerMotion.hash(drop.id, 79) * .28) +
+                  drop.id,
+            ) *
+            4;
+        final vy =
+            drop.velocity.dy +
+            ((targetVy + buoyancy) - drop.velocity.dy) * (dt / tauY);
+        final slowWind =
+            (10 + OilTimerMotion.hash(drop.id, 83) * 12) *
+            math.sin(
+              (.24 + OilTimerMotion.hash(drop.id, 89) * .24) * _elapsed +
+                  drop.id * .91,
+            );
+        final fastWind =
+            (4 + OilTimerMotion.hash(drop.id, 97) * 5) *
+            math.sin(
+              (.67 + OilTimerMotion.hash(drop.id, 101) * .39) * _elapsed +
+                  drop.id * 1.27,
+            );
+        final tauX = .35 + OilTimerMotion.hash(drop.id, 103) * .45;
+        final vx =
+            (drop.velocity.dx +
+                    ((slowWind + fastWind) - drop.velocity.dx) * (dt / tauX))
+                .clamp(-28.0, 28.0);
         drop.velocity = Offset(vx, vy);
         drop.center += drop.velocity * dt;
         if (drop.center.dx - drop.radius < 0 ||
@@ -258,9 +283,15 @@ class OilTimerSimulation {
 
   void _advanceSettling(_OilDropState drop, double dt, double floor) {
     drop.settleAge += dt;
-    final sway = math.sin(_elapsed * 1.4 + drop.id * .91) * 2;
-    final vx = (drop.velocity.dx * math.exp(-dt * 4)).clamp(-8.0, 8.0);
-    final vy = drop.velocity.dy + 65 * dt;
+    final sway =
+        math.sin(
+          _elapsed * (1.1 + OilTimerMotion.hash(drop.id, 107)) + drop.id * .91,
+        ) *
+        2;
+    final targetVx = math.sin(_elapsed * .38 + drop.id * 1.17) * 5;
+    final vx = (drop.velocity.dx + (targetVx - drop.velocity.dx) * dt * 2.5)
+        .clamp(-8.0, 8.0);
+    final vy = drop.velocity.dy + 22 * dt;
     drop.velocity = Offset(vx, vy);
     drop.center += drop.velocity * dt;
     if (drop.center.dy + drop.radius >= floor) {
@@ -291,7 +322,8 @@ class OilTimerSimulation {
 
   void _advanceSinkOut(_OilDropState drop, double dt) {
     drop.exitProgress += dt / (1.2 + OilTimerMotion.hash(drop.id, 59) * .6);
-    final vy = math.min(90.0, drop.velocity.dy + 65 * dt);
+    final targetVy = 52 + OilTimerMotion.hash(drop.id, 109) * 18;
+    final vy = drop.velocity.dy + (targetVy - drop.velocity.dy) * dt / .42;
     drop.velocity = Offset(drop.velocity.dx * math.exp(-dt * 2), vy);
     drop.center += drop.velocity * dt;
     if (drop.center.dy - drop.radius > _size.height + 8) {
@@ -328,7 +360,7 @@ class OilTimerSimulation {
     }
     if (drop.routeSegment >= targets.length) {
       drop.state = _OilTravelState.entering;
-      drop.velocity = Offset(0, 24 + OilTimerMotion.hash(drop.id, 41) * 18);
+      drop.velocity = Offset(0, 14 + OilTimerMotion.hash(drop.id, 41) * 12);
     }
   }
 
@@ -355,14 +387,19 @@ class OilTimerSimulation {
               (b.velocity - a.velocity).dx * normal.dx +
               (b.velocity - a.velocity).dy * normal.dy;
           if (relative < 0) {
-            final impulse = -(1 + .42) * relative / inverseMass;
+            final settling =
+                a.state == _OilTravelState.settling ||
+                b.state == _OilTravelState.settling;
+            final restitution = settling ? .20 : .42;
+            final impulse = -(1 + restitution) * relative / inverseMass;
             a.velocity -= normal * (impulse / ma);
             b.velocity += normal * (impulse / mb);
             final tangent = Offset(-normal.dy, normal.dx);
             final tangentSpeed =
                 (b.velocity - a.velocity).dx * tangent.dx +
                 (b.velocity - a.velocity).dy * tangent.dy;
-            final friction = tangentSpeed * .08 / inverseMass;
+            final friction =
+                tangentSpeed * (settling ? .14 : .10) / inverseMass;
             a.velocity += tangent * (friction / ma);
             b.velocity -= tangent * (friction / mb);
           }
@@ -382,6 +419,7 @@ class OilTimerSimulation {
 
   bool _isContacting(_OilDropState drop) =>
       drop.state == _OilTravelState.descending ||
+      drop.state == _OilTravelState.entering ||
       drop.state == _OilTravelState.settling;
 
   OilTimerFrame _frame() => OilTimerFrame(

@@ -1409,13 +1409,29 @@ class DashboardScheduleCard extends StatefulWidget {
   State<DashboardScheduleCard> createState() => _DashboardScheduleCardState();
 }
 
+@visibleForTesting
+double dashboardScheduleFinalTailY({
+  required Rect lastMarker,
+  required double subtitleBottom,
+  required double paintHeight,
+  double? controlTop,
+}) {
+  final desired = math.max(lastMarker.bottom + 8, subtitleBottom + 20);
+  final limit = math.min(
+    paintHeight - 4,
+    controlTop == null ? double.infinity : controlTop - 4,
+  );
+  return math.min(desired, limit);
+}
+
 class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
   bool _expanded = false;
   final _timelineKey = GlobalKey();
   final _overflowKey = GlobalKey();
   final _markerKeys = <String, GlobalKey>{};
+  final _detailKeys = <String, GlobalKey>{};
   List<Rect> _timelineMarkerBounds = const [];
-  Offset? _overflowTailEndpoint;
+  double? _finalTailY;
 
   void _measureTimeline(
     List<DashboardPlanInformationEntry> entries,
@@ -1436,16 +1452,33 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
           markerBounds.add(origin & box.size);
         }
       }
-      Offset? overflowTailEndpoint;
-      if (tail && markerBounds.isNotEmpty) {
-        final box =
-            _overflowKey.currentContext?.findRenderObject() as RenderBox?;
-        if (box != null) {
-          overflowTailEndpoint = Offset(
-            markerBounds.last.center.dx,
-            box
-                .localToGlobal(box.size.center(Offset.zero), ancestor: parent)
-                .dy,
+      double? finalTailY;
+      if (markerBounds.isNotEmpty) {
+        final last = entries.last;
+        final detail =
+            _detailKeys[last.record.id]?.currentContext?.findRenderObject()
+                as RenderBox?;
+        if (detail != null) {
+          final detailBottom =
+              detail.localToGlobal(Offset.zero, ancestor: parent).dy +
+              detail.size.height;
+          double? controlTop;
+          if (tail) {
+            final overflow =
+                _overflowKey.currentContext?.findRenderObject() as RenderBox?;
+            if (overflow != null) {
+              controlTop = overflow
+                  .localToGlobal(Offset.zero, ancestor: parent)
+                  .dy;
+            }
+          }
+          // The timeline owns a short continuation after the last record,
+          // never a connector to the collapsed-items control.
+          finalTailY = dashboardScheduleFinalTailY(
+            lastMarker: markerBounds.last,
+            subtitleBottom: detailBottom,
+            paintHeight: parent.size.height,
+            controlTop: controlTop,
           );
         }
       }
@@ -1457,11 +1490,11 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                 (entry.$2.width - previous.width).abs() > .1 ||
                 (entry.$2.height - previous.height).abs() > .1;
           });
-      final tailChanged = overflowTailEndpoint != _overflowTailEndpoint;
+      final tailChanged = finalTailY != _finalTailY;
       if (boundsChanged || tailChanged) {
         setState(() {
           _timelineMarkerBounds = markerBounds;
-          _overflowTailEndpoint = overflowTailEndpoint;
+          _finalTailY = finalTailY;
         });
       }
     });
@@ -1508,7 +1541,7 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                             painter: _DashboardScheduleTimelineRailPainter(
                               color: Theme.of(context).colorScheme.primary,
                               markerBounds: _timelineMarkerBounds,
-                              overflowTailEndpoint: _overflowTailEndpoint,
+                              finalTailY: _finalTailY,
                             ),
                           ),
                         ),
@@ -1530,11 +1563,16 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                                   visibleEntries[index].record.id,
                                   GlobalKey.new,
                                 ),
+                                detailKey: _detailKeys.putIfAbsent(
+                                  visibleEntries[index].record.id,
+                                  GlobalKey.new,
+                                ),
                                 onTap: () => widget.onOpenDate(
                                   visibleEntries[index].record.localDate,
                                 ),
                               ),
                             ),
+                          const SizedBox(height: 24),
                           if (hiddenCount > 0 || _expanded)
                             Center(
                               child: TextButton(
@@ -1546,7 +1584,6 @@ class _DashboardScheduleCardState extends State<DashboardScheduleCard> {
                                 ),
                               ).actionableFeedback(),
                             ),
-                          const SizedBox(height: AppSpacing.xs),
                         ],
                       ),
                     ],
@@ -1917,11 +1954,11 @@ class _DashboardScheduleTimelineRailPainter extends CustomPainter {
   const _DashboardScheduleTimelineRailPainter({
     required this.color,
     required this.markerBounds,
-    required this.overflowTailEndpoint,
+    required this.finalTailY,
   });
   final Color color;
   final List<Rect> markerBounds;
-  final Offset? overflowTailEndpoint;
+  final double? finalTailY;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1938,9 +1975,15 @@ class _DashboardScheduleTimelineRailPainter extends CustomPainter {
         paint,
       );
     }
-    if (overflowTailEndpoint case final endpoint?) {
+    if (markerBounds.isNotEmpty && finalTailY != null) {
       final last = markerBounds.last;
-      canvas.drawLine(Offset(last.center.dx, last.bottom), endpoint, paint);
+      final tailY = finalTailY!;
+      final clampedTail = tailY.clamp(last.bottom + 8, size.height - 4);
+      canvas.drawLine(
+        Offset(last.center.dx, last.bottom),
+        Offset(last.center.dx, clampedTail),
+        paint,
+      );
     }
   }
 
@@ -1948,7 +1991,7 @@ class _DashboardScheduleTimelineRailPainter extends CustomPainter {
   bool shouldRepaint(covariant _DashboardScheduleTimelineRailPainter old) =>
       old.color != color ||
       old.markerBounds != markerBounds ||
-      old.overflowTailEndpoint != overflowTailEndpoint;
+      old.finalTailY != finalTailY;
 }
 
 class _DashboardScheduleRow extends StatelessWidget {
@@ -1956,11 +1999,13 @@ class _DashboardScheduleRow extends StatelessWidget {
     required this.entry,
     required this.onTap,
     required this.markerKey,
+    required this.detailKey,
   });
 
   final DashboardPlanInformationEntry entry;
   final VoidCallback onTap;
   final Key markerKey;
+  final Key detailKey;
 
   @override
   Widget build(BuildContext context) {
@@ -2022,25 +2067,31 @@ class _DashboardScheduleRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                        Row(
-                          children: [
-                            Icon(
-                              record.kind == ScheduleEntryKind.reminder
-                                  ? Icons.notifications_none
-                                  : Icons.event_note_outlined,
-                              size: 14,
-                              color: accent,
+                        KeyedSubtree(
+                          key: detailKey,
+                          child: Row(
+                            key: ValueKey(
+                              'dashboard-schedule-detail-${record.id}',
                             ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Expanded(
-                              child: Text(
-                                _detailLabel(entry),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
+                            children: [
+                              Icon(
+                                record.kind == ScheduleEntryKind.reminder
+                                    ? Icons.notifications_none
+                                    : Icons.event_note_outlined,
+                                size: 14,
+                                color: accent,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Text(
+                                  _detailLabel(entry),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

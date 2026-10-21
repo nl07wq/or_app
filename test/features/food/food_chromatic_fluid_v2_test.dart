@@ -64,8 +64,12 @@ void main() {
   ) async {
     for (final second in [
       0.0,
-      3.0,
       8.0,
+      16.0,
+      24.0,
+      32.0,
+      45.0,
+      3.0,
       15.0,
       25.0,
       40.0,
@@ -85,6 +89,24 @@ void main() {
         ),
       );
     }
+  });
+
+  test('buoyant circulation remains bounded through ten simulated minutes', () {
+    final simulation = OilTimerSimulation(viewport);
+    simulation.advanceForTest(600);
+    final frame = simulation.snapshot();
+    expect(frame.drops, hasLength(OilTimerSimulation.dropCount));
+    expect(
+      frame.drops.every(
+        (drop) =>
+            drop.center.dx.isFinite &&
+            drop.center.dy.isFinite &&
+            drop.squashStrength <= .32,
+      ),
+      isTrue,
+    );
+    expect(frame.collisionCount, greaterThanOrEqualTo(3));
+    expect(frame.landingCount, greaterThanOrEqualTo(2));
   });
 
   testWidgets('renders restored cellular anatomy golden', (tester) async {
