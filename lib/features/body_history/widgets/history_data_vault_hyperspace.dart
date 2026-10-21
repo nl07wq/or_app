@@ -2,12 +2,18 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/history_visual_preference.dart';
+
 /// Deterministic, world-fixed DATA VAULT flight renderer.  It deliberately
 /// owns only Ambient B geometry; HISTORY foreground UI remains outside it.
 class HistoryDataVaultHyperspace {
-  const HistoryDataVaultHyperspace({required this.seconds});
+  const HistoryDataVaultHyperspace({
+    required this.seconds,
+    this.impulseMode = DataVaultImpulseMode.arc,
+  });
 
   final double seconds;
+  final DataVaultImpulseMode impulseMode;
 
   static final _world = _VaultWorld();
 
@@ -37,7 +43,19 @@ class HistoryDataVaultHyperspace {
     _paintSurfaces(canvas, camera, samples);
     _paintFloorDetail(canvas, camera, samples);
     _paintPillars(canvas, camera, cameraDistance);
-    _paintDataTraffic(canvas, camera, cameraDistance);
+    switch (impulseMode) {
+      case DataVaultImpulseMode.arc:
+        _paintArcTraffic(canvas, camera, cameraDistance, 10);
+      case DataVaultImpulseMode.scan:
+        _paintSurfaceScans(canvas, camera, cameraDistance);
+      case DataVaultImpulseMode.node:
+        _paintNodeDischarges(canvas, camera, cameraDistance);
+      case DataVaultImpulseMode.spark:
+        _paintDataTraffic(canvas, camera, cameraDistance);
+      case DataVaultImpulseMode.hybrid:
+        _paintArcTraffic(canvas, camera, cameraDistance, 5);
+        _paintDataTraffic(canvas, camera, cameraDistance, maxRails: 4);
+    }
     final guide = _resolveNavigationGuide(camera, cameraDistance, size, speed);
     if (guide != null) {
       _paintNavigationTrail(canvas, camera, cameraDistance, guide.sHead);
@@ -257,14 +275,187 @@ class HistoryDataVaultHyperspace {
     );
   }
 
+  void _paintArcTraffic(
+    Canvas canvas,
+    _VaultCamera camera,
+    double distance,
+    int cap,
+  ) {
+    var painted = 0;
+    for (final rail in _comparisonRails) {
+      if (painted >= cap) break;
+      final seed = HistoryDataVaultMotion.packetSeed(
+        rail.surface,
+        rail.lane,
+        (seconds * 1.7).floor(),
+      );
+      final head = distance + 14 + HistoryDataVaultMotion.seedUnit(seed) * 64;
+      final length = 3.0 + HistoryDataVaultMotion.seedUnit(seed + 11) * 6.0;
+      final points = <_WorldPoint>[];
+      for (var i = 0; i < 6; i++) {
+        final s = head + length * i / 5;
+        final jitter =
+            (HistoryDataVaultMotion.seedUnit(seed + i * 37) - .5) *
+            (rail.surface == DataVaultImpulseSurface.floor ? .24 : .16);
+        final lateral = rail.surface == DataVaultImpulseSurface.floor
+            ? HistoryDataVaultMotion.floorImpulseLateralAt(rail.lane, seed, s) +
+                  jitter
+            : rail.lateral + jitter;
+        points.add(_world.sample(s).point(lateral, rail.height));
+      }
+      _strokeWorldPolyline(
+        canvas,
+        camera,
+        points,
+        const Color(0xff36bdeb).withValues(alpha: .11),
+        4.4,
+      );
+      _strokeWorldPolyline(
+        canvas,
+        camera,
+        points,
+        const Color(0xff64e6f8).withValues(alpha: .28),
+        2.2,
+      );
+      _strokeWorldPolyline(
+        canvas,
+        camera,
+        points,
+        const Color(0xffddfbff).withValues(alpha: .82),
+        .9,
+      );
+      if (HistoryDataVaultMotion.seedUnit(seed + 91) < .12) {
+        final branch = points[3];
+        final next = _world
+            .sample(head + length * .72)
+            .point(rail.lateral + .35, (rail.height + .28).clamp(.05, 4.88));
+        _strokeWorldLine(
+          canvas,
+          camera,
+          branch,
+          next,
+          const Color(0xff64e6f8).withValues(alpha: .30),
+          .65,
+        );
+      }
+      painted++;
+    }
+  }
+
+  void _paintSurfaceScans(Canvas canvas, _VaultCamera camera, double distance) {
+    const scans = <_DataVaultRail>[
+      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -1.6, .04),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 1, 1.45, .04),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.95, 2.15),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.95, 2.9),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, 0, 4.88),
+    ];
+    for (var index = 0; index < scans.length; index++) {
+      final rail = scans[index];
+      final phase = (seconds * (.34 + index * .047) + index * 2.17) % 1;
+      final s = distance + 12 + phase * 70;
+      final width = rail.surface == DataVaultImpulseSurface.floor ? 2.6 : 1.8;
+      final a = _world.sample(s).point(rail.lateral - width, rail.height);
+      final b = _world.sample(s).point(rail.lateral + width, rail.height);
+      final c = _world.sample(s + 2.1).point(rail.lateral + width, rail.height);
+      final d = _world.sample(s + 2.1).point(rail.lateral - width, rail.height);
+      _fillWorldQuad(canvas, camera, [
+        a,
+        b,
+        c,
+        d,
+      ], const Color(0xff36bdeb).withValues(alpha: .09));
+      for (var notch = 0; notch < 5; notch++) {
+        final u = notch / 5;
+        _strokeWorldLine(
+          canvas,
+          camera,
+          _world
+              .sample(s)
+              .point(rail.lateral - width + width * 2 * u, rail.height),
+          _world
+              .sample(s + .42)
+              .point(rail.lateral - width + width * 2 * (u + .12), rail.height),
+          const Color(0xffddfbff).withValues(alpha: .72),
+          .85,
+        );
+      }
+    }
+  }
+
+  void _paintNodeDischarges(
+    Canvas canvas,
+    _VaultCamera camera,
+    double distance,
+  ) {
+    final chain = (seconds / 2.3).floor();
+    for (var side = -1; side <= 1; side += 2) {
+      for (var link = 0; link < 2; link++) {
+        final progress = (seconds * 3.4 + side * .37 - link * .29) % 1;
+        if (progress > .72) continue;
+        final s = distance + 10 + ((chain * 7 + link * 11) % 22);
+        final start = _world
+            .sample(s + link * 6)
+            .point(side * 3.8, link.isEven ? 1.0 : 4.2);
+        final end = _world
+            .sample(s + (link + 1) * 6)
+            .point(link.isEven ? side * 3.8 : 0, link.isEven ? .08 : 4.88);
+        final mid = _world.sample(s + (link + .5) * 6).point(side * 3.65, 2.5);
+        final points = [start, mid, end];
+        _strokeWorldPolyline(
+          canvas,
+          camera,
+          points,
+          const Color(0xff36bdeb).withValues(alpha: .16),
+          4.0,
+        );
+        _strokeWorldPolyline(
+          canvas,
+          camera,
+          points,
+          const Color(0xffddfbff).withValues(alpha: .94),
+          1.2,
+        );
+        for (final node in [start, end]) {
+          final projected = camera.project(node);
+          if (projected == null) continue;
+          canvas.drawCircle(
+            projected.offset,
+            4.2,
+            Paint()..color = const Color(0xff36bdeb).withValues(alpha: .20),
+          );
+          canvas.drawCircle(
+            projected.offset,
+            1.4,
+            Paint()..color = const Color(0xffddfbff).withValues(alpha: .9),
+          );
+        }
+      }
+    }
+  }
+
+  static const _comparisonRails = <_DataVaultRail>[
+    _DataVaultRail(DataVaultImpulseSurface.floor, 0, -3.1, .05),
+    _DataVaultRail(DataVaultImpulseSurface.floor, 1, -.8, .05),
+    _DataVaultRail(DataVaultImpulseSurface.floor, 2, 1.2, .05),
+    _DataVaultRail(DataVaultImpulseSurface.floor, 3, 3.0, .05),
+    _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.94, 1.25),
+    _DataVaultRail(DataVaultImpulseSurface.leftWall, 1, -3.94, 3.6),
+    _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.94, 1.4),
+    _DataVaultRail(DataVaultImpulseSurface.rightWall, 1, 3.94, 3.8),
+    _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, -1.8, 4.88),
+    _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 1.5, 4.88),
+  ];
+
   /// Renders incoming line impulses bound to the physical corridor rails.
   /// They flow from the distant aperture toward the viewer while the route
   /// beacon remains the sole representation of the viewer's own position.
   void _paintDataTraffic(
     Canvas canvas,
     _VaultCamera camera,
-    double cameraDistance,
-  ) {
+    double cameraDistance, {
+    int? maxRails,
+  }) {
     // Each rail owns an independent deterministic launch schedule.  This
     // deliberately prevents the old lattice's symmetric bundles from moving
     // as a set while retaining stable Golden output and physical projection.
@@ -282,7 +473,9 @@ class HistoryDataVaultHyperspace {
       _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 0, 4.88),
       _DataVaultRail(DataVaultImpulseSurface.ceiling, 2, 2, 4.88),
     ];
-    for (final rail in rails) {
+    for (var index = 0; index < rails.length; index++) {
+      if (maxRails != null && index >= maxRails) break;
+      final rail = rails[index];
       _paintScheduledRailImpulses(
         canvas,
         camera,

@@ -10,6 +10,52 @@ enum HistoryTitleVariant { archiveDisplay, archivePlate, memoryModule }
 
 enum HistoryAmbientVariant { chronoArchive, dataVault, memoryStream }
 
+/// DATA VAULT V2.0 comparison controls. Kept separate from the old visual
+/// selection so a prior title choice remains intact and reversible.
+enum DataVaultImpulseMode { arc, scan, node, spark, hybrid }
+
+class HistoryDataVaultImpulsePreference {
+  HistoryDataVaultImpulsePreference({
+    Future<SharedPreferences> Function()? preferencesLoader,
+  }) : _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance;
+
+  static const storageKey = 'or_app.history.data_vault.impulse.v1';
+  final Future<SharedPreferences> Function() _preferencesLoader;
+
+  Future<DataVaultImpulseMode> load() async {
+    try {
+      final token = (await _preferencesLoader()).getString(storageKey);
+      return _fromToken(token);
+    } catch (_) {
+      return DataVaultImpulseMode.arc;
+    }
+  }
+
+  Future<void> save(DataVaultImpulseMode mode) async {
+    try {
+      await (await _preferencesLoader()).setString(storageKey, _tokenFor(mode));
+    } catch (_) {
+      // The selected visual remains usable if local storage is unavailable.
+    }
+  }
+
+  static String _tokenFor(DataVaultImpulseMode mode) => switch (mode) {
+    DataVaultImpulseMode.arc => 'a',
+    DataVaultImpulseMode.scan => 'b',
+    DataVaultImpulseMode.node => 'c',
+    DataVaultImpulseMode.spark => 'd',
+    DataVaultImpulseMode.hybrid => 'e',
+  };
+
+  static DataVaultImpulseMode _fromToken(String? token) => switch (token) {
+    'b' => DataVaultImpulseMode.scan,
+    'c' => DataVaultImpulseMode.node,
+    'd' => DataVaultImpulseMode.spark,
+    'e' => DataVaultImpulseMode.hybrid,
+    _ => DataVaultImpulseMode.arc,
+  };
+}
+
 class HistoryVisualSelection {
   const HistoryVisualSelection({required this.title, required this.ambient});
 

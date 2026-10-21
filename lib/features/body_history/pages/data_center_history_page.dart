@@ -32,14 +32,17 @@ class DataCenterHistoryPage extends StatefulWidget {
 class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     with SingleTickerProviderStateMixin {
   late final HistoryVisualPreference _visualPreference;
+  late final HistoryDataVaultImpulsePreference _impulsePreference;
   late final AnimationController _ambientController;
   final Stopwatch _dataVaultClock = Stopwatch();
   HistoryVisualSelection _selection = const HistoryVisualSelection.defaults();
+  DataVaultImpulseMode _impulseMode = DataVaultImpulseMode.arc;
 
   @override
   void initState() {
     super.initState();
     _visualPreference = widget.visualPreference ?? HistoryVisualPreference();
+    _impulsePreference = HistoryDataVaultImpulsePreference();
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 36),
@@ -47,6 +50,7 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     _dataVaultClock.start();
     if (widget.animateAmbient) _ambientController.repeat();
     _restoreSelection();
+    _restoreImpulseMode();
   }
 
   Future<void> _restoreSelection() async {
@@ -54,18 +58,15 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     if (mounted) setState(() => _selection = restored);
   }
 
-  void _selectTitle(HistoryTitleVariant title) {
-    _updateSelection(_selection.copyWith(title: title));
+  Future<void> _restoreImpulseMode() async {
+    final restored = await _impulsePreference.load();
+    if (mounted) setState(() => _impulseMode = restored);
   }
 
-  void _selectAmbient(HistoryAmbientVariant ambient) {
-    _updateSelection(_selection.copyWith(ambient: ambient));
-  }
-
-  void _updateSelection(HistoryVisualSelection next) {
-    if (next == _selection) return;
-    setState(() => _selection = next);
-    _visualPreference.save(next);
+  void _selectImpulseMode(DataVaultImpulseMode mode) {
+    if (mode == _impulseMode) return;
+    setState(() => _impulseMode = mode);
+    _impulsePreference.save(mode);
   }
 
   @override
@@ -82,9 +83,9 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
         child: AnimatedBuilder(
           animation: _ambientController,
           builder: (context, _) => CustomPaint(
-            key: ValueKey('history-ambient-${_selection.ambient.name}'),
+            key: const ValueKey('history-ambient-dataVault'),
             painter: _HistoryAmbientPainter(
-              variant: _selection.ambient,
+              impulseMode: _impulseMode,
               phase: _ambientController.value,
               dataVaultSeconds:
                   (widget.dataVaultSimulationTime?.inMicroseconds ??
@@ -115,10 +116,9 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     children: [
       const SectionHeader(icon: Icons.history, title: 'HISTORY'),
       AppSpacing.gapSM,
-      _HistoryVisualSelector(
-        selection: _selection,
-        onTitleSelected: _selectTitle,
-        onAmbientSelected: _selectAmbient,
+      _DataVaultImpulseSelector(
+        selected: _impulseMode,
+        onSelected: _selectImpulseMode,
       ),
       AppSpacing.gapMD,
       _HistoryLinkCard(
@@ -212,22 +212,20 @@ class _HistoryLinkCard extends StatelessWidget {
   );
 }
 
-class _HistoryVisualSelector extends StatelessWidget {
-  const _HistoryVisualSelector({
-    required this.selection,
-    required this.onTitleSelected,
-    required this.onAmbientSelected,
+class _DataVaultImpulseSelector extends StatelessWidget {
+  const _DataVaultImpulseSelector({
+    required this.selected,
+    required this.onSelected,
   });
 
-  final HistoryVisualSelection selection;
-  final ValueChanged<HistoryTitleVariant> onTitleSelected;
-  final ValueChanged<HistoryAmbientVariant> onAmbientSelected;
+  final DataVaultImpulseMode selected;
+  final ValueChanged<DataVaultImpulseMode> onSelected;
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'HISTORY visual comparison controls',
+    label: 'DATA VAULT impulse mode controls',
     child: Container(
-      key: const ValueKey('history-visual-selector'),
+      key: const ValueKey('history-data-vault-impulse-selector'),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xff0a1720).withValues(alpha: .62),
@@ -239,93 +237,89 @@ class _HistoryVisualSelector extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ChoiceRow<HistoryTitleVariant>(
-            label: 'TITLE',
-            values: HistoryTitleVariant.values,
-            selected: selection.title,
-            labels: const ['A DISPLAY', 'B PLATE', 'C MODULE'],
-            onSelected: onTitleSelected,
+          const Text(
+            'DATA VAULT / IMPULSE MODE',
+            style: TextStyle(
+              color: Color(0xff89dceb),
+              fontFamily: 'ShareTechMono',
+              fontSize: 11,
+              letterSpacing: .8,
+            ),
           ),
-          const SizedBox(height: 6),
-          _ChoiceRow<HistoryAmbientVariant>(
-            label: 'AMBIENT',
-            values: HistoryAmbientVariant.values,
-            selected: selection.ambient,
-            labels: const ['A CHRONO', 'B VAULT', 'C STREAM'],
-            onSelected: onAmbientSelected,
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const labels = [
+                'A ARC',
+                'B SCAN',
+                'C NODE',
+                'D SPARK',
+                'E ARC+SPARK',
+              ];
+              const names = [
+                'Linear arc pulse',
+                'Surface scan bolt',
+                'Node-to-node discharge',
+                'Hyperlane spark stream',
+                'Arc plus spark hybrid',
+              ];
+              final columns = constraints.maxWidth < 350 ? 2 : 3;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 6) / columns;
+              return Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: List.generate(DataVaultImpulseMode.values.length, (
+                  index,
+                ) {
+                  final mode = DataVaultImpulseMode.values[index];
+                  final active = mode == selected;
+                  return Semantics(
+                    button: true,
+                    selected: active,
+                    label: names[index],
+                    child: SizedBox(
+                      width: width,
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: () => onSelected(mode),
+                        icon: Icon(
+                          active ? Icons.check : Icons.bolt_outlined,
+                          size: 16,
+                        ),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(labels[index], maxLines: 1),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          foregroundColor: active
+                              ? const Color(0xffe2f9ff)
+                              : const Color(0xff9ab3bd),
+                          backgroundColor: active
+                              ? const Color(0xff174d5c).withValues(alpha: .82)
+                              : const Color(0xff091015).withValues(alpha: .58),
+                          side: BorderSide(
+                            width: active ? 1.4 : .8,
+                            color: const Color(
+                              0xff62cfe4,
+                            ).withValues(alpha: active ? .92 : .30),
+                          ),
+                          textStyle: const TextStyle(
+                            fontFamily: 'ShareTechMono',
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              );
+            },
           ),
         ],
       ),
     ),
-  );
-}
-
-class _ChoiceRow<T> extends StatelessWidget {
-  const _ChoiceRow({
-    required this.label,
-    required this.values,
-    required this.selected,
-    required this.labels,
-    required this.onSelected,
-  });
-
-  final String label;
-  final List<T> values;
-  final T selected;
-  final List<String> labels;
-  final ValueChanged<T> onSelected;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SizedBox(
-        width: 63,
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xff89b9c7),
-            fontFamily: 'ShareTechMono',
-            fontSize: 11,
-            letterSpacing: .8,
-          ),
-        ),
-      ),
-      Expanded(
-        child: Wrap(
-          spacing: 5,
-          runSpacing: 4,
-          children: List.generate(values.length, (index) {
-            final value = values[index];
-            final isSelected = value == selected;
-            return Semantics(
-              button: true,
-              selected: isSelected,
-              label: '$label ${labels[index]}',
-              child: ChoiceChip(
-                label: Text(labels[index]),
-                selected: isSelected,
-                onSelected: (_) => onSelected(value),
-                visualDensity: VisualDensity.compact,
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? const Color(0xffe2f9ff)
-                      : const Color(0xff9ab3bd),
-                  fontFamily: 'ShareTechMono',
-                  fontSize: 10,
-                ),
-                selectedColor: const Color(0xff24566a).withValues(alpha: .82),
-                backgroundColor: const Color(0xff091015).withValues(alpha: .58),
-                side: BorderSide(
-                  color: const Color(
-                    0xff62cfe4,
-                  ).withValues(alpha: isSelected ? .65 : .22),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    ],
   );
 }
 
@@ -621,12 +615,12 @@ class _HistoryTitlePainter extends CustomPainter {
 
 class _HistoryAmbientPainter extends CustomPainter {
   const _HistoryAmbientPainter({
-    required this.variant,
+    required this.impulseMode,
     required this.phase,
     required this.dataVaultSeconds,
   });
 
-  final HistoryAmbientVariant variant;
+  final DataVaultImpulseMode impulseMode;
   final double phase;
   final double dataVaultSeconds;
 
@@ -636,16 +630,12 @@ class _HistoryAmbientPainter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = const Color(0xff071015),
     );
-    switch (variant) {
-      case HistoryAmbientVariant.chronoArchive:
-        _paintChronoArchive(canvas, size);
-      case HistoryAmbientVariant.dataVault:
-        _paintDataVault(canvas, size);
-      case HistoryAmbientVariant.memoryStream:
-        _paintMemoryStream(canvas, size);
-    }
+    _paintDataVault(canvas, size);
   }
 
+  // Retained for backward-compatible visual preferences; V2.0 exposes only
+  // DATA VAULT in this comparison page.
+  // ignore: unused_element
   void _paintChronoArchive(Canvas canvas, Size size) {
     final timelineY = size.height * .31;
     final left = size.width * .08;
@@ -732,9 +722,12 @@ class _HistoryAmbientPainter extends CustomPainter {
     _drawPoints(canvas, size, const Color(0xff61e5f6), 10, cycle);
   }
 
-  void _paintDataVault(Canvas canvas, Size size) =>
-      HistoryDataVaultHyperspace(seconds: dataVaultSeconds).paint(canvas, size);
+  void _paintDataVault(Canvas canvas, Size size) => HistoryDataVaultHyperspace(
+    seconds: dataVaultSeconds,
+    impulseMode: impulseMode,
+  ).paint(canvas, size);
 
+  // ignore: unused_element
   void _paintMemoryStream(Canvas canvas, Size size) {
     final paths = <Path>[
       Path()
@@ -861,7 +854,7 @@ class _HistoryAmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HistoryAmbientPainter oldDelegate) =>
-      oldDelegate.variant != variant ||
+      oldDelegate.impulseMode != impulseMode ||
       oldDelegate.phase != phase ||
       oldDelegate.dataVaultSeconds != dataVaultSeconds;
 }
