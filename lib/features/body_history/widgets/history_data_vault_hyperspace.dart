@@ -468,7 +468,9 @@ class HistoryDataVaultHyperspace {
     var painted = 0;
     var gateVisible = false;
     final current = HistoryDataVaultMotion.compositeScanIndexAt(seconds);
-    for (var index = current; index >= current - 1 && painted < 2; index--) {
+    // Inspect a bounded third candidate as the 25%-denser cadence can leave
+    // an older event in its fading, still-visible approach window.
+    for (var index = current; index >= current - 2 && painted < 2; index--) {
       final event = HistoryDataVaultMotion.compositeScanEventFor(index);
       if (!event.isActiveAt(seconds)) continue;
       final head = event.frontAt(seconds);
@@ -517,7 +519,7 @@ class HistoryDataVaultHyperspace {
       _scanPoint(rail, head, width),
       _scanPoint(rail, tail, width),
       _scanPoint(rail, tail, -width),
-    ], const Color(0xff36bdeb).withValues(alpha: .075));
+    ], const Color(0xff36bdeb).withValues(alpha: .11));
     for (final depthOffset in [0.0, .16, .36]) {
       for (var notch = 0; notch < 5; notch++) {
         final u = notch / 4;
@@ -529,7 +531,7 @@ class HistoryDataVaultHyperspace {
           _scanPoint(rail, head + depthOffset + .10, cross + .08),
           const Color(
             0xffddfbff,
-          ).withValues(alpha: depthOffset == 0 ? .76 : .17),
+          ).withValues(alpha: depthOffset == 0 ? .86 : .22),
           depthOffset == 0 ? .85 : .45,
         );
       }
@@ -877,6 +879,15 @@ class HistoryDataVaultHyperspace {
     var painted = 0;
     final maximum = boost > .12 ? 3 : 2;
     for (var index = event; index >= event - 3 && painted < maximum; index--) {
+      // A deterministic event-level decision preserves a retained packet for
+      // its entire lifetime; it never flickers a live packet away.
+      if (!HistoryDataVaultMotion.retainSparkPacket(
+        rail.surface,
+        rail.lane,
+        index,
+      )) {
+        continue;
+      }
       final launch = profile.launchOffset + index * profile.repeatInterval;
       final elapsed = seconds - launch;
       if (elapsed < 0 || elapsed > profile.visibleDuration) continue;
@@ -1741,21 +1752,23 @@ class HistoryDataVaultMotion {
     return ((seconds - seedUnit(seed + 17) * interval) / interval).floor();
   }
 
-  /// Sparse V2.3 scan cadence: one event globally every 3.35 seconds.
+  /// V2.4 raises the global scan rate by exactly 25% (3.35 / 1.25).
   static int compositeScanIndexAt(double seconds) =>
-      ((seconds - .55) / 3.35).floor();
+      ((seconds - .55) / 2.68).floor();
 
   static DataVaultInboundEvent compositeScanEventFor(int event) {
     final seed = _impulseSeed(0x47ad + event * 613);
-    final launch = .55 + event * 3.35;
+    final launch = .55 + event * 2.68;
     return DataVaultInboundEvent(
       id: event,
       seed: seed,
       launchSeconds: launch,
       travelMultiplier: 1.08 + seedUnit(seed + 7) * .20,
       length: 1.5 + seedUnit(seed + 11) * 1.0,
-      lifetime: 3.9,
-      lead: 86,
+      // The scan now remains active long enough to cross the usable depth
+      // range even through a sprint, while its front stays world-projected.
+      lifetime: 4.35,
+      lead: 82,
     );
   }
 
@@ -1768,19 +1781,21 @@ class HistoryDataVaultMotion {
         : DataVaultScanPattern.stripRaster;
   }
 
-  /// One rare real-anchor network event at a time, never a wall graph.
+  /// V2.4 raises the global node cadence by exactly 25% (5.65 / 1.25).
   static int compositeNodeIndexAt(double seconds) =>
-      ((seconds - 1.25) / 5.65).floor();
+      ((seconds - 1.25) / 4.52).floor();
 
   static DataVaultNodeEvent compositeNodeEventFor(int event) {
     final base = nodeEventFor(event % 5, event);
-    final launch = 1.25 + event * 5.65;
+    final launch = 1.25 + event * 4.52;
     return DataVaultNodeEvent(
       id: event,
       seed: base.seed,
       launchSeconds: launch,
       duration: .65,
-      anchorS: distanceAt(launch) + 26 + seedUnit(base.seed + 19) * 54,
+      // A mid-near deterministic launch band avoids spending a short flash
+      // beyond the aperture while retaining stable anchors for its lifetime.
+      anchorS: distanceAt(launch) + 18 + seedUnit(base.seed + 19) * 48,
       topology: base.topology,
       anchors: base.anchors,
       links: base.links,
@@ -1840,6 +1855,14 @@ class HistoryDataVaultMotion {
       brightnessMultiplier: .84 + seedUnit(seed + 43) * .30,
     );
   }
+
+  /// Stable 70% D-SPARK event gate.  The seed includes every physical rail
+  /// and packet identity, so all surfaces retain comparable representation.
+  static bool retainSparkPacket(
+    DataVaultImpulseSurface surface,
+    int lane,
+    int packet,
+  ) => seedUnit(packetSeed(surface, lane, packet) + 0x70) < .70;
 
   /// A floor packet owns a physical, gently drifting world path. It is not
   /// coupled to the decorative -3.2/-1.6/0/1.6/3.2 floor-grid offsets.
