@@ -37,7 +37,7 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('CONTINUOUS CIRCULATION V4.1 visual frame is stable', (
+  testWidgets('CONTINUOUS CIRCULATION soap-bubble visual frame is stable', (
     tester,
   ) async {
     await pumpFood(tester, FoodAmbientVariant.continuousCirculation);
@@ -46,7 +46,9 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_continuous_circulation_v41_phase_a.png'),
+      matchesGoldenFile(
+        'goldens/food_continuous_circulation_bubble_phase_a.png',
+      ),
     );
   });
 
@@ -96,7 +98,9 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_continuous_circulation_v41_phase_b.png'),
+      matchesGoldenFile(
+        'goldens/food_continuous_circulation_bubble_phase_b.png',
+      ),
     );
   });
 

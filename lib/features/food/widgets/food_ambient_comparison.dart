@@ -180,7 +180,11 @@ class OilTimerSimulation {
     for (var index = 0; index < dropCount; index++) {
       final h = OilTimerMotion.hash(index, 13);
       final xSeed = (index * .61803398875 + OilTimerMotion.hash(index, 31)) % 1;
-      final radius = min * (.032 + .050 * h);
+      // The circulation remains a finite set of independent bodies, but the
+      // material now favours a medium-to-large soap-bubble distribution over
+      // the previous small, dense droplet population.  This is a 1.22x
+      // expansion of the established radius range, not a new simulation.
+      final radius = min * (.039 + .061 * h);
       _drops.add(
         _OilDropState(
           id: index,
@@ -211,7 +215,9 @@ class OilTimerSimulation {
       if (drop.state == _OilTravelState.descending ||
           drop.state == _OilTravelState.entering) {
         final tauY = .60 + OilTimerMotion.hash(drop.id, 71) * .50;
-        final targetVy = 22 + OilTimerMotion.hash(drop.id, 73) * 16;
+        // A bubble still descends, but its low target speed and two wind
+        // layers make the path read as buoyant drift rather than ball rain.
+        final targetVy = 20 + OilTimerMotion.hash(drop.id, 73) * 13;
         final buoyancy =
             math.sin(
               _elapsed * (.72 + OilTimerMotion.hash(drop.id, 79) * .28) +
@@ -222,13 +228,13 @@ class OilTimerSimulation {
             drop.velocity.dy +
             ((targetVy + buoyancy) - drop.velocity.dy) * (dt / tauY);
         final slowWind =
-            (10 + OilTimerMotion.hash(drop.id, 83) * 12) *
+            (12 + OilTimerMotion.hash(drop.id, 83) * 14) *
             math.sin(
               (.24 + OilTimerMotion.hash(drop.id, 89) * .24) * _elapsed +
                   drop.id * .91,
             );
         final fastWind =
-            (4 + OilTimerMotion.hash(drop.id, 97) * 5) *
+            (5 + OilTimerMotion.hash(drop.id, 97) * 6) *
             math.sin(
               (.67 + OilTimerMotion.hash(drop.id, 101) * .39) * _elapsed +
                   drop.id * 1.27,
@@ -237,7 +243,7 @@ class OilTimerSimulation {
         final vx =
             (drop.velocity.dx +
                     ((slowWind + fastWind) - drop.velocity.dx) * (dt / tauX))
-                .clamp(-28.0, 28.0);
+                .clamp(-32.0, 32.0);
         drop.velocity = Offset(vx, vy);
         drop.center += drop.velocity * dt;
         if (drop.center.dx - drop.radius < 0 ||
@@ -390,7 +396,9 @@ class OilTimerSimulation {
             final settling =
                 a.state == _OilTravelState.settling ||
                 b.state == _OilTravelState.settling;
-            final restitution = settling ? .20 : .42;
+            // Soap bubbles exchange only a small, soft impulse.  The
+            // position correction still prevents fusion/intersection.
+            final restitution = settling ? .18 : .36;
             final impulse = -(1 + restitution) * relative / inverseMass;
             a.velocity -= normal * (impulse / ma);
             b.velocity += normal * (impulse / mb);
@@ -404,8 +412,8 @@ class OilTimerSimulation {
             b.velocity -= tangent * (friction / mb);
           }
           final compression = math.min(
-            .32,
-            .12 + .35 * overlap / math.min(a.radius, b.radius),
+            .24,
+            .08 + .28 * overlap / math.min(a.radius, b.radius),
           );
           a.compression = math.max(a.compression, compression);
           b.compression = math.max(b.compression, compression);
@@ -600,7 +608,11 @@ class _FoodAmbientPainter extends CustomPainter {
         contactStrength: drop.squashStrength,
       );
       final bounds = path.getBounds();
-      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .07));
+      // Thin-film bubbles avoid a heavy colour-filled centre.  Their colour
+      // lives primarily in the rim and a light, translucent membrane.
+      final pale = Color.lerp(drop.color, Colors.white, .48)!;
+      final deep = Color.lerp(drop.color, const Color(0xff071522), .38)!;
+      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .022));
       c.save();
       c.clipPath(path);
       c.drawRect(
@@ -613,29 +625,46 @@ class _FoodAmbientPainter extends CustomPainter {
             ),
             radius: 1.05,
             colors: [
-              Color.lerp(drop.color, Colors.white, .42)!.withValues(alpha: .48),
-              drop.color.withValues(alpha: .36),
-              Color.lerp(
-                drop.color,
-                const Color(0xff071522),
-                .58,
-              )!.withValues(alpha: .26),
-              drop.color.withValues(alpha: .08),
+              pale.withValues(alpha: .20),
+              drop.color.withValues(alpha: .13),
+              deep.withValues(alpha: .075),
+              drop.color.withValues(alpha: .018),
             ],
-            stops: const [0, .30, .70, 1],
+            stops: const [0, .26, .68, 1],
           ).createShader(bounds),
       );
+      final reflectionBounds = Rect.fromCenter(
+        center: drop.center + Offset(-drop.radius * .16, -drop.radius * .22),
+        width: drop.radius * 1.25,
+        height: drop.radius * .82,
+      );
+      c.drawArc(
+        reflectionBounds,
+        math.pi * 1.04,
+        math.pi * .54,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = math.max(.55, drop.radius * .026)
+          ..color = Colors.white.withValues(alpha: .24),
+      );
       c.restore();
+      // A broad, quiet exterior rim lifts the bubble from the dark ambient
+      // without using a blur/filter layer.
       c.drawPath(
         path,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = .9
-          ..color = Color.lerp(
-            drop.color,
-            Colors.white,
-            .42,
-          )!.withValues(alpha: .42),
+          ..strokeWidth = math.max(1.0, drop.radius * .052)
+          ..color = pale.withValues(alpha: .11),
+      );
+      c.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(.62, drop.radius * .026)
+          ..color = pale.withValues(alpha: .48),
       );
     }
   }
