@@ -22,8 +22,6 @@ class _FootCardState extends State<FootCard> {
   static const _compactWidth = 280.0;
   static const _desktopWidth = 600.0;
 
-  late bool _expanded;
-
   int? get _selectedValue => int.tryParse(widget.controller.text);
   bool get _hasSelectedValue {
     final value = _selectedValue;
@@ -33,7 +31,6 @@ class _FootCardState extends State<FootCard> {
   @override
   void initState() {
     super.initState();
-    _expanded = !_hasSelectedValue;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -43,7 +40,6 @@ class _FootCardState extends State<FootCard> {
     if (oldWidget.controller == widget.controller) return;
 
     oldWidget.controller.removeListener(_handleControllerChanged);
-    _expanded = !_hasSelectedValue;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -56,23 +52,10 @@ class _FootCardState extends State<FootCard> {
   void _handleControllerChanged() {
     if (!mounted) return;
 
-    setState(() {
-      if (!_hasSelectedValue) {
-        _expanded = true;
-      }
-    });
-  }
-
-  void _expand() {
-    setState(() {
-      _expanded = true;
-    });
+    setState(() {});
   }
 
   void _selectPainLevel(int value) {
-    setState(() {
-      _expanded = false;
-    });
     widget.controller.text = value.toString();
   }
 
@@ -150,52 +133,51 @@ class _FootCardState extends State<FootCard> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Pain Level',
+                    'PAIN LEVEL',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                if (_hasSelectedValue)
-                  TextButton(
-                    key: const Key('foot-pain-current-value-button'),
-                    onPressed: _expand,
-                    child: Text(
-                      '$_selectedValue',
-                      key: const Key('foot-pain-current-value'),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.lightBlueAccent,
-                      ),
+                TextButton(
+                  key: const Key('foot-pain-current-value-button'),
+                  onPressed: () {},
+                  child: Text(
+                    _hasSelectedValue ? 'LV.$_selectedValue /10' : '未選択',
+                    key: _hasSelectedValue
+                        ? const Key('foot-pain-current-value')
+                        : null,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.lightBlueAccent,
                     ),
-                  ).actionableFeedback(),
+                  ),
+                ).actionableFeedback(),
               ],
             ),
           ),
 
-          if (_expanded) ...[
-            AppSpacing.gapMD,
+          AppSpacing.gapMD,
 
-            Column(
-              children: [
-                _buildPainLevelRow(
-                  _firstRowValues,
-                  const Key('foot-pain-levels-1-5'),
-                ),
-                const SizedBox(height: 8),
-                _buildPainLevelRow(
-                  _secondRowValues,
-                  const Key('foot-pain-levels-6-10'),
-                ),
-              ],
-            ),
+          Column(
+            children: [
+              _buildPainLevelRow(
+                _firstRowValues,
+                const Key('foot-pain-levels-1-5'),
+              ),
+              const SizedBox(height: 8),
+              _buildPainLevelRow(
+                _secondRowValues,
+                const Key('foot-pain-levels-6-10'),
+              ),
+            ],
+          ),
 
-            AppSpacing.gapMD,
+          AppSpacing.gapMD,
 
-            Text(
-              '0–2 軽度   3–4 監視   5–6 保護検討   7以上 強保護候補',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+          Text(
+            '0–2 軽度   3–4 監視   5–6 保護検討   7以上 強保護候補',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       ),
     );

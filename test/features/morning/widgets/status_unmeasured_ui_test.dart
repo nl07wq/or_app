@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/repositories/morning_repository.dart';
-import 'package:or_app/core/widgets/inputs/hud/hud_input_card.dart';
 import 'package:or_app/core/widgets/inputs/hud/hud_ruler.dart';
 import 'package:or_app/core/widgets/inputs/operation_ruler.dart';
 import 'package:or_app/features/morning/widgets/body_card.dart';
@@ -56,8 +55,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
     await tester.pump();
-    expect(find.byType(HUDInputCard), findsNothing);
-    expect(find.byKey(const ValueKey('status-body-fat-hud')), findsNothing);
+    expect(find.byKey(const ValueKey('status-weight-hud')), findsNothing);
+    expect(find.byKey(const ValueKey('status-body-fat-ring')), findsNothing);
     expect(weight.text, isEmpty);
     expect(bodyFat.text, isEmpty);
     _expectUnmeasuredValueStyle(tester, 'Weight');
@@ -74,7 +73,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
     await tester.pump();
     expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
-    expect(find.byKey(const ValueKey('status-body-fat-hud')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-body-fat-ring')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
       findsNothing,
@@ -99,7 +98,8 @@ void main() {
       width: 390,
     );
 
-    expect(find.byType(HUDInputCard), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-body-fat-ring')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
       findsNothing,
@@ -172,7 +172,7 @@ void main() {
       find.byKey(const ValueKey('status-sleep-duration-picker')),
       findsNothing,
     );
-    expect(find.byType(HUDInputCard), findsNothing);
+    expect(find.byKey(const ValueKey('status-sleep-score-hud-sleep')), findsNothing);
     expect(find.text('未計測'), findsNWidgets(3));
     expect(
       _choiceChip(
@@ -220,7 +220,7 @@ void main() {
         find.byKey(const ValueKey('status-sleep-duration-picker')),
         findsOneWidget,
       );
-      expect(find.byType(HUDInputCard), findsOneWidget);
+      expect(find.byKey(const ValueKey('status-sleep-score-hud-sleep')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),
         findsNothing,
@@ -258,7 +258,7 @@ void main() {
         find.byKey(const ValueKey('status-sleep-duration-picker')),
         findsOneWidget,
       );
-      expect(find.byType(HUDInputCard), findsNothing);
+      expect(find.byKey(const ValueKey('status-sleep-score-hud-nap')), findsNothing);
       expect(find.text('仮眠'), findsNWidgets(2));
       expect(
         find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),

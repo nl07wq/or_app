@@ -4,7 +4,6 @@ import '../../../core/models/morning_data.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/inputs/hud/hud_input_card.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 
 class RecoveryCard extends StatelessWidget {
@@ -86,15 +85,10 @@ class RecoveryCard extends StatelessWidget {
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Score')
           else if (sleepType == SleepType.sleep)
-            HUDInputCard(
+            _SleepScoreGauge(
               key: ValueKey('status-sleep-score-hud-${sleepType.name}'),
               title: "Sleep Score",
-              unit: "",
               controller: sleepScoreController,
-              min: 0,
-              max: 100,
-              step: 1,
-              initialValue: 80,
             )
           else ...[
             const Row(
@@ -191,78 +185,158 @@ class _SleepDurationOrbitalInputState
         onTap: _selectDuration,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          height: 112,
+          height: 68,
           decoration: BoxDecoration(
             color: colors.surfaceContainer.withValues(alpha: .28),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: colors.primary.withValues(alpha: .38)),
           ),
-          child: Stack(
-            alignment: Alignment.center,
+          child: Row(
             children: [
-              Positioned(
-                left: 14,
-                right: 14,
-                top: 29,
-                child: Container(
-                  height: 1,
-                  color: colors.primary.withValues(alpha: .24),
-                ),
-              ),
-              Positioned(
-                left: 14,
-                right: 14,
-                bottom: 29,
-                child: Container(
-                  height: 1,
-                  color: colors.primary.withValues(alpha: .24),
-                ),
-              ),
-              const Positioned(
-                left: 16,
-                top: 12,
-                child: Icon(Icons.bedtime_outlined, size: 20),
-              ),
-              Positioned(
-                right: 16,
-                top: 12,
-                child: Icon(
-                  Icons.track_changes_outlined,
-                  size: 20,
-                  color: colors.primary,
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.title,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    widget.controller.text,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'ShareTechMono',
+              const SizedBox(width: 14),
+              const Icon(Icons.bedtime_outlined),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: Theme.of(context).textTheme.labelMedium,
                     ),
-                  ),
-                  Text(
-                    'DURATION / ORBITAL SELECT',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: colors.primary.withValues(alpha: .78),
-                      letterSpacing: .7,
-                    ),
-                  ),
-                ],
+                    Text('時間・分', style: Theme.of(context).textTheme.labelSmall),
+                  ],
+                ),
               ),
+              Text(
+                widget.controller.text,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'ShareTechMono',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(Icons.chevron_right, color: colors.primary),
+              const SizedBox(width: 8),
             ],
           ),
         ),
       ).inputFeedback(),
     );
   }
+}
+
+class _SleepScoreGauge extends StatefulWidget {
+  const _SleepScoreGauge({
+    super.key,
+    required this.title,
+    required this.controller,
+  });
+  final String title;
+  final TextEditingController controller;
+  @override
+  State<_SleepScoreGauge> createState() => _SleepScoreGaugeState();
+}
+
+class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
+  int _value = 80;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller.text.isEmpty) widget.controller.text = '80';
+    _read();
+    widget.controller.addListener(_read);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_read);
+    super.dispose();
+  }
+
+  void _read() {
+    final v = (int.tryParse(widget.controller.text) ?? 80).clamp(0, 100);
+    if (v != _value && mounted) setState(() => _value = v);
+  }
+
+  void _set(double v) =>
+      widget.controller.text = v.round().clamp(0, 100).toString();
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.title, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 5),
+          Expanded(
+            child: Row(
+              children: [
+                Text(
+                  '$_value',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontSize: 40,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text('/100', style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (ctx, b) => Semantics(
+                      slider: true,
+                      label: 'Sleep score $_value',
+                      child: GestureDetector(
+                        onTapDown: (d) =>
+                            _set(d.localPosition.dx / b.maxWidth * 100),
+                        onHorizontalDragUpdate: (d) =>
+                            _set(d.localPosition.dx / b.maxWidth * 100),
+                        child: CustomPaint(
+                          size: Size.infinite,
+                          painter: _ScoreGaugePainter(_value, c.primary),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreGaugePainter extends CustomPainter {
+  const _ScoreGaugePainter(this.value, this.color);
+  final int value;
+  final Color color;
+  @override
+  void paint(Canvas c, Size s) {
+    final y = s.height / 2,
+        p = Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 8
+          ..color = color.withValues(alpha: .12);
+    c.drawLine(Offset(0, y), Offset(s.width, y), p);
+    p.color = color.withValues(alpha: .8);
+    c.drawLine(Offset(0, y), Offset(s.width * value / 100, y), p);
+    for (var i = 0; i <= 10; i++) {
+      final x = s.width * i / 10;
+      p
+        ..strokeWidth = i == 0 || i == 5 || i == 10 ? 1.5 : 1
+        ..color = color.withValues(alpha: (i * 10 <= value) ? .65 : .25);
+      c.drawLine(Offset(x, y - 12), Offset(x, y + 12), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScoreGaugePainter o) =>
+      o.value != value || o.color != color;
 }
 
 class _UnmeasuredToggle extends StatelessWidget {

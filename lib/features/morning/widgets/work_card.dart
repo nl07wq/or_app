@@ -10,6 +10,7 @@ import '../../../core/widgets/inputs/wheel/wheel_selector_card.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/services/work_calculator.dart';
+import '../../schedule/widgets/shared_time_picker.dart';
 
 class WorkCard extends StatefulWidget {
   final WorkType workType;
@@ -116,51 +117,56 @@ class _WorkCardState extends State<WorkCard> {
                         },
                         itemBuilder: (context, index) {
                           final preset = _presets[index];
-                          return ListTile(
+                          return KeyedSubtree(
                             key: ValueKey(preset.id),
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(preset.name),
-                            subtitle: Text(
-                              '${preset.startTime} → ${preset.endTime}',
-                            ),
-                            onTap: () async {
-                              final result = await _showPresetEditor(
-                                context,
-                                preset: preset,
-                              );
-                              if (result == null) return;
-                              final next = [
-                                for (final value in _presets)
-                                  if (value.id == preset.id) result else value,
-                              ];
-                              await refresh(next);
-                            },
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  tooltip: 'DELETE PRESET',
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () async {
-                                    await refresh(
-                                      _presets
-                                          .where(
-                                            (value) => value.id != preset.id,
-                                          )
-                                          .toList(),
-                                    );
-                                  },
-                                ).actionableFeedback(),
-                                ReorderableDragStartListener(
-                                  index: index,
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Icon(Icons.drag_handle),
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(preset.name),
+                              subtitle: Text(
+                                '${preset.startTime} → ${preset.endTime}',
+                              ),
+                              onTap: () async {
+                                final result = await _showPresetEditor(
+                                  context,
+                                  preset: preset,
+                                );
+                                if (result == null) return;
+                                final next = [
+                                  for (final value in _presets)
+                                    if (value.id == preset.id)
+                                      result
+                                    else
+                                      value,
+                                ];
+                                await refresh(next);
+                              },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'DELETE PRESET',
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () async {
+                                      await refresh(
+                                        _presets
+                                            .where(
+                                              (value) => value.id != preset.id,
+                                            )
+                                            .toList(),
+                                      );
+                                    },
+                                  ).actionableFeedback(),
+                                  ReorderableDragStartListener(
+                                    index: index,
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Icon(Icons.drag_handle),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ).actionableFeedback(enabled: true);
+                                ],
+                              ),
+                            ).actionableFeedback(enabled: true),
+                          );
                         },
                       ),
                       if (_presets.length < ShiftPresetPreferences.maxPresets)
@@ -262,22 +268,18 @@ class _WorkCardState extends State<WorkCard> {
 
             const SizedBox(height: 20),
 
-            TimeInputCard(
-              title: "Start Time",
+            _WorkClockRow(
+              key: const ValueKey('work-start-orbital-picker'),
+              title: 'Start Time',
               controller: widget.startController,
-              minuteStep: 15,
-              initialHour: 11,
-              initialMinute: 0,
             ),
 
             const SizedBox(height: 20),
 
-            TimeInputCard(
-              title: "End Time",
+            _WorkClockRow(
+              key: const ValueKey('work-end-orbital-picker'),
+              title: 'End Time',
               controller: widget.endController,
-              minuteStep: 15,
-              initialHour: 18,
-              initialMinute: 0,
             ),
 
             const SizedBox(height: 20),
@@ -340,6 +342,105 @@ class _WorkCardState extends State<WorkCard> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _WorkClockRow extends StatefulWidget {
+  const _WorkClockRow({
+    super.key,
+    required this.title,
+    required this.controller,
+  });
+  final String title;
+  final TextEditingController controller;
+  @override
+  State<_WorkClockRow> createState() => _WorkClockRowState();
+}
+
+class _WorkClockRowState extends State<_WorkClockRow> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkClockRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_changed);
+      widget.controller.addListener(_changed);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  TimeOfDay get _time {
+    final p = widget.controller.text.split(':');
+    return TimeOfDay(
+      hour: (int.tryParse(p.first) ?? 0).clamp(0, 23),
+      minute: (p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0).clamp(0, 59),
+    );
+  }
+
+  Future<void> _pick() async {
+    final result = await showSharedTimePicker(context, initialTime: _time);
+    if (result != null) {
+      widget.controller.text =
+          '${result.hour.toString().padLeft(2, '0')}:${result.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: '${widget.title} ${widget.controller.text}',
+      child: InkWell(
+        onTap: _pick,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainer.withValues(alpha: .28),
+            border: Border.all(color: cs.primary.withValues(alpha: .35)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 14),
+              Icon(Icons.schedule, color: cs.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Text(
+                widget.controller.text,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontFamily: 'ShareTechMono',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: cs.primary),
+              const SizedBox(width: 10),
+            ],
+          ),
+        ),
+      ).actionableFeedback(),
     );
   }
 }

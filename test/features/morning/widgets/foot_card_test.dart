@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
@@ -13,86 +12,76 @@ import '../../operation_date/operation_date_test_fixture.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('starts expanded when no pain level has been entered', (
+  testWidgets(
+    'always shows two rows of choices when no pain level is entered',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(_testApp(controller));
+
+      expect(find.byKey(const Key('foot-pain-current-value')), findsNothing);
+      expect(
+        find.byKey(const Key('foot-pain-current-value-button')),
+        findsOneWidget,
+      );
+
+      final firstRow = find.byKey(const Key('foot-pain-levels-1-5'));
+      final secondRow = find.byKey(const Key('foot-pain-levels-6-10'));
+      expect(tester.widget(firstRow), isA<LayoutBuilder>());
+      expect(tester.widget(secondRow), isA<LayoutBuilder>());
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
+      expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
+
+      expect(find.byKey(const Key('foot-pain-chip-1')), findsOneWidget);
+
+      for (final value in [1, 2, 3, 4, 5]) {
+        expect(
+          find.descendant(
+            of: firstRow,
+            matching: find.byKey(Key('foot-pain-chip-$value')),
+          ),
+          findsOneWidget,
+        );
+      }
+      for (final value in [6, 7, 8, 9, 10]) {
+        expect(
+          find.descendant(
+            of: secondRow,
+            matching: find.byKey(Key('foot-pain-chip-$value')),
+          ),
+          findsOneWidget,
+        );
+      }
+
+      final compactSizes = [
+        for (var value = 1; value <= 10; value++)
+          tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
+      ];
+      expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
+      expect(compactSizes.first.width, closeTo(48.8, 0.01));
+      expect(compactSizes.first.height, 48);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('selected value keeps choices visible for reselection', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(320, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = TextEditingController();
-    addTearDown(controller.dispose);
-
-    await tester.pumpWidget(_testApp(controller));
-
-    expect(find.byKey(const Key('foot-pain-current-value')), findsNothing);
-    expect(
-      find.byKey(const Key('foot-pain-current-value-button')),
-      findsNothing,
-    );
-
-    final firstRow = find.byKey(const Key('foot-pain-levels-1-5'));
-    final secondRow = find.byKey(const Key('foot-pain-levels-6-10'));
-    expect(tester.widget(firstRow), isA<LayoutBuilder>());
-    expect(tester.widget(secondRow), isA<LayoutBuilder>());
-    expect(find.byType(ChoiceChip), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsNothing);
-    expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
-
-    await tester.tap(find.text('Pain Level'));
-    await tester.pump();
-    expect(find.byKey(const Key('foot-pain-chip-1')), findsOneWidget);
-
-    for (final value in [1, 2, 3, 4, 5]) {
-      expect(
-        find.descendant(
-          of: firstRow,
-          matching: find.byKey(Key('foot-pain-chip-$value')),
-        ),
-        findsOneWidget,
-      );
-    }
-    for (final value in [6, 7, 8, 9, 10]) {
-      expect(
-        find.descendant(
-          of: secondRow,
-          matching: find.byKey(Key('foot-pain-chip-$value')),
-        ),
-        findsOneWidget,
-      );
-    }
-
-    final compactSizes = [
-      for (var value = 1; value <= 10; value++)
-        tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
-    ];
-    expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(compactSizes.first.width, closeTo(48.8, 0.01));
-    expect(compactSizes.first.height, 48);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('only the selected value expands the choices', (tester) async {
     final controller = TextEditingController(text: '3');
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 
-    expect(_currentValue(tester), '3');
-    expect(find.byKey(const Key('foot-pain-chip-3')), findsNothing);
-
-    await tester.tap(find.text('Pain Level'));
-    await tester.pump();
-    expect(find.byKey(const Key('foot-pain-chip-3')), findsNothing);
-
-    await _tapCurrentValue(tester);
-    expect(find.byKey(const Key('foot-pain-chip-3')), findsOneWidget);
-
-    await tester.tap(find.text('Pain Level'));
-    await tester.pump();
+    expect(_currentValue(tester), 'LV.3 /10');
     expect(find.byKey(const Key('foot-pain-chip-3')), findsOneWidget);
   });
 
-  testWidgets('collapsed value matches the Sleep Score accent style', (
+  testWidgets('level summary matches the selected accent style', (
     tester,
   ) async {
     final controller = TextEditingController(text: '5');
@@ -102,7 +91,7 @@ void main() {
     final currentValue = tester.widget<Text>(
       find.byKey(const Key('foot-pain-current-value')),
     );
-    expect(currentValue.data, '5');
+    expect(currentValue.data, 'LV.5 /10');
     expect(currentValue.style?.fontSize, 20);
     expect(currentValue.style?.fontWeight, FontWeight.w600);
     expect(currentValue.style?.color, Colors.lightBlueAccent);
@@ -121,7 +110,6 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(_testApp(controller));
-    await _tapCurrentValue(tester);
 
     final firstRow = find.byKey(const Key('foot-pain-levels-1-5'));
     final firstRowRect = tester.getRect(firstRow);
@@ -157,7 +145,6 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(_testApp(controller));
-    await _tapCurrentValue(tester);
 
     final firstRow = find.byKey(const Key('foot-pain-levels-1-5'));
     final firstRowRect = tester.getRect(firstRow);
@@ -179,13 +166,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('selection updates the value and automatically collapses', (
+  testWidgets('selection updates the value without collapsing segments', (
     tester,
   ) async {
     final controller = TextEditingController(text: '3');
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
-    await _tapCurrentValue(tester);
 
     final chipFinder = find.byKey(const Key('foot-pain-chip-8'));
     final labelFinder = find.descendant(
@@ -202,11 +188,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(controller.text, '8');
-    expect(_currentValue(tester), '8');
-    expect(chipFinder, findsNothing);
+    expect(_currentValue(tester), 'LV.8 /10');
+    expect(chipFinder, findsOneWidget);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
 
-    await _tapCurrentValue(tester);
     expect(_checkmarkFinder(8), findsOneWidget);
     expect(tester.getSize(chipFinder), beforeSize);
     expect(tester.getCenter(labelFinder).dx, greaterThan(beforeLabelCenter));
@@ -218,7 +203,6 @@ void main() {
     final controller = TextEditingController(text: '5');
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
-    await _tapCurrentValue(tester);
 
     final material = tester.widget<Material>(
       find.byKey(const Key('foot-pain-material-5')),
@@ -244,7 +228,6 @@ void main() {
     final controller = TextEditingController(text: '4');
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
-    await _tapCurrentValue(tester);
 
     expect(
       tester.getSemantics(find.byKey(const Key('foot-pain-chip-4'))),
@@ -259,18 +242,17 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('supports keyboard expansion and selection', (tester) async {
+  testWidgets('supports keyboard focus and selection', (tester) async {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.tap(find.byKey(const Key('foot-pain-chip-1')));
     await tester.pump();
 
     expect(controller.text, '1');
-    expect(_currentValue(tester), '1');
-    expect(find.byKey(const Key('foot-pain-chip-1')), findsNothing);
+    expect(_currentValue(tester), 'LV.1 /10');
+    expect(find.byKey(const Key('foot-pain-chip-1')), findsOneWidget);
   });
 
   testWidgets('external controller updates refresh the current value', (
@@ -280,12 +262,10 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 
-    expect(_currentValue(tester), '2');
+    expect(_currentValue(tester), 'LV.2 /10');
     controller.text = '9';
     await tester.pump();
-    expect(_currentValue(tester), '9');
-
-    await _tapCurrentValue(tester);
+    expect(_currentValue(tester), 'LV.9 /10');
     expect(_checkmarkFinder(2), findsNothing);
     expect(_checkmarkFinder(9), findsOneWidget);
   });
@@ -303,8 +283,6 @@ void main() {
     expect(find.byKey(const Key('foot-pain-current-value')), findsNothing);
     expect(find.byKey(const Key('foot-pain-chip-2')), findsOneWidget);
 
-    await tester.tap(find.text('Pain Level'));
-    await tester.pump();
     expect(find.byKey(const Key('foot-pain-chip-2')), findsOneWidget);
   });
 
@@ -319,7 +297,7 @@ void main() {
     expect(find.byKey(const Key('foot-pain-current-value')), findsNothing);
     expect(
       find.byKey(const Key('foot-pain-current-value-button')),
-      findsNothing,
+      findsOneWidget,
     );
     for (var value = 1; value <= 10; value++) {
       expect(_checkmarkFinder(value), findsNothing);
@@ -356,13 +334,12 @@ void main() {
     expect(saved.footPain, 7);
   });
 
-  testWidgets('guidance is visible only while expanded', (tester) async {
+  testWidgets('guidance remains visible with persistent segment choices', (
+    tester,
+  ) async {
     final controller = TextEditingController(text: '3');
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
-
-    expect(find.textContaining('0–2 軽度'), findsNothing);
-    await _tapCurrentValue(tester);
 
     expect(find.textContaining('0–2 軽度'), findsOneWidget);
     expect(find.textContaining('3–4 監視'), findsOneWidget);
@@ -386,11 +363,6 @@ Widget _testApp(TextEditingController controller) {
       ),
     ),
   );
-}
-
-Future<void> _tapCurrentValue(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('foot-pain-current-value-button')));
-  await tester.pump();
 }
 
 String? _currentValue(WidgetTester tester) {
