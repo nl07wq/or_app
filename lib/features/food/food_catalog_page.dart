@@ -67,6 +67,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   Object? _error;
   bool _loading = true;
   late _FoodDatabaseView _view;
+  FoodCatalogCategory? _selectedCategory;
 
   FoodCatalogRepository get _repository =>
       widget.repository ?? AppRepositoryRegistry.container.foodCatalog;
@@ -119,13 +120,15 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
 
   List<FoodCatalogEntry> get _visible {
     final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return _entries;
     return _entries
         .where(
           (entry) =>
-              entry.name.toLowerCase().contains(query) ||
-              (entry.brand?.toLowerCase().contains(query) ?? false) ||
-              (entry.barcodeValue?.toLowerCase().contains(query) ?? false),
+              (_selectedCategory == null ||
+                  entry.category == _selectedCategory) &&
+              (query.isEmpty ||
+                  entry.name.toLowerCase().contains(query) ||
+                  (entry.brand?.toLowerCase().contains(query) ?? false) ||
+                  (entry.barcodeValue?.toLowerCase().contains(query) ?? false)),
         )
         .toList(growable: false);
   }
@@ -158,6 +161,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     setState(() {
       _view = view;
       _search.clear();
+      _selectedCategory = null;
       _loading =
           (view == _FoodDatabaseView.recipe && _recipes.isEmpty) ||
           (view == _FoodDatabaseView.meal && _meals.isEmpty);
@@ -367,6 +371,10 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
               },
               onChanged: (_) => setState(() {}),
             ),
+            if (_view == _FoodDatabaseView.food) ...[
+              AppSpacing.gapSM,
+              _categoryFilter(),
+            ],
             AppSpacing.gapMD,
             Expanded(child: _body()),
           ],
@@ -374,6 +382,68 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       ),
     ),
   );
+
+  Widget _categoryFilter() => Semantics(
+    label: 'CATEGORY FILTER',
+    child: Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        _categoryChoice(label: 'ALL', category: null, keyName: 'all'),
+        _categoryChoice(
+          label: '食材',
+          category: FoodCatalogCategory.ingredient,
+          keyName: 'ingredient',
+        ),
+        _categoryChoice(
+          label: '調理済み',
+          category: FoodCatalogCategory.preparedFood,
+          keyName: 'preparedFood',
+        ),
+        _categoryChoice(
+          label: '市販・包装品',
+          category: FoodCatalogCategory.packagedFood,
+          keyName: 'packagedFood',
+        ),
+        _categoryChoice(
+          label: '飲料',
+          category: FoodCatalogCategory.beverage,
+          keyName: 'beverage',
+        ),
+      ],
+    ),
+  );
+
+  Widget _categoryChoice({
+    required String label,
+    required FoodCatalogCategory? category,
+    required String keyName,
+  }) {
+    final selected = _selectedCategory == category;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label category filter',
+      child: ChoiceChip(
+        key: ValueKey('food-category-filter-$keyName'),
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() => _selectedCategory = category),
+        showCheckmark: true,
+        materialTapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
+        side: BorderSide(
+          color: selected ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
+        selectedColor: colorScheme.primaryContainer.withValues(alpha: 0.55),
+        backgroundColor: colorScheme.surface.withValues(alpha: 0.35),
+        labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: selected ? colorScheme.primary : colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
 
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());

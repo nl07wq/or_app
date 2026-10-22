@@ -142,6 +142,175 @@ void main() {
     expect(find.text('食品が見つかりません'), findsOneWidget);
   });
 
+  testWidgets(
+    'food category filters combine with catalog search and reset on view change',
+    (tester) async {
+      AppRepositoryRegistry.install(
+        AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
+      );
+      addTearDown(AppRepositoryRegistry.resetForTesting);
+      final repository = _MemoryCatalogRepository([
+        _entry(
+          id: '11111111-1111-4111-8111-111111111111',
+          name: 'Shared Soup',
+          category: FoodCatalogCategory.ingredient,
+          brand: 'Fresh Farm',
+        ),
+        _entry(
+          id: '22222222-2222-4222-8222-222222222222',
+          name: 'Shared Soup',
+          category: FoodCatalogCategory.preparedFood,
+        ),
+        _entry(
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Package Meal',
+          category: FoodCatalogCategory.packagedFood,
+          barcode: '04901234567890',
+        ),
+        _entry(
+          id: '44444444-4444-4444-8444-444444444444',
+          name: 'Tea',
+          category: FoodCatalogCategory.beverage,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(home: FoodCatalogPage(repository: repository)),
+      );
+      await tester.pumpAndSettle();
+
+      for (final key in [
+        'all',
+        'ingredient',
+        'preparedFood',
+        'packagedFood',
+        'beverage',
+      ]) {
+        expect(
+          find.byKey(ValueKey('food-category-filter-$key')),
+          findsOneWidget,
+        );
+      }
+      expect(find.text('Shared Soup'), findsNWidgets(2));
+
+      for (final category in [
+        (key: 'ingredient', name: 'Shared Soup'),
+        (key: 'preparedFood', name: 'Shared Soup'),
+        (key: 'packagedFood', name: 'Package Meal'),
+        (key: 'beverage', name: 'Tea'),
+      ]) {
+        await tester.tap(
+          find.byKey(ValueKey('food-category-filter-${category.key}')),
+        );
+        await tester.pump();
+        expect(find.text(category.name), findsOneWidget);
+      }
+
+      await tester.tap(
+        find.byKey(const ValueKey('food-category-filter-ingredient')),
+      );
+      await tester.pump();
+      expect(find.text('Shared Soup'), findsOneWidget);
+      expect(find.text('Tea'), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('food-catalog-search')),
+        'fresh farm',
+      );
+      await tester.pump();
+      expect(find.text('Shared Soup'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('food-category-filter-preparedFood')),
+      );
+      await tester.pump();
+      expect(find.text('食品が見つかりません'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('food-catalog-search')),
+        '0490123',
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('food-category-filter-packagedFood')),
+      );
+      await tester.pump();
+      expect(find.text('Package Meal'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('food-category-filter-all')));
+      await tester.pump();
+      expect(find.text('Package Meal'), findsOneWidget);
+
+      await tester.tap(find.text('RECIPE'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('food-category-filter-all')),
+        findsNothing,
+      );
+      await tester.tap(find.text('FOOD'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('food-category-filter-all')),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.widgetWithText(TextField, 'SEARCH NAME / BRAND / BARCODE'),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(
+        (await repository.list()).map((entry) => entry.category),
+        orderedEquals([
+          FoodCatalogCategory.ingredient,
+          FoodCatalogCategory.preparedFood,
+          FoodCatalogCategory.packagedFood,
+          FoodCatalogCategory.beverage,
+        ]),
+      );
+    },
+  );
+
+  for (final width in [320.0, 375.0, 390.0, 430.0]) {
+    testWidgets(
+      'food category filters wrap without overflow at ${width.toInt()}px',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final repository = _MemoryCatalogRepository([
+          _entry(
+            id: '11111111-1111-4111-8111-111111111111',
+            name: 'Food',
+            category: FoodCatalogCategory.packagedFood,
+          ),
+        ]);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+              child: FoodCatalogPage(repository: repository),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.byKey(const ValueKey('food-category-filter-packagedFood')),
+        );
+        await tester.pump();
+        expect(find.text('Food'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('catalog list uses selected thumbnail and null fallback', (
     tester,
   ) async {
