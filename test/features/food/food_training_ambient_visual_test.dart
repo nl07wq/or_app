@@ -37,7 +37,7 @@ void main() {
     await tester.pump(elapsed);
   }
 
-  testWidgets('CONTINUOUS CIRCULATION V4.1 visual frame is stable', (
+  testWidgets('CONTINUOUS CIRCULATION V4.2 visual frame is stable', (
     tester,
   ) async {
     await pumpFood(tester, FoodAmbientVariant.continuousCirculation);
@@ -46,7 +46,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_continuous_circulation_v41_phase_a.png'),
+      matchesGoldenFile('goldens/food_continuous_circulation_v42_phase_a.png'),
     );
   });
 
@@ -83,7 +83,7 @@ void main() {
     );
   });
 
-  testWidgets('CONTINUOUS CIRCULATION V4 remains deterministic later', (
+  testWidgets('CONTINUOUS CIRCULATION V4.2 remains deterministic later', (
     tester,
   ) async {
     await pumpFood(
@@ -96,7 +96,7 @@ void main() {
         of: find.byType(FoodAmbientComparison),
         matching: find.byType(RepaintBoundary),
       ),
-      matchesGoldenFile('goldens/food_continuous_circulation_v41_phase_b.png'),
+      matchesGoldenFile('goldens/food_continuous_circulation_v42_phase_b.png'),
     );
   });
 

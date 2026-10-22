@@ -78,7 +78,7 @@ void main() {
     }
   });
 
-  test('film phase is deterministic and continuous across short samples', () {
+  test('surface phase remains deterministic across short samples', () {
     const size = Size(390, 844);
     final first = OilTimerMotion.continuousCirculationFrame(size, 4.0);
     final next = OilTimerMotion.continuousCirculationFrame(size, 4.1);
@@ -87,5 +87,20 @@ void main() {
       expect(next.drops[index].surfacePhase - first.drops[index].surfacePhase,
           closeTo(.032, .001));
     }
+  });
+
+  test('iridescent glint is deterministic, brief, and not continuously active', () {
+    final first = <double>[];
+    final later = <double>[];
+    for (var step = 0; step <= 300; step++) {
+      final seconds = step * .1;
+      first.add(OilTimerMotion.iridescentGlintStrength(4, seconds));
+      later.add(OilTimerMotion.iridescentGlintStrength(4, seconds));
+    }
+
+    expect(first, equals(later));
+    expect(first.where((value) => value > .10).length, lessThan(55));
+    expect(first.where((value) => value < .01).length, greaterThan(200));
+    expect(first.any((value) => value > .5), isTrue);
   });
 }

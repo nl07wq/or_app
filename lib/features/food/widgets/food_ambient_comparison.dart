@@ -511,6 +511,15 @@ abstract final class OilTimerMotion {
 
   static double hash(int a, int b) =>
       (math.sin(a * 12.9898 + b * 78.233) * 43758.5453).abs() % 1;
+
+  /// A sparse, deterministic optical glint. The high exponent deliberately
+  /// keeps the coloured sheen brief instead of leaving a persistent film on a
+  /// drop's surface.
+  static double iridescentGlintStrength(int id, double seconds) {
+    final period = 7.4 + hash(id, 311) * 4.8;
+    final phase = seconds * math.pi * 2 / period + hash(id, 313) * math.pi * 2;
+    return math.pow(math.max(0, (math.sin(phase) - .80) / .20), 2.4).toDouble();
+  }
 }
 
 class FoodAmbientComparison extends StatefulWidget {
@@ -652,12 +661,15 @@ class _FoodAmbientPainter extends CustomPainter {
         drop.surfacePhase,
         drop.id,
         22,
-        .050,
+        // Keep a trace of the original organic motion, but reduce its contour
+        // wobble so the circulation reads as clean spheres rather than a new
+        // material treatment.
+        .028,
         contactDirection: drop.squashDirection,
         contactStrength: drop.squashStrength,
       );
       final bounds = path.getBounds();
-      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .08));
+      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .05));
       c.save();
       c.clipPath(path);
       c.drawRect(
@@ -670,7 +682,7 @@ class _FoodAmbientPainter extends CustomPainter {
             ),
             radius: 1.05,
             colors: [
-              Color.lerp(drop.color, Colors.white, .24)!.withValues(alpha: .37),
+              Color.lerp(drop.color, Colors.white, .42)!.withValues(alpha: .37),
               drop.color.withValues(alpha: .27),
               Color.lerp(
                 drop.color,
@@ -683,7 +695,6 @@ class _FoodAmbientPainter extends CustomPainter {
           ).createShader(bounds),
       );
       c.restore();
-      _paintIridescentFilm(c, path, bounds, drop);
       c.drawPath(
         path,
         Paint()
@@ -695,79 +706,60 @@ class _FoodAmbientPainter extends CustomPainter {
             .42,
           )!.withValues(alpha: .38),
       );
-      final glintCenter = Offset(
-        drop.center.dx - drop.radius * (.28 + math.sin(drop.surfacePhase) * .04),
-        drop.center.dy - drop.radius * (.30 + math.cos(drop.surfacePhase * .7) * .04),
-      );
-      c.drawArc(
-        Rect.fromCenter(
-          center: glintCenter,
-          width: drop.radius * .72,
-          height: drop.radius * .40,
-        ),
-        -2.75 + math.sin(drop.surfacePhase) * .18,
-        1.05,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = .9
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xffe7fbff).withValues(alpha: .34),
-      );
-      c.drawArc(
-        Rect.fromCircle(center: drop.center, radius: drop.radius * .92),
-        -.55 + math.sin(drop.surfacePhase * .8) * .18,
-        1.18,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = .75
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xffbceeff).withValues(alpha: .19),
-      );
+      _paintIridescentGlint(c, path, drop);
     }
   }
 
-  void _paintIridescentFilm(
-    Canvas canvas,
-    Path path,
-    Rect bounds,
-    OilTimerDrop drop,
-  ) {
+  void _paintIridescentGlint(Canvas canvas, Path path, OilTimerDrop drop) {
+    final strength = OilTimerMotion.iridescentGlintStrength(drop.id, t);
+    if (strength < .01) return;
+
+    // This is intentionally a small, intermittent optical arc: it must read
+    // as a momentary angle-dependent sheen, never as a full-surface rainbow
+    // band. Clipping keeps it attached to this individual bubble.
     canvas.save();
     canvas.clipPath(path);
-    final phase = drop.surfacePhase;
-    for (var band = 0; band < 2; band++) {
-      final local = phase * (.82 + band * .13) + band * 2.21;
-      final center = Offset(
-        drop.center.dx + math.sin(local) * drop.radius * .28,
-        drop.center.dy + math.cos(local * .83) * drop.radius * .23,
-      );
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(math.sin(local * .61) * .58 + band * .37);
-      final oval = Rect.fromCenter(
-        center: Offset.zero,
-        width: drop.radius * (1.72 + band * .16),
-        height: drop.radius * (.38 + band * .09),
-      );
-      canvas.drawOval(
-        oval,
-        Paint()
-          ..shader = LinearGradient(
-            colors: [
-              const Color(0xff7cecff).withValues(alpha: .01),
-              const Color(0xff98f3dc).withValues(alpha: .11),
-              const Color(0xffc3a4ff).withValues(alpha: .15),
-              const Color(0xffff9dd8).withValues(alpha: .12),
-              const Color(0xffffefaa).withValues(alpha: .09),
-              const Color(0xff7cecff).withValues(alpha: .01),
-            ],
-            stops: const [0, .20, .42, .61, .79, 1],
-          ).createShader(oval),
-      );
-      canvas.restore();
-    }
+    final local = drop.surfacePhase * .62 + drop.id * .47;
+    final center = Offset(
+      drop.center.dx + math.sin(local) * drop.radius * .18,
+      drop.center.dy - drop.radius * (.36 + math.cos(local * .8) * .05),
+    );
+    final tint = Color.lerp(
+      const Color(0xff8eeeff),
+      const Color(0xffd2a9ff),
+      (.5 + .5 * math.sin(local * 1.3)),
+    )!;
+    final sheen = Rect.fromCenter(
+      center: center,
+      width: drop.radius * .44,
+      height: drop.radius * .20,
+    );
+    canvas.drawArc(
+      sheen,
+      -2.85 + math.sin(local) * .14,
+      .72,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .86
+        ..strokeCap = StrokeCap.round
+        ..color = tint.withValues(alpha: .46 * strength),
+    );
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: center + Offset(drop.radius * .08, drop.radius * .025),
+        width: drop.radius * .25,
+        height: drop.radius * .11,
+      ),
+      -2.65,
+      .34,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .60
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xffffe9a8).withValues(alpha: .30 * strength),
+    );
     canvas.restore();
   }
 

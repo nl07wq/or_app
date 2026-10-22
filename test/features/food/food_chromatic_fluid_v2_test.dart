@@ -42,14 +42,17 @@ void main() {
   });
 
   test(
-    'circulation uses the 1.18 radius scale and smooth visible contacts',
+    'circulation preserves the current 1.50 radius scale and smooth visible contacts',
     () {
       final simulation = OilTimerSimulation(viewport);
       final initial = simulation.snapshot();
       final min = viewport.shortestSide;
       for (final drop in initial.drops) {
         final seed = OilTimerMotion.hash(drop.id, 13);
-        expect(drop.radius, closeTo(min * (.032 + .050 * seed) * 1.18, 1e-9));
+        expect(
+          drop.radius,
+          closeTo(min * (.032 + .050 * seed) * 1.18 * 1.50, 1e-9),
+        );
       }
 
       // Initial seeding intentionally includes drops just beyond the floor and
@@ -72,7 +75,10 @@ void main() {
           if (bothVisible) {
             expect(
               (after.center - before.center).distance,
-              lessThan(8),
+              // The accepted 1.50x spheres can need a slightly larger
+              // bounded separation correction than the earlier V4.1 bodies.
+              // This still rejects a visible teleport at 60 Hz.
+              lessThan(10),
               reason: 'step=$step drop=${after.id}',
             );
           }
@@ -138,7 +144,7 @@ void main() {
       await expectLater(
         find.byType(FoodAmbientComparison),
         matchesGoldenFile(
-          'goldens/food_continuous_circulation_v41_$second.png',
+          'goldens/food_continuous_circulation_v42_$second.png',
         ),
       );
     }
