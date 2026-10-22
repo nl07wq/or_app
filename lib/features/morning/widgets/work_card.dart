@@ -5,7 +5,6 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import '../../../core/models/work_type.dart';
 import '../../../core/models/shift_preset.dart';
 import '../../../core/services/shift_preset_preferences.dart';
-import '../../../core/widgets/inputs/wheel/wheel_selector_card.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/services/work_calculator.dart';
@@ -210,17 +209,8 @@ class _WorkCardState extends State<WorkCard> {
 
           const SizedBox(height: 20),
 
-          WheelSelectorCard<WorkType>(
-            title: "Work Type",
+          _WorkTypeSelector(
             value: widget.workType,
-            values: WorkType.values,
-            labels: const {
-              WorkType.work: "出勤",
-              WorkType.holiday: "公休日",
-              WorkType.paidLeave: "有給休暇",
-              WorkType.halfDay: "半休",
-              WorkType.other: "その他",
-            },
             onChanged: widget.onChanged,
           ),
 
@@ -338,6 +328,98 @@ class _WorkCardState extends State<WorkCard> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _WorkTypeSelector extends StatelessWidget {
+  const _WorkTypeSelector({required this.value, required this.onChanged});
+  final WorkType value;
+  final ValueChanged<WorkType> onChanged;
+  static const _labels = {
+    WorkType.work: '出勤',
+    WorkType.holiday: '公休日',
+    WorkType.paidLeave: '有給休暇',
+    WorkType.halfDay: '半休',
+    WorkType.other: 'その他',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Work Type', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        _row(context, const [
+          WorkType.work,
+          WorkType.holiday,
+          WorkType.paidLeave,
+        ]),
+        const SizedBox(height: 6),
+        _row(context, const [WorkType.halfDay, WorkType.other]),
+      ],
+    );
+  }
+
+  Widget _row(BuildContext context, List<WorkType> values) => Row(
+    children: [
+      for (var index = 0; index < values.length; index++) ...[
+        if (index > 0) const SizedBox(width: 6),
+        Expanded(child: _cell(context, values[index])),
+      ],
+    ],
+  );
+
+  Widget _cell(BuildContext context, WorkType type) {
+    final colors = Theme.of(context).colorScheme;
+    final selected = value == type;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Work Type ${_labels[type]}',
+      child: InkWell(
+        key: ValueKey('work-type-${type.name}'),
+        onTap: () => onChanged(type),
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: selected
+                ? colors.secondaryContainer.withValues(alpha: .62)
+                : colors.surfaceContainer.withValues(alpha: .20),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: selected ? colors.primary : colors.outlineVariant,
+              width: selected ? 1.2 : .8,
+            ),
+          ),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected) ...[
+                  Icon(Icons.check, size: 14, color: colors.primary),
+                  const SizedBox(width: 3),
+                ],
+                Flexible(
+                  child: Text(
+                    _labels[type]!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontSize: 13,
+                      color: selected
+                          ? colors.onSecondaryContainer
+                          : colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ).actionableFeedback(),
     );
   }
 }

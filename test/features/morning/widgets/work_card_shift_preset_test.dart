@@ -249,6 +249,58 @@ void main() {
       );
     },
   );
+
+  testWidgets('work type selector exposes all five types and keeps gating', (
+    tester,
+  ) async {
+    final selected = ValueNotifier(WorkType.work);
+    final start = TextEditingController(text: '07:00');
+    final end = TextEditingController(text: '18:00');
+    final workBreak = TextEditingController(text: '1:00');
+    addTearDown(selected.dispose);
+    addTearDown(start.dispose);
+    addTearDown(end.dispose);
+    addTearDown(workBreak.dispose);
+    await tester.binding.setSurfaceSize(const Size(320, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder<WorkType>(
+            valueListenable: selected,
+            builder: (_, workType, _) => WorkCard(
+              workType: workType,
+              onChanged: (next) => selected.value = next,
+              startController: start,
+              endController: end,
+              breakController: workBreak,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final type in WorkType.values) {
+      expect(find.byKey(ValueKey('work-type-${type.name}')), findsOneWidget);
+    }
+    await tester.tap(find.byKey(const ValueKey('work-type-paidLeave')));
+    await tester.pump();
+    expect(selected.value, WorkType.paidLeave);
+    expect(
+      find.byKey(const ValueKey('work-start-orbital-picker')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('work-type-halfDay')));
+    await tester.pump();
+    expect(selected.value, WorkType.halfDay);
+    expect(
+      find.byKey(const ValueKey('work-start-orbital-picker')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 List<Finder> _shiftChips(WidgetTester tester) {

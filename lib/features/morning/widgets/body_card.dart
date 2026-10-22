@@ -63,14 +63,26 @@ class _WeightHud extends StatefulWidget {
   State<_WeightHud> createState() => _WeightHudState();
 }
 
-class _WeightHudState extends State<_WeightHud> {
+class _WeightHudState extends State<_WeightHud>
+    with SingleTickerProviderStateMixin {
   double v = 100, start = 100, dx = 0;
   bool drag = false;
   late bool _editing;
+  late final AnimationController _lockController;
   @override
   void initState() {
     super.initState();
     _editing = double.tryParse(widget.controller.text) == null;
+    _lockController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 180),
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed && mounted) {
+            setState(() => _editing = false);
+            _lockController.reset();
+          }
+        });
     _read();
     widget.controller.addListener(_read);
   }
@@ -78,6 +90,7 @@ class _WeightHudState extends State<_WeightHud> {
   @override
   void dispose() {
     widget.controller.removeListener(_read);
+    _lockController.dispose();
     super.dispose();
   }
 
@@ -124,13 +137,21 @@ class _WeightHudState extends State<_WeightHud> {
               width: double.infinity,
               child: Stack(
                 children: [
-                  TweenAnimationBuilder<double>(
-                    duration: const Duration(milliseconds: 110),
-                    curve: Curves.easeOutCubic,
-                    tween: Tween<double>(end: v),
-                    builder: (_, visualValue, _) => CustomPaint(
-                      size: Size.infinite,
-                      painter: _Tape(visualValue, cs.primary, drag),
+                  AnimatedBuilder(
+                    animation: _lockController,
+                    builder: (_, _) => TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 110),
+                      curve: Curves.easeOutCubic,
+                      tween: Tween<double>(end: v),
+                      builder: (_, visualValue, _) => CustomPaint(
+                        size: Size.infinite,
+                        painter: _Tape(
+                          visualValue,
+                          cs.primary,
+                          drag,
+                          _lockController.value,
+                        ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -183,7 +204,9 @@ class _WeightHudState extends State<_WeightHud> {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               key: const ValueKey('status-weight-done'),
-              onPressed: () => setState(() => _editing = false),
+              onPressed: _lockController.isAnimating
+                  ? null
+                  : () => _lockController.forward(),
               icon: const Icon(Icons.lock_outline, size: 16),
               label: const Text('完了'),
             ).inputFeedback(),
@@ -203,10 +226,11 @@ Text _hudText(BuildContext c, String s) => Text(
 );
 
 class _Tape extends CustomPainter {
-  const _Tape(this.v, this.color, this.active);
+  const _Tape(this.v, this.color, this.active, this.lock);
   final double v;
   final Color color;
   final bool active;
+  final double lock;
   @override
   void paint(Canvas c, Size s) {
     final p = Paint()..strokeCap = StrokeCap.square;
@@ -270,35 +294,55 @@ class _Tape extends CustomPainter {
         t.paint(c, Offset(x - t.width / 2, y + 28));
       }
     }
+    final open = active ? 2.0 : 0.0;
+    final close = lock * 3.0;
+    final halfWidth = 42 + open - close;
+    final inner = 17 + open - close;
+    final halfHeight = 29 + open - lock * 2;
     p
-      ..color = color.withValues(alpha: active ? 1 : .8)
-      ..strokeWidth = 1.5;
-    c.drawLine(Offset(cx, y - 33), Offset(cx, y + 33), p);
-    c.drawLine(Offset(cx - 11, y), Offset(cx - 3, y), p);
-    c.drawLine(Offset(cx + 3, y), Offset(cx + 11, y), p);
-    c.drawCircle(Offset(cx, y), 6, p..style = PaintingStyle.stroke);
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.square
+      ..color = color.withValues(alpha: active ? .9 : .68 + lock * .22)
+      ..strokeWidth = active ? 1.65 : 1.45;
+    for (final top in [true, false]) {
+      final signY = top ? -1.0 : 1.0;
+      for (final left in [true, false]) {
+        final signX = left ? -1.0 : 1.0;
+        final outerX = cx + signX * halfWidth;
+        final innerX = cx + signX * inner;
+        final innerY = y + signY * 12;
+        final outerY = y + signY * halfHeight;
+        c.drawPath(
+          Path()
+            ..moveTo(outerX, innerY)
+            ..lineTo(outerX, outerY)
+            ..lineTo(innerX, outerY),
+          p,
+        );
+      }
+    }
+    p
+      ..strokeWidth = 1.2
+      ..color = color.withValues(alpha: .52 + lock * .18);
+    c.drawLine(Offset(cx - 78, y), Offset(cx - 49, y), p);
+    c.drawLine(Offset(cx + 49, y), Offset(cx + 78, y), p);
+    p
+      ..strokeWidth = 1.25
+      ..color = color.withValues(alpha: .70 + lock * .2);
+    c.drawLine(Offset(cx, y - 48), Offset(cx, y - 35), p);
+    c.drawLine(Offset(cx, y + 35), Offset(cx, y + 48), p);
+    p
+      ..strokeWidth = 1.7
+      ..color = color.withValues(alpha: .9 + lock * .1);
+    c.drawLine(Offset(cx - 7, y), Offset(cx + 7, y), p);
+    c.drawLine(Offset(cx, y - 7), Offset(cx, y + 7), p);
     p.style = PaintingStyle.fill;
-    c.drawPath(
-      Path()
-        ..moveTo(cx, y - 39)
-        ..lineTo(cx - 4, y - 33)
-        ..lineTo(cx + 4, y - 33)
-        ..close(),
-      p,
-    );
-    c.drawPath(
-      Path()
-        ..moveTo(cx, y + 39)
-        ..lineTo(cx - 4, y + 33)
-        ..lineTo(cx + 4, y + 33)
-        ..close(),
-      p,
-    );
+    c.drawCircle(Offset(cx, y), 1.5, p);
   }
 
   @override
   bool shouldRepaint(covariant _Tape o) =>
-      o.v != v || o.color != color || o.active != active;
+      o.v != v || o.color != color || o.active != active || o.lock != lock;
 }
 
 class _BodyFatRing extends StatefulWidget {
