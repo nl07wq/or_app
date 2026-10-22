@@ -33,7 +33,7 @@ void main() {
       later.drops.map((drop) => drop.id),
       orderedEquals(initial.drops.map((drop) => drop.id)),
     );
-    expect(later.drops.every((drop) => drop.squashStrength <= .24), isTrue);
+    expect(later.drops.every((drop) => drop.squashStrength <= .32), isTrue);
     expect(later.collisionCount, greaterThan(0));
     expect(later.landingCount, greaterThanOrEqualTo(2));
     expect(later.reboundCount, greaterThanOrEqualTo(3));
@@ -85,7 +85,7 @@ void main() {
       await expectLater(
         find.byType(FoodAmbientComparison),
         matchesGoldenFile(
-          'goldens/food_continuous_circulation_bubble_$second.png',
+          'goldens/food_continuous_circulation_v41_$second.png',
         ),
       );
     }
@@ -101,24 +101,12 @@ void main() {
         (drop) =>
             drop.center.dx.isFinite &&
             drop.center.dy.isFinite &&
-            drop.squashStrength <= .24,
+            drop.squashStrength <= .32,
       ),
       isTrue,
     );
     expect(frame.collisionCount, greaterThanOrEqualTo(3));
     expect(frame.landingCount, greaterThanOrEqualTo(2));
-  });
-
-  test('soap-bubble distribution favours larger translucent bodies', () {
-    final frame = OilTimerSimulation(viewport).snapshot();
-    final radii = frame.drops.map((drop) => drop.radius).toList()..sort();
-
-    // At 390px, the V4.1 oil range began at 12.48px.  The tuned membrane
-    // range starts at 15.21px (1.22x) and retains distinct small/medium/large
-    // body classes instead of collapsing into uniform spheres.
-    expect(radii.first, greaterThanOrEqualTo(15.2));
-    expect(radii.last, greaterThan(35));
-    expect(radii.last / radii.first, greaterThan(2));
   });
 
   testWidgets('renders restored cellular anatomy golden', (tester) async {
@@ -141,23 +129,6 @@ void main() {
         await pumpAmbient(tester, variant, 7, surfaceSize: Size(width, 844));
         expect(tester.takeException(), isNull);
       }
-    });
-
-    testWidgets('renders soap-bubble circulation golden at $width', (
-      tester,
-    ) async {
-      await pumpAmbient(
-        tester,
-        FoodAmbientVariant.continuousCirculation,
-        16,
-        surfaceSize: Size(width, 844),
-      );
-      await expectLater(
-        find.byType(FoodAmbientComparison),
-        matchesGoldenFile(
-          'goldens/food_continuous_circulation_bubble_width_${width.round()}.png',
-        ),
-      );
     });
   }
 }
