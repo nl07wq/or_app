@@ -256,39 +256,55 @@ void main() {
     },
   );
 
-  test('V2.5 separates gate scheduling and raises scan and node cadences', () {
-    final scans = List.generate(
-      100,
-      HistoryDataVaultMotion.compositeScanEventFor,
-    );
-    final nodes = List.generate(
-      100,
-      HistoryDataVaultMotion.compositeNodeEventFor,
-    );
-    expect(
-      scans[1].launchSeconds - scans[0].launchSeconds,
-      closeTo(2.68 / 1.5, .0001),
-    );
-    expect(
-      nodes[1].launchSeconds - nodes[0].launchSeconds,
-      closeTo(1.2, .0001),
-    );
-    expect(scans.every((event) => event.lifetime >= 4.35), isTrue);
-    expect(nodes.every((event) => event.anchorS.isFinite), isTrue);
-    final gates = List.generate(
-      12,
-      HistoryDataVaultMotion.compositeGateEventFor,
-    );
-    expect(
-      gates[1].launchSeconds - gates[0].launchSeconds,
-      closeTo(5.3, .0001),
-    );
-    for (final gate in gates) {
-      final a = gate.launchSeconds + .1;
-      final b = gate.launchSeconds + .5;
-      expect(gate.frontAt(b), lessThan(gate.frontAt(a)));
-    }
-  });
+  test(
+    'V2.6 separates independent frame scheduling and covers all scan planes',
+    () {
+      final scans = List.generate(
+        100,
+        HistoryDataVaultMotion.compositeScanEventFor,
+      );
+      final nodes = List.generate(
+        100,
+        HistoryDataVaultMotion.compositeNodeEventFor,
+      );
+      expect(
+        scans[1].launchSeconds - scans[0].launchSeconds,
+        closeTo(2.68 / 1.5, .0001),
+      );
+      expect(
+        nodes[1].launchSeconds - nodes[0].launchSeconds,
+        closeTo(1.2, .0001),
+      );
+      expect(scans.every((event) => event.lifetime >= 4.35), isTrue);
+      expect(nodes.every((event) => event.anchorS.isFinite), isTrue);
+      final gates = List.generate(
+        12,
+        HistoryDataVaultMotion.compositeGateEventFor,
+      );
+      expect(
+        gates[1].launchSeconds - gates[0].launchSeconds,
+        inInclusiveRange(4.85, 5.55),
+      );
+      for (final gate in gates) {
+        final a = gate.launchSeconds + .1;
+        final b = gate.launchSeconds + .5;
+        expect(gate.frontAt(b), lessThan(gate.frontAt(a)));
+      }
+      for (var block = 0; block < 12; block++) {
+        final surfaces = [
+          for (var offset = 0; offset < 4; offset++)
+            HistoryDataVaultMotion.compositeScanSurfaceFor(
+              block * 4 + offset,
+            ),
+        ];
+        expect(surfaces.toSet(), hasLength(4));
+      }
+      expect(
+        HistoryDataVaultMotion.compositeScanPatternFor(gates.first.seed),
+        isNot(DataVaultScanPattern.gate),
+      );
+    },
+  );
 
   test('V2.5 gate and node events repeatedly enter the usable depth band', () {
     final visibleGates = <int>{};
@@ -332,40 +348,34 @@ void main() {
     }
   });
 
-  test(
-    'memory module signal and contacts use a staggered 4.8 second cycle',
-    () {
-      expect(HistoryMemoryModuleMotion.cycleSeconds, 4.8);
-      for (var channel = 0; channel < 4; channel++) {
-        final signal = HistoryMemoryModuleMotion.signalFor(
-          channel,
-          HistoryMemoryModuleMotion.channelOffsets[channel] + .20,
-        );
-        expect(signal, isNotNull);
-        expect(signal!.end, greaterThan(signal.start));
-        expect(signal.fade, greaterThan(0));
-      }
-      for (var contact = 0; contact < 5; contact++) {
-        final peak = .58 + contact * .14 + .06;
-        expect(
-          HistoryMemoryModuleMotion.contactStrength(contact, peak),
-          closeTo(.5, .05),
-        );
-        expect(
-          HistoryMemoryModuleMotion.contactStrength(contact, peak + .30),
-          0,
-        );
-      }
-      for (var step = 0; step < 48; step++) {
-        final seconds = step / 10;
-        final bright = List.generate(
-          5,
-          (index) => HistoryMemoryModuleMotion.contactStrength(index, seconds),
-        ).where((strength) => strength > .4).length;
-        expect(bright, lessThanOrEqualTo(2));
-      }
-    },
-  );
+  test('memory module signal and contacts use a staggered transfer cycle', () {
+    expect(HistoryMemoryModuleMotion.cycleSeconds, 2.8);
+    for (var channel = 0; channel < 4; channel++) {
+      final signal = HistoryMemoryModuleMotion.signalFor(
+        channel,
+        HistoryMemoryModuleMotion.channelOffsets[channel] + .20,
+      );
+      expect(signal, isNotNull);
+      expect(signal!.end, greaterThan(signal.start));
+      expect(signal.fade, greaterThan(0));
+    }
+    for (var contact = 0; contact < 5; contact++) {
+      final peak = .52 + contact * .09 + .06;
+      expect(
+        HistoryMemoryModuleMotion.contactStrength(contact, peak),
+        closeTo(.5, .05),
+      );
+      expect(HistoryMemoryModuleMotion.contactStrength(contact, peak + .30), 0);
+    }
+    for (var step = 0; step < 48; step++) {
+      final seconds = step / 10;
+      final bright = List.generate(
+        5,
+        (index) => HistoryMemoryModuleMotion.contactStrength(index, seconds),
+      ).where((strength) => strength > .4).length;
+      expect(bright, lessThanOrEqualTo(2));
+    }
+  });
 
   testWidgets('memory module keeps HISTORY stable through signal frames', (
     tester,
@@ -393,15 +403,22 @@ void main() {
         find.descendant(of: title, matching: find.text('HISTORY')),
         findsOneWidget,
       );
+      final text = find.descendant(
+        of: title,
+        matching: find.text('HISTORY'),
+      );
+      final localCenter =
+          tester.getCenter(text).dx - tester.getTopLeft(title).dx;
+      expect(localCenter, closeTo(100, 2));
       await expectLater(
         title,
-        matchesGoldenFile('goldens/history_memory_module_v25_${frame.$1}.png'),
+        matchesGoldenFile('goldens/history_memory_module_v26_${frame.$1}.png'),
       );
     }
   });
 
   testWidgets(
-    'V2.5 composite keeps Gate and NODE accents in the HISTORY view',
+    'V2.6 composite keeps independent Frame and NODE accents in the HISTORY view',
     (tester) async {
       const frames = <(String, Duration)>[
         ('gate_approach', Duration(milliseconds: 3000)),
@@ -412,7 +429,7 @@ void main() {
         await pumpHistory(tester, time: frame.$2);
         await expectLater(
           find.byType(DataCenterHistoryPage),
-          matchesGoldenFile('goldens/history_data_vault_v25_${frame.$1}.png'),
+          matchesGoldenFile('goldens/history_data_vault_v26_${frame.$1}.png'),
         );
       }
     },

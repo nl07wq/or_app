@@ -328,40 +328,55 @@ class _HistoryAppBarTitle extends StatelessWidget {
       child: CustomPaint(
         key: ValueKey('history-title-${variant.name}'),
         painter: _HistoryTitlePainter(variant, seconds),
-        child: Align(
-          alignment: variant == HistoryTitleVariant.memoryModule
-              ? const Alignment(.17, 0)
-              : Alignment.center,
-          child: Text(
-            'HISTORY',
-            style: TextStyle(
-              color: variant == HistoryTitleVariant.archivePlate
-                  ? const Color(0xffdcebf2)
-                  : const Color(0xffd8faff),
-              fontFamily: 'ShareTechMono',
-              fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
-              fontWeight: FontWeight.w400,
-              letterSpacing: variant == HistoryTitleVariant.memoryModule
-                  ? 1.0
-                  : variant == HistoryTitleVariant.archivePlate
-                  ? 1.45
-                  : 2.1,
-              shadows: switch (variant) {
-                HistoryTitleVariant.archiveDisplay => const [
-                  Shadow(color: Color(0xff3edff5), blurRadius: 7),
+        child: variant == HistoryTitleVariant.memoryModule
+            ? Stack(
+                children: [
+                  // The physical connector bank occupies the far right.  A
+                  // constrained faceplate target centres HISTORY at x=100,
+                  // rather than under those contacts.
+                  Positioned(
+                    left: 44,
+                    right: 36,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(child: _historyTitleText(variant)),
+                  ),
                 ],
-                HistoryTitleVariant.archivePlate => const [
-                  Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
-                  Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
-                ],
-                HistoryTitleVariant.memoryModule => const [
-                  Shadow(color: Color(0xff37dff7), blurRadius: 4),
-                ],
-              },
-            ),
-          ),
-        ),
+              )
+            : Align(
+                alignment: Alignment.center,
+                child: _historyTitleText(variant),
+              ),
       ),
+    ),
+  );
+
+  Widget _historyTitleText(HistoryTitleVariant variant) => Text(
+    'HISTORY',
+    style: TextStyle(
+      color: variant == HistoryTitleVariant.archivePlate
+          ? const Color(0xffdcebf2)
+          : const Color(0xffd8faff),
+      fontFamily: 'ShareTechMono',
+      fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
+      fontWeight: FontWeight.w400,
+      letterSpacing: variant == HistoryTitleVariant.memoryModule
+          ? 1.0
+          : variant == HistoryTitleVariant.archivePlate
+          ? 1.45
+          : 2.1,
+      shadows: switch (variant) {
+        HistoryTitleVariant.archiveDisplay => const [
+          Shadow(color: Color(0xff3edff5), blurRadius: 7),
+        ],
+        HistoryTitleVariant.archivePlate => const [
+          Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
+          Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
+        ],
+        HistoryTitleVariant.memoryModule => const [
+          Shadow(color: Color(0xff37dff7), blurRadius: 4),
+        ],
+      },
     ),
   );
 }
@@ -597,6 +612,32 @@ class _HistoryTitlePainter extends CustomPainter {
       Offset(size.width - 24, size.height - 14),
       terminal,
     );
+    final technical = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .6
+      ..color = const Color(0xff9cf8ff).withValues(alpha: .28);
+    canvas.drawRRect(innerModule.deflate(2), technical);
+    final fiducial = Paint()
+      ..strokeWidth = .65
+      ..color = const Color(0xffa9f6ff).withValues(alpha: .28);
+    for (final point in const [
+      Offset(15, 14),
+      Offset(15, 28),
+      Offset(135, 14),
+    ]) {
+      canvas.drawLine(point, point + const Offset(3, 0), fiducial);
+      canvas.drawLine(point, point + const Offset(0, 3), fiducial);
+    }
+    final grain = Paint()
+      ..strokeWidth = .45
+      ..color = const Color(0xff9cf8ff).withValues(alpha: .08);
+    for (final y in [15.0, 19.0, 23.0, 27.0]) {
+      canvas.drawLine(
+        Offset(innerModule.left + 4, y),
+        Offset(innerModule.right - 4, y),
+        grain,
+      );
+    }
     final routes = HistoryMemoryModuleMotion.routes(size);
     for (final route in routes) {
       canvas.drawPath(
@@ -685,8 +726,8 @@ class HistoryMemoryModuleSignal {
 }
 
 abstract final class HistoryMemoryModuleMotion {
-  static const cycleSeconds = 4.8;
-  static const transferSeconds = .8;
+  static const cycleSeconds = 2.8;
+  static const transferSeconds = .72;
   static const channelOffsets = [0.0, .17, .35, .52];
 
   static List<Path> routes(Size size) {
@@ -722,7 +763,7 @@ abstract final class HistoryMemoryModuleMotion {
 
   static double contactStrength(int index, double seconds) {
     final local = seconds % cycleSeconds;
-    final arrival = .58 + index * .14;
+    final arrival = .52 + index * .09;
     final elapsed = local - arrival;
     if (elapsed < 0 || elapsed > .35) return 0;
     if (elapsed <= .12) return elapsed / .12;

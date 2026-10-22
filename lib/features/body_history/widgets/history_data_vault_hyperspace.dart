@@ -49,10 +49,12 @@ class HistoryDataVaultHyperspace {
     _paintDataTraffic(canvas, camera, cameraDistance);
     _paintCompositeSurfaceScans(canvas, camera, cameraDistance);
     _paintCompositeNodeDischarges(canvas, camera, cameraDistance);
+    _paintIndependentFrameGate(canvas, camera, cameraDistance);
     final guide = _resolveNavigationGuide(camera, cameraDistance, size, speed);
     if (guide != null) {
-      _paintNavigationTrail(canvas, camera, cameraDistance, guide.sHead);
-      _paintNavigationBeacon(canvas, guide, size);
+      final dodge = _rivalDodgeOffset(camera, cameraDistance, guide, size);
+      _paintNavigationTrail(canvas, camera, cameraDistance, guide.sHead, dodge);
+      _paintNavigationBeacon(canvas, guide, size, dodge);
     }
     canvas.restore();
   }
@@ -465,59 +467,107 @@ class HistoryDataVaultHyperspace {
     _VaultCamera camera,
     double distance,
   ) {
-    var painted = 0;
-    // Gate scans have their own sparse schedule.  They no longer depend on a
-    // 10% pattern draw, which previously made the intended U-shaped scanner
-    // almost impossible to encounter on a device.
-    final gateIndex = HistoryDataVaultMotion.compositeGateIndexAt(seconds);
-    for (
-      var index = gateIndex;
-      index >= gateIndex - 1 && painted < 2;
-      index--
-    ) {
-      final event = HistoryDataVaultMotion.compositeGateEventFor(index);
-      if (!event.isActiveAt(seconds)) continue;
-      final head = event.frontAt(seconds);
-      if (head < distance - 5 || head > distance + 88) continue;
-      _paintGateScan(canvas, camera, event, head);
-      painted++;
-      break;
-    }
     final current = HistoryDataVaultMotion.compositeScanIndexAt(seconds);
-    // Bounded candidates keep SCAN an accent layer.  Gate has priority, so
-    // one regular Sweep/Raster is the maximum accompaniment during a pass.
+    var painted = 0;
+    // A scan event is exactly one physical corridor plane.  Gate geometry is
+    // deliberately not selected here: it has an independent frame layer.
     for (var index = current; index >= current - 2 && painted < 2; index--) {
       final event = HistoryDataVaultMotion.compositeScanEventFor(index);
       if (!event.isActiveAt(seconds)) continue;
       final head = event.frontAt(seconds);
       if (head < distance - 5 || head > distance + 94) continue;
-      final rail = _compositeScanRail(event.seed);
-      final pattern = HistoryDataVaultMotion.compositeScanPatternFor(
-        event.seed,
+      _paintFullPlaneScan(
+        canvas,
+        camera,
+        event,
+        head,
+        HistoryDataVaultMotion.compositeScanSurfaceFor(event.id),
       );
-      if (pattern == DataVaultScanPattern.gate) continue;
-      switch (pattern) {
-        case DataVaultScanPattern.surfaceSweep:
-          _paintSurfaceSweep(canvas, camera, rail, event, head);
-        case DataVaultScanPattern.gate:
-          break;
-        case DataVaultScanPattern.stripRaster:
-          _paintStripRaster(canvas, camera, rail, event, head);
-      }
       painted++;
     }
   }
 
-  _DataVaultRail _compositeScanRail(int seed) {
-    const rails = <_DataVaultRail>[
-      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -1.5, .04),
-      _DataVaultRail(DataVaultImpulseSurface.floor, 1, 1.35, .04),
-      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.95, 2.15),
-      _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.95, 2.9),
-      _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, 0, 4.88),
-    ];
-    return rails[(HistoryDataVaultMotion.seedUnit(seed + 43) * rails.length)
-        .floor()];
+  /// Dedicated inverted-U gateway layer.  It is not a subtype of, or capped
+  /// by, the full-surface scan scheduler so its presence cannot be starved by
+  /// another effect in the same frame.
+  void _paintIndependentFrameGate(
+    Canvas canvas,
+    _VaultCamera camera,
+    double distance,
+  ) {
+    final current = HistoryDataVaultMotion.independentFrameIndexAt(seconds);
+    for (var index = current; index >= current - 2; index--) {
+      final event = HistoryDataVaultMotion.independentFrameEventFor(index);
+      if (!event.isActiveAt(seconds)) continue;
+      final head = event.frontAt(seconds);
+      if (head < distance - 5 || head > distance + 88) continue;
+      _paintGateScan(canvas, camera, event, head);
+      return;
+    }
+  }
+
+  void _paintFullPlaneScan(
+    Canvas canvas,
+    _VaultCamera camera,
+    DataVaultInboundEvent event,
+    double head,
+    DataVaultImpulseSurface surface,
+  ) {
+    final count =
+        7 + (HistoryDataVaultMotion.seedUnit(event.seed + 37) * 6).floor();
+    final tail = event.length.clamp(1.8, 3.2);
+    final elapsed = seconds - event.launchSeconds;
+    for (var bar = 0; bar < count; bar++) {
+      final u = count == 1 ? .5 : bar / (count - 1);
+      final depth = head + tail * u;
+      final staged = ((elapsed - bar * .035) / .16).clamp(0.0, 1.0);
+      if (staged <= 0) continue;
+      final echo = head + .12 + tail * u;
+      final alpha = (.60 + .25 * (1 - u)) * staged;
+      final (a, b) = _fullPlaneBar(surface, depth);
+      _strokeWorldLine(
+        canvas,
+        camera,
+        a,
+        b,
+        const Color(0xffb8f4ff).withValues(alpha: alpha),
+        .82,
+      );
+      final (echoA, echoB) = _fullPlaneBar(surface, echo);
+      _strokeWorldLine(
+        canvas,
+        camera,
+        echoA,
+        echoB,
+        const Color(0xff64e6f8).withValues(alpha: alpha * .22),
+        .5,
+      );
+    }
+  }
+
+  (_WorldPoint, _WorldPoint) _fullPlaneBar(
+    DataVaultImpulseSurface surface,
+    double s,
+  ) {
+    final sample = _world.sample(s);
+    return switch (surface) {
+      DataVaultImpulseSurface.floor => (
+        sample.point(-3.9, .035),
+        sample.point(3.9, .035),
+      ),
+      DataVaultImpulseSurface.ceiling => (
+        sample.point(-3.9, 4.88),
+        sample.point(3.9, 4.88),
+      ),
+      DataVaultImpulseSurface.leftWall => (
+        sample.point(-3.94, .08),
+        sample.point(-3.94, 4.88),
+      ),
+      DataVaultImpulseSurface.rightWall => (
+        sample.point(3.94, .08),
+        sample.point(3.94, 4.88),
+      ),
+    };
   }
 
   void _paintSurfaceSweep(
@@ -1018,6 +1068,34 @@ class HistoryDataVaultHyperspace {
       material.core.withValues(alpha: .88 * brightness * visibility),
       material.widths.last,
     );
+    // A sparse subset gains a compact forward-oriented core near the viewer.
+    // It remains an abstract traffic packet, never a sprite or HUD glyph.
+    final packetSeed = HistoryDataVaultMotion.packetSeed(
+      surface,
+      rail.lane,
+      packetIndex,
+    );
+    final relative = headS - camera.distance;
+    if (HistoryDataVaultMotion.seedUnit(packetSeed + 211) < .22 &&
+        relative >= 4 &&
+        relative <= 13) {
+      final head = projectedHead.offset;
+      final scale = (1 - (relative - 4) / 9).clamp(.0, 1.0);
+      final detail = 3 + scale * 3;
+      final core = Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 1.25
+        ..color = const Color(
+          0xffd9fbff,
+        ).withValues(alpha: .70 * visibility * brightness);
+      canvas.drawLine(head + Offset(-detail, -detail * .36), head, core);
+      canvas.drawLine(head + Offset(-detail, detail * .36), head, core);
+      canvas.drawCircle(
+        head,
+        1.5 + scale,
+        Paint()..color = const Color(0xffefffff).withValues(alpha: .86),
+      );
+    }
     return true;
   }
 
@@ -1060,11 +1138,80 @@ class HistoryDataVaultHyperspace {
     return null;
   }
 
+  /// A sparse, retained SPARK packet can produce a local visual avoidance
+  /// only when its projected head genuinely approaches the navigation beacon.
+  /// It is evaluated from packet identity/world geometry, never frame state.
+  Offset _rivalDodgeOffset(
+    _VaultCamera camera,
+    double distance,
+    _NavigationGuide guide,
+    Size size,
+  ) {
+    const rails = <_DataVaultRail>[
+      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -3.2, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 2, 0, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 4, 3.2, .035),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.94, 1.12),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 1, 3.94, 3.72),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 0, 4.88),
+    ];
+    for (final rail in rails) {
+      final profile = HistoryDataVaultMotion.impulseProfileFor(
+        rail.surface,
+        rail.lane,
+      );
+      final current =
+          ((seconds - profile.launchOffset) / profile.repeatInterval).floor();
+      for (var packet = current; packet >= current - 2; packet--) {
+        final seed = HistoryDataVaultMotion.packetSeed(
+          rail.surface,
+          rail.lane,
+          packet,
+        );
+        if (!HistoryDataVaultMotion.retainSparkPacket(
+              rail.surface,
+              rail.lane,
+              packet,
+            ) ||
+            HistoryDataVaultMotion.seedUnit(seed + 211) >= .22) {
+          continue;
+        }
+        final launch = profile.launchOffset + packet * profile.repeatInterval;
+        final elapsed = seconds - launch;
+        if (elapsed < 0 || elapsed > profile.visibleDuration) continue;
+        final head = HistoryDataVaultMotion.impulseHeadDistance(
+          seconds: seconds,
+          launchSeconds: launch,
+          speedMultiplier: profile.speedMultiplier,
+        );
+        final relative = head - distance;
+        if (relative < 4 || relative > 13) continue;
+        final projected = camera.project(
+          _world
+              .sample(head)
+              .point(_packetLateral(rail, packet, head), rail.height),
+        );
+        if (projected == null) continue;
+        final delta = projected.offset - guide.projected.offset;
+        final proximity = 32 * (size.width / 390).clamp(.82, 1.18);
+        if (delta.distance > proximity || delta.dx.abs() < 2) continue;
+        // The relative-depth interval supplies a continuous approach/hold/
+        // return envelope without an additional controller or timer.
+        final progress = ((13 - relative) / 9).clamp(0.0, 1.0);
+        final envelope = math.sin(progress * math.pi);
+        final magnitude = 11 * (size.width / 390).clamp(.82, 1.18) * envelope;
+        return Offset(delta.dx.isNegative ? magnitude : -magnitude, 0);
+      }
+    }
+    return Offset.zero;
+  }
+
   void _paintNavigationTrail(
     Canvas canvas,
     _VaultCamera camera,
     double cameraDistance,
     double sHead,
+    Offset dodge,
   ) {
     final boost = HistoryDataVaultMotion.boostStrengthAt(seconds);
     final start =
@@ -1119,17 +1266,38 @@ class HistoryDataVaultHyperspace {
         );
       }
     }
+    if (dodge.distanceSquared > .01) {
+      final base = camera.project(_world.sample(sHead).point(0, .11));
+      if (base != null) {
+        final path = Path()
+          ..moveTo(base.offset.dx - 14, base.offset.dy)
+          ..quadraticBezierTo(
+            base.offset.dx - 4,
+            base.offset.dy,
+            base.offset.dx + dodge.dx,
+            base.offset.dy,
+          );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.35
+            ..color = const Color(0xffe8fdff).withValues(alpha: .76),
+        );
+      }
+    }
   }
 
   void _paintNavigationBeacon(
     Canvas canvas,
     _NavigationGuide guide,
     Size size,
+    Offset dodge,
   ) {
     final scale =
         (size.width / 390).clamp(.85, 1.15) *
         (9 / guide.projected.z).clamp(.75, 1.25);
-    final center = guide.projected.offset;
+    final center = guide.projected.offset + dodge;
     final pulse = HistoryDataVaultMotion.beaconPulseAt(seconds);
     final boost = HistoryDataVaultMotion.boostStrengthAt(seconds);
     final outerRadius = (30 * pulse.outerRadius + boost * 2) * scale;
@@ -1780,7 +1948,7 @@ class HistoryDataVaultMotion {
 
   /// V2.5 raises V2.4's 2.68s scan cadence by exactly 1.5x.
   static const compositeScanInterval = 2.68 / 1.5;
-  static const compositeGateInterval = 5.3;
+  static const independentFrameInterval = 5.2;
   static const compositeNodeInterval = 1.2;
 
   static int compositeScanIndexAt(double seconds) =>
@@ -1794,7 +1962,7 @@ class HistoryDataVaultMotion {
       seed: seed,
       launchSeconds: launch,
       travelMultiplier: 1.08 + seedUnit(seed + 7) * .20,
-      length: 1.5 + seedUnit(seed + 11) * 1.0,
+      length: 1.8 + seedUnit(seed + 11) * 1.4,
       // The scan now remains active long enough to cross the usable depth
       // range even through a sprint, while its front stays world-projected.
       lifetime: 4.35,
@@ -1802,12 +1970,42 @@ class HistoryDataVaultMotion {
     );
   }
 
-  static int compositeGateIndexAt(double seconds) =>
-      ((seconds - .9) / compositeGateInterval).floor();
+  /// A seeded balanced permutation prevents a ceiling/floor/wall surface
+  /// from starving during a deterministic review window while still avoiding
+  /// a simple repeating visual order.
+  static DataVaultImpulseSurface compositeScanSurfaceFor(int event) {
+    const orders = <List<DataVaultImpulseSurface>>[
+      [
+        DataVaultImpulseSurface.floor,
+        DataVaultImpulseSurface.rightWall,
+        DataVaultImpulseSurface.ceiling,
+        DataVaultImpulseSurface.leftWall,
+      ],
+      [
+        DataVaultImpulseSurface.leftWall,
+        DataVaultImpulseSurface.floor,
+        DataVaultImpulseSurface.rightWall,
+        DataVaultImpulseSurface.ceiling,
+      ],
+      [
+        DataVaultImpulseSurface.ceiling,
+        DataVaultImpulseSurface.leftWall,
+        DataVaultImpulseSurface.floor,
+        DataVaultImpulseSurface.rightWall,
+      ],
+    ];
+    final block = event ~/ 4;
+    final order = orders[(_impulseSeed(block * 113 + 71) % orders.length)];
+    return order[event % 4];
+  }
 
-  static DataVaultInboundEvent compositeGateEventFor(int event) {
+  static int independentFrameIndexAt(double seconds) =>
+      ((seconds - .9) / independentFrameInterval).floor();
+
+  static DataVaultInboundEvent independentFrameEventFor(int event) {
     final seed = _impulseSeed(0x9d31 + event * 431);
-    final launch = .9 + event * compositeGateInterval;
+    final jitter = (seedUnit(seed + 17) - .5) * .70;
+    final launch = .9 + event * independentFrameInterval + jitter;
     return DataVaultInboundEvent(
       id: event,
       seed: seed,
@@ -1818,6 +2016,13 @@ class HistoryDataVaultMotion {
       lead: 78,
     );
   }
+
+  // Kept for focused test compatibility; visible painting uses the explicit
+  // independent-frame API above rather than a SCAN subtype.
+  static int compositeGateIndexAt(double seconds) =>
+      independentFrameIndexAt(seconds);
+  static DataVaultInboundEvent compositeGateEventFor(int event) =>
+      independentFrameEventFor(event);
 
   static DataVaultScanPattern compositeScanPatternFor(int seed) {
     final selector = seedUnit(seed + 101);
