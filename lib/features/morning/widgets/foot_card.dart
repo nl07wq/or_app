@@ -138,8 +138,16 @@ class _FootCardState extends State<FootCard> {
               child: InkWell(
                 key: const Key('foot-pain-current-value-button'),
                 onTap: () => setState(() => _editing = true),
-                child: SizedBox(
+                child: Container(
                   height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainer.withValues(alpha: .22),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: color.withValues(alpha: .35)),
+                  ),
                   child: Row(
                     children: [
                       const Expanded(
@@ -155,6 +163,7 @@ class _FootCardState extends State<FootCard> {
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
                           color: color,
+                          fontFamily: 'ShareTechMono',
                         ),
                       ),
                       Icon(Icons.edit_outlined, size: 18, color: color),
@@ -177,10 +186,11 @@ class _FootCardState extends State<FootCard> {
                   Text(
                     _hasSelectedValue ? 'LV.$_selectedValue /10' : '未選択',
                     key: const Key('foot-pain-current-value'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: Colors.lightBlueAccent,
+                      color: color,
+                      fontFamily: 'ShareTechMono',
                     ),
                   ),
                 ],

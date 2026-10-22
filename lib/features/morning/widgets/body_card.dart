@@ -101,86 +101,95 @@ class _WeightHudState extends State<_WeightHud> {
         onTap: () => setState(() => _editing = true),
       );
     }
-    return Semantics(
-      slider: true,
-      label: 'Weight ${v.toStringAsFixed(1)} kilograms',
-      child: GestureDetector(
-        onHorizontalDragStart: (_) => setState(() {
-          drag = true;
-          start = v;
-          dx = 0;
-        }),
-        onHorizontalDragUpdate: (d) {
-          dx += d.delta.dx;
-          _set(start - dx / 88);
-        },
-        onHorizontalDragEnd: (_) => setState(() => drag = false),
-        onHorizontalDragCancel: () => setState(() => drag = false),
-        child: SizedBox(
-          height: 166,
-          width: double.infinity,
-          child: Stack(
-            children: [
-              TweenAnimationBuilder<double>(
-                duration: const Duration(milliseconds: 110),
-                curve: Curves.easeOutCubic,
-                tween: Tween<double>(end: v),
-                builder: (_, visualValue, _) => CustomPaint(
-                  size: Size.infinite,
-                  painter: _Tape(visualValue, cs.primary, drag),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 5,
-                child: Center(
-                  child: RichText(
-                    text: TextSpan(
-                      style: Theme.of(c).textTheme.displaySmall?.copyWith(
-                        fontSize: 46,
-                        fontWeight: FontWeight.w800,
-                        color: cs.onSurface,
-                      ),
-                      children: [
-                        TextSpan(text: v.toStringAsFixed(1)),
-                        TextSpan(
-                          text: ' kg',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: cs.onSurface.withValues(alpha: .7),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Semantics(
+          slider: true,
+          label: 'Weight ${v.toStringAsFixed(1)} kilograms',
+          child: GestureDetector(
+            onHorizontalDragStart: (_) => setState(() {
+              drag = true;
+              start = v;
+              dx = 0;
+            }),
+            onHorizontalDragUpdate: (d) {
+              dx += d.delta.dx;
+              _set(start - dx / 88);
+            },
+            onHorizontalDragEnd: (_) => setState(() => drag = false),
+            onHorizontalDragCancel: () => setState(() => drag = false),
+            child: SizedBox(
+              height: 166,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  TweenAnimationBuilder<double>(
+                    duration: const Duration(milliseconds: 110),
+                    curve: Curves.easeOutCubic,
+                    tween: Tween<double>(end: v),
+                    builder: (_, visualValue, _) => CustomPaint(
+                      size: Size.infinite,
+                      painter: _Tape(visualValue, cs.primary, drag),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 5,
+                    child: Center(
+                      child: RichText(
+                        text: TextSpan(
+                          style: Theme.of(c).textTheme.displaySmall?.copyWith(
+                            fontFamily: 'ShareTechMono',
+                            fontSize: 46,
+                            fontWeight: FontWeight.w800,
+                            color: cs.onSurface,
                           ),
+                          children: [
+                            TextSpan(text: v.toStringAsFixed(1)),
+                            TextSpan(
+                              text: ' kg',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: cs.onSurface.withValues(alpha: .7),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 18,
+                    right: 18,
+                    top: 137,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _hudText(c, 'FLIGHT TAPE'),
+                        _hudText(c, drag ? 'ADJUSTING' : 'LOCK'),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: TextButton(
-                  key: const ValueKey('status-weight-done'),
-                  onPressed: () => setState(() => _editing = false),
-                  child: const Text('完了'),
-                ).inputFeedback(),
-              ),
-              Positioned(
-                left: 18,
-                right: 18,
-                top: 137,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _hudText(c, 'FLIGHT TAPE'),
-                    _hudText(c, drag ? 'ADJUSTING' : 'LOCKED'),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+        SizedBox(
+          height: 44,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const ValueKey('status-weight-done'),
+              onPressed: () => setState(() => _editing = false),
+              icon: const Icon(Icons.lock_outline, size: 16),
+              label: const Text('完了'),
+            ).inputFeedback(),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -342,41 +351,49 @@ class _BodyFatRingState extends State<_BodyFatRing> {
         children: [
           SizedBox(
             height: 102,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 102,
-                  height: 102,
-                  child: CustomPaint(painter: _Ring(v, cs.primary)),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'BODY FAT',
-                        style: Theme.of(c).textTheme.labelMedium,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 300;
+                final diameter = compact ? 90.0 : 102.0;
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: diameter,
+                      height: diameter,
+                      child: CustomPaint(painter: _Ring(v, cs.primary)),
+                    ),
+                    SizedBox(width: compact ? 10 : 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'BODY FAT',
+                            style: Theme.of(c).textTheme.labelMedium,
+                          ),
+                          Text(
+                            '${v.toStringAsFixed(1)}%',
+                            style: Theme.of(c).textTheme.headlineMedium
+                                ?.copyWith(
+                                  fontFamily: 'ShareTechMono',
+                                  fontSize: compact ? 30 : 33,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          Text(
+                            '0.1% STEP',
+                            style: Theme.of(c).textTheme.labelSmall?.copyWith(
+                              color: cs.primary.withValues(alpha: .7),
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        '${v.toStringAsFixed(1)}%',
-                        style: Theme.of(c).textTheme.headlineMedium?.copyWith(
-                          fontSize: 33,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        '0.1% STEP',
-                        style: Theme.of(c).textTheme.labelSmall?.copyWith(
-                          color: cs.primary.withValues(alpha: .7),
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           SizedBox(
@@ -425,8 +442,16 @@ class _CollapsedStatusValue extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
+        child: Container(
           height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainer.withValues(alpha: .22),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: .35)),
+          ),
           child: Row(
             children: [
               Expanded(
@@ -440,6 +465,7 @@ class _CollapsedStatusValue extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: color,
                   fontWeight: FontWeight.w700,
+                  fontFamily: 'ShareTechMono',
                 ),
               ),
               Icon(Icons.edit_outlined, size: 18, color: color),
@@ -458,15 +484,16 @@ class _Ring extends CustomPainter {
   @override
   void paint(Canvas x, Size s) {
     final o = s.center(Offset.zero),
+        radius = math.min(s.width, s.height) / 2 - 5,
         p = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 7
           ..strokeCap = StrokeCap.round
           ..color = c.withValues(alpha: .12);
-    x.drawCircle(o, 46, p);
+    x.drawCircle(o, radius, p);
     p.color = c.withValues(alpha: .78);
     x.drawArc(
-      Rect.fromCircle(center: o, radius: 46),
+      Rect.fromCircle(center: o, radius: radius),
       -math.pi / 2,
       2 * math.pi * v / 60,
       false,
@@ -475,7 +502,7 @@ class _Ring extends CustomPainter {
     p
       ..strokeWidth = 1
       ..color = c.withValues(alpha: .12);
-    x.drawCircle(o, 35, p);
+    x.drawCircle(o, radius * .76, p);
   }
 
   @override

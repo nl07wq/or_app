@@ -409,8 +409,14 @@ class _WorkClockRowState extends State<_WorkClockRow> {
         child: InkWell(
           onTap: _pick,
           borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
+          child: Container(
             height: 54,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainer.withValues(alpha: .22),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.primary.withValues(alpha: .35)),
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -536,8 +542,16 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
           key: const ValueKey('work-break-collapsed'),
           onTap: () => setState(() => _editing = true),
           borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
+          child: Container(
             height: 54,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainer.withValues(alpha: .22),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: .35)),
+            ),
             child: Row(
               children: [
                 const Expanded(

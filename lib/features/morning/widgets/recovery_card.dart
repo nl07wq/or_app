@@ -295,6 +295,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
                 Text(
                   '$_value',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontFamily: 'ShareTechMono',
                     fontSize: 40,
                     fontWeight: FontWeight.w800,
                   ),
@@ -354,8 +355,16 @@ class _CollapsedRecoveryValue extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
+        child: Container(
           height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainer.withValues(alpha: .22),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: .35)),
+          ),
           child: Row(
             children: [
               Expanded(
@@ -369,6 +378,7 @@ class _CollapsedRecoveryValue extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: color,
                   fontWeight: FontWeight.w700,
+                  fontFamily: 'ShareTechMono',
                 ),
               ),
               Icon(Icons.edit_outlined, size: 18, color: color),
