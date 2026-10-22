@@ -81,7 +81,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
 
       final entry = find.byKey(const ValueKey('status-entry-button'));
       expect(_entryButton(tester).onPressed, isNull);
@@ -147,7 +148,8 @@ void main() {
       await AppRepositoryRegistry.container.status.save(_status('2026-08-15'));
       await AppRepositoryRegistry.container.status.save(_status('2026-08-14'));
       await tester.pumpWidget(const MaterialApp(home: MorningPage()));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(_entryButton(tester).onPressed, isNull);
 
       await tester.tap(find.text('RECORD').last);
@@ -251,7 +253,8 @@ void main() {
         _morningBrief('2026-08-15'),
       );
       await tester.tap(find.text('COMPLETE BRIEF'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
       expect(find.byKey(CommandCenterHudSign.titleKey), findsOneWidget);
@@ -325,7 +328,8 @@ void main() {
         _morningBrief('2026-08-15'),
       );
       await tester.tap(find.text('COMPLETE BRIEF'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
 
       expect(find.byType(CommandCenterPage), findsOneWidget);
       expect(find.byKey(CommandCenterHudSign.backKey), findsOneWidget);

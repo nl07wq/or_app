@@ -217,6 +217,38 @@ void main() {
       }
     }
   });
+
+  testWidgets(
+    'break stepper changes only in fifteen minute increments and collapses',
+    (tester) async {
+      final start = TextEditingController(text: '07:00');
+      final end = TextEditingController(text: '18:00');
+      final workBreak = TextEditingController(text: '1:00');
+      addTearDown(start.dispose);
+      addTearDown(end.dispose);
+      addTearDown(workBreak.dispose);
+      await _pump(
+        tester,
+        start: start,
+        end: end,
+        workBreak: workBreak,
+        width: 390,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('work-break-collapsed')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('work-break-plus')));
+      expect(workBreak.text, '1:15');
+      await tester.tap(find.byKey(const ValueKey('work-break-minus')));
+      expect(workBreak.text, '1:00');
+      await tester.tap(find.byKey(const ValueKey('work-break-done')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('work-break-collapsed')),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 List<Finder> _shiftChips(WidgetTester tester) {

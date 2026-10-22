@@ -21,6 +21,7 @@ class _FootCardState extends State<FootCard> {
   static const _maximumChipWidth = 72.0;
   static const _compactWidth = 280.0;
   static const _desktopWidth = 600.0;
+  late bool _editing;
 
   int? get _selectedValue => int.tryParse(widget.controller.text);
   bool get _hasSelectedValue {
@@ -31,6 +32,7 @@ class _FootCardState extends State<FootCard> {
   @override
   void initState() {
     super.initState();
+    _editing = !_hasSelectedValue;
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -116,6 +118,7 @@ class _FootCardState extends State<FootCard> {
 
   @override
   Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
     return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,57 +130,94 @@ class _FootCardState extends State<FootCard> {
 
           const SizedBox(height: 20),
 
-          SizedBox(
-            height: 48,
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'PAIN LEVEL',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+          if (!_editing)
+            Semantics(
+              button: true,
+              label:
+                  'PAIN LEVEL ${_hasSelectedValue ? 'LV.$_selectedValue /10' : '未選択'} 再編集',
+              child: InkWell(
+                key: const Key('foot-pain-current-value-button'),
+                onTap: () => setState(() => _editing = true),
+                child: SizedBox(
+                  height: 52,
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'PAIN LEVEL',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Text(
+                        _hasSelectedValue ? 'LV.$_selectedValue /10' : '未選択',
+                        key: const Key('foot-pain-current-value'),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+                      Icon(Icons.edit_outlined, size: 18, color: color),
+                    ],
                   ),
                 ),
-                TextButton(
-                  key: const Key('foot-pain-current-value-button'),
-                  onPressed: () {},
-                  child: Text(
+              ).inputFeedback(),
+            )
+          else ...[
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'PAIN LEVEL',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Text(
                     _hasSelectedValue ? 'LV.$_selectedValue /10' : '未選択',
-                    key: _hasSelectedValue
-                        ? const Key('foot-pain-current-value')
-                        : null,
+                    key: const Key('foot-pain-current-value'),
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: Colors.lightBlueAccent,
                     ),
                   ),
-                ).actionableFeedback(),
+                ],
+              ),
+            ),
+
+            AppSpacing.gapMD,
+
+            Column(
+              children: [
+                _buildPainLevelRow(
+                  _firstRowValues,
+                  const Key('foot-pain-levels-1-5'),
+                ),
+                const SizedBox(height: 8),
+                _buildPainLevelRow(
+                  _secondRowValues,
+                  const Key('foot-pain-levels-6-10'),
+                ),
               ],
             ),
-          ),
 
-          AppSpacing.gapMD,
+            AppSpacing.gapMD,
 
-          Column(
-            children: [
-              _buildPainLevelRow(
-                _firstRowValues,
-                const Key('foot-pain-levels-1-5'),
-              ),
-              const SizedBox(height: 8),
-              _buildPainLevelRow(
-                _secondRowValues,
-                const Key('foot-pain-levels-6-10'),
-              ),
-            ],
-          ),
-
-          AppSpacing.gapMD,
-
-          Text(
-            '0–2 軽度   3–4 監視   5–6 保護検討   7以上 強保護候補',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+            Text(
+              '0–2 軽度   3–4 監視   5–6 保護検討   7以上 強保護候補',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const Key('foot-pain-done'),
+                onPressed: () => setState(() => _editing = false),
+                child: const Text('完了'),
+              ).inputFeedback(),
+            ),
+          ],
         ],
       ),
     );

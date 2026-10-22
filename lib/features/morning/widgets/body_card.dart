@@ -66,10 +66,11 @@ class _WeightHud extends StatefulWidget {
 class _WeightHudState extends State<_WeightHud> {
   double v = 100, start = 100, dx = 0;
   bool drag = false;
+  late bool _editing;
   @override
   void initState() {
     super.initState();
-    if (widget.controller.text.isEmpty) widget.controller.text = '100.0';
+    _editing = double.tryParse(widget.controller.text) == null;
     _read();
     widget.controller.addListener(_read);
   }
@@ -81,7 +82,7 @@ class _WeightHudState extends State<_WeightHud> {
   }
 
   void _read() {
-    final n = (double.tryParse(widget.controller.text) ?? 100)
+    final n = (double.tryParse(widget.controller.text) ?? v)
         .clamp(40, 180)
         .toDouble();
     if (n != v && mounted) setState(() => v = n);
@@ -92,6 +93,14 @@ class _WeightHudState extends State<_WeightHud> {
   @override
   Widget build(BuildContext c) {
     final cs = Theme.of(c).colorScheme;
+    if (!_editing && widget.controller.text.isNotEmpty) {
+      return _CollapsedStatusValue(
+        key: const ValueKey('status-weight-collapsed'),
+        label: 'Weight',
+        value: '${v.toStringAsFixed(1)} kg',
+        onTap: () => setState(() => _editing = true),
+      );
+    }
     return Semantics(
       slider: true,
       label: 'Weight ${v.toStringAsFixed(1)} kilograms',
@@ -112,9 +121,14 @@ class _WeightHudState extends State<_WeightHud> {
           width: double.infinity,
           child: Stack(
             children: [
-              CustomPaint(
-                size: Size.infinite,
-                painter: _Tape(v, cs.primary, drag),
+              TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 110),
+                curve: Curves.easeOutCubic,
+                tween: Tween<double>(end: v),
+                builder: (_, visualValue, _) => CustomPaint(
+                  size: Size.infinite,
+                  painter: _Tape(visualValue, cs.primary, drag),
+                ),
               ),
               Positioned(
                 left: 0,
@@ -141,6 +155,15 @@ class _WeightHudState extends State<_WeightHud> {
                     ),
                   ),
                 ),
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: TextButton(
+                  key: const ValueKey('status-weight-done'),
+                  onPressed: () => setState(() => _editing = false),
+                  child: const Text('完了'),
+                ).inputFeedback(),
               ),
               Positioned(
                 left: 18,
@@ -189,13 +212,15 @@ class _Tape extends CustomPainter {
       c.drawLine(Offset(x, y + 62), Offset(x + sign * 28, y + 62), p);
       c.drawLine(Offset(x, y + 62), Offset(x, y + 38), p);
     }
-    for (var i = -35; i <= 35; i++) {
-      final n = v + i / 10;
-      if (n < 40 || n > 180) continue;
-      final x = cx + i * 8.8;
+    final centerQ = v * 10;
+    final firstQ = (centerQ - s.width / 17.6).floor() - 1;
+    final lastQ = (centerQ + s.width / 17.6).ceil() + 1;
+    for (var q = firstQ; q <= lastQ; q++) {
+      if (q < 400 || q > 1800) continue;
+      final x = cx + (q - centerQ) * 8.8;
       if (x < 0 || x > s.width) continue;
-      final major = i % 10 == 0,
-          mid = !major && i % 5 == 0,
+      final major = q % 10 == 0,
+          mid = !major && q % 5 == 0,
           fade = (1 - (x - cx).abs() / (s.width * .55))
               .clamp(.18, 1)
               .toDouble();
@@ -225,7 +250,7 @@ class _Tape extends CustomPainter {
       if (major) {
         final t = TextPainter(
           text: TextSpan(
-            text: n.round().toString(),
+            text: (q ~/ 10).toString(),
             style: TextStyle(
               color: color.withValues(alpha: .65 * fade),
               fontSize: 10,
@@ -276,10 +301,11 @@ class _BodyFatRing extends StatefulWidget {
 
 class _BodyFatRingState extends State<_BodyFatRing> {
   double v = 20;
+  late bool _editing;
   @override
   void initState() {
     super.initState();
-    if (widget.controller.text.isEmpty) widget.controller.text = '20.0';
+    _editing = double.tryParse(widget.controller.text) == null;
     _read();
     widget.controller.addListener(_read);
   }
@@ -291,7 +317,7 @@ class _BodyFatRingState extends State<_BodyFatRing> {
   }
 
   void _read() {
-    final n = (double.tryParse(widget.controller.text) ?? 20)
+    final n = (double.tryParse(widget.controller.text) ?? v)
         .clamp(0, 60)
         .toDouble();
     if (n != v && mounted) setState(() => v = n);
@@ -302,8 +328,16 @@ class _BodyFatRingState extends State<_BodyFatRing> {
   @override
   Widget build(BuildContext c) {
     final cs = Theme.of(c).colorScheme;
+    if (!_editing && widget.controller.text.isNotEmpty) {
+      return _CollapsedStatusValue(
+        key: const ValueKey('status-body-fat-collapsed'),
+        label: 'Body Fat',
+        value: '${v.toStringAsFixed(1)} %',
+        onTap: () => setState(() => _editing = true),
+      );
+    }
     return SizedBox(
-      height: 146,
+      height: 194,
       child: Column(
         children: [
           SizedBox(
@@ -359,8 +393,60 @@ class _BodyFatRingState extends State<_BodyFatRing> {
               ),
             ),
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const ValueKey('status-body-fat-done'),
+              onPressed: () => setState(() => _editing = false),
+              child: const Text('完了'),
+            ).inputFeedback(),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _CollapsedStatusValue extends StatelessWidget {
+  const _CollapsedStatusValue({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+  final String label, value;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Semantics(
+      button: true,
+      label: '$label $value 再編集',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 52,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Icon(Icons.edit_outlined, size: 18, color: color),
+            ],
+          ),
+        ),
+      ).inputFeedback(),
     );
   }
 }

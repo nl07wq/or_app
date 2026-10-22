@@ -5,7 +5,6 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import '../../../core/models/work_type.dart';
 import '../../../core/models/shift_preset.dart';
 import '../../../core/services/shift_preset_preferences.dart';
-import '../../../core/widgets/inputs/time/time_input_card.dart';
 import '../../../core/widgets/inputs/wheel/wheel_selector_card.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -284,12 +283,9 @@ class _WorkCardState extends State<WorkCard> {
 
             const SizedBox(height: 20),
 
-            TimeInputCard(
-              title: "Break Time",
+            _BreakTimeStepper(
+              key: const ValueKey('work-break-stepper'),
               controller: widget.breakController,
-              minuteStep: 15,
-              initialHour: 1,
-              initialMinute: 0,
             ),
 
             const SizedBox(height: 20),
@@ -359,9 +355,11 @@ class _WorkClockRow extends StatefulWidget {
 }
 
 class _WorkClockRowState extends State<_WorkClockRow> {
+  late bool _collapsed;
   @override
   void initState() {
     super.initState();
+    _collapsed = _isValidTime(widget.controller.text);
     widget.controller.addListener(_changed);
   }
 
@@ -397,12 +395,45 @@ class _WorkClockRowState extends State<_WorkClockRow> {
     if (result != null) {
       widget.controller.text =
           '${result.hour.toString().padLeft(2, '0')}:${result.minute.toString().padLeft(2, '0')}';
+      if (mounted) setState(() => _collapsed = true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    if (_collapsed && _isValidTime(widget.controller.text)) {
+      return Semantics(
+        button: true,
+        label: '${widget.title} ${widget.controller.text} 再編集',
+        child: InkWell(
+          onTap: _pick,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 54,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                Text(
+                  widget.controller.text,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: cs.primary,
+                    fontFamily: 'ShareTechMono',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Icon(Icons.edit_outlined, size: 18, color: cs.primary),
+              ],
+            ),
+          ),
+        ).actionableFeedback(),
+      );
+    }
     return Semantics(
       button: true,
       label: '${widget.title} ${widget.controller.text}',
@@ -441,6 +472,149 @@ class _WorkClockRowState extends State<_WorkClockRow> {
           ),
         ),
       ).actionableFeedback(),
+    );
+  }
+}
+
+bool _isValidTime(String value) {
+  final p = value.split(':');
+  if (p.length != 2) return false;
+  final h = int.tryParse(p[0]);
+  final m = int.tryParse(p[1]);
+  return h != null && m != null && h >= 0 && h <= 23 && m >= 0 && m <= 59;
+}
+
+class _BreakTimeStepper extends StatefulWidget {
+  const _BreakTimeStepper({super.key, required this.controller});
+  final TextEditingController controller;
+  @override
+  State<_BreakTimeStepper> createState() => _BreakTimeStepperState();
+}
+
+class _BreakTimeStepperState extends State<_BreakTimeStepper> {
+  late bool _editing;
+  int get _minutes {
+    final p = widget.controller.text.split(':');
+    final h = int.tryParse(p.first) ?? 0;
+    final m = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
+    return (h * 60 + m).clamp(0, 23 * 60 + 45);
+  }
+
+  String get _label =>
+      '${_minutes ~/ 60}:${(_minutes % 60).toString().padLeft(2, '0')}';
+  @override
+  void initState() {
+    super.initState();
+    _editing = widget.controller.text.isEmpty;
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  void _step(int delta) {
+    final next = (_minutes + delta).clamp(0, 23 * 60 + 45);
+    widget.controller.text =
+        '${next ~/ 60}:${(next % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    if (!_editing && widget.controller.text.isNotEmpty) {
+      return Semantics(
+        button: true,
+        label: 'Break Time $_label 再編集',
+        child: InkWell(
+          key: const ValueKey('work-break-collapsed'),
+          onTap: () => setState(() => _editing = true),
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 54,
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Break Time',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Text(
+                  _label,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: color,
+                    fontFamily: 'ShareTechMono',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Icon(Icons.edit_outlined, size: 18, color: color),
+              ],
+            ),
+          ),
+        ).actionableFeedback(),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withValues(alpha: .35)),
+        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainer.withValues(alpha: .28),
+      ),
+      child: Column(
+        children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Break Time',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _label,
+            key: const ValueKey('work-break-value'),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontSize: 30,
+              fontFamily: 'ShareTechMono',
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                key: const ValueKey('work-break-minus'),
+                icon: const Icon(Icons.remove),
+                onPressed: _minutes <= 0 ? null : () => _step(-15),
+              ),
+              const SizedBox(width: 36),
+              IconButton(
+                key: const ValueKey('work-break-plus'),
+                icon: const Icon(Icons.add),
+                onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const ValueKey('work-break-done'),
+              onPressed: () => setState(() => _editing = false),
+              child: const Text('完了'),
+            ).actionableFeedback(),
+          ),
+        ],
+      ),
     );
   }
 }

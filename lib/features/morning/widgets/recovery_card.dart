@@ -135,9 +135,10 @@ class _SleepDurationOrbitalInput extends StatefulWidget {
 
 class _SleepDurationOrbitalInputState
     extends State<_SleepDurationOrbitalInput> {
+  late bool _collapsed;
   Duration get _duration {
     final parts = widget.controller.text.split(':');
-    final hour = int.tryParse(parts.first) ?? 8;
+    final hour = int.tryParse(parts.first) ?? 0;
     final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
     return Duration(
       hours: hour.clamp(0, 23).toInt(),
@@ -148,9 +149,7 @@ class _SleepDurationOrbitalInputState
   @override
   void initState() {
     super.initState();
-    if (widget.controller.text.isEmpty) {
-      widget.controller.text = '8:00';
-    }
+    _collapsed = widget.controller.text.isNotEmpty;
     widget.controller.addListener(_onChanged);
   }
 
@@ -172,11 +171,20 @@ class _SleepDurationOrbitalInputState
     if (!mounted || result == null) return;
     widget.controller.text =
         '${result.inHours}:${result.inMinutes.remainder(60).toString().padLeft(2, '0')}';
+    setState(() => _collapsed = true);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    if (_collapsed && widget.controller.text.isNotEmpty) {
+      return _CollapsedRecoveryValue(
+        key: const ValueKey('status-sleep-duration-picker'),
+        label: widget.title,
+        value: widget.controller.text,
+        onTap: () => _selectDuration(),
+      );
+    }
     return Semantics(
       button: true,
       label: 'Sleep duration ${widget.controller.text}',
@@ -241,10 +249,11 @@ class _SleepScoreGauge extends StatefulWidget {
 
 class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
   int _value = 80;
+  late bool _editing;
   @override
   void initState() {
     super.initState();
-    if (widget.controller.text.isEmpty) widget.controller.text = '80';
+    _editing = int.tryParse(widget.controller.text) == null;
     _read();
     widget.controller.addListener(_read);
   }
@@ -256,7 +265,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
   }
 
   void _read() {
-    final v = (int.tryParse(widget.controller.text) ?? 80).clamp(0, 100);
+    final v = (int.tryParse(widget.controller.text) ?? _value).clamp(0, 100);
     if (v != _value && mounted) setState(() => _value = v);
   }
 
@@ -265,8 +274,16 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
+    if (!_editing && widget.controller.text.isNotEmpty) {
+      return _CollapsedRecoveryValue(
+        key: const ValueKey('status-sleep-score-collapsed'),
+        label: widget.title,
+        value: '$_value',
+        onTap: () => setState(() => _editing = true),
+      );
+    }
     return SizedBox(
-      height: 100,
+      height: 144,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -305,8 +322,60 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
               ],
             ),
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const ValueKey('status-sleep-score-done'),
+              onPressed: () => setState(() => _editing = false),
+              child: const Text('完了'),
+            ).inputFeedback(),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _CollapsedRecoveryValue extends StatelessWidget {
+  const _CollapsedRecoveryValue({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+  final String label, value;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Semantics(
+      button: true,
+      label: '$label $value 再編集',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 54,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Icon(Icons.edit_outlined, size: 18, color: color),
+            ],
+          ),
+        ),
+      ).inputFeedback(),
     );
   }
 }
