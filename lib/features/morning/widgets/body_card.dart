@@ -133,7 +133,7 @@ class _WeightHudState extends State<_WeightHud>
             onHorizontalDragEnd: (_) => setState(() => drag = false),
             onHorizontalDragCancel: () => setState(() => drag = false),
             child: SizedBox(
-              height: 166,
+              height: 140,
               width: double.infinity,
               child: Stack(
                 children: [
@@ -144,10 +144,11 @@ class _WeightHudState extends State<_WeightHud>
                       curve: Curves.easeOutCubic,
                       tween: Tween<double>(end: v),
                       builder: (_, visualValue, _) => CustomPaint(
+                        key: const ValueKey('status-weight-tape'),
                         size: Size.infinite,
                         painter: _Tape(
                           visualValue,
-                          cs.primary,
+                          cs,
                           drag,
                           _lockController.value,
                         ),
@@ -157,15 +158,17 @@ class _WeightHudState extends State<_WeightHud>
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: 5,
+                    top: 4,
                     child: Center(
                       child: RichText(
                         text: TextSpan(
                           style: Theme.of(c).textTheme.displaySmall?.copyWith(
                             fontFamily: 'ShareTechMono',
-                            fontSize: 46,
+                            fontSize: MediaQuery.sizeOf(c).width < 340
+                                ? 42
+                                : 46,
                             fontWeight: FontWeight.w800,
-                            color: cs.onSurface,
+                            color: const Color(0xffe8ffff),
                           ),
                           children: [
                             TextSpan(text: v.toStringAsFixed(1)),
@@ -173,7 +176,9 @@ class _WeightHudState extends State<_WeightHud>
                               text: ' kg',
                               style: TextStyle(
                                 fontSize: 18,
-                                color: cs.onSurface.withValues(alpha: .7),
+                                color: const Color(
+                                  0xffe8ffff,
+                                ).withValues(alpha: .72),
                               ),
                             ),
                           ],
@@ -181,23 +186,12 @@ class _WeightHudState extends State<_WeightHud>
                       ),
                     ),
                   ),
-                  Positioned(
-                    left: 18,
-                    right: 18,
-                    top: 137,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _hudText(c, 'FLIGHT TAPE'),
-                        _hudText(c, drag ? 'ADJUSTING' : 'LOCK'),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
         ),
+        const SizedBox(height: 10),
         SizedBox(
           height: 44,
           child: Align(
@@ -217,34 +211,24 @@ class _WeightHudState extends State<_WeightHud>
   }
 }
 
-Text _hudText(BuildContext c, String s) => Text(
-  s,
-  style: Theme.of(c).textTheme.labelSmall?.copyWith(
-    letterSpacing: 1,
-    color: Theme.of(c).colorScheme.primary.withValues(alpha: .65),
-  ),
-);
-
 class _Tape extends CustomPainter {
-  const _Tape(this.v, this.color, this.active, this.lock);
+  const _Tape(this.v, this.colors, this.active, this.lock);
   final double v;
-  final Color color;
+  final ColorScheme colors;
   final bool active;
   final double lock;
+
+  static const _laserCyan = Color(0xff20e9ff);
+  static const _laserIce = Color(0xffe8ffff);
+  static const _laserBlue = Color(0xff37a9ff);
+  static const _unlitTick = Color(0xff4d90ad);
+  static const _tapeY = 86.0;
+
   @override
   void paint(Canvas c, Size s) {
     final p = Paint()..strokeCap = StrokeCap.square;
-    final cx = s.width / 2, y = 98.0;
-    p
-      ..color = color.withValues(alpha: .65)
-      ..strokeWidth = 1.4;
-    for (final sign in [-1, 1]) {
-      final x = (sign < 0 ? 8 : s.width - 8).toDouble();
-      c.drawLine(Offset(x, y - 62), Offset(x + sign * 28, y - 62), p);
-      c.drawLine(Offset(x, y - 62), Offset(x, y - 38), p);
-      c.drawLine(Offset(x, y + 62), Offset(x + sign * 28, y + 62), p);
-      c.drawLine(Offset(x, y + 62), Offset(x, y + 38), p);
-    }
+    final cx = s.width / 2;
+    const y = _tapeY;
     final centerQ = v * 10;
     final firstQ = (centerQ - s.width / 17.6).floor() - 1;
     final lastQ = (centerQ + s.width / 17.6).ceil() + 1;
@@ -258,10 +242,10 @@ class _Tape extends CustomPainter {
               .clamp(.18, 1)
               .toDouble();
       p
-        ..color = color.withValues(
+        ..color = (major ? _laserBlue : _unlitTick).withValues(
           alpha:
               (major
-                  ? .72
+                  ? .72 + (active ? .12 : 0)
                   : mid
                   ? .48
                   : .28) *
@@ -285,8 +269,9 @@ class _Tape extends CustomPainter {
           text: TextSpan(
             text: (q ~/ 10).toString(),
             style: TextStyle(
-              color: color.withValues(alpha: .65 * fade),
+              color: _laserIce.withValues(alpha: .65 * fade),
               fontSize: 10,
+              fontFamily: 'ShareTechMono',
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -294,55 +279,99 @@ class _Tape extends CustomPainter {
         t.paint(c, Offset(x - t.width / 2, y + 28));
       }
     }
-    final open = active ? 2.0 : 0.0;
-    final close = lock * 3.0;
-    final halfWidth = 42 + open - close;
-    final inner = 17 + open - close;
-    final halfHeight = 29 + open - lock * 2;
+    final lockPulse = math.sin(lock * math.pi);
+    final inset = lockPulse * 2;
+    final strength = active ? 1.0 : .76;
+    final frame = <Path>[
+      Path()
+        ..moveTo(12 + inset, 58)
+        ..lineTo(12 + inset, 39 + inset)
+        ..lineTo(48 + inset, 39 + inset),
+      Path()
+        ..moveTo(s.width - 12 - inset, 58)
+        ..lineTo(s.width - 12 - inset, 39 + inset)
+        ..lineTo(s.width - 48 - inset, 39 + inset),
+      Path()
+        ..moveTo(12 + inset, 108)
+        ..lineTo(12 + inset, 122 - inset)
+        ..lineTo(48 + inset, 122 - inset),
+      Path()
+        ..moveTo(s.width - 12 - inset, 108)
+        ..lineTo(s.width - 12 - inset, 122 - inset)
+        ..lineTo(s.width - 48 - inset, 122 - inset),
+    ];
+    _laserPaths(c, frame, strength: strength, flash: lockPulse);
+    final reticle = <Offset>[
+      Offset(cx - 80, y),
+      Offset(cx - 13, y),
+      Offset(cx + 13, y),
+      Offset(cx + 80, y),
+    ];
+    _laserLines(c, reticle, strength: strength, flash: lockPulse);
+    _laserLines(
+      c,
+      [
+        Offset(cx - 9, y),
+        Offset(cx + 9, y),
+        Offset(cx, y - 9),
+        Offset(cx, y + 9),
+      ],
+      strength: 1,
+      flash: lockPulse,
+    );
     p
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.square
-      ..color = color.withValues(alpha: active ? .9 : .68 + lock * .22)
-      ..strokeWidth = active ? 1.65 : 1.45;
-    for (final top in [true, false]) {
-      final signY = top ? -1.0 : 1.0;
-      for (final left in [true, false]) {
-        final signX = left ? -1.0 : 1.0;
-        final outerX = cx + signX * halfWidth;
-        final innerX = cx + signX * inner;
-        final innerY = y + signY * 12;
-        final outerY = y + signY * halfHeight;
-        c.drawPath(
-          Path()
-            ..moveTo(outerX, innerY)
-            ..lineTo(outerX, outerY)
-            ..lineTo(innerX, outerY),
-          p,
-        );
+      ..style = PaintingStyle.fill
+      ..color = _laserIce.withValues(alpha: .9 + lockPulse * .1);
+    c.drawCircle(Offset(cx, y), 1.8, p);
+  }
+
+  void _laserPaths(
+    Canvas canvas,
+    List<Path> paths, {
+    required double strength,
+    required double flash,
+  }) {
+    for (final paint in _laserPaints(strength, flash)) {
+      for (final path in paths) {
+        canvas.drawPath(path, paint);
       }
     }
-    p
-      ..strokeWidth = 1.2
-      ..color = color.withValues(alpha: .52 + lock * .18);
-    c.drawLine(Offset(cx - 78, y), Offset(cx - 49, y), p);
-    c.drawLine(Offset(cx + 49, y), Offset(cx + 78, y), p);
-    p
-      ..strokeWidth = 1.25
-      ..color = color.withValues(alpha: .70 + lock * .2);
-    c.drawLine(Offset(cx, y - 48), Offset(cx, y - 35), p);
-    c.drawLine(Offset(cx, y + 35), Offset(cx, y + 48), p);
-    p
-      ..strokeWidth = 1.7
-      ..color = color.withValues(alpha: .9 + lock * .1);
-    c.drawLine(Offset(cx - 7, y), Offset(cx + 7, y), p);
-    c.drawLine(Offset(cx, y - 7), Offset(cx, y + 7), p);
-    p.style = PaintingStyle.fill;
-    c.drawCircle(Offset(cx, y), 1.5, p);
   }
+
+  void _laserLines(
+    Canvas canvas,
+    List<Offset> endpoints, {
+    required double strength,
+    required double flash,
+  }) {
+    for (final paint in _laserPaints(strength, flash)) {
+      for (var index = 0; index < endpoints.length; index += 2) {
+        canvas.drawLine(endpoints[index], endpoints[index + 1], paint);
+      }
+    }
+  }
+
+  List<Paint> _laserPaints(double strength, double flash) => [
+    Paint()
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.5
+      ..color = _laserCyan.withValues(alpha: (.1 + flash * .04) * strength),
+    Paint()
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = _laserCyan.withValues(alpha: (.78 + flash * .17) * strength),
+    Paint()
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .7
+      ..color = _laserIce.withValues(alpha: (.68 + flash * .22) * strength),
+  ];
 
   @override
   bool shouldRepaint(covariant _Tape o) =>
-      o.v != v || o.color != color || o.active != active || o.lock != lock;
+      o.v != v || o.colors != colors || o.active != active || o.lock != lock;
 }
 
 class _BodyFatRing extends StatefulWidget {

@@ -19,7 +19,7 @@ void main() {
         ),
       );
 
-  testWidgets('weight completion action is below the 166dp tape artwork', (
+  testWidgets('weight completion action is below the 140dp tape artwork', (
     tester,
   ) async {
     final weight = TextEditingController();
@@ -31,7 +31,11 @@ void main() {
     final done = tester.getRect(
       find.byKey(const ValueKey('status-weight-done')),
     );
-    expect(done.top, greaterThanOrEqualTo(hud.top + 166));
+    expect(done.top, greaterThanOrEqualTo(hud.top + 148));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('status-weight-tape'))).height,
+      140,
+    );
     await tester.drag(
       find.byKey(const ValueKey('status-weight-hud')),
       const Offset(-88, 0),
@@ -43,6 +47,7 @@ void main() {
     // The reticle remains mounted for the one-shot lock capture before the
     // compact saved-value row replaces the HUD.
     expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-weight-tape')), findsOneWidget);
     expect(find.byKey(const ValueKey('status-weight-collapsed')), findsNothing);
     await tester.pump(const Duration(milliseconds: 200));
     expect(
@@ -52,6 +57,35 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('status-weight-collapsed')));
     await tester.pump();
     expect(find.byKey(const ValueKey('status-weight-done')), findsOneWidget);
+  });
+
+  testWidgets('weight HUD renders the low-profile laser idle and lock states', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final weight = TextEditingController();
+    final bodyFat = TextEditingController();
+    addTearDown(weight.dispose);
+    addTearDown(bodyFat.dispose);
+    await tester.pumpWidget(app(weight, bodyFat));
+    await expectLater(
+      find.byKey(const ValueKey('status-weight-tape')),
+      matchesGoldenFile('../goldens/status_weight_hud_v24_idle.png'),
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('status-weight-hud')),
+      const Offset(-88, 0),
+    );
+    await tester.tap(find.byKey(const ValueKey('status-weight-done')));
+    await tester.pump(const Duration(milliseconds: 90));
+    await expectLater(
+      find.byKey(const ValueKey('status-weight-tape')),
+      matchesGoldenFile('../goldens/status_weight_hud_v24_lock.png'),
+    );
   });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
