@@ -66,4 +66,26 @@ void main() {
       FoodAmbientVariant.thermalCurrent,
     );
   });
+
+  test('iridescent circulation keeps 18 IDs at exactly 1.50x radius', () {
+    const size = Size(390, 844);
+    final frame = OilTimerMotion.continuousCirculationFrame(size, 0);
+    expect(frame.drops, hasLength(OilTimerSimulation.dropCount));
+    for (final drop in frame.drops) {
+      final h = OilTimerMotion.hash(drop.id, 13);
+      final baseline = size.shortestSide * (.032 + .050 * h) * 1.18;
+      expect(drop.radius / baseline, closeTo(1.50, .001));
+    }
+  });
+
+  test('film phase is deterministic and continuous across short samples', () {
+    const size = Size(390, 844);
+    final first = OilTimerMotion.continuousCirculationFrame(size, 4.0);
+    final next = OilTimerMotion.continuousCirculationFrame(size, 4.1);
+    expect(first.drops, hasLength(next.drops.length));
+    for (var index = 0; index < first.drops.length; index++) {
+      expect(next.drops[index].surfacePhase - first.drops[index].surfacePhase,
+          closeTo(.032, .001));
+    }
+  });
 }

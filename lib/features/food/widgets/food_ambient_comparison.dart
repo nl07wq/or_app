@@ -186,7 +186,10 @@ class OilTimerSimulation {
     for (var index = 0; index < dropCount; index++) {
       final h = OilTimerMotion.hash(index, 13);
       final xSeed = (index * .61803398875 + OilTimerMotion.hash(index, 31)) % 1;
-      final radius = min * (.032 + .050 * h) * 1.18;
+      // V4.1's deterministic size ranking remains intact. V1 increases every
+      // physical radius by exactly 1.50, so all collision and return margins
+      // continue to be derived from the same enlarged value.
+      final radius = min * (.032 + .050 * h) * 1.18 * 1.50;
       _drops.add(
         _OilDropState(
           id: index,
@@ -654,7 +657,7 @@ class _FoodAmbientPainter extends CustomPainter {
         contactStrength: drop.squashStrength,
       );
       final bounds = path.getBounds();
-      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .05));
+      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .08));
       c.save();
       c.clipPath(path);
       c.drawRect(
@@ -667,7 +670,7 @@ class _FoodAmbientPainter extends CustomPainter {
             ),
             radius: 1.05,
             colors: [
-              Color.lerp(drop.color, Colors.white, .42)!.withValues(alpha: .37),
+              Color.lerp(drop.color, Colors.white, .24)!.withValues(alpha: .37),
               drop.color.withValues(alpha: .27),
               Color.lerp(
                 drop.color,
@@ -680,6 +683,7 @@ class _FoodAmbientPainter extends CustomPainter {
           ).createShader(bounds),
       );
       c.restore();
+      _paintIridescentFilm(c, path, bounds, drop);
       c.drawPath(
         path,
         Paint()
@@ -691,7 +695,80 @@ class _FoodAmbientPainter extends CustomPainter {
             .42,
           )!.withValues(alpha: .38),
       );
+      final glintCenter = Offset(
+        drop.center.dx - drop.radius * (.28 + math.sin(drop.surfacePhase) * .04),
+        drop.center.dy - drop.radius * (.30 + math.cos(drop.surfacePhase * .7) * .04),
+      );
+      c.drawArc(
+        Rect.fromCenter(
+          center: glintCenter,
+          width: drop.radius * .72,
+          height: drop.radius * .40,
+        ),
+        -2.75 + math.sin(drop.surfacePhase) * .18,
+        1.05,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .9
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xffe7fbff).withValues(alpha: .34),
+      );
+      c.drawArc(
+        Rect.fromCircle(center: drop.center, radius: drop.radius * .92),
+        -.55 + math.sin(drop.surfacePhase * .8) * .18,
+        1.18,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .75
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xffbceeff).withValues(alpha: .19),
+      );
     }
+  }
+
+  void _paintIridescentFilm(
+    Canvas canvas,
+    Path path,
+    Rect bounds,
+    OilTimerDrop drop,
+  ) {
+    canvas.save();
+    canvas.clipPath(path);
+    final phase = drop.surfacePhase;
+    for (var band = 0; band < 2; band++) {
+      final local = phase * (.82 + band * .13) + band * 2.21;
+      final center = Offset(
+        drop.center.dx + math.sin(local) * drop.radius * .28,
+        drop.center.dy + math.cos(local * .83) * drop.radius * .23,
+      );
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(math.sin(local * .61) * .58 + band * .37);
+      final oval = Rect.fromCenter(
+        center: Offset.zero,
+        width: drop.radius * (1.72 + band * .16),
+        height: drop.radius * (.38 + band * .09),
+      );
+      canvas.drawOval(
+        oval,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              const Color(0xff7cecff).withValues(alpha: .01),
+              const Color(0xff98f3dc).withValues(alpha: .11),
+              const Color(0xffc3a4ff).withValues(alpha: .15),
+              const Color(0xffff9dd8).withValues(alpha: .12),
+              const Color(0xffffefaa).withValues(alpha: .09),
+              const Color(0xff7cecff).withValues(alpha: .01),
+            ],
+            stops: const [0, .20, .42, .61, .79, 1],
+          ).createShader(oval),
+      );
+      canvas.restore();
+    }
+    canvas.restore();
   }
 
   void _waterParticles(Canvas c, Size s) {
