@@ -466,10 +466,26 @@ class HistoryDataVaultHyperspace {
     double distance,
   ) {
     var painted = 0;
-    var gateVisible = false;
+    // Gate scans have their own sparse schedule.  They no longer depend on a
+    // 10% pattern draw, which previously made the intended U-shaped scanner
+    // almost impossible to encounter on a device.
+    final gateIndex = HistoryDataVaultMotion.compositeGateIndexAt(seconds);
+    for (
+      var index = gateIndex;
+      index >= gateIndex - 1 && painted < 2;
+      index--
+    ) {
+      final event = HistoryDataVaultMotion.compositeGateEventFor(index);
+      if (!event.isActiveAt(seconds)) continue;
+      final head = event.frontAt(seconds);
+      if (head < distance - 5 || head > distance + 88) continue;
+      _paintGateScan(canvas, camera, event, head);
+      painted++;
+      break;
+    }
     final current = HistoryDataVaultMotion.compositeScanIndexAt(seconds);
-    // Inspect a bounded third candidate as the 25%-denser cadence can leave
-    // an older event in its fading, still-visible approach window.
+    // Bounded candidates keep SCAN an accent layer.  Gate has priority, so
+    // one regular Sweep/Raster is the maximum accompaniment during a pass.
     for (var index = current; index >= current - 2 && painted < 2; index--) {
       final event = HistoryDataVaultMotion.compositeScanEventFor(index);
       if (!event.isActiveAt(seconds)) continue;
@@ -479,13 +495,12 @@ class HistoryDataVaultHyperspace {
       final pattern = HistoryDataVaultMotion.compositeScanPatternFor(
         event.seed,
       );
-      if (pattern == DataVaultScanPattern.gate && gateVisible) continue;
+      if (pattern == DataVaultScanPattern.gate) continue;
       switch (pattern) {
         case DataVaultScanPattern.surfaceSweep:
           _paintSurfaceSweep(canvas, camera, rail, event, head);
         case DataVaultScanPattern.gate:
-          _paintGateScan(canvas, camera, event, head);
-          gateVisible = true;
+          break;
         case DataVaultScanPattern.stripRaster:
           _paintStripRaster(canvas, camera, rail, event, head);
       }
@@ -550,7 +565,7 @@ class HistoryDataVaultHyperspace {
       _world.sample(head).point(3.92, 4.78),
       _world.sample(head).point(3.92, .30),
     ];
-    for (final layer in [(3.0, .08), (1.4, .22), (.72, .76)]) {
+    for (final layer in [(3.0, .08), (1.8, .18), (1.0, .82)]) {
       _strokeWorldPolyline(
         canvas,
         camera,
@@ -649,8 +664,14 @@ class HistoryDataVaultHyperspace {
     _VaultCamera camera,
     double distance,
   ) {
+    var paintedEvents = 0;
+    var paintedLinks = 0;
     final current = HistoryDataVaultMotion.compositeNodeIndexAt(seconds);
-    for (var index = current; index >= current - 1; index--) {
+    for (
+      var index = current;
+      index >= current - 2 && paintedEvents < 2 && paintedLinks < 4;
+      index--
+    ) {
       final event = HistoryDataVaultMotion.compositeNodeEventFor(index);
       if (!event.isActiveAt(seconds) ||
           event.anchorS < distance - 4 ||
@@ -658,10 +679,15 @@ class HistoryDataVaultHyperspace {
         continue;
       }
       final active = event.activeHopsAt(seconds);
-      for (final hop in active.take(3)) {
-        _paintNodeHop(canvas, camera, event, hop, brightness: .74);
+      if (active.isEmpty) continue;
+      var drewEvent = false;
+      for (final hop in active) {
+        if (paintedLinks >= 4) break;
+        _paintNodeHop(canvas, camera, event, hop, brightness: .80);
+        paintedLinks++;
+        drewEvent = true;
       }
-      return;
+      if (drewEvent) paintedEvents++;
     }
   }
 
@@ -1752,13 +1778,17 @@ class HistoryDataVaultMotion {
     return ((seconds - seedUnit(seed + 17) * interval) / interval).floor();
   }
 
-  /// V2.4 raises the global scan rate by exactly 25% (3.35 / 1.25).
+  /// V2.5 raises V2.4's 2.68s scan cadence by exactly 1.5x.
+  static const compositeScanInterval = 2.68 / 1.5;
+  static const compositeGateInterval = 5.3;
+  static const compositeNodeInterval = 1.2;
+
   static int compositeScanIndexAt(double seconds) =>
-      ((seconds - .55) / 2.68).floor();
+      ((seconds - .55) / compositeScanInterval).floor();
 
   static DataVaultInboundEvent compositeScanEventFor(int event) {
     final seed = _impulseSeed(0x47ad + event * 613);
-    final launch = .55 + event * 2.68;
+    final launch = .55 + event * compositeScanInterval;
     return DataVaultInboundEvent(
       id: event,
       seed: seed,
@@ -1772,30 +1802,46 @@ class HistoryDataVaultMotion {
     );
   }
 
+  static int compositeGateIndexAt(double seconds) =>
+      ((seconds - .9) / compositeGateInterval).floor();
+
+  static DataVaultInboundEvent compositeGateEventFor(int event) {
+    final seed = _impulseSeed(0x9d31 + event * 431);
+    final launch = .9 + event * compositeGateInterval;
+    return DataVaultInboundEvent(
+      id: event,
+      seed: seed,
+      launchSeconds: launch,
+      travelMultiplier: 1.10 + seedUnit(seed + 7) * .15,
+      length: 1.65,
+      lifetime: 4.55,
+      lead: 78,
+    );
+  }
+
   static DataVaultScanPattern compositeScanPatternFor(int seed) {
     final selector = seedUnit(seed + 101);
-    return selector < .60
+    return selector < .65
         ? DataVaultScanPattern.surfaceSweep
-        : selector < .70
-        ? DataVaultScanPattern.gate
         : DataVaultScanPattern.stripRaster;
   }
 
-  /// V2.4 raises the global node cadence by exactly 25% (5.65 / 1.25).
+  /// V2.5 keeps node discharges intermittent but close enough together to be
+  /// perceptible beside the permanent SPARK traffic layer.
   static int compositeNodeIndexAt(double seconds) =>
-      ((seconds - 1.25) / 4.52).floor();
+      ((seconds - 1.25) / compositeNodeInterval).floor();
 
   static DataVaultNodeEvent compositeNodeEventFor(int event) {
     final base = nodeEventFor(event % 5, event);
-    final launch = 1.25 + event * 4.52;
+    final launch = 1.25 + event * compositeNodeInterval;
     return DataVaultNodeEvent(
       id: event,
       seed: base.seed,
       launchSeconds: launch,
-      duration: .65,
+      duration: .72,
       // A mid-near deterministic launch band avoids spending a short flash
       // beyond the aperture while retaining stable anchors for its lifetime.
-      anchorS: distanceAt(launch) + 18 + seedUnit(base.seed + 19) * 48,
+      anchorS: distanceAt(launch) + 12 + seedUnit(base.seed + 19) * 28,
       topology: base.topology,
       anchors: base.anchors,
       links: base.links,

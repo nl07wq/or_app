@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -14,13 +15,16 @@ void main() {
     Size size = const Size(390, 844),
     Duration time = const Duration(milliseconds: 18400),
     bool resetPreferences = true,
+    Map<String, Object>? preferences,
   }) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view
       ..physicalSize = size
       ..devicePixelRatio = 1;
-    if (resetPreferences) SharedPreferences.setMockInitialValues({});
+    if (resetPreferences) {
+      SharedPreferences.setMockInitialValues(preferences ?? {});
+    }
     await tester.pumpWidget(
       MaterialApp(
         theme: StandardTheme.theme,
@@ -174,7 +178,7 @@ void main() {
     expect(patterns, containsAll(DataVaultScanPattern.values));
   });
 
-  test('production B+C schedules stay sparse, seeded and physical', () {
+  test('production B+C schedules remain seeded, physical, and varied', () {
     final scanPatterns = <DataVaultScanPattern>{};
     final nodeAnchors = <DataVaultNodeAnchor>{};
     for (var index = 0; index < 48; index++) {
@@ -193,38 +197,66 @@ void main() {
       );
       final node = HistoryDataVaultMotion.compositeNodeEventFor(index);
       nodeAnchors.addAll(node.anchors);
-      expect(node.duration, lessThanOrEqualTo(.65));
+      expect(node.duration, lessThanOrEqualTo(.72));
       expect(node.links.length, inInclusiveRange(1, 2));
     }
-    expect(scanPatterns, containsAll(DataVaultScanPattern.values));
-    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('leftWall')), isTrue);
-    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('rightWall')), isTrue);
-    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('floor')), isTrue);
-    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('ceiling')), isTrue);
-    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('pillar')), isTrue);
+    expect(
+      scanPatterns,
+      containsAll([
+        DataVaultScanPattern.surfaceSweep,
+        DataVaultScanPattern.stripRaster,
+      ]),
+    );
+    expect(
+      nodeAnchors.any((anchor) => anchor.name.startsWith('leftWall')),
+      isTrue,
+    );
+    expect(
+      nodeAnchors.any((anchor) => anchor.name.startsWith('rightWall')),
+      isTrue,
+    );
+    expect(
+      nodeAnchors.any((anchor) => anchor.name.startsWith('floor')),
+      isTrue,
+    );
+    expect(
+      nodeAnchors.any((anchor) => anchor.name.startsWith('ceiling')),
+      isTrue,
+    );
+    expect(
+      nodeAnchors.any((anchor) => anchor.name.startsWith('pillar')),
+      isTrue,
+    );
   });
 
-  test('V2.4 retains about seventy percent of deterministic SPARK identities', () {
-    var retained = 0;
-    var total = 0;
-    for (final surface in DataVaultImpulseSurface.values) {
-      for (var lane = 0; lane < 5; lane++) {
-        for (var packet = 0; packet < 1000; packet++) {
-          total++;
-          if (HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet)) {
-            retained++;
+  test(
+    'V2.4 retains about seventy percent of deterministic SPARK identities',
+    () {
+      var retained = 0;
+      var total = 0;
+      for (final surface in DataVaultImpulseSurface.values) {
+        for (var lane = 0; lane < 5; lane++) {
+          for (var packet = 0; packet < 1000; packet++) {
+            total++;
+            if (HistoryDataVaultMotion.retainSparkPacket(
+              surface,
+              lane,
+              packet,
+            )) {
+              retained++;
+            }
+            expect(
+              HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet),
+              HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet),
+            );
           }
-          expect(
-            HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet),
-            HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet),
-          );
         }
       }
-    }
-    expect(retained / total, inInclusiveRange(.68, .72));
-  });
+      expect(retained / total, inInclusiveRange(.68, .72));
+    },
+  );
 
-  test('V2.4 composite scan and node cadence are twenty-five percent denser', () {
+  test('V2.5 separates gate scheduling and raises scan and node cadences', () {
     final scans = List.generate(
       100,
       HistoryDataVaultMotion.compositeScanEventFor,
@@ -233,11 +265,158 @@ void main() {
       100,
       HistoryDataVaultMotion.compositeNodeEventFor,
     );
-    expect(scans[1].launchSeconds - scans[0].launchSeconds, closeTo(2.68, .0001));
-    expect(nodes[1].launchSeconds - nodes[0].launchSeconds, closeTo(4.52, .0001));
+    expect(
+      scans[1].launchSeconds - scans[0].launchSeconds,
+      closeTo(2.68 / 1.5, .0001),
+    );
+    expect(
+      nodes[1].launchSeconds - nodes[0].launchSeconds,
+      closeTo(1.2, .0001),
+    );
     expect(scans.every((event) => event.lifetime >= 4.35), isTrue);
     expect(nodes.every((event) => event.anchorS.isFinite), isTrue);
+    final gates = List.generate(
+      12,
+      HistoryDataVaultMotion.compositeGateEventFor,
+    );
+    expect(
+      gates[1].launchSeconds - gates[0].launchSeconds,
+      closeTo(5.3, .0001),
+    );
+    for (final gate in gates) {
+      final a = gate.launchSeconds + .1;
+      final b = gate.launchSeconds + .5;
+      expect(gate.frontAt(b), lessThan(gate.frontAt(a)));
+    }
   });
+
+  test('V2.5 gate and node events repeatedly enter the usable depth band', () {
+    final visibleGates = <int>{};
+    final visibleNodes = <int>{};
+    for (var sample = 0; sample <= 300; sample++) {
+      final seconds = sample / 10;
+      final distance = HistoryDataVaultMotion.distanceAt(seconds);
+      final gateCurrent = HistoryDataVaultMotion.compositeGateIndexAt(seconds);
+      for (var index = gateCurrent; index >= gateCurrent - 1; index--) {
+        final gate = HistoryDataVaultMotion.compositeGateEventFor(index);
+        final head = gate.frontAt(seconds);
+        if (gate.isActiveAt(seconds) &&
+            head >= distance - 5 &&
+            head <= distance + 88) {
+          visibleGates.add(gate.id);
+        }
+      }
+      final nodeCurrent = HistoryDataVaultMotion.compositeNodeIndexAt(seconds);
+      for (var index = nodeCurrent; index >= nodeCurrent - 2; index--) {
+        final node = HistoryDataVaultMotion.compositeNodeEventFor(index);
+        if (node.isActiveAt(seconds) &&
+            node.anchorS >= distance - 4 &&
+            node.anchorS <= distance + 92 &&
+            node.activeHopsAt(seconds).isNotEmpty) {
+          visibleNodes.add(node.id);
+        }
+      }
+    }
+    expect(visibleGates.length, greaterThanOrEqualTo(4));
+    expect(visibleNodes.length, greaterThanOrEqualTo(18));
+  });
+
+  test('memory module routes stay outside the HISTORY glyph zone', () {
+    final routes = HistoryMemoryModuleMotion.routes(const Size(192, 42));
+    expect(routes, hasLength(4));
+    for (final route in routes) {
+      final bounds = route.getBounds();
+      expect(bounds.left, greaterThanOrEqualTo(10));
+      expect(bounds.right, lessThanOrEqualTo(180));
+      expect(bounds.top < 12 || bounds.bottom > 31, isTrue);
+    }
+  });
+
+  test(
+    'memory module signal and contacts use a staggered 4.8 second cycle',
+    () {
+      expect(HistoryMemoryModuleMotion.cycleSeconds, 4.8);
+      for (var channel = 0; channel < 4; channel++) {
+        final signal = HistoryMemoryModuleMotion.signalFor(
+          channel,
+          HistoryMemoryModuleMotion.channelOffsets[channel] + .20,
+        );
+        expect(signal, isNotNull);
+        expect(signal!.end, greaterThan(signal.start));
+        expect(signal.fade, greaterThan(0));
+      }
+      for (var contact = 0; contact < 5; contact++) {
+        final peak = .58 + contact * .14 + .06;
+        expect(
+          HistoryMemoryModuleMotion.contactStrength(contact, peak),
+          closeTo(.5, .05),
+        );
+        expect(
+          HistoryMemoryModuleMotion.contactStrength(contact, peak + .30),
+          0,
+        );
+      }
+      for (var step = 0; step < 48; step++) {
+        final seconds = step / 10;
+        final bright = List.generate(
+          5,
+          (index) => HistoryMemoryModuleMotion.contactStrength(index, seconds),
+        ).where((strength) => strength > .4).length;
+        expect(bright, lessThanOrEqualTo(2));
+      }
+    },
+  );
+
+  testWidgets('memory module keeps HISTORY stable through signal frames', (
+    tester,
+  ) async {
+    final preferences = <String, Object>{
+      HistoryVisualPreference.storageKey: jsonEncode({
+        'version': 1,
+        'title': HistoryTitleVariant.memoryModule.name,
+        'ambient': HistoryAmbientVariant.dataVault.name,
+      }),
+    };
+    const frames = <(String, Duration)>[
+      ('idle', Duration(milliseconds: 2200)),
+      ('packet', Duration(milliseconds: 200)),
+      ('contact', Duration(milliseconds: 640)),
+      ('decay', Duration(milliseconds: 980)),
+    ];
+    for (final frame in frames) {
+      await pumpHistory(tester, time: frame.$2, preferences: preferences);
+      await tester.pump();
+      final title = find.byKey(const ValueKey('history-title-memoryModule'));
+      expect(title, findsOneWidget);
+      expect(tester.getSize(title), const Size(192, 42));
+      expect(
+        find.descendant(of: title, matching: find.text('HISTORY')),
+        findsOneWidget,
+      );
+      await expectLater(
+        title,
+        matchesGoldenFile('goldens/history_memory_module_v25_${frame.$1}.png'),
+      );
+    }
+  });
+
+  testWidgets(
+    'V2.5 composite keeps Gate and NODE accents in the HISTORY view',
+    (tester) async {
+      const frames = <(String, Duration)>[
+        ('gate_approach', Duration(milliseconds: 3000)),
+        ('gate_near', Duration(milliseconds: 3200)),
+        ('node_burst', Duration(milliseconds: 7400)),
+      ];
+      for (final frame in frames) {
+        await pumpHistory(tester, time: frame.$2);
+        await expectLater(
+          find.byType(DataCenterHistoryPage),
+          matchesGoldenFile('goldens/history_data_vault_v25_${frame.$1}.png'),
+        );
+      }
+    },
+  );
 
   test(
     'node topology catalog includes varied physical surfaces and timing',

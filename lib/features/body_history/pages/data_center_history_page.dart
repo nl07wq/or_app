@@ -88,7 +88,13 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
           scrolledUnderElevation: 0,
           elevation: 0,
           leading: const ActionableBackButton(),
-          title: _HistoryAppBarTitle(variant: _selection.title),
+          title: AnimatedBuilder(
+            animation: _ambientController,
+            builder: (context, _) => _HistoryAppBarTitle(
+              variant: _selection.title,
+              seconds: _dataVaultSeconds,
+            ),
+          ),
         ),
         body: _buildContent(context),
       ),
@@ -153,6 +159,11 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
       ),
     ],
   );
+
+  double get _dataVaultSeconds =>
+      (widget.dataVaultSimulationTime?.inMicroseconds ??
+          _dataVaultClock.elapsedMicroseconds) /
+      Duration.microsecondsPerSecond;
 }
 
 class _HistoryLinkCard extends StatelessWidget {
@@ -304,47 +315,50 @@ class _DataVaultImpulseSelector extends StatelessWidget {
 }
 
 class _HistoryAppBarTitle extends StatelessWidget {
-  const _HistoryAppBarTitle({required this.variant});
+  const _HistoryAppBarTitle({required this.variant, required this.seconds});
 
   final HistoryTitleVariant variant;
+  final double seconds;
 
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 192,
     height: 42,
-    child: CustomPaint(
-      key: ValueKey('history-title-${variant.name}'),
-      painter: _HistoryTitlePainter(variant),
-      child: Align(
-        alignment: variant == HistoryTitleVariant.memoryModule
-            ? const Alignment(.17, 0)
-            : Alignment.center,
-        child: Text(
-          'HISTORY',
-          style: TextStyle(
-            color: variant == HistoryTitleVariant.archivePlate
-                ? const Color(0xffdcebf2)
-                : const Color(0xffd8faff),
-            fontFamily: 'ShareTechMono',
-            fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
-            fontWeight: FontWeight.w400,
-            letterSpacing: variant == HistoryTitleVariant.memoryModule
-                ? 1.0
-                : variant == HistoryTitleVariant.archivePlate
-                ? 1.45
-                : 2.1,
-            shadows: switch (variant) {
-              HistoryTitleVariant.archiveDisplay => const [
-                Shadow(color: Color(0xff3edff5), blurRadius: 7),
-              ],
-              HistoryTitleVariant.archivePlate => const [
-                Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
-                Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
-              ],
-              HistoryTitleVariant.memoryModule => const [
-                Shadow(color: Color(0xff37dff7), blurRadius: 4),
-              ],
-            },
+    child: RepaintBoundary(
+      child: CustomPaint(
+        key: ValueKey('history-title-${variant.name}'),
+        painter: _HistoryTitlePainter(variant, seconds),
+        child: Align(
+          alignment: variant == HistoryTitleVariant.memoryModule
+              ? const Alignment(.17, 0)
+              : Alignment.center,
+          child: Text(
+            'HISTORY',
+            style: TextStyle(
+              color: variant == HistoryTitleVariant.archivePlate
+                  ? const Color(0xffdcebf2)
+                  : const Color(0xffd8faff),
+              fontFamily: 'ShareTechMono',
+              fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
+              fontWeight: FontWeight.w400,
+              letterSpacing: variant == HistoryTitleVariant.memoryModule
+                  ? 1.0
+                  : variant == HistoryTitleVariant.archivePlate
+                  ? 1.45
+                  : 2.1,
+              shadows: switch (variant) {
+                HistoryTitleVariant.archiveDisplay => const [
+                  Shadow(color: Color(0xff3edff5), blurRadius: 7),
+                ],
+                HistoryTitleVariant.archivePlate => const [
+                  Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
+                  Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
+                ],
+                HistoryTitleVariant.memoryModule => const [
+                  Shadow(color: Color(0xff37dff7), blurRadius: 4),
+                ],
+              },
+            ),
           ),
         ),
       ),
@@ -353,9 +367,10 @@ class _HistoryAppBarTitle extends StatelessWidget {
 }
 
 class _HistoryTitlePainter extends CustomPainter {
-  const _HistoryTitlePainter(this.variant);
+  const _HistoryTitlePainter(this.variant, this.seconds);
 
   final HistoryTitleVariant variant;
+  final double seconds;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -365,7 +380,7 @@ class _HistoryTitlePainter extends CustomPainter {
       case HistoryTitleVariant.archivePlate:
         _paintArchivePlate(canvas, size);
       case HistoryTitleVariant.memoryModule:
-        _paintMemoryModule(canvas, size);
+        _paintMemoryModule(canvas, size, seconds);
     }
   }
 
@@ -519,7 +534,7 @@ class _HistoryTitlePainter extends CustomPainter {
     ..lineTo(5, 11 + yOffset)
     ..close();
 
-  void _paintMemoryModule(Canvas canvas, Size size) {
+  void _paintMemoryModule(Canvas canvas, Size size, double seconds) {
     final housing = Path()
       ..moveTo(10, 5)
       ..lineTo(size.width - 46, 5)
@@ -562,22 +577,89 @@ class _HistoryTitlePainter extends CustomPainter {
       housing,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = const Color(0xff47cbe4).withValues(alpha: .7),
+        ..strokeWidth = 1.0
+        ..color = const Color(0xff47cbe4).withValues(alpha: .68),
     );
-    final trace = Paint()
-      ..style = PaintingStyle.stroke
+    canvas.drawPath(
+      housing,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .5
+        ..color = const Color(0xffa9f6ff).withValues(alpha: .26),
+    );
+    final terminal = Paint()
+      ..strokeCap = StrokeCap.round
       ..strokeWidth = .8
-      ..color = const Color(0xff56e1f4).withValues(alpha: .5);
-    for (final y in [13.0, 18.0, size.height - 13, size.height - 18]) {
-      canvas.drawLine(Offset(10, y), Offset(28, y), trace);
-      canvas.drawLine(Offset(28, y), Offset(36, size.height / 2), trace);
+      ..color = const Color(0xffb9f7ff).withValues(alpha: .55);
+    canvas.drawLine(const Offset(10, 5), const Offset(18, 5), terminal);
+    canvas.drawLine(
+      Offset(size.width - 32, size.height - 8),
+      Offset(size.width - 24, size.height - 14),
+      terminal,
+    );
+    final routes = HistoryMemoryModuleMotion.routes(size);
+    for (final route in routes) {
+      canvas.drawPath(
+        route,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff56e1f4).withValues(alpha: .08),
+      );
+      canvas.drawPath(
+        route,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .65
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xff56e1f4).withValues(alpha: .32),
+      );
     }
-    final contact = Paint()
-      ..color = const Color(0xff9dc8d2).withValues(alpha: .78);
+    for (var channel = 0; channel < routes.length; channel++) {
+      final signal = HistoryMemoryModuleMotion.signalFor(channel, seconds);
+      if (signal == null) continue;
+      final metric = routes[channel].computeMetrics().first;
+      final segment = metric.extractPath(
+        signal.start * metric.length,
+        signal.end * metric.length,
+      );
+      canvas.drawPath(
+        segment,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(
+            0xff56e1f4,
+          ).withValues(alpha: .08 * signal.fade),
+      );
+      canvas.drawPath(
+        segment,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .75
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(
+            0xffd8fbff,
+          ).withValues(alpha: .85 * signal.fade),
+      );
+    }
     for (var index = 0; index < 5; index++) {
       final top = 10 + index * 4.6;
-      canvas.drawRect(Rect.fromLTWH(size.width - 18, top, 9, 2.5), contact);
+      final pulse = HistoryMemoryModuleMotion.contactStrength(index, seconds);
+      final contact = Rect.fromLTWH(size.width - 18, top, 9, 2.5);
+      canvas.drawRect(
+        contact.inflate(.8),
+        Paint()..color = const Color(0xff56e1f4).withValues(alpha: .16 * pulse),
+      );
+      canvas.drawRect(
+        contact,
+        Paint()
+          ..color = const Color(
+            0xffd8fbff,
+          ).withValues(alpha: .48 + .44 * pulse),
+      );
     }
     final led = Paint()..color = const Color(0xff51ebf7);
     canvas.drawCircle(Offset(11, size.height / 2), 1.5, led);
@@ -590,7 +672,62 @@ class _HistoryTitlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HistoryTitlePainter oldDelegate) =>
-      oldDelegate.variant != variant;
+      oldDelegate.variant != variant ||
+      (variant == HistoryTitleVariant.memoryModule &&
+          oldDelegate.seconds != seconds);
+}
+
+@immutable
+class HistoryMemoryModuleSignal {
+  const HistoryMemoryModuleSignal(this.start, this.end, this.fade);
+
+  final double start, end, fade;
+}
+
+abstract final class HistoryMemoryModuleMotion {
+  static const cycleSeconds = 4.8;
+  static const transferSeconds = .8;
+  static const channelOffsets = [0.0, .17, .35, .52];
+
+  static List<Path> routes(Size size) {
+    const inputY = [10.0, 16.0, 26.0, 32.0];
+    const busY = [8.5, 9.7, 33.5, 34.5];
+    const outputY = [11.25, 15.85, 20.45, 29.65];
+    return [
+      for (var index = 0; index < 4; index++)
+        Path()
+          ..moveTo(10, inputY[index])
+          ..lineTo(19, inputY[index])
+          ..lineTo(27, busY[index])
+          ..lineTo(145, busY[index])
+          ..lineTo(164, outputY[index])
+          ..lineTo(180, outputY[index]),
+    ];
+  }
+
+  static HistoryMemoryModuleSignal? signalFor(int channel, double seconds) {
+    final local = (seconds % cycleSeconds) - channelOffsets[channel];
+    if (local < 0 || local > transferSeconds) return null;
+    final progress = local / transferSeconds;
+    final length = .055 + channel * .009;
+    final fade =
+        (local / .09).clamp(0.0, 1.0) *
+        ((transferSeconds - local) / .09).clamp(0.0, 1.0);
+    return HistoryMemoryModuleSignal(
+      (progress - length).clamp(0.0, 1.0),
+      progress.clamp(0.0, 1.0),
+      fade,
+    );
+  }
+
+  static double contactStrength(int index, double seconds) {
+    final local = seconds % cycleSeconds;
+    final arrival = .58 + index * .14;
+    final elapsed = local - arrival;
+    if (elapsed < 0 || elapsed > .35) return 0;
+    if (elapsed <= .12) return elapsed / .12;
+    return (1 - (elapsed - .12) / .23).clamp(0.0, 1.0);
+  }
 }
 
 class _HistoryAmbientPainter extends CustomPainter {
