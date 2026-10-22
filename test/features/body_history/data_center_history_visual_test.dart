@@ -91,6 +91,11 @@ void main() {
       ('boundary_before', Duration(milliseconds: 47990)),
       ('boundary_after', Duration(milliseconds: 48010)),
       ('second_cycle', Duration(milliseconds: 96010)),
+      ('motion_0', Duration(milliseconds: 18400)),
+      ('motion_1', Duration(milliseconds: 18500)),
+      ('motion_2', Duration(milliseconds: 18600)),
+      ('motion_3', Duration(milliseconds: 18700)),
+      ('motion_4', Duration(milliseconds: 18800)),
     ];
     for (final sample in times) {
       await pumpHistory(tester, time: sample.$2);
@@ -152,4 +157,47 @@ void main() {
       expect(watch.elapsedMicroseconds, greaterThanOrEqualTo(0));
     },
   );
+
+  test('arc, scan, node and hybrid events travel from far to near', () {
+    const surfaces = [
+      DataVaultImpulseSurface.floor,
+      DataVaultImpulseSurface.leftWall,
+      DataVaultImpulseSurface.rightWall,
+      DataVaultImpulseSurface.ceiling,
+    ];
+    for (final surface in surfaces) {
+      final arc = HistoryDataVaultMotion.arcEventFor(surface, 0, 9);
+      final scan = HistoryDataVaultMotion.scanEventFor(surface, 0, 4);
+      for (final event in [arc, scan]) {
+        final a = event.launchSeconds + .10;
+        final b = event.launchSeconds + .50;
+        expect(event.frontAt(b), lessThan(event.frontAt(a)));
+        expect(
+          event.frontAt(b) - HistoryDataVaultMotion.distanceAt(b),
+          lessThan(event.frontAt(a) - HistoryDataVaultMotion.distanceAt(a)),
+        );
+      }
+    }
+    final cascade = HistoryDataVaultMotion.nodeCascadeFor(-1, 7);
+    expect(cascade.activeHopAt(cascade.launchSeconds + .01), 0);
+    expect(cascade.activeHopAt(cascade.launchSeconds + .20), 1);
+    expect(cascade.activeHopAt(cascade.launchSeconds + .32), 2);
+    final far = cascade.frontAt(cascade.launchSeconds + .10) + 3 * 3.6;
+    final near = cascade.frontAt(cascade.launchSeconds + .10) - 3.6;
+    expect(far, greaterThan(near));
+  });
+
+  test('inbound fronts remain continuous across driving-cycle boundaries', () {
+    final event = HistoryDataVaultMotion.arcEventFor(
+      DataVaultImpulseSurface.floor,
+      2,
+      35,
+    );
+    for (final boundary in [48.0, 96.0]) {
+      final before = event.frontAt(boundary - .01);
+      final after = event.frontAt(boundary + .01);
+      expect(after, lessThan(before));
+      expect((after - before).abs(), lessThan(2));
+    }
+  });
 }
