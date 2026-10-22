@@ -42,7 +42,7 @@ void main() {
   });
 
   test(
-    'circulation preserves the current 1.50 radius scale and smooth visible contacts',
+    'denser circulation preserves its radius scale and smooth visible contacts',
     () {
       final simulation = OilTimerSimulation(viewport);
       final initial = simulation.snapshot();
@@ -51,7 +51,7 @@ void main() {
         final seed = OilTimerMotion.hash(drop.id, 13);
         expect(
           drop.radius,
-          closeTo(min * (.032 + .050 * seed) * 1.18 * 1.50, 1e-9),
+          closeTo(min * (.032 + .050 * seed) * 1.18 * 1.50 * 1.03, 1e-9),
         );
       }
 
@@ -75,7 +75,7 @@ void main() {
           if (bothVisible) {
             expect(
               (after.center - before.center).distance,
-              // The accepted 1.50x spheres can need a slightly larger
+              // The denser 1.545x spheres can need a slightly larger
               // bounded separation correction than the earlier V4.1 bodies.
               // This still rejects a visible teleport at 60 Hz.
               lessThan(10),
@@ -144,7 +144,7 @@ void main() {
       await expectLater(
         find.byType(FoodAmbientComparison),
         matchesGoldenFile(
-          'goldens/food_continuous_circulation_v42_$second.png',
+          'goldens/food_continuous_circulation_v43_$second.png',
         ),
       );
     }

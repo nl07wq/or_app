@@ -120,7 +120,11 @@ class OilTimerSimulation {
     if (size != Size.zero) _reset(size);
   }
 
-  static const dropCount = 18;
+  // Keep the original independent circulation system, but give the ambient a
+  // denser all-height population.  Twenty-two remains inexpensive for the
+  // bounded pair solver while producing a visibly fuller field than 18.
+  static const dropCount = 22;
+  static const _densityRadiusScale = 1.03;
   static const _dt = 1 / 60;
   static const _palette = <Color>[
     Color(0xff32ddd0),
@@ -189,13 +193,16 @@ class OilTimerSimulation {
       // V4.1's deterministic size ranking remains intact. V1 increases every
       // physical radius by exactly 1.50, so all collision and return margins
       // continue to be derived from the same enlarged value.
-      final radius = min * (.032 + .050 * h) * 1.18 * 1.50;
+      final radius =
+          min * (.032 + .050 * h) * 1.18 * 1.50 * _densityRadiusScale;
       _drops.add(
         _OilDropState(
           id: index,
           center: Offset(
             radius + 8 + xSeed * math.max(1, size.width - 2 * radius - 16),
-            size.height * (-.25 + OilTimerMotion.hash(index, 19) * 1.35),
+            // Populate the upper, middle, and lower field immediately rather
+            // than beginning with several otherwise invisible return bodies.
+            size.height * (-.16 + OilTimerMotion.hash(index, 19) * 1.10),
           ),
           velocity: Offset(
             (OilTimerMotion.hash(index, 23) - .5) * 8,
@@ -396,7 +403,9 @@ class OilTimerSimulation {
           final ma = a.radius * a.radius;
           final mb = b.radius * b.radius;
           final inverseMass = 1 / ma + 1 / mb;
-          final correction = math.max(0.0, overlap - .75) * .28;
+          // More simultaneous bodies need a slightly softer constraint pass
+          // so a legitimate contact never reads as a single-frame jump.
+          final correction = math.max(0.0, overlap - .75) * .24;
           a.center -= normal * (correction * (1 / ma / inverseMass));
           b.center += normal * (correction * (1 / mb / inverseMass));
           final relative =
