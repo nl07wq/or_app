@@ -53,8 +53,8 @@ class HistoryDataVaultHyperspace {
       case DataVaultImpulseMode.spark:
         _paintDataTraffic(canvas, camera, cameraDistance);
       case DataVaultImpulseMode.hybrid:
-        _paintArcTraffic(canvas, camera, cameraDistance, 6);
-        _paintDataTraffic(canvas, camera, cameraDistance, maxRails: 4);
+        _paintHybridSparkTraffic(canvas, camera, cameraDistance);
+        _paintHybridArcResponses(canvas, camera, cameraDistance);
     }
     final guide = _resolveNavigationGuide(camera, cameraDistance, size, speed);
     if (guide != null) {
@@ -282,114 +282,139 @@ class HistoryDataVaultHyperspace {
     int cap,
   ) {
     var painted = 0;
-    for (final rail in _comparisonRails) {
-      final current = HistoryDataVaultMotion.arcEventIndexAt(
-        seconds,
-        rail.surface,
-        rail.lane,
-      );
+    for (var lane = 0; lane < 7 && painted < cap; lane++) {
+      final current = HistoryDataVaultMotion.arcEpisodeIndexAt(seconds, lane);
       for (
         var index = current;
-        index >= current - 3 && painted < cap;
+        index >= current - 2 && painted < cap;
         index--
       ) {
-        final event = HistoryDataVaultMotion.arcEventFor(
-          rail.surface,
-          rail.lane,
-          index,
-        );
+        final event = HistoryDataVaultMotion.arcEpisodeFor(lane, index);
         if (!event.isActiveAt(seconds)) continue;
-        if (_paintMovingArc(canvas, camera, distance, rail, event)) painted++;
+        if (_paintLocalArc(canvas, camera, distance, event)) painted++;
       }
-      if (painted >= cap) break;
     }
   }
 
-  bool _paintMovingArc(
+  bool _paintLocalArc(
     Canvas canvas,
     _VaultCamera camera,
     double distance,
-    _DataVaultRail rail,
-    DataVaultInboundEvent event,
-  ) {
-    final head = event.frontAt(seconds);
-    if (head < distance - 5 || head > distance + 94) return false;
-    final points = <_WorldPoint>[];
-    const segmentCount = 4;
-    for (var index = 0; index <= segmentCount; index++) {
-      final u = index / segmentCount;
-      final s = head + event.length * (1 - u);
-      final seed = HistoryDataVaultMotion.seedUnit(event.seed + index * 37);
-      final jitterLimit = rail.surface == DataVaultImpulseSurface.floor
-          ? .09
-          : .07;
-      final jitter = (seed - .5) * 2 * jitterLimit;
-      final lateral = rail.surface == DataVaultImpulseSurface.floor
-          ? HistoryDataVaultMotion.floorImpulseLateralAt(
-                  rail.lane,
-                  event.id,
-                  s,
-                ) +
-                jitter
-          : rail.lateral + jitter;
-      points.add(_world.sample(s).point(lateral, rail.height));
+    DataVaultArcEpisode event, {
+    double brightness = 1,
+  }) {
+    if (event.anchorS < distance - 4 || event.anchorS > distance + 92) {
+      return false;
     }
-    final headProjected = camera.project(points.last);
-    if (headProjected == null) return false;
-    final visibility = HistoryDataVaultMotion.impulseVisibility(
-      headProjected.z,
-    );
-    if (visibility <= 0) return false;
+    final endpoints = _arcEndpoints(event);
+    final midpoint = _blendWorld(endpoints.$1, endpoints.$2, .5);
+    final projected = camera.project(midpoint);
+    if (projected == null) return false;
+    final visibility = HistoryDataVaultMotion.impulseVisibility(projected.z);
+    final envelope = event.brightnessAt(seconds) * visibility * brightness;
+    if (envelope <= .01) return false;
+    final points = <_WorldPoint>[endpoints.$1];
+    final kinkCount =
+        1 + (HistoryDataVaultMotion.seedUnit(event.seed + 3) * 3).floor();
+    final dx = endpoints.$2.x - endpoints.$1.x;
+    final dz = endpoints.$2.z - endpoints.$1.z;
+    final horizontalLength = math.max(.001, math.sqrt(dx * dx + dz * dz));
+    for (var index = 1; index <= kinkCount; index++) {
+      final u = index / (kinkCount + 1);
+      final base = _blendWorld(endpoints.$1, endpoints.$2, u);
+      final jitter =
+          (HistoryDataVaultMotion.seedUnit(event.seed + index * 37) - .5) * .16;
+      points.add(
+        _WorldPoint(
+          base.x - dz / horizontalLength * jitter,
+          base.y +
+              (HistoryDataVaultMotion.seedUnit(event.seed + index * 53) - .5) *
+                  .10,
+          base.z + dx / horizontalLength * jitter,
+        ),
+      );
+    }
+    points.add(endpoints.$2);
     final tint = _arcColor(event.seed);
-    for (var index = 0; index < points.length - 1; index++) {
-      final tip = (index + 1) / (points.length - 1);
-      final alpha = visibility * tip * tip;
-      _strokeWorldLine(
+    for (final layer in [(4.1, .14), (2.0, .32), (.85, .90)]) {
+      _strokeWorldPolyline(
         canvas,
         camera,
-        points[index],
-        points[index + 1],
-        tint.withValues(alpha: .08 * alpha),
-        4.5,
-      );
-      _strokeWorldLine(
-        canvas,
-        camera,
-        points[index],
-        points[index + 1],
-        tint.withValues(alpha: .20 * alpha),
-        2.5,
-      );
-      _strokeWorldLine(
-        canvas,
-        camera,
-        points[index],
-        points[index + 1],
-        const Color(0xffddfbff).withValues(alpha: (.80 * alpha).clamp(0, 1)),
-        .9,
+        points,
+        (layer.$1 == .85 ? const Color(0xffddfbff) : tint).withValues(
+          alpha: (layer.$2 * envelope).clamp(0, 1),
+        ),
+        layer.$1,
       );
     }
-    if (HistoryDataVaultMotion.seedUnit(event.seed + 91) < .15) {
-      final branchStart = points[points.length - 2];
-      final branchEnd = _world
-          .sample(head + .32)
-          .point(
-            rail.surface == DataVaultImpulseSurface.floor
-                ? rail.lateral + .16
-                : rail.lateral,
-            (rail.height + .18).clamp(.05, 4.88),
-          );
+    if (event.hasBranch) {
+      final start = points[points.length ~/ 2];
+      final branch = _blendWorld(start, endpoints.$2, .25);
       _strokeWorldLine(
         canvas,
         camera,
-        branchStart,
-        branchEnd,
-        tint.withValues(alpha: .24 * visibility),
+        start,
+        branch,
+        tint.withValues(alpha: .26 * envelope),
         .65,
       );
     }
     return true;
   }
+
+  (_WorldPoint, _WorldPoint) _arcEndpoints(DataVaultArcEpisode event) {
+    final sample = _world.sample(event.anchorS);
+    final side = HistoryDataVaultMotion.seedUnit(event.seed + 41) < .5
+        ? -1.0
+        : 1.0;
+    return switch (event.family) {
+      DataVaultArcFamily.leftWallFloor => (
+        sample.point(
+          -3.94,
+          1.05 + HistoryDataVaultMotion.seedUnit(event.seed + 5) * 1.8,
+        ),
+        _world.sample(event.anchorS + .24).point(-3.38, .06),
+      ),
+      DataVaultArcFamily.rightWallCeiling => (
+        sample.point(
+          3.94,
+          2.1 + HistoryDataVaultMotion.seedUnit(event.seed + 7) * 1.7,
+        ),
+        _world.sample(event.anchorS + .20).point(3.42, 4.88),
+      ),
+      DataVaultArcFamily.pillarWall => (
+        sample.point(
+          side * 3.8,
+          1.2 + HistoryDataVaultMotion.seedUnit(event.seed + 11) * 2.8,
+        ),
+        _world
+            .sample(event.anchorS + .18)
+            .point(
+              side * 3.95,
+              1.45 + HistoryDataVaultMotion.seedUnit(event.seed + 13) * 2.5,
+            ),
+      ),
+      DataVaultArcFamily.floorLocal => (
+        sample.point(
+          -2.8 + HistoryDataVaultMotion.seedUnit(event.seed + 17) * 5.6,
+          .06,
+        ),
+        _world
+            .sample(event.anchorS + .52)
+            .point(
+              -2.6 + HistoryDataVaultMotion.seedUnit(event.seed + 19) * 5.2,
+              .08,
+            ),
+      ),
+    };
+  }
+
+  _WorldPoint _blendWorld(_WorldPoint a, _WorldPoint b, double t) =>
+      _WorldPoint(
+        a.x + (b.x - a.x) * t,
+        a.y + (b.y - a.y) * t,
+        a.z + (b.z - a.z) * t,
+      );
 
   Color _arcColor(int seed) => const [
     Color(0xff64e6f8),
@@ -406,6 +431,7 @@ class HistoryDataVaultHyperspace {
       _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.95, 2.9),
       _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, 0, 4.88),
     ];
+    var gateVisible = false;
     for (final rail in scans) {
       final current = HistoryDataVaultMotion.scanEventIndexAt(
         seconds,
@@ -421,29 +447,121 @@ class HistoryDataVaultHyperspace {
         if (!event.isActiveAt(seconds)) continue;
         final head = event.frontAt(seconds);
         if (head < distance - 5 || head > distance + 94) continue;
-        final width = rail.surface == DataVaultImpulseSurface.floor
-            ? 2.0
-            : 1.25;
-        final tail = head + event.length;
-        _fillWorldQuad(canvas, camera, [
-          _scanPoint(rail, head, -width),
-          _scanPoint(rail, head, width),
-          _scanPoint(rail, tail, width),
-          _scanPoint(rail, tail, -width),
-        ], const Color(0xff36bdeb).withValues(alpha: .09));
-        for (var notch = 0; notch < 6; notch++) {
-          final u = notch / 5;
-          final from = -width + width * 2 * u;
-          _strokeWorldLine(
-            canvas,
-            camera,
-            _scanPoint(rail, head, from),
-            _scanPoint(rail, head + .22, from + .14),
-            const Color(0xffddfbff).withValues(alpha: .72),
-            .85,
-          );
+        final pattern = HistoryDataVaultMotion.scanPatternFor(event.seed);
+        if (pattern == DataVaultScanPattern.gate && gateVisible) continue;
+        switch (pattern) {
+          case DataVaultScanPattern.surfaceSweep:
+            _paintSurfaceSweep(canvas, camera, rail, event, head);
+          case DataVaultScanPattern.gate:
+            _paintGateScan(canvas, camera, event, head);
+            gateVisible = true;
+          case DataVaultScanPattern.stripRaster:
+            _paintStripRaster(canvas, camera, rail, event, head);
         }
       }
+    }
+  }
+
+  void _paintSurfaceSweep(
+    Canvas canvas,
+    _VaultCamera camera,
+    _DataVaultRail rail,
+    DataVaultInboundEvent event,
+    double head,
+  ) {
+    final width = rail.surface == DataVaultImpulseSurface.floor ? 2.15 : 1.35;
+    final tail = head + event.length;
+    _fillWorldQuad(canvas, camera, [
+      _scanPoint(rail, head, -width),
+      _scanPoint(rail, head, width),
+      _scanPoint(rail, tail, width),
+      _scanPoint(rail, tail, -width),
+    ], const Color(0xff36bdeb).withValues(alpha: .075));
+    for (final depthOffset in [0.0, .16, .36]) {
+      for (var notch = 0; notch < 5; notch++) {
+        final u = notch / 4;
+        final cross = -width + width * 2 * u;
+        _strokeWorldLine(
+          canvas,
+          camera,
+          _scanPoint(rail, head + depthOffset, cross),
+          _scanPoint(rail, head + depthOffset + .10, cross + .08),
+          const Color(
+            0xffddfbff,
+          ).withValues(alpha: depthOffset == 0 ? .76 : .17),
+          depthOffset == 0 ? .85 : .45,
+        );
+      }
+    }
+  }
+
+  void _paintGateScan(
+    Canvas canvas,
+    _VaultCamera camera,
+    DataVaultInboundEvent event,
+    double head,
+  ) {
+    final points = <_WorldPoint>[
+      _world.sample(head).point(-3.92, .30),
+      _world.sample(head).point(-3.92, 4.78),
+      _world.sample(head).point(3.92, 4.78),
+      _world.sample(head).point(3.92, .30),
+    ];
+    for (final layer in [(3.0, .08), (1.4, .22), (.72, .76)]) {
+      _strokeWorldPolyline(
+        canvas,
+        camera,
+        points,
+        const Color(0xff9aeeff).withValues(alpha: layer.$2),
+        layer.$1,
+      );
+    }
+    if (HistoryDataVaultMotion.seedUnit(event.seed + 71) < .45) {
+      final sample = _world.sample(head + .48);
+      final delayed = <_WorldPoint>[
+        sample.point(-3.86, .30),
+        sample.point(-3.86, 4.78),
+        sample.point(3.86, 4.78),
+        sample.point(3.86, .30),
+      ];
+      _strokeWorldPolyline(
+        canvas,
+        camera,
+        delayed,
+        const Color(0xff64e6f8).withValues(alpha: .16),
+        .65,
+      );
+    }
+  }
+
+  void _paintStripRaster(
+    Canvas canvas,
+    _VaultCamera camera,
+    _DataVaultRail rail,
+    DataVaultInboundEvent event,
+    double head,
+  ) {
+    final count =
+        4 + (HistoryDataVaultMotion.seedUnit(event.seed + 31) * 5).floor();
+    final span = rail.surface == DataVaultImpulseSurface.floor ? 2.7 : 1.85;
+    for (var stripe = 0; stripe < count; stripe++) {
+      final u = count == 1 ? .5 : stripe / (count - 1);
+      final cross = -span + span * 2 * u;
+      final length =
+          .25 + HistoryDataVaultMotion.seedUnit(event.seed + stripe * 17) * .60;
+      final delay = stripe * .035;
+      _strokeWorldLine(
+        canvas,
+        camera,
+        _scanPoint(rail, head + delay, cross),
+        _scanPoint(
+          rail,
+          head + delay + length,
+          cross + (stripe.isEven ? .05 : -.05),
+        ),
+        const Color(0xffb8f4ff).withValues(alpha: .48 + .24 * (stripe % 2)),
+        .75,
+      );
     }
   }
 
@@ -464,35 +582,18 @@ class HistoryDataVaultHyperspace {
     double distance,
   ) {
     var painted = 0;
-    for (var side = -1; side <= 1 && painted < 4; side += 2) {
-      // Four staggered deterministic channels leave at least one localized
-      // cascade visible without synchronising the two walls or rendering an
-      // entire chart-like chain at once.
-      for (var track = 0; track < 4 && painted < 4; track++) {
-        final current = HistoryDataVaultMotion.nodeCascadeIndexAt(
-          seconds,
-          side,
-          track: track,
-        );
-        for (
-          var index = current;
-          index >= current - 2 && painted < 4;
-          index--
-        ) {
-          final cascade = HistoryDataVaultMotion.nodeCascadeFor(
-            side,
-            index,
-            track: track,
-          );
-          final hop = cascade.activeHopAt(seconds);
-          if (hop == null) continue;
-          final front = cascade.frontAt(seconds);
-          final farS = front + (3 - hop) * 3.6;
-          final nearS = farS - 3.6;
-          if (nearS < distance - 5 || farS > distance + 94) continue;
-          _paintNodeHop(canvas, camera, side, hop, farS, nearS, cascade.seed);
-          painted++;
+    for (var track = 0; track < 5 && painted < 4; track++) {
+      final current = HistoryDataVaultMotion.nodeEventIndexAt(seconds, track);
+      for (var index = current; index >= current - 2 && painted < 4; index--) {
+        final event = HistoryDataVaultMotion.nodeEventFor(track, index);
+        final hop = event.activeHopAt(seconds);
+        if (hop == null ||
+            event.anchorS < distance - 4 ||
+            event.anchorS > distance + 92) {
+          continue;
         }
+        _paintNodeHop(canvas, camera, event, hop);
+        painted++;
       }
     }
   }
@@ -500,65 +601,84 @@ class HistoryDataVaultHyperspace {
   void _paintNodeHop(
     Canvas canvas,
     _VaultCamera camera,
-    int side,
+    DataVaultNodeEvent event,
     int hop,
-    double farS,
-    double nearS,
-    int seed,
   ) {
-    final points = <_WorldPoint>[];
-    for (var index = 0; index < 4; index++) {
-      final u = index / 3;
-      final s = farS + (nearS - farS) * u;
-      final lateral = side * (3.8 - (hop.isEven ? .10 * u : .24 * (1 - u)));
-      final height = switch ((hop + index) % 3) {
-        0 => 3.72 - 2.6 * u,
-        1 => .08 + 1.1 * u,
-        _ => 1.12 + 3.76 * u,
-      };
+    final link = event.links[hop];
+    final anchors = event.anchors;
+    final from = _nodePoint(anchors[link.from], event.anchorS, event.seed);
+    final to = _nodePoint(
+      anchors[link.to],
+      event.anchorS + link.depthOffset,
+      event.seed + 19,
+    );
+    final points = <_WorldPoint>[from];
+    final segmentCount =
+        1 +
+        (HistoryDataVaultMotion.seedUnit(event.seed + hop * 29) * 2).floor();
+    for (var index = 1; index <= segmentCount; index++) {
+      final base = _blendWorld(from, to, index / (segmentCount + 1));
       final jitter =
-          (HistoryDataVaultMotion.seedUnit(seed + index * 19) - .5) * .12;
+          (HistoryDataVaultMotion.seedUnit(event.seed + hop * 43 + index * 11) -
+              .5) *
+          .18;
       points.add(
-        _world.sample(s).point(lateral + jitter, height.clamp(.05, 4.88)),
+        _WorldPoint(
+          base.x + jitter,
+          base.y - jitter * .42,
+          base.z + jitter * .35,
+        ),
       );
     }
-    for (final layer in [(4.0, .12), (2.0, .28), (1.0, .88)]) {
+    points.add(to);
+    final phase = event.hopBrightnessAt(seconds, hop);
+    for (final layer in [(3.6, .11), (1.8, .27), (.82, .86)]) {
       _strokeWorldPolyline(
         canvas,
         camera,
         points,
-        const Color(0xff64e6f8).withValues(alpha: layer.$2),
+        (layer.$1 == .82 ? const Color(0xffddfbff) : const Color(0xff64e6f8))
+            .withValues(alpha: layer.$2 * phase),
         layer.$1,
       );
     }
-    for (final node in [points.first, points.last]) {
+    for (final node in [from, to]) {
       final projected = camera.project(node);
       if (projected == null) continue;
       canvas.drawCircle(
         projected.offset,
-        3.4,
-        Paint()..color = const Color(0xff36bdeb).withValues(alpha: .18),
+        2.6,
+        Paint()..color = const Color(0xff36bdeb).withValues(alpha: .16 * phase),
       );
       canvas.drawCircle(
         projected.offset,
-        1.0,
-        Paint()..color = const Color(0xffddfbff).withValues(alpha: .88),
+        .85,
+        Paint()..color = const Color(0xffddfbff).withValues(alpha: .82 * phase),
       );
     }
   }
 
-  static const _comparisonRails = <_DataVaultRail>[
-    _DataVaultRail(DataVaultImpulseSurface.floor, 0, -3.1, .05),
-    _DataVaultRail(DataVaultImpulseSurface.floor, 1, -.8, .05),
-    _DataVaultRail(DataVaultImpulseSurface.floor, 2, 1.2, .05),
-    _DataVaultRail(DataVaultImpulseSurface.floor, 3, 3.0, .05),
-    _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.94, 1.25),
-    _DataVaultRail(DataVaultImpulseSurface.leftWall, 1, -3.94, 3.6),
-    _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.94, 1.4),
-    _DataVaultRail(DataVaultImpulseSurface.rightWall, 1, 3.94, 3.8),
-    _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, -1.8, 4.88),
-    _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 1.5, 4.88),
-  ];
+  _WorldPoint _nodePoint(DataVaultNodeAnchor anchor, double s, int seed) {
+    final sample = _world.sample(s);
+    final side = HistoryDataVaultMotion.seedUnit(seed + anchor.index * 13) < .5
+        ? -1.0
+        : 1.0;
+    return switch (anchor) {
+      DataVaultNodeAnchor.leftWallLow => sample.point(-3.94, 1.05),
+      DataVaultNodeAnchor.leftWallHigh => sample.point(-3.94, 3.85),
+      DataVaultNodeAnchor.rightWallLow => sample.point(3.94, 1.18),
+      DataVaultNodeAnchor.rightWallHigh => sample.point(3.94, 3.78),
+      DataVaultNodeAnchor.floorLeft => sample.point(-2.45, .05),
+      DataVaultNodeAnchor.floorCenter => sample.point(0, .05),
+      DataVaultNodeAnchor.floorRight => sample.point(2.45, .05),
+      DataVaultNodeAnchor.ceilingLeft => sample.point(-2.25, 4.88),
+      DataVaultNodeAnchor.ceilingCenter => sample.point(0, 4.88),
+      DataVaultNodeAnchor.ceilingRight => sample.point(2.25, 4.88),
+      DataVaultNodeAnchor.pillarLower => sample.point(side * 3.8, 1.05),
+      DataVaultNodeAnchor.pillarMid => sample.point(side * 3.8, 2.55),
+      DataVaultNodeAnchor.pillarUpper => sample.point(side * 3.8, 4.18),
+    };
+  }
 
   /// Renders incoming line impulses bound to the physical corridor rails.
   /// They flow from the distant aperture toward the viewer while the route
@@ -596,6 +716,76 @@ class HistoryDataVaultHyperspace {
         rail: rail,
         lane: rail.lane,
       );
+    }
+  }
+
+  // Hybrid deliberately reuses the unchanged SPARK packet painter, but takes
+  // a balanced subset instead of the old first-four (floor-only) rails.
+  void _paintHybridSparkTraffic(
+    Canvas canvas,
+    _VaultCamera camera,
+    double cameraDistance,
+  ) {
+    const rails = <_DataVaultRail>[
+      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -3.2, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 3, 1.6, .035),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.94, 1.12),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 1, 3.94, 3.72),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 0, 4.88),
+    ];
+    for (final rail in rails) {
+      _paintScheduledRailImpulses(
+        canvas,
+        camera,
+        cameraDistance,
+        rail: rail,
+        lane: rail.lane,
+      );
+    }
+  }
+
+  void _paintHybridArcResponses(
+    Canvas canvas,
+    _VaultCamera camera,
+    double distance,
+  ) {
+    var painted = 0;
+    const rails = <_DataVaultRail>[
+      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -3.2, .035),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 3, 1.6, .035),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.94, 1.12),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 1, 3.94, 3.72),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 1, 0, 4.88),
+    ];
+    for (final rail in rails) {
+      if (painted >= 3) break;
+      final profile = HistoryDataVaultMotion.impulseProfileFor(
+        rail.surface,
+        rail.lane,
+      );
+      final current =
+          ((seconds - profile.launchOffset) / profile.repeatInterval).floor();
+      for (
+        var packet = current;
+        packet >= current - 2 && painted < 3;
+        packet--
+      ) {
+        final response = HistoryDataVaultMotion.hybridResponseFor(
+          rail.surface,
+          rail.lane,
+          packet,
+        );
+        if (response == null || !response.isActiveAt(seconds)) continue;
+        if (_paintLocalArc(
+          canvas,
+          camera,
+          distance,
+          response,
+          brightness: .72,
+        )) {
+          painted++;
+        }
+      }
     }
   }
 
@@ -998,6 +1188,118 @@ class DataVaultInboundEvent {
       seconds >= launchSeconds && seconds <= launchSeconds + lifetime;
 }
 
+/// A short local electrical failure at fixed world anchors.  Unlike an
+/// inbound packet it deliberately has no travelling head: its identity is a
+/// brief discharge at a stable location in the corridor.
+enum DataVaultArcFamily {
+  leftWallFloor,
+  rightWallCeiling,
+  pillarWall,
+  floorLocal,
+}
+
+class DataVaultArcEpisode {
+  const DataVaultArcEpisode({
+    required this.id,
+    required this.seed,
+    required this.launchSeconds,
+    required this.lifetime,
+    required this.anchorS,
+    required this.family,
+  });
+
+  final int id, seed;
+  final double launchSeconds, lifetime, anchorS;
+  final DataVaultArcFamily family;
+
+  bool isActiveAt(double seconds) =>
+      seconds >= launchSeconds && seconds <= launchSeconds + lifetime;
+
+  bool get hasBranch => HistoryDataVaultMotion.seedUnit(seed + 91) < .20;
+
+  double brightnessAt(double seconds) {
+    final u = ((seconds - launchSeconds) / lifetime).clamp(0.0, 1.0);
+    final ignition = (u / .14).clamp(0.0, 1.0);
+    final fade = ((1 - u) / .62).clamp(0.0, 1.0);
+    final flicker = .92 + .08 * math.sin(seed * .017 + u * math.pi * 3);
+    return math.min(ignition, fade) * flicker;
+  }
+}
+
+enum DataVaultScanPattern { surfaceSweep, gate, stripRaster }
+
+enum DataVaultNodeTopology { singleHop, relay, fork, converge }
+
+enum DataVaultNodeAnchor {
+  leftWallLow,
+  leftWallHigh,
+  rightWallLow,
+  rightWallHigh,
+  floorLeft,
+  floorCenter,
+  floorRight,
+  ceilingLeft,
+  ceilingCenter,
+  ceilingRight,
+  pillarLower,
+  pillarMid,
+  pillarUpper,
+}
+
+class DataVaultNodeLink {
+  const DataVaultNodeLink(
+    this.from,
+    this.to,
+    this.startOffset, {
+    this.depthOffset = 0,
+  });
+
+  final int from, to;
+  final double startOffset, depthOffset;
+}
+
+class DataVaultNodeEvent {
+  const DataVaultNodeEvent({
+    required this.id,
+    required this.seed,
+    required this.launchSeconds,
+    required this.duration,
+    required this.anchorS,
+    required this.topology,
+    required this.anchors,
+    required this.links,
+  });
+
+  final int id, seed;
+  final double launchSeconds, duration, anchorS;
+  final DataVaultNodeTopology topology;
+  final List<DataVaultNodeAnchor> anchors;
+  final List<DataVaultNodeLink> links;
+
+  int? activeHopAt(double seconds) {
+    final active = activeHopsAt(seconds);
+    return active.isEmpty ? null : active.first;
+  }
+
+  List<int> activeHopsAt(double seconds) {
+    final elapsed = seconds - launchSeconds;
+    return [
+      for (var index = 0; index < links.length; index++)
+        if (elapsed >= links[index].startOffset &&
+            elapsed <= links[index].startOffset + .18)
+          index,
+    ];
+  }
+
+  double hopBrightnessAt(double seconds, int hop) {
+    final u = ((seconds - launchSeconds - links[hop].startOffset) / .18).clamp(
+      0.0,
+      1.0,
+    );
+    return math.sin(math.pi * u).clamp(0.0, 1.0);
+  }
+}
+
 class DataVaultNodeCascade extends DataVaultInboundEvent {
   const DataVaultNodeCascade({
     required super.id,
@@ -1174,6 +1476,141 @@ class HistoryDataVaultMotion {
   ) => _impulseSeed(surface.index * 12289 + lane * 313 + packet * 7919 + 41);
 
   static double seedUnit(int value) => _unit(_impulseSeed(value));
+
+  static DataVaultArcEpisode arcEpisodeFor(int lane, int event) {
+    final railSeed = _impulseSeed(lane * 479 + 31);
+    final seed = _impulseSeed(railSeed + event * 421);
+    final interval = 1.05 + seedUnit(railSeed + 7) * 1.18;
+    return DataVaultArcEpisode(
+      id: event,
+      seed: seed,
+      launchSeconds: seedUnit(railSeed + 11) * interval + event * interval,
+      lifetime: .18 + seedUnit(seed + 17) * .24,
+      anchorS:
+          distanceAt(seedUnit(railSeed + 11) * interval + event * interval) +
+          24 +
+          seedUnit(seed + 23) * 58,
+      family:
+          DataVaultArcFamily.values[(seedUnit(seed + 29) *
+                  DataVaultArcFamily.values.length)
+              .floor()],
+    );
+  }
+
+  static int arcEpisodeIndexAt(double seconds, int lane) {
+    final railSeed = _impulseSeed(lane * 479 + 31);
+    final interval = 1.05 + seedUnit(railSeed + 7) * 1.18;
+    return ((seconds - seedUnit(railSeed + 11) * interval) / interval).floor();
+  }
+
+  static DataVaultScanPattern scanPatternFor(int seed) {
+    final selector = seedUnit(seed + 107);
+    return selector < .50
+        ? DataVaultScanPattern.surfaceSweep
+        : selector < .70
+        ? DataVaultScanPattern.gate
+        : DataVaultScanPattern.stripRaster;
+  }
+
+  static DataVaultNodeEvent nodeEventFor(int track, int event) {
+    final trackSeed = _impulseSeed(track * 887 + 211);
+    final seed = _impulseSeed(trackSeed + event * 557);
+    final interval = 1.45 + seedUnit(trackSeed + 5) * 1.35;
+    final launch = seedUnit(trackSeed + 13) * interval + event * interval;
+    final selector = seedUnit(seed + 3);
+    final topology = selector < .35
+        ? DataVaultNodeTopology.singleHop
+        : selector < .65
+        ? DataVaultNodeTopology.relay
+        : selector < .85
+        ? DataVaultNodeTopology.fork
+        : DataVaultNodeTopology.converge;
+    final anchors = _nodeAnchorSet(seed, topology);
+    final links = switch (topology) {
+      DataVaultNodeTopology.singleHop => const [DataVaultNodeLink(0, 1, .02)],
+      DataVaultNodeTopology.relay => const [
+        DataVaultNodeLink(0, 1, .02, depthOffset: -.45),
+        DataVaultNodeLink(1, 2, .16, depthOffset: -.82),
+      ],
+      DataVaultNodeTopology.fork => const [
+        DataVaultNodeLink(0, 1, .02),
+        DataVaultNodeLink(0, 2, .10, depthOffset: -.28),
+      ],
+      DataVaultNodeTopology.converge => const [
+        DataVaultNodeLink(0, 2, .02),
+        DataVaultNodeLink(1, 2, .10, depthOffset: -.24),
+      ],
+    };
+    return DataVaultNodeEvent(
+      id: event,
+      seed: seed,
+      launchSeconds: launch,
+      duration: .40,
+      anchorS: distanceAt(launch) + 22 + seedUnit(seed + 19) * 60,
+      topology: topology,
+      anchors: anchors,
+      links: links,
+    );
+  }
+
+  static List<DataVaultNodeAnchor> _nodeAnchorSet(
+    int seed,
+    DataVaultNodeTopology topology,
+  ) {
+    const catalog = DataVaultNodeAnchor.values;
+    final first = (seedUnit(seed + 31) * catalog.length).floor();
+    final second =
+        (first + 3 + (seedUnit(seed + 37) * 5).floor()) % catalog.length;
+    final third =
+        (second + 4 + (seedUnit(seed + 41) * 5).floor()) % catalog.length;
+    // Guarantee mixed physical surfaces, even when a hash happens to choose
+    // neighbouring wall categories: each topology includes a floor/ceiling or
+    // pillar contact in its compact three-node catalog.
+    final forced = switch (topology) {
+      DataVaultNodeTopology.singleHop => DataVaultNodeAnchor.floorCenter,
+      DataVaultNodeTopology.relay => DataVaultNodeAnchor.pillarMid,
+      DataVaultNodeTopology.fork => DataVaultNodeAnchor.ceilingCenter,
+      DataVaultNodeTopology.converge => DataVaultNodeAnchor.floorRight,
+    };
+    return [catalog[first], forced, catalog[third]];
+  }
+
+  static int nodeEventIndexAt(double seconds, int track) {
+    final trackSeed = _impulseSeed(track * 887 + 211);
+    final interval = 1.45 + seedUnit(trackSeed + 5) * 1.35;
+    return ((seconds - seedUnit(trackSeed + 13) * interval) / interval).floor();
+  }
+
+  /// A hybrid reaction is deliberately derived from a SPARK packet identity.
+  /// The packet stays the dominant inbound image; the short arc happens only
+  /// at its deterministic infrastructure interaction point.
+  static DataVaultArcEpisode? hybridResponseFor(
+    DataVaultImpulseSurface surface,
+    int lane,
+    int packet,
+  ) {
+    final profile = impulseProfileFor(surface, lane);
+    final seed = packetSeed(surface, lane, packet);
+    if (seedUnit(seed + 131) >= .30) return null;
+    final launch = profile.launchOffset + packet * profile.repeatInterval;
+    final onset = launch + .42 + seedUnit(seed + 137) * .42;
+    final anchor = impulseHeadDistance(
+      seconds: onset,
+      launchSeconds: launch,
+      speedMultiplier: profile.speedMultiplier,
+    );
+    return DataVaultArcEpisode(
+      id: packet,
+      seed: seed,
+      launchSeconds: onset,
+      lifetime: .16 + seedUnit(seed + 149) * .14,
+      anchorS: anchor,
+      family:
+          DataVaultArcFamily.values[(seedUnit(seed + 151) *
+                  DataVaultArcFamily.values.length)
+              .floor()],
+    );
+  }
 
   static DataVaultInboundEvent arcEventFor(
     DataVaultImpulseSurface surface,

@@ -105,10 +105,62 @@ void main() {
         await expectLater(
           find.byKey(const ValueKey('history-ambient-dataVault')),
           matchesGoldenFile(
-            'goldens/history_data_vault_v20_${sample.$1}_mode_$index.png',
+            index == 3
+                ? 'goldens/history_data_vault_v20_${sample.$1}_mode_$index.png'
+                : 'goldens/history_data_vault_v22_${sample.$1}_mode_$index.png',
           ),
         );
       }
+    }
+  });
+
+  testWidgets('captures active local impulse episodes for A/B/C/E', (
+    tester,
+  ) async {
+    final hybrid = List.generate(
+      30,
+      (index) => HistoryDataVaultMotion.hybridResponseFor(
+        DataVaultImpulseSurface.floor,
+        0,
+        index,
+      ),
+    ).whereType<DataVaultArcEpisode>().first;
+    final samples = <({String name, int mode, double seconds})>[
+      (
+        name: 'arc_live',
+        mode: 0,
+        seconds: HistoryDataVaultMotion.arcEpisodeFor(0, 9).launchSeconds + .12,
+      ),
+      (
+        name: 'scan_live',
+        mode: 1,
+        seconds:
+            HistoryDataVaultMotion.scanEventFor(
+              DataVaultImpulseSurface.floor,
+              0,
+              7,
+            ).launchSeconds +
+            .35,
+      ),
+      (
+        name: 'node_live',
+        mode: 2,
+        seconds: HistoryDataVaultMotion.nodeEventFor(0, 8).launchSeconds + .12,
+      ),
+      (name: 'hybrid_live', mode: 4, seconds: hybrid.launchSeconds + .10),
+    ];
+    const labels = ['A ARC', 'B SCAN', 'C NODE', 'D SPARK', 'E ARC+SPARK'];
+    for (final sample in samples) {
+      await pumpHistory(
+        tester,
+        time: Duration(microseconds: (sample.seconds * 1000000).round()),
+      );
+      await tester.tap(find.text(labels[sample.mode]));
+      await tester.pump();
+      await expectLater(
+        find.byKey(const ValueKey('history-ambient-dataVault')),
+        matchesGoldenFile('goldens/history_data_vault_v22_${sample.name}.png'),
+      );
     }
   });
 
@@ -158,46 +210,112 @@ void main() {
     },
   );
 
-  test('arc, scan, node and hybrid events travel from far to near', () {
+  test('arc episodes are short stationary electrical failures', () {
+    for (var lane = 0; lane < 7; lane++) {
+      final episode = HistoryDataVaultMotion.arcEpisodeFor(lane, 9);
+      expect(episode.lifetime, inInclusiveRange(.18, .42));
+      expect(episode.anchorS.isFinite, isTrue);
+      expect(
+        HistoryDataVaultMotion.arcEpisodeFor(lane, 9).anchorS,
+        episode.anchorS,
+      );
+      expect(episode.family, isIn(DataVaultArcFamily.values));
+    }
+  });
+
+  test('scan events retain physical far-to-near motion and three patterns', () {
     const surfaces = [
       DataVaultImpulseSurface.floor,
       DataVaultImpulseSurface.leftWall,
       DataVaultImpulseSurface.rightWall,
       DataVaultImpulseSurface.ceiling,
     ];
+    final patterns = <DataVaultScanPattern>{};
     for (final surface in surfaces) {
-      final arc = HistoryDataVaultMotion.arcEventFor(surface, 0, 9);
       final scan = HistoryDataVaultMotion.scanEventFor(surface, 0, 4);
-      for (final event in [arc, scan]) {
-        final a = event.launchSeconds + .10;
-        final b = event.launchSeconds + .50;
-        expect(event.frontAt(b), lessThan(event.frontAt(a)));
-        expect(
-          event.frontAt(b) - HistoryDataVaultMotion.distanceAt(b),
-          lessThan(event.frontAt(a) - HistoryDataVaultMotion.distanceAt(a)),
+      final a = scan.launchSeconds + .10;
+      final b = scan.launchSeconds + .50;
+      expect(scan.frontAt(b), lessThan(scan.frontAt(a)));
+      expect(
+        scan.frontAt(b) - HistoryDataVaultMotion.distanceAt(b),
+        lessThan(scan.frontAt(a) - HistoryDataVaultMotion.distanceAt(a)),
+      );
+      for (var id = 0; id < 30; id++) {
+        patterns.add(
+          HistoryDataVaultMotion.scanPatternFor(
+            HistoryDataVaultMotion.scanEventFor(surface, 0, id).seed,
+          ),
         );
       }
     }
-    final cascade = HistoryDataVaultMotion.nodeCascadeFor(-1, 7);
-    expect(cascade.activeHopAt(cascade.launchSeconds + .01), 0);
-    expect(cascade.activeHopAt(cascade.launchSeconds + .20), 1);
-    expect(cascade.activeHopAt(cascade.launchSeconds + .32), 2);
-    final far = cascade.frontAt(cascade.launchSeconds + .10) + 3 * 3.6;
-    final near = cascade.frontAt(cascade.launchSeconds + .10) - 3.6;
-    expect(far, greaterThan(near));
+    expect(patterns, containsAll(DataVaultScanPattern.values));
   });
 
-  test('inbound fronts remain continuous across driving-cycle boundaries', () {
-    final event = HistoryDataVaultMotion.arcEventFor(
-      DataVaultImpulseSurface.floor,
-      2,
-      35,
-    );
-    for (final boundary in [48.0, 96.0]) {
-      final before = event.frontAt(boundary - .01);
-      final after = event.frontAt(boundary + .01);
-      expect(after, lessThan(before));
-      expect((after - before).abs(), lessThan(2));
+  test(
+    'node topology catalog includes varied physical surfaces and timing',
+    () {
+      final topologies = <DataVaultNodeTopology>{};
+      var floorOrCeiling = 0;
+      var pillar = 0;
+      for (var id = 0; id < 80; id++) {
+        final event = HistoryDataVaultMotion.nodeEventFor(id % 5, id);
+        topologies.add(event.topology);
+        if (event.anchors.any(
+          (anchor) =>
+              anchor.name.startsWith('floor') ||
+              anchor.name.startsWith('ceiling'),
+        )) {
+          floorOrCeiling++;
+        }
+        if (event.anchors.any((anchor) => anchor.name.startsWith('pillar'))) {
+          pillar++;
+        }
+        for (var hop = 0; hop < event.links.length; hop++) {
+          expect(
+            event
+                .activeHopsAt(
+                  event.launchSeconds + event.links[hop].startOffset + .08,
+                )
+                .contains(hop),
+            isTrue,
+          );
+        }
+      }
+      expect(topologies, containsAll(DataVaultNodeTopology.values));
+      expect(floorOrCeiling, greaterThanOrEqualTo(24));
+      expect(pillar, greaterThanOrEqualTo(16));
+    },
+  );
+
+  test('hybrid uses sparse spark-derived local reactions', () {
+    var reactions = 0;
+    for (var packet = 0; packet < 40; packet++) {
+      if (HistoryDataVaultMotion.hybridResponseFor(
+            DataVaultImpulseSurface.floor,
+            0,
+            packet,
+          ) !=
+          null) {
+        reactions++;
+      }
     }
+    expect(reactions, inInclusiveRange(4, 18));
   });
+
+  test(
+    'inbound scan and spark positions stay continuous across cycle bounds',
+    () {
+      final event = HistoryDataVaultMotion.scanEventFor(
+        DataVaultImpulseSurface.floor,
+        2,
+        35,
+      );
+      for (final boundary in [48.0, 96.0]) {
+        final before = event.frontAt(boundary - .01);
+        final after = event.frontAt(boundary + .01);
+        expect(after, lessThan(before));
+        expect((after - before).abs(), lessThan(2));
+      }
+    },
+  );
 }
