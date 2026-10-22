@@ -9,7 +9,7 @@ import '../services/history_visual_preference.dart';
 class HistoryDataVaultHyperspace {
   const HistoryDataVaultHyperspace({
     required this.seconds,
-    this.impulseMode = DataVaultImpulseMode.arc,
+    this.impulseMode = DataVaultImpulseMode.hybrid,
   });
 
   final double seconds;
@@ -43,19 +43,12 @@ class HistoryDataVaultHyperspace {
     _paintSurfaces(canvas, camera, samples);
     _paintFloorDetail(canvas, camera, samples);
     _paintPillars(canvas, camera, cameraDistance);
-    switch (impulseMode) {
-      case DataVaultImpulseMode.arc:
-        _paintArcTraffic(canvas, camera, cameraDistance, 10);
-      case DataVaultImpulseMode.scan:
-        _paintSurfaceScans(canvas, camera, cameraDistance);
-      case DataVaultImpulseMode.node:
-        _paintNodeDischarges(canvas, camera, cameraDistance);
-      case DataVaultImpulseMode.spark:
-        _paintDataTraffic(canvas, camera, cameraDistance);
-      case DataVaultImpulseMode.hybrid:
-        _paintHybridSparkTraffic(canvas, camera, cameraDistance);
-        _paintHybridArcResponses(canvas, camera, cameraDistance);
-    }
+    // V2.3 is one production composition. The legacy mode value is retained
+    // only for backwards-compatible construction in older test harnesses;
+    // it never changes the shared flight world or its visible discharge mix.
+    _paintDataTraffic(canvas, camera, cameraDistance);
+    _paintCompositeSurfaceScans(canvas, camera, cameraDistance);
+    _paintCompositeNodeDischarges(canvas, camera, cameraDistance);
     final guide = _resolveNavigationGuide(camera, cameraDistance, size, speed);
     if (guide != null) {
       _paintNavigationTrail(canvas, camera, cameraDistance, guide.sHead);
@@ -275,6 +268,7 @@ class HistoryDataVaultHyperspace {
     );
   }
 
+  // ignore: unused_element
   void _paintArcTraffic(
     Canvas canvas,
     _VaultCamera camera,
@@ -423,6 +417,7 @@ class HistoryDataVaultHyperspace {
     Color(0xff6285ff),
   ][(HistoryDataVaultMotion.seedUnit(seed + 17) * 4).floor().clamp(0, 3)];
 
+  // ignore: unused_element
   void _paintSurfaceScans(Canvas canvas, _VaultCamera camera, double distance) {
     const scans = <_DataVaultRail>[
       _DataVaultRail(DataVaultImpulseSurface.floor, 0, -1.6, .04),
@@ -460,6 +455,52 @@ class HistoryDataVaultHyperspace {
         }
       }
     }
+  }
+
+  /// V2.3 schedules scans globally, rather than once per surface. This keeps
+  /// them recognisable as occasional spatial probes instead of a second rail
+  /// traffic system competing with SPARK.
+  void _paintCompositeSurfaceScans(
+    Canvas canvas,
+    _VaultCamera camera,
+    double distance,
+  ) {
+    var painted = 0;
+    var gateVisible = false;
+    final current = HistoryDataVaultMotion.compositeScanIndexAt(seconds);
+    for (var index = current; index >= current - 1 && painted < 2; index--) {
+      final event = HistoryDataVaultMotion.compositeScanEventFor(index);
+      if (!event.isActiveAt(seconds)) continue;
+      final head = event.frontAt(seconds);
+      if (head < distance - 5 || head > distance + 94) continue;
+      final rail = _compositeScanRail(event.seed);
+      final pattern = HistoryDataVaultMotion.compositeScanPatternFor(
+        event.seed,
+      );
+      if (pattern == DataVaultScanPattern.gate && gateVisible) continue;
+      switch (pattern) {
+        case DataVaultScanPattern.surfaceSweep:
+          _paintSurfaceSweep(canvas, camera, rail, event, head);
+        case DataVaultScanPattern.gate:
+          _paintGateScan(canvas, camera, event, head);
+          gateVisible = true;
+        case DataVaultScanPattern.stripRaster:
+          _paintStripRaster(canvas, camera, rail, event, head);
+      }
+      painted++;
+    }
+  }
+
+  _DataVaultRail _compositeScanRail(int seed) {
+    const rails = <_DataVaultRail>[
+      _DataVaultRail(DataVaultImpulseSurface.floor, 0, -1.5, .04),
+      _DataVaultRail(DataVaultImpulseSurface.floor, 1, 1.35, .04),
+      _DataVaultRail(DataVaultImpulseSurface.leftWall, 0, -3.95, 2.15),
+      _DataVaultRail(DataVaultImpulseSurface.rightWall, 0, 3.95, 2.9),
+      _DataVaultRail(DataVaultImpulseSurface.ceiling, 0, 0, 4.88),
+    ];
+    return rails[(HistoryDataVaultMotion.seedUnit(seed + 43) * rails.length)
+        .floor()];
   }
 
   void _paintSurfaceSweep(
@@ -576,6 +617,7 @@ class HistoryDataVaultHyperspace {
     };
   }
 
+  // ignore: unused_element
   void _paintNodeDischarges(
     Canvas canvas,
     _VaultCamera camera,
@@ -598,12 +640,36 @@ class HistoryDataVaultHyperspace {
     }
   }
 
+  /// Rare global node cascades make the installation respond to traffic
+  /// without creating the old dense side-wall chart of simultaneous links.
+  void _paintCompositeNodeDischarges(
+    Canvas canvas,
+    _VaultCamera camera,
+    double distance,
+  ) {
+    final current = HistoryDataVaultMotion.compositeNodeIndexAt(seconds);
+    for (var index = current; index >= current - 1; index--) {
+      final event = HistoryDataVaultMotion.compositeNodeEventFor(index);
+      if (!event.isActiveAt(seconds) ||
+          event.anchorS < distance - 4 ||
+          event.anchorS > distance + 92) {
+        continue;
+      }
+      final active = event.activeHopsAt(seconds);
+      for (final hop in active.take(3)) {
+        _paintNodeHop(canvas, camera, event, hop, brightness: .74);
+      }
+      return;
+    }
+  }
+
   void _paintNodeHop(
     Canvas canvas,
     _VaultCamera camera,
     DataVaultNodeEvent event,
-    int hop,
-  ) {
+    int hop, {
+    double brightness = 1,
+  }) {
     final link = event.links[hop];
     final anchors = event.anchors;
     final from = _nodePoint(anchors[link.from], event.anchorS, event.seed);
@@ -631,7 +697,7 @@ class HistoryDataVaultHyperspace {
       );
     }
     points.add(to);
-    final phase = event.hopBrightnessAt(seconds, hop);
+    final phase = event.hopBrightnessAt(seconds, hop) * brightness;
     for (final layer in [(3.6, .11), (1.8, .27), (.82, .86)]) {
       _strokeWorldPolyline(
         canvas,
@@ -721,6 +787,7 @@ class HistoryDataVaultHyperspace {
 
   // Hybrid deliberately reuses the unchanged SPARK packet painter, but takes
   // a balanced subset instead of the old first-four (floor-only) rails.
+  // ignore: unused_element
   void _paintHybridSparkTraffic(
     Canvas canvas,
     _VaultCamera camera,
@@ -744,6 +811,7 @@ class HistoryDataVaultHyperspace {
     }
   }
 
+  // ignore: unused_element
   void _paintHybridArcResponses(
     Canvas canvas,
     _VaultCamera camera,
@@ -1276,6 +1344,9 @@ class DataVaultNodeEvent {
   final List<DataVaultNodeAnchor> anchors;
   final List<DataVaultNodeLink> links;
 
+  bool isActiveAt(double seconds) =>
+      seconds >= launchSeconds && seconds <= launchSeconds + duration;
+
   int? activeHopAt(double seconds) {
     final active = activeHopsAt(seconds);
     return active.isEmpty ? null : active.first;
@@ -1668,6 +1739,52 @@ class HistoryDataVaultMotion {
     final seed = packetSeed(surface, lane + 71, 0);
     final interval = 1.25 + seedUnit(seed + 5) * .65;
     return ((seconds - seedUnit(seed + 17) * interval) / interval).floor();
+  }
+
+  /// Sparse V2.3 scan cadence: one event globally every 3.35 seconds.
+  static int compositeScanIndexAt(double seconds) =>
+      ((seconds - .55) / 3.35).floor();
+
+  static DataVaultInboundEvent compositeScanEventFor(int event) {
+    final seed = _impulseSeed(0x47ad + event * 613);
+    final launch = .55 + event * 3.35;
+    return DataVaultInboundEvent(
+      id: event,
+      seed: seed,
+      launchSeconds: launch,
+      travelMultiplier: 1.08 + seedUnit(seed + 7) * .20,
+      length: 1.5 + seedUnit(seed + 11) * 1.0,
+      lifetime: 3.9,
+      lead: 86,
+    );
+  }
+
+  static DataVaultScanPattern compositeScanPatternFor(int seed) {
+    final selector = seedUnit(seed + 101);
+    return selector < .60
+        ? DataVaultScanPattern.surfaceSweep
+        : selector < .70
+        ? DataVaultScanPattern.gate
+        : DataVaultScanPattern.stripRaster;
+  }
+
+  /// One rare real-anchor network event at a time, never a wall graph.
+  static int compositeNodeIndexAt(double seconds) =>
+      ((seconds - 1.25) / 5.65).floor();
+
+  static DataVaultNodeEvent compositeNodeEventFor(int event) {
+    final base = nodeEventFor(event % 5, event);
+    final launch = 1.25 + event * 5.65;
+    return DataVaultNodeEvent(
+      id: event,
+      seed: base.seed,
+      launchSeconds: launch,
+      duration: .65,
+      anchorS: distanceAt(launch) + 26 + seedUnit(base.seed + 19) * 54,
+      topology: base.topology,
+      anchors: base.anchors,
+      links: base.links,
+    );
   }
 
   static DataVaultNodeCascade nodeCascadeFor(

@@ -32,17 +32,14 @@ class DataCenterHistoryPage extends StatefulWidget {
 class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     with SingleTickerProviderStateMixin {
   late final HistoryVisualPreference _visualPreference;
-  late final HistoryDataVaultImpulsePreference _impulsePreference;
   late final AnimationController _ambientController;
   final Stopwatch _dataVaultClock = Stopwatch();
   HistoryVisualSelection _selection = const HistoryVisualSelection.defaults();
-  DataVaultImpulseMode _impulseMode = DataVaultImpulseMode.arc;
 
   @override
   void initState() {
     super.initState();
     _visualPreference = widget.visualPreference ?? HistoryVisualPreference();
-    _impulsePreference = HistoryDataVaultImpulsePreference();
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 36),
@@ -50,23 +47,11 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     _dataVaultClock.start();
     if (widget.animateAmbient) _ambientController.repeat();
     _restoreSelection();
-    _restoreImpulseMode();
   }
 
   Future<void> _restoreSelection() async {
     final restored = await _visualPreference.load();
     if (mounted) setState(() => _selection = restored);
-  }
-
-  Future<void> _restoreImpulseMode() async {
-    final restored = await _impulsePreference.load();
-    if (mounted) setState(() => _impulseMode = restored);
-  }
-
-  void _selectImpulseMode(DataVaultImpulseMode mode) {
-    if (mode == _impulseMode) return;
-    setState(() => _impulseMode = mode);
-    _impulsePreference.save(mode);
   }
 
   @override
@@ -85,7 +70,6 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
           builder: (context, _) => CustomPaint(
             key: const ValueKey('history-ambient-dataVault'),
             painter: _HistoryAmbientPainter(
-              impulseMode: _impulseMode,
               phase: _ambientController.value,
               dataVaultSeconds:
                   (widget.dataVaultSimulationTime?.inMicroseconds ??
@@ -116,11 +100,6 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
     children: [
       const SectionHeader(icon: Icons.history, title: 'HISTORY'),
       AppSpacing.gapSM,
-      _DataVaultImpulseSelector(
-        selected: _impulseMode,
-        onSelected: _selectImpulseMode,
-      ),
-      AppSpacing.gapMD,
       _HistoryLinkCard(
         title: 'BODY HISTORY',
         description: '保存済みの正式データから、体重と体脂肪率の履歴を表示します。',
@@ -212,6 +191,7 @@ class _HistoryLinkCard extends StatelessWidget {
   );
 }
 
+// ignore: unused_element
 class _DataVaultImpulseSelector extends StatelessWidget {
   const _DataVaultImpulseSelector({
     required this.selected,
@@ -615,12 +595,10 @@ class _HistoryTitlePainter extends CustomPainter {
 
 class _HistoryAmbientPainter extends CustomPainter {
   const _HistoryAmbientPainter({
-    required this.impulseMode,
     required this.phase,
     required this.dataVaultSeconds,
   });
 
-  final DataVaultImpulseMode impulseMode;
   final double phase;
   final double dataVaultSeconds;
 
@@ -722,10 +700,8 @@ class _HistoryAmbientPainter extends CustomPainter {
     _drawPoints(canvas, size, const Color(0xff61e5f6), 10, cycle);
   }
 
-  void _paintDataVault(Canvas canvas, Size size) => HistoryDataVaultHyperspace(
-    seconds: dataVaultSeconds,
-    impulseMode: impulseMode,
-  ).paint(canvas, size);
+  void _paintDataVault(Canvas canvas, Size size) =>
+      HistoryDataVaultHyperspace(seconds: dataVaultSeconds).paint(canvas, size);
 
   // ignore: unused_element
   void _paintMemoryStream(Canvas canvas, Size size) {
@@ -854,7 +830,6 @@ class _HistoryAmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HistoryAmbientPainter oldDelegate) =>
-      oldDelegate.impulseMode != impulseMode ||
       oldDelegate.phase != phase ||
       oldDelegate.dataVaultSeconds != dataVaultSeconds;
 }

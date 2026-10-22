@@ -33,7 +33,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('exposes five DATA VAULT modes and hides legacy rows', (
+  testWidgets('uses one DATA VAULT composition and hides comparison controls', (
     tester,
   ) async {
     await pumpHistory(tester);
@@ -41,7 +41,7 @@ void main() {
     expect(find.text('AMBIENT'), findsNothing);
     expect(
       find.byKey(const ValueKey('history-data-vault-impulse-selector')),
-      findsOneWidget,
+      findsNothing,
     );
     for (final label in [
       'A ARC',
@@ -50,15 +50,13 @@ void main() {
       'D SPARK',
       'E ARC+SPARK',
     ]) {
-      expect(find.text(label), findsOneWidget);
-      await tester.tap(find.text(label));
-      await tester.pump();
+      expect(find.text(label), findsNothing);
     }
     expect(
       (await SharedPreferences.getInstance()).getString(
         HistoryDataVaultImpulsePreference.storageKey,
       ),
-      'e',
+      isNull,
     );
   });
 
@@ -68,20 +66,21 @@ void main() {
     Size(390, 844),
     Size(430, 844),
   ]) {
-    testWidgets('DATA VAULT selector has no overflow at $size', (tester) async {
+    testWidgets('DATA VAULT production ambient has no overflow at $size', (
+      tester,
+    ) async {
       await pumpHistory(tester, size: size);
       expect(tester.takeException(), isNull);
       expect(
         find.byKey(const ValueKey('history-data-vault-impulse-selector')),
-        findsOneWidget,
+        findsNothing,
       );
     });
   }
 
-  testWidgets('renders five structurally distinct impulse Goldens', (
+  testWidgets('renders one production composition across flight phases', (
     tester,
   ) async {
-    const labels = ['A ARC', 'B SCAN', 'C NODE', 'D SPARK', 'E ARC+SPARK'];
     const times = <(String, Duration)>[
       ('start', Duration.zero),
       ('boost_a', Duration(milliseconds: 7700)),
@@ -99,91 +98,16 @@ void main() {
     ];
     for (final sample in times) {
       await pumpHistory(tester, time: sample.$2);
-      for (var index = 0; index < labels.length; index++) {
-        await tester.tap(find.text(labels[index]));
-        await tester.pump();
-        await expectLater(
-          find.byKey(const ValueKey('history-ambient-dataVault')),
-          matchesGoldenFile(
-            index == 3
-                ? 'goldens/history_data_vault_v20_${sample.$1}_mode_$index.png'
-                : 'goldens/history_data_vault_v22_${sample.$1}_mode_$index.png',
-          ),
-        );
-      }
-    }
-  });
-
-  testWidgets('captures active local impulse episodes for A/B/C/E', (
-    tester,
-  ) async {
-    final hybrid = List.generate(
-      30,
-      (index) => HistoryDataVaultMotion.hybridResponseFor(
-        DataVaultImpulseSurface.floor,
-        0,
-        index,
-      ),
-    ).whereType<DataVaultArcEpisode>().first;
-    final samples = <({String name, int mode, double seconds})>[
-      (
-        name: 'arc_live',
-        mode: 0,
-        seconds: HistoryDataVaultMotion.arcEpisodeFor(0, 9).launchSeconds + .12,
-      ),
-      (
-        name: 'scan_live',
-        mode: 1,
-        seconds:
-            HistoryDataVaultMotion.scanEventFor(
-              DataVaultImpulseSurface.floor,
-              0,
-              7,
-            ).launchSeconds +
-            .35,
-      ),
-      (
-        name: 'node_live',
-        mode: 2,
-        seconds: HistoryDataVaultMotion.nodeEventFor(0, 8).launchSeconds + .12,
-      ),
-      (name: 'hybrid_live', mode: 4, seconds: hybrid.launchSeconds + .10),
-    ];
-    const labels = ['A ARC', 'B SCAN', 'C NODE', 'D SPARK', 'E ARC+SPARK'];
-    for (final sample in samples) {
-      await pumpHistory(
-        tester,
-        time: Duration(microseconds: (sample.seconds * 1000000).round()),
-      );
-      await tester.tap(find.text(labels[sample.mode]));
-      await tester.pump();
-      await expectLater(
-        find.byKey(const ValueKey('history-ambient-dataVault')),
-        matchesGoldenFile('goldens/history_data_vault_v22_${sample.name}.png'),
-      );
-    }
-  });
-
-  test(
-    'impulse mode preference defaults, persists and rejects unknown token',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final preference = HistoryDataVaultImpulsePreference();
-      expect(await preference.load(), DataVaultImpulseMode.arc);
-      await preference.save(DataVaultImpulseMode.hybrid);
-      expect(await preference.load(), DataVaultImpulseMode.hybrid);
-      SharedPreferences.setMockInitialValues({
-        HistoryDataVaultImpulsePreference.storageKey: 'unknown',
-      });
       expect(
-        await HistoryDataVaultImpulsePreference().load(),
-        DataVaultImpulseMode.arc,
+        find.byKey(const ValueKey('history-ambient-dataVault')),
+        findsOneWidget,
       );
-    },
-  );
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   test(
-    'all modes share continuous camera distance and bounded painter work',
+    'production composition shares continuous camera distance and bounded painter work',
     () {
       expect(
         HistoryDataVaultMotion.distanceAt(48.01),
@@ -194,18 +118,17 @@ void main() {
         greaterThan(HistoryDataVaultMotion.distanceAt(95.99)),
       );
       final watch = Stopwatch()..start();
-      for (final mode in DataVaultImpulseMode.values) {
+      for (final seconds in [0.0, 8.0, 16.0, 24.0, 32.0, 40.0]) {
         final recorder = ui.PictureRecorder();
         HistoryDataVaultHyperspace(
-          seconds: 18.4,
-          impulseMode: mode,
+          seconds: seconds,
         ).paint(Canvas(recorder), const Size(390, 844));
         recorder.endRecording().dispose();
       }
       watch.stop();
       // Local Canvas timing only, never an iPhone Safari claim.
       // ignore: avoid_print
-      print('DATA_VAULT_V20_LOCAL_PAINT_5_MS=${watch.elapsedMilliseconds}');
+      print('DATA_VAULT_V23_LOCAL_PAINT_6_MS=${watch.elapsedMilliseconds}');
       expect(watch.elapsedMicroseconds, greaterThanOrEqualTo(0));
     },
   );
@@ -249,6 +172,36 @@ void main() {
       }
     }
     expect(patterns, containsAll(DataVaultScanPattern.values));
+  });
+
+  test('production B+C schedules stay sparse, seeded and physical', () {
+    final scanPatterns = <DataVaultScanPattern>{};
+    final nodeAnchors = <DataVaultNodeAnchor>{};
+    for (var index = 0; index < 48; index++) {
+      final scan = HistoryDataVaultMotion.compositeScanEventFor(index);
+      final earlier = scan.launchSeconds + .1;
+      final later = scan.launchSeconds + .5;
+      expect(scan.frontAt(later), lessThan(scan.frontAt(earlier)));
+      expect(
+        scan.frontAt(later) - HistoryDataVaultMotion.distanceAt(later),
+        lessThan(
+          scan.frontAt(earlier) - HistoryDataVaultMotion.distanceAt(earlier),
+        ),
+      );
+      scanPatterns.add(
+        HistoryDataVaultMotion.compositeScanPatternFor(scan.seed),
+      );
+      final node = HistoryDataVaultMotion.compositeNodeEventFor(index);
+      nodeAnchors.addAll(node.anchors);
+      expect(node.duration, lessThanOrEqualTo(.65));
+      expect(node.links.length, inInclusiveRange(1, 2));
+    }
+    expect(scanPatterns, containsAll(DataVaultScanPattern.values));
+    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('leftWall')), isTrue);
+    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('rightWall')), isTrue);
+    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('floor')), isTrue);
+    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('ceiling')), isTrue);
+    expect(nodeAnchors.any((anchor) => anchor.name.startsWith('pillar')), isTrue);
   });
 
   test(
