@@ -19,6 +19,10 @@ class SharedDateTimeEditor extends StatelessWidget {
     required this.onAllDayChanged,
     required this.onStartTimeChanged,
     required this.onEndTimeChanged,
+    this.endDate,
+    this.onEndDateChanged,
+    this.showAllDayToggle = true,
+    this.showOverdueNote = false,
   });
 
   final DateTime date;
@@ -29,6 +33,10 @@ class SharedDateTimeEditor extends StatelessWidget {
   final ValueChanged<bool> onAllDayChanged;
   final ValueChanged<TimeOfDay?> onStartTimeChanged;
   final ValueChanged<TimeOfDay?> onEndTimeChanged;
+  final DateTime? endDate;
+  final ValueChanged<DateTime>? onEndDateChanged;
+  final bool showAllDayToggle;
+  final bool showOverdueNote;
 
   Future<void> _pickDate(BuildContext context) async {
     final value = await showDatePicker(
@@ -38,6 +46,16 @@ class SharedDateTimeEditor extends StatelessWidget {
       lastDate: DateTime(2100),
     );
     if (value != null) onDateChanged(DateUtils.dateOnly(value));
+  }
+
+  Future<void> _pickEndDate(BuildContext context) async {
+    final value = await showDatePicker(
+      context: context,
+      initialDate: endDate ?? date,
+      firstDate: date,
+      lastDate: DateTime(2100),
+    );
+    if (value != null) onEndDateChanged?.call(DateUtils.dateOnly(value));
   }
 
   Future<void> _pickTime(
@@ -53,61 +71,267 @@ class SharedDateTimeEditor extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text('日付  ${date.year}/${date.month}/${date.day}'),
-        onTap: () => _pickDate(context),
-      ).inputFeedback(),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('終日'),
-        value: allDay,
-        onChanged: onAllDayChanged,
-      ).inputFeedback(),
-      if (!allDay) ...[
-        _SharedTimeTile(
-          label: '開始時刻',
-          value: startTime,
-          onTap: () => _pickTime(
-            context,
-            current: startTime,
-            onChanged: onStartTimeChanged,
+  Widget build(BuildContext context) {
+    final effectiveEndDate = endDate ?? date;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showAllDayToggle) ...[
+          EditorFormCard(
+            key: const ValueKey('shared-date-time-all-day-card'),
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: Icon(
+                Icons.wb_sunny_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: const Text('終日'),
+              subtitle: const Text('開始・終了時刻を指定せず、終日予定として登録します'),
+              value: allDay,
+              onChanged: onAllDayChanged,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        EditorFormCard(
+          key: const ValueKey('shared-date-time-card'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_month_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text('日時', style: Theme.of(context).textTheme.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _DateTimeRow(
+                label: '開始',
+                date: date,
+                time: startTime,
+                allDay: allDay,
+                onDateTap: () => _pickDate(context),
+                onTimeTap: () => _pickTime(
+                  context,
+                  current: startTime,
+                  onChanged: onStartTimeChanged,
+                ),
+                showTopConnector: false,
+                showBottomConnector: true,
+              ),
+              const SizedBox(height: 8),
+              _DateTimeRow(
+                label: '終了',
+                date: effectiveEndDate,
+                time: endTime,
+                allDay: allDay,
+                onDateTap: onEndDateChanged == null
+                    ? () => _pickDate(context)
+                    : () => _pickEndDate(context),
+                onTimeTap: () => _pickTime(
+                  context,
+                  current: endTime,
+                  onChanged: onEndTimeChanged,
+                ),
+                showTopConnector: true,
+                showBottomConnector: false,
+              ),
+              if (showOverdueNote) ...[
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: .65),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        '当日の未完了予定は『超過』になりません。翌日以降に残った予定のみ『超過』として表示します。',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: .70),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
         ),
-        _SharedTimeTile(
-          label: '終了時刻',
-          value: endTime,
-          onTap: () =>
-              _pickTime(context, current: endTime, onChanged: onEndTimeChanged),
-        ),
       ],
-    ],
-  );
+    );
+  }
 }
 
-class _SharedTimeTile extends StatelessWidget {
-  const _SharedTimeTile({
+class EditorFormCard extends StatelessWidget {
+  const EditorFormCard({super.key, required this.child, this.padding});
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: padding ?? const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer.withValues(alpha: .30),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.primary.withValues(alpha: .30),
+          width: .8,
+        ),
+      ),
+      child: Material(type: MaterialType.transparency, child: child),
+    );
+  }
+}
+
+class _DateTimeRow extends StatelessWidget {
+  const _DateTimeRow({
     required this.label,
-    required this.value,
-    required this.onTap,
+    required this.date,
+    required this.time,
+    required this.allDay,
+    required this.onDateTap,
+    required this.onTimeTap,
+    required this.showTopConnector,
+    required this.showBottomConnector,
   });
 
   final String label;
-  final TimeOfDay? value;
-  final VoidCallback onTap;
+  final DateTime date;
+  final TimeOfDay? time;
+  final bool allDay;
+  final VoidCallback onDateTap;
+  final VoidCallback onTimeTap;
+  final bool showTopConnector;
+  final bool showBottomConnector;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    title: Text('$label  ${value == null ? '未設定' : _format24Hour(value!)}'),
-    onTap: onTap,
-  ).inputFeedback();
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dateLabel =
+        '${date.year}年${date.month}月${date.day}日 (${_weekday(date.weekday)})';
+    return Container(
+      constraints: const BoxConstraints(minHeight: 72),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: scheme.primary.withValues(alpha: .35)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 38,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (showTopConnector)
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Container(
+                      width: 1.5,
+                      height: 30,
+                      color: scheme.primary.withValues(alpha: .55),
+                    ),
+                  ),
+                if (showBottomConnector)
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      width: 1.5,
+                      height: 30,
+                      color: scheme.primary.withValues(alpha: .55),
+                    ),
+                  ),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: scheme.surface,
+                    border: Border.all(color: scheme.primary, width: 1.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: InkWell(
+              key: ValueKey('shared-date-time-$label-date'),
+              onTap: onDateTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 3),
+                    Text(
+                      dateLabel,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurface.withValues(alpha: .70),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ).inputFeedback(),
+          ),
+          if (!allDay)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: InkWell(
+                key: ValueKey('shared-date-time-$label-time'),
+                onTap: onTimeTap,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 84,
+                    minHeight: 44,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: scheme.primary.withValues(alpha: .35),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.schedule, size: 16),
+                      const SizedBox(width: 5),
+                      Text(time == null ? '時刻未設定' : _format24Hour(time!)),
+                      const SizedBox(width: 3),
+                      const Icon(Icons.chevron_right, size: 18),
+                    ],
+                  ),
+                ),
+              ).inputFeedback(),
+            ),
+        ],
+      ),
+    );
+  }
 
   static String _format24Hour(TimeOfDay value) =>
-      '${value.hour}:${value.minute.toString().padLeft(2, '0')}';
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+  static String _weekday(int value) =>
+      const ['月', '火', '水', '木', '金', '土', '日'][value - 1];
 }
 
 class SharedRecurrenceValue {
@@ -201,8 +425,9 @@ class SharedRecurrenceEditor extends StatelessWidget {
       firstDate: startDate,
       lastDate: DateTime(2100),
     );
-    if (picked != null)
+    if (picked != null) {
       onChanged(value.copyWith(end: DateUtils.dateOnly(picked)));
+    }
   }
 
   @override
@@ -210,7 +435,7 @@ class SharedRecurrenceEditor extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       DropdownButtonFormField<ReminderRecurrence>(
-        value: value.recurrence,
+        initialValue: value.recurrence,
         decoration: const InputDecoration(labelText: '繰り返し'),
         items: _choices
             .map(

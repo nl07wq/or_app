@@ -29,7 +29,6 @@ void main() {
       onChanged: (_) {},
     );
     expect(find.text('繰り返しの設定'), findsOneWidget);
-    expect(find.text('月'), findsNothing);
     expect(find.text('第1'), findsNothing);
   });
 
@@ -48,7 +47,7 @@ void main() {
     expect(find.text('第5'), findsOneWidget);
     expect(find.text('月'), findsNothing);
     await tester.tap(find.text('第3'));
-    expect(changed?.monthWeek, 3);
+    expect(changed?.monthWeeks, contains(3));
   });
 
   testWidgets('custom weekdays alone exposes weekday selection', (
@@ -84,8 +83,7 @@ void main() {
         ),
       ),
     );
-    expect(find.textContaining('開始時刻'), findsNothing);
-    expect(find.textContaining('終了時刻'), findsNothing);
+    expect(find.text('時刻未設定'), findsNothing);
   });
 
   testWidgets('date time editor always uses deterministic 24-hour rows', (
@@ -107,10 +105,53 @@ void main() {
         ),
       ),
     );
-    expect(find.text('開始時刻  7:00'), findsOneWidget);
-    expect(find.text('終了時刻  18:05'), findsOneWidget);
+    expect(find.text('07:00'), findsOneWidget);
+    expect(find.text('18:05'), findsOneWidget);
     expect(find.textContaining('AM'), findsNothing);
     expect(find.textContaining('PM'), findsNothing);
+  });
+
+  testWidgets('date time editor cards fit supported phone widths', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    for (final width in [320.0, 375.0, 390.0, 430.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: Size(width, 844),
+              textScaler: const TextScaler.linear(1.3),
+            ),
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SharedDateTimeEditor(
+                    date: DateTime(2026, 10, 9),
+                    endDate: DateTime(2026, 10, 10),
+                    allDay: false,
+                    startTime: const TimeOfDay(hour: 7, minute: 0),
+                    endTime: const TimeOfDay(hour: 18, minute: 0),
+                    showOverdueNote: true,
+                    onDateChanged: (_) {},
+                    onEndDateChanged: (_) {},
+                    onAllDayChanged: (_) {},
+                    onStartTimeChanged: (_) {},
+                    onEndTimeChanged: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'width $width');
+      expect(find.text('07:00'), findsOneWidget);
+      expect(find.text('18:00'), findsOneWidget);
+    }
   });
 
   test('retains every Reminder-authoritative effective rule summary', () {

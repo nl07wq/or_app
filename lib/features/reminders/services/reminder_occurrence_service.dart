@@ -252,20 +252,12 @@ class ReminderOccurrenceService {
   }
 }
 
-/// A past calendar date is always overdue. A timed occurrence earlier today
-/// is also overdue in views that display temporal status, while it remains a
-/// current-day item rather than a carryover projection.
+/// Overdue is a local-calendar-day status.  Today's unresolved occurrence is
+/// current regardless of its clock time; it becomes overdue only tomorrow.
 bool reminderOccurrenceIsOverdue(ReminderOccurrence occurrence, DateTime now) {
   if (occurrence.status != ReminderOccurrenceStatus.pending) return false;
   final date = DateTime.tryParse(occurrence.localDate);
   if (date == null) return false;
   final today = DateUtils.dateOnly(now);
-  if (date.isBefore(today)) return true;
-  if (date.isAfter(today) || occurrence.definition.allDay) return false;
-  final parts = occurrence.definition.time?.split(':');
-  if (parts == null || parts.length != 2) return false;
-  final hour = int.tryParse(parts[0]);
-  final minute = int.tryParse(parts[1]);
-  if (hour == null || minute == null) return false;
-  return DateTime(date.year, date.month, date.day, hour, minute).isBefore(now);
+  return DateUtils.dateOnly(date).isBefore(today);
 }

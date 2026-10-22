@@ -55,7 +55,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Live reminder'), findsOneWidget);
-      expect(find.text('09:15'), findsOneWidget);
+      expect(find.textContaining('09:15'), findsOneWidget);
       expect(
         find.byKey(ValueKey('calendar-reminder-bell-live@$todayKey')),
         findsOneWidget,
@@ -73,8 +73,8 @@ void main() {
       notifySchedulePlanChanged();
       await tester.pumpAndSettle();
 
-      expect(find.text('09:15'), findsNothing);
-      expect(find.text('09:30'), findsOneWidget);
+      expect(find.textContaining('09:15'), findsNothing);
+      expect(find.textContaining('09:30'), findsOneWidget);
       expect(find.text('Live reminder'), findsOneWidget);
       final edited = await container.reminders.findDefinitions();
       expect(edited, hasLength(1));
@@ -96,7 +96,7 @@ void main() {
       expect(find.text('Schedule remains'), findsOneWidget);
       await _selectCalendarDate(tester, tomorrowKey);
       expect(find.text('Live reminder'), findsOneWidget);
-      expect(find.text('09:30'), findsOneWidget);
+      expect(find.textContaining('09:30'), findsOneWidget);
 
       await container.reminders.deleteDefinition('live');
       notifySchedulePlanChanged();

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
-import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
@@ -1317,11 +1316,20 @@ class _ReminderEditorState extends State<_ReminderEditor> {
           ).actionableFeedback(),
         ),
         title: Text(widget.initial == null ? 'REMINDERを追加' : 'REMINDERを編集'),
+        centerTitle: true,
         actions: [
-          ActionableFeedbackButton(
-            enabled: true,
-            child: TextButton(
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ElevatedButton(
               onPressed: _save,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(76, 44),
+                shape: const StadiumBorder(),
+                side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .08),
+              ),
               child: const Text('保存'),
             ).actionableFeedback(),
           ),
@@ -1330,23 +1338,43 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            MediaQuery.viewInsetsOf(context).bottom + 20,
+            MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+            16,
+            MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+            MediaQuery.viewInsetsOf(context).bottom + 24,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: _title,
-                decoration: const InputDecoration(labelText: 'タイトル'),
-                onChanged: (_) => setState(() => _error = null),
-              ).inputFeedback(),
-              TextField(
-                controller: _note,
-                decoration: const InputDecoration(labelText: 'メモ'),
-              ).inputFeedback(),
+              EditorFormCard(
+                key: const ValueKey('reminder-editor-title-card'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('タイトル', style: Theme.of(context).textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _title,
+                      maxLines: 1,
+                      onChanged: (_) => setState(() => _error = null),
+                      decoration: InputDecoration(
+                        hintText: 'リマインダーのタイトル',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        suffixIcon: _title.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'タイトルをクリア',
+                                onPressed: () => setState(_title.clear),
+                                icon: const Icon(Icons.close, size: 20),
+                              ),
+                      ),
+                    ).inputFeedback(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               SharedDateTimeEditor(
                 date: _date,
                 allDay: !_timed,
@@ -1359,50 +1387,82 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                 ),
                 onEndTimeChanged: (value) => setState(() => _endTime = value),
               ),
-              SharedRecurrenceEditor(
-                startDate: _date,
-                value: SharedRecurrenceValue(
-                  recurrence: _recurrence,
-                  end: _end,
-                  weekdays: _weekdays,
-                  monthDays: _monthDays,
-                  monthEnd: _monthEnd,
-                  monthWeek: _monthWeek,
-                  monthWeeks: _monthWeeks,
+              const SizedBox(height: 12),
+              EditorFormCard(
+                child: SharedNotificationEditor(
+                  value: _notification,
+                  onChanged: (value) => setState(() => _notification = value),
                 ),
-                onChanged: (value) => setState(() {
-                  _recurrence = value.recurrence;
-                  _end = value.end;
-                  _weekdays
-                    ..clear()
-                    ..addAll(value.weekdays);
-                  _monthDays
-                    ..clear()
-                    ..addAll(value.monthDays);
-                  _monthEnd = value.monthEnd;
-                  _monthWeek = value.monthWeek;
-                  _monthWeeks
-                    ..clear()
-                    ..addAll(value.monthWeeks);
-                  _error = null;
-                }),
               ),
-              SharedNotificationEditor(
-                value: _notification,
-                onChanged: (value) => setState(() => _notification = value),
+              const SizedBox(height: 12),
+              EditorFormCard(
+                child: SharedRecurrenceEditor(
+                  startDate: _date,
+                  value: SharedRecurrenceValue(
+                    recurrence: _recurrence,
+                    end: _end,
+                    weekdays: _weekdays,
+                    monthDays: _monthDays,
+                    monthEnd: _monthEnd,
+                    monthWeek: _monthWeek,
+                    monthWeeks: _monthWeeks,
+                  ),
+                  onChanged: (value) => setState(() {
+                    _recurrence = value.recurrence;
+                    _end = value.end;
+                    _weekdays
+                      ..clear()
+                      ..addAll(value.weekdays);
+                    _monthDays
+                      ..clear()
+                      ..addAll(value.monthDays);
+                    _monthEnd = value.monthEnd;
+                    _monthWeek = value.monthWeek;
+                    _monthWeeks
+                      ..clear()
+                      ..addAll(value.monthWeeks);
+                    _error = null;
+                  }),
+                ),
+              ),
+              const SizedBox(height: 12),
+              EditorFormCard(
+                key: const ValueKey('reminder-editor-note-card'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.note_alt_outlined),
+                        SizedBox(width: 8),
+                        Text('メモ'),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _note,
+                      minLines: 3,
+                      maxLines: null,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                    ).inputFeedback(),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '${_note.text.length} / 500',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (_error != null)
                 Text(
                   _error!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-              const SizedBox(height: 12),
-              OperationButton(
-                text: '保存',
-                icon: Icons.check,
-                onPressed: _save,
-                role: OperationActionRole.primary,
-              ),
             ],
           ),
         ),

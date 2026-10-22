@@ -10,9 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
-import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
-import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/services/japanese_holiday_reference_service.dart';
@@ -656,6 +654,7 @@ class _CalendarPageState extends State<CalendarPage> {
           record: record,
           initialDate: _selected,
           ambientContext: widget.ambientContext,
+          onDelete: record == null ? null : _deleteRecord,
         ),
       ),
     );
@@ -1091,19 +1090,21 @@ class _CalendarPageState extends State<CalendarPage> {
         false;
   }
 
-  Future<void> _deleteRecord(ScheduleRecord record) async {
-    if (_projectedReminders.containsKey(record.id)) return;
+  Future<bool> _deleteRecord(ScheduleRecord record) async {
+    if (_projectedReminders.containsKey(record.id)) return false;
     final repository = AppRepositoryRegistry.container.schedules;
     if (!record.isOccurrenceOverride || record.seriesId == null) {
-      if (await _confirmDelete(record)) await repository.delete(record.id);
+      if (!await _confirmDelete(record)) return false;
+      await repository.delete(record.id);
     } else {
       final scope = await _chooseScope(deleting: true);
-      if (scope == null) return;
+      if (scope == null) return false;
       await ScheduleRecurrenceService(
         repository,
       ).deleteOccurrence(occurrence: record, scope: scope);
     }
     notifySchedulePlanChanged();
+    return true;
   }
 }
 
@@ -5279,6 +5280,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
               if (widget.onReminderToggle != null)
                 IconButton(
                   icon: Icon(
+                    key: ValueKey('calendar-reminder-bell-${record.id}'),
                     record.completed
                         ? Icons.check_circle
                         : Icons.radio_button_unchecked,
@@ -5302,7 +5304,9 @@ class _TimelineEntryState extends State<_TimelineEntry> {
         !record.allDay &&
         record.startTime != null &&
         record.endTime != null;
-    final range = hasTimeRange
+    final range = record.kind == ScheduleEntryKind.reminder
+        ? (record.startTime == null ? '' : '  ${record.startTime}')
+        : hasTimeRange
         ? '  ${record.startTime}–${_displayEndTime(record)}'
         : '';
     final preview = _previewMinutes == 0
@@ -5960,10 +5964,12 @@ class _ScheduleEditor extends StatefulWidget {
     this.record,
     required this.initialDate,
     this.ambientContext,
+    this.onDelete,
   });
   final ScheduleRecord? record;
   final DateTime initialDate;
   final CalendarAmbientContext? ambientContext;
+  final Future<bool> Function(ScheduleRecord record)? onDelete;
   @override
   State<_ScheduleEditor> createState() => _ScheduleEditorState();
 }
@@ -6050,11 +6056,23 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         forceMaterialTransparency: isStatusAmbient,
         leading: const ActionableBackButton(),
         title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _save,
-          ).actionableFeedback(),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ElevatedButton(
+              onPressed: _save,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(76, 44),
+                shape: const StadiumBorder(),
+                side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .08),
+              ),
+              child: const Text('保存'),
+            ).actionableFeedback(),
+          ),
         ],
       ),
       body: Stack(
@@ -6067,31 +6085,103 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
             top: !isStatusAmbient,
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                AppSpacing.cardPadding.left,
-                AppSpacing.cardPadding.top + (isStatusAmbient ? topInset : 0),
-                AppSpacing.cardPadding.right,
-                AppSpacing.cardPadding.bottom,
+                MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+                16 + (isStatusAmbient ? topInset : 0),
+                MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+                MediaQuery.paddingOf(context).bottom + 24,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  DropdownButtonFormField<ScheduleType>(
-                    initialValue: _type,
-                    items: ScheduleType.values
-                        .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(_scheduleTypeLabel(value)),
+                  EditorFormCard(
+                    key: const ValueKey('schedule-editor-title-card'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'タイトル',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _title,
+                          maxLines: 1,
+                          onChanged: (_) => setState(() => _error = null),
+                          decoration: InputDecoration(
+                            hintText: '予定のタイトル',
+                            suffixIcon: _title.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: 'タイトルをクリア',
+                                    icon: const Icon(Icons.close, size: 20),
+                                    onPressed: () => setState(_title.clear),
+                                  ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _type = value!),
-                  ).inputFeedback(),
-                  OperationTextField(
-                    controller: _title,
-                    label: 'タイトル',
-                    glass: isStatusAmbient,
+                        ).inputFeedback(),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 12),
+                  EditorFormCard(
+                    key: const ValueKey('schedule-editor-category-card'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'カテゴリ',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: _pickType,
+                          child: SizedBox(
+                            height: 52,
+                            child: Row(
+                              children: [
+                                Icon(_typeIcon(_type)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(_scheduleTypeLabel(_type)),
+                                ),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
+                          ),
+                        ).inputFeedback(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  EditorFormCard(
+                    key: const ValueKey('schedule-editor-all-day-card'),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.wb_sunny_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('終日'),
+                              SizedBox(height: 2),
+                              Text('開始・終了時刻を指定せず、終日予定として登録します'),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _allDay,
+                          onChanged: (value) => setState(() => _allDay = value),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   SharedDateTimeEditor(
                     date: _date,
                     allDay: _allDay,
@@ -6113,53 +6203,36 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                           ? ''
                           : clockFromTimeOfDay(value),
                     ),
+                    endDate: _effectiveEndDate,
+                    onEndDateChanged: (value) =>
+                        setState(() => _endDate = value),
+                    showAllDayToggle: false,
+                    showOverdueNote: true,
                   ),
-                  if (!_allDay && _end.text.trim().isNotEmpty)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('終了日'),
-                      subtitle: Text(
-                        _endDate == null
-                            ? '開始日と同じ（終了時刻が開始時刻以前なら翌日）'
-                            : _key(_endDate!),
-                      ),
-                      trailing: const Icon(Icons.calendar_today_outlined),
-                      onTap: _pickEndDate,
-                    ).inputFeedback(),
-                  if (_type == ScheduleType.work && !_allDay)
-                    _DurationControl(label: '休憩', controller: _break),
-                  SharedRecurrenceEditor(
-                    startDate: _date,
-                    value: SharedRecurrenceValue(
-                      recurrence: _recurrence,
-                      end: _recurrenceEnd,
-                      weekdays: _recurrenceWeekdays,
-                      monthDays: _recurrenceMonthDays,
-                      monthEnd: _recurrenceMonthEnd,
-                      monthWeek: _recurrenceMonthWeek,
-                      monthWeeks: _recurrenceMonthWeeks,
+                  const SizedBox(height: 12),
+                  if (_type == ScheduleType.work && !_allDay) ...[
+                    EditorFormCard(
+                      child: _DurationControl(label: '休憩', controller: _break),
                     ),
-                    onChanged: (value) => setState(() {
-                      _recurrence = value.recurrence;
-                      _recurrenceEnd = value.end;
-                      _recurrenceWeekdays
-                        ..clear()
-                        ..addAll(value.weekdays);
-                      _recurrenceMonthDays
-                        ..clear()
-                        ..addAll(value.monthDays);
-                      _recurrenceMonthEnd = value.monthEnd;
-                      _recurrenceMonthWeek = value.monthWeek;
-                      _recurrenceMonthWeeks
-                        ..clear()
-                        ..addAll(value.monthWeeks);
-                    }),
+                    const SizedBox(height: 12),
+                  ],
+                  EditorFormCard(
+                    child: SharedNotificationEditor(
+                      value: _notification,
+                      calendarStyle: true,
+                      onChanged: (value) =>
+                          setState(() => _notification = value),
+                    ),
                   ),
-                  SharedNotificationEditor(
-                    value: _notification,
-                    calendarStyle: true,
-                    onChanged: (value) => setState(() => _notification = value),
+                  const SizedBox(height: 12),
+                  EditorFormCard(
+                    child: SharedRecurrenceEditor(
+                      startDate: _date,
+                      value: _recurrenceValue,
+                      onChanged: _applyRecurrence,
+                    ),
                   ),
+                  const SizedBox(height: 12),
                   if (_error != null)
                     Text(
                       _error!,
@@ -6167,20 +6240,54 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
                         color: Theme.of(context).colorScheme.error,
                       ),
                     ),
-                  OperationTextField(
-                    controller: _memo,
-                    label: 'メモ',
-                    maxLines: 3,
-                    glass: isStatusAmbient,
+                  EditorFormCard(
+                    key: const ValueKey('schedule-editor-memo-card'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.note_alt_outlined),
+                            SizedBox(width: 8),
+                            Text('メモ'),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _memo,
+                          minLines: 3,
+                          maxLines: null,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                        ).inputFeedback(),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            '${_memo.text.length} / 500',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  AppSpacing.gapLG,
-                  OperationButton(
-                    text: '保存',
-                    icon: Icons.check,
-                    role: OperationActionRole.primary,
-                    dashboardGlass: isStatusAmbient,
-                    onPressed: _save,
-                  ),
+                  if (widget.record != null && widget.onDelete != null) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      key: const ValueKey('schedule-editor-delete-button'),
+                      onPressed: _delete,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('この予定を削除'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ).actionableFeedback(),
+                  ],
                 ],
               ),
             ),
@@ -6188,6 +6295,83 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         ],
       ),
     );
+  }
+
+  DateTime get _effectiveEndDate {
+    final start = _start.text.trim().isEmpty
+        ? null
+        : timeOfDayFromClock(_start.text);
+    final end = _end.text.trim().isEmpty ? null : timeOfDayFromClock(_end.text);
+    if (_endDate != null) return _endDate!;
+    if (start != null &&
+        end != null &&
+        (end.hour < start.hour ||
+            (end.hour == start.hour && end.minute <= start.minute))) {
+      return _date.add(const Duration(days: 1));
+    }
+    return _date;
+  }
+
+  SharedRecurrenceValue get _recurrenceValue => SharedRecurrenceValue(
+    recurrence: _recurrence,
+    end: _recurrenceEnd,
+    weekdays: _recurrenceWeekdays,
+    monthDays: _recurrenceMonthDays,
+    monthEnd: _recurrenceMonthEnd,
+    monthWeek: _recurrenceMonthWeek,
+    monthWeeks: _recurrenceMonthWeeks,
+  );
+
+  void _applyRecurrence(SharedRecurrenceValue value) => setState(() {
+    _recurrence = value.recurrence;
+    _recurrenceEnd = value.end;
+    _recurrenceWeekdays
+      ..clear()
+      ..addAll(value.weekdays);
+    _recurrenceMonthDays
+      ..clear()
+      ..addAll(value.monthDays);
+    _recurrenceMonthEnd = value.monthEnd;
+    _recurrenceMonthWeek = value.monthWeek;
+    _recurrenceMonthWeeks
+      ..clear()
+      ..addAll(value.monthWeeks);
+  });
+
+  Future<void> _pickType() async {
+    final next = await showModalBottomSheet<ScheduleType>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final type in ScheduleType.values)
+              ListTile(
+                leading: Icon(_typeIcon(type)),
+                title: Text(_scheduleTypeLabel(type)),
+                selected: type == _type,
+                onTap: () => Navigator.pop(context, type),
+              ).inputFeedback(),
+          ],
+        ),
+      ),
+    );
+    if (next != null && mounted) setState(() => _type = next);
+  }
+
+  IconData _typeIcon(ScheduleType type) => switch (type) {
+    ScheduleType.work => Icons.business_center_outlined,
+    ScheduleType.personal => Icons.person_outline,
+    ScheduleType.appointment => Icons.handshake_outlined,
+    ScheduleType.training => Icons.fitness_center_outlined,
+    ScheduleType.other => Icons.bookmark_outline,
+  };
+
+  Future<void> _delete() async {
+    final record = widget.record;
+    final onDelete = widget.onDelete;
+    if (record == null || onDelete == null) return;
+    if (await onDelete(record) && mounted) Navigator.of(context).pop();
   }
 
   void _save() {
@@ -6211,18 +6395,7 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
       setState(() => _error = '日付を1つ以上選択してください。');
       return;
     }
-    final start = _start.text.trim().isEmpty
-        ? null
-        : timeOfDayFromClock(_start.text);
-    final end = _end.text.trim().isEmpty ? null : timeOfDayFromClock(_end.text);
-    final inferredEndDate =
-        _endDate ??
-        (start != null &&
-                end != null &&
-                (end.hour < start.hour ||
-                    (end.hour == start.hour && end.minute <= start.minute))
-            ? _date.add(const Duration(days: 1))
-            : _date);
+    final inferredEndDate = _effectiveEndDate;
     if (inferredEndDate.isBefore(DateUtils.dateOnly(_date))) {
       setState(() => _error = '終了日は開始日以降にしてください。');
       return;
@@ -6292,16 +6465,6 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         updatedAt: DateTime.now().toUtc(),
       ),
     );
-  }
-
-  Future<void> _pickEndDate() async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: _endDate ?? _date,
-      firstDate: _date,
-      lastDate: DateTime(_date.year + 10),
-    );
-    if (selected != null && mounted) setState(() => _endDate = selected);
   }
 }
 

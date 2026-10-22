@@ -9,6 +9,7 @@ import 'package:or_app/features/reminders/pages/reminders_page.dart';
 import 'package:or_app/features/reminders/services/reminder_occurrence_service.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/models/schedule_plan_revision.dart';
+import 'package:or_app/features/schedule/widgets/shared_time_picker.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
@@ -22,7 +23,9 @@ void main() {
 
   tearDown(AppRepositoryRegistry.resetForTesting);
 
-  testWidgets('Reminder production filter tabs are silent', (tester) async {
+  testWidgets('Reminder production filter tabs provide cursor feedback', (
+    tester,
+  ) async {
     final audio = _RecordingTouchRippleAudio();
     var rippleEvents = 0;
     await tester.pumpWidget(
@@ -41,7 +44,8 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    expect(audio.played, isEmpty);
+    expect(audio.played, everyElement(TouchFeedbackSound.cursor));
+    expect(audio.played, hasLength(4));
     expect(rippleEvents, 0);
   });
 
@@ -604,7 +608,7 @@ void main() {
       expect(find.text('REMINDERを編集'), findsOneWidget);
       expect(find.text('毎日'), findsWidgets);
       await tester.enterText(find.byType(TextField).first, 'Daily edited');
-      await tester.tap(find.widgetWithText(TextButton, '保存'));
+      await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
       await tester.pumpAndSettle();
       final editedDefinitions = await container.reminders.findDefinitions();
       expect(editedDefinitions, hasLength(1));
@@ -643,7 +647,9 @@ void main() {
       expect(find.text('繰り返しの設定'), findsNothing);
 
       await tester.enterText(find.byType(TextField).first, 'Custom');
-      await tester.tap(find.text('なし'));
+      final recurrenceNone = find.text('なし');
+      await tester.ensureVisible(recurrenceNone);
+      await tester.tap(recurrenceNone);
       await tester.pumpAndSettle();
       await tester.tap(find.text('曜日指定').last);
       await tester.pumpAndSettle();
@@ -653,12 +659,17 @@ void main() {
         expect(find.text(label), findsOneWidget);
       }
 
+      final startTime = find.byKey(const ValueKey('shared-date-time-開始-time'));
       await tester.tap(find.widgetWithText(SwitchListTile, '終日'));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('開始時刻  ').first);
+      expect(startTime, findsOneWidget);
+      await tester.ensureVisible(startTime);
+      await tester.tap(startTime);
       await tester.pumpAndSettle();
-      expect(find.byType(TimePickerDialog), findsOneWidget);
-      Navigator.of(tester.element(find.byType(TimePickerDialog))).pop();
+      expect(find.byType(OperationOrbitalTimePickerDialog), findsOneWidget);
+      Navigator.of(
+        tester.element(find.byType(OperationOrbitalTimePickerDialog)),
+      ).pop();
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('月'));
@@ -680,17 +691,25 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Month slots');
-    await tester.tap(find.text('なし'));
+    final recurrenceNone = find.text('なし');
+    await tester.ensureVisible(recurrenceNone);
+    await tester.tap(recurrenceNone);
     await tester.pumpAndSettle();
     await tester.tap(find.text('日付指定').last);
     await tester.pumpAndSettle();
 
     expect(find.text('月末'), findsOneWidget);
-    await tester.tap(find.text('1'));
+    final dayOne = find.text('1');
+    await tester.ensureVisible(dayOne);
+    await tester.tap(dayOne);
     await tester.pump();
-    await tester.tap(find.text('15'));
+    final dayFifteen = find.text('15');
+    await tester.ensureVisible(dayFifteen);
+    await tester.tap(dayFifteen);
     await tester.pump();
-    await tester.tap(find.text('月末'));
+    final monthEnd = find.text('月末');
+    await tester.ensureVisible(monthEnd);
+    await tester.tap(monthEnd);
     await tester.pump();
     final save = find.widgetWithText(ElevatedButton, '保存');
     await tester.ensureVisible(save);
@@ -711,7 +730,9 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('reminder-add-control')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'Monthly');
-      await tester.tap(find.text('なし'));
+      final recurrenceNone = find.text('なし');
+      await tester.ensureVisible(recurrenceNone);
+      await tester.tap(recurrenceNone);
       await tester.pumpAndSettle();
       await tester.tap(find.text('毎月').last);
       await tester.pumpAndSettle();
@@ -806,7 +827,7 @@ void main() {
     await tester.tap(find.text('Original'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Saved');
-    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
     await tester.pumpAndSettle();
     final savedDefinitions = await container.reminders.findDefinitions();
     expect(savedDefinitions, hasLength(1));
@@ -839,11 +860,11 @@ void main() {
     await tester.pumpAndSettle();
     await _enterTime(
       tester,
-      find.textContaining('開始時刻  ').first,
+      find.byKey(const ValueKey('shared-date-time-開始-time')),
       hour: '09',
       minute: '30',
     );
-    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
     await tester.pumpAndSettle();
 
     final definitions = await container.reminders.findDefinitions();
@@ -894,12 +915,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Move date'));
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('日付  ').first);
+    final startDate = find.byKey(const ValueKey('shared-date-time-開始-date'));
+    await tester.ensureVisible(startDate);
+    await tester.tap(startDate);
     await tester.pumpAndSettle();
     await tester.tap(find.text('${today.day}').last);
     await tester.tap(find.widgetWithText(TextButton, 'OK'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
     await tester.pumpAndSettle();
 
     final definitions = await container.reminders.findDefinitions();
@@ -932,10 +955,16 @@ void main() {
     await _pumpPage(tester);
     await tester.tap(find.text('Transitions'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).at(1), 'after');
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('reminder-editor-note-card')),
+        matching: find.byType(TextField),
+      ),
+      'after',
+    );
     await tester.tap(find.widgetWithText(SwitchListTile, '終日'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
     await tester.pumpAndSettle();
 
     var definitions = await container.reminders.findDefinitions();
@@ -952,11 +981,11 @@ void main() {
     await tester.pumpAndSettle();
     await _enterTime(
       tester,
-      find.textContaining('終了時刻  ').first,
+      find.byKey(const ValueKey('shared-date-time-終了-time')),
       hour: '10',
       minute: '30',
     );
-    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.tap(find.widgetWithText(ElevatedButton, '保存'));
     await tester.pumpAndSettle();
 
     definitions = await container.reminders.findDefinitions();
@@ -986,15 +1015,15 @@ Future<void> _enterTime(
 }) async {
   await tester.tap(tile);
   await tester.pumpAndSettle();
-  await tester.tap(find.byIcon(Icons.keyboard_outlined));
+  await tester.tap(find.byKey(const ValueKey('orbital-time-picker-keyboard')));
   await tester.pumpAndSettle();
   final fields = find.descendant(
-    of: find.byType(TimePickerDialog),
+    of: find.byType(OperationOrbitalTimePickerDialog),
     matching: find.byType(TextField),
   );
   await tester.enterText(fields.at(0), hour);
   await tester.enterText(fields.at(1), minute);
-  await tester.tap(find.widgetWithText(TextButton, 'OK'));
+  await tester.tap(find.widgetWithText(FilledButton, 'OK'));
   await tester.pumpAndSettle();
 }
 

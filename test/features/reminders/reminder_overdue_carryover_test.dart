@@ -38,7 +38,7 @@ void main() {
   );
 
   test(
-    'overdue status keeps today timed work current but marks its time',
+    'overdue status is based on local calendar date, never time of day',
     () async {
       final repository = IndexedDbReminderRepository(FakeIndexedDbDatabase());
       await repository.saveDefinition(
@@ -50,10 +50,18 @@ void main() {
 
       expect(
         reminderOccurrenceIsOverdue(occurrence, DateTime(2026, 10, 3, 10)),
-        isTrue,
+        isFalse,
       );
       expect(
         reminderOccurrenceIsOverdue(occurrence, DateTime(2026, 10, 3, 8)),
+        isFalse,
+      );
+      expect(
+        reminderOccurrenceIsOverdue(occurrence, DateTime(2026, 10, 4)),
+        isTrue,
+      );
+      expect(
+        reminderOccurrenceIsOverdue(occurrence, DateTime(2026, 10, 2, 23, 59)),
         isFalse,
       );
     },
