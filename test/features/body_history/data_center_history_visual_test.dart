@@ -204,6 +204,41 @@ void main() {
     expect(nodeAnchors.any((anchor) => anchor.name.startsWith('pillar')), isTrue);
   });
 
+  test('V2.4 retains about seventy percent of deterministic SPARK identities', () {
+    var retained = 0;
+    var total = 0;
+    for (final surface in DataVaultImpulseSurface.values) {
+      for (var lane = 0; lane < 5; lane++) {
+        for (var packet = 0; packet < 1000; packet++) {
+          total++;
+          if (HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet)) {
+            retained++;
+          }
+          expect(
+            HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet),
+            HistoryDataVaultMotion.retainSparkPacket(surface, lane, packet),
+          );
+        }
+      }
+    }
+    expect(retained / total, inInclusiveRange(.68, .72));
+  });
+
+  test('V2.4 composite scan and node cadence are twenty-five percent denser', () {
+    final scans = List.generate(
+      100,
+      HistoryDataVaultMotion.compositeScanEventFor,
+    );
+    final nodes = List.generate(
+      100,
+      HistoryDataVaultMotion.compositeNodeEventFor,
+    );
+    expect(scans[1].launchSeconds - scans[0].launchSeconds, closeTo(2.68, .0001));
+    expect(nodes[1].launchSeconds - nodes[0].launchSeconds, closeTo(4.52, .0001));
+    expect(scans.every((event) => event.lifetime >= 4.35), isTrue);
+    expect(nodes.every((event) => event.anchorS.isFinite), isTrue);
+  });
+
   test(
     'node topology catalog includes varied physical surfaces and timing',
     () {
