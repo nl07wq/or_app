@@ -11,6 +11,27 @@ Future<TimeOfDay?> showSharedTimePicker(
   builder: (_) => OperationOrbitalTimePickerDialog(initialTime: initialTime),
 );
 
+/// The same orbital language used for a time-of-day, with period controls
+/// removed for elapsed time. The returned [Duration] deliberately retains
+/// duration semantics instead of ever becoming a wall-clock timestamp.
+Future<Duration?> showSharedDurationPicker(
+  BuildContext context, {
+  required Duration initialDuration,
+}) async {
+  final selected = await showDialog<TimeOfDay>(
+    context: context,
+    builder: (_) => OperationOrbitalTimePickerDialog(
+      initialTime: TimeOfDay(
+        hour: initialDuration.inHours.clamp(0, 23).toInt(),
+        minute: initialDuration.inMinutes.remainder(60),
+      ),
+      durationMode: true,
+    ),
+  );
+  if (selected == null) return null;
+  return Duration(hours: selected.hour, minutes: selected.minute);
+}
+
 /// Clock-face conversion kept separate from the dialog so 24:00 can never
 /// leak into persisted [TimeOfDay] values.
 class OperationOrbitalTimeMapping {
@@ -42,9 +63,11 @@ class OperationOrbitalTimePickerDialog extends StatefulWidget {
   const OperationOrbitalTimePickerDialog({
     super.key,
     required this.initialTime,
+    this.durationMode = false,
   });
 
   final TimeOfDay initialTime;
+  final bool durationMode;
 
   @override
   State<OperationOrbitalTimePickerDialog> createState() =>
@@ -64,6 +87,10 @@ class _OperationOrbitalTimePickerDialogState
 
   bool get _pm => OperationOrbitalTimeMapping.isPm(_hour24);
   int get _dialHour => OperationOrbitalTimeMapping.dialHour(_hour24);
+
+  String _displayHourText() => widget.durationMode
+      ? _hour24.toString()
+      : OperationOrbitalTimeMapping.displayHour(_hour24).toString();
   bool get _validKeyboard {
     final hour = int.tryParse(_hourController.text);
     final minute = int.tryParse(_minuteController.text);
@@ -71,7 +98,9 @@ class _OperationOrbitalTimePickerDialogState
         minute != null &&
         minute >= 0 &&
         minute <= 59 &&
-        (_pm ? hour >= 13 && hour <= 24 : hour >= 1 && hour <= 12);
+        (widget.durationMode
+            ? hour >= 0 && hour <= 23
+            : (_pm ? hour >= 13 && hour <= 24 : hour >= 1 && hour <= 12));
   }
 
   @override
@@ -79,9 +108,7 @@ class _OperationOrbitalTimePickerDialogState
     super.initState();
     _hour24 = widget.initialTime.hour;
     _minute = widget.initialTime.minute;
-    _hourController = TextEditingController(
-      text: OperationOrbitalTimeMapping.displayHour(_hour24).toString(),
-    );
+    _hourController = TextEditingController(text: _displayHourText());
     _minuteController = TextEditingController(
       text: _minute.toString().padLeft(2, '0'),
     );
@@ -95,9 +122,7 @@ class _OperationOrbitalTimePickerDialogState
   }
 
   void _syncInputs() {
-    _hourController.text = OperationOrbitalTimeMapping.displayHour(
-      _hour24,
-    ).toString();
+    _hourController.text = _displayHourText();
     _minuteController.text = _minute.toString().padLeft(2, '0');
   }
 
@@ -119,11 +144,15 @@ class _OperationOrbitalTimePickerDialogState
     if (angle < 0) angle += math.pi * 2;
     setState(() {
       if (mode == _OrbitalMode.hour) {
-        final value = (angle / (math.pi * 2) * 12).round() % 12;
-        _hour24 = OperationOrbitalTimeMapping.fromDialHour(
-          dialHour: value == 0 ? 12 : value,
-          pm: _pm,
-        );
+        if (widget.durationMode) {
+          _hour24 = (angle / (math.pi * 2) * 24).round() % 24;
+        } else {
+          final value = (angle / (math.pi * 2) * 12).round() % 12;
+          _hour24 = OperationOrbitalTimeMapping.fromDialHour(
+            dialHour: value == 0 ? 12 : value,
+            pm: _pm,
+          );
+        }
       } else {
         _minute = (angle / (math.pi * 2) * 60).round() % 60;
       }
@@ -137,8 +166,7 @@ class _OperationOrbitalTimePickerDialogState
     _activeDialPointer = event.pointer;
     final modeAtStart = _mode;
     final selected = _updateDialValue(event.localPosition, size, modeAtStart);
-    _hourGestureStartedOnValue =
-        modeAtStart == _OrbitalMode.hour && selected;
+    _hourGestureStartedOnValue = modeAtStart == _OrbitalMode.hour && selected;
   }
 
   void _moveDialInteraction(PointerMoveEvent event, Size size) {
@@ -173,12 +201,14 @@ class _OperationOrbitalTimePickerDialogState
     if (_keyboard) {
       if (!_validKeyboard) return;
       final enteredHour = int.parse(_hourController.text);
-      _hour24 = OperationOrbitalTimeMapping.fromDialHour(
-        dialHour: _pm
-            ? (enteredHour == 24 ? 12 : enteredHour - 12)
-            : enteredHour,
-        pm: _pm,
-      );
+      _hour24 = widget.durationMode
+          ? enteredHour
+          : OperationOrbitalTimeMapping.fromDialHour(
+              dialHour: _pm
+                  ? (enteredHour == 24 ? 12 : enteredHour - 12)
+                  : enteredHour,
+              pm: _pm,
+            );
       _minute = int.parse(_minuteController.text);
     }
     Navigator.of(context).pop(TimeOfDay(hour: _hour24, minute: _minute));
@@ -229,8 +259,10 @@ class _OperationOrbitalTimePickerDialogState
                     const SizedBox(height: 4),
                     _readout(),
                     const SizedBox(height: 8),
-                    _periodSegment(),
-                    const SizedBox(height: 8),
+                    if (!widget.durationMode) ...[
+                      _periodSegment(),
+                      const SizedBox(height: 8),
+                    ],
                     _modeCaption(),
                     const SizedBox(height: 5),
                     _keyboard ? _keyboardInput() : _dial(width),
@@ -277,9 +309,7 @@ class _OperationOrbitalTimePickerDialogState
         Expanded(
           child: _ReadoutModule(
             key: const ValueKey('orbital-time-picker-hour'),
-            value: OperationOrbitalTimeMapping.displayHour(
-              _hour24,
-            ).toString().padLeft(2, '0'),
+            value: _displayHourText().padLeft(2, '0'),
             active: _mode == _OrbitalMode.hour,
             onTap: () => setState(() => _mode = _OrbitalMode.hour),
           ),
@@ -345,7 +375,9 @@ class _OperationOrbitalTimePickerDialogState
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Text(
-          _mode == _OrbitalMode.hour ? 'HOUR SELECT' : 'MINUTE SELECT',
+          _mode == _OrbitalMode.hour
+              ? (widget.durationMode ? 'DURATION HOUR' : 'HOUR SELECT')
+              : 'MINUTE SELECT',
           style: const TextStyle(
             color: Color(0xff74def4),
             fontSize: 12,
@@ -381,8 +413,9 @@ class _OperationOrbitalTimePickerDialogState
           painter: _OrbitalClockPainter(
             pm: _pm,
             mode: _mode,
-            hour: _dialHour,
+            hour: widget.durationMode ? _hour24 : _dialHour,
             minute: _minute,
+            durationMode: widget.durationMode,
           ),
         ),
       ),
@@ -395,7 +428,9 @@ class _OperationOrbitalTimePickerDialogState
       children: [
         Expanded(
           child: _NumericInput(
-            label: _pm ? 'PM HOUR (13–24)' : 'AM HOUR (1–12)',
+            label: widget.durationMode
+                ? 'DURATION HOUR (0–23)'
+                : (_pm ? 'PM HOUR (13–24)' : 'AM HOUR (1–12)'),
             controller: _hourController,
             valid: _validKeyboard,
             onChanged: (_) => setState(() {}),
@@ -579,11 +614,13 @@ class _OrbitalClockPainter extends CustomPainter {
     required this.mode,
     required this.hour,
     required this.minute,
+    required this.durationMode,
   });
   final bool pm;
   final _OrbitalMode mode;
   final int hour;
   final int minute;
+  final bool durationMode;
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
@@ -645,9 +682,15 @@ class _OrbitalClockPainter extends CustomPainter {
           ..strokeWidth = major ? 1 : .65,
       );
     }
-    final selectedPosition = mode == _OrbitalMode.hour ? hour % 12 : minute;
+    final hourDivisions = durationMode ? 24 : 12;
+    final selectedPosition = mode == _OrbitalMode.hour
+        ? hour % hourDivisions
+        : minute;
     final selectedAngle =
-        selectedPosition * math.pi * 2 / (mode == _OrbitalMode.hour ? 12 : 60) -
+        selectedPosition *
+            math.pi *
+            2 /
+            (mode == _OrbitalMode.hour ? hourDivisions : 60) -
         math.pi / 2;
     final labelRadius = r * .73;
     final node =
@@ -716,20 +759,26 @@ class _OrbitalClockPainter extends CustomPainter {
       );
     }
     final labels = mode == _OrbitalMode.hour
-        ? List<int>.generate(12, (i) {
-            final h = i == 0 ? 12 : i;
-            return pm ? (h == 12 ? 24 : h + 12) : h;
-          })
+        ? (durationMode
+              ? List<int>.generate(12, (i) => i * 2)
+              : List<int>.generate(12, (i) {
+                  final h = i == 0 ? 12 : i;
+                  return pm ? (h == 12 ? 24 : h + 12) : h;
+                }))
         : List<int>.generate(12, (i) => i * 5);
     for (var i = 0; i < labels.length; i++) {
-      final pos = mode == _OrbitalMode.hour ? i : i * 5;
+      final pos = mode == _OrbitalMode.hour
+          ? (durationMode ? i * 2 : i)
+          : i * 5;
       final angle =
-          pos * math.pi * 2 / (mode == _OrbitalMode.hour ? 12 : 60) -
+          pos * math.pi * 2 / (mode == _OrbitalMode.hour ? hourDivisions : 60) -
           math.pi / 2;
       final point = c + Offset(math.cos(angle), math.sin(angle)) * labelRadius;
       final text = mode == _OrbitalMode.minute
           ? labels[i].toString().padLeft(2, '0')
-          : labels[i].toString();
+          : (durationMode
+                ? labels[i].toString().padLeft(2, '0')
+                : labels[i].toString());
       final tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -752,7 +801,8 @@ class _OrbitalClockPainter extends CustomPainter {
       old.pm != pm ||
       old.mode != mode ||
       old.hour != hour ||
-      old.minute != minute;
+      old.minute != minute ||
+      old.durationMode != durationMode;
 }
 
 TimeOfDay timeOfDayFromClock(

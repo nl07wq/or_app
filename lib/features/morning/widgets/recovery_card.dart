@@ -4,8 +4,8 @@ import '../../../core/models/morning_data.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/inputs/time/time_input_card.dart';
-import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
+import '../../../core/widgets/inputs/hud/hud_input_card.dart';
+import '../../schedule/widgets/shared_time_picker.dart';
 
 class RecoveryCard extends StatelessWidget {
   final TextEditingController sleepController;
@@ -75,11 +75,9 @@ class RecoveryCard extends StatelessWidget {
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Time')
           else ...[
-            TimeInputCard(
+            _SleepDurationOrbitalInput(
               title: "Sleep Time",
               controller: sleepController,
-              initialHour: 8,
-              initialMinute: 0,
             ),
           ],
 
@@ -88,8 +86,8 @@ class RecoveryCard extends StatelessWidget {
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Score')
           else if (sleepType == SleepType.sleep)
-            WheelInputCard(
-              key: ValueKey('sleep-score-${sleepType.name}'),
+            HUDInputCard(
+              key: ValueKey('status-sleep-score-hud-${sleepType.name}'),
               title: "Sleep Score",
               unit: "",
               controller: sleepScoreController,
@@ -123,6 +121,146 @@ class RecoveryCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _SleepDurationOrbitalInput extends StatefulWidget {
+  const _SleepDurationOrbitalInput({
+    required this.title,
+    required this.controller,
+  });
+
+  final String title;
+  final TextEditingController controller;
+
+  @override
+  State<_SleepDurationOrbitalInput> createState() =>
+      _SleepDurationOrbitalInputState();
+}
+
+class _SleepDurationOrbitalInputState
+    extends State<_SleepDurationOrbitalInput> {
+  Duration get _duration {
+    final parts = widget.controller.text.split(':');
+    final hour = int.tryParse(parts.first) ?? 8;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return Duration(
+      hours: hour.clamp(0, 23).toInt(),
+      minutes: minute.clamp(0, 59).toInt(),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller.text.isEmpty) {
+      widget.controller.text = '8:00';
+    }
+    widget.controller.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _selectDuration() async {
+    final result = await showSharedDurationPicker(
+      context,
+      initialDuration: _duration,
+    );
+    if (!mounted || result == null) return;
+    widget.controller.text =
+        '${result.inHours}:${result.inMinutes.remainder(60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: 'Sleep duration ${widget.controller.text}',
+      child: InkWell(
+        key: const ValueKey('status-sleep-duration-picker'),
+        onTap: _selectDuration,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 112,
+          decoration: BoxDecoration(
+            color: colors.surfaceContainer.withValues(alpha: .28),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colors.primary.withValues(alpha: .38)),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(
+                left: 14,
+                right: 14,
+                top: 29,
+                child: Container(
+                  height: 1,
+                  color: colors.primary.withValues(alpha: .24),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 29,
+                child: Container(
+                  height: 1,
+                  color: colors.primary.withValues(alpha: .24),
+                ),
+              ),
+              const Positioned(
+                left: 16,
+                top: 12,
+                child: Icon(Icons.bedtime_outlined, size: 20),
+              ),
+              Positioned(
+                right: 16,
+                top: 12,
+                child: Icon(
+                  Icons.track_changes_outlined,
+                  size: 20,
+                  color: colors.primary,
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.title,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.controller.text,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'ShareTechMono',
+                    ),
+                  ),
+                  Text(
+                    'DURATION / ORBITAL SELECT',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: colors.primary.withValues(alpha: .78),
+                      letterSpacing: .7,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ).inputFeedback(),
     );
   }
 }

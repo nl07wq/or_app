@@ -123,34 +123,35 @@ void main() {
     expect(find.text('37'), findsWidgets);
   });
 
-  testWidgets('hour dial follows one pointer until release before minute mode', (
-    tester,
-  ) async {
-    await showPicker(tester, const TimeOfDay(hour: 13, minute: 35));
-    final dial = find.byKey(const ValueKey('orbital-time-picker-dial'));
-    final center = tester.getRect(dial).center;
-    Offset atHour(int hour) {
-      final angle = hour * 2 * math.pi / 12 - math.pi / 2;
-      return center + Offset(88 * math.cos(angle), 88 * math.sin(angle));
-    }
+  testWidgets(
+    'hour dial follows one pointer until release before minute mode',
+    (tester) async {
+      await showPicker(tester, const TimeOfDay(hour: 13, minute: 35));
+      final dial = find.byKey(const ValueKey('orbital-time-picker-dial'));
+      final center = tester.getRect(dial).center;
+      Offset atHour(int hour) {
+        final angle = hour * 2 * math.pi / 12 - math.pi / 2;
+        return center + Offset(88 * math.cos(angle), 88 * math.sin(angle));
+      }
 
-    final gesture = await tester.createGesture(pointer: 41);
-    await gesture.down(atHour(1));
-    await tester.pump();
-    expect(find.text('13'), findsWidgets);
-    expect(find.text('HOUR SELECT'), findsOneWidget);
-    await gesture.moveTo(atHour(2));
-    await tester.pump();
-    expect(find.text('14'), findsWidgets);
-    expect(find.text('HOUR SELECT'), findsOneWidget);
-    await gesture.moveTo(atHour(4));
-    await tester.pump();
-    expect(find.text('16'), findsWidgets);
-    await gesture.up();
-    await tester.pump();
-    expect(find.text('MINUTE SELECT'), findsOneWidget);
-    expect(find.text('35'), findsWidgets);
-  });
+      final gesture = await tester.createGesture(pointer: 41);
+      await gesture.down(atHour(1));
+      await tester.pump();
+      expect(find.text('13'), findsWidgets);
+      expect(find.text('HOUR SELECT'), findsOneWidget);
+      await gesture.moveTo(atHour(2));
+      await tester.pump();
+      expect(find.text('14'), findsWidgets);
+      expect(find.text('HOUR SELECT'), findsOneWidget);
+      await gesture.moveTo(atHour(4));
+      await tester.pump();
+      expect(find.text('16'), findsWidgets);
+      await gesture.up();
+      await tester.pump();
+      expect(find.text('MINUTE SELECT'), findsOneWidget);
+      expect(find.text('35'), findsWidgets);
+    },
+  );
 
   testWidgets('hour center dead zone and cancellation do not change mode', (
     tester,
@@ -192,6 +193,42 @@ void main() {
           .onPressed,
       isNull,
     );
+  });
+
+  testWidgets('duration mode preserves elapsed time without AM or PM', (
+    tester,
+  ) async {
+    Duration? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () async {
+              result = await showSharedDurationPicker(
+                context,
+                initialDuration: const Duration(hours: 6, minutes: 30),
+              );
+            },
+            child: const Text('OPEN DURATION'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN DURATION'));
+    await tester.pumpAndSettle();
+    expect(find.text('DURATION HOUR'), findsOneWidget);
+    expect(find.textContaining('AM  /'), findsNothing);
+    expect(find.textContaining('PM  /'), findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('orbital-time-picker-keyboard')),
+    );
+    await tester.pump();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.first, '7');
+    await tester.enterText(fields.last, '05');
+    await tester.tap(find.byKey(const ValueKey('orbital-time-picker-ok')));
+    await tester.pumpAndSettle();
+    expect(result, const Duration(hours: 7, minutes: 5));
   });
 
   testWidgets('fits narrow, short and enlarged-text viewports', (tester) async {

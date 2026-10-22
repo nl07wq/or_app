@@ -32,7 +32,7 @@ class HUDValue extends StatelessWidget {
                     TextSpan(
                       text: animatedValue.toStringAsFixed(1),
                       style: const TextStyle(
-                        fontSize: 62,
+                        fontSize: 52,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         letterSpacing: -2,
@@ -42,7 +42,7 @@ class HUDValue extends StatelessWidget {
                     TextSpan(
                       text: " $unit",
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.w500,
                         color: Colors.white.withValues(alpha: .72),
                       ),

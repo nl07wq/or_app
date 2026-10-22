@@ -5,7 +5,6 @@ import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/section_header.dart';
 
 import '../../../core/widgets/inputs/hud/hud_input_card.dart';
-import '../../../core/widgets/inputs/wheel/wheel_input_card.dart';
 
 class BodyCard extends StatelessWidget {
   final TextEditingController weightController;
@@ -50,6 +49,7 @@ class BodyCard extends StatelessWidget {
             const _UnmeasuredValue(title: 'Weight')
           else ...[
             HUDInputCard(
+              key: const ValueKey('status-weight-hud'),
               title: "Weight",
               unit: "kg",
               controller: weightController,
@@ -65,7 +65,8 @@ class BodyCard extends StatelessWidget {
           if (weightUnmeasured)
             const _UnmeasuredValue(title: 'Body Fat')
           else ...[
-            WheelInputCard(
+            HUDInputCard(
+              key: const ValueKey('status-body-fat-hud'),
               title: "Body Fat",
               unit: "%",
               controller: bodyFatController,

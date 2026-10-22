@@ -18,7 +18,7 @@ class HUDScale extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 180,
+      height: 144,
       width: double.infinity,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 1.0, end: 1.0 + animation * 0.03),

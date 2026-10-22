@@ -4,9 +4,8 @@ import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/repositories/morning_repository.dart';
 import 'package:or_app/core/widgets/inputs/hud/hud_input_card.dart';
-import 'package:or_app/core/widgets/inputs/time/operation_time_picker.dart';
-import 'package:or_app/core/widgets/inputs/time/time_input_card.dart';
-import 'package:or_app/core/widgets/inputs/wheel/wheel_input_card.dart';
+import 'package:or_app/core/widgets/inputs/hud/hud_ruler.dart';
+import 'package:or_app/core/widgets/inputs/operation_ruler.dart';
 import 'package:or_app/features/morning/widgets/body_card.dart';
 import 'package:or_app/features/morning/widgets/recovery_card.dart';
 import 'package:or_app/features/morning/services/morning_submit_service.dart';
@@ -47,7 +46,7 @@ void main() {
       tester,
       title: 'BODY',
       actionKey: const ValueKey('Weight-unmeasured-toggle'),
-      input: find.byType(HUDInputCard),
+      input: find.byKey(const ValueKey('status-weight-hud')),
       selected: false,
     );
     expect(
@@ -58,7 +57,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
     await tester.pump();
     expect(find.byType(HUDInputCard), findsNothing);
-    expect(find.byType(WheelInputCard), findsNothing);
+    expect(find.byKey(const ValueKey('status-body-fat-hud')), findsNothing);
     expect(weight.text, isEmpty);
     expect(bodyFat.text, isEmpty);
     _expectUnmeasuredValueStyle(tester, 'Weight');
@@ -74,8 +73,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('Weight-unmeasured-toggle')));
     await tester.pump();
-    expect(find.byType(HUDInputCard), findsOneWidget);
-    expect(find.byType(WheelInputCard), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-body-fat-hud')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
       findsNothing,
@@ -100,8 +99,7 @@ void main() {
       width: 390,
     );
 
-    expect(find.byType(HUDInputCard), findsOneWidget);
-    expect(find.byType(WheelInputCard), findsOneWidget);
+    expect(find.byType(HUDInputCard), findsNWidgets(2));
     expect(
       find.byKey(const ValueKey('Body Fat-unmeasured-toggle')),
       findsNothing,
@@ -161,16 +159,20 @@ void main() {
       tester,
       title: 'RECOVERY',
       actionKey: const ValueKey('Sleep Time-unmeasured-toggle'),
-      input: find.byType(TimeInputCard),
+      input: find.byKey(const ValueKey('status-sleep-duration-picker')),
       selected: false,
+      alignRight: false,
     );
 
     await tester.tap(
       find.byKey(const ValueKey('Sleep Time-unmeasured-toggle')),
     );
     await tester.pump();
-    expect(find.byType(TimeInputCard), findsNothing);
-    expect(find.byType(WheelInputCard), findsNothing);
+    expect(
+      find.byKey(const ValueKey('status-sleep-duration-picker')),
+      findsNothing,
+    );
+    expect(find.byType(HUDInputCard), findsNothing);
     expect(find.text('未計測'), findsNWidgets(3));
     expect(
       _choiceChip(
@@ -214,8 +216,11 @@ void main() {
         find.byKey(const ValueKey('Sleep Time-unmeasured-toggle')),
       );
       await tester.pump();
-      expect(find.byType(TimeInputCard), findsOneWidget);
-      expect(find.byType(WheelInputCard), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('status-sleep-duration-picker')),
+        findsOneWidget,
+      );
+      expect(find.byType(HUDInputCard), findsOneWidget);
       expect(
         find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),
         findsNothing,
@@ -249,8 +254,11 @@ void main() {
         find.byKey(const ValueKey('Sleep Time-unmeasured-toggle')),
       );
       await tester.pump();
-      expect(find.byType(TimeInputCard), findsOneWidget);
-      expect(find.byType(WheelInputCard), findsNothing);
+      expect(
+        find.byKey(const ValueKey('status-sleep-duration-picker')),
+        findsOneWidget,
+      );
+      expect(find.byType(HUDInputCard), findsNothing);
       expect(find.text('仮眠'), findsNWidgets(2));
       expect(
         find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),
@@ -262,18 +270,123 @@ void main() {
   testWidgets('task091 hotfix: time ruler style follows current selection', (
     tester,
   ) async {
-    final controller = TextEditingController(text: '8:00');
+    final controller = TextEditingController(text: '80');
     await _pump(
       tester,
-      OperationTimePicker(controller: controller, minuteStep: 1),
+      OperationRuler(
+        controller: controller,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: '',
+        initialValue: 80,
+      ),
     );
 
-    controller.text = '8:10';
+    controller.text = '90';
     await tester.pump();
 
-    expect(_hasSelectedText(tester, '08'), isTrue);
-    expect(_hasSelectedText(tester, '10'), isTrue);
-    expect(_hasSelectedText(tester, '00'), isFalse);
+    expect(controller.text, '90');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('HUD ruler changes a value with a horizontal drag', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '80');
+    await _pump(
+      tester,
+      OperationRuler(
+        controller: controller,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: '',
+        initialValue: 80,
+      ),
+    );
+
+    final dragSurface = find.descendant(
+      of: find.byType(HUDRuler),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is GestureDetector && widget.onHorizontalDragUpdate != null,
+      ),
+    );
+    await tester.drag(dragSurface, const Offset(144, 0));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(double.parse(controller.text), lessThan(80));
+  });
+
+  testWidgets('status HUD inputs fit the supported iPhone widths', (
+    tester,
+  ) async {
+    for (final width in <double>[320, 375, 390, 430]) {
+      await _pump(
+        tester,
+        Column(
+          children: [
+            BodyCard(
+              weightController: TextEditingController(text: '72.4'),
+              bodyFatController: TextEditingController(text: '18.6'),
+              weightUnmeasured: false,
+              onWeightUnmeasured: () {},
+              onWeightMeasured: () {},
+            ),
+            RecoveryCard(
+              sleepController: TextEditingController(text: '7:05'),
+              sleepScoreController: TextEditingController(text: '82'),
+              sleepType: SleepType.sleep,
+              onSleepTypeChanged: (_) {},
+              sleepTimeUnmeasured: false,
+              onSleepTimeUnmeasured: () {},
+              onSleepTimeMeasured: () {},
+            ),
+          ],
+        ),
+        width: width,
+      );
+
+      expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('status-sleep-duration-picker')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('sleep duration opens the shared orbital duration mode', (
+    tester,
+  ) async {
+    final sleepTime = TextEditingController(text: '7:05');
+    await _pump(
+      tester,
+      RecoveryCard(
+        sleepController: sleepTime,
+        sleepScoreController: TextEditingController(text: '82'),
+        sleepType: SleepType.sleep,
+        onSleepTypeChanged: (_) {},
+        sleepTimeUnmeasured: false,
+        onSleepTimeUnmeasured: () {},
+        onSleepTimeMeasured: () {},
+      ),
+      width: 390,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('status-sleep-duration-picker')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('DURATION HOUR'), findsOneWidget);
+    expect(find.text('AM'), findsNothing);
+    expect(find.text('PM'), findsNothing);
+
+    await tester.tap(find.text('CANCEL'));
+    await tester.pumpAndSettle();
+    expect(sleepTime.text, '7:05');
   });
 }
 
@@ -297,6 +410,7 @@ void _expectSectionToggle(
   required ValueKey<String> actionKey,
   required Finder input,
   required bool selected,
+  bool alignRight = true,
 }) {
   final action = find.byKey(actionKey);
   final actionRect = tester.getRect(action);
@@ -304,7 +418,9 @@ void _expectSectionToggle(
   final titleRect = tester.getRect(find.text(title));
 
   expect(find.descendant(of: input, matching: action), findsNothing);
-  expect(actionRect.right, closeTo(inputRect.right, 0.1));
+  if (alignRight) {
+    expect(actionRect.right, closeTo(inputRect.right, 0.1));
+  }
   expect(actionRect.bottom, lessThan(inputRect.top));
   expect(actionRect.center.dy, closeTo(titleRect.center.dy, 8));
   expect(_choiceChip(tester, actionKey).selected, selected);
@@ -329,12 +445,3 @@ void _expectUnmeasuredValueStyle(WidgetTester tester, String title) {
   expect(text.style?.fontWeight, FontWeight.w600);
   expect(text.style?.color, Colors.lightBlueAccent);
 }
-
-bool _hasSelectedText(WidgetTester tester, String value) => tester
-    .widgetList<Text>(find.text(value))
-    .any(
-      (text) =>
-          text.style?.fontSize == 28 &&
-          text.style?.fontWeight == FontWeight.bold &&
-          text.style?.color == Colors.white,
-    );

@@ -67,7 +67,7 @@ void main() {
         tester.getSize(find.byKey(Key('foot-pain-chip-$value'))),
     ];
     expect(compactSizes.map((size) => size.width).toSet(), hasLength(1));
-    expect(compactSizes.first.width, closeTo(49.2, 0.01));
+    expect(compactSizes.first.width, closeTo(48.8, 0.01));
     expect(compactSizes.first.height, 48);
     expect(tester.takeException(), isNull);
   });
@@ -361,16 +361,15 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(_testApp(controller));
 
-    expect(find.textContaining('1–2：軽微'), findsNothing);
+    expect(find.textContaining('0–2 軽度'), findsNothing);
     await _tapCurrentValue(tester);
 
-    expect(find.textContaining('1–2：軽微'), findsOneWidget);
-    expect(find.textContaining('3–4：軽い'), findsOneWidget);
-    expect(find.textContaining('5–6：中程度'), findsOneWidget);
-    expect(find.textContaining('7–8：強い'), findsOneWidget);
-    expect(find.textContaining('9–10：非常に強い'), findsOneWidget);
+    expect(find.textContaining('0–2 軽度'), findsOneWidget);
+    expect(find.textContaining('3–4 監視'), findsOneWidget);
+    expect(find.textContaining('5–6 保護検討'), findsOneWidget);
+    expect(find.textContaining('7以上 強保護候補'), findsOneWidget);
 
-    final guidance = tester.widget<Text>(find.textContaining('1–2：軽微'));
+    final guidance = tester.widget<Text>(find.textContaining('0–2 軽度'));
     expect(
       guidance.style,
       Theme.of(tester.element(find.byType(FootCard))).textTheme.bodySmall,

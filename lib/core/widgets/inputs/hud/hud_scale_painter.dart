@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'hud_state.dart';
 
@@ -13,13 +12,13 @@ class HUDScalePainter extends CustomPainter {
     this.state = HUDState.idle,
   });
 
-  static const double majorSpacing = 140.0;
+  static const double majorSpacing = 96.0;
   static const double minorSpacing = majorSpacing / 10.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final centerX = size.width / 2;
-    const centerY = 100.0;
+    final centerY = size.height / 2;
 
     final majorPaint = Paint()..strokeCap = StrokeCap.round;
     final minorPaint = Paint()..strokeCap = StrokeCap.round;
@@ -67,14 +66,7 @@ class HUDScalePainter extends CustomPainter {
       //========================
 
       if (major == value.floor()) {
-        final pulse =
-            (0.5 +
-                    0.5 *
-                        (1 +
-                            math.sin(
-                              DateTime.now().millisecondsSinceEpoch / 220,
-                            )))
-                .clamp(0.0, 1.0);
+        final pulse = Curves.easeOut.transform(animation);
 
         final cursorWidth = switch (state) {
           HUDState.idle => 5.0,
@@ -234,8 +226,8 @@ class HUDScalePainter extends CustomPainter {
       }
       ..strokeCap = StrokeCap.round;
 
-    final frameWidth = 340.0 + expand;
-    final frameHeight = 170.0 + expand;
+    final frameWidth = size.width - 24 + expand;
+    final frameHeight = 116.0 + expand;
 
     final corner = switch (state) {
       HUDState.idle => 58.0,
@@ -302,12 +294,25 @@ class HUDScalePainter extends CustomPainter {
       hud,
     );
 
-    // Center Vertical
+    // Static top and bottom target markers define the reticle. Dragging moves
+    // the horizontal tape, never this vertical axis.
     canvas.drawLine(
-      Offset(centerX, top - 24),
-      Offset(centerX, bottom + 24),
+      Offset(centerX, top - 10),
+      Offset(centerX, bottom + 10),
       hud,
     );
+    final topMarker = Path()
+      ..moveTo(centerX, top - 2)
+      ..lineTo(centerX - 7, top + 10)
+      ..lineTo(centerX + 7, top + 10)
+      ..close();
+    final bottomMarker = Path()
+      ..moveTo(centerX, bottom + 2)
+      ..lineTo(centerX - 7, bottom - 10)
+      ..lineTo(centerX + 7, bottom - 10)
+      ..close();
+    canvas.drawPath(topMarker, Paint()..color = hud.color);
+    canvas.drawPath(bottomMarker, Paint()..color = hud.color);
 
     //========================
     // LOCK RETICLE
@@ -330,9 +335,7 @@ class HUDScalePainter extends CustomPainter {
 
     // Lock Brackets
 
-    final blink = state == HUDState.locked
-        ? (math.sin(DateTime.now().millisecondsSinceEpoch / 80) + 1) / 2
-        : 1.0;
+    final blink = state == HUDState.locked ? .8 + animation * .2 : 1.0;
 
     final lock = Paint()
       ..color = switch (state) {
@@ -406,16 +409,7 @@ class HUDScalePainter extends CustomPainter {
 
     // Moving Sweep
 
-    final sweepSpeed = switch (state) {
-      HUDState.idle => 28.0,
-      HUDState.drag => 10.0,
-      HUDState.locked => 6.0,
-    };
-
-    final sweepY =
-        top +
-        ((DateTime.now().millisecondsSinceEpoch / sweepSpeed) %
-            (frameHeight + 40));
+    final sweepY = centerY;
 
     final sweep = Paint()
       ..shader = LinearGradient(
@@ -435,12 +429,7 @@ class HUDScalePainter extends CustomPainter {
     //========================
     // GLOW
     //========================
-    double lockPulse = 0;
-
-    if (state == HUDState.locked) {
-      lockPulse =
-          (math.sin(DateTime.now().millisecondsSinceEpoch / 55) + 1) * .5;
-    }
+    final lockPulse = state == HUDState.locked ? .5 + animation * .5 : 0.0;
 
     final glow = Paint()
       ..color = switch (state) {
@@ -452,10 +441,7 @@ class HUDScalePainter extends CustomPainter {
           alpha: .18 + lockPulse * .12,
         ),
       }
-      ..maskFilter = MaskFilter.blur(
-        BlurStyle.normal,
-        24 + Curves.easeOut.transform(animation) * 18 + lockPulse * 8,
-      );
+      ..style = PaintingStyle.fill;
 
     canvas.drawCircle(
       Offset(centerX, centerY),
@@ -468,6 +454,8 @@ class HUDScalePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant HUDScalePainter oldDelegate) {
-    return oldDelegate.value != value || oldDelegate.animation != animation;
+    return oldDelegate.value != value ||
+        oldDelegate.animation != animation ||
+        oldDelegate.state != state;
   }
 }

@@ -192,11 +192,7 @@ class _FootCardState extends State<FootCard> {
             AppSpacing.gapMD,
 
             Text(
-              '1–2：軽微\n'
-              '3–4：軽い\n'
-              '5–6：中程度\n'
-              '7–8：強い\n'
-              '9–10：非常に強い',
+              '0–2 軽度   3–4 監視   5–6 保護検討   7以上 強保護候補',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -227,7 +223,9 @@ class _PainLevelChip extends StatelessWidget {
     final shape = RoundedRectangleBorder(
       borderRadius: const BorderRadius.all(Radius.circular(8)),
       side: BorderSide(
-        color: selected ? Colors.transparent : colorScheme.outlineVariant,
+        color: selected
+            ? colorScheme.primary.withValues(alpha: .82)
+            : colorScheme.outlineVariant,
       ),
     );
 
