@@ -104,7 +104,9 @@ class _OilDropState {
   Offset returnLane = Offset.zero;
   int routeSegment = 0;
   double compression = 0;
+  double compressionTarget = 0;
   Offset compressionNormal = const Offset(1, 0);
+  Offset compressionNormalTarget = const Offset(1, 0);
   double settleAge = 0;
   double settleDuration = 0;
   double exitProgress = 0;
@@ -137,6 +139,8 @@ class OilTimerSimulation {
   int landingCount = 0;
   int reboundCount = 0;
   int sinkOutCount = 0;
+  final Set<int> _activeContactPairs = <int>{};
+  final Set<int> _contactsThisStep = <int>{};
 
   OilTimerFrame advanceTo(double seconds, Size size) {
     if (size != _size) _reset(size);
@@ -176,11 +180,13 @@ class OilTimerSimulation {
     landingCount = 0;
     reboundCount = 0;
     sinkOutCount = 0;
+    _activeContactPairs.clear();
+    _contactsThisStep.clear();
     final min = size.shortestSide;
     for (var index = 0; index < dropCount; index++) {
       final h = OilTimerMotion.hash(index, 13);
       final xSeed = (index * .61803398875 + OilTimerMotion.hash(index, 31)) % 1;
-      final radius = min * (.032 + .050 * h);
+      final radius = min * (.032 + .050 * h) * 1.18;
       _drops.add(
         _OilDropState(
           id: index,
@@ -207,7 +213,7 @@ class OilTimerSimulation {
   void _step(double dt) {
     final floor = _size.height - math.max(16, _size.height * .06);
     for (final drop in _drops) {
-      drop.compression *= math.exp(-dt / .30);
+      _advanceContactDeformation(drop, dt);
       if (drop.state == _OilTravelState.descending ||
           drop.state == _OilTravelState.entering) {
         final tauY = .60 + OilTimerMotion.hash(drop.id, 71) * .50;
@@ -266,14 +272,19 @@ class OilTimerSimulation {
         _advanceReturn(drop, dt);
       }
     }
-    _solveContacts(dt);
+    _solveContacts();
+    _constrainSettledDrops(floor);
     _elapsed += dt;
   }
 
   void _landOnFloor(_OilDropState drop, double floor) {
     drop.center = Offset(drop.center.dx, floor - drop.radius);
     final incoming = drop.velocity.dy;
-    drop.velocity = Offset(drop.velocity.dx * .46, -incoming.abs() * .18);
+    drop.velocity = Offset(
+      drop.velocity.dx * .46,
+      incoming.abs() > 5 ? -incoming.abs() * .18 : 0,
+    );
+    if (incoming.abs() > 5) reboundCount++;
     drop.state = _OilTravelState.settling;
     drop.settleAge = 0;
     drop.settleDuration = 2.5 + OilTimerMotion.hash(drop.id, 53) * 2;
@@ -288,26 +299,21 @@ class OilTimerSimulation {
           _elapsed * (1.1 + OilTimerMotion.hash(drop.id, 107)) + drop.id * .91,
         ) *
         2;
-    final targetVx = math.sin(_elapsed * .38 + drop.id * 1.17) * 5;
-    final vx = (drop.velocity.dx + (targetVx - drop.velocity.dx) * dt * 2.5)
-        .clamp(-8.0, 8.0);
+    final targetX = (drop.stableFloorPosition.dx + sway).clamp(
+      drop.radius,
+      _size.width - drop.radius,
+    );
+    const response = 6.5;
+    final xError = targetX - drop.center.dx;
+    final xAcceleration =
+        response * response * xError - 2 * response * drop.velocity.dx;
+    final vx = (drop.velocity.dx + xAcceleration * dt).clamp(-8.0, 8.0);
     final vy = drop.velocity.dy + 22 * dt;
     drop.velocity = Offset(vx, vy);
     drop.center += drop.velocity * dt;
     if (drop.center.dy + drop.radius >= floor) {
-      drop.center = Offset(
-        (drop.stableFloorPosition.dx + sway).clamp(
-          drop.radius,
-          _size.width - drop.radius,
-        ),
-        floor - drop.radius,
-      );
-      if (drop.velocity.dy > 1.2) {
-        drop.velocity = Offset(drop.velocity.dx, -drop.velocity.dy * .18);
-        reboundCount++;
-      } else {
-        drop.velocity = Offset(drop.velocity.dx, 0);
-      }
+      drop.center = Offset(drop.center.dx, floor - drop.radius);
+      drop.velocity = Offset(drop.velocity.dx, 0);
     }
     if (drop.settleAge >= drop.settleDuration) {
       drop.state = _OilTravelState.sinkOut;
@@ -364,8 +370,9 @@ class OilTimerSimulation {
     }
   }
 
-  void _solveContacts(double dt) {
-    for (var iteration = 0; iteration < 2; iteration++) {
+  void _solveContacts() {
+    _contactsThisStep.clear();
+    for (var iteration = 0; iteration < 3; iteration++) {
       for (var first = 0; first < _drops.length - 1; first++) {
         final a = _drops[first];
         if (!_isContacting(a)) continue;
@@ -373,24 +380,30 @@ class OilTimerSimulation {
           final b = _drops[second];
           if (!_isContacting(b)) continue;
           final delta = b.center - a.center;
-          final distance = math.max(.001, delta.distance);
+          final pairId = first * dropCount + second;
+          final distance = delta.distance;
           final limit = a.radius + b.radius;
           if (distance >= limit) continue;
-          final normal = delta / distance;
+          final normal = distance < .001
+              ? _pairFallbackNormal(a.id, b.id)
+              : delta / distance;
           final overlap = limit - distance;
+          _contactsThisStep.add(pairId);
+          if (_activeContactPairs.add(pairId)) collisionCount++;
           final ma = a.radius * a.radius;
           final mb = b.radius * b.radius;
           final inverseMass = 1 / ma + 1 / mb;
-          a.center -= normal * (overlap * (1 / ma / inverseMass) * .82);
-          b.center += normal * (overlap * (1 / mb / inverseMass) * .82);
+          final correction = math.max(0.0, overlap - .75) * .28;
+          a.center -= normal * (correction * (1 / ma / inverseMass));
+          b.center += normal * (correction * (1 / mb / inverseMass));
           final relative =
               (b.velocity - a.velocity).dx * normal.dx +
               (b.velocity - a.velocity).dy * normal.dy;
-          if (relative < 0) {
+          if (relative < -5) {
             final settling =
                 a.state == _OilTravelState.settling ||
                 b.state == _OilTravelState.settling;
-            final restitution = settling ? .20 : .42;
+            final restitution = settling ? .08 : .30;
             final impulse = -(1 + restitution) * relative / inverseMass;
             a.velocity -= normal * (impulse / ma);
             b.velocity += normal * (impulse / mb);
@@ -398,23 +411,64 @@ class OilTimerSimulation {
             final tangentSpeed =
                 (b.velocity - a.velocity).dx * tangent.dx +
                 (b.velocity - a.velocity).dy * tangent.dy;
-            final friction =
-                tangentSpeed * (settling ? .14 : .10) / inverseMass;
-            a.velocity += tangent * (friction / ma);
-            b.velocity -= tangent * (friction / mb);
+            final frictionImpulse =
+                -tangentSpeed * (settling ? .18 : .12) / inverseMass;
+            a.velocity -= tangent * (frictionImpulse / ma);
+            b.velocity += tangent * (frictionImpulse / mb);
           }
           final compression = math.min(
-            .32,
-            .12 + .35 * overlap / math.min(a.radius, b.radius),
+            .22,
+            .25 * overlap / math.min(a.radius, b.radius) +
+                math.max(0.0, -relative) / 220,
           );
-          a.compression = math.max(a.compression, compression);
-          b.compression = math.max(b.compression, compression);
-          a.compressionNormal = -normal;
-          b.compressionNormal = normal;
-          if (iteration == 0) collisionCount++;
+          if (compression > a.compressionTarget) {
+            a.compressionTarget = compression;
+            a.compressionNormalTarget = -normal;
+          }
+          if (compression > b.compressionTarget) {
+            b.compressionTarget = compression;
+            b.compressionNormalTarget = normal;
+          }
         }
       }
     }
+    _activeContactPairs.removeWhere(
+      (pairId) => !_contactsThisStep.contains(pairId),
+    );
+  }
+
+  void _advanceContactDeformation(_OilDropState drop, double dt) {
+    final target = drop.compressionTarget;
+    final tau = target > drop.compression ? .09 : .25;
+    final blend = 1 - math.exp(-dt / tau);
+    drop.compression += (target - drop.compression) * blend;
+    final normal = Offset.lerp(
+      drop.compressionNormal,
+      drop.compressionNormalTarget,
+      blend,
+    )!;
+    drop.compressionNormal = normal.distanceSquared < .0001
+        ? const Offset(1, 0)
+        : normal / normal.distance;
+    drop.compressionTarget = 0;
+  }
+
+  void _constrainSettledDrops(double floor) {
+    for (final drop in _drops) {
+      if (drop.state != _OilTravelState.settling) continue;
+      final x = drop.center.dx.clamp(drop.radius, _size.width - drop.radius);
+      final y = math.min(drop.center.dy, floor - drop.radius);
+      drop.center = Offset(x, y);
+      if (drop.velocity.dy > 0) {
+        drop.velocity = Offset(drop.velocity.dx, 0);
+      }
+    }
+  }
+
+  Offset _pairFallbackNormal(int first, int second) {
+    final angle =
+        OilTimerMotion.hash(first * dropCount + second, 149) * math.pi * 2;
+    return Offset(math.cos(angle), math.sin(angle));
   }
 
   bool _isContacting(_OilDropState drop) =>
@@ -600,7 +654,7 @@ class _FoodAmbientPainter extends CustomPainter {
         contactStrength: drop.squashStrength,
       );
       final bounds = path.getBounds();
-      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .07));
+      c.drawPath(path, Paint()..color = drop.color.withValues(alpha: .05));
       c.save();
       c.clipPath(path);
       c.drawRect(
@@ -613,14 +667,14 @@ class _FoodAmbientPainter extends CustomPainter {
             ),
             radius: 1.05,
             colors: [
-              Color.lerp(drop.color, Colors.white, .42)!.withValues(alpha: .48),
-              drop.color.withValues(alpha: .36),
+              Color.lerp(drop.color, Colors.white, .42)!.withValues(alpha: .37),
+              drop.color.withValues(alpha: .27),
               Color.lerp(
                 drop.color,
                 const Color(0xff071522),
                 .58,
-              )!.withValues(alpha: .26),
-              drop.color.withValues(alpha: .08),
+              )!.withValues(alpha: .19),
+              drop.color.withValues(alpha: .055),
             ],
             stops: const [0, .30, .70, 1],
           ).createShader(bounds),
@@ -635,7 +689,7 @@ class _FoodAmbientPainter extends CustomPainter {
             drop.color,
             Colors.white,
             .42,
-          )!.withValues(alpha: .42),
+          )!.withValues(alpha: .38),
       );
     }
   }

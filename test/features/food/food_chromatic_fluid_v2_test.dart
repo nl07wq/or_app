@@ -41,6 +41,59 @@ void main() {
     expect(later.settlingDropCount, greaterThanOrEqualTo(0));
   });
 
+  test(
+    'circulation uses the 1.18 radius scale and smooth visible contacts',
+    () {
+      final simulation = OilTimerSimulation(viewport);
+      final initial = simulation.snapshot();
+      final min = viewport.shortestSide;
+      for (final drop in initial.drops) {
+        final seed = OilTimerMotion.hash(drop.id, 13);
+        expect(drop.radius, closeTo(min * (.032 + .050 * seed) * 1.18, 1e-9));
+      }
+
+      // Initial seeding intentionally includes drops just beyond the floor and
+      // viewport. Let that documented first landing resolve before measuring
+      // visible contact continuity.
+      simulation.advanceForTest(2);
+      var previous = simulation.snapshot();
+      var observedContactFrames = 0;
+      for (var step = 0; step < 60 * 30; step++) {
+        simulation.advanceForTest(1 / 60);
+        final frame = simulation.snapshot();
+        for (var index = 0; index < frame.drops.length; index++) {
+          final before = previous.drops[index];
+          final after = frame.drops[index];
+          final bothVisible =
+              before.center.dy >= -before.radius &&
+              before.center.dy <= viewport.height + before.radius &&
+              after.center.dy >= -after.radius &&
+              after.center.dy <= viewport.height + after.radius;
+          if (bothVisible) {
+            expect(
+              (after.center - before.center).distance,
+              lessThan(8),
+              reason: 'step=$step drop=${after.id}',
+            );
+          }
+        }
+        for (var first = 0; first < frame.drops.length - 1; first++) {
+          for (var second = first + 1; second < frame.drops.length; second++) {
+            final a = frame.drops[first];
+            final b = frame.drops[second];
+            if ((a.center - b.center).distance < a.radius + b.radius) {
+              observedContactFrames++;
+            }
+          }
+        }
+        previous = frame;
+      }
+      expect(observedContactFrames, greaterThan(0));
+      expect(simulation.collisionCount, greaterThanOrEqualTo(3));
+      expect(simulation.landingCount, greaterThanOrEqualTo(2));
+    },
+  );
+
   test('circulation is continuous through a nominal 48-second boundary', () {
     final simulation = OilTimerSimulation(viewport);
     simulation.advanceForTest(47.99);
