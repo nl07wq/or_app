@@ -29,3 +29,17 @@ confirm that a device displayed the notification.
 Deploy only after the required secrets and intended Cloudflare account are
 verified: `pnpm run deploy`. Do not create or replace secrets as part of a
 normal source deployment.
+
+## On-time delivery investigation workflow
+
+For one test reminder scheduled a few minutes ahead, record the app's local
+date/time, IANA time zone, and projected UTC `triggerAt` before leaving the
+screen. In Worker logs, correlate the same projection using the `p-xxxxxxxx`
+diagnostic value and compare, in order: `reconciled`, `alarm_scheduled`,
+`alarm_due`, `push_result`, and the terminal event. The timestamps separate a
+missing/stale projection, incorrect UTC conversion, a late Durable Object
+alarm, and a failed or deferred subscription retry. A 2xx `push_result` means
+the provider accepted the request only; compare it with an iPhone/PWA observed
+notification time (app open and closed) to determine any device presentation
+delay. Never include a title, payload, endpoint, token, or profile identifier
+in this record.

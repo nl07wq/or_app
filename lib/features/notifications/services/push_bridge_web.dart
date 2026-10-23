@@ -1,6 +1,10 @@
 @JS()
 library;
 
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+
+import 'dart:async';
+import 'dart:html' as html;
 import 'dart:js_interop';
 
 @JS('orAppPush.permission')
@@ -49,4 +53,5 @@ class PushBridge {
       _wallTimeToEpoch(localDate.toJS, localTime.toJS, timeZone.toJS).toDartInt;
   Future<String> serviceWorkerState() async =>
       (await _serviceWorkerState().toDart).toDart;
+  Stream<void> get onlineEvents => html.window.onOnline.map((_) {});
 }

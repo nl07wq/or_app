@@ -1,3 +1,5 @@
+import 'dart:async';
+
 class PushBridge {
   const PushBridge();
   String permission() => 'unsupported';
@@ -15,4 +17,5 @@ class PushBridge {
   int wallTimeToEpoch(String localDate, String localTime, String timeZone) =>
       DateTime.parse('${localDate}T$localTime:00Z').millisecondsSinceEpoch;
   Future<String> serviceWorkerState() async => 'unsupported';
+  Stream<void> get onlineEvents => const Stream<void>.empty();
 }

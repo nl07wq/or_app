@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/device_settings_controller.dart';
+import '../../../core/state/app_initialization_state.dart';
 import '../../reminders/models/reminder_occurrence.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
 import '../../repositories/app_repository_container.dart';
@@ -80,10 +81,12 @@ class NotificationRuntimeStatus {
 class NotificationProfileController
     extends ValueNotifier<NotificationRuntimeStatus> {
   NotificationProfileController({
-    PushBridge bridge = const PushBridge(),
+    PushBridge? bridge,
     Future<SharedPreferences> Function()? preferencesLoader,
-  }) : _bridge = bridge,
+    String? apiBase,
+  }) : _bridge = bridge ?? const PushBridge(),
        _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance,
+       _apiBase = apiBase ?? NotificationProfileController.apiBase,
        super(const NotificationRuntimeStatus());
 
   static const apiBase = String.fromEnvironment('OR_APP_NOTIFICATION_API');
@@ -95,11 +98,19 @@ class NotificationProfileController
 
   final PushBridge _bridge;
   final Future<SharedPreferences> Function() _preferencesLoader;
+  final String _apiBase;
   String? _profileId;
   String? _profileSecret;
   String? _installationId;
   bool _initialized = false;
-  bool _syncing = false;
+  bool _syncRequested = false;
+  Future<void>? _syncLoop;
+  bool _reconcileRequested = false;
+  Future<void>? _reconcileLoop;
+  StreamSubscription<void>? _onlineSubscription;
+  AppInitializationController? _repositoryInitializationController;
+  VoidCallback? _repositoryReadyListener;
+  bool _disposed = false;
 
   String? get profileId => _profileId;
   String get timeZone => _bridge.timeZone();
@@ -124,6 +135,7 @@ class NotificationProfileController
       if (configured && preferences.containsKey(_outboxKey)) {
         unawaited(syncPending());
       }
+      _listenForNetworkRecovery();
     } catch (error) {
       // Notification profile storage is optional at boot.  Keep the UI and
       // existing application data available, and allow a later retry.
@@ -144,7 +156,7 @@ class NotificationProfileController
     final profileSecret = _bridge.randomToken(32);
     final recoverySecret = _bridge.randomToken(32);
     await _bridge.request(
-      '$apiBase/v1/profiles/$profileId',
+      '$_apiBase/v1/profiles/$profileId',
       'POST',
       body: jsonEncode({
         'profileId': profileId,
@@ -159,7 +171,7 @@ class NotificationProfileController
   Future<void> recoverProfile(String profileId, String recoverySecret) async {
     _requireApi();
     final raw = await _bridge.request(
-      '$apiBase/v1/profiles/$profileId/recover',
+      '$_apiBase/v1/profiles/$profileId/recover',
       'POST',
       body: jsonEncode({'recoverySecret': recoverySecret.trim()}),
     );
@@ -169,11 +181,12 @@ class NotificationProfileController
 
   Future<String> createPairingPayload() async {
     await initialize();
-    if (!configured)
+    if (!configured) {
       throw StateError('Notification Profile is not configured.');
+    }
     final code = _bridge.randomToken(32);
     await _bridge.request(
-      '$apiBase/v1/profiles/$_profileId/pairing',
+      '$_apiBase/v1/profiles/$_profileId/pairing',
       'POST',
       token: _profileSecret,
       body: jsonEncode({'code': code}),
@@ -187,7 +200,7 @@ class NotificationProfileController
     final parsed = jsonDecode(payload) as Map<String, dynamic>;
     final profileId = parsed['profileId'] as String;
     final raw = await _bridge.request(
-      '$apiBase/v1/profiles/$profileId/pairing/consume',
+      '$_apiBase/v1/profiles/$profileId/pairing/consume',
       'POST',
       body: jsonEncode({
         'code': parsed['code'],
@@ -201,14 +214,18 @@ class NotificationProfileController
   Future<void> enablePush() async {
     _requireApi();
     await initialize();
-    if (!configured)
+    if (!configured) {
       throw StateError('Notification Profile is not configured.');
-    final keyRaw = await _bridge.request('$apiBase/v1/vapid-public-key', 'GET');
+    }
+    final keyRaw = await _bridge.request(
+      '$_apiBase/v1/vapid-public-key',
+      'GET',
+    );
     final key =
         (jsonDecode(keyRaw) as Map<String, dynamic>)['publicKey'] as String;
     final subscription = jsonDecode(await _bridge.subscribe(key));
     await _bridge.request(
-      '$apiBase/v1/profiles/$_profileId/installations/$_installationId/subscription',
+      '$_apiBase/v1/profiles/$_profileId/installations/$_installationId/subscription',
       'PUT',
       token: _profileSecret,
       body: jsonEncode(subscription),
@@ -221,9 +238,57 @@ class NotificationProfileController
     await reconcileFromRepositories();
   }
 
-  Future<void> reconcileFromRepositories() async {
+  /// Starts a safe recovery once the authoritative repository container is
+  /// ready. This is deliberately non-blocking for Flutter's first frame.
+  Future<void> startBackgroundRecovery() async {
     await initialize();
-    if (!AppRepositoryRegistry.hasContainer) return;
+    if (!configured || _disposed) return;
+    _listenForNetworkRecovery();
+    _requestRepositoryRecovery();
+    await syncPending();
+  }
+
+  /// Runs on foreground and browser online recovery. The queue is single
+  /// flight, while repository reconciliation is coalesced and drained again
+  /// when a change arrives during an in-flight pass.
+  Future<void> recoverOnForeground() async {
+    await initialize();
+    if (!configured || _disposed) return;
+    _requestRepositoryRecovery();
+    await syncPending();
+  }
+
+  Future<void> reconcileFromRepositories() {
+    _reconcileRequested = true;
+    return _ensureReconcileLoop();
+  }
+
+  Future<void> _ensureReconcileLoop() {
+    final active = _reconcileLoop;
+    if (active != null) return active;
+    final future = _drainRepositoryReconciliations();
+    _reconcileLoop = future;
+    return future.whenComplete(() {
+      if (!identical(_reconcileLoop, future)) return;
+      _reconcileLoop = null;
+      if (_reconcileRequested &&
+          !_disposed &&
+          AppRepositoryRegistry.hasContainer) {
+        unawaited(_ensureReconcileLoop());
+      }
+    });
+  }
+
+  Future<void> _drainRepositoryReconciliations() async {
+    await initialize();
+    if (!configured || !AppRepositoryRegistry.hasContainer || _disposed) return;
+    while (_reconcileRequested && !_disposed) {
+      _reconcileRequested = false;
+      await _reconcileFromRepositoriesOnce();
+    }
+  }
+
+  Future<void> _reconcileFromRepositoriesOnce() async {
     final now = DateTime.now().toUtc();
     final start = DateTime.now();
     final end = start.add(const Duration(days: 120));
@@ -283,40 +348,76 @@ class NotificationProfileController
       nextTrigger: projections.isEmpty ? null : projections.first.triggerAt,
       clearNextTrigger: projections.isEmpty,
     );
-    if (configured) await syncPending();
+    await syncPending();
   }
 
-  Future<void> syncPending() async {
-    if (_syncing || !configured || apiBase.isEmpty) return;
+  Future<void> syncPending() {
+    _syncRequested = true;
+    return _ensureSyncLoop();
+  }
+
+  Future<void> _ensureSyncLoop() {
+    final active = _syncLoop;
+    if (active != null) return active;
+    final future = _drainPendingSync();
+    _syncLoop = future;
+    return future.whenComplete(() {
+      if (!identical(_syncLoop, future)) return;
+      _syncLoop = null;
+      // A caller can arrive after the final loop condition but before the
+      // completion callback. Start another drain instead of dropping wakeup.
+      if (_syncRequested && !_disposed) unawaited(_ensureSyncLoop());
+    });
+  }
+
+  Future<void> _drainPendingSync() async {
+    await initialize();
+    if (!configured || _apiBase.isEmpty || _disposed) return;
     final preferences = await _preferencesLoader();
-    final body = preferences.getString(_outboxKey);
-    if (body == null) return;
-    _syncing = true;
-    value = value.copyWith(
-      reconciliation: NotificationReconciliationState.syncing,
-    );
-    try {
-      await _bridge.request(
-        '$apiBase/v1/profiles/$_profileId/projections/reconcile',
-        'PUT',
-        token: _profileSecret,
-        body: body,
-      );
-      await preferences.remove(_outboxKey);
+    while (_syncRequested && !_disposed) {
+      _syncRequested = false;
+      final body = preferences.getString(_outboxKey);
+      if (body == null) continue;
+      final profileId = _profileId;
+      final profileSecret = _profileSecret;
+      if (profileId == null || profileSecret == null) return;
       value = value.copyWith(
-        reconciliation: NotificationReconciliationState.synchronized,
-        pendingSync: false,
-        clearError: true,
-      );
-      await refreshStatus();
-    } catch (error) {
-      value = value.copyWith(
-        reconciliation: NotificationReconciliationState.failed,
+        reconciliation: NotificationReconciliationState.syncing,
         pendingSync: true,
-        error: error.toString(),
       );
-    } finally {
-      _syncing = false;
+      try {
+        await _bridge.request(
+          '$_apiBase/v1/profiles/$profileId/projections/reconcile',
+          'PUT',
+          token: profileSecret,
+          body: body,
+        );
+        final current = preferences.getString(_outboxKey);
+        final sameProfile =
+            profileId == _profileId && profileSecret == _profileSecret;
+        if (sameProfile && current == body) {
+          await preferences.remove(_outboxKey);
+        } else {
+          // A later generation or replacement profile won the race. Keep it
+          // durable and drain it before this single-flight loop exits.
+          _syncRequested = true;
+        }
+        value = value.copyWith(
+          reconciliation: NotificationReconciliationState.synchronized,
+          pendingSync: preferences.containsKey(_outboxKey),
+          clearError: true,
+        );
+        await refreshStatus();
+      } catch (error) {
+        // The persisted body remains untouched. A future foreground/online
+        // recovery, or a caller writing a newer generation, resumes it.
+        value = value.copyWith(
+          reconciliation: NotificationReconciliationState.failed,
+          pendingSync: true,
+          error: error.toString(),
+        );
+        return;
+      }
     }
   }
 
@@ -328,10 +429,10 @@ class NotificationProfileController
       subscription: serviceWorker,
       profile: configured ? 'configured' : 'missing',
     );
-    if (!configured || apiBase.isEmpty) return;
+    if (!configured || _apiBase.isEmpty) return;
     try {
       final raw = await _bridge.request(
-        '$apiBase/v1/profiles/$_profileId/status',
+        '$_apiBase/v1/profiles/$_profileId/status',
         'GET',
         token: _profileSecret,
       );
@@ -359,11 +460,63 @@ class NotificationProfileController
     _profileId = profileId;
     _profileSecret = profileSecret;
     value = value.copyWith(profile: 'configured', clearError: true);
+    _listenForNetworkRecovery();
+    _requestRepositoryRecovery();
+    unawaited(syncPending());
+  }
+
+  void _listenForNetworkRecovery() {
+    if (_onlineSubscription != null || _disposed) return;
+    _onlineSubscription = _bridge.onlineEvents.listen((_) {
+      unawaited(recoverOnForeground());
+    });
+  }
+
+  void _requestRepositoryRecovery() {
+    if (_disposed || !configured) return;
+    final controller = AppRepositoryRegistry.controller;
+    if (!identical(_repositoryInitializationController, controller)) {
+      final previousController = _repositoryInitializationController;
+      final previousListener = _repositoryReadyListener;
+      if (previousController != null && previousListener != null) {
+        previousController.removeListener(previousListener);
+      }
+      _repositoryInitializationController = controller;
+      _repositoryReadyListener = () {
+        final current = _repositoryInitializationController;
+        if (current == null ||
+            !current.value.canWrite ||
+            !AppRepositoryRegistry.hasContainer ||
+            _disposed) {
+          return;
+        }
+        current.removeListener(_repositoryReadyListener!);
+        _repositoryReadyListener = null;
+        unawaited(reconcileFromRepositories());
+      };
+      controller.addListener(_repositoryReadyListener!);
+    }
+    _repositoryReadyListener?.call();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _onlineSubscription?.cancel();
+    final controller = _repositoryInitializationController;
+    final listener = _repositoryReadyListener;
+    if (controller != null && listener != null) {
+      controller.removeListener(listener);
+    }
+    _repositoryReadyListener = null;
+    _repositoryInitializationController = null;
+    super.dispose();
   }
 
   void _requireApi() {
-    if (apiBase.isEmpty)
+    if (_apiBase.isEmpty) {
       throw StateError('Notification API is not configured.');
+    }
   }
 
   @visibleForTesting
@@ -372,7 +525,8 @@ class NotificationProfileController
     _profileSecret = null;
     _installationId = null;
     _initialized = false;
-    _syncing = false;
+    _syncRequested = false;
+    _reconcileRequested = false;
     value = const NotificationRuntimeStatus();
   }
 }

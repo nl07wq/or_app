@@ -41,6 +41,17 @@ export function boundedPushRetryAt(
   return Math.min(requestedRetryAtMs, pushFreshnessDeadline(triggerAtMs));
 }
 
+/// Stable non-secret log correlation. It deliberately never exposes the
+/// projection identity (which can contain local record identifiers).
+export function projectionCorrelationId(projectionId: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < projectionId.length; index++) {
+    hash ^= projectionId.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `p-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 const idPattern = /^[A-Za-z0-9_.:@-]{1,180}$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 

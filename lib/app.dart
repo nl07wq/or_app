@@ -41,6 +41,7 @@ import 'features/system/pages/startup_diagnostic_page.dart';
 import 'features/system/pages/body_map_svg_preview_page.dart';
 import 'features/weather/weather_settings_page.dart';
 import 'features/reminders/pages/reminders_page.dart';
+import 'features/notifications/services/notification_profile_controller.dart';
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -56,7 +57,8 @@ class OperationRebootApp extends StatefulWidget {
   State<OperationRebootApp> createState() => _OperationRebootAppState();
 }
 
-class _OperationRebootAppState extends State<OperationRebootApp> {
+class _OperationRebootAppState extends State<OperationRebootApp>
+    with WidgetsBindingObserver {
   late final StartupInitializationService _initializationService;
   String? _lastInitializationMode;
   bool _appBuildRecorded = false;
@@ -64,6 +66,7 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializationService =
         widget.initializationService ?? StartupInitializationService();
     _initializationService.controller.addListener(_recordInitializationState);
@@ -102,11 +105,19 @@ class _OperationRebootAppState extends State<OperationRebootApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     StartupDiagnostic.instance.record('FLUTTER', 'APP_ROOT_DISPOSE');
     _initializationService.controller.removeListener(
       _recordInitializationState,
     );
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(NotificationProfileController.instance.recoverOnForeground());
+    }
   }
 
   @override

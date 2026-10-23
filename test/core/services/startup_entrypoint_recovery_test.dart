@@ -21,6 +21,11 @@ void main() {
         greaterThan(runApp),
       );
       expect(source, contains('NOTIFICATION_PROFILE_INITIALIZATION_FAILED'));
+      expect(
+        source,
+        contains('startBackgroundRecovery()'),
+        reason: 'configured profiles must reconcile after repository startup',
+      );
     },
   );
 }

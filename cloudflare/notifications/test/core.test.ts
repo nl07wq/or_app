@@ -4,6 +4,7 @@ import {
   boundedPushRetryAt,
   isPushExpired,
   notificationPayload,
+  projectionCorrelationId,
   pushFreshnessDeadline,
   pushFreshnessToleranceMs,
   retryDelayMs,
@@ -62,6 +63,13 @@ describe('notification backend contracts', () => {
     expect(
       boundedPushRetryAt(triggerAt, deadline + 1, deadline + 2),
     ).toBeNull();
+  });
+
+  it('uses a stable non-secret projection correlation for diagnostics', () => {
+    const first = projectionCorrelationId(base.id);
+    expect(first).toMatch(/^p-[0-9a-f]{8}$/);
+    expect(projectionCorrelationId(base.id)).toBe(first);
+    expect(first).not.toContain(base.id);
   });
 
   it('rejects malformed projection timestamps and IDs', () => {

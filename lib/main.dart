@@ -45,6 +45,7 @@ Future<void> _initializeNotificationProfile(
 ) async {
   try {
     await NotificationProfileController.instance.initialize();
+    unawaited(NotificationProfileController.instance.startBackgroundRecovery());
     diagnostic.record('DART', 'NOTIFICATION_PROFILE_INITIALIZED');
   } catch (error) {
     diagnostic.record(

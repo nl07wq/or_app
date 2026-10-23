@@ -8,6 +8,7 @@ import {
   boundedPushRetryAt,
   isPushExpired,
   notificationPayload,
+  projectionCorrelationId,
   pushFreshnessToleranceMs,
   retryDelayMs,
   secretDigest,
@@ -269,6 +270,10 @@ export class NotificationProfile extends DurableObject<Env> {
         item.id, item.entityType, item.entityId, item.occurrenceLocalDate,
         Date.parse(item.triggerAt), item.timeZone, item.privacyMode, item.title ?? null, body.generation,
       );
+      this.logDeliveryDiagnostic('reconciled', {
+        projection: projectionCorrelationId(item.id),
+        triggerAt: Date.parse(item.triggerAt),
+      });
     }
     this.expireStaleProjections(now);
     await this.scheduleNextAlarm();
@@ -303,6 +308,7 @@ export class NotificationProfile extends DurableObject<Env> {
         cancelled: cancelled.count,
       },
       quotaState: 'free-tier-limits-not-exposed-by-runtime',
+      freshnessToleranceMs: pushFreshnessToleranceMs,
     });
   }
 
@@ -334,6 +340,7 @@ export class NotificationProfile extends DurableObject<Env> {
         'no_subscription_deferred', retryAt, row.id,
       );
       this.logDeliveryDiagnostic('deferred_no_subscription', {
+        projection: projectionCorrelationId(String(row.id)),
         triggerAt, attemptAt: startedAt, retryAt, latenessMs: startedAt - triggerAt,
         retryCount: Number(row.attempts),
       });
@@ -386,6 +393,7 @@ export class NotificationProfile extends DurableObject<Env> {
         }
         const response = await fetch(subscription.endpoint, init);
         this.logDeliveryDiagnostic('push_result', {
+          projection: projectionCorrelationId(String(row.id)),
           triggerAt, attemptAt: sendAt, latenessMs: sendAt - triggerAt,
           retryCount: Number(row.attempts), resultClass: `${Math.floor(response.status / 100)}xx`,
         });
@@ -402,6 +410,7 @@ export class NotificationProfile extends DurableObject<Env> {
         retryable = true;
         this.ctx.storage.sql.exec('UPDATE subscriptions SET failure_count=failure_count+1, last_result=? WHERE installation_id=?', 'network_error', value.installation_id);
         this.logDeliveryDiagnostic('push_result', {
+          projection: projectionCorrelationId(String(row.id)),
           triggerAt, attemptAt, latenessMs: attemptAt - triggerAt,
           retryCount: Number(row.attempts), resultClass: 'network_error',
         });
@@ -418,6 +427,7 @@ export class NotificationProfile extends DurableObject<Env> {
         completedAt, attempts, finalResult, row.id,
       );
       this.logDeliveryDiagnostic('terminal', {
+        projection: projectionCorrelationId(String(row.id)),
         triggerAt, attemptAt: completedAt, latenessMs: completedAt - triggerAt,
         retryCount: attempts, terminalState: success > 0 ? 'delivered' : 'failed',
       });
@@ -453,6 +463,7 @@ export class NotificationProfile extends DurableObject<Env> {
       now, 'expired', row.id,
     );
     this.logDeliveryDiagnostic('expired', {
+      projection: projectionCorrelationId(String(row.id)),
       triggerAt: Number(row.trigger_at), alarmAt: now, latenessMs: now - Number(row.trigger_at),
       retryCount: Number(row.attempts), terminalState: 'expired',
     });
@@ -465,9 +476,19 @@ export class NotificationProfile extends DurableObject<Env> {
 
   private async scheduleNextAlarm(): Promise<void> {
     const row = this.ctx.storage.sql.exec(
-      'SELECT MIN(COALESCE(retry_at, trigger_at)) AS value FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
-    ).one() as { value: number | null };
-    if (row.value) await this.ctx.storage.setAlarm(Math.max(Date.now() + 1000, row.value));
+      `SELECT id, trigger_at, COALESCE(retry_at, trigger_at) AS due_at
+       FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL
+       ORDER BY due_at LIMIT 1`,
+    ).one() as { id: string; trigger_at: number; due_at: number } | null;
+    if (row != null) {
+      const alarmAt = Math.max(Date.now() + 1000, row.due_at);
+      this.logDeliveryDiagnostic('alarm_scheduled', {
+        projection: projectionCorrelationId(row.id),
+        triggerAt: row.trigger_at,
+        alarmAt,
+      });
+      await this.ctx.storage.setAlarm(alarmAt);
+    }
     else await this.ctx.storage.deleteAlarm();
   }
 }
