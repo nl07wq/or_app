@@ -32,6 +32,59 @@ void main() {
     expect(values.last.title, '診察');
   });
 
+  test('JST 08:00 and each offset retain their own UTC trigger instant', () {
+    const occurrence = NotificationSourceOccurrence(
+      entityType: 'reminder',
+      entityId: 'morning-reminder',
+      localDate: '2026-10-22',
+      allDay: false,
+      startTime: '08:00',
+      timeZone: 'Asia/Tokyo',
+      offsetsMinutes: [0, 15],
+      title: 'morning',
+    );
+    final values = const NotificationProjectionPlanner(tokyoWallTime).project(
+      [occurrence],
+      privacyMode: NotificationPrivacyMode.titleVisible,
+      now: DateTime.utc(2026, 10, 1),
+    );
+
+    expect(values.map((value) => value.triggerAt), [
+      DateTime.utc(2026, 10, 21, 22, 45),
+      DateTime.utc(2026, 10, 21, 23),
+    ]);
+  });
+
+  test('planner preserves UTC instants supplied by a DST-aware wall-time bridge', () {
+    int dstWallTime(String date, String time, String zone) {
+      expect(zone, 'America/New_York');
+      final offset = date == '2026-03-08' ? '-04:00' : '-05:00';
+      return DateTime.parse('${date}T$time:00$offset').millisecondsSinceEpoch;
+    }
+    final planner = NotificationProjectionPlanner(dstWallTime);
+    final values = planner.project(
+      const [
+        NotificationSourceOccurrence(
+          entityType: 'schedule', entityId: 'dst-spring', localDate: '2026-03-08',
+          allDay: false, startTime: '09:00', timeZone: 'America/New_York',
+          offsetsMinutes: [0], title: 'spring',
+        ),
+        NotificationSourceOccurrence(
+          entityType: 'schedule', entityId: 'dst-fall', localDate: '2026-11-01',
+          allDay: false, startTime: '09:00', timeZone: 'America/New_York',
+          offsetsMinutes: [0], title: 'fall',
+        ),
+      ],
+      privacyMode: NotificationPrivacyMode.contentHidden,
+      now: DateTime.utc(2026, 1, 1),
+    );
+
+    expect(values.map((value) => value.triggerAt), [
+      DateTime.utc(2026, 3, 8, 13),
+      DateTime.utc(2026, 11, 1, 14),
+    ]);
+  });
+
   test('all-day authority is pinned local midnight', () {
     final values = const NotificationProjectionPlanner(tokyoWallTime).project(
       [

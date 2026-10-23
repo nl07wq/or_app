@@ -5,7 +5,10 @@ import {
   constantTimeEqual,
   decryptSecret,
   encryptSecret,
+  boundedPushRetryAt,
+  isPushExpired,
   notificationPayload,
+  pushFreshnessToleranceMs,
   retryDelayMs,
   secretDigest,
   validateProjection,
@@ -97,7 +100,17 @@ export class NotificationProfile extends DurableObject<Env> {
         occurrence_local_date TEXT NOT NULL, trigger_at INTEGER NOT NULL, time_zone TEXT NOT NULL,
         privacy_mode TEXT NOT NULL, title TEXT, generation TEXT NOT NULL,
         attempts INTEGER NOT NULL DEFAULT 0, delivered_at INTEGER, cancelled_at INTEGER,
-        retry_at INTEGER, last_result TEXT)`);
+        expired_at INTEGER, failed_at INTEGER, retry_at INTEGER, last_attempt_at INTEGER, last_result TEXT)`);
+      const projectionColumns = [...sql.exec('PRAGMA table_info(projections)')] as Array<{ name: string }>;
+      if (!projectionColumns.some((column) => column.name === 'expired_at')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN expired_at INTEGER');
+      }
+      if (!projectionColumns.some((column) => column.name === 'failed_at')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN failed_at INTEGER');
+      }
+      if (!projectionColumns.some((column) => column.name === 'last_attempt_at')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN last_attempt_at INTEGER');
+      }
       sql.exec(`CREATE INDEX IF NOT EXISTS projections_due ON projections(trigger_at, retry_at)`);
     });
   }
@@ -224,24 +237,40 @@ export class NotificationProfile extends DurableObject<Env> {
     const ids = new Set(projections.map((item) => item.id));
     if (ids.size !== projections.length) return json({ error: 'duplicate_projection' }, 400);
     const sql = this.ctx.storage.sql;
-    sql.exec('UPDATE projections SET cancelled_at = ? WHERE delivered_at IS NULL AND cancelled_at IS NULL', Date.now());
+    const now = Date.now();
+    const cancelled = sql.exec(
+      'SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
+    ).one() as { count: number };
+    sql.exec(
+      'UPDATE projections SET cancelled_at = ? WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
+      now,
+    );
+    if (cancelled.count > 0) {
+      this.logDeliveryDiagnostic('cancelled', { alarmAt: now, terminalState: 'cancelled', count: cancelled.count });
+    }
     for (const item of projections) {
       sql.exec(
         `INSERT INTO projections(id, entity_type, entity_id, occurrence_local_date, trigger_at,
-         time_zone, privacy_mode, title, generation, attempts, delivered_at, cancelled_at, retry_at, last_result)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, NULL)
+         time_zone, privacy_mode, title, generation, attempts, delivered_at, cancelled_at, expired_at, failed_at, retry_at, last_result)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, NULL, NULL, NULL)
          ON CONFLICT(id) DO UPDATE SET entity_type=excluded.entity_type, entity_id=excluded.entity_id,
          occurrence_local_date=excluded.occurrence_local_date, trigger_at=excluded.trigger_at,
          time_zone=excluded.time_zone, privacy_mode=excluded.privacy_mode, title=excluded.title,
-         generation=excluded.generation, cancelled_at=NULL,
+         generation=excluded.generation,
+         cancelled_at=CASE WHEN projections.delivered_at IS NOT NULL OR projections.expired_at IS NOT NULL OR projections.failed_at IS NOT NULL
+           THEN projections.cancelled_at ELSE NULL END,
          delivered_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.delivered_at END,
+         expired_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.expired_at END,
+         failed_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.failed_at END,
          attempts=CASE WHEN projections.trigger_at != excluded.trigger_at THEN 0 ELSE projections.attempts END,
          retry_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.retry_at END,
+         last_attempt_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.last_attempt_at END,
          last_result=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.last_result END`,
         item.id, item.entityType, item.entityId, item.occurrenceLocalDate,
         Date.parse(item.triggerAt), item.timeZone, item.privacyMode, item.title ?? null, body.generation,
       );
     }
+    this.expireStaleProjections(now);
     await this.scheduleNextAlarm();
     return json({ generation: body.generation, accepted: projections.length });
   }
@@ -250,11 +279,15 @@ export class NotificationProfile extends DurableObject<Env> {
     const sql = this.ctx.storage.sql;
     const installations = sql.exec('SELECT COUNT(*) AS count FROM installations').one() as { count: number };
     const subscriptions = sql.exec('SELECT COUNT(*) AS count FROM subscriptions').one() as { count: number };
-    const pending = sql.exec('SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NULL AND cancelled_at IS NULL').one() as { count: number };
-    const next = sql.exec('SELECT MIN(COALESCE(retry_at, trigger_at)) AS value FROM projections WHERE delivered_at IS NULL AND cancelled_at IS NULL').one() as { value: number | null };
+    const pending = sql.exec('SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL').one() as { count: number };
+    const next = sql.exec('SELECT MIN(COALESCE(retry_at, trigger_at)) AS value FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL').one() as { value: number | null };
     const failed = sql.exec('SELECT COUNT(*) AS count FROM subscriptions WHERE failure_count > 0').one() as { count: number };
+    const expired = sql.exec('SELECT COUNT(*) AS count FROM projections WHERE expired_at IS NOT NULL').one() as { count: number };
+    const delivered = sql.exec('SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NOT NULL').one() as { count: number };
+    const cancelled = sql.exec('SELECT COUNT(*) AS count FROM projections WHERE cancelled_at IS NOT NULL').one() as { count: number };
+    const terminalFailed = sql.exec('SELECT COUNT(*) AS count FROM projections WHERE failed_at IS NOT NULL').one() as { count: number };
     const last = [...sql.exec(
-      'SELECT last_result FROM projections WHERE last_result IS NOT NULL ORDER BY COALESCE(delivered_at, retry_at, trigger_at) DESC LIMIT 1',
+      'SELECT last_result FROM projections WHERE last_result IS NOT NULL ORDER BY COALESCE(delivered_at, expired_at, failed_at, cancelled_at, retry_at, trigger_at) DESC LIMIT 1',
     )][0] as { last_result: string } | undefined;
     return json({
       installations: installations.count,
@@ -263,27 +296,47 @@ export class NotificationProfile extends DurableObject<Env> {
       nextTriggerAt: next.value ? new Date(next.value).toISOString() : null,
       lastPushResult: last?.last_result ?? null,
       failedSubscriptions: failed.count,
+      deliveryStates: {
+        delivered: delivered.count,
+        expired: expired.count,
+        failed: terminalFailed.count,
+        cancelled: cancelled.count,
+      },
       quotaState: 'free-tier-limits-not-exposed-by-runtime',
     });
   }
 
   async alarm(): Promise<void> {
     const now = Date.now();
+    const expired = this.expireStaleProjections(now);
     const due = [...this.ctx.storage.sql.exec(
-      `SELECT * FROM projections WHERE delivered_at IS NULL AND cancelled_at IS NULL
+      `SELECT * FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL
        AND COALESCE(retry_at, trigger_at) <= ? ORDER BY COALESCE(retry_at, trigger_at) LIMIT 50`, now,
     )] as unknown as Array<Record<string, string | number | null>>;
+    this.logDeliveryDiagnostic('alarm_due', { alarmAt: now, due: due.length, expired });
     for (const row of due) await this.deliver(row);
     await this.scheduleNextAlarm();
   }
 
   private async deliver(row: Record<string, string | number | null>): Promise<void> {
+    const triggerAt = Number(row.trigger_at);
+    const startedAt = Date.now();
+    if (this.expireProjectionIfStale(row, startedAt)) return;
     const subscriptions = [...this.ctx.storage.sql.exec('SELECT * FROM subscriptions')] as unknown as Array<Record<string, string | number>>;
     if (subscriptions.length === 0) {
+      const retryAt = boundedPushRetryAt(triggerAt, startedAt, startedAt + 3_600_000);
+      if (retryAt === null) {
+        this.expireProjectionIfStale(row, Date.now());
+        return;
+      }
       this.ctx.storage.sql.exec(
         'UPDATE projections SET last_result = ?, retry_at = ? WHERE id = ?',
-        'no_subscription', Date.now() + 3_600_000, row.id,
+        'no_subscription_deferred', retryAt, row.id,
       );
+      this.logDeliveryDiagnostic('deferred_no_subscription', {
+        triggerAt, attemptAt: startedAt, retryAt, latenessMs: startedAt - triggerAt,
+        retryCount: Number(row.attempts),
+      });
       return;
     }
     const projection: ProjectionInput = {
@@ -300,13 +353,42 @@ export class NotificationProfile extends DurableObject<Env> {
     let retryable = false;
     let success = 0;
     for (const value of subscriptions) {
+      const attemptAt = Date.now();
+      if (isPushExpired(triggerAt, attemptAt)) {
+        if (success > 0) {
+          this.ctx.storage.sql.exec(
+            'UPDATE projections SET delivered_at=?, retry_at=NULL, last_result=? WHERE id=?',
+            attemptAt, 'delivered_partial_expired', row.id,
+          );
+        } else {
+          this.expireProjectionIfStale(row, attemptAt);
+        }
+        return;
+      }
+      this.ctx.storage.sql.exec('UPDATE projections SET last_attempt_at=? WHERE id=?', attemptAt, row.id);
       try {
         const subscription: PushSubscription = {
           endpoint: String(value.endpoint), expirationTime: null,
           keys: { p256dh: String(value.p256dh), auth: String(value.auth) },
         };
         const init = await buildPushPayload({ data: notificationPayload(projection), options: { ttl: 300 } }, subscription, vapid);
+        const sendAt = Date.now();
+        if (isPushExpired(triggerAt, sendAt)) {
+          if (success > 0) {
+            this.ctx.storage.sql.exec(
+              'UPDATE projections SET delivered_at=?, retry_at=NULL, last_result=? WHERE id=?',
+              sendAt, 'delivered_partial_expired', row.id,
+            );
+          } else {
+            this.expireProjectionIfStale(row, sendAt);
+          }
+          return;
+        }
         const response = await fetch(subscription.endpoint, init);
+        this.logDeliveryDiagnostic('push_result', {
+          triggerAt, attemptAt: sendAt, latenessMs: sendAt - triggerAt,
+          retryCount: Number(row.attempts), resultClass: `${Math.floor(response.status / 100)}xx`,
+        });
         if (response.ok) {
           success++;
           this.ctx.storage.sql.exec('UPDATE subscriptions SET failure_count=0, last_result=? WHERE installation_id=?', `ok:${response.status}`, value.installation_id);
@@ -319,19 +401,71 @@ export class NotificationProfile extends DurableObject<Env> {
       } catch {
         retryable = true;
         this.ctx.storage.sql.exec('UPDATE subscriptions SET failure_count=failure_count+1, last_result=? WHERE installation_id=?', 'network_error', value.installation_id);
+        this.logDeliveryDiagnostic('push_result', {
+          triggerAt, attemptAt, latenessMs: attemptAt - triggerAt,
+          retryCount: Number(row.attempts), resultClass: 'network_error',
+        });
       }
     }
     const attempts = Number(row.attempts) + 1;
     if (success > 0 || !retryable || attempts >= 4) {
-      this.ctx.storage.sql.exec('UPDATE projections SET delivered_at=?, attempts=?, retry_at=NULL, last_result=? WHERE id=?', Date.now(), attempts, success > 0 ? `delivered:${success}` : 'failed_final', row.id);
+      const completedAt = Date.now();
+      const finalResult = success > 0 ? `delivered:${success}` : 'failed_final';
+      this.ctx.storage.sql.exec(
+        success > 0
+          ? 'UPDATE projections SET delivered_at=?, attempts=?, retry_at=NULL, last_result=? WHERE id=?'
+          : 'UPDATE projections SET failed_at=?, attempts=?, retry_at=NULL, last_result=? WHERE id=?',
+        completedAt, attempts, finalResult, row.id,
+      );
+      this.logDeliveryDiagnostic('terminal', {
+        triggerAt, attemptAt: completedAt, latenessMs: completedAt - triggerAt,
+        retryCount: attempts, terminalState: success > 0 ? 'delivered' : 'failed',
+      });
     } else {
-      this.ctx.storage.sql.exec('UPDATE projections SET attempts=?, retry_at=?, last_result=? WHERE id=?', attempts, Date.now() + retryDelayMs(attempts), 'retry_scheduled', row.id);
+      const retryAt = boundedPushRetryAt(triggerAt, Date.now(), Date.now() + retryDelayMs(attempts));
+      if (retryAt === null) {
+        this.expireProjectionIfStale(row, Date.now());
+      } else {
+        this.ctx.storage.sql.exec('UPDATE projections SET attempts=?, retry_at=?, last_result=? WHERE id=?', attempts, retryAt, 'retry_scheduled', row.id);
+      }
     }
+  }
+
+  private expireStaleProjections(now: number): number {
+    const deadline = now - pushFreshnessToleranceMs;
+    const before = this.ctx.storage.sql.exec(
+      'SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL AND trigger_at < ?',
+      deadline,
+    ).one() as { count: number };
+    if (before.count > 0) {
+      this.ctx.storage.sql.exec(
+        'UPDATE projections SET expired_at=?, retry_at=NULL, last_result=? WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL AND trigger_at < ?',
+        now, 'expired', deadline,
+      );
+    }
+    return before.count;
+  }
+
+  private expireProjectionIfStale(row: Record<string, string | number | null>, now: number): boolean {
+    if (!isPushExpired(Number(row.trigger_at), now)) return false;
+    this.ctx.storage.sql.exec(
+      'UPDATE projections SET expired_at=?, retry_at=NULL, last_result=? WHERE id=? AND delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
+      now, 'expired', row.id,
+    );
+    this.logDeliveryDiagnostic('expired', {
+      triggerAt: Number(row.trigger_at), alarmAt: now, latenessMs: now - Number(row.trigger_at),
+      retryCount: Number(row.attempts), terminalState: 'expired',
+    });
+    return true;
+  }
+
+  private logDeliveryDiagnostic(event: string, values: Record<string, string | number>): void {
+    console.log(JSON.stringify({ notificationDelivery: event, ...values }));
   }
 
   private async scheduleNextAlarm(): Promise<void> {
     const row = this.ctx.storage.sql.exec(
-      'SELECT MIN(COALESCE(retry_at, trigger_at)) AS value FROM projections WHERE delivered_at IS NULL AND cancelled_at IS NULL',
+      'SELECT MIN(COALESCE(retry_at, trigger_at)) AS value FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
     ).one() as { value: number | null };
     if (row.value) await this.ctx.storage.setAlarm(Math.max(Date.now() + 1000, row.value));
     else await this.ctx.storage.deleteAlarm();

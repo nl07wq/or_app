@@ -11,6 +11,36 @@ export interface ProjectionInput {
   title?: string | null;
 }
 
+/**
+ * A push must leave the Worker no later than this window after its own
+ * trigger.  Web Push TTL only controls provider retention after send, so it
+ * cannot be used for this pre-send safety boundary.
+ */
+export const pushFreshnessToleranceMs = 5 * 60 * 1000;
+
+export function pushFreshnessDeadline(triggerAtMs: number): number {
+  return triggerAtMs + pushFreshnessToleranceMs;
+}
+
+/** The exact deadline is eligible; any later instant is terminally stale. */
+export function isPushExpired(triggerAtMs: number, nowMs: number): boolean {
+  return nowMs > pushFreshnessDeadline(triggerAtMs);
+}
+
+/**
+ * Keep deferred subscription and transport retries inside the send window.
+ * The returned deadline is intentionally rechecked by the Worker before
+ * every outbound request because an alarm may resume late.
+ */
+export function boundedPushRetryAt(
+  triggerAtMs: number,
+  nowMs: number,
+  requestedRetryAtMs: number,
+): number | null {
+  if (isPushExpired(triggerAtMs, nowMs)) return null;
+  return Math.min(requestedRetryAtMs, pushFreshnessDeadline(triggerAtMs));
+}
+
 const idPattern = /^[A-Za-z0-9_.:@-]{1,180}$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
