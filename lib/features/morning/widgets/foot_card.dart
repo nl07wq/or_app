@@ -8,8 +8,13 @@ import '../../../core/widgets/section_header.dart';
 
 class FootCard extends StatefulWidget {
   final TextEditingController controller;
+  final bool initiallyExpanded;
 
-  const FootCard({super.key, required this.controller});
+  const FootCard({
+    super.key,
+    required this.controller,
+    this.initiallyExpanded = false,
+  });
 
   @override
   State<FootCard> createState() => _FootCardState();
@@ -32,7 +37,7 @@ class _FootCardState extends State<FootCard> {
   @override
   void initState() {
     super.initState();
-    _editing = !_hasSelectedValue;
+    _editing = widget.initiallyExpanded || !_hasSelectedValue;
     widget.controller.addListener(_handleControllerChanged);
   }
 

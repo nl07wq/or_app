@@ -315,6 +315,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     weightUnmeasured: weightUnmeasured,
                     onWeightUnmeasured: _markBodyUnmeasured,
                     onWeightMeasured: _restoreMeasuredBody,
+                    initiallyExpanded: !widget.isEdit,
                   ),
 
                   AppSpacing.gapMD,
@@ -326,6 +327,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     sleepTimeUnmeasured: sleepTimeUnmeasured,
                     onSleepTimeUnmeasured: _markSleepTimeUnmeasured,
                     onSleepTimeMeasured: _restoreMeasuredSleepTime,
+                    initiallyExpanded: !widget.isEdit,
                     onSleepTypeChanged: (value) {
                       setState(() {
                         selectedSleepType = value;
@@ -338,7 +340,10 @@ class _MorningFactPageState extends State<MorningFactPage> {
 
                   AppSpacing.gapMD,
 
-                  FootCard(controller: footPainController),
+                  FootCard(
+                    controller: footPainController,
+                    initiallyExpanded: !widget.isEdit,
+                  ),
 
                   AppSpacing.gapMD,
 
@@ -352,6 +357,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
                     startController: workStartController,
                     endController: workEndController,
                     breakController: workBreakController,
+                    initiallyExpanded: !widget.isEdit,
                   ),
 
                   AppSpacing.gapMD,

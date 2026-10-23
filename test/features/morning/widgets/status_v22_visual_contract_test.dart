@@ -3,21 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/morning/widgets/body_card.dart';
 
 void main() {
-  Widget app(TextEditingController weight, TextEditingController bodyFat) =>
-      MaterialApp(
-        theme: ThemeData.dark(),
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: BodyCard(
-              weightController: weight,
-              bodyFatController: bodyFat,
-              weightUnmeasured: false,
-              onWeightUnmeasured: () {},
-              onWeightMeasured: () {},
-            ),
-          ),
+  Widget app(
+    TextEditingController weight,
+    TextEditingController bodyFat, {
+    bool initiallyExpanded = false,
+  }) => MaterialApp(
+    theme: ThemeData.dark(),
+    home: Scaffold(
+      body: SingleChildScrollView(
+        child: BodyCard(
+          weightController: weight,
+          bodyFatController: bodyFat,
+          weightUnmeasured: false,
+          onWeightUnmeasured: () {},
+          onWeightMeasured: () {},
+          initiallyExpanded: initiallyExpanded,
         ),
-      );
+      ),
+    ),
+  );
 
   testWidgets('weight completion action is below the 140dp tape artwork', (
     tester,
@@ -73,7 +77,7 @@ void main() {
     await tester.pumpWidget(app(weight, bodyFat));
     await expectLater(
       find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v24_idle.png'),
+      matchesGoldenFile('../goldens/status_weight_hud_v26_idle.png'),
     );
 
     await tester.drag(
@@ -84,9 +88,38 @@ void main() {
     await tester.pump(const Duration(milliseconds: 90));
     await expectLater(
       find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v24_lock.png'),
+      matchesGoldenFile('../goldens/status_weight_hud_v26_lock.png'),
     );
   });
+
+  testWidgets(
+    'new seeded body draft is expanded until each value is confirmed',
+    (tester) async {
+      final weight = TextEditingController(text: '94.4');
+      final bodyFat = TextEditingController(text: '21.5');
+      addTearDown(weight.dispose);
+      addTearDown(bodyFat.dispose);
+      await tester.pumpWidget(app(weight, bodyFat, initiallyExpanded: true));
+
+      expect(find.byKey(const ValueKey('status-weight-done')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('status-body-fat-done')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('status-body-fat-done')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('status-body-fat-collapsed')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('status-body-fat-collapsed')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('status-body-fat-done')),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets('body value controls fit at $width', (tester) async {

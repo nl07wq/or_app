@@ -12,10 +12,12 @@ class BodyCard extends StatelessWidget {
     required this.weightUnmeasured,
     required this.onWeightUnmeasured,
     required this.onWeightMeasured,
+    this.initiallyExpanded = false,
   });
   final TextEditingController weightController, bodyFatController;
   final bool weightUnmeasured;
   final VoidCallback onWeightUnmeasured, onWeightMeasured;
+  final bool initiallyExpanded;
   @override
   Widget build(BuildContext c) => DashboardGlassCard(
     child: Column(
@@ -42,6 +44,7 @@ class BodyCard extends StatelessWidget {
           _WeightHud(
             key: const ValueKey('status-weight-hud'),
             controller: weightController,
+            initiallyExpanded: initiallyExpanded,
           ),
         const SizedBox(height: 28),
         if (weightUnmeasured)
@@ -50,6 +53,7 @@ class BodyCard extends StatelessWidget {
           _BodyFatRing(
             key: const ValueKey('status-body-fat-ring'),
             controller: bodyFatController,
+            initiallyExpanded: initiallyExpanded,
           ),
       ],
     ),
@@ -57,8 +61,13 @@ class BodyCard extends StatelessWidget {
 }
 
 class _WeightHud extends StatefulWidget {
-  const _WeightHud({super.key, required this.controller});
+  const _WeightHud({
+    super.key,
+    required this.controller,
+    required this.initiallyExpanded,
+  });
   final TextEditingController controller;
+  final bool initiallyExpanded;
   @override
   State<_WeightHud> createState() => _WeightHudState();
 }
@@ -72,7 +81,9 @@ class _WeightHudState extends State<_WeightHud>
   @override
   void initState() {
     super.initState();
-    _editing = double.tryParse(widget.controller.text) == null;
+    _editing =
+        widget.initiallyExpanded ||
+        double.tryParse(widget.controller.text) == null;
     _lockController =
         AnimationController(
           vsync: this,
@@ -281,7 +292,7 @@ class _Tape extends CustomPainter {
     }
     final lockPulse = math.sin(lock * math.pi);
     final inset = lockPulse * 2;
-    final strength = active ? 1.0 : .76;
+    final strength = active ? 1.16 : .76;
     final frame = <Path>[
       Path()
         ..moveTo(12 + inset, 58)
@@ -301,20 +312,50 @@ class _Tape extends CustomPainter {
         ..lineTo(s.width - 48 - inset, 122 - inset),
     ];
     _laserPaths(c, frame, strength: strength, flash: lockPulse);
+    // The tape moves underneath this stationary lock.  The short corner
+    // segments deliberately leave open sides, so it reads as an avionics
+    // capture target rather than a generic boxed control.
+    final spread = active ? 1.5 : 0.0;
+    final halfWidth = 20 + spread - lockPulse * 2;
+    final halfHeight = 17 + spread - lockPulse * 2;
+    final cornerReach = 11.0;
+    final lockBox = <Path>[
+      Path()
+        ..moveTo(cx - halfWidth, y - 5)
+        ..lineTo(cx - halfWidth, y - halfHeight)
+        ..lineTo(cx - halfWidth + cornerReach, y - halfHeight),
+      Path()
+        ..moveTo(cx + halfWidth, y - 5)
+        ..lineTo(cx + halfWidth, y - halfHeight)
+        ..lineTo(cx + halfWidth - cornerReach, y - halfHeight),
+      Path()
+        ..moveTo(cx - halfWidth, y + 5)
+        ..lineTo(cx - halfWidth, y + halfHeight)
+        ..lineTo(cx - halfWidth + cornerReach, y + halfHeight),
+      Path()
+        ..moveTo(cx + halfWidth, y + 5)
+        ..lineTo(cx + halfWidth, y + halfHeight)
+        ..lineTo(cx + halfWidth - cornerReach, y + halfHeight),
+    ];
+    _laserPaths(c, lockBox, strength: strength, flash: lockPulse);
     final reticle = <Offset>[
       Offset(cx - 80, y),
-      Offset(cx - 13, y),
-      Offset(cx + 13, y),
+      Offset(cx - halfWidth - 8, y),
+      Offset(cx + halfWidth + 8, y),
       Offset(cx + 80, y),
+      Offset(cx, y - 36),
+      Offset(cx, y - halfHeight - 7),
+      Offset(cx, y + halfHeight + 7),
+      Offset(cx, y + 36),
     ];
     _laserLines(c, reticle, strength: strength, flash: lockPulse);
     _laserLines(
       c,
       [
-        Offset(cx - 9, y),
-        Offset(cx + 9, y),
-        Offset(cx, y - 9),
-        Offset(cx, y + 9),
+        Offset(cx - 7, y),
+        Offset(cx + 7, y),
+        Offset(cx, y - 7),
+        Offset(cx, y + 7),
       ],
       strength: 1,
       flash: lockPulse,
@@ -322,7 +363,7 @@ class _Tape extends CustomPainter {
     p
       ..style = PaintingStyle.fill
       ..color = _laserIce.withValues(alpha: .9 + lockPulse * .1);
-    c.drawCircle(Offset(cx, y), 1.8, p);
+    c.drawCircle(Offset(cx, y), 1.5, p);
   }
 
   void _laserPaths(
@@ -375,8 +416,13 @@ class _Tape extends CustomPainter {
 }
 
 class _BodyFatRing extends StatefulWidget {
-  const _BodyFatRing({super.key, required this.controller});
+  const _BodyFatRing({
+    super.key,
+    required this.controller,
+    required this.initiallyExpanded,
+  });
   final TextEditingController controller;
+  final bool initiallyExpanded;
   @override
   State<_BodyFatRing> createState() => _BodyFatRingState();
 }
@@ -387,7 +433,9 @@ class _BodyFatRingState extends State<_BodyFatRing> {
   @override
   void initState() {
     super.initState();
-    _editing = double.tryParse(widget.controller.text) == null;
+    _editing =
+        widget.initiallyExpanded ||
+        double.tryParse(widget.controller.text) == null;
     _read();
     widget.controller.addListener(_read);
   }

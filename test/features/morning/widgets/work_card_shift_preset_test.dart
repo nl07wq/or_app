@@ -39,6 +39,27 @@ void main() {
     expect(workBreak.text, '01:00');
   });
 
+  testWidgets('new WORK draft keeps its seeded time controls editable', (
+    tester,
+  ) async {
+    final start = TextEditingController(text: '07:00');
+    final end = TextEditingController(text: '18:00');
+    final workBreak = TextEditingController(text: '01:00');
+    addTearDown(start.dispose);
+    addTearDown(end.dispose);
+    addTearDown(workBreak.dispose);
+    await _pump(
+      tester,
+      start: start,
+      end: end,
+      workBreak: workBreak,
+      initiallyExpanded: true,
+    );
+
+    expect(find.byKey(const ValueKey('work-break-value')), findsOneWidget);
+    expect(find.byKey(const ValueKey('work-break-collapsed')), findsNothing);
+  });
+
   testWidgets(
     'settings edit does not apply until the dynamic button is tapped',
     (tester) async {
@@ -341,6 +362,7 @@ Future<void> _pump(
   required TextEditingController end,
   required TextEditingController workBreak,
   double width = 900,
+  bool initiallyExpanded = false,
 }) async {
   await tester.binding.setSurfaceSize(Size(width, 1200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -354,6 +376,7 @@ Future<void> _pump(
             startController: start,
             endController: end,
             breakController: workBreak,
+            initiallyExpanded: initiallyExpanded,
           ),
         ),
       ),

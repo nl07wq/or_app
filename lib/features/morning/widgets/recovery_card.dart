@@ -14,6 +14,7 @@ class RecoveryCard extends StatelessWidget {
   final bool sleepTimeUnmeasured;
   final VoidCallback onSleepTimeUnmeasured;
   final VoidCallback onSleepTimeMeasured;
+  final bool initiallyExpanded;
 
   const RecoveryCard({
     super.key,
@@ -24,6 +25,7 @@ class RecoveryCard extends StatelessWidget {
     required this.sleepTimeUnmeasured,
     required this.onSleepTimeUnmeasured,
     required this.onSleepTimeMeasured,
+    this.initiallyExpanded = false,
   });
 
   @override
@@ -77,6 +79,7 @@ class RecoveryCard extends StatelessWidget {
             _SleepDurationOrbitalInput(
               title: "Sleep Time",
               controller: sleepController,
+              initiallyExpanded: initiallyExpanded,
             ),
           ],
 
@@ -89,6 +92,7 @@ class RecoveryCard extends StatelessWidget {
               key: ValueKey('status-sleep-score-hud-${sleepType.name}'),
               title: "Sleep Score",
               controller: sleepScoreController,
+              initiallyExpanded: initiallyExpanded,
             )
           else ...[
             const Row(
@@ -123,10 +127,12 @@ class _SleepDurationOrbitalInput extends StatefulWidget {
   const _SleepDurationOrbitalInput({
     required this.title,
     required this.controller,
+    required this.initiallyExpanded,
   });
 
   final String title;
   final TextEditingController controller;
+  final bool initiallyExpanded;
 
   @override
   State<_SleepDurationOrbitalInput> createState() =>
@@ -149,7 +155,7 @@ class _SleepDurationOrbitalInputState
   @override
   void initState() {
     super.initState();
-    _collapsed = widget.controller.text.isNotEmpty;
+    _collapsed = !widget.initiallyExpanded && widget.controller.text.isNotEmpty;
     widget.controller.addListener(_onChanged);
   }
 
@@ -240,9 +246,11 @@ class _SleepScoreGauge extends StatefulWidget {
     super.key,
     required this.title,
     required this.controller,
+    required this.initiallyExpanded,
   });
   final String title;
   final TextEditingController controller;
+  final bool initiallyExpanded;
   @override
   State<_SleepScoreGauge> createState() => _SleepScoreGaugeState();
 }
@@ -253,7 +261,9 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
   @override
   void initState() {
     super.initState();
-    _editing = int.tryParse(widget.controller.text) == null;
+    _editing =
+        widget.initiallyExpanded ||
+        int.tryParse(widget.controller.text) == null;
     _read();
     widget.controller.addListener(_read);
   }

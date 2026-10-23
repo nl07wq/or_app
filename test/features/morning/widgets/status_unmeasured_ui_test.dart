@@ -106,6 +106,56 @@ void main() {
     );
   });
 
+  testWidgets('new STATUS draft keeps seeded BODY and RECOVERY inputs open', (
+    tester,
+  ) async {
+    final weight = TextEditingController(text: '72.4');
+    final bodyFat = TextEditingController(text: '18.6');
+    final sleep = TextEditingController(text: '7:05');
+    final score = TextEditingController(text: '82');
+    addTearDown(weight.dispose);
+    addTearDown(bodyFat.dispose);
+    addTearDown(sleep.dispose);
+    addTearDown(score.dispose);
+    await _pump(
+      tester,
+      Column(
+        children: [
+          BodyCard(
+            weightController: weight,
+            bodyFatController: bodyFat,
+            weightUnmeasured: false,
+            onWeightUnmeasured: () {},
+            onWeightMeasured: () {},
+            initiallyExpanded: true,
+          ),
+          RecoveryCard(
+            sleepController: sleep,
+            sleepScoreController: score,
+            sleepType: SleepType.sleep,
+            onSleepTypeChanged: (_) {},
+            sleepTimeUnmeasured: false,
+            onSleepTimeUnmeasured: () {},
+            onSleepTimeMeasured: () {},
+            initiallyExpanded: true,
+          ),
+        ],
+      ),
+      width: 390,
+    );
+
+    expect(find.byKey(const ValueKey('status-weight-done')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-body-fat-done')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('status-sleep-score-done')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('status-sleep-duration-picker')),
+      findsOneWidget,
+    );
+  });
+
   test('task102 close: Weight null always saves Body Fat as null', () async {
     final error = await MorningSubmitService.submit(
       workType: WorkType.holiday,
@@ -172,7 +222,10 @@ void main() {
       find.byKey(const ValueKey('status-sleep-duration-picker')),
       findsNothing,
     );
-    expect(find.byKey(const ValueKey('status-sleep-score-hud-sleep')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('status-sleep-score-hud-sleep')),
+      findsNothing,
+    );
     expect(find.text('未計測'), findsNWidgets(3));
     expect(
       _choiceChip(
@@ -220,7 +273,10 @@ void main() {
         find.byKey(const ValueKey('status-sleep-duration-picker')),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('status-sleep-score-hud-sleep')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('status-sleep-score-hud-sleep')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),
         findsNothing,
@@ -258,7 +314,10 @@ void main() {
         find.byKey(const ValueKey('status-sleep-duration-picker')),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('status-sleep-score-hud-nap')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('status-sleep-score-hud-nap')),
+        findsNothing,
+      );
       expect(find.text('仮眠'), findsNWidgets(2));
       expect(
         find.byKey(const ValueKey('Sleep Score-unmeasured-toggle')),

@@ -18,6 +18,7 @@ class WorkCard extends StatefulWidget {
   final TextEditingController startController;
   final TextEditingController endController;
   final TextEditingController breakController;
+  final bool initiallyExpanded;
 
   const WorkCard({
     super.key,
@@ -26,6 +27,7 @@ class WorkCard extends StatefulWidget {
     required this.startController,
     required this.endController,
     required this.breakController,
+    this.initiallyExpanded = false,
   });
 
   @override
@@ -261,6 +263,7 @@ class _WorkCardState extends State<WorkCard> {
               key: const ValueKey('work-start-orbital-picker'),
               title: 'Start Time',
               controller: widget.startController,
+              initiallyExpanded: widget.initiallyExpanded,
             ),
 
             const SizedBox(height: 20),
@@ -269,6 +272,7 @@ class _WorkCardState extends State<WorkCard> {
               key: const ValueKey('work-end-orbital-picker'),
               title: 'End Time',
               controller: widget.endController,
+              initiallyExpanded: widget.initiallyExpanded,
             ),
 
             const SizedBox(height: 20),
@@ -276,6 +280,7 @@ class _WorkCardState extends State<WorkCard> {
             _BreakTimeStepper(
               key: const ValueKey('work-break-stepper'),
               controller: widget.breakController,
+              initiallyExpanded: widget.initiallyExpanded,
             ),
 
             const SizedBox(height: 20),
@@ -429,9 +434,11 @@ class _WorkClockRow extends StatefulWidget {
     super.key,
     required this.title,
     required this.controller,
+    required this.initiallyExpanded,
   });
   final String title;
   final TextEditingController controller;
+  final bool initiallyExpanded;
   @override
   State<_WorkClockRow> createState() => _WorkClockRowState();
 }
@@ -441,7 +448,8 @@ class _WorkClockRowState extends State<_WorkClockRow> {
   @override
   void initState() {
     super.initState();
-    _collapsed = _isValidTime(widget.controller.text);
+    _collapsed =
+        !widget.initiallyExpanded && _isValidTime(widget.controller.text);
     widget.controller.addListener(_changed);
   }
 
@@ -573,8 +581,13 @@ bool _isValidTime(String value) {
 }
 
 class _BreakTimeStepper extends StatefulWidget {
-  const _BreakTimeStepper({super.key, required this.controller});
+  const _BreakTimeStepper({
+    super.key,
+    required this.controller,
+    required this.initiallyExpanded,
+  });
   final TextEditingController controller;
+  final bool initiallyExpanded;
   @override
   State<_BreakTimeStepper> createState() => _BreakTimeStepperState();
 }
@@ -593,7 +606,7 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
   @override
   void initState() {
     super.initState();
-    _editing = widget.controller.text.isEmpty;
+    _editing = widget.initiallyExpanded || widget.controller.text.isEmpty;
     widget.controller.addListener(_changed);
   }
 

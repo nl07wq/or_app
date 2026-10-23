@@ -45,6 +45,31 @@ void main() {
     },
   );
 
+  testWidgets('new seeded FOOT draft remains editable until completion', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '3');
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FootCard(controller: controller, initiallyExpanded: true),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('foot-pain-levels-1-5')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('foot-pain-done')));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('foot-pain-current-value-button')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'external controller updates are reflected without reopening stale data',
     (tester) async {
