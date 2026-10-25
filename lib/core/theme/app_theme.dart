@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class StandardTheme {
   static ThemeData theme = ThemeData(
     brightness: Brightness.dark,
+    fontFamily: 'KleeOne',
 
     scaffoldBackgroundColor: const Color(0xFF101010),
 

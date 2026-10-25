@@ -12,6 +12,7 @@ import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/loading/or_loading_surface.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/services/japanese_holiday_reference_service.dart';
 import '../../reminders/models/reminder_occurrence.dart';
@@ -720,7 +721,7 @@ class _CalendarPageState extends State<CalendarPage> {
           const Positioned.fill(child: HolographicAmbientBackground()),
           Positioned.fill(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const OrLoadingSurface(title: 'LOADING SCHEDULE')
                 : SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                       AppSpacing.cardPadding.left,

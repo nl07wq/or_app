@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/startup_initialization_service.dart';
+import '../services/font_readiness_service.dart';
 import '../services/startup_diagnostic.dart';
 import '../state/app_initialization_state.dart';
 import 'boot_sequence.dart';
 import 'operation_button.dart';
+import 'loading/or_loading_surface.dart';
+import 'loading/or_loading_tokens.dart';
 
 class StartupGate extends StatefulWidget {
   final StartupInitializationService service;
@@ -31,6 +36,7 @@ class StartupGate extends StatefulWidget {
 class _StartupGateState extends State<StartupGate> {
   late final bool _isInitialBootPresentation;
   late bool _bootPresentationMounted;
+  bool _allowFontFallback = false;
   String? _lastDiagnosticPresentation;
 
   @override
@@ -179,9 +185,36 @@ class _StartupGateState extends State<StartupGate> {
         child: widget.child,
       ),
       PersistenceMode.maintenance => _MaintenanceView(child: widget.child),
-      PersistenceMode.indexedDbReadWrite => widget.child,
+      PersistenceMode.indexedDbReadWrite => _fontReadyChild(),
     };
   }
+
+  Widget _fontReadyChild() => AnimatedBuilder(
+    animation: FontReadinessService.instance,
+    builder: (context, _) {
+      final readiness = FontReadinessService.instance;
+      if (readiness.isReady || _allowFontFallback) return widget.child;
+      if (readiness.state == FontReadinessState.failed) {
+        return OrLoadingSurface(
+          scope: OrLoadingScope.fullscreen,
+          title: 'FONT INITIALIZATION FAILED',
+          subtitle: 'Japanese text resources could not be prepared.',
+          state: OrLoadingPhase.failed,
+          onRetry: () => unawaited(readiness.retry()),
+          child: TextButton(
+            onPressed: () => setState(() => _allowFontFallback = true),
+            child: const Text('CONTINUE WITH SYSTEM FONT'),
+          ),
+        );
+      }
+      return const OrLoadingSurface(
+        key: ValueKey('font-readiness-loading'),
+        scope: OrLoadingScope.fullscreen,
+        title: 'INITIALIZING',
+        subtitle: 'Preparing application resources',
+      );
+    },
+  );
 }
 
 class _MaintenanceView extends StatelessWidget {
@@ -203,14 +236,10 @@ class _MaintenanceView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 24),
-                  Text(
-                    'RESTORING BACKUP',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  const OrLoadingSurface(
+                    title: 'RESTORING BACKUP',
+                    subtitle: 'Do not close this window.',
                   ),
-                  const SizedBox(height: 8),
-                  const Text('Do not close this window.'),
                 ],
               ),
             ),
@@ -228,55 +257,14 @@ class _InitializingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return ColoredBox(
+    return OrLoadingSurface(
       key: const ValueKey('startup-initializing-view'),
-      color: const Color(0xFF101010),
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: DefaultTextStyle(
-              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                color: Colors.white70,
-                fontFamily: 'monospace',
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(color: primary),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'INITIALIZING',
-                    key: const ValueKey('startup-initializing-text'),
-                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                      color: primary,
-                      fontFamily: 'monospace',
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Operation Rebootのデータを準備しています。'),
-                  const SizedBox(height: 16),
-                  Text(
-                    state.currentStage.name
-                        .replaceAllMapped(
-                          RegExp(r'([A-Z])'),
-                          (match) => ' ${match.group(1)}',
-                        )
-                        .trim()
-                        .toUpperCase(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      scope: OrLoadingScope.fullscreen,
+      title: 'INITIALIZING',
+      subtitle: state.currentStage.name
+          .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
+          .trim()
+          .toUpperCase(),
     );
   }
 }

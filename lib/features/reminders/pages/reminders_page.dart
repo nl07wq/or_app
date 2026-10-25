@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
+import '../../../core/widgets/loading/or_loading_surface.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/models/schedule_plan_revision.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
@@ -402,7 +403,7 @@ class _RemindersPageState extends State<RemindersPage>
                       ),
                       Expanded(
                         child: _loading
-                            ? const Center(child: CircularProgressIndicator())
+                            ? const OrLoadingSurface(title: 'LOADING REMINDERS')
                             : TabBarView(
                                 controller: _tabs,
                                 children: [

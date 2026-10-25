@@ -10,6 +10,8 @@ import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
+import '../../core/widgets/loading/or_loading_surface.dart';
+import '../../core/widgets/loading/or_loading_tokens.dart';
 import '../repositories/app_repository_container.dart';
 import 'models/food_catalog_models.dart';
 import 'models/food_meal_master_models.dart';
@@ -446,18 +448,17 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
   }
 
   Widget _body() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const OrLoadingSurface(title: 'LOADING FOOD DATABASE');
     if (_error != null) {
-      return Center(
-        child: OperationButton(
-          icon: Icons.refresh,
-          text: 'RETRY',
-          onPressed: switch (_view) {
-            _FoodDatabaseView.food => _load,
-            _FoodDatabaseView.recipe => _loadRecipes,
-            _FoodDatabaseView.meal => _loadMeals,
-          },
-        ),
+      return OrLoadingSurface(
+        title: 'FOOD DATABASE UNAVAILABLE',
+        subtitle: 'The catalog could not be loaded.',
+        state: OrLoadingPhase.failed,
+        onRetry: switch (_view) {
+          _FoodDatabaseView.food => _load,
+          _FoodDatabaseView.recipe => _loadRecipes,
+          _FoodDatabaseView.meal => _loadMeals,
+        },
       );
     }
     if (_view == _FoodDatabaseView.recipe) return _recipeBody();

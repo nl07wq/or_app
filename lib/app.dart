@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 
 import 'core/navigation/app_routes.dart';
 import 'core/services/device_settings_controller.dart';
+import 'core/services/font_readiness_service.dart';
 import 'core/services/startup_diagnostic.dart';
 import 'core/widgets/global_touch_ripple.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/boot_sequence.dart';
 import 'core/widgets/startup_gate.dart';
+import 'core/widgets/loading/or_loading_theme.dart';
 
 import 'features/dashboard/dashboard_page.dart';
 import 'features/dashboard/log_confirmation_detail_page.dart';
@@ -80,6 +82,9 @@ class _OperationRebootAppState extends State<OperationRebootApp>
     );
     StartupDiagnostic.instance.record('FLUTTER', 'INITIALIZATION_REQUESTED');
     unawaited(_initializationService.initialize());
+    // Starts the local, bundled Japanese face load without introducing a
+    // synthetic splash duration or blocking BootSequence.
+    unawaited(FontReadinessService.instance.ensureReady());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final diagnostic = StartupDiagnostic.instance;
@@ -142,27 +147,30 @@ class _OperationRebootAppState extends State<OperationRebootApp>
                   platformReducedMotion,
                 ),
               );
-          return MediaQuery(
-            data: resolvedMediaQuery,
-            child: GlobalTouchRipple(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  StartupGate(
-                    service: _initializationService,
-                    showBootSequence: true,
-                    onBootEvent: widget.onBootEvent,
-                    child: child ?? const SizedBox.shrink(),
-                  ),
-                  if (settings.brightness < 1)
-                    IgnorePointer(
-                      child: ColoredBox(
-                        color: Colors.black.withValues(
-                          alpha: (1 - settings.brightness) * .55,
+          return OrLoadingTheme(
+            data: const OrLoadingThemeData(),
+            child: MediaQuery(
+              data: resolvedMediaQuery,
+              child: GlobalTouchRipple(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    StartupGate(
+                      service: _initializationService,
+                      showBootSequence: true,
+                      onBootEvent: widget.onBootEvent,
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                    if (settings.brightness < 1)
+                      IgnorePointer(
+                        child: ColoredBox(
+                          color: Colors.black.withValues(
+                            alpha: (1 - settings.brightness) * .55,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
