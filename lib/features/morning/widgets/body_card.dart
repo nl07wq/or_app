@@ -688,58 +688,51 @@ class _Tape extends CustomPainter {
         [25, 47],
       ]),
     ];
-    final lockPeak = _lockPeak();
-    final heldEnergy = active ? energyPulse : 0.0;
+    final layers = _PrimaryLockLayers.forState(
+      selectedAmount: _selectedAmount(lockPulse),
+      lockPeak: _lockPeak(),
+      heldEnergy: _heldEnergy(energyPulse),
+      idleWideColor: _cyan,
+      idleNearColor: _ice,
+      idleWideAlpha: .10,
+      idleNearAlpha: .24,
+      idleBodyAlpha: .72,
+      idleCoreAlpha: .46,
+      idleWideWidth: 1.6,
+      idleNearWidth: 1.5,
+      idleBodyWidth: 1.8,
+      idleCoreWidth: .7,
+    );
     // These four articulated paths are the primary lock cursor.  Decorative
     // arcs and dots are intentionally dimmed above; do not apply those
     // multipliers to the cursor that captures the selected weight.
-    final wideGlowAlpha = lockPeak > 0
-        ? (.18 + .27 * lockPeak)
-        : active
-        ? (.34 + .11 * heldEnergy)
-        : .10;
-    final nearGlowAlpha = lockPeak > 0
-        ? (.42 + .38 * lockPeak)
-        : active
-        ? (.68 + .12 * heldEnergy)
-        : .24;
-    final cyanAlpha = lockPeak > 0
-        ? (.78 + .22 * lockPeak)
-        : active
-        ? (.90 + .10 * heldEnergy)
-        : .72;
-    final iceAlpha = lockPeak > 0
-        ? (.62 + .38 * lockPeak)
-        : active
-        ? (.82 + .18 * heldEnergy)
-        : .46;
     final paints = [
       Paint()
         ..strokeCap = StrokeCap.square
         ..strokeJoin = StrokeJoin.miter
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
+        ..strokeWidth = layers.wideWidth
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
-        ..color = _cyan.withValues(alpha: wideGlowAlpha),
+        ..color = layers.wideColor.withValues(alpha: layers.wideAlpha),
       Paint()
         ..strokeCap = StrokeCap.square
         ..strokeJoin = StrokeJoin.miter
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
+        ..strokeWidth = layers.nearWidth
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
-        ..color = _ice.withValues(alpha: nearGlowAlpha),
+        ..color = layers.nearColor.withValues(alpha: layers.nearAlpha),
       Paint()
         ..strokeCap = StrokeCap.square
         ..strokeJoin = StrokeJoin.miter
         ..style = PaintingStyle.stroke
-        ..strokeWidth = lockPeak > 0 ? 1.8 : 1.8
-        ..color = _cyan.withValues(alpha: cyanAlpha),
+        ..strokeWidth = layers.bodyWidth
+        ..color = layers.bodyColor.withValues(alpha: layers.bodyAlpha),
       Paint()
         ..strokeCap = StrokeCap.square
         ..strokeJoin = StrokeJoin.miter
         ..style = PaintingStyle.stroke
-        ..strokeWidth = lockPeak > 0 ? .8 : .7
-        ..color = _ice.withValues(alpha: iceAlpha),
+        ..strokeWidth = layers.coreWidth
+        ..color = layers.coreColor.withValues(alpha: layers.coreAlpha),
     ];
     for (final paint in paints) {
       for (final arm in paths) {
@@ -762,49 +755,63 @@ class _Tape extends CustomPainter {
     double lockPulse,
     double energyPulse,
   ) {
-    final activeEnergy = active ? energyPulse : 0.0;
+    final layers = _PrimaryLockLayers.forState(
+      selectedAmount: _selectedAmount(lockPulse),
+      lockPeak: _lockPeak(),
+      heldEnergy: _heldEnergy(energyPulse),
+      idleWideColor: _cyan,
+      idleNearColor: _ice,
+      idleWideAlpha: 0,
+      idleNearAlpha: 0,
+      idleBodyAlpha: .80,
+      idleCoreAlpha: .50,
+      idleWideWidth: 1.05,
+      idleNearWidth: 1.2,
+      idleBodyWidth: 1.05,
+      idleCoreWidth: .7,
+    );
     final cursorPath = Path()
       ..moveTo(cx - dx(10), cy)
       ..lineTo(cx + dx(10), cy)
       ..moveTo(cx, cy - 10)
       ..lineTo(cx, cy + 10);
-    if (active || lockPulse > 0) {
+    if (layers.wideAlpha > 0 || layers.nearAlpha > 0) {
       final wideGlow = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.square
-        ..strokeWidth = 1.05
+        ..strokeWidth = layers.wideWidth
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
-        ..color = _cyan.withValues(
-          alpha: lockPulse > 0
-              ? (.22 + .28 * lockPulse)
-              : .32 + .18 * activeEnergy,
-        );
+        ..color = layers.wideColor.withValues(alpha: layers.wideAlpha);
       final nearGlow = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.square
-        ..strokeWidth = 1.2
+        ..strokeWidth = layers.nearWidth
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
-        ..color = _ice.withValues(
-          alpha: lockPulse > 0
-              ? (.48 + .37 * lockPulse)
-              : .65 + .20 * activeEnergy,
-        );
+        ..color = layers.nearColor.withValues(alpha: layers.nearAlpha);
       c.drawPath(cursorPath, wideGlow);
       c.drawPath(cursorPath, nearGlow);
     }
     final p = Paint()
       ..strokeCap = StrokeCap.square
-      ..strokeWidth = lockPulse > 0 ? 1.5 : 1.05
-      ..color = const Color(
-        0xffd4ffff,
-      ).withValues(alpha: active || lockPulse > 0 ? 1.0 : .80);
+      ..strokeWidth = layers.bodyWidth
+      ..color = layers.bodyColor.withValues(alpha: layers.bodyAlpha);
     c.drawPath(cursorPath, p);
     p
-      ..strokeWidth = .7
-      ..color = const Color(0xffd4ffff).withValues(alpha: .50);
-    c.drawLine(Offset(cx - dx(5), cy), Offset(cx + dx(5), cy), p);
-    c.drawLine(Offset(cx, cy - 5), Offset(cx, cy + 5), p);
+      ..strokeWidth = layers.coreWidth
+      ..color = layers.coreColor.withValues(alpha: layers.coreAlpha);
+    c.drawPath(cursorPath, p);
   }
+
+  double _selectedAmount(double lockPulse) {
+    final dragOrRelease = expansion.clamp(0.0, 1.0).toDouble();
+    final locking = lock > 0
+        ? math.max(expansion.abs(), lockPulse).clamp(0.0, 1.0).toDouble()
+        : 0.0;
+    return math.max(dragOrRelease, locking);
+  }
+
+  double _heldEnergy(double energyPulse) =>
+      active && expansion >= .999 ? energyPulse : 0.5;
 
   @override
   bool shouldRepaint(covariant _Tape other) =>
@@ -814,6 +821,76 @@ class _Tape extends CustomPainter {
       other.lock != lock ||
       other.energy != energy ||
       other.expansion != expansion;
+}
+
+class _PrimaryLockLayers {
+  const _PrimaryLockLayers({
+    required this.wideColor,
+    required this.nearColor,
+    required this.bodyColor,
+    required this.coreColor,
+    required this.wideAlpha,
+    required this.nearAlpha,
+    required this.bodyAlpha,
+    required this.coreAlpha,
+    required this.wideWidth,
+    required this.nearWidth,
+    required this.bodyWidth,
+    required this.coreWidth,
+  });
+
+  static const _wideCyan = Color(0xff00cffe);
+  static const _nearIceCyan = Color(0xffa1f5ff);
+  static const _cyanBody = Color(0xff16dbfd);
+  static const _whiteHot = Color(0xfff6ffff);
+
+  final Color wideColor, nearColor, bodyColor, coreColor;
+  final double wideAlpha, nearAlpha, bodyAlpha, coreAlpha;
+  final double wideWidth, nearWidth, bodyWidth, coreWidth;
+
+  factory _PrimaryLockLayers.forState({
+    required double selectedAmount,
+    required double lockPeak,
+    required double heldEnergy,
+    required Color idleWideColor,
+    required Color idleNearColor,
+    required double idleWideAlpha,
+    required double idleNearAlpha,
+    required double idleBodyAlpha,
+    required double idleCoreAlpha,
+    required double idleWideWidth,
+    required double idleNearWidth,
+    required double idleBodyWidth,
+    required double idleCoreWidth,
+  }) {
+    final amount = selectedAmount.clamp(0.0, 1.0).toDouble();
+    // The energy wave belongs only to a held drag.  It moves the glow by
+    // +/-10% while keeping the white core at its High Energy B strength.
+    final energyMultiplier = .90 + .20 * heldEnergy;
+    // Lock peak may increase the two glow layers by at most 15%.
+    final lockMultiplier = 1 + .15 * lockPeak;
+    double blend(double idle, double selected, {bool glow = false}) {
+      final value = idle + (selected - idle) * amount;
+      return (glow ? value * energyMultiplier * lockMultiplier : value)
+          .clamp(0.0, 1.0)
+          .toDouble();
+    }
+
+    return _PrimaryLockLayers(
+      wideColor: Color.lerp(idleWideColor, _wideCyan, amount)!,
+      nearColor: Color.lerp(idleNearColor, _nearIceCyan, amount)!,
+      bodyColor: Color.lerp(_Tape._cyan, _cyanBody, amount)!,
+      coreColor: Color.lerp(_Tape._ice, _whiteHot, amount)!,
+      wideAlpha: blend(idleWideAlpha, .58, glow: true),
+      nearAlpha: blend(idleNearAlpha, .90, glow: true),
+      bodyAlpha: blend(idleBodyAlpha, 1),
+      coreAlpha: blend(idleCoreAlpha, 1),
+      wideWidth: idleWideWidth + (8 - idleWideWidth) * amount,
+      nearWidth: idleNearWidth + (5 - idleNearWidth) * amount,
+      bodyWidth: idleBodyWidth + (4.5 - idleBodyWidth) * amount,
+      coreWidth: idleCoreWidth + (3.2 - idleCoreWidth) * amount,
+    );
+  }
 }
 
 class _BodyFatRing extends StatefulWidget {
