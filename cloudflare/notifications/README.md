@@ -43,3 +43,15 @@ the provider accepted the request only; compare it with an iPhone/PWA observed
 notification time (app open and closed) to determine any device presentation
 delay. Never include a title, payload, endpoint, token, or profile identifier
 in this record.
+
+## Visible push content
+
+For a title-visible projection, the Worker sends the event title as the Web
+Push title and a body with `スケジュール` or `リマインダー`, followed by the
+event's stored local wall-clock time when available. Timed events use
+`HH:mm` or `HH:mm 〜 HH:mm`; all-day events use `終日`. An end that falls on a
+different local date includes that date before its end time. Notification
+offsets do not alter this display metadata. Content-hidden projections retain
+the generic `OR-APP` / `通知があります。` payload and do not persist the title or
+time metadata. The OS, including iOS, controls final line wrapping and
+collapsed-notification layout.

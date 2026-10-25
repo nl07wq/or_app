@@ -9,6 +9,10 @@ export interface ProjectionInput {
   timeZone: string;
   privacyMode: PrivacyMode;
   title?: string | null;
+  allDay?: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  endDate?: string | null;
 }
 
 /**
@@ -54,6 +58,7 @@ export function projectionCorrelationId(projectionId: string): string {
 
 const idPattern = /^[A-Za-z0-9_.:@-]{1,180}$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const wallTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function bearerToken(request: Request): string | null {
   const value = request.headers.get('authorization');
@@ -78,6 +83,13 @@ export function validateProjection(value: unknown): ProjectionInput {
   const title = item.privacyMode === 'titleVisible' && typeof item.title === 'string'
     ? item.title.trim().slice(0, 120)
     : null;
+  const displayTime = (value: unknown): string | null =>
+    item.privacyMode === 'titleVisible' && typeof value === 'string' && wallTimePattern.test(value)
+      ? value
+      : null;
+  const endDate = item.privacyMode === 'titleVisible' && typeof item.endDate === 'string' && datePattern.test(item.endDate)
+    ? item.endDate
+    : null;
   return {
     id: item.id,
     entityType: item.entityType,
@@ -87,6 +99,10 @@ export function validateProjection(value: unknown): ProjectionInput {
     timeZone: item.timeZone,
     privacyMode: item.privacyMode,
     title: title || null,
+    allDay: item.privacyMode === 'titleVisible' && item.allDay === true,
+    startTime: displayTime(item.startTime),
+    endTime: displayTime(item.endTime),
+    endDate,
   };
 }
 
@@ -95,12 +111,20 @@ export function retryDelayMs(attempt: number): number {
 }
 
 export function notificationPayload(projection: ProjectionInput): string {
+  const category = projection.entityType === 'schedule' ? 'スケジュール' : 'リマインダー';
+  const time = projection.allDay
+    ? '終日'
+    : projection.startTime
+      ? projection.endTime
+        ? `${projection.startTime} 〜 ${projection.endDate && projection.endDate !== projection.occurrenceLocalDate ? `${projection.endDate} ` : ''}${projection.endTime}`
+        : projection.startTime
+      : null;
   return JSON.stringify({
     title: projection.privacyMode === 'titleVisible' && projection.title
       ? projection.title
       : 'OR-APP',
     body: projection.privacyMode === 'titleVisible'
-      ? projection.entityType === 'schedule' ? '予定の時刻です。' : 'リマインダーの時刻です。'
+      ? time ? `${category}\n${time}` : category
       : '通知があります。',
     tag: projection.id,
     url: '/or_app/',

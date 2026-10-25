@@ -14,6 +14,7 @@ void main() {
     localDate: '2026-10-08',
     allDay: false,
     startTime: '09:00',
+    endTime: '10:30',
     timeZone: 'Asia/Tokyo',
     offsetsMinutes: [0, 15, 60, 60],
     title: '診察',
@@ -30,6 +31,8 @@ void main() {
     expect(values.first.triggerAt, DateTime.utc(2026, 10, 7, 23));
     expect(values.last.triggerAt, DateTime.utc(2026, 10, 8));
     expect(values.last.title, '診察');
+    expect(values.last.toJson(), containsPair('startTime', '09:00'));
+    expect(values.last.toJson(), containsPair('endTime', '10:30'));
   });
 
   test('JST 08:00 and each offset retain their own UTC trigger instant', () {
@@ -55,35 +58,49 @@ void main() {
     ]);
   });
 
-  test('planner preserves UTC instants supplied by a DST-aware wall-time bridge', () {
-    int dstWallTime(String date, String time, String zone) {
-      expect(zone, 'America/New_York');
-      final offset = date == '2026-03-08' ? '-04:00' : '-05:00';
-      return DateTime.parse('${date}T$time:00$offset').millisecondsSinceEpoch;
-    }
-    final planner = NotificationProjectionPlanner(dstWallTime);
-    final values = planner.project(
-      const [
-        NotificationSourceOccurrence(
-          entityType: 'schedule', entityId: 'dst-spring', localDate: '2026-03-08',
-          allDay: false, startTime: '09:00', timeZone: 'America/New_York',
-          offsetsMinutes: [0], title: 'spring',
-        ),
-        NotificationSourceOccurrence(
-          entityType: 'schedule', entityId: 'dst-fall', localDate: '2026-11-01',
-          allDay: false, startTime: '09:00', timeZone: 'America/New_York',
-          offsetsMinutes: [0], title: 'fall',
-        ),
-      ],
-      privacyMode: NotificationPrivacyMode.contentHidden,
-      now: DateTime.utc(2026, 1, 1),
-    );
+  test(
+    'planner preserves UTC instants supplied by a DST-aware wall-time bridge',
+    () {
+      int dstWallTime(String date, String time, String zone) {
+        expect(zone, 'America/New_York');
+        final offset = date == '2026-03-08' ? '-04:00' : '-05:00';
+        return DateTime.parse('${date}T$time:00$offset').millisecondsSinceEpoch;
+      }
 
-    expect(values.map((value) => value.triggerAt), [
-      DateTime.utc(2026, 3, 8, 13),
-      DateTime.utc(2026, 11, 1, 14),
-    ]);
-  });
+      final planner = NotificationProjectionPlanner(dstWallTime);
+      final values = planner.project(
+        const [
+          NotificationSourceOccurrence(
+            entityType: 'schedule',
+            entityId: 'dst-spring',
+            localDate: '2026-03-08',
+            allDay: false,
+            startTime: '09:00',
+            timeZone: 'America/New_York',
+            offsetsMinutes: [0],
+            title: 'spring',
+          ),
+          NotificationSourceOccurrence(
+            entityType: 'schedule',
+            entityId: 'dst-fall',
+            localDate: '2026-11-01',
+            allDay: false,
+            startTime: '09:00',
+            timeZone: 'America/New_York',
+            offsetsMinutes: [0],
+            title: 'fall',
+          ),
+        ],
+        privacyMode: NotificationPrivacyMode.contentHidden,
+        now: DateTime.utc(2026, 1, 1),
+      );
+
+      expect(values.map((value) => value.triggerAt), [
+        DateTime.utc(2026, 3, 8, 13),
+        DateTime.utc(2026, 11, 1, 14),
+      ]);
+    },
+  );
 
   test('all-day authority is pinned local midnight', () {
     final values = const NotificationProjectionPlanner(tokyoWallTime).project(
@@ -106,6 +123,8 @@ void main() {
     expect(values.single.triggerAt, DateTime.utc(2026, 10, 7, 15));
     expect(values.single.title, isNull);
     expect(values.single.toJson(), isNot(contains('title')));
+    expect(values.single.toJson(), isNot(contains('allDay')));
+    expect(values.single.toJson(), isNot(contains('startTime')));
   });
 
   test('past projections are cancelled by omission during reconciliation', () {
@@ -240,18 +259,75 @@ void main() {
 
     expect(second, first);
   });
+
+  test(
+    'display metadata uses event wall time rather than an early trigger',
+    () {
+      const occurrence = NotificationSourceOccurrence(
+        entityType: 'schedule',
+        entityId: 'overnight',
+        localDate: '2026-10-22',
+        allDay: false,
+        startTime: '10:00',
+        endTime: '00:30',
+        endDate: '2026-10-23',
+        timeZone: 'Asia/Tokyo',
+        offsetsMinutes: [60],
+        title: 'トレーニング',
+      );
+      final projection = const NotificationProjectionPlanner(tokyoWallTime)
+          .project(
+            [occurrence],
+            privacyMode: NotificationPrivacyMode.titleVisible,
+            now: DateTime.utc(2026, 10, 1),
+          )
+          .single;
+
+      expect(projection.triggerAt, DateTime.utc(2026, 10, 22));
+      expect(projection.toJson(), containsPair('startTime', '10:00'));
+      expect(projection.toJson(), containsPair('endTime', '00:30'));
+      expect(projection.toJson(), containsPair('endDate', '2026-10-23'));
+    },
+  );
+
+  test(
+    'legacy time-less visible projection does not invent display metadata',
+    () {
+      const occurrence = NotificationSourceOccurrence(
+        entityType: 'reminder',
+        entityId: 'legacy',
+        localDate: '2026-10-22',
+        allDay: true,
+        startTime: null,
+        timeZone: 'Asia/Tokyo',
+        offsetsMinutes: [0],
+        title: '薬を飲む',
+      );
+      final projection = const NotificationProjectionPlanner(tokyoWallTime)
+          .project(
+            [occurrence],
+            privacyMode: NotificationPrivacyMode.titleVisible,
+            now: DateTime.utc(2026, 10, 1),
+          )
+          .single;
+      expect(projection.toJson(), containsPair('allDay', true));
+      expect(projection.toJson(), isNot(contains('startTime')));
+    },
+  );
 }
 
 NotificationSourceOccurrence _reminder({
   String localDate = '2026-10-08',
   required String time,
   required List<int> offsets,
+  String? endTime,
 }) => NotificationSourceOccurrence(
   entityType: 'reminder',
   entityId: 'reminder-id@$localDate',
   localDate: localDate,
   allDay: false,
   startTime: time,
+  endTime: endTime,
   timeZone: 'Asia/Tokyo',
   offsetsMinutes: offsets,
   title: 'テスト',

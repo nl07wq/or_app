@@ -7,6 +7,8 @@ class NotificationSourceOccurrence {
     required this.localDate,
     required this.allDay,
     required this.startTime,
+    this.endTime,
+    this.endDate,
     required this.timeZone,
     required this.offsetsMinutes,
     required this.title,
@@ -17,6 +19,8 @@ class NotificationSourceOccurrence {
   final String localDate;
   final bool allDay;
   final String? startTime;
+  final String? endTime;
+  final String? endDate;
   final String timeZone;
   final List<int> offsetsMinutes;
   final String title;
@@ -32,6 +36,10 @@ class NotificationProjection {
     required this.timeZone,
     required this.privacyMode,
     this.title,
+    this.allDay = false,
+    this.startTime,
+    this.endTime,
+    this.endDate,
   });
 
   final String id;
@@ -42,6 +50,10 @@ class NotificationProjection {
   final String timeZone;
   final NotificationPrivacyMode privacyMode;
   final String? title;
+  final bool allDay;
+  final String? startTime;
+  final String? endTime;
+  final String? endDate;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -51,8 +63,13 @@ class NotificationProjection {
     'triggerAt': triggerAt.toUtc().toIso8601String(),
     'timeZone': timeZone,
     'privacyMode': privacyMode.name,
-    if (privacyMode == NotificationPrivacyMode.titleVisible && title != null)
-      'title': title,
+    if (privacyMode == NotificationPrivacyMode.titleVisible) ...{
+      if (title != null) 'title': title,
+      'allDay': allDay,
+      if (startTime != null) 'startTime': startTime,
+      if (endTime != null) 'endTime': endTime,
+      if (endDate != null) 'endDate': endDate,
+    },
   };
 }
 
@@ -97,6 +114,16 @@ class NotificationProjectionPlanner {
           privacyMode: privacyMode,
           title: privacyMode == NotificationPrivacyMode.titleVisible
               ? occurrence.title
+              : null,
+          allDay: occurrence.allDay,
+          startTime: privacyMode == NotificationPrivacyMode.titleVisible
+              ? occurrence.startTime
+              : null,
+          endTime: privacyMode == NotificationPrivacyMode.titleVisible
+              ? occurrence.endTime
+              : null,
+          endDate: privacyMode == NotificationPrivacyMode.titleVisible
+              ? occurrence.endDate
               : null,
         );
       }

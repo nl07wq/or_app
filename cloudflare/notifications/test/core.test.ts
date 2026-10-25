@@ -34,9 +34,67 @@ describe('notification backend contracts', () => {
   });
 
   it('never retains title in hidden mode', () => {
-    const hidden = validateProjection({ ...base, privacyMode: 'contentHidden', title: 'private' });
+    const hidden = validateProjection({
+      ...base,
+      privacyMode: 'contentHidden',
+      title: 'private',
+      allDay: true,
+      startTime: '08:00',
+      endTime: '09:00',
+      endDate: '2026-10-09',
+    });
     expect(hidden.title).toBeNull();
+    expect(hidden.startTime).toBeNull();
+    expect(hidden.endTime).toBeNull();
+    expect(hidden.endDate).toBeNull();
+    expect(hidden.allDay).toBe(false);
     expect(notificationPayload(hidden)).not.toContain('private');
+    expect(notificationPayload(hidden)).not.toContain('08:00');
+  });
+
+  it('creates the requested visible three-line schedule payload', () => {
+    const projection = validateProjection({
+      ...base,
+      title: 'トレーニング',
+      startTime: '10:00',
+      endTime: '11:30',
+    });
+    expect(JSON.parse(notificationPayload(projection))).toMatchObject({
+      title: 'トレーニング',
+      body: 'スケジュール\n10:00 〜 11:30',
+    });
+  });
+
+  it('formats reminder start-only, all-day, overnight and legacy bodies safely', () => {
+    const startOnly = validateProjection({
+      ...base,
+      entityType: 'reminder',
+      startTime: '08:00',
+    });
+    const allDay = validateProjection({ ...base, allDay: true });
+    const overnight = validateProjection({
+      ...base,
+      startTime: '23:00',
+      endTime: '00:30',
+      endDate: '2026-10-09',
+    });
+    const legacy = validateProjection(base);
+    expect(JSON.parse(notificationPayload(startOnly)).body).toBe('リマインダー\n08:00');
+    expect(JSON.parse(notificationPayload(allDay)).body).toBe('スケジュール\n終日');
+    expect(JSON.parse(notificationPayload(overnight)).body).toBe('スケジュール\n23:00 〜 2026-10-09 00:30');
+    expect(JSON.parse(notificationPayload(legacy)).body).toBe('スケジュール');
+  });
+
+  it('sanitizes optional display metadata without rejecting legacy projections', () => {
+    const invalid = validateProjection({
+      ...base,
+      startTime: '9am',
+      endTime: '24:00',
+      endDate: 'not-a-date',
+    });
+    expect(invalid.startTime).toBeNull();
+    expect(invalid.endTime).toBeNull();
+    expect(invalid.endDate).toBeNull();
   });
 
   it('uses bounded exponential alarm retries', () => {

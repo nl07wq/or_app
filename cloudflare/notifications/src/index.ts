@@ -99,7 +99,8 @@ export class NotificationProfile extends DurableObject<Env> {
       sql.exec(`CREATE TABLE IF NOT EXISTS projections (
         id TEXT PRIMARY KEY, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
         occurrence_local_date TEXT NOT NULL, trigger_at INTEGER NOT NULL, time_zone TEXT NOT NULL,
-        privacy_mode TEXT NOT NULL, title TEXT, generation TEXT NOT NULL,
+        privacy_mode TEXT NOT NULL, title TEXT, all_day INTEGER, start_time TEXT, end_time TEXT,
+        end_date TEXT, generation TEXT NOT NULL,
         attempts INTEGER NOT NULL DEFAULT 0, delivered_at INTEGER, cancelled_at INTEGER,
         expired_at INTEGER, failed_at INTEGER, retry_at INTEGER, last_attempt_at INTEGER, last_result TEXT)`);
       const projectionColumns = [...sql.exec('PRAGMA table_info(projections)')] as Array<{ name: string }>;
@@ -111,6 +112,18 @@ export class NotificationProfile extends DurableObject<Env> {
       }
       if (!projectionColumns.some((column) => column.name === 'last_attempt_at')) {
         sql.exec('ALTER TABLE projections ADD COLUMN last_attempt_at INTEGER');
+      }
+      if (!projectionColumns.some((column) => column.name === 'all_day')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN all_day INTEGER');
+      }
+      if (!projectionColumns.some((column) => column.name === 'start_time')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN start_time TEXT');
+      }
+      if (!projectionColumns.some((column) => column.name === 'end_time')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN end_time TEXT');
+      }
+      if (!projectionColumns.some((column) => column.name === 'end_date')) {
+        sql.exec('ALTER TABLE projections ADD COLUMN end_date TEXT');
       }
       sql.exec(`CREATE INDEX IF NOT EXISTS projections_due ON projections(trigger_at, retry_at)`);
     });
@@ -252,11 +265,13 @@ export class NotificationProfile extends DurableObject<Env> {
     for (const item of projections) {
       sql.exec(
         `INSERT INTO projections(id, entity_type, entity_id, occurrence_local_date, trigger_at,
-         time_zone, privacy_mode, title, generation, attempts, delivered_at, cancelled_at, expired_at, failed_at, retry_at, last_result)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, NULL, NULL, NULL)
+         time_zone, privacy_mode, title, all_day, start_time, end_time, end_date, generation, attempts, delivered_at, cancelled_at, expired_at, failed_at, retry_at, last_result)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, NULL, NULL, NULL)
          ON CONFLICT(id) DO UPDATE SET entity_type=excluded.entity_type, entity_id=excluded.entity_id,
          occurrence_local_date=excluded.occurrence_local_date, trigger_at=excluded.trigger_at,
          time_zone=excluded.time_zone, privacy_mode=excluded.privacy_mode, title=excluded.title,
+         all_day=excluded.all_day, start_time=excluded.start_time, end_time=excluded.end_time,
+         end_date=excluded.end_date,
          generation=excluded.generation,
          cancelled_at=CASE WHEN projections.delivered_at IS NOT NULL OR projections.expired_at IS NOT NULL OR projections.failed_at IS NOT NULL
            THEN projections.cancelled_at ELSE NULL END,
@@ -268,7 +283,9 @@ export class NotificationProfile extends DurableObject<Env> {
          last_attempt_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.last_attempt_at END,
          last_result=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.last_result END`,
         item.id, item.entityType, item.entityId, item.occurrenceLocalDate,
-        Date.parse(item.triggerAt), item.timeZone, item.privacyMode, item.title ?? null, body.generation,
+        Date.parse(item.triggerAt), item.timeZone, item.privacyMode, item.title ?? null,
+        item.allDay ? 1 : null, item.startTime ?? null, item.endTime ?? null,
+        item.endDate ?? null, body.generation,
       );
       this.logDeliveryDiagnostic('reconciled', {
         projection: projectionCorrelationId(item.id),
@@ -351,6 +368,10 @@ export class NotificationProfile extends DurableObject<Env> {
       entityId: String(row.entity_id), occurrenceLocalDate: String(row.occurrence_local_date),
       triggerAt: new Date(Number(row.trigger_at)).toISOString(), timeZone: String(row.time_zone),
       privacyMode: row.privacy_mode as ProjectionInput['privacyMode'], title: row.title ? String(row.title) : null,
+      allDay: row.all_day === 1,
+      startTime: row.start_time ? String(row.start_time) : null,
+      endTime: row.end_time ? String(row.end_time) : null,
+      endDate: row.end_date ? String(row.end_date) : null,
     };
     const vapid: VapidKeys = {
       subject: this.env.VAPID_SUBJECT,
