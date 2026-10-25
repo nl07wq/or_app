@@ -7,7 +7,6 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
-import '../../../core/widgets/operation_dropdown.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import 'food_form_theme.dart';
 import '../food_catalog_page.dart';
@@ -126,25 +125,13 @@ class FoodInputFields extends StatelessWidget {
                 label: 'BRAND',
                 onChanged: onChanged,
               );
-              final categoryField = OperationDropdown<FoodCatalogCategory>(
+              final categoryField = FoodCategoryDropdown<FoodCatalogCategory>(
                 key: ValueKey('food-entry-category-${category.name}'),
-                label: 'CATEGORY',
                 value: category,
-                isExpanded: true,
-                items: FoodCatalogCategory.values
-                    .map(
-                      (value) => DropdownMenuItem(
-                        value: value,
-                        child: Text(
-                          foodCatalogCategoryLabel(value),
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) {
-                  if (value != null) onCategoryChanged(value);
-                },
+                values: FoodCatalogCategory.values,
+                labelFor: foodCatalogCategoryLabel,
+                onChanged: (value) =>
+                    value == null ? null : onCategoryChanged(value),
               );
               if (constraints.maxWidth < 300) {
                 return Column(children: [brand, _compactGap, categoryField]);
@@ -659,6 +646,18 @@ class _FoodNutritionPanel extends StatelessWidget {
             );
           },
         ),
+        if (calorieFocusNode != null &&
+            proteinFocusNode != null &&
+            fatFocusNode != null &&
+            carbohydrateFocusNode != null)
+          FoodNutritionFocusToolbar(
+            nodes: [
+              calorieFocusNode!,
+              proteinFocusNode!,
+              fatFocusNode!,
+              carbohydrateFocusNode!,
+            ],
+          ),
       ],
     ),
   );
@@ -679,9 +678,14 @@ class _FoodNutritionPanel extends StatelessWidget {
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           labelStyle: theme.inputDecorationTheme.labelStyle?.copyWith(
             color: color,
+            fontSize: 9.5,
           ),
           floatingLabelStyle: theme.inputDecorationTheme.floatingLabelStyle
-              ?.copyWith(color: color),
+              ?.copyWith(color: color, fontSize: 9.5),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 8,
+          ),
         ),
       ),
       child: _NutritionFocusField(

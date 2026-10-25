@@ -1420,12 +1420,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                       controller: _brand,
                       label: 'BRAND',
                     );
-                    final category = _dropdown(
-                      label: 'CATEGORY',
+                    final category = FoodCategoryDropdown<FoodCatalogCategory>(
                       value: _category,
                       values: FoodCatalogCategory.values,
-                      text: foodCatalogCategoryLabel,
+                      labelFor: foodCatalogCategoryLabel,
                       onChanged: (value) {
+                        if (value == null) return;
                         if (value == _category) return;
                         GlobalTouchRipple.previewFeedback(
                           TouchFeedbackSound.cursor,
@@ -1683,6 +1683,14 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
             );
           },
         ),
+        FoodNutritionFocusToolbar(
+          nodes: [
+            _caloriesFocusNode,
+            _proteinFocusNode,
+            _fatFocusNode,
+            _carbsFocusNode,
+          ],
+        ),
       ],
     ),
   );
@@ -1702,9 +1710,14 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           labelStyle: theme.inputDecorationTheme.labelStyle?.copyWith(
             color: color,
+            fontSize: 9.5,
           ),
           floatingLabelStyle: theme.inputDecorationTheme.floatingLabelStyle
-              ?.copyWith(color: color),
+              ?.copyWith(color: color, fontSize: 9.5),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 8,
+          ),
         ),
       ),
       child: _CatalogNutritionFocusField(

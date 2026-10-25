@@ -76,3 +76,157 @@ class FoodFormTheme extends StatelessWidget {
   Widget build(BuildContext context) =>
       Theme(data: FoodFormMetrics.applyTo(Theme.of(context)), child: child);
 }
+
+/// The category value is intentionally more compact than its field label and
+/// menu rows.  Long Japanese values therefore remain one line without
+/// changing the typography of unrelated dropdowns.
+class FoodCategoryDropdown<T> extends StatelessWidget {
+  const FoodCategoryDropdown({
+    super.key,
+    required this.value,
+    required this.values,
+    required this.labelFor,
+    required this.onChanged,
+  });
+
+  final T value;
+  final List<T> values;
+  final String Function(T value) labelFor;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final base =
+        Theme.of(context).textTheme.bodyLarge ??
+        const TextStyle(fontSize: FoodFormMetrics.valueFontSize);
+    final selectedStyle = base.copyWith(
+      fontSize: (base.fontSize ?? FoodFormMetrics.valueFontSize) * .8,
+    );
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'CATEGORY'),
+      style: selectedStyle,
+      items: values
+          .map(
+            (item) => DropdownMenuItem<T>(
+              value: item,
+              child: Text(labelFor(item), style: base),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: onChanged,
+    );
+  }
+}
+
+/// Touch-first field navigation for the compact nutrition group.  The owner
+/// supplies its existing focus nodes, so changing focus never writes data or
+/// invokes a save action.
+class FoodNutritionFocusToolbar extends StatefulWidget {
+  const FoodNutritionFocusToolbar({super.key, required this.nodes});
+
+  final List<FocusNode> nodes;
+
+  @override
+  State<FoodNutritionFocusToolbar> createState() =>
+      _FoodNutritionFocusToolbarState();
+}
+
+class _FoodNutritionFocusToolbarState extends State<FoodNutritionFocusToolbar> {
+  int get _currentIndex => widget.nodes.indexWhere((node) => node.hasFocus);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final node in widget.nodes) {
+      node.addListener(_handleFocusChanged);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant FoodNutritionFocusToolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.nodes, widget.nodes)) return;
+    for (final node in oldWidget.nodes) {
+      node.removeListener(_handleFocusChanged);
+    }
+    for (final node in widget.nodes) {
+      node.addListener(_handleFocusChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final node in widget.nodes) {
+      node.removeListener(_handleFocusChanged);
+    }
+    super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = _currentIndex;
+    if (current < 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Semantics(
+          container: true,
+          label: 'Nutrition field navigation',
+          child: Row(
+            key: const ValueKey('food-nutrition-focus-toolbar'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _button(
+                key: const ValueKey('food-nutrition-focus-previous'),
+                icon: Icons.keyboard_arrow_up,
+                tooltip: 'Previous nutrition field',
+                onPressed: current > 0
+                    ? () => widget.nodes[current - 1].requestFocus()
+                    : null,
+              ),
+              _button(
+                key: const ValueKey('food-nutrition-focus-next'),
+                icon: Icons.keyboard_arrow_down,
+                tooltip: 'Next nutrition field',
+                onPressed: current < widget.nodes.length - 1
+                    ? () => widget.nodes[current + 1].requestFocus()
+                    : null,
+              ),
+              _button(
+                key: const ValueKey('food-nutrition-focus-done'),
+                icon: Icons.done,
+                tooltip: 'Finish nutrition editing',
+                onPressed: () => FocusScope.of(context).unfocus(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _button({
+    required Key key,
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    child: IconButton(
+      key: key,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 19),
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+    ),
+  );
+}

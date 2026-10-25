@@ -152,6 +152,36 @@ void main() {
     }
   });
 
+  testWidgets('catalog nutrition toolbar moves touch focus without saving', (
+    tester,
+  ) async {
+    final repository = _MemoryCatalogRepository(const []);
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogEditorPage(repository: repository)),
+    );
+
+    final calories = find.widgetWithText(TextField, 'CALORIES');
+    final protein = find.widgetWithText(TextField, 'PROTEIN');
+    await tester.ensureVisible(calories);
+    await tester.tap(calories);
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('food-nutrition-focus-toolbar')),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('food-nutrition-focus-toolbar')),
+    );
+    await tester.enterText(calories, '123');
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
+    await tester.pump();
+    expect(tester.widget<TextField>(protein).focusNode?.hasFocus, isTrue);
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-done')));
+    await tester.pump();
+    expect(tester.widget<TextField>(calories).controller?.text, '123');
+    expect((await repository.list()), isEmpty);
+  });
+
   testWidgets('searches name brand and barcode and excludes archived entries', (
     tester,
   ) async {

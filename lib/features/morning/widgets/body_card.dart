@@ -329,7 +329,7 @@ class _Tape extends CustomPainter {
     _reticle(canvas, paint, cx, cy, left, right);
     _centerGuide(canvas, paint, cx, cy);
     _arms(canvas, cx, cy, dx, expansion, lockPulse, energyPulse);
-    _centerCursor(canvas, cx, cy, dx, lockPulse);
+    _centerCursor(canvas, cx, cy, dx, lockPulse, energyPulse);
     _selectedValueLabel(canvas, cx, cy);
   }
 
@@ -690,29 +690,44 @@ class _Tape extends CustomPainter {
     ];
     final lockPeak = _lockPeak();
     final heldEnergy = active ? energyPulse : 0.0;
-    const decorationOpacity = .50;
-    final haloAlpha = lockPeak > 0
-        ? (.09 + .35 * lockPeak) * decorationOpacity
+    // These four articulated paths are the primary lock cursor.  Decorative
+    // arcs and dots are intentionally dimmed above; do not apply those
+    // multipliers to the cursor that captures the selected weight.
+    final wideGlowAlpha = lockPeak > 0
+        ? (.18 + .27 * lockPeak)
         : active
-        ? (.13 + .09 * heldEnergy) * decorationOpacity
-        : .08 * decorationOpacity;
+        ? (.34 + .11 * heldEnergy)
+        : .10;
+    final nearGlowAlpha = lockPeak > 0
+        ? (.42 + .38 * lockPeak)
+        : active
+        ? (.68 + .12 * heldEnergy)
+        : .24;
     final cyanAlpha = lockPeak > 0
-        ? (.68 + .32 * lockPeak) * decorationOpacity
+        ? (.78 + .22 * lockPeak)
         : active
-        ? (.85 + .15 * heldEnergy) * decorationOpacity
-        : .68 * decorationOpacity;
+        ? (.90 + .10 * heldEnergy)
+        : .72;
     final iceAlpha = lockPeak > 0
-        ? (.35 + .60 * lockPeak) * decorationOpacity
+        ? (.62 + .38 * lockPeak)
         : active
-        ? (.60 + .32 * heldEnergy) * decorationOpacity
-        : .35 * decorationOpacity;
+        ? (.82 + .18 * heldEnergy)
+        : .46;
     final paints = [
       Paint()
         ..strokeCap = StrokeCap.square
         ..strokeJoin = StrokeJoin.miter
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 7
-        ..color = _cyan.withValues(alpha: haloAlpha),
+        ..strokeWidth = 1.6
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
+        ..color = _cyan.withValues(alpha: wideGlowAlpha),
+      Paint()
+        ..strokeCap = StrokeCap.square
+        ..strokeJoin = StrokeJoin.miter
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+        ..color = _ice.withValues(alpha: nearGlowAlpha),
       Paint()
         ..strokeCap = StrokeCap.square
         ..strokeJoin = StrokeJoin.miter
@@ -745,28 +760,35 @@ class _Tape extends CustomPainter {
     double cy,
     double Function(double) dx,
     double lockPulse,
+    double energyPulse,
   ) {
-    final activeIntensity = active ? 1.0 : .0;
-    final lockIntensity = lockPulse;
-    final glowIntensity = math.max(activeIntensity, lockIntensity);
+    final activeEnergy = active ? energyPulse : 0.0;
     final cursorPath = Path()
       ..moveTo(cx - dx(10), cy)
       ..lineTo(cx + dx(10), cy)
       ..moveTo(cx, cy - 10)
       ..lineTo(cx, cy + 10);
-    if (glowIntensity > 0) {
+    if (active || lockPulse > 0) {
       final wideGlow = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.square
         ..strokeWidth = 1.05
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
-        ..color = _cyan.withValues(alpha: .18 * glowIntensity);
+        ..color = _cyan.withValues(
+          alpha: lockPulse > 0
+              ? (.22 + .28 * lockPulse)
+              : .32 + .18 * activeEnergy,
+        );
       final nearGlow = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.square
         ..strokeWidth = 1.2
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
-        ..color = _ice.withValues(alpha: .55 * glowIntensity);
+        ..color = _ice.withValues(
+          alpha: lockPulse > 0
+              ? (.48 + .37 * lockPulse)
+              : .65 + .20 * activeEnergy,
+        );
       c.drawPath(cursorPath, wideGlow);
       c.drawPath(cursorPath, nearGlow);
     }

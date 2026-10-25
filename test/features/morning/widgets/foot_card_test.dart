@@ -10,18 +10,18 @@ void main() {
     ),
   );
 
-  testWidgets('missing value opens two rows and does not invent a level', (
-    tester,
-  ) async {
-    final controller = TextEditingController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(app(controller));
-    expect(find.byKey(const Key('foot-pain-levels-1-5')), findsOneWidget);
-    expect(find.byKey(const Key('foot-pain-levels-6-10')), findsOneWidget);
-    expect(find.byKey(const Key('foot-pain-chip-1')), findsOneWidget);
-    expect(find.byKey(const Key('foot-pain-chip-10')), findsOneWidget);
-    expect(controller.text, isEmpty);
-  });
+  testWidgets(
+    'missing value opens the 1 through 10 rail and does not invent a level',
+    (tester) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(app(controller));
+      expect(find.byKey(const Key('foot-pain-scale')), findsOneWidget);
+      expect(find.byKey(const Key('foot-pain-levels-1-5')), findsNothing);
+      expect(find.byKey(const Key('foot-pain-levels-6-10')), findsNothing);
+      expect(controller.text, isEmpty);
+    },
+  );
 
   testWidgets(
     'selection completes into cyan readout and reopens with same value',
@@ -29,19 +29,22 @@ void main() {
       final controller = TextEditingController(text: '3');
       addTearDown(controller.dispose);
       await tester.pumpWidget(app(controller));
-      expect(find.byKey(const Key('foot-pain-levels-1-5')), findsNothing);
+      expect(find.byKey(const Key('foot-pain-scale')), findsNothing);
       await tester.tap(find.byKey(const Key('foot-pain-current-value-button')));
       await tester.pump();
-      await tester.tap(find.byKey(const Key('foot-pain-chip-7')));
+      final scale = find.byKey(const Key('foot-pain-scale'));
+      final rect = tester.getRect(scale);
+      await tester.tapAt(
+        Offset(rect.left + rect.width * 6 / 9, rect.center.dy),
+      );
       expect(controller.text, '7');
       await tester.tap(find.byKey(const Key('foot-pain-done')));
       await tester.pump();
       expect(find.text('LV.7 /10'), findsOneWidget);
-      expect(find.byKey(const Key('foot-pain-levels-6-10')), findsNothing);
+      expect(find.byKey(const Key('foot-pain-scale')), findsNothing);
       await tester.tap(find.byKey(const Key('foot-pain-current-value-button')));
       await tester.pump();
-      expect(find.byKey(const Key('foot-pain-levels-6-10')), findsOneWidget);
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.byKey(const Key('foot-pain-scale')), findsOneWidget);
     },
   );
 
@@ -61,7 +64,7 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const Key('foot-pain-levels-1-5')), findsOneWidget);
+    expect(find.byKey(const Key('foot-pain-scale')), findsOneWidget);
     await tester.tap(find.byKey(const Key('foot-pain-done')));
     await tester.pump();
     expect(
@@ -83,7 +86,7 @@ void main() {
   );
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
-    testWidgets('two editing rows fit at $width', (tester) async {
+    testWidgets('horizontal pain rail fits at $width', (tester) async {
       tester.view.physicalSize = Size(width, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -92,12 +95,32 @@ void main() {
       addTearDown(controller.dispose);
       await tester.pumpWidget(app(controller));
       expect(tester.takeException(), isNull);
-      for (var value = 1; value <= 10; value++) {
-        expect(
-          tester.getSize(find.byKey(Key('foot-pain-chip-$value'))).height,
-          greaterThanOrEqualTo(44),
-        );
-      }
+      expect(
+        tester.getSize(find.byKey(const Key('foot-pain-scale'))).height,
+        greaterThanOrEqualTo(44),
+      );
     });
   }
+
+  testWidgets(
+    'tap and horizontal drag select only the formal 1 through 10 range',
+    (tester) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(app(controller));
+      final scale = find.byKey(const Key('foot-pain-scale'));
+      final rect = tester.getRect(scale);
+      await tester.tapAt(Offset(rect.left, rect.center.dy));
+      expect(controller.text, '1');
+      final gesture = await tester.startGesture(
+        Offset(rect.left + 1, rect.center.dy),
+      );
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(Offset(rect.width - 22, 0));
+      await tester.pump();
+      await gesture.up();
+      expect(controller.text, '10');
+    },
+  );
 }

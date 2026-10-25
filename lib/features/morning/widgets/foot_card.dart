@@ -21,11 +21,6 @@ class FootCard extends StatefulWidget {
 }
 
 class _FootCardState extends State<FootCard> {
-  static const _firstRowValues = [1, 2, 3, 4, 5];
-  static const _secondRowValues = [6, 7, 8, 9, 10];
-  static const _maximumChipWidth = 72.0;
-  static const _compactWidth = 280.0;
-  static const _desktopWidth = 600.0;
   late bool _editing;
 
   int? get _selectedValue => int.tryParse(widget.controller.text);
@@ -64,61 +59,6 @@ class _FootCardState extends State<FootCard> {
 
   void _selectPainLevel(int value) {
     widget.controller.text = value.toString();
-  }
-
-  Widget _buildPainLevelRow(List<int> values, Key key) {
-    return LayoutBuilder(
-      key: key,
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= _desktopWidth) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < values.length; index++) ...[
-                if (index > 0) const SizedBox(width: 8),
-                SizedBox(
-                  width: _maximumChipWidth,
-                  child: _PainLevelChip(
-                    key: Key('foot-pain-chip-${values[index]}'),
-                    value: values[index],
-                    selected: _selectedValue == values[index],
-                    onPressed: () => _selectPainLevel(values[index]),
-                  ),
-                ),
-              ],
-            ],
-          );
-        }
-
-        final horizontalInset = constraints.maxWidth < _compactWidth
-            ? 1.0
-            : 4.0;
-
-        return Row(
-          children: [
-            for (final value in values)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalInset),
-                  child: Align(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: _maximumChipWidth,
-                      ),
-                      child: _PainLevelChip(
-                        key: Key('foot-pain-chip-$value'),
-                        value: value,
-                        selected: _selectedValue == value,
-                        onPressed: () => _selectPainLevel(value),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -204,18 +144,10 @@ class _FootCardState extends State<FootCard> {
 
             AppSpacing.gapMD,
 
-            Column(
-              children: [
-                _buildPainLevelRow(
-                  _firstRowValues,
-                  const Key('foot-pain-levels-1-5'),
-                ),
-                const SizedBox(height: 8),
-                _buildPainLevelRow(
-                  _secondRowValues,
-                  const Key('foot-pain-levels-6-10'),
-                ),
-              ],
+            _FootPainScale(
+              key: const Key('foot-pain-scale'),
+              value: _hasSelectedValue ? _selectedValue : null,
+              onChanged: _selectPainLevel,
             ),
 
             AppSpacing.gapMD,
@@ -239,76 +171,123 @@ class _FootCardState extends State<FootCard> {
   }
 }
 
-class _PainLevelChip extends StatelessWidget {
-  const _PainLevelChip({
+/// A presentation-only 1..10 rail.  It deliberately leaves null unmeasured
+/// rather than treating the left edge as a hidden zero value.
+class _FootPainScale extends StatelessWidget {
+  const _FootPainScale({
     super.key,
     required this.value,
-    required this.selected,
-    required this.onPressed,
+    required this.onChanged,
   });
 
-  final int value;
-  final bool selected;
-  final VoidCallback onPressed;
+  final int? value;
+  final ValueChanged<int> onChanged;
+
+  int _valueFor(Offset position, double width) {
+    const inset = 18.0;
+    final fraction = ((position.dx - inset) / (width - inset * 2)).clamp(
+      0.0,
+      1.0,
+    );
+    return (1 + (fraction * 9).round()).clamp(1, 10).toInt();
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final foregroundColor = selected
-        ? colorScheme.onSecondaryContainer
-        : colorScheme.onSurfaceVariant;
-    final shape = RoundedRectangleBorder(
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      side: BorderSide(
-        color: selected
-            ? colorScheme.primary.withValues(alpha: .82)
-            : colorScheme.outlineVariant,
-      ),
-    );
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      excludeSemantics: true,
-      label: 'Pain level $value',
-      onTap: onPressed,
-      child: SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: Material(
-          key: Key('foot-pain-material-$value'),
-          color: selected ? colorScheme.secondaryContainer : Colors.transparent,
-          shape: shape,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            key: Key('foot-pain-inkwell-$value'),
-            customBorder: shape,
-            excludeFromSemantics: true,
-            onTap: onPressed,
-            child: Center(
-              child: selected
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check, size: 18, color: foregroundColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$value',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(color: foregroundColor),
-                        ),
-                      ],
-                    )
-                  : Text(
-                      '$value',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(color: foregroundColor),
-                    ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      void select(Offset position) =>
+          onChanged(_valueFor(position, constraints.maxWidth));
+      return Semantics(
+        slider: true,
+        label: 'Pain level',
+        value: value == null ? '未選択' : 'LV.$value /10',
+        increasedValue: value == null || value! >= 10
+            ? null
+            : 'LV.${value! + 1} /10',
+        decreasedValue: value == null || value! <= 1
+            ? null
+            : 'LV.${value! - 1} /10',
+        onIncrease: value == null || value! >= 10
+            ? null
+            : () => onChanged(value! + 1),
+        onDecrease: value == null || value! <= 1
+            ? null
+            : () => onChanged(value! - 1),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) => select(details.localPosition),
+          onHorizontalDragUpdate: (details) => select(details.localPosition),
+          child: SizedBox(
+            height: 58,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _FootPainScalePainter(
+                value: value,
+                colors: Theme.of(context).colorScheme,
+              ),
             ),
-          ).actionableFeedback(),
-        ),
-      ),
+          ),
+        ).inputFeedback(),
+      );
+    },
+  );
+}
+
+class _FootPainScalePainter extends CustomPainter {
+  const _FootPainScalePainter({required this.value, required this.colors});
+
+  final int? value;
+  final ColorScheme colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const inset = 18.0;
+    final y = 22.0;
+    final start = Offset(inset, y);
+    final end = Offset(size.width - inset, y);
+    final track = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 7
+      ..color = colors.outlineVariant.withValues(alpha: .28);
+    canvas.drawLine(start, end, track);
+    final selectedFraction = value == null ? 0.0 : (value! - 1) / 9;
+    final selected = Offset.lerp(start, end, selectedFraction)!;
+    if (value != null) {
+      track.color = colors.primary.withValues(alpha: .78);
+      canvas.drawLine(start, selected, track);
+    }
+    final tick = Paint()
+      ..strokeWidth = 1
+      ..color = colors.onSurfaceVariant.withValues(alpha: .58);
+    final textStyle = TextStyle(
+      color: colors.onSurfaceVariant.withValues(alpha: .76),
+      fontSize: 11,
+      fontFamily: 'ShareTechMono',
     );
+    for (var index = 0; index < 10; index++) {
+      final position = Offset.lerp(start, end, index / 9)!;
+      final selectedTick = value == index + 1;
+      tick
+        ..strokeWidth = selectedTick ? 2 : 1
+        ..color = (selectedTick ? colors.primary : colors.onSurfaceVariant)
+            .withValues(alpha: selectedTick ? 1 : .58);
+      canvas.drawLine(
+        Offset(position.dx, y - (selectedTick ? 10 : 7)),
+        Offset(position.dx, y + (selectedTick ? 10 : 7)),
+        tick,
+      );
+      if (selectedTick) {
+        canvas.drawCircle(position, 5, Paint()..color = colors.primary);
+      }
+      final label = TextPainter(
+        text: TextSpan(text: '${index + 1}', style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(canvas, Offset(position.dx - label.width / 2, 40));
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant _FootPainScalePainter oldDelegate) =>
+      oldDelegate.value != value || oldDelegate.colors != colors;
 }

@@ -379,8 +379,13 @@ void main() {
       ),
     );
 
-    final category = tester.widget<Text>(find.text('調理済み食品'));
-    expect(category.style?.fontSize, 14);
+    final category = tester.widget<DropdownButton<FoodCatalogCategory>>(
+      find.descendant(
+        of: _category(),
+        matching: find.byType(DropdownButton<FoodCatalogCategory>),
+      ),
+    );
+    expect(category.style?.fontSize, closeTo(11.2, .01));
     expect(find.text('登録基準量は0より大きい値を入力してください'), findsOneWidget);
     expect(
       find.text('NUTRITION BASIS MUST BE GREATER THAN ZERO'),
@@ -447,6 +452,58 @@ void main() {
       expect(protein.hasFocus, isTrue);
     },
   );
+
+  testWidgets('touch nutrition navigation changes focus and done never saves', (
+    tester,
+  ) async {
+    final controllers = _Controllers();
+    final calories = FocusNode();
+    final protein = FocusNode();
+    final fat = FocusNode();
+    final carbohydrate = FocusNode();
+    addTearDown(controllers.dispose);
+    addTearDown(calories.dispose);
+    addTearDown(protein.dispose);
+    addTearDown(fat.dispose);
+    addTearDown(carbohydrate.dispose);
+    await tester.pumpWidget(
+      _subject(
+        controllers,
+        width: 320,
+        calorieFocusNode: calories,
+        proteinFocusNode: protein,
+        fatFocusNode: fat,
+        carbohydrateFocusNode: carbohydrate,
+      ),
+    );
+
+    calories.requestFocus();
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('food-nutrition-focus-toolbar')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
+    await tester.pump();
+    expect(protein.hasFocus, isTrue);
+    controllers.protein.text = '12.3';
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
+    await tester.pump();
+    expect(fat.hasFocus, isTrue);
+    await tester.tap(
+      find.byKey(const ValueKey('food-nutrition-focus-previous')),
+    );
+    await tester.pump();
+    expect(protein.hasFocus, isTrue);
+    expect(controllers.protein.text, '12.3');
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-done')));
+    await tester.pump();
+    expect(
+      [calories, protein, fat, carbohydrate].any((node) => node.hasFocus),
+      isFalse,
+    );
+    expect(controllers.protein.text, '12.3');
+  });
 }
 
 Widget _subject(
