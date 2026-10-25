@@ -161,121 +161,48 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                       }
                     });
                   },
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              session.date.split('T').first,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-
-                            AppSpacing.gapSM,
-
-                            Text(
-                              v2 == null
-                                  ? '${readModel.exerciseCount} Ex   '
-                                        '${readModel.setCount} Legacy Sets'
-                                  : '${readModel.exerciseCount} Ex   '
-                                        '$mainSetCount Main Sets',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            if (v2 != null &&
-                                (warmUpSetCount > 0 || legacySetCount > 0))
-                              Text(
-                                '$warmUpSetCount Warm-up   '
-                                '$legacySetCount Legacy',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            if (equipmentNames.isNotEmpty) ...[
-                              AppSpacing.gapSM,
-                              Text(
-                                equipmentNames.join(' / '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                            if (v2?.sessionGrade != null)
-                              Text(
-                                'Grade ${v2!.sessionGrade!.displayLabel}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-
-                            if (session.memo.isNotEmpty) ...[
-                              AppSpacing.gapSM,
-                              Text(
-                                session.memo,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                            if (readModel.cardioEntryCount > 0) ...[
-                              AppSpacing.gapMD,
-                              Text(
-                                'Cardio: ${readModel.cardioEntryCount}',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              if (v2 != null)
-                                Text(
-                                  'Cardio Time: '
-                                  '${v2.cardioEntries.fold<int>(0, (sum, entry) => sum + entry.durationSeconds)} sec',
-                                  style: Theme.of(context).textTheme.bodyMedium,
+                  child: _TrainingRecordPlate(
+                    date: session.date.split('T').first,
+                    exerciseCount: readModel.exerciseCount,
+                    mainSetCount: v2 == null
+                        ? readModel.setCount
+                        : mainSetCount,
+                    warmUpSetCount: warmUpSetCount,
+                    legacySetCount: v2 == null
+                        ? readModel.setCount
+                        : legacySetCount,
+                    equipmentNames: equipmentNames,
+                    grade: v2?.sessionGrade?.displayLabel,
+                    memo: session.memo,
+                    cardioCount: readModel.cardioEntryCount,
+                    cardioSeconds: v2?.cardioEntries.fold<int>(
+                      0,
+                      (sum, entry) => sum + entry.durationSeconds,
+                    ),
+                    readOnly: !record.isEditable,
+                    onEdit:
+                        appInitializationController.value.isReadOnly ||
+                            !record.isEditable
+                        ? null
+                        : () async {
+                            final updated = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TrainingEntryPage(
+                                  existingRecord: readModel,
                                 ),
-                            ],
-                            if (!record.isEditable) ...[
-                              AppSpacing.gapSM,
-                              Text(
-                                'READ ONLY',
-                                style: Theme.of(context).textTheme.labelMedium,
                               ),
-                            ],
-                          ],
-                        ),
-                      ),
-
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        tooltip: 'Edit',
-                        onPressed:
-                            appInitializationController.value.isReadOnly ||
-                                !record.isEditable
-                            ? null
-                            : () async {
-                                final updated = await Navigator.push<bool>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TrainingEntryPage(
-                                      existingRecord: readModel,
-                                    ),
-                                  ),
-                                );
-
-                                if (updated == true && mounted) {
-                                  _loadRecords();
-                                  setState(() {});
-                                }
-                              },
-                      ).actionableFeedback(),
-
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        tooltip: 'Delete',
-                        onPressed:
-                            appInitializationController.value.isReadOnly ||
-                                !record.isEditable
-                            ? null
-                            : () {
-                                _deleteRecord(record);
-                              },
-                      ).actionableFeedback(),
-                    ],
+                            );
+                            if (updated == true && mounted) {
+                              _loadRecords();
+                              setState(() {});
+                            }
+                          },
+                    onDelete:
+                        appInitializationController.value.isReadOnly ||
+                            !record.isEditable
+                        ? null
+                        : () => _deleteRecord(record),
                   ),
                 );
               },
@@ -285,4 +212,143 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
       ),
     );
   }
+}
+
+class _TrainingRecordPlate extends StatelessWidget {
+  const _TrainingRecordPlate({
+    required this.date,
+    required this.exerciseCount,
+    required this.mainSetCount,
+    required this.warmUpSetCount,
+    required this.legacySetCount,
+    required this.equipmentNames,
+    required this.grade,
+    required this.memo,
+    required this.cardioCount,
+    required this.cardioSeconds,
+    required this.readOnly,
+    required this.onEdit,
+    required this.onDelete,
+  });
+  final String date;
+  final int exerciseCount,
+      mainSetCount,
+      warmUpSetCount,
+      legacySetCount,
+      cardioCount;
+  final List<String> equipmentNames;
+  final String? grade;
+  final String memo;
+  final int? cardioSeconds;
+  final bool readOnly;
+  final VoidCallback? onEdit, onDelete;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(date, style: Theme.of(context).textTheme.titleMedium),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit',
+            onPressed: onEdit,
+          ).actionableFeedback(),
+          IconButton(
+            icon: Icon(
+              Icons.delete_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            tooltip: 'Delete',
+            onPressed: onDelete,
+          ).actionableFeedback(),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: _TrainingMetric(label: 'EXERCISES', value: '$exerciseCount'),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _TrainingMetric(label: 'MAIN SETS', value: '$mainSetCount'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      _TrainingLine('WARM-UP / LEGACY', '$warmUpSetCount / $legacySetCount'),
+      if (equipmentNames.isNotEmpty)
+        _TrainingLine('SESSION DETAILS', equipmentNames.join(' / ')),
+      if (grade != null) _TrainingLine('SESSION GRADE', grade!),
+      _TrainingLine('CARDIO', '$cardioCount'),
+      if (cardioSeconds != null)
+        _TrainingLine('CARDIO TIME', '$cardioSeconds sec'),
+      if (memo.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text(
+          'MEMO',
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+        ),
+        const SizedBox(height: 3),
+        Text(memo, style: Theme.of(context).textTheme.bodyMedium),
+      ],
+      if (readOnly)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            'READ ONLY',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ),
+    ],
+  );
+}
+
+class _TrainingMetric extends StatelessWidget {
+  const _TrainingMetric({required this.label, required this.value});
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Container(
+    key: Key('training-record-$label'),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        Text(value, style: Theme.of(context).textTheme.headlineSmall),
+      ],
+    ),
+  );
+}
+
+class _TrainingLine extends StatelessWidget {
+  const _TrainingLine(this.label, this.value);
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 7),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: .7),
+        ),
+        const SizedBox(height: 2),
+        Text(value, style: Theme.of(context).textTheme.bodyMedium),
+      ],
+    ),
+  );
 }

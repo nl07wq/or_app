@@ -113,120 +113,15 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
               final data = records[index];
 
               return DashboardGlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            data.date.split('T').first,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: 'Edit',
-                          onPressed:
-                              appInitializationController.value.isReadOnly
-                              ? null
-                              : () => _editRecord(data),
-                        ).actionableFeedback(),
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          tooltip: 'Delete',
-                          onPressed:
-                              appInitializationController.value.isReadOnly
-                              ? null
-                              : () => _deleteRecord(data),
-                        ).actionableFeedback(),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _HistoryDetailRow(
-                      icon: Icons.monitor_weight_outlined,
-                      label: '体重',
-                      value: data.weight == null
-                          ? '未計測'
-                          : '${data.weight!.toStringAsFixed(1)} kg',
-                    ),
-                    _HistoryDetailRow(
-                      icon: Icons.percent,
-                      label: '体脂肪',
-                      value: data.bodyFat == null
-                          ? '未計測'
-                          : '${data.bodyFat!.toStringAsFixed(1)} %',
-                    ),
-                    _HistoryDetailRow(
-                      icon: Icons.bedtime_outlined,
-                      label: '睡眠',
-                      value: data.sleepHours == null
-                          ? '未計測'
-                          : formatTime(data.sleepHours!),
-                    ),
-                    _HistoryDetailRow(
-                      icon: Icons.category_outlined,
-                      label: '睡眠タイプ',
-                      value: data.sleepType.displayLabel,
-                    ),
-                    _HistoryDetailRow(
-                      icon: Icons.speed,
-                      label: '睡眠スコア',
-                      value: data.sleepScore?.toString() ?? '未計測',
-                    ),
-                    _HistoryDetailRow(
-                      icon: Icons.directions_walk,
-                      label: '足底筋膜炎',
-                      value: '${data.footPain}',
-                    ),
-                    if (data.bowelAmount != null)
-                      _HistoryDetailRow(
-                        icon: Icons.info_outline,
-                        label: '旧排便量',
-                        value: '${data.bowelAmount}',
-                      ),
-                    if (data.bowelShape != null)
-                      _HistoryDetailRow(
-                        icon: Icons.info_outline,
-                        label: '旧排便形状',
-                        value: '${data.bowelShape}',
-                      ),
-                    _HistoryDetailRow(
-                      icon: Icons.work_outline,
-                      label: '勤務区分',
-                      value: data.workType.label,
-                    ),
-                    if (data.workType.isWorking) ...[
-                      _HistoryDetailRow(
-                        icon: Icons.login,
-                        label: '勤務開始',
-                        value: data.workStart,
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.logout,
-                        label: '勤務終了',
-                        value: data.workEnd,
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.pause_circle_outline,
-                        label: '休憩',
-                        value: data.workBreak,
-                      ),
-                      _HistoryDetailRow(
-                        icon: Icons.timer_outlined,
-                        label: '勤務時間',
-                        value: formatTime(data.workHours),
-                      ),
-                    ],
-                    _HistoryDetailRow(
-                      icon: Icons.note_outlined,
-                      label: 'メモ',
-                      value: data.memo.isEmpty ? 'なし' : data.memo,
-                    ),
-                  ],
+                child: _StatusRecordPlate(
+                  data: data,
+                  formatTime: formatTime,
+                  onEdit: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _editRecord(data),
+                  onDelete: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _deleteRecord(data),
                 ),
               );
             },
@@ -237,28 +132,213 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
   }
 }
 
-class _HistoryDetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _HistoryDetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
+class _StatusRecordPlate extends StatelessWidget {
+  const _StatusRecordPlate({
+    required this.data,
+    required this.formatTime,
+    required this.onEdit,
+    required this.onDelete,
   });
+
+  final MorningData data;
+  final String Function(double) formatTime;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(child: Text('$label: $value')),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                data.date.split('T').first,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit',
+              onPressed: onEdit,
+            ).actionableFeedback(),
+            IconButton(
+              icon: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              tooltip: 'Delete',
+              onPressed: onDelete,
+            ).actionableFeedback(),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _PlateSection(
+          label: 'BODY',
+          children: [
+            _PlatePair(
+              left: _PlateValue(
+                'WEIGHT',
+                data.weight == null
+                    ? '未計測'
+                    : '${data.weight!.toStringAsFixed(1)} kg',
+              ),
+              right: _PlateValue(
+                'BODY FAT',
+                data.bodyFat == null
+                    ? '未計測'
+                    : '${data.bodyFat!.toStringAsFixed(1)} %',
+              ),
+            ),
+          ],
+        ),
+        _PlateSection(
+          label: 'SLEEP',
+          children: [
+            _PlatePair(
+              left: _PlateValue(
+                'SLEEP TIME',
+                data.sleepHours == null ? '未計測' : formatTime(data.sleepHours!),
+              ),
+              right: _PlateValue(
+                'SLEEP SCORE',
+                data.sleepScore?.toString() ?? '未計測',
+              ),
+            ),
+            _PlateSecondary('SLEEP TYPE', data.sleepType.displayLabel),
+          ],
+        ),
+        _PlateSection(
+          label: 'FOOT',
+          children: [
+            _PlateValue(
+              'FOOT PAIN',
+              data.footPain == 0 ? '未計測' : 'LV. ${data.footPain} /10',
+            ),
+            if (data.condition != null)
+              _PlateSecondary('CONDITION', '${data.condition}'),
+            if (data.bowelAmount != null || data.bowelShape != null)
+              _PlateSecondary(
+                'LEGACY BOWEL',
+                '量 ${data.bowelAmount ?? '-'} / 形 ${data.bowelShape ?? '-'}',
+              ),
+          ],
+        ),
+        _PlateSection(
+          label: 'WORK',
+          children: [
+            _PlatePair(
+              left: _PlateValue('SHIFT', data.workType.label),
+              right: _PlateValue(
+                'BREAK',
+                data.workType.isWorking && data.workBreak.isNotEmpty
+                    ? data.workBreak
+                    : '未計測',
+              ),
+            ),
+            if (data.workType.isWorking) ...[
+              _PlateValue('WORK HOURS', formatTime(data.workHours)),
+              _PlateSecondary(
+                'START / END',
+                '${data.workStart.isEmpty ? '未計測' : data.workStart} / ${data.workEnd.isEmpty ? '未計測' : data.workEnd}',
+              ),
+            ],
+          ],
+        ),
+        _PlateSection(
+          label: 'MEMO',
+          children: [
+            Text(
+              data.memo.isEmpty ? 'なし' : data.memo,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ],
     );
   }
+}
+
+class _PlateSection extends StatelessWidget {
+  const _PlateSection({required this.label, required this.children});
+  final String label;
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            letterSpacing: 1.1,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ...children,
+      ],
+    ),
+  );
+}
+
+class _PlatePair extends StatelessWidget {
+  const _PlatePair({required this.left, required this.right});
+  final Widget left;
+  final Widget right;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: left),
+      const SizedBox(width: 8),
+      Expanded(child: right),
+    ],
+  );
+}
+
+class _PlateValue extends StatelessWidget {
+  const _PlateValue(this.label, this.value);
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) => Container(
+    key: Key('status-record-field-${label.toLowerCase().replaceAll(' ', '-')}'),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .28),
+      border: Border.all(
+        color: Theme.of(
+          context,
+        ).colorScheme.outlineVariant.withValues(alpha: .55),
+      ),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: .55),
+        ),
+        const SizedBox(height: 2),
+        Text(value, style: Theme.of(context).textTheme.titleSmall),
+      ],
+    ),
+  );
+}
+
+class _PlateSecondary extends StatelessWidget {
+  const _PlateSecondary(this.label, this.value);
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 5),
+    child: Text('$label  $value', style: Theme.of(context).textTheme.bodySmall),
+  );
 }

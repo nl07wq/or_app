@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/models/activity_data.dart';
+import '../../core/models/digestive_event.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
 import '../../core/widgets/ambient_page_scaffold.dart';
 import '../../core/widgets/dashboard_glass_card.dart';
@@ -95,58 +96,27 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               final officialSteps = data.officialStepsFor(previousCarryOver);
 
               return DashboardGlassCard(
-                child: ListTile(
-                  title: Text(
-                    '${data.date.year}-${data.date.month.toString().padLeft(2, '0')}-${data.date.day.toString().padLeft(2, '0')}',
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Official: ${_formatSteps(officialSteps)} steps'),
-                      Text(
-                        'Measured: ${_formatSteps(data.measuredSteps)} steps',
-                      ),
-                      if (data.carryOver > 0)
-                        Text(
-                          'Carry Over added: +${_formatSteps(data.carryOver)} steps',
-                        ),
-                      if (previousCarryOver > 0)
-                        Text(
-                          'Previous Carry Over deducted: -${_formatSteps(previousCarryOver)} steps',
-                        ),
-                      Text(ActivityDigestiveRecordPresentation.format(data)),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: appInitializationController.value.isReadOnly
-                            ? null
-                            : () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        ActivityEntryPage(initialData: data),
-                                  ),
-                                );
-                                _reload();
-                                setState(() {});
-                              },
-                      ).actionableFeedback(),
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        onPressed: appInitializationController.value.isReadOnly
-                            ? null
-                            : () => _delete(data),
-                      ).actionableFeedback(),
-                    ],
-                  ),
+                child: _ActivityRecordPlate(
+                  data: data,
+                  officialSteps: officialSteps,
+                  previousCarryOver: previousCarryOver,
+                  formatSteps: _formatSteps,
+                  onEdit: appInitializationController.value.isReadOnly
+                      ? null
+                      : () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ActivityEntryPage(initialData: data),
+                            ),
+                          );
+                          _reload();
+                          setState(() {});
+                        },
+                  onDelete: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _delete(data),
                 ),
               );
             },
@@ -172,4 +142,180 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     }
     return 0;
   }
+}
+
+class _ActivityRecordPlate extends StatelessWidget {
+  const _ActivityRecordPlate({
+    required this.data,
+    required this.officialSteps,
+    required this.previousCarryOver,
+    required this.formatSteps,
+    required this.onEdit,
+    required this.onDelete,
+  });
+  final ActivityData data;
+  final int officialSteps, previousCarryOver;
+  final String Function(int) formatSteps;
+  final VoidCallback? onEdit, onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final date =
+        '${data.date.year}-${data.date.month.toString().padLeft(2, '0')}-${data.date.day.toString().padLeft(2, '0')}';
+    final digestive = data.digestiveEvents;
+    final event = digestive != null && digestive.length == 1
+        ? digestive.single
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(date, style: Theme.of(context).textTheme.titleMedium),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit',
+              onPressed: onEdit,
+            ).actionableFeedback(),
+            IconButton(
+              icon: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              tooltip: 'Delete',
+              onPressed: onDelete,
+            ).actionableFeedback(),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'OFFICIAL STEPS',
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+        ),
+        Text(
+          '${formatSteps(officialSteps)} steps',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: 6),
+        _ActivityDetail(
+          'MEASURED STEPS',
+          data.stepsEntered
+              ? '${formatSteps(data.measuredSteps)} steps'
+              : '未計測',
+        ),
+        _ActivityDetail(
+          'CARRY OVER / ADJUSTMENT',
+          '＋${formatSteps(data.carryOver)} / −${formatSteps(previousCarryOver)} steps',
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'DIGESTIVE',
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+        ),
+        const SizedBox(height: 5),
+        if (event != null)
+          Row(
+            key: const Key('activity-record-digestive-horizontal'),
+            children: [
+              Expanded(
+                child: _DigestiveValue(
+                  'AMOUNT',
+                  DigestiveEvent.amountLabel(event.amount),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _DigestiveValue(
+                  'SHAPE',
+                  event.shape == null
+                      ? '未計測'
+                      : DigestiveEvent.shapeLabel(event.shape!),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _DigestiveValue(
+                  'RELIEF',
+                  event.relief == null
+                      ? '未計測'
+                      : DigestiveEvent.reliefLabel(event.relief!),
+                ),
+              ),
+            ],
+          )
+        else
+          Text(
+            ActivityDigestiveRecordPresentation.format(data),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        if (data.note?.isNotEmpty ?? false) ...[
+          const SizedBox(height: 10),
+          Text(
+            'MEMO',
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+          ),
+          Text(data.note!, style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ],
+    );
+  }
+}
+
+class _ActivityDetail extends StatelessWidget {
+  const _ActivityDetail(this.label, this.value);
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        Text(value, style: Theme.of(context).textTheme.bodyLarge),
+      ],
+    ),
+  );
+}
+
+class _DigestiveValue extends StatelessWidget {
+  const _DigestiveValue(this.label, this.value);
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .26),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(
+        color: Theme.of(
+          context,
+        ).colorScheme.outlineVariant.withValues(alpha: .5),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    ),
+  );
 }
