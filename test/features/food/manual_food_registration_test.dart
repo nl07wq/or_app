@@ -30,11 +30,9 @@ void main() {
         ),
       );
 
-      expect(find.text('表示量'), findsOneWidget);
-      expect(find.text('登録基準量'), findsOneWidget);
+      expect(find.text('PACKAGE QUANTITY'), findsOneWidget);
+      expect(find.text('NUTRITION BASIS'), findsOneWidget);
       expect(find.text('ADD FOOD ITEM'), findsOneWidget);
-      expect(find.text('PACKAGE QUANTITY'), findsNothing);
-      expect(find.text('NUTRITION BASIS'), findsNothing);
       expect(find.text('NAME'), findsOneWidget);
       expect(find.text('BRAND'), findsOneWidget);
       expect(find.text('CATEGORY'), findsOneWidget);

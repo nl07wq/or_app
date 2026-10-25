@@ -1958,7 +1958,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Widget _entryAndMealTypeControls() => LayoutBuilder(
     builder: (context, constraints) {
-      final useTwoColumns = MediaQuery.sizeOf(context).width >= 360;
+      // The form may be embedded in a padded card, so the physical viewport
+      // width is not a reliable indicator of the space available to either
+      // selector. Keep the two-column convenience layout only when both
+      // controls retain a practical field width.
+      final useTwoColumns = constraints.maxWidth >= 430;
       if (!useTwoColumns) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

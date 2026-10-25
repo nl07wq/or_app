@@ -6,139 +6,148 @@ import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/widgets/food_input_fields.dart';
 
 void main() {
-  testWidgets('390px compact form groups related fields into dense rows', (
-    tester,
-  ) async {
-    final controllers = _Controllers();
-    addTearDown(controllers.dispose);
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(_subject(controllers, width: 320));
+  testWidgets(
+    '390px V1.2 form keeps basis panels independent and nutrition cohesive',
+    (tester) async {
+      final controllers = _Controllers();
+      addTearDown(controllers.dispose);
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_subject(controllers, width: 320));
 
-    expect(tester.getSize(_field('NAME')).width, 320);
-    expect(_centerY(tester, _field('BRAND')), _centerY(tester, _category()));
-    expect(
-      _centerY(tester, _field('BARCODE / JAN')),
-      _centerY(tester, _scan()),
-    );
-    expect(_centerY(tester, _field('表示量')), _centerY(tester, _packageUnit()));
-    expect(_centerY(tester, _field('表示量')), _centerY(tester, _field('登録基準量')));
-    expect(_centerY(tester, _field('表示量')), _centerY(tester, _baseUnit()));
-    expect(
-      _centerY(tester, _field('CALORIES')),
-      _centerY(tester, _field('PROTEIN')),
-    );
-    expect(
-      _centerY(tester, _field('FAT')),
-      _centerY(tester, _field('CARBOHYDRATE')),
-    );
-    final amountBounds = tester.getRect(_amount());
-    final memoBounds = tester.getRect(_field('MEMO'));
-    final stepperBounds = tester.getRect(
-      find.byKey(const ValueKey('food-amount-stepper-column')),
-    );
-    expect(amountBounds.top, memoBounds.top);
-    expect(amountBounds.bottom, memoBounds.bottom);
-    expect(stepperBounds.top, amountBounds.top);
-    expect(stepperBounds.bottom, amountBounds.bottom);
-    expect(stepperBounds.width, FoodNumericStepper.width);
-    expect(memoBounds.width, greaterThan(amountBounds.width));
-    final incrementBounds = tester.getRect(
-      find.byKey(const ValueKey('food-amount-increment')),
-    );
-    final decrementBounds = tester.getRect(
-      find.byKey(const ValueKey('food-amount-decrement')),
-    );
-    expect(incrementBounds.top, greaterThanOrEqualTo(amountBounds.top));
-    expect(decrementBounds.bottom, lessThanOrEqualTo(amountBounds.bottom));
-    expect(incrementBounds.center.dy, lessThan(decrementBounds.center.dy));
-    expect(find.text('栄養成分の基準量を設定'), findsOneWidget);
-    expect(find.text('100gあたりの栄養成分'), findsOneWidget);
-    expect(find.text('NUTRITION PER 100g'), findsNothing);
-    expect(find.text('SET PACKAGE QUANTITY AND UNIT'), findsNothing);
-    expect(tester.getSize(_field('NAME')).height, lessThan(56));
-    final packageLabel = find.byKey(
-      const ValueKey('food-entry-package-group-label'),
-    );
-    final baseLabel = find.byKey(const ValueKey('food-entry-base-group-label'));
-    final packageModule = find.byKey(
-      const ValueKey('food-entry-package-quantity-module'),
-    );
-    final baseModule = find.byKey(
-      const ValueKey('food-entry-base-quantity-module'),
-    );
-    expect(
-      tester.getCenter(packageLabel).dx,
-      closeTo(_pairCenterX(tester, _field('表示量'), _packageUnit()), .5),
-    );
-    expect(
-      tester.getCenter(baseLabel).dx,
-      closeTo(_pairCenterX(tester, _field('登録基準量'), _baseUnit()), .5),
-    );
-    expect(
-      tester.getRect(_packageUnit()).left - tester.getRect(_field('表示量')).right,
-      closeTo(1, .01),
-    );
-    expect(
-      tester.getRect(_baseUnit()).left - tester.getRect(_field('登録基準量')).right,
-      closeTo(1, .01),
-    );
-    for (final quantity in [_field('表示量'), _field('登録基準量')]) {
-      final decoration = tester.widget<TextField>(quantity).decoration!;
-      expect(tester.widget<TextField>(quantity).textAlign, TextAlign.right);
-      expect(decoration.border, InputBorder.none);
-      expect(decoration.enabledBorder, InputBorder.none);
-      expect(decoration.focusedBorder, InputBorder.none);
-      expect(decoration.disabledBorder, InputBorder.none);
-      expect(decoration.errorBorder, InputBorder.none);
-      expect(decoration.focusedErrorBorder, InputBorder.none);
-      expect(decoration.filled, isFalse);
+      expect(tester.getSize(_field('NAME')).width, 320);
+      expect(_centerY(tester, _field('BRAND')), _centerY(tester, _category()));
       expect(
-        decoration.contentPadding,
-        const EdgeInsets.only(left: 6, right: 10),
+        _centerY(tester, _field('BARCODE / JAN')),
+        _centerY(tester, _scan()),
       );
-    }
-    for (final unit in [_packageUnit(), _baseUnit()]) {
-      final dropdown = tester.widget<DropdownButton>(unit);
-      expect(dropdown.isExpanded, isTrue);
-      expect(dropdown.alignment, AlignmentDirectional.centerStart);
-      expect(dropdown.padding, const EdgeInsets.only(right: 4));
-    }
-    final packageQuantityBounds = tester.getRect(_field('表示量'));
-    final packageUnitBounds = tester.getRect(_packageUnit());
-    final baseQuantityBounds = tester.getRect(_field('登録基準量'));
-    final baseUnitBounds = tester.getRect(_baseUnit());
-    expect(
-      packageQuantityBounds.width /
-          (packageQuantityBounds.width + packageUnitBounds.width),
-      closeTo(.4, .01),
-    );
-    expect(
-      baseQuantityBounds.width /
-          (baseQuantityBounds.width + baseUnitBounds.width),
-      closeTo(.4, .01),
-    );
-    for (final module in [packageModule, baseModule]) {
-      expect(tester.getSize(module).height, 70);
-    }
-    expect(
-      tester
-          .getRect(
-            find.byKey(const ValueKey('food-entry-package-horizontal-divider')),
-          )
-          .width,
-      closeTo(tester.getRect(packageModule).width - 2, .01),
-    );
-    expect(
-      tester
-          .getRect(
-            find.byKey(const ValueKey('food-entry-base-horizontal-divider')),
-          )
-          .width,
-      closeTo(tester.getRect(baseModule).width - 2, .01),
-    );
-    expect(tester.takeException(), isNull);
-  });
+      expect(_centerY(tester, _field('表示量')), _centerY(tester, _packageUnit()));
+      expect(
+        _top(tester, _field('表示量')),
+        lessThan(_top(tester, _field('登録基準量'))),
+      );
+      expect(_centerY(tester, _field('登録基準量')), _centerY(tester, _baseUnit()));
+      expect(
+        _top(tester, _field('CALORIES')),
+        lessThan(_top(tester, _field('PROTEIN'))),
+      );
+      expect(_top(tester, _field('PROTEIN')), _top(tester, _field('FAT')));
+      expect(
+        _top(tester, _field('CARBOHYDRATE')),
+        greaterThan(_top(tester, _field('PROTEIN'))),
+      );
+      final amountBounds = tester.getRect(_amount());
+      final memoBounds = tester.getRect(_field('MEMO'));
+      final stepperBounds = tester.getRect(
+        find.byKey(const ValueKey('food-amount-stepper-column')),
+      );
+      expect(amountBounds.top, memoBounds.top);
+      expect(amountBounds.bottom, memoBounds.bottom);
+      expect(stepperBounds.top, amountBounds.top);
+      expect(stepperBounds.bottom, amountBounds.bottom);
+      expect(stepperBounds.width, FoodNumericStepper.width);
+      expect(memoBounds.width, greaterThan(amountBounds.width));
+      final incrementBounds = tester.getRect(
+        find.byKey(const ValueKey('food-amount-increment')),
+      );
+      final decrementBounds = tester.getRect(
+        find.byKey(const ValueKey('food-amount-decrement')),
+      );
+      expect(incrementBounds.top, greaterThanOrEqualTo(amountBounds.top));
+      expect(decrementBounds.bottom, lessThanOrEqualTo(amountBounds.bottom));
+      expect(incrementBounds.center.dy, lessThan(decrementBounds.center.dy));
+      expect(find.text('栄養成分の基準量を設定'), findsOneWidget);
+      expect(find.text('NUTRITION DATA · 100g'), findsOneWidget);
+      expect(tester.getSize(_field('NAME')).height, lessThan(56));
+      final packageLabel = find.byKey(
+        const ValueKey('food-entry-package-group-label'),
+      );
+      final baseLabel = find.byKey(
+        const ValueKey('food-entry-base-group-label'),
+      );
+      final packageModule = find.byKey(
+        const ValueKey('food-entry-package-quantity-module'),
+      );
+      final baseModule = find.byKey(
+        const ValueKey('food-entry-base-quantity-module'),
+      );
+      expect(
+        tester.getRect(packageLabel).left,
+        greaterThanOrEqualTo(tester.getRect(packageModule).left),
+      );
+      expect(
+        tester.getRect(baseLabel).left,
+        greaterThanOrEqualTo(tester.getRect(baseModule).left),
+      );
+      expect(
+        tester.getRect(_packageUnit()).left -
+            tester.getRect(_field('表示量')).right,
+        closeTo(1, .01),
+      );
+      expect(
+        tester.getRect(_baseUnit()).left -
+            tester.getRect(_field('登録基準量')).right,
+        closeTo(1, .01),
+      );
+      for (final quantity in [_field('表示量'), _field('登録基準量')]) {
+        final decoration = tester.widget<TextField>(quantity).decoration!;
+        expect(tester.widget<TextField>(quantity).textAlign, TextAlign.right);
+        expect(decoration.border, InputBorder.none);
+        expect(decoration.enabledBorder, InputBorder.none);
+        expect(decoration.focusedBorder, InputBorder.none);
+        expect(decoration.disabledBorder, InputBorder.none);
+        expect(decoration.errorBorder, InputBorder.none);
+        expect(decoration.focusedErrorBorder, InputBorder.none);
+        expect(decoration.filled, isFalse);
+        expect(
+          decoration.contentPadding,
+          const EdgeInsets.only(left: 6, right: 10),
+        );
+      }
+      for (final unit in [_packageUnit(), _baseUnit()]) {
+        final dropdown = tester.widget<DropdownButton>(unit);
+        expect(dropdown.isExpanded, isTrue);
+        expect(dropdown.alignment, AlignmentDirectional.centerStart);
+        expect(dropdown.padding, const EdgeInsets.only(right: 4));
+      }
+      final packageQuantityBounds = tester.getRect(_field('表示量'));
+      final packageUnitBounds = tester.getRect(_packageUnit());
+      final baseQuantityBounds = tester.getRect(_field('登録基準量'));
+      final baseUnitBounds = tester.getRect(_baseUnit());
+      expect(
+        packageQuantityBounds.width /
+            (packageQuantityBounds.width + packageUnitBounds.width),
+        closeTo(.4, .01),
+      );
+      expect(
+        baseQuantityBounds.width /
+            (baseQuantityBounds.width + baseUnitBounds.width),
+        closeTo(.4, .01),
+      );
+      for (final module in [packageModule, baseModule]) {
+        expect(tester.getSize(module).height, 76);
+      }
+      expect(
+        tester
+            .getRect(
+              find.byKey(
+                const ValueKey('food-entry-package-horizontal-divider'),
+              ),
+            )
+            .width,
+        closeTo(tester.getRect(packageModule).width - 2, .01),
+      );
+      expect(
+        tester
+            .getRect(
+              find.byKey(const ValueKey('food-entry-base-horizontal-divider')),
+            )
+            .width,
+        closeTo(tester.getRect(baseModule).width - 2, .01),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     '320px falls back safely without compressing quantity semantics',
@@ -338,12 +347,12 @@ void main() {
     addTearDown(controllers.dispose);
     await tester.pumpWidget(_subject(controllers, width: 320));
     expect(find.text('100gあたりに換算'), findsOneWidget);
-    expect(find.text('100gあたりの栄養成分'), findsOneWidget);
+    expect(find.text('NUTRITION DATA · 100g'), findsOneWidget);
 
     controllers.base.text = '50';
     await tester.pumpWidget(_subject(controllers, width: 320));
     expect(find.text('50gあたりに換算'), findsOneWidget);
-    expect(find.text('50gあたりの栄養成分'), findsOneWidget);
+    expect(find.text('NUTRITION DATA · 50g'), findsOneWidget);
 
     await tester.pumpWidget(
       _subject(controllers, width: 320, baseUnit: FoodQuantityUnit.milliliter),
@@ -353,7 +362,7 @@ void main() {
       _subject(controllers, width: 320, baseUnit: FoodQuantityUnit.milliliter),
     );
     expect(find.text('250mLあたりに換算'), findsOneWidget);
-    expect(find.text('250mLあたりの栄養成分'), findsOneWidget);
+    expect(find.text('NUTRITION DATA · 250mL'), findsOneWidget);
   });
 
   testWidgets('category and manual validation text use compact Japanese UI', (
@@ -379,8 +388,7 @@ void main() {
 
     controllers.base.clear();
     await tester.pumpWidget(_subject(controllers, width: 320));
-    expect(find.text('栄養成分'), findsOneWidget);
-    expect(find.text('—gあたりの栄養成分'), findsNothing);
+    expect(find.text('NUTRITION DATA'), findsOneWidget);
   });
 
   testWidgets('manual nutrition validation localizes all visible reasons', (

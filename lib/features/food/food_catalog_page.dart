@@ -293,6 +293,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       return true;
     },
     child: Scaffold(
+      backgroundColor: FoodFormMetrics.pageSurface,
       appBar: AppBar(
         leading: const ActionableBackButton(),
         title: Text(
@@ -470,38 +471,9 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       separatorBuilder: (_, _) => AppSpacing.gapSM,
       itemBuilder: (context, index) {
         final entry = entries[index];
-        return OperationCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: FoodThumbnail(visualKey: entry.visualKey),
-            title: Text(
-              entry.name,
-              key: ValueKey('food-catalog-name-${entry.foodId}'),
-              style: _databaseListPrimaryStyle(context),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  [
-                    if (entry.brand != null) '${entry.brand!} ·',
-                    foodCatalogCategoryLabel(entry.category),
-                    FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
-                    if (entry.barcodeValue != null) entry.barcodeValue!,
-                  ].join('  '),
-                  key: ValueKey('food-catalog-metadata-${entry.foodId}'),
-                  style: _databaseListMetadataStyle(context),
-                ),
-                Text(
-                  FoodNutritionFormatter.compactNutrition(entry.nutrition),
-                  key: ValueKey('food-catalog-nutrition-${entry.foodId}'),
-                  style: _databaseListMetadataStyle(context),
-                ),
-              ],
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openEntry(entry),
-          ).actionableFeedback(enabled: true),
+        return _FoodCatalogListCard(
+          entry: entry,
+          onTap: () => _openEntry(entry),
         );
       },
     );
@@ -592,6 +564,168 @@ TextStyle? _databaseListMetadataStyle(BuildContext context) =>
       height: 1.2,
     );
 
+class _FoodCatalogListCard extends StatelessWidget {
+  const _FoodCatalogListCard({required this.entry, required this.onTap});
+
+  final FoodCatalogEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final metadata = [
+      if (entry.brand?.isNotEmpty ?? false) entry.brand!,
+      foodCatalogCategoryLabel(entry.category),
+      FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
+    ].join('  ');
+    return Material(
+      color: const Color(0xFF141B24),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FoodThumbnail(visualKey: entry.visualKey, size: 52),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.name,
+                          key: ValueKey('food-catalog-name-${entry.foodId}'),
+                          maxLines: 3,
+                          overflow: TextOverflow.visible,
+                          style: _databaseListPrimaryStyle(
+                            context,
+                          )?.copyWith(fontSize: 16, height: 1.25),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          metadata,
+                          key: ValueKey(
+                            'food-catalog-metadata-${entry.foodId}',
+                          ),
+                          style: _databaseListMetadataStyle(context),
+                        ),
+                        if (entry.barcodeValue case final barcode?) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            barcode,
+                            style: _databaseListMetadataStyle(
+                              context,
+                            )?.copyWith(fontSize: 11),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, size: 18),
+                ],
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Divider(height: 1, color: Color(0xFF2C4050)),
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cells = [
+                    _NutritionCell(
+                      label: 'kcal',
+                      value: _nutritionValue(
+                        entry.nutrition.calories,
+                        kcal: true,
+                      ),
+                    ),
+                    _NutritionCell(
+                      label: 'P',
+                      value: _nutritionValue(entry.nutrition.protein),
+                      color: FoodFormMetrics.protein,
+                    ),
+                    _NutritionCell(
+                      label: 'F',
+                      value: _nutritionValue(entry.nutrition.fat),
+                      color: FoodFormMetrics.fat,
+                    ),
+                    _NutritionCell(
+                      label: 'C',
+                      value: _nutritionValue(entry.nutrition.carbohydrate),
+                      color: FoodFormMetrics.carbohydrate,
+                    ),
+                  ];
+                  final row = constraints.maxWidth >= 310
+                      ? Row(
+                          children: [
+                            for (final cell in cells) Expanded(child: cell),
+                          ],
+                        )
+                      : Wrap(
+                          children: [
+                            for (final cell in cells)
+                              SizedBox(
+                                width: constraints.maxWidth / 2,
+                                child: cell,
+                              ),
+                          ],
+                        );
+                  return Semantics(
+                    label: FoodNutritionFormatter.compactNutrition(
+                      entry.nutrition,
+                    ),
+                    child: KeyedSubtree(
+                      key: ValueKey('food-catalog-nutrition-${entry.foodId}'),
+                      child: row,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ).actionableFeedback(enabled: true),
+    );
+  }
+
+  String _nutritionValue(num? value, {bool kcal = false}) => value == null
+      ? '—'
+      : kcal
+      ? '${FoodNutritionFormatter.calories(value)} kcal'
+      : '${FoodNutritionFormatter.macro(value)} g';
+}
+
+class _NutritionCell extends StatelessWidget {
+  const _NutritionCell({required this.label, required this.value, this.color});
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 2),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: color ?? FoodFormMetrics.caption,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(value, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    ),
+  );
+}
+
 class FoodCatalogEditorPage extends StatefulWidget {
   const FoodCatalogEditorPage({
     super.key,
@@ -642,8 +776,6 @@ class FoodCatalogDraft {
 }
 
 class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
-  static const double _pairedAttributeMinimumWidth = 344;
-
   final _name = TextEditingController();
   final _brand = TextEditingController();
   final _barcode = TextEditingController();
@@ -1190,6 +1322,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       return true;
     },
     child: Scaffold(
+      backgroundColor: FoodFormMetrics.pageSurface,
       appBar: AppBar(
         leading: const ActionableBackButton(),
         title: Text(widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD'),
@@ -1214,10 +1347,12 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                 FoodFormMetrics.gap,
                 OperationTextField(controller: _name, label: 'NAME'),
                 FoodFormMetrics.gap,
-                OperationTextField(controller: _brand, label: 'BRAND'),
-                FoodFormMetrics.gap,
                 LayoutBuilder(
                   builder: (context, constraints) {
+                    final brand = OperationTextField(
+                      controller: _brand,
+                      label: 'BRAND',
+                    );
                     final category = _dropdown(
                       label: 'CATEGORY',
                       value: _category,
@@ -1231,28 +1366,27 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                         setState(() => _category = value);
                       },
                     );
-                    final thumbnail = _FoodThumbnailField(
-                      visualKey: _visualKey,
-                      onChange: _selectThumbnail,
-                      dense:
-                          constraints.maxWidth >= _pairedAttributeMinimumWidth,
-                    );
-                    if (constraints.maxWidth < _pairedAttributeMinimumWidth) {
+                    if (constraints.maxWidth < 300) {
                       return Column(
                         key: const ValueKey('food-catalog-attributes-stacked'),
-                        children: [category, FoodFormMetrics.gap, thumbnail],
+                        children: [brand, FoodFormMetrics.gap, category],
                       );
                     }
                     return Row(
                       key: const ValueKey('food-catalog-attributes-paired'),
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 11, child: category),
+                        Expanded(child: brand),
                         FoodFormMetrics.horizontalGap,
-                        Expanded(flex: 9, child: thumbnail),
+                        Expanded(child: category),
                       ],
                     );
                   },
+                ),
+                FoodFormMetrics.gap,
+                _FoodThumbnailField(
+                  visualKey: _visualKey,
+                  onChange: _selectThumbnail,
                 ),
                 FoodFormMetrics.gap,
                 Row(
@@ -1303,46 +1437,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   onChanged: _baseUnitChanged,
                 ),
                 FoodFormMetrics.gap,
-                Row(
-                  children: [
-                    Expanded(
-                      child: OperationTextField(
-                        controller: _calories,
-                        label: 'CALORIES',
-                        onChanged: (_) => setState(() => _rawCalories = null),
-                      ),
-                    ),
-                    FoodFormMetrics.horizontalGap,
-                    Expanded(
-                      child: OperationTextField(
-                        controller: _protein,
-                        label: 'PROTEIN',
-                        onChanged: (_) => setState(() => _rawProtein = null),
-                      ),
-                    ),
-                  ],
-                ),
-                FoodFormMetrics.gap,
-                Row(
-                  children: [
-                    Expanded(
-                      child: OperationTextField(
-                        controller: _fat,
-                        label: 'FAT',
-                        onChanged: (_) => setState(() => _rawFat = null),
-                      ),
-                    ),
-                    FoodFormMetrics.horizontalGap,
-                    Expanded(
-                      child: OperationTextField(
-                        controller: _carbs,
-                        label: 'CARBOHYDRATE',
-                        onChanged: (_) =>
-                            setState(() => _rawCarbohydrate = null),
-                      ),
-                    ),
-                  ],
-                ),
+                _nutritionEditorPanel(),
                 FoodFormMetrics.gap,
                 OperationButton(
                   key: const ValueKey('food-catalog-recalculate-nutrition'),
@@ -1394,28 +1489,149 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     required ValueChanged<FoodQuantityUnit?> onChanged,
     ValueChanged<String>? onTextChanged,
     bool allowNull = false,
-  }) => Row(
-    children: [
-      Expanded(
-        child: OperationTextField(
-          controller: controller,
-          label: label,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: onTextChanged,
+  }) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: FoodFormMetrics.fieldSurface,
+      border: Border.all(color: FoodFormMetrics.separator),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: OperationTextField(
+            controller: controller,
+            label: label,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: onTextChanged,
+          ),
         ),
-      ),
-      FoodFormMetrics.horizontalGap,
-      Expanded(
-        child: _dropdown<FoodQuantityUnit?>(
-          label: 'UNIT',
-          value: value,
-          values: [if (allowNull) null, ...FoodQuantityUnit.values],
-          text: (unit) => unit == null ? 'NOT SET' : _unit(unit),
-          onChanged: onChanged,
+        FoodFormMetrics.horizontalGap,
+        Expanded(
+          flex: 2,
+          child: _dropdown<FoodQuantityUnit?>(
+            label: 'UNIT',
+            value: value,
+            values: [if (allowNull) null, ...FoodQuantityUnit.values],
+            text: (unit) => unit == null ? 'NOT SET' : _unit(unit),
+            onChanged: onChanged,
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
+
+  Widget _nutritionEditorPanel() => Container(
+    key: const ValueKey('food-catalog-nutrition-panel'),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: FoodFormMetrics.nutritionSurface,
+      border: Border.all(color: FoodFormMetrics.separator),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'NUTRITION DATA',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: FoodFormMetrics.caption,
+            letterSpacing: .6,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            Expanded(
+              child: OperationTextField(
+                controller: _calories,
+                label: 'CALORIES',
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() => _rawCalories = null),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text('kcal', style: Theme.of(context).textTheme.labelLarge),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Divider(height: 1, color: FoodFormMetrics.separator),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final fields = [
+              _macroNutritionField(
+                controller: _protein,
+                label: 'PROTEIN',
+                color: FoodFormMetrics.protein,
+                onChanged: () => setState(() => _rawProtein = null),
+              ),
+              _macroNutritionField(
+                controller: _fat,
+                label: 'FAT',
+                color: FoodFormMetrics.fat,
+                onChanged: () => setState(() => _rawFat = null),
+              ),
+              _macroNutritionField(
+                controller: _carbs,
+                label: 'CARBOHYDRATE',
+                color: FoodFormMetrics.carbohydrate,
+                onChanged: () => setState(() => _rawCarbohydrate = null),
+              ),
+            ];
+            if (constraints.maxWidth >= 330) {
+              return Row(
+                children: [
+                  for (var index = 0; index < fields.length; index++) ...[
+                    Expanded(child: fields[index]),
+                    if (index != fields.length - 1)
+                      const SizedBox(width: AppSpacing.xs),
+                  ],
+                ],
+              );
+            }
+            final width = (constraints.maxWidth - AppSpacing.xs) / 2;
+            return Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final field in fields)
+                  SizedBox(width: width, child: field),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+  );
+
+  Widget _macroNutritionField({
+    required TextEditingController controller,
+    required String label,
+    required Color color,
+    required VoidCallback onChanged,
+  }) {
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          labelStyle: theme.inputDecorationTheme.labelStyle?.copyWith(
+            color: color,
+          ),
+          floatingLabelStyle: theme.inputDecorationTheme.floatingLabelStyle
+              ?.copyWith(color: color),
+        ),
+      ),
+      child: OperationTextField(
+        controller: controller,
+        label: label,
+        keyboardType: TextInputType.number,
+        onChanged: (_) => onChanged(),
+      ),
+    );
+  }
 
   void _setNutrition(NutritionSnapshot nutrition) {
     _rawCalories = nutrition.calories;
@@ -1500,29 +1716,23 @@ class _FoodVisualSelection {
 }
 
 class _FoodThumbnailField extends StatelessWidget {
-  const _FoodThumbnailField({
-    required this.visualKey,
-    required this.onChange,
-    this.dense = false,
-  });
+  const _FoodThumbnailField({required this.visualKey, required this.onChange});
 
   static const double _horizontalMinimumContentWidth = 280;
 
   final FoodVisualKey? visualKey;
   final VoidCallback onChange;
-  final bool dense;
 
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('food-catalog-thumbnail-field'),
-    padding: EdgeInsets.all(dense ? AppSpacing.sm : AppSpacing.md),
+    padding: const EdgeInsets.all(AppSpacing.md),
     decoration: BoxDecoration(
       border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       borderRadius: BorderRadius.circular(8),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
-        if (dense) return _buildDenseLayout(context);
         if (constraints.maxWidth < _horizontalMinimumContentWidth) {
           return _buildCompactLayout(context);
         }
@@ -1561,34 +1771,6 @@ class _FoodThumbnailField extends StatelessWidget {
       ),
       const SizedBox(height: AppSpacing.sm),
       Align(alignment: Alignment.centerRight, child: _changeButton()),
-    ],
-  );
-
-  Widget _buildDenseLayout(BuildContext context) => Column(
-    key: const ValueKey('food-catalog-thumbnail-layout-dense'),
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Row(
-        children: [
-          Expanded(child: _heading(context)),
-          TextButton(
-            key: const ValueKey('food-catalog-thumbnail-change'),
-            onPressed: onChange,
-            style: TextButton.styleFrom(
-              minimumSize: const Size(52, 40),
-              padding: EdgeInsets.zero,
-            ),
-            child: const Text('CHANGE'),
-          ).actionableFeedback(),
-        ],
-      ),
-      Row(
-        children: [
-          FoodThumbnail(visualKey: visualKey, size: 32),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(child: _value()),
-        ],
-      ),
     ],
   );
 

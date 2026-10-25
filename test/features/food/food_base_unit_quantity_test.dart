@@ -390,7 +390,7 @@ void main() {
         'PACKAGE QUANTITY',
         'PACKAGE UNIT',
         'NUTRITION BASIS',
-        'BASE UNIT',
+        'BASIS UNIT',
         'CALORIES',
         'PROTEIN',
         'FAT',
@@ -404,15 +404,11 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.tap(find.byKey(const ValueKey('food-entry-ocr')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('STANDARD OCR'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('CAMERA'));
-      await tester.pumpAndSettle();
-      expect(find.text('REVIEW NUTRITION'), findsOneWidget);
+      expect(find.text('OCR PREVIEW'), findsOneWidget);
       expect(_controllerText(tester, 'Calories'), isEmpty);
       expect(saveCount, 0);
 
-      await tester.tap(find.text('APPLY TO FORM'));
+      await tester.tap(find.text('APPLY'));
       await tester.pumpAndSettle();
       expect(_controllerText(tester, 'NUTRITION BASIS'), '100');
       expect(_controllerText(tester, 'Calories'), '154');
@@ -436,8 +432,8 @@ void main() {
       );
 
       await tester.enterText(_field('PACKAGE QUANTITY'), '500');
-      final packageUnit = find.byType(
-        DropdownButtonFormField<FoodQuantityUnit?>,
+      final packageUnit = find.byKey(
+        const ValueKey('food-entry-package-unit-none'),
       );
       await tester.ensureVisible(packageUnit);
       await tester.tap(packageUnit);
@@ -1055,8 +1051,7 @@ void main() {
         final twoColumn = find.byKey(
           const ValueKey('food-entry-type-two-column'),
         );
-        expect(twoColumn, findsOneWidget);
-        expect(tester.getSize(twoColumn).width, lessThan(340));
+        expect(twoColumn, findsNothing);
         expect(find.text('Meal Template'), findsNothing);
         expect(find.text('Breakfast'), findsNothing);
         expect(find.text('Lunch'), findsNothing);
@@ -1086,17 +1081,13 @@ void main() {
           ),
         );
         await tester.pump();
-        if (width == 320) {
-          expect(
-            find.byKey(const ValueKey('food-entry-type-two-column')),
-            findsNothing,
-          );
-        } else {
-          expect(
-            find.byKey(const ValueKey('food-entry-type-two-column')),
-            findsOneWidget,
-          );
-        }
+        expect(
+          find.byKey(const ValueKey('food-entry-type-two-column')),
+          findsNothing,
+          reason:
+              'the padded V1.2 form stacks selectors when the local '
+              'constraint cannot sustain two practical dropdown widths',
+        );
         final amountField = tester.getRect(_field('AMOUNT'));
         final increment = tester.getRect(
           find.byKey(const ValueKey('food-amount-increment')),
@@ -1359,7 +1350,10 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('food-db-add')));
         await tester.pumpAndSettle();
 
-        final operationState = database.rawRecord('operation_state', 'current')!;
+        final operationState = database.rawRecord(
+          'operation_state',
+          'current',
+        )!;
         final lockedOperationState = {
           ...operationState,
           'phase': OperationPhase.finalizing.name,
@@ -1698,6 +1692,18 @@ FoodItem _multiplierItem({
 }
 
 Finder _field(String label) {
+  final quantityKey = switch (label) {
+    'PACKAGE QUANTITY' => const ValueKey('food-entry-package-quantity'),
+    'NUTRITION BASIS' => const ValueKey('food-entry-base-quantity'),
+    _ => null,
+  };
+  if (quantityKey != null) return find.byKey(quantityKey);
+  if (label == 'AMOUNT') {
+    return find.descendant(
+      of: find.byKey(const ValueKey('food-amount-input')),
+      matching: find.byType(TextField),
+    );
+  }
   final alignedLabel = switch (label) {
     'Food Name' => 'NAME',
     'Calories' => 'CALORIES',

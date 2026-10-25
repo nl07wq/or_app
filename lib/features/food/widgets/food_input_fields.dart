@@ -182,7 +182,8 @@ class FoodInputFields extends StatelessWidget {
               final quantity = _QuantityUnitGroup<FoodQuantityUnit?>(
                 key: const ValueKey('food-entry-package-compound'),
                 controller: packageQuantityController,
-                label: '表示量',
+                group: 'package',
+                label: 'PACKAGE QUANTITY',
                 quantityKey: const ValueKey('food-entry-package-quantity'),
                 unitKey: ValueKey(
                   'food-entry-package-unit-${packageUnit?.name ?? 'none'}',
@@ -214,7 +215,8 @@ class FoodInputFields extends StatelessWidget {
               final baseQuantity = _QuantityUnitGroup<FoodQuantityUnit>(
                 key: const ValueKey('food-entry-base-compound'),
                 controller: baseAmountController,
-                label: '登録基準量',
+                group: 'base',
+                label: 'NUTRITION BASIS',
                 quantityKey: const ValueKey('food-entry-base-quantity'),
                 unitKey: ValueKey('food-entry-base-unit-${baseUnit.name}'),
                 value: baseUnit,
@@ -235,16 +237,7 @@ class FoodInputFields extends StatelessWidget {
                 },
                 onQuantityChanged: onBaseAmountChanged,
               );
-              if (constraints.maxWidth < 300) {
-                return Column(children: [quantity, _compactGap, baseQuantity]);
-              }
-              return Row(
-                children: [
-                  Expanded(child: quantity),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(child: baseQuantity),
-                ],
-              );
+              return Column(children: [quantity, _compactGap, baseQuantity]);
             },
           ),
 
@@ -284,76 +277,32 @@ class FoodInputFields extends StatelessWidget {
 
           _compactGap,
 
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              recipeSelected
-                  ? 'NUTRITION PER SERVING'
-                  : baseAmount == '—'
-                  ? '栄養成分'
-                  : '$baseAmount${_quantityUnitLabel(baseUnit)}あたりの栄養成分',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-          ),
-
-          _compactGap,
-
-          Row(
-            children: [
-              Expanded(
-                child: OperationTextField(
-                  controller: calorieController,
-                  label: 'CALORIES',
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    onCaloriesChanged();
-                    onChanged(value);
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OperationTextField(
-                  controller: proteinController,
-                  label: 'PROTEIN',
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    onProteinChanged();
-                    onChanged(value);
-                  },
-                ),
-              ),
-            ],
-          ),
-
-          _compactGap,
-
-          Row(
-            children: [
-              Expanded(
-                child: OperationTextField(
-                  controller: fatController,
-                  label: 'FAT',
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    onFatChanged();
-                    onChanged(value);
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OperationTextField(
-                  controller: carbohydrateController,
-                  label: 'CARBOHYDRATE',
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    onCarbohydrateChanged();
-                    onChanged(value);
-                  },
-                ),
-              ),
-            ],
+          _FoodNutritionPanel(
+            basisLabel: recipeSelected
+                ? 'NUTRITION PER SERVING'
+                : baseAmount == '—'
+                ? 'NUTRITION DATA'
+                : 'NUTRITION DATA · $baseAmount${_quantityUnitLabel(baseUnit)}',
+            calorieController: calorieController,
+            proteinController: proteinController,
+            fatController: fatController,
+            carbohydrateController: carbohydrateController,
+            onCaloriesChanged: (value) {
+              onCaloriesChanged();
+              onChanged(value);
+            },
+            onProteinChanged: (value) {
+              onProteinChanged();
+              onChanged(value);
+            },
+            onFatChanged: (value) {
+              onFatChanged();
+              onChanged(value);
+            },
+            onCarbohydrateChanged: (value) {
+              onCarbohydrateChanged();
+              onChanged(value);
+            },
           ),
 
           _compactGap,
@@ -566,6 +515,148 @@ class _NutritionAnalysisPainter extends CustomPainter {
       oldDelegate.mutedColor != mutedColor;
 }
 
+/// Presentation-only nutrition editor used by FOOD ENTRY. Controllers and
+/// validation callbacks remain owned by [FoodInputFields].
+class _FoodNutritionPanel extends StatelessWidget {
+  const _FoodNutritionPanel({
+    required this.basisLabel,
+    required this.calorieController,
+    required this.proteinController,
+    required this.fatController,
+    required this.carbohydrateController,
+    required this.onCaloriesChanged,
+    required this.onProteinChanged,
+    required this.onFatChanged,
+    required this.onCarbohydrateChanged,
+  });
+
+  final String basisLabel;
+  final TextEditingController calorieController;
+  final TextEditingController proteinController;
+  final TextEditingController fatController;
+  final TextEditingController carbohydrateController;
+  final ValueChanged<String> onCaloriesChanged;
+  final ValueChanged<String> onProteinChanged;
+  final ValueChanged<String> onFatChanged;
+  final ValueChanged<String> onCarbohydrateChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('food-entry-nutrition-panel'),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: FoodFormMetrics.nutritionSurface,
+      border: Border.all(color: FoodFormMetrics.separator),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          basisLabel,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: FoodFormMetrics.caption,
+            letterSpacing: .6,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            Expanded(
+              child: OperationTextField(
+                controller: calorieController,
+                label: 'CALORIES',
+                keyboardType: TextInputType.number,
+                onChanged: onCaloriesChanged,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text('kcal', style: Theme.of(context).textTheme.labelLarge),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Divider(height: 1, color: FoodFormMetrics.separator),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final fields = [
+              _macroField(
+                context,
+                controller: proteinController,
+                label: 'PROTEIN',
+                color: FoodFormMetrics.protein,
+                onChanged: onProteinChanged,
+              ),
+              _macroField(
+                context,
+                controller: fatController,
+                label: 'FAT',
+                color: FoodFormMetrics.fat,
+                onChanged: onFatChanged,
+              ),
+              _macroField(
+                context,
+                controller: carbohydrateController,
+                label: 'CARBOHYDRATE',
+                color: FoodFormMetrics.carbohydrate,
+                onChanged: onCarbohydrateChanged,
+              ),
+            ];
+            if (constraints.maxWidth >= 330) {
+              return Row(
+                children: [
+                  for (var index = 0; index < fields.length; index++) ...[
+                    Expanded(child: fields[index]),
+                    if (index != fields.length - 1)
+                      const SizedBox(width: AppSpacing.xs),
+                  ],
+                ],
+              );
+            }
+            final width = (constraints.maxWidth - AppSpacing.xs) / 2;
+            return Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final field in fields)
+                  SizedBox(width: width, child: field),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+  );
+
+  Widget _macroField(
+    BuildContext context, {
+    required TextEditingController controller,
+    required String label,
+    required Color color,
+    required ValueChanged<String> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          labelStyle: theme.inputDecorationTheme.labelStyle?.copyWith(
+            color: color,
+          ),
+          floatingLabelStyle: theme.inputDecorationTheme.floatingLabelStyle
+              ?.copyWith(color: color),
+        ),
+      ),
+      child: OperationTextField(
+        controller: controller,
+        label: label,
+        keyboardType: TextInputType.number,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
 /// Shared presentation-only numeric field plus a compact vertical stepper.
 /// Callers keep ownership of parsing, minimum values, and domain calculations.
 class FoodNumericStepperRow extends StatelessWidget {
@@ -701,6 +792,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
   const _QuantityUnitGroup({
     super.key,
     required this.controller,
+    required this.group,
     required this.label,
     required this.quantityKey,
     required this.unitKey,
@@ -712,6 +804,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
   });
 
   final TextEditingController controller;
+  final String group;
   final String label;
   final Key quantityKey;
   final Key unitKey;
@@ -723,27 +816,43 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final group = label == '表示量' ? 'package' : 'base';
-    final colors = Theme.of(context).colorScheme;
     return Container(
       key: ValueKey('food-entry-$group-quantity-module'),
-      height: 70,
+      height: 76,
       decoration: BoxDecoration(
-        border: Border.all(color: colors.outline),
-        borderRadius: BorderRadius.circular(4),
+        color: FoodFormMetrics.fieldSurface,
+        border: Border.all(color: FoodFormMetrics.separator),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
           SizedBox(
             height: 22,
             child: ExcludeSemantics(
-              child: Center(
-                child: Text(
-                  label,
-                  key: ValueKey('food-entry-$group-group-label'),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(fontSize: 10.5),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        key: ValueKey('food-entry-$group-group-label'),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontSize: 10.5,
+                          letterSpacing: .55,
+                          color: FoodFormMetrics.caption,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      group == 'package' ? 'PACKAGE UNIT' : 'BASIS UNIT',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        letterSpacing: .45,
+                        color: FoodFormMetrics.fieldLabel,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -751,7 +860,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
           Container(
             key: ValueKey('food-entry-$group-horizontal-divider'),
             height: 1,
-            color: colors.outlineVariant,
+            color: FoodFormMetrics.separator,
           ),
           Expanded(
             child: Row(
@@ -787,7 +896,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                 Container(
                   key: ValueKey('food-entry-$group-vertical-divider'),
                   width: 1,
-                  color: colors.outlineVariant,
+                  color: FoodFormMetrics.separator,
                 ),
                 Expanded(
                   flex: 6,

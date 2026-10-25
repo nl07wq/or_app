@@ -340,8 +340,18 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('食材  100g'), findsOneWidget);
-    expect(find.text('33kcal  P 1g  F 0.1g  C 8.4g'), findsOneWidget);
-    expect(find.text('286kcal  P 12.2g  F 19.3g  C 16.2g'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey(
+          'food-catalog-nutrition-11111111-1111-4111-8111-111111111111',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('33 kcal'), findsOneWidget);
+    expect(find.text('8.4 g'), findsOneWidget);
+    expect(find.text('286 kcal'), findsOneWidget);
+    expect(find.text('16.2 g'), findsOneWidget);
     expect(find.text('市販・包装食品  100g'), findsOneWidget);
     final primaryName = tester.widget<Text>(find.text('Meat Food'));
     final metadata = tester.widget<Text>(find.text('食材  100g'));
@@ -350,7 +360,7 @@ void main() {
     expect(metadata.style?.fontSize, 14);
   });
 
-  for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+  for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets(
       'food nutrition metadata wraps without overflow at ${width.toInt()}px',
       (tester) async {
@@ -373,7 +383,18 @@ void main() {
 
         final metadata = find.text('市販・包装食品  100g');
         expect(metadata, findsOneWidget);
-        expect(find.text('286kcal  P 12.2g  F 19.3g  C 16.2g'), findsOneWidget);
+        expect(
+          find.byKey(
+            const ValueKey(
+              'food-catalog-nutrition-11111111-1111-4111-8111-111111111111',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('286 kcal'), findsOneWidget);
+        expect(find.text('12.2 g'), findsOneWidget);
+        expect(find.text('19.3 g'), findsOneWidget);
+        expect(find.text('16.2 g'), findsOneWidget);
         if (width == 390) {
           expect(tester.getSize(metadata).height, lessThan(20));
         }
@@ -685,10 +706,9 @@ void main() {
     });
   }
 
-  for (final width in [320.0, 390.0]) {
-    testWidgets('food attributes stack readably at ${width.toInt()}px', (
-      tester,
-    ) async {
+  for (final width in [320.0]) {
+    testWidgets('food attributes stack below the V1.2 content-width breakpoint '
+        'at ${width.toInt()}px', (tester) async {
       tester.view.physicalSize = Size(width, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -720,10 +740,9 @@ void main() {
     });
   }
 
-  for (final width in [900.0, 1280.0]) {
-    testWidgets('food attributes remain paired at ${width.toInt()}px', (
-      tester,
-    ) async {
+  for (final width in [375.0, 390.0, 430.0, 900.0, 1280.0]) {
+    testWidgets('food attributes pair above the V1.2 content-width breakpoint '
+        'at ${width.toInt()}px', (tester) async {
       tester.view.physicalSize = Size(width, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -749,7 +768,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('food-catalog-thumbnail-layout-dense')),
+        find.byKey(const ValueKey('food-catalog-thumbnail-layout-horizontal')),
         findsOneWidget,
       );
       expect(

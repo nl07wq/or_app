@@ -154,13 +154,9 @@ void main() {
     expect(find.text('SCAN NUTRITION LABEL'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('STANDARD OCR'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('CAMERA'));
-    await tester.pumpAndSettle();
-    expect(find.text('REVIEW NUTRITION'), findsOneWidget);
+    expect(find.text('OCR PREVIEW'), findsOneWidget);
     expect(repository.entries, isEmpty);
-    await tester.tap(find.text('APPLY TO FORM'));
+    await tester.tap(find.text('APPLY'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(_field('CALORIES')).controller!.text,
@@ -180,10 +176,6 @@ void main() {
       ),
     );
     await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('STANDARD OCR'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('PHOTO LIBRARY'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
@@ -207,48 +199,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PACKAGE'), findsNothing);
     expect(find.text('NUTRITION'), findsNothing);
-    expect(find.text('SELECT SCAN MODE'), findsOneWidget);
-    expect(find.text('STANDARD OCR'), findsOneWidget);
-    expect(find.text('NUTRITION LABEL READER'), findsOneWidget);
+    expect(find.text('SELECT SCAN MODE'), findsNothing);
+    expect(find.text('STANDARD OCR'), findsNothing);
+    expect(find.text('NUTRITION LABEL READER'), findsNothing);
+    expect(find.text('CAMERA'), findsNothing);
+    expect(find.text('PHOTO LIBRARY'), findsNothing);
+    expect(find.text('OCR PREVIEW'), findsOneWidget);
     expect(find.text('PADDLE PoC'), findsNothing);
     expect(find.text('LIVE SCAN'), findsNothing);
     expect(repository.entries, isEmpty);
   });
 
-  testWidgets('same photo path routes through either selected scan mode', (
+  testWidgets('nutrition label scanner keeps its fixed scan mode', (
     tester,
   ) async {
-    for (final scanMode in [
-      ('STANDARD OCR', FoodOcrScanMode.standard),
-      ('NUTRITION LABEL READER', FoodOcrScanMode.nutritionLabelReader),
-    ]) {
-      final gateway = _Gateway(
-        text:
-            '100g当たり\nエネルギー 154kcal\nたんぱく質 1.9g\n'
-            '脂質 5.5g\n炭水化物 24.2g',
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: FoodCatalogEditorPage(
-            repository: _Repository(),
-            captureGateway: gateway,
-          ),
+    final gateway = _Gateway(
+      text:
+          '100g当たり\nエネルギー 154kcal\nたんぱく質 1.9g\n'
+          '脂質 5.5g\n炭水化物 24.2g',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FoodCatalogEditorPage(
+          repository: _Repository(),
+          captureGateway: gateway,
         ),
-      );
+      ),
+    );
 
-      await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(scanMode.$1));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('PHOTO LIBRARY'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('food-catalog-ocr')));
+    await tester.pumpAndSettle();
 
-      expect(gateway.lastScanMode, scanMode.$2);
-      expect(gateway.selectedSources, [FoodImageSource.gallery]);
-      expect(find.text('SCAN MODE  ${scanMode.$1}'), findsOneWidget);
-      await tester.tap(find.text('CANCEL'));
-      await tester.pumpAndSettle();
-    }
+    expect(gateway.lastScanMode, FoodOcrScanMode.nutritionLabelReader);
+    expect(gateway.selectedSources, [FoodImageSource.gallery]);
+    expect(find.text('OCR PREVIEW'), findsOneWidget);
+    await tester.tap(find.text('CANCEL'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('barcode scan updates draft only', (tester) async {
