@@ -20,6 +20,7 @@ import 'repository/food_recipe_repository.dart';
 import 'services/food_recipe_nutrition.dart';
 import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
+import 'widgets/food_feature_chrome.dart';
 
 class FoodRecipeEditorPage extends StatefulWidget {
   const FoodRecipeEditorPage({
@@ -207,8 +208,7 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   Future<void> _save() async {
     if (_saving) return;
     final name = _name.text.trim();
-    if (name.isEmpty ||
-        _ingredients.isEmpty) {
+    if (name.isEmpty || _ingredients.isEmpty) {
       ActionableFeedbackRegion.resolveDeferred(
         ActionableFeedbackResult.unavailable,
       );
@@ -288,12 +288,10 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
   Widget build(BuildContext context) {
     final nutrition = FoodRecipeNutrition.total(_ingredients);
     final readOnly = appInitializationController.value.isReadOnly;
-    return Scaffold(
-      appBar: AppBar(
+    return FoodFeatureScaffold(
+      appBar: foodFeatureAppBar(
         leading: const ActionableBackButton(),
-        title: Text(
-          widget.initialRecipe == null ? 'CREATE RECIPE' : 'EDIT RECIPE',
-        ),
+        title: widget.initialRecipe == null ? 'CREATE RECIPE' : 'EDIT RECIPE',
       ),
       body: ListView(
         padding: AppSpacing.cardPadding,
@@ -452,7 +450,6 @@ class _FoodRecipeEditorPageState extends State<FoodRecipeEditorPage> {
     final value = _ids.generate();
     return value.startsWith('food:') ? value.substring(5) : value;
   }
-
 }
 
 class _RecipeSummaryHeader extends StatelessWidget {

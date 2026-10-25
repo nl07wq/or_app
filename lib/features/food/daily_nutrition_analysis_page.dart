@@ -12,6 +12,7 @@ import '../dashboard/services/dynamic_daily_target_service.dart';
 import '../morning/models/morning_fact_state.dart';
 import '../repositories/app_repository_container.dart';
 import 'food_nutrition_formatter.dart';
+import 'widgets/food_feature_chrome.dart';
 import 'models/food_nutrition_aggregate.dart';
 import 'models/food_summary_state.dart';
 import 'models/daily_nutrition_target_assessment.dart';
@@ -88,10 +89,10 @@ class _DailyNutritionAnalysisPageState
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+  Widget build(BuildContext context) => FoodFeatureScaffold(
+    appBar: foodFeatureAppBar(
       leading: const ActionableBackButton(),
-      title: const Text('DAILY NUTRITION ANALYSIS'),
+      title: 'NUTRITION ANALYSIS',
     ),
     body: FutureBuilder<_DailyContext>(
       future: _context,

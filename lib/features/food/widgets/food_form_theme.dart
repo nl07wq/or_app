@@ -6,9 +6,9 @@ import '../../../core/theme/app_spacing.dart';
 /// DATABASE add/edit forms. Domain data and controllers stay owned by each
 /// screen; only the compact visual language is shared here.
 abstract final class FoodFormMetrics {
-  static const pageSurface = Color(0xFF0D1219);
-  static const fieldSurface = Color(0xFF17212C);
-  static const nutritionSurface = Color(0xFF141D27);
+  static const pageSurface = Color(0x990D1219);
+  static const fieldSurface = Color(0xCC17212C);
+  static const nutritionSurface = Color(0xCC141D27);
   static const separator = Color(0xFF273D4B);
   static const caption = Color(0xFF83A5B8);
   static const fieldLabel = Color(0xFF7898AB);

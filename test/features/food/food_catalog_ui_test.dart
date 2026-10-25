@@ -52,7 +52,7 @@ void main() {
     expect(rippleEvents, 0);
   });
 
-  testWidgets('FOOD ambient selector emits CURSOR only for a changed variant', (
+  testWidgets('FOOD keeps Continuous Circulation fixed without selector UI', (
     tester,
   ) async {
     final audio = _RecordingTouchRippleAudio();
@@ -62,14 +62,10 @@ void main() {
       ),
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('food-ambient-continuousCirculation')),
-    );
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('food-ambient-metabolicCells')));
-    await tester.pump();
-
-    expect(audio.played, [TouchFeedbackSound.cursor]);
+    expect(find.text('CONTINUOUS CIRCULATION'), findsNothing);
+    expect(find.text('METABOLIC CELLS'), findsNothing);
+    expect(find.text('THERMAL CURRENT'), findsNothing);
+    expect(audio.played, isEmpty);
   });
 
   testWidgets('category filters emit CURSOR only for a changed selection', (

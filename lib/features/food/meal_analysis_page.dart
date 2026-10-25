@@ -12,6 +12,7 @@ import '../dashboard/services/dynamic_daily_target_service.dart';
 import '../morning/models/morning_fact_state.dart';
 import '../repositories/app_repository_container.dart';
 import 'food_nutrition_formatter.dart';
+import 'widgets/food_feature_chrome.dart';
 import 'models/food_nutrition_aggregate.dart';
 import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
@@ -89,10 +90,10 @@ class _MealAnalysisPageState extends State<MealAnalysisPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+  Widget build(BuildContext context) => FoodFeatureScaffold(
+    appBar: foodFeatureAppBar(
       leading: const ActionableBackButton(),
-      title: const Text('MEAL ANALYSIS'),
+      title: 'MEAL ANALYSIS',
       actions: [
         IconButton(
           key: const ValueKey('meal-analysis-edit'),

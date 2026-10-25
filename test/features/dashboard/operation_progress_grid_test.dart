@@ -1870,12 +1870,8 @@ void main() {
         Icons.error_outline,
       );
       expect(
-        tester
-            .widget<Icon>(
-              find.byKey(const ValueKey('operation-progress-completion-WATER')),
-            )
-            .icon,
-        Icons.error_outline,
+        find.byKey(const ValueKey('operation-progress-completion-WATER')),
+        findsNothing,
       );
 
       // A WATER record fulfills WATER without creating a FOOD record.
@@ -1883,12 +1879,8 @@ void main() {
       _expectTileText('FOOD', '0 / 3');
       expect(_progress(tester, 'FOOD'), 0);
       expect(
-        tester
-            .widget<Icon>(
-              find.byKey(const ValueKey('operation-progress-completion-WATER')),
-            )
-            .icon,
-        Icons.check_circle_outline,
+        find.byKey(const ValueKey('operation-progress-completion-WATER')),
+        findsNothing,
       );
 
       await applySummary(foodRecords: 1, waterRecorded: true, hydrationMl: 0);
@@ -1896,12 +1888,8 @@ void main() {
       expect(_progress(tester, 'FOOD'), closeTo(1 / 3, 1e-12));
       expect(_progress(tester, 'WATER'), 0);
       expect(
-        tester
-            .widget<Icon>(
-              find.byKey(const ValueKey('operation-progress-completion-WATER')),
-            )
-            .icon,
-        Icons.check_circle_outline,
+        find.byKey(const ValueKey('operation-progress-completion-WATER')),
+        findsNothing,
       );
 
       await applySummary(foodRecords: 2, waterRecorded: true, hydrationMl: 900);
@@ -1926,12 +1914,8 @@ void main() {
         Icons.check_circle_outline,
       );
       expect(
-        tester
-            .widget<Icon>(
-              find.byKey(const ValueKey('operation-progress-completion-WATER')),
-            )
-            .icon,
-        Icons.error_outline,
+        find.byKey(const ValueKey('operation-progress-completion-WATER')),
+        findsNothing,
       );
 
       // The ratio remains capped while a later edit/delete immediately
@@ -1957,7 +1941,7 @@ void main() {
   );
 
   testWidgets(
-    'WATER keeps its value on one line and separates check from quick add',
+    'WATER keeps its value on one line with only the original quick add',
     (tester) async {
       for (final width in [320.0, 375.0, 390.0, 430.0]) {
         await _installDdtStatus();
@@ -1979,16 +1963,15 @@ void main() {
           find.byKey(const ValueKey('operation-progress-status-WATER')),
         );
         final tile = tester.getRect(_tile('WATER'));
-        final check = tester.getRect(
-          find.byKey(const ValueKey('operation-progress-info-WATER')),
-        );
         final quickAdd = tester.getRect(
           find.byKey(const ValueKey('operation-progress-water-quick-add')),
         );
         expect(value.left, greaterThanOrEqualTo(tile.left));
         expect(value.right, lessThanOrEqualTo(tile.right));
-        expect(check.overlaps(quickAdd), isFalse);
-        expect(quickAdd.left - check.right, greaterThanOrEqualTo(8));
+        expect(
+          find.byKey(const ValueKey('operation-progress-info-WATER')),
+          findsNothing,
+        );
         expect(tester.takeException(), isNull, reason: 'WATER at $width');
       }
 
@@ -1999,16 +1982,6 @@ void main() {
       expect(find.text('QUICK WATER LOG'), findsOneWidget);
       await tester.tapAt(const Offset(1, 1));
       await tester.pump();
-
-      await tester.tap(
-        find.byKey(const ValueKey('operation-progress-info-WATER')),
-      );
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('semantic-help-popover-completion-water')),
-        findsOneWidget,
-      );
-      expect(find.text('QUICK WATER LOG'), findsNothing);
     },
   );
 

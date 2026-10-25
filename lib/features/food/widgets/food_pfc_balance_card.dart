@@ -46,7 +46,7 @@ class FoodPfcBalanceStyle {
     ringWidth: foodDetailPfcRingWidth,
     donutSize: 112,
     cardDecoration: BoxDecoration(
-      color: Color(0xFF141D27),
+      color: Color(0xCC141D27),
       borderRadius: BorderRadius.all(Radius.circular(19)),
       border: Border.fromBorderSide(BorderSide(color: Color(0xFF304659))),
     ),

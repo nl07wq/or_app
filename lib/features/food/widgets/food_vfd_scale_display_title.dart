@@ -10,6 +10,7 @@ enum FoodVfdScaleDisplayMode { normal, entry }
 class FoodVfdScaleDisplayTitle extends StatefulWidget {
   const FoodVfdScaleDisplayTitle({
     super.key,
+    this.label = 'FOOD',
     this.mode = FoodVfdScaleDisplayMode.normal,
     this.entryEventMinDelay = const Duration(seconds: 10),
     this.entryEventMaxDelay = const Duration(seconds: 20),
@@ -29,6 +30,10 @@ class FoodVfdScaleDisplayTitle extends StatefulWidget {
   static const bloomEmissionColor = Color(0x4539E0C7);
 
   final FoodVfdScaleDisplayMode mode;
+
+  /// FOOD keeps the original four-glyph instrument exactly. Other FOOD-owned
+  /// routes use the same illuminated frame with a fitted route label.
+  final String label;
   final Duration entryEventMinDelay;
   final Duration entryEventMaxDelay;
 
@@ -63,6 +68,7 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
   ];
 
   bool get _isEntry => widget.mode == FoodVfdScaleDisplayMode.entry;
+  bool get _isFoodWord => widget.label == 'FOOD';
   bool get _canAnimate =>
       _motionEnabled && _appActive && TickerMode.valuesOf(context).enabled;
   int _nextInt(int max) => widget.nextInt?.call(max) ?? _random.nextInt(max);
@@ -116,7 +122,9 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
   @override
   void didUpdateWidget(covariant FoodVfdScaleDisplayTitle oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mode == widget.mode) return;
+    if (oldWidget.mode == widget.mode && oldWidget.label == widget.label) {
+      return;
+    }
     _entryEventTimer?.cancel();
     if (!_isEntry) {
       _entryEventController
@@ -206,12 +214,12 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'FOOD',
+      label: widget.label,
       child: ExcludeSemantics(
         child: RepaintBoundary(
           child: SizedBox(
             key: const ValueKey('food-vfd-scale-title'),
-            width: FoodVfdScaleDisplayTitle.width,
+            width: _isFoodWord ? FoodVfdScaleDisplayTitle.width : 184,
             height: FoodVfdScaleDisplayTitle.height,
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -244,40 +252,77 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
                         stops: [0, .5, 1],
                       ),
                     ),
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([
-                        _selfTestController,
-                        _entryEventController,
-                      ]),
-                      builder: (context, _) => Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CustomPaint(
-                            key: const ValueKey('food-vfd-inactive-structure'),
-                            painter: _FoodVfdDisplayPainter(
-                              selfTest: _selfTestController.value,
-                              entryEvent: _entryEventController.value,
-                              dropoutPattern: _activeDropoutPattern,
+                    child: _isFoodWord
+                        ? AnimatedBuilder(
+                            animation: Listenable.merge([
+                              _selfTestController,
+                              _entryEventController,
+                            ]),
+                            builder: (context, _) => Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CustomPaint(
+                                  key: const ValueKey(
+                                    'food-vfd-inactive-structure',
+                                  ),
+                                  painter: _FoodVfdDisplayPainter(
+                                    selfTest: _selfTestController.value,
+                                    entryEvent: _entryEventController.value,
+                                    dropoutPattern: _activeDropoutPattern,
+                                  ),
+                                ),
+                                if (_selfTestController.value < 1)
+                                  const SizedBox(
+                                    key: ValueKey('food-vfd-self-test'),
+                                  ),
+                                if (_entryEventActive)
+                                  const SizedBox(
+                                    key: ValueKey('food-vfd-entry-event'),
+                                  ),
+                                if (_entryEventActive)
+                                  ..._VfdDriverDropout.from(
+                                    _entryEventController.value,
+                                    _activeDropoutPattern,
+                                  ).offCharacters.map(
+                                    (index) => SizedBox(
+                                      key: ValueKey(
+                                        'food-vfd-driver-off-$index',
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ),
-                          if (_selfTestController.value < 1)
-                            const SizedBox(key: ValueKey('food-vfd-self-test')),
-                          if (_entryEventActive)
-                            const SizedBox(
-                              key: ValueKey('food-vfd-entry-event'),
-                            ),
-                          if (_entryEventActive)
-                            ..._VfdDriverDropout.from(
-                              _entryEventController.value,
-                              _activeDropoutPattern,
-                            ).offCharacters.map(
-                              (index) => SizedBox(
-                                key: ValueKey('food-vfd-driver-off-$index'),
+                          )
+                        : Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  widget.label,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: const TextStyle(
+                                    fontFamily: 'ShareTechMono',
+                                    color: FoodVfdScaleDisplayTitle
+                                        .activeEmissionColor,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.1,
+                                    shadows: [
+                                      Shadow(
+                                        color: FoodVfdScaleDisplayTitle
+                                            .bloomEmissionColor,
+                                        blurRadius: 5,
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                        ],
-                      ),
-                    ),
+                          ),
                   ),
                 ),
               ),

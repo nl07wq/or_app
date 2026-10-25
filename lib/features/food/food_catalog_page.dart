@@ -34,6 +34,7 @@ import 'widgets/food_ocr_scanner.dart';
 import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
 import 'widgets/food_form_theme.dart';
+import 'widgets/food_feature_chrome.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -292,21 +293,18 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       FocusScope.of(context).unfocus();
       return true;
     },
-    child: Scaffold(
-      backgroundColor: FoodFormMetrics.pageSurface,
-      appBar: AppBar(
+    child: FoodFeatureScaffold(
+      appBar: foodFeatureAppBar(
         leading: const ActionableBackButton(),
-        title: Text(
-          widget.selectionMode
-              ? widget.recipesEnabled
-                    ? widget.mealsEnabled
-                          ? MediaQuery.sizeOf(context).width < 480
-                                ? 'SELECT MASTER'
-                                : 'SELECT FOOD / RECIPE / MEAL'
-                          : 'SELECT FOOD / RECIPE'
-                    : 'SELECT FOOD'
-              : 'FOOD DATABASE',
-        ),
+        title: widget.selectionMode
+            ? widget.recipesEnabled
+                  ? widget.mealsEnabled
+                        ? MediaQuery.sizeOf(context).width < 480
+                              ? 'SELECT MASTER'
+                              : 'SELECT FOOD / RECIPE / MEAL'
+                        : 'SELECT FOOD / RECIPE'
+                  : 'SELECT FOOD'
+            : 'FOOD DATABASE',
       ),
       floatingActionButton:
           widget.selectionMode || appInitializationController.value.isReadOnly
@@ -386,7 +384,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
 
   Widget _foodDatabaseSurface() => Container(
     decoration: BoxDecoration(
-      color: const Color(0xFF141B24),
+      color: const Color(0xCC141B24),
       border: Border.all(color: const Color(0xFF2C4050)),
       borderRadius: BorderRadius.circular(14),
     ),
@@ -633,7 +631,7 @@ class _FoodCatalogListCard extends StatelessWidget {
       FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
     ].join('  ');
     return Material(
-      color: const Color(0xFF141B24),
+      color: const Color(0xCC141B24),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -1388,11 +1386,10 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       FocusScope.of(context).unfocus();
       return true;
     },
-    child: Scaffold(
-      backgroundColor: FoodFormMetrics.pageSurface,
-      appBar: AppBar(
+    child: FoodFeatureScaffold(
+      appBar: foodFeatureAppBar(
         leading: const ActionableBackButton(),
-        title: Text(widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD'),
+        title: widget.initialEntry == null ? 'ADD FOOD' : 'EDIT FOOD',
       ),
       body: FoodFormTheme(
         child: SingleChildScrollView(
@@ -2039,11 +2036,10 @@ class FoodCatalogDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final nutrition = entry.nutrition;
     final hasChart = FoodPfcBalanceCard.hasBalance(nutrition);
-    return Scaffold(
-      backgroundColor: const Color(0xFF0C1119),
-      appBar: AppBar(
+    return FoodFeatureScaffold(
+      appBar: foodFeatureAppBar(
         leading: const ActionableBackButton(),
-        title: const Text('FOOD DETAIL'),
+        title: 'FOOD DETAIL',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -2060,7 +2056,7 @@ class FoodCatalogDetailPage extends StatelessWidget {
                     children: [
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: const Color(0xFF172330),
+                          color: const Color(0xCC172330),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFF304659)),
                         ),
@@ -2162,7 +2158,7 @@ class _FoodDetailSurface extends StatelessWidget {
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF101821), Color(0xFF172330)],
+        colors: [Color(0xCC101821), Color(0xCC172330)],
       ),
       borderRadius: BorderRadius.circular(19),
       border: Border.all(color: const Color(0xFF304659)),
@@ -2233,7 +2229,7 @@ class _MetadataChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
     decoration: BoxDecoration(
-      color: const Color(0xFF17212C),
+      color: const Color(0xCC17212C),
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: const Color(0xFF304659)),
     ),

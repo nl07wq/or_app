@@ -4,6 +4,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../services/food_input_capture_gateway.dart';
+import 'food_feature_chrome.dart';
 
 /// Maps the displayed crop viewport back onto decoded original pixels.
 /// It intentionally has no OCR knowledge so the conversion is deterministic
@@ -285,9 +286,9 @@ class _ManualNutritionCropPageState extends State<_ManualNutritionCropPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('CROP NUTRITION LABEL'),
+  Widget build(BuildContext context) => FoodFeatureScaffold(
+    appBar: foodFeatureAppBar(
+      title: 'CROP NUTRITION LABEL',
       leading: IconButton(
         icon: const Icon(Icons.close),
         onPressed: _submitting ? null : () => Navigator.pop(context),

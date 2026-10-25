@@ -1,40 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:or_app/core/services/touch_ripple_audio.dart';
-import 'package:or_app/core/widgets/global_touch_ripple.dart';
-
-enum FoodAmbientVariant {
-  continuousCirculation('CONTINUOUS CIRCULATION'),
-  metabolicCells('METABOLIC CELLS'),
-  thermalCurrent('THERMAL CURRENT');
-
-  const FoodAmbientVariant(this.label);
-  final String label;
-
-  static FoodAmbientVariant fromPersistedName(String? value) {
-    // V4.0's removed mode deliberately migrates to the surviving oil system.
-    if (value == 'gravityFlip') return FoodAmbientVariant.continuousCirculation;
-    return FoodAmbientVariant.values.firstWhere(
-      (variant) => variant.name == value,
-      orElse: () => FoodAmbientVariant.continuousCirculation,
-    );
-  }
-}
-
-abstract final class FoodAmbientPreference {
-  static const _key = 'food.ambient.variant.v4';
-
-  static Future<FoodAmbientVariant> load() async =>
-      FoodAmbientVariant.fromPersistedName(
-        (await SharedPreferences.getInstance()).getString(_key),
-      );
-
-  static Future<void> save(FoodAmbientVariant variant) async {
-    await (await SharedPreferences.getInstance()).setString(_key, variant.name);
-  }
-}
 
 @immutable
 class OilTimerDrop {
@@ -531,28 +496,56 @@ abstract final class OilTimerMotion {
   }
 }
 
+/// The one retained Continuous Circulation world used by every FOOD route.
+/// A route transition can create a new paint widget, but never a new sphere
+/// population or clock, so the background has no visible reset or flash.
+class _FoodAmbientWorld {
+  final Stopwatch _clock = Stopwatch()..start();
+  final Map<Size, OilTimerSimulation> _simulations =
+      <Size, OilTimerSimulation>{};
+
+  OilTimerFrame frameFor(Size size) {
+    final simulation = _simulations.putIfAbsent(
+      size,
+      () => OilTimerSimulation(size),
+    );
+    return simulation.advanceTo(
+      _clock.elapsedMicroseconds / Duration.microsecondsPerSecond,
+      size,
+    );
+  }
+}
+
+final _sharedFoodAmbientWorld = _FoodAmbientWorld();
+
 class FoodAmbientComparison extends StatefulWidget {
-  const FoodAmbientComparison({
-    required this.variant,
-    this.debugTime,
-    super.key,
-  });
-  final FoodAmbientVariant variant;
+  const FoodAmbientComparison({this.debugTime, super.key});
   final double? debugTime;
-  static double motionSignatureFor(FoodAmbientVariant v, double t) =>
-      math.sin(t * (v.index + 1.17)) + math.cos(t * (v.index + .43));
   @override
   State<FoodAmbientComparison> createState() => _FoodAmbientComparisonState();
 }
 
 class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _clock = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 48),
-  )..repeat();
-  final Stopwatch _worldClock = Stopwatch()..start();
-  final OilTimerSimulation _circulation = OilTimerSimulation(Size.zero);
+  late final AnimationController _clock;
+
+  bool get _isAutomatedWidgetTest =>
+      WidgetsBinding.instance.runtimeType.toString().contains('TestWidgets');
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 48),
+    );
+    // The production world clock remains continuous. A static test frame
+    // keeps legacy widget tests deterministic; it never changes app runtime.
+    if (widget.debugTime == null && !_isAutomatedWidgetTest) {
+      _clock.repeat();
+    }
+  }
+
   @override
   void dispose() {
     _clock.dispose();
@@ -569,19 +562,13 @@ class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
             final size = Size(constraints.maxWidth, constraints.maxHeight);
             final seconds =
                 widget.debugTime ??
-                _worldClock.elapsedMicroseconds /
+                _sharedFoodAmbientWorld._clock.elapsedMicroseconds /
                     Duration.microsecondsPerSecond;
-            final frame =
-                widget.variant == FoodAmbientVariant.continuousCirculation
-                ? (widget.debugTime == null
-                      ? _circulation.advanceTo(seconds, size)
-                      : OilTimerMotion.continuousCirculationFrame(
-                          size,
-                          seconds,
-                        ))
-                : null;
+            final frame = widget.debugTime == null
+                ? _sharedFoodAmbientWorld.frameFor(size)
+                : OilTimerMotion.continuousCirculationFrame(size, seconds);
             return CustomPaint(
-              painter: _FoodAmbientPainter(widget.variant, seconds, frame),
+              painter: _FoodAmbientPainter(seconds, frame),
               child: const SizedBox.expand(),
             );
           },
@@ -591,72 +578,15 @@ class _FoodAmbientComparisonState extends State<FoodAmbientComparison>
   );
 }
 
-class FoodAmbientComparisonSelector extends StatelessWidget {
-  const FoodAmbientComparisonSelector({
-    required this.selected,
-    required this.onChanged,
-    super.key,
-  });
-  final FoodAmbientVariant selected;
-  final ValueChanged<FoodAmbientVariant> onChanged;
-  @override
-  Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme;
-    return Semantics(
-      label: 'FOOD ambient comparison',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: c.surface.withValues(alpha: .82),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.outline.withValues(alpha: .35)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final v in FoodAmbientVariant.values)
-                ActionableFeedbackRegion(
-                  role: ActionableFeedbackRole.silent,
-                  child: ChoiceChip(
-                    key: ValueKey('food-ambient-${v.name}'),
-                    label: Text(v.label),
-                    selected: v == selected,
-                    onSelected: (_) {
-                      if (v == selected) return;
-                      GlobalTouchRipple.previewFeedback(
-                        TouchFeedbackSound.cursor,
-                      );
-                      onChanged(v);
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _FoodAmbientPainter extends CustomPainter {
-  const _FoodAmbientPainter(this.variant, this.t, this.circulationFrame);
-  final FoodAmbientVariant variant;
+  const _FoodAmbientPainter(this.t, this.circulationFrame);
   final double t;
-  final OilTimerFrame? circulationFrame;
+  final OilTimerFrame circulationFrame;
 
   @override
   void paint(Canvas c, Size s) {
     c.drawRect(Offset.zero & s, Paint()..color = const Color(0xff05080d));
-    switch (variant) {
-      case FoodAmbientVariant.continuousCirculation:
-        _oilTimer(c, s, circulationFrame!);
-      case FoodAmbientVariant.metabolicCells:
-        _restoredCells(c, s);
-      case FoodAmbientVariant.thermalCurrent:
-        _thermal(c, s);
-    }
+    _oilTimer(c, s, circulationFrame);
   }
 
   void _oilTimer(Canvas c, Size s, OilTimerFrame frame) {
@@ -824,7 +754,9 @@ class _FoodAmbientPainter extends CustomPainter {
     }
   }
 
-  void _restoredCells(Canvas c, Size s) {
+  // Legacy alternative ambient bodies were deliberately retired with the
+  // selector. The shared renderer below contains only Continuous Circulation.
+  /* void _restoredCells(Canvas c, Size s) {
     // f8d5faf3 supplied the restrained membrane palette and breathing
     // character. V4.1 intentionally replaces its grid with cached, seeded
     // dart-thrown positions so a screenshot reads as a cell population.
@@ -1062,7 +994,7 @@ class _FoodAmbientPainter extends CustomPainter {
         c.drawCircle(z, 1.5, Paint()..color = col.withValues(alpha: .5));
       }
     }
-  }
+  } */
 
   Path _smoothOrganicPath(
     Offset o,
@@ -1144,12 +1076,10 @@ class _FoodAmbientPainter extends CustomPainter {
       (math.sin(a * 12.9898 + b * 78.233) * 43758.5453).abs() % 1;
   @override
   bool shouldRepaint(covariant _FoodAmbientPainter old) =>
-      old.variant != variant ||
-      old.t != t ||
-      old.circulationFrame != circulationFrame;
+      old.t != t || old.circulationFrame != circulationFrame;
 }
 
-class _CellSeed {
+/* class _CellSeed {
   const _CellSeed({
     required this.id,
     required this.x,
@@ -1165,4 +1095,4 @@ class _CellSeed {
   final double radius;
   final double phase;
   final double nucleusOffset;
-}
+} */

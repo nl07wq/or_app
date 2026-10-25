@@ -21,6 +21,7 @@ import 'widgets/food_saved_floating_hud.dart';
 import 'widgets/food_summary_card.dart';
 import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_vfd_scale_display_title.dart';
+import 'widgets/food_feature_chrome.dart';
 
 class FoodEntryPage extends StatefulWidget {
   final OperationDateService operationDateService;
@@ -196,14 +197,11 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
         FocusScope.of(context).unfocus();
         return true;
       },
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          automaticallyImplyLeading: false,
+      child: FoodFeatureScaffold(
+        appBar: foodFeatureAppBar(
+          title: 'FOOD ENTRY',
           leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
-          title: const FoodVfdScaleDisplayTitle(
-            mode: FoodVfdScaleDisplayMode.entry,
-          ),
+          mode: FoodVfdScaleDisplayMode.entry,
         ),
         body: _localDate == null && _dateLoadError == null
             ? const Center(child: CircularProgressIndicator())

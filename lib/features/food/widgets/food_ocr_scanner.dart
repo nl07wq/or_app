@@ -14,6 +14,7 @@ import '../services/food_live_capture_presenter.dart';
 import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
 import 'food_manual_nutrition_crop.dart';
+import 'food_feature_chrome.dart';
 
 sealed class FoodOcrResult {
   const FoodOcrResult(this.rawText);
@@ -516,10 +517,10 @@ class _NutritionPreviewDialogState extends State<_NutritionPreviewDialog> {
   @override
   Widget build(BuildContext context) => Dialog.fullscreen(
     child: SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
+      child: FoodFeatureScaffold(
+        appBar: foodFeatureAppBar(
           leading: const ActionableBackButton(),
-          title: const Text('OCR PREVIEW'),
+          title: 'OCR PREVIEW',
         ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

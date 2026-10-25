@@ -3492,8 +3492,10 @@ class _ProgressRow extends StatelessWidget {
               compact: compactTitle,
             ),
           );
-    final hasInlineWaterActions =
-        keepQuickAddAffordance && completion != null && overlayCompletionZone;
+    // WATER's registration completion remains in the canonical model, but its
+    // approved tile presentation has one action only: quick add.  Do not put
+    // the completion help/check affordance beside that circular plus.
+    final hasInlineWaterActions = keepQuickAddAffordance;
     final title = hasInlineWaterActions
         ? Row(
             children: [
@@ -3501,18 +3503,17 @@ class _ProgressRow extends StatelessWidget {
                 child: Align(alignment: Alignment.centerLeft, child: titleText),
               ),
               const SizedBox(width: AppSpacing.sm),
-              _WaterTileActions(completion: completion!, onQuickAdd: onTap),
+              _WaterTileActions(onQuickAdd: onTap),
             ],
           )
         : titleText;
     Widget singleLineWaterStatus({required String text, Key? key}) =>
         LayoutBuilder(
           builder: (context, constraints) {
-            final statusHeight = constraints.maxWidth < 180 ? 40.0 : 20.0;
             return SizedBox(
               key: key,
               width: double.infinity,
-              height: statusHeight,
+              height: 20,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -3750,9 +3751,8 @@ class _ProgressRow extends StatelessWidget {
 }
 
 class _WaterTileActions extends StatelessWidget {
-  const _WaterTileActions({required this.completion, required this.onQuickAdd});
+  const _WaterTileActions({required this.onQuickAdd});
 
-  final DailyCommandCompletionItem completion;
   final VoidCallback? onQuickAdd;
 
   @override
@@ -3760,12 +3760,10 @@ class _WaterTileActions extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
       key: const ValueKey('operation-progress-water-actions'),
-      width: 48,
+      width: 20,
       height: 20,
       child: Row(
         children: [
-          _CompletionHelpButton(completion: completion, compact: true),
-          const SizedBox(width: AppSpacing.sm),
           SizedBox(
             key: const ValueKey('operation-progress-water-quick-add'),
             width: 20,
@@ -3791,11 +3789,10 @@ class _WaterTileActions extends StatelessWidget {
 }
 
 class _CompletionHelpButton extends StatelessWidget {
-  _CompletionHelpButton({required this.completion, this.compact = false})
+  _CompletionHelpButton({required this.completion})
     : _visibleAnchorKey = GlobalKey();
 
   final DailyCommandCompletionItem completion;
-  final bool compact;
   final GlobalKey _visibleAnchorKey;
 
   @override
@@ -3838,14 +3835,12 @@ class _CompletionHelpButton extends StatelessWidget {
             '${completion.label} status: ${completion.displayState.toLowerCase()}',
         child: SizedBox(
           key: ValueKey('operation-progress-info-${completion.label}'),
-          width: compact ? 20 : _ProgressStatusAnchorGeometry.statusZoneWidth,
-          height: compact ? 20 : _ProgressStatusAnchorGeometry.statusZoneWidth,
+          width: _ProgressStatusAnchorGeometry.statusZoneWidth,
+          height: _ProgressStatusAnchorGeometry.statusZoneWidth,
           child: Padding(
-            padding: compact
-                ? EdgeInsets.zero
-                : const EdgeInsets.only(
-                    right: _ProgressStatusAnchorGeometry.statusZoneRightPadding,
-                  ),
+            padding: const EdgeInsets.only(
+              right: _ProgressStatusAnchorGeometry.statusZoneRightPadding,
+            ),
             child: Center(
               child: KeyedSubtree(
                 key: _visibleAnchorKey,

@@ -17,6 +17,7 @@ import 'repository/food_catalog_repository.dart';
 import 'repository/food_meal_id_generator.dart';
 import 'repository/food_meal_master_repository.dart';
 import 'repository/food_recipe_repository.dart';
+import 'widgets/food_feature_chrome.dart';
 
 class FoodMealMasterEditorPage extends StatefulWidget {
   const FoodMealMasterEditorPage({
@@ -288,10 +289,10 @@ class _FoodMealMasterEditorPageState extends State<FoodMealMasterEditorPage> {
   @override
   Widget build(BuildContext context) {
     final readOnly = appInitializationController.value.isReadOnly;
-    return Scaffold(
-      appBar: AppBar(
+    return FoodFeatureScaffold(
+      appBar: foodFeatureAppBar(
         leading: const ActionableBackButton(),
-        title: Text(widget.initialMeal == null ? 'CREATE MEAL' : 'EDIT MEAL'),
+        title: widget.initialMeal == null ? 'CREATE MEAL' : 'EDIT MEAL',
       ),
       body: ListView(
         padding: AppSpacing.cardPadding,

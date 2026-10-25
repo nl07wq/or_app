@@ -12,7 +12,7 @@ import 'models/daily_meal_v2_models.dart';
 import 'models/food_entry_sources.dart';
 import 'widgets/food_input_form.dart';
 import 'widgets/food_vfd_back_button.dart';
-import 'widgets/food_vfd_scale_display_title.dart';
+import 'widgets/food_feature_chrome.dart';
 
 class FoodEditPage extends StatelessWidget {
   final MealData meal;
@@ -55,12 +55,10 @@ class FoodEditPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        automaticallyImplyLeading: false,
+    return FoodFeatureScaffold(
+      appBar: foodFeatureAppBar(
+        title: 'EDIT FOOD',
         leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
-        title: const FoodVfdScaleDisplayTitle(),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -113,10 +111,10 @@ class DailyMealV2EditPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+  Widget build(BuildContext context) => FoodFeatureScaffold(
+    appBar: foodFeatureAppBar(
       leading: const ActionableBackButton(),
-      title: const Text('EDIT MEAL'),
+      title: 'EDIT MEAL',
     ),
     body: Padding(
       padding: const EdgeInsets.all(16),
