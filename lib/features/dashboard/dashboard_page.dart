@@ -2705,6 +2705,7 @@ class _ProgressCardState extends State<_ProgressCard> {
     final calories = widget.foodSummary?.calories ?? 0;
     final protein = widget.foodSummary?.protein ?? 0;
     final hydrationMl = widget.foodSummary?.hydrationMl ?? 0;
+    final waterRecorded = widget.foodSummary?.waterRecorded == true;
     final energyStatus =
         widget.trainingSummary?.totalEnergyCalculationStatus ??
         TrainingEnergyCalculationStatus.complete;
@@ -2753,6 +2754,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                               calories: calories,
                               protein: protein,
                               hydrationMl: hydrationMl,
+                              waterRecorded: waterRecorded,
                               targets: targets,
                               completionModel: widget.completionModel,
                               briefDebrief:
@@ -2787,6 +2789,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                                 calories: calories,
                                 protein: protein,
                                 hydrationMl: hydrationMl,
+                                waterRecorded: waterRecorded,
                                 targets: targets,
                                 completionModel: widget.completionModel,
                                 briefDebrief:
@@ -2932,12 +2935,17 @@ class _ProgressCardState extends State<_ProgressCard> {
     required double calories,
     required double protein,
     required double hydrationMl,
+    required bool waterRecorded,
     required DynamicDailyTargetResult? targets,
     required DailyCommandReadModel? completionModel,
     required _BriefDebriefProgress briefDebrief,
     bool forceTwoColumns = false,
   }) {
     final foodSummaryAvailable = widget.foodSummary != null && mealCount > 0;
+    final foodRegistration = _OperationProgressFoodRegistration(mealCount);
+    final waterRegistration = _OperationProgressWaterRegistration(
+      waterRecorded,
+    );
     return LayoutBuilder(
       key: const ValueKey('operation-progress-tiles'),
       builder: (context, constraints) {
@@ -2954,6 +2962,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           bool fullWidth = false,
           bool pairCell = false,
           bool overlayCompletionZone = false,
+          bool keepQuickAddAffordance = false,
           _ProgressReferenceLayout? referenceLayout,
           bool summaryStatus = false,
           bool compactTitle = false,
@@ -2975,6 +2984,7 @@ class _ProgressCardState extends State<_ProgressCard> {
               summaryStatus: summaryStatus,
               compactTitle: compactTitle,
               overlayCompletionZone: overlayCompletionZone,
+              keepQuickAddAffordance: keepQuickAddAffordance,
               referenceLayout: referenceLayout,
               targetState: targetState,
               completion: completion,
@@ -3013,15 +3023,9 @@ class _ProgressCardState extends State<_ProgressCard> {
           ),
           tile(
             label: 'FOOD',
-            status:
-                completionModel?.foodCompletion.displayState ??
-                '$mealCount / 3',
-            progress: completionModel?.foodCompletion.isComplete == true
-                ? 1.0
-                : completionModel == null
-                ? (mealCount / 3).clamp(0.0, 1.0).toDouble()
-                : 0.0,
-            completion: completionModel?.foodCompletion,
+            status: foodRegistration.displayRatio,
+            progress: foodRegistration.progress,
+            completion: foodRegistration.completion,
             summaryStatus: true,
             overlayCompletionZone: true,
             referenceLayout: waterReferenceLayout,
@@ -3068,6 +3072,9 @@ class _ProgressCardState extends State<_ProgressCard> {
           progress: _waterProgress(targets?.water),
           targetState: targets?.water.state,
           pairCell: true,
+          overlayCompletionZone: true,
+          keepQuickAddAffordance: true,
+          completion: waterRegistration.completion,
           onTap: widget.onWaterTap,
         );
         final trainingTile = tile(
@@ -3240,6 +3247,50 @@ class _BriefDebriefProgress {
   );
 }
 
+/// OPERATION PROGRESS records FOOD and WATER independently from the broader
+/// Daily Command finalization requirements. Both values are derived from the
+/// canonical day summary: meals exclude water entries, while waterRecorded is
+/// true only when at least one water record exists.
+class _OperationProgressFoodRegistration {
+  const _OperationProgressFoodRegistration(this.recordCount);
+
+  static const requiredCount = 3;
+
+  final int recordCount;
+
+  int get displayedCount => recordCount.clamp(0, requiredCount).toInt();
+
+  bool get isComplete => recordCount >= requiredCount;
+
+  double get progress => displayedCount / requiredCount;
+
+  String get displayRatio => '$displayedCount / $requiredCount';
+
+  DailyCommandCompletionItem get completion => DailyCommandCompletionItem(
+    label: 'FOOD',
+    state: isComplete
+        ? DailyCommandModuleState.recorded
+        : recordCount == 0
+        ? DailyCommandModuleState.missing
+        : DailyCommandModuleState.invalid,
+    missingRequirements: isComplete ? const [] : const ['FOOD'],
+  );
+}
+
+class _OperationProgressWaterRegistration {
+  const _OperationProgressWaterRegistration(this.isRecorded);
+
+  final bool isRecorded;
+
+  DailyCommandCompletionItem get completion => DailyCommandCompletionItem(
+    label: 'WATER',
+    state: isRecorded
+        ? DailyCommandModuleState.recorded
+        : DailyCommandModuleState.missing,
+    missingRequirements: isRecorded ? const [] : const ['WATER'],
+  );
+}
+
 double? _estimatedTotalBurn(
   double? baseBurn,
   TrainingSummary? trainingSummary,
@@ -3371,6 +3422,7 @@ class _ProgressRow extends StatelessWidget {
   final bool summaryStatus;
   final bool compactTitle;
   final bool overlayCompletionZone;
+  final bool keepQuickAddAffordance;
   final _ProgressReferenceLayout? referenceLayout;
   final DynamicTargetState? targetState;
   final DailyCommandCompletionItem? completion;
@@ -3383,6 +3435,7 @@ class _ProgressRow extends StatelessWidget {
     this.summaryStatus = false,
     this.compactTitle = false,
     this.overlayCompletionZone = false,
+    this.keepQuickAddAffordance = false,
     this.referenceLayout,
     this.targetState,
     this.completion,
@@ -3459,7 +3512,8 @@ class _ProgressRow extends StatelessWidget {
                   key: ValueKey('operation-progress-status-$label'),
                 ),
         ),
-        if (completion == null && onTap != null) ...[
+        if ((completion == null || keepQuickAddAffordance) &&
+            onTap != null) ...[
           SizedBox(width: AppSpacing.sm),
           Icon(Icons.add_circle_outline, size: 18, color: colorScheme.primary),
         ],

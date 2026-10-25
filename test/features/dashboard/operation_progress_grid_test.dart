@@ -711,7 +711,11 @@ void main() {
             ValueKey('operation-progress-status-$label'),
           );
           final text = tester.widget<Text>(status);
-          expect(text.data, 'NOT RECORDED', reason: '$label at $width');
+          expect(
+            text.data,
+            label == 'FOOD' ? '0 / 3' : 'NOT RECORDED',
+            reason: '$label at $width',
+          );
           expect(text.maxLines, 1, reason: '$label at $width');
           expect(text.softWrap, isFalse, reason: '$label at $width');
           expect(text.style, isNotNull, reason: '$label at $width');
@@ -950,7 +954,7 @@ void main() {
     await _settleDashboard(tester);
 
     _expectTileText('STATUS', 'COMPLETE');
-    _expectTileText('FOOD', 'COMPLETE');
+    _expectTileText('FOOD', '3 / 3');
     _expectTileText('TRAINING', 'COMPLETE');
     for (final label in _labels) {
       expect(
@@ -1814,7 +1818,7 @@ void main() {
     await _settleDashboard(tester);
 
     _expectTileText('STATUS', 'COMPLETE');
-    _expectTileText('FOOD', 'COMPLETE');
+    _expectTileText('FOOD', '2 / 3');
     _expectTileText('CALORIES', '1,100 / 2,200 kcal');
     _expectTileText('PROTEIN', '50 / 135 g');
     expect(
@@ -1826,7 +1830,12 @@ void main() {
     );
     expect(find.textContaining('2085–2363'), findsNothing);
     expect(find.textContaining('121.5–148.5'), findsNothing);
-    expect(find.text('NOT RECORDED'), findsNothing);
+    for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
+      expect(
+        find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
+        findsNothing,
+      );
+    }
     expect(find.text('ACTIVITY PENDING'), findsNothing);
     _expectTileText('TRAINING', 'COMPLETE');
     _expectTileText('ACTIVITY', 'INCOMPLETE');
@@ -1839,12 +1848,135 @@ void main() {
     );
 
     expect(_progress(tester, 'STATUS'), 1);
-    expect(_progress(tester, 'FOOD'), 1);
+    expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
     expect(_progress(tester, 'CALORIES'), closeTo(1100 / 2085, 1e-12));
     expect(_progress(tester, 'PROTEIN'), closeTo(50 / 121.5, 1e-12));
     expect(_progress(tester, 'TRAINING'), 1);
     expect(_progress(tester, 'ACTIVITY'), 0);
   });
+
+  testWidgets(
+    'FOOD and WATER use independent record-registration completion rules',
+    (tester) async {
+      await _installDdtStatus();
+      morningFactNotifier.value = _morning();
+      await _pumpDashboard(tester, width: 390);
+
+      Future<void> applySummary({
+        required int foodRecords,
+        required bool waterRecorded,
+        required double hydrationMl,
+      }) async {
+        foodSummaryNotifier.value = FoodSummary(
+          calories: 0,
+          protein: 0,
+          fat: 0,
+          carbohydrates: 0,
+          hydrationMl: hydrationMl,
+          mealCount: foodRecords,
+          waterRecorded: waterRecorded,
+        );
+        await tester.pump();
+        await _settleDashboard(tester);
+      }
+
+      await applySummary(foodRecords: 0, waterRecorded: false, hydrationMl: 0);
+      _expectTileText('FOOD', '0 / 3');
+      expect(_progress(tester, 'FOOD'), 0);
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('operation-progress-completion-FOOD')),
+            )
+            .icon,
+        Icons.error_outline,
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('operation-progress-completion-WATER')),
+            )
+            .icon,
+        Icons.error_outline,
+      );
+
+      // A WATER record fulfills WATER without creating a FOOD record.
+      await applySummary(foodRecords: 0, waterRecorded: true, hydrationMl: 0);
+      _expectTileText('FOOD', '0 / 3');
+      expect(_progress(tester, 'FOOD'), 0);
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('operation-progress-completion-WATER')),
+            )
+            .icon,
+        Icons.check_circle_outline,
+      );
+
+      await applySummary(foodRecords: 1, waterRecorded: true, hydrationMl: 0);
+      _expectTileText('FOOD', '1 / 3');
+      expect(_progress(tester, 'FOOD'), closeTo(1 / 3, 1e-12));
+      expect(_progress(tester, 'WATER'), 0);
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('operation-progress-completion-WATER')),
+            )
+            .icon,
+        Icons.check_circle_outline,
+      );
+
+      await applySummary(foodRecords: 2, waterRecorded: true, hydrationMl: 900);
+      _expectTileText('FOOD', '2 / 3');
+      expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
+      _expectTileText('WATER', '900 / 2,700 ml');
+      expect(_progress(tester, 'WATER'), closeTo(1 / 3, 1e-12));
+
+      await applySummary(
+        foodRecords: 3,
+        waterRecorded: false,
+        hydrationMl: 900,
+      );
+      _expectTileText('FOOD', '3 / 3');
+      expect(_progress(tester, 'FOOD'), 1);
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('operation-progress-completion-FOOD')),
+            )
+            .icon,
+        Icons.check_circle_outline,
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('operation-progress-completion-WATER')),
+            )
+            .icon,
+        Icons.error_outline,
+      );
+
+      // The ratio remains capped while a later edit/delete immediately
+      // re-evaluates the current operation-day summary.
+      await applySummary(
+        foodRecords: 4,
+        waterRecorded: false,
+        hydrationMl: 900,
+      );
+      _expectTileText('FOOD', '3 / 3');
+      expect(_progress(tester, 'FOOD'), 1);
+      await applySummary(
+        foodRecords: 2,
+        waterRecorded: false,
+        hydrationMl: 900,
+      );
+      _expectTileText('FOOD', '2 / 3');
+      expect(_progress(tester, 'FOOD'), closeTo(2 / 3, 1e-12));
+
+      // WATER keeps its hydration amount/goal metric; registration alone
+      // does not present the hydration goal as achieved.
+    },
+  );
 
   testWidgets('shows zero current with available representative targets', (
     tester,

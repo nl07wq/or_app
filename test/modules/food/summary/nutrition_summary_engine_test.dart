@@ -102,6 +102,55 @@ void main() {
       expect(summary.mealCount, 1);
     },
   );
+
+  test(
+    'FoodSummaryService keeps operation-date FOOD and WATER record counts independent',
+    () {
+      const operationDate = '2026-07-22';
+      final foodOnly = FoodSummaryService.forLocalDate([
+        _meal(id: 'food-only', date: operationDate, items: const []),
+      ], operationDate);
+      final oneWater = FoodSummaryService.forLocalDate([
+        _meal(
+          id: 'water-only',
+          date: operationDate,
+          waterMl: 0,
+          items: const [],
+        ),
+      ], operationDate);
+      final twoWater = FoodSummaryService.forLocalDate([
+        for (var index = 0; index < 4; index++)
+          _meal(id: 'food-$index', date: operationDate, items: const []),
+        _meal(
+          id: 'water-zero',
+          date: operationDate,
+          waterMl: 0,
+          items: const [],
+        ),
+        _meal(
+          id: 'water-one',
+          date: operationDate,
+          waterMl: 500,
+          items: const [],
+        ),
+        _meal(id: 'other-day-food', date: '2026-07-23', items: const []),
+        _meal(
+          id: 'other-day-water',
+          date: '2026-07-23',
+          waterMl: 900,
+          items: const [],
+        ),
+      ], operationDate);
+
+      expect(foodOnly.mealCount, 1);
+      expect(foodOnly.waterRecorded, isFalse);
+      expect(oneWater.mealCount, 0);
+      expect(oneWater.waterRecorded, isTrue);
+      expect(twoWater.mealCount, 4);
+      expect(twoWater.waterRecorded, isTrue);
+      expect(twoWater.hydrationMl, 500);
+    },
+  );
 }
 
 MealData _meal({
