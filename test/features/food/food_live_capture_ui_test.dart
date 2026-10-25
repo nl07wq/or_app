@@ -463,10 +463,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.widget<TextField>(_field('CALORIES')).controller!.text, '9');
-    expect(
-      tester.widget<TextField>(_field('PROTEIN')).controller!.text,
-      '0.7',
-    );
+    expect(tester.widget<TextField>(_field('PROTEIN')).controller!.text, '0.7');
     expect(tester.widget<TextField>(_field('FAT')).controller!.text, '0.5');
     expect(
       tester.widget<TextField>(_field('CARBOHYDRATE')).controller!.text,
@@ -900,10 +897,10 @@ void main() {
     expect(categoryY, closeTo(brandY, 8));
     expect(barcodeY, greaterThan(brandY));
     expect(displayY, greaterThan(barcodeY));
-    expect(basisY, closeTo(displayY, 8));
+    expect(basisY, greaterThan(displayY));
     expect(caloriesY, greaterThan(displayY));
-    expect(proteinY, closeTo(caloriesY, 8));
-    expect(fatY, greaterThan(caloriesY));
+    expect(proteinY, greaterThan(caloriesY));
+    expect(fatY, closeTo(proteinY, 8));
     expect(carbohydrateY, closeTo(fatY, 8));
     expect(amountY, greaterThan(fatY));
     expect(memoY, closeTo(amountY, 8));

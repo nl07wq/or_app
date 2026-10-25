@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -48,6 +49,10 @@ class FoodInputFields extends StatelessWidget {
   final bool nutritionCaptureInProgress;
   final VoidCallback? onRecalculateNutrition;
   final String? recalculationBlockReason;
+  final FocusNode? calorieFocusNode;
+  final FocusNode? proteinFocusNode;
+  final FocusNode? fatFocusNode;
+  final FocusNode? carbohydrateFocusNode;
 
   const FoodInputFields({
     super.key,
@@ -76,6 +81,10 @@ class FoodInputFields extends StatelessWidget {
     required this.onProteinChanged,
     required this.onFatChanged,
     required this.onCarbohydrateChanged,
+    this.calorieFocusNode,
+    this.proteinFocusNode,
+    this.fatFocusNode,
+    this.carbohydrateFocusNode,
     this.onScanBarcode,
     this.barcodeScanInProgress = false,
     this.onReadNutrition,
@@ -303,6 +312,10 @@ class FoodInputFields extends StatelessWidget {
               onCarbohydrateChanged();
               onChanged(value);
             },
+            calorieFocusNode: calorieFocusNode,
+            proteinFocusNode: proteinFocusNode,
+            fatFocusNode: fatFocusNode,
+            carbohydrateFocusNode: carbohydrateFocusNode,
           ),
 
           _compactGap,
@@ -528,6 +541,10 @@ class _FoodNutritionPanel extends StatelessWidget {
     required this.onProteinChanged,
     required this.onFatChanged,
     required this.onCarbohydrateChanged,
+    this.calorieFocusNode,
+    this.proteinFocusNode,
+    this.fatFocusNode,
+    this.carbohydrateFocusNode,
   });
 
   final String basisLabel;
@@ -539,6 +556,10 @@ class _FoodNutritionPanel extends StatelessWidget {
   final ValueChanged<String> onProteinChanged;
   final ValueChanged<String> onFatChanged;
   final ValueChanged<String> onCarbohydrateChanged;
+  final FocusNode? calorieFocusNode;
+  final FocusNode? proteinFocusNode;
+  final FocusNode? fatFocusNode;
+  final FocusNode? carbohydrateFocusNode;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -563,11 +584,16 @@ class _FoodNutritionPanel extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: OperationTextField(
-                controller: calorieController,
-                label: 'CALORIES',
-                keyboardType: TextInputType.number,
-                onChanged: onCaloriesChanged,
+              child: _NutritionFocusField(
+                focusNode: calorieFocusNode,
+                nextFocusNode: proteinFocusNode,
+                child: OperationTextField(
+                  controller: calorieController,
+                  label: 'CALORIES',
+                  keyboardType: TextInputType.number,
+                  focusNode: calorieFocusNode,
+                  onChanged: onCaloriesChanged,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -587,6 +613,9 @@ class _FoodNutritionPanel extends StatelessWidget {
                 label: 'PROTEIN',
                 color: FoodFormMetrics.protein,
                 onChanged: onProteinChanged,
+                focusNode: proteinFocusNode,
+                previousFocusNode: calorieFocusNode,
+                nextFocusNode: fatFocusNode,
               ),
               _macroField(
                 context,
@@ -594,6 +623,9 @@ class _FoodNutritionPanel extends StatelessWidget {
                 label: 'FAT',
                 color: FoodFormMetrics.fat,
                 onChanged: onFatChanged,
+                focusNode: fatFocusNode,
+                previousFocusNode: proteinFocusNode,
+                nextFocusNode: carbohydrateFocusNode,
               ),
               _macroField(
                 context,
@@ -601,9 +633,11 @@ class _FoodNutritionPanel extends StatelessWidget {
                 label: 'CARBOHYDRATE',
                 color: FoodFormMetrics.carbohydrate,
                 onChanged: onCarbohydrateChanged,
+                focusNode: carbohydrateFocusNode,
+                previousFocusNode: fatFocusNode,
               ),
             ];
-            if (constraints.maxWidth >= 330) {
+            if (constraints.maxWidth >= 250) {
               return Row(
                 children: [
                   for (var index = 0; index < fields.length; index++) ...[
@@ -635,6 +669,9 @@ class _FoodNutritionPanel extends StatelessWidget {
     required String label,
     required Color color,
     required ValueChanged<String> onChanged,
+    FocusNode? focusNode,
+    FocusNode? previousFocusNode,
+    FocusNode? nextFocusNode,
   }) {
     final theme = Theme.of(context);
     return Theme(
@@ -647,14 +684,53 @@ class _FoodNutritionPanel extends StatelessWidget {
               ?.copyWith(color: color),
         ),
       ),
-      child: OperationTextField(
-        controller: controller,
-        label: label,
-        keyboardType: TextInputType.number,
-        onChanged: onChanged,
+      child: _NutritionFocusField(
+        focusNode: focusNode,
+        previousFocusNode: previousFocusNode,
+        nextFocusNode: nextFocusNode,
+        child: OperationTextField(
+          controller: controller,
+          label: label,
+          keyboardType: TextInputType.number,
+          focusNode: focusNode,
+          onChanged: onChanged,
+        ),
       ),
     );
   }
+}
+
+class _NutritionFocusField extends StatelessWidget {
+  const _NutritionFocusField({
+    required this.child,
+    this.focusNode,
+    this.previousFocusNode,
+    this.nextFocusNode,
+  });
+
+  final Widget child;
+  final FocusNode? focusNode;
+  final FocusNode? previousFocusNode;
+  final FocusNode? nextFocusNode;
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    onKeyEvent: (_, event) {
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+          nextFocusNode != null) {
+        nextFocusNode!.requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+          previousFocusNode != null) {
+        previousFocusNode!.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+    child: child,
+  );
 }
 
 /// Shared presentation-only numeric field plus a compact vertical stepper.

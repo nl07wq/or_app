@@ -152,6 +152,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
   final _recipeQuantityController = TextEditingController(text: '1');
   final _foodSearchController = TextEditingController();
   final _foodSearchFocusNode = FocusNode();
+  final _calorieFocusNode = FocusNode();
+  final _proteinFocusNode = FocusNode();
+  final _fatFocusNode = FocusNode();
+  final _carbohydrateFocusNode = FocusNode();
   final _recipeSearchController = TextEditingController();
   final _mealSearchController = TextEditingController();
   final _mealItemUsedAmountController = TextEditingController();
@@ -311,6 +315,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _recipeQuantityController.dispose();
     _foodSearchController.dispose();
     _foodSearchFocusNode.dispose();
+    _calorieFocusNode.dispose();
+    _proteinFocusNode.dispose();
+    _fatFocusNode.dispose();
+    _carbohydrateFocusNode.dispose();
     _recipeSearchController.dispose();
     _mealSearchController.dispose();
     _mealItemUsedAmountController.dispose();
@@ -2952,6 +2960,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       onProteinChanged: () => _rawProtein = null,
                       onFatChanged: () => _rawFat = null,
                       onCarbohydrateChanged: () => _rawCarbohydrate = null,
+                      calorieFocusNode: _calorieFocusNode,
+                      proteinFocusNode: _proteinFocusNode,
+                      fatFocusNode: _fatFocusNode,
+                      carbohydrateFocusNode: _carbohydrateFocusNode,
                       onScanBarcode: _isSaving || _capturingBarcode
                           ? null
                           : _scanBarcode,

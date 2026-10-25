@@ -278,7 +278,7 @@ void main() {
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets(
-      'food category filters wrap without overflow at ${width.toInt()}px',
+      'food category filters scroll without overflow at ${width.toInt()}px',
       (tester) async {
         tester.view.physicalSize = Size(width, 844);
         tester.view.devicePixelRatio = 1;
@@ -301,9 +301,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(
-          find.byKey(const ValueKey('food-category-filter-packagedFood')),
+        final packaged = find.byKey(
+          const ValueKey('food-category-filter-packagedFood'),
         );
+        await tester.ensureVisible(packaged);
+        await tester.tap(packaged);
         await tester.pump();
         expect(find.text('Food'), findsOneWidget);
         expect(tester.takeException(), isNull);
@@ -907,7 +909,7 @@ void main() {
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Responsive Food',
     );
-    for (final width in [320.0, 390.0, 900.0, 1280.0]) {
+    for (final width in [320.0, 375.0, 390.0, 430.0]) {
       await tester.binding.setSurfaceSize(Size(width, 900));
       await tester.pumpWidget(
         MaterialApp(

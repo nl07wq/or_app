@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
@@ -364,56 +365,105 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
               ),
               AppSpacing.gapMD,
             ],
-            OperationTextField(
-              key: const ValueKey('food-catalog-search'),
-              controller: _search,
-              label: switch (_view) {
-                _FoodDatabaseView.food => 'SEARCH NAME / BRAND / BARCODE',
-                _FoodDatabaseView.recipe => 'SEARCH RECIPE NAME',
-                _FoodDatabaseView.meal => 'SEARCH MEAL NAME',
-              },
-              onChanged: (_) => setState(() {}),
-            ),
-            if (_view == _FoodDatabaseView.food) ...[
-              AppSpacing.gapSM,
-              _categoryFilter(),
+            if (_view == _FoodDatabaseView.food)
+              Expanded(child: _foodDatabaseSurface())
+            else ...[
+              OperationTextField(
+                key: const ValueKey('food-catalog-search'),
+                controller: _search,
+                label: _view == _FoodDatabaseView.recipe
+                    ? 'SEARCH RECIPE NAME'
+                    : 'SEARCH MEAL NAME',
+                onChanged: (_) => setState(() {}),
+              ),
+              AppSpacing.gapMD,
+              Expanded(child: _body()),
             ],
-            AppSpacing.gapMD,
-            Expanded(child: _body()),
           ],
         ),
       ),
     ),
   );
 
-  Widget _categoryFilter() => Semantics(
-    label: 'CATEGORY FILTER',
-    child: Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
+  Widget _foodDatabaseSurface() => Container(
+    decoration: BoxDecoration(
+      color: const Color(0xFF141B24),
+      border: Border.all(color: const Color(0xFF2C4050)),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
       children: [
-        _categoryChoice(label: 'ALL', category: null, keyName: 'all'),
-        _categoryChoice(
-          label: '食材',
-          category: FoodCatalogCategory.ingredient,
-          keyName: 'ingredient',
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+          child: Row(
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: Icon(
+                  Icons.search,
+                  size: 19,
+                  color: FoodFormMetrics.caption,
+                ),
+              ),
+              Expanded(
+                child: OperationTextField(
+                  key: const ValueKey('food-catalog-search'),
+                  controller: _search,
+                  label: 'SEARCH NAME / BRAND / BARCODE',
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
         ),
-        _categoryChoice(
-          label: '調理済み',
-          category: FoodCatalogCategory.preparedFood,
-          keyName: 'preparedFood',
+        const Divider(height: 1, color: FoodFormMetrics.separator),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: _categoryFilter(),
         ),
-        _categoryChoice(
-          label: '市販・包装品',
-          category: FoodCatalogCategory.packagedFood,
-          keyName: 'packagedFood',
-        ),
-        _categoryChoice(
-          label: '飲料',
-          category: FoodCatalogCategory.beverage,
-          keyName: 'beverage',
+        const Divider(height: 1, color: FoodFormMetrics.separator),
+        Expanded(
+          child: Padding(padding: const EdgeInsets.all(10), child: _body()),
         ),
       ],
+    ),
+  );
+
+  Widget _categoryFilter() => Semantics(
+    label: 'CATEGORY FILTER',
+    child: SingleChildScrollView(
+      key: const ValueKey('food-category-filter-scroll'),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
+        children: [
+          _categoryChoice(label: 'ALL', category: null, keyName: 'all'),
+          const SizedBox(width: AppSpacing.sm),
+          _categoryChoice(
+            label: '食材',
+            category: FoodCatalogCategory.ingredient,
+            keyName: 'ingredient',
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _categoryChoice(
+            label: '調理済み',
+            category: FoodCatalogCategory.preparedFood,
+            keyName: 'preparedFood',
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _categoryChoice(
+            label: '市販・包装品',
+            category: FoodCatalogCategory.packagedFood,
+            keyName: 'packagedFood',
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _categoryChoice(
+            label: '飲料',
+            category: FoodCatalogCategory.beverage,
+            keyName: 'beverage',
+          ),
+        ],
+      ),
     ),
   );
 
@@ -660,7 +710,7 @@ class _FoodCatalogListCard extends StatelessWidget {
                       color: FoodFormMetrics.carbohydrate,
                     ),
                   ];
-                  final row = constraints.maxWidth >= 310
+                  final row = constraints.maxWidth >= 250
                       ? Row(
                           children: [
                             for (final cell in cells) Expanded(child: cell),
@@ -711,16 +761,16 @@ class _NutritionCell extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 2),
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        Text(value, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 2),
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: color ?? FoodFormMetrics.caption,
           ),
         ),
-        const SizedBox(height: 2),
-        Text(value, style: Theme.of(context).textTheme.bodySmall),
       ],
     ),
   );
@@ -785,6 +835,10 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
   final _protein = TextEditingController();
   final _fat = TextEditingController();
   final _carbs = TextEditingController();
+  final _caloriesFocusNode = FocusNode();
+  final _proteinFocusNode = FocusNode();
+  final _fatFocusNode = FocusNode();
+  final _carbsFocusNode = FocusNode();
   final _memo = TextEditingController();
   FoodCatalogCategory _category = FoodCatalogCategory.packagedFood;
   FoodVisualKey? _visualKey;
@@ -1199,6 +1253,14 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     ]) {
       controller.dispose();
     }
+    for (final node in [
+      _caloriesFocusNode,
+      _proteinFocusNode,
+      _fatFocusNode,
+      _carbsFocusNode,
+    ]) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -1544,11 +1606,16 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         Row(
           children: [
             Expanded(
-              child: OperationTextField(
-                controller: _calories,
-                label: 'CALORIES',
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() => _rawCalories = null),
+              child: _CatalogNutritionFocusField(
+                focusNode: _caloriesFocusNode,
+                nextFocusNode: _proteinFocusNode,
+                child: OperationTextField(
+                  controller: _calories,
+                  label: 'CALORIES',
+                  keyboardType: TextInputType.number,
+                  focusNode: _caloriesFocusNode,
+                  onChanged: (_) => setState(() => _rawCalories = null),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -1567,21 +1634,29 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                 label: 'PROTEIN',
                 color: FoodFormMetrics.protein,
                 onChanged: () => setState(() => _rawProtein = null),
+                focusNode: _proteinFocusNode,
+                previousFocusNode: _caloriesFocusNode,
+                nextFocusNode: _fatFocusNode,
               ),
               _macroNutritionField(
                 controller: _fat,
                 label: 'FAT',
                 color: FoodFormMetrics.fat,
                 onChanged: () => setState(() => _rawFat = null),
+                focusNode: _fatFocusNode,
+                previousFocusNode: _proteinFocusNode,
+                nextFocusNode: _carbsFocusNode,
               ),
               _macroNutritionField(
                 controller: _carbs,
                 label: 'CARBOHYDRATE',
                 color: FoodFormMetrics.carbohydrate,
                 onChanged: () => setState(() => _rawCarbohydrate = null),
+                focusNode: _carbsFocusNode,
+                previousFocusNode: _fatFocusNode,
               ),
             ];
-            if (constraints.maxWidth >= 330) {
+            if (constraints.maxWidth >= 250) {
               return Row(
                 children: [
                   for (var index = 0; index < fields.length; index++) ...[
@@ -1612,6 +1687,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     required String label,
     required Color color,
     required VoidCallback onChanged,
+    FocusNode? focusNode,
+    FocusNode? previousFocusNode,
+    FocusNode? nextFocusNode,
   }) {
     final theme = Theme.of(context);
     return Theme(
@@ -1624,11 +1702,17 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               ?.copyWith(color: color),
         ),
       ),
-      child: OperationTextField(
-        controller: controller,
-        label: label,
-        keyboardType: TextInputType.number,
-        onChanged: (_) => onChanged(),
+      child: _CatalogNutritionFocusField(
+        focusNode: focusNode,
+        previousFocusNode: previousFocusNode,
+        nextFocusNode: nextFocusNode,
+        child: OperationTextField(
+          controller: controller,
+          label: label,
+          keyboardType: TextInputType.number,
+          focusNode: focusNode,
+          onChanged: (_) => onChanged(),
+        ),
       ),
     );
   }
@@ -1673,6 +1757,39 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       }
     },
   ).inputFeedback();
+}
+
+class _CatalogNutritionFocusField extends StatelessWidget {
+  const _CatalogNutritionFocusField({
+    required this.child,
+    this.focusNode,
+    this.previousFocusNode,
+    this.nextFocusNode,
+  });
+
+  final Widget child;
+  final FocusNode? focusNode;
+  final FocusNode? previousFocusNode;
+  final FocusNode? nextFocusNode;
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    onKeyEvent: (_, event) {
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+          nextFocusNode != null) {
+        nextFocusNode!.requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+          previousFocusNode != null) {
+        previousFocusNode!.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+    child: child,
+  );
 }
 
 class _NutritionRecalculationRow extends StatelessWidget {

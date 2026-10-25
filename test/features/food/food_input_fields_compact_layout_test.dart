@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
@@ -34,7 +35,7 @@ void main() {
       expect(_top(tester, _field('PROTEIN')), _top(tester, _field('FAT')));
       expect(
         _top(tester, _field('CARBOHYDRATE')),
-        greaterThan(_top(tester, _field('PROTEIN'))),
+        _top(tester, _field('PROTEIN')),
       );
       final amountBounds = tester.getRect(_amount());
       final memoBounds = tester.getRect(_field('MEMO'));
@@ -407,6 +408,45 @@ void main() {
     expect(find.text('栄養成分を1項目以上入力してください'), findsOneWidget);
     expect(find.text('ENTER AT LEAST ONE NUTRITION VALUE'), findsNothing);
   });
+
+  testWidgets(
+    'nutrition fields retain explicit forward and reverse focus order',
+    (tester) async {
+      final controllers = _Controllers();
+      final calories = FocusNode();
+      final protein = FocusNode();
+      final fat = FocusNode();
+      final carbohydrate = FocusNode();
+      addTearDown(controllers.dispose);
+      addTearDown(calories.dispose);
+      addTearDown(protein.dispose);
+      addTearDown(fat.dispose);
+      addTearDown(carbohydrate.dispose);
+      await tester.pumpWidget(
+        _subject(
+          controllers,
+          width: 320,
+          calorieFocusNode: calories,
+          proteinFocusNode: protein,
+          fatFocusNode: fat,
+          carbohydrateFocusNode: carbohydrate,
+        ),
+      );
+
+      calories.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(protein.hasFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(fat.hasFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(carbohydrate.hasFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(fat.hasFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(protein.hasFocus, isTrue);
+    },
+  );
 }
 
 Widget _subject(
@@ -415,6 +455,10 @@ Widget _subject(
   FoodQuantityUnit baseUnit = FoodQuantityUnit.gram,
   FoodQuantityUnit? packageUnit = FoodQuantityUnit.gram,
   String? recalculationBlockReason,
+  FocusNode? calorieFocusNode,
+  FocusNode? proteinFocusNode,
+  FocusNode? fatFocusNode,
+  FocusNode? carbohydrateFocusNode,
 }) => MaterialApp(
   theme: StandardTheme.theme,
   home: Scaffold(
@@ -446,6 +490,10 @@ Widget _subject(
           onProteinChanged: () {},
           onFatChanged: () {},
           onCarbohydrateChanged: () {},
+          calorieFocusNode: calorieFocusNode,
+          proteinFocusNode: proteinFocusNode,
+          fatFocusNode: fatFocusNode,
+          carbohydrateFocusNode: carbohydrateFocusNode,
           onRecalculateNutrition: () {},
           recalculationBlockReason: recalculationBlockReason,
         ),
@@ -493,12 +541,6 @@ Finder _amount() => find.byKey(const ValueKey('food-amount-input'));
 double _top(WidgetTester tester, Finder finder) => tester.getTopLeft(finder).dy;
 double _centerY(WidgetTester tester, Finder finder) =>
     tester.getCenter(finder).dy;
-
-double _pairCenterX(WidgetTester tester, Finder first, Finder second) {
-  final firstBounds = tester.getRect(first);
-  final secondBounds = tester.getRect(second);
-  return (firstBounds.left + secondBounds.right) / 2;
-}
 
 class _Controllers {
   final name = TextEditingController();
