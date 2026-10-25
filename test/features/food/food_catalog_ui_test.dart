@@ -71,6 +71,56 @@ void main() {
 
     expect(audio.played, [TouchFeedbackSound.cursor]);
   });
+
+  testWidgets('category filters emit CURSOR only for a changed selection', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: FoodCatalogPage(
+            repository: _MemoryCatalogRepository(const []),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final all = find.byKey(const ValueKey('food-category-filter-all'));
+    final ingredient = find.byKey(
+      const ValueKey('food-category-filter-ingredient'),
+    );
+    final scroll = find.byKey(const ValueKey('food-category-filter-scroll'));
+
+    await tester.tap(all);
+    await tester.pump();
+    await tester.drag(scroll, const Offset(-80, 0));
+    await tester.pump();
+    expect(audio.played, isEmpty);
+
+    await tester.tap(ingredient);
+    await tester.pump();
+    await tester.tap(ingredient);
+    await tester.pump();
+    expect(audio.played, [TouchFeedbackSound.cursor]);
+
+    final databaseType = find.byKey(const ValueKey('food-database-type'));
+    await tester.tap(
+      find.descendant(of: databaseType, matching: find.text('RECIPE')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: databaseType, matching: find.text('FOOD')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      audio.played.where((sound) => sound == TouchFeedbackSound.cursor),
+      hasLength(3),
+      reason: 'Only the changed category and two tab transitions emit CURSOR.',
+    );
+  });
   testWidgets('food database uses Japanese human-facing description', (
     tester,
   ) async {

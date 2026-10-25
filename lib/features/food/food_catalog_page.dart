@@ -482,7 +482,7 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         key: ValueKey('food-category-filter-$keyName'),
         label: Text(label),
         selected: selected,
-        onSelected: (_) => setState(() => _selectedCategory = category),
+        onSelected: (_) => _selectCategory(category),
         showCheckmark: true,
         materialTapTargetSize: MaterialTapTargetSize.padded,
         visualDensity: VisualDensity.standard,
@@ -496,6 +496,12 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         ),
       ),
     );
+  }
+
+  void _selectCategory(FoodCatalogCategory? category) {
+    if (_selectedCategory == category) return;
+    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+    setState(() => _selectedCategory = category);
   }
 
   Widget _body() {

@@ -489,38 +489,16 @@ void main() {
     }
   });
 
-  testWidgets('restores the pre-unification WATER intrinsic geometry', (
+  testWidgets('WATER keeps a full-width single-line value geometry', (
     tester,
   ) async {
     final database = FakeIndexedDbDatabase();
     seedOperationState(database, '2026-07-28');
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
     addTearDown(AppRepositoryRegistry.resetForTesting);
-    const baselines = {
-      320: (
-        height: 76.0,
-        title: Rect.fromLTRB(12, 12, 82.5, 32),
-        value: Rect.fromLTRB(12, 36, 218, 56),
-        bar: Rect.fromLTRB(12, 60, 244, 64),
-      ),
-      390: (
-        height: 96.0,
-        title: Rect.fromLTRB(12, 12, 82.5, 32),
-        value: Rect.fromLTRB(12, 36, 119, 76),
-        bar: Rect.fromLTRB(12, 80, 145, 84),
-      ),
-      900: (
-        height: 76.0,
-        title: Rect.fromLTRB(12, 12, 82.5, 32),
-        value: Rect.fromLTRB(12, 36, 199.6, 56),
-        bar: Rect.fromLTRB(12, 60, 225.6, 64),
-      ),
-    };
-
     for (final width in [320.0, 390.0, 900.0]) {
       await _pumpDashboard(tester, width: width);
       await _settleDashboard(tester);
-      final baseline = baselines[width.toInt()]!;
       final card = tester.getRect(_tile('WATER'));
       final title = _localRect(
         tester,
@@ -541,12 +519,12 @@ void main() {
         _tile('WATER'),
       );
 
-      expect(card.height, moreOrLessEquals(baseline.height, epsilon: 0.5));
-      _expectRectNear(title, baseline.title);
-      _expectRectNear(value, baseline.value);
-      _expectRectNear(bar, baseline.bar);
-      expect(value.top - title.bottom, moreOrLessEquals(4, epsilon: 0.5));
-      expect(bar.top - value.bottom, moreOrLessEquals(4, epsilon: 0.5));
+      expect(card.height, greaterThanOrEqualTo(76));
+      expect(title.left, moreOrLessEquals(12, epsilon: 0.5));
+      expect(value.left, moreOrLessEquals(12, epsilon: 0.5));
+      expect(value.right, moreOrLessEquals(bar.right, epsilon: 0.5));
+      expect(value.top - title.bottom, greaterThanOrEqualTo(4));
+      expect(bar.top - value.bottom, greaterThanOrEqualTo(4));
     }
   });
 
@@ -1937,7 +1915,7 @@ void main() {
         waterRecorded: false,
         hydrationMl: 900,
       );
-      _expectTileText('FOOD', '3 / 3');
+      _expectTileText('FOOD', 'COMPLETE');
       expect(_progress(tester, 'FOOD'), 1);
       expect(
         tester
@@ -1963,7 +1941,7 @@ void main() {
         waterRecorded: false,
         hydrationMl: 900,
       );
-      _expectTileText('FOOD', '3 / 3');
+      _expectTileText('FOOD', 'COMPLETE');
       expect(_progress(tester, 'FOOD'), 1);
       await applySummary(
         foodRecords: 2,
@@ -1975,6 +1953,62 @@ void main() {
 
       // WATER keeps its hydration amount/goal metric; registration alone
       // does not present the hydration goal as achieved.
+    },
+  );
+
+  testWidgets(
+    'WATER keeps its value on one line and separates check from quick add',
+    (tester) async {
+      for (final width in [320.0, 375.0, 390.0, 430.0]) {
+        await _installDdtStatus();
+        morningFactNotifier.value = _morning();
+        foodSummaryNotifier.value = const FoodSummary(
+          calories: 0,
+          protein: 0,
+          fat: 0,
+          carbohydrates: 0,
+          hydrationMl: 10000,
+          mealCount: 0,
+          waterRecorded: true,
+        );
+
+        await _pumpDashboard(tester, width: width);
+        await _settleDashboard(tester);
+
+        final value = tester.getRect(
+          find.byKey(const ValueKey('operation-progress-status-WATER')),
+        );
+        final tile = tester.getRect(_tile('WATER'));
+        final check = tester.getRect(
+          find.byKey(const ValueKey('operation-progress-info-WATER')),
+        );
+        final quickAdd = tester.getRect(
+          find.byKey(const ValueKey('operation-progress-water-quick-add')),
+        );
+        expect(value.left, greaterThanOrEqualTo(tile.left));
+        expect(value.right, lessThanOrEqualTo(tile.right));
+        expect(check.overlaps(quickAdd), isFalse);
+        expect(quickAdd.left - check.right, greaterThanOrEqualTo(8));
+        expect(tester.takeException(), isNull, reason: 'WATER at $width');
+      }
+
+      await tester.tap(
+        find.byKey(const ValueKey('operation-progress-water-quick-add')),
+      );
+      await tester.pump();
+      expect(find.text('QUICK WATER LOG'), findsOneWidget);
+      await tester.tapAt(const Offset(1, 1));
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const ValueKey('operation-progress-info-WATER')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('semantic-help-popover-completion-water')),
+        findsOneWidget,
+      );
+      expect(find.text('QUICK WATER LOG'), findsNothing);
     },
   );
 
@@ -3537,13 +3571,6 @@ double _localCenterX(WidgetTester tester, Finder child, Finder card) =>
 
 Rect _localRect(WidgetTester tester, Finder child, Finder card) =>
     tester.getRect(child).shift(-tester.getRect(card).topLeft);
-
-void _expectRectNear(Rect actual, Rect expected) {
-  expect(actual.left, closeTo(expected.left, 0.5));
-  expect(actual.top, closeTo(expected.top, 0.5));
-  expect(actual.right, closeTo(expected.right, 0.5));
-  expect(actual.bottom, closeTo(expected.bottom, 0.5));
-}
 
 (double, double, double) _progressSlotTops(WidgetTester tester, String label) =>
     (

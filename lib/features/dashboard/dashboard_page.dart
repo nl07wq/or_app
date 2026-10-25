@@ -3264,7 +3264,8 @@ class _OperationProgressFoodRegistration {
 
   double get progress => displayedCount / requiredCount;
 
-  String get displayRatio => '$displayedCount / $requiredCount';
+  String get displayRatio =>
+      isComplete ? 'COMPLETE' : '$displayedCount / $requiredCount';
 
   DailyCommandCompletionItem get completion => DailyCommandCompletionItem(
     label: 'FOOD',
@@ -3468,7 +3469,7 @@ class _ProgressRow extends StatelessWidget {
       completion: completion,
       completed: completed,
     );
-    final title = compactTitle && MediaQuery.sizeOf(context).width < 390
+    final titleText = compactTitle && MediaQuery.sizeOf(context).width < 390
         ? FittedBox(
             key: ValueKey('operation-progress-title-fit-$label'),
             fit: BoxFit.scaleDown,
@@ -3491,33 +3492,80 @@ class _ProgressRow extends StatelessWidget {
               compact: compactTitle,
             ),
           );
+    final hasInlineWaterActions =
+        keepQuickAddAffordance && completion != null && overlayCompletionZone;
+    final title = hasInlineWaterActions
+        ? Row(
+            children: [
+              Expanded(
+                child: Align(alignment: Alignment.centerLeft, child: titleText),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _WaterTileActions(completion: completion!, onQuickAdd: onTap),
+            ],
+          )
+        : titleText;
+    Widget singleLineWaterStatus({required String text, Key? key}) =>
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final statusHeight = constraints.maxWidth < 180 ? 40.0 : 20.0;
+            return SizedBox(
+              key: key,
+              width: double.infinity,
+              height: statusHeight,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: _OperationProgressTypography.status(context),
+                ),
+              ),
+            );
+          },
+        );
     final status = Row(
-      children: [
-        Expanded(
-          child: summaryStatus
-              ? FittedBox(
-                  key: ValueKey('operation-progress-status-fit-$label'),
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    this.status,
-                    key: ValueKey('operation-progress-status-$label'),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: _OperationProgressTypography.status(context),
-                  ),
-                )
-              : Text(
-                  this.status,
+      children: hasInlineWaterActions
+          ? [
+              Expanded(
+                child: singleLineWaterStatus(
+                  text: this.status,
                   key: ValueKey('operation-progress-status-$label'),
                 ),
-        ),
-        if ((completion == null || keepQuickAddAffordance) &&
-            onTap != null) ...[
-          SizedBox(width: AppSpacing.sm),
-          Icon(Icons.add_circle_outline, size: 18, color: colorScheme.primary),
-        ],
-      ],
+              ),
+            ]
+          : [
+              Expanded(
+                child: summaryStatus
+                    ? FittedBox(
+                        key: ValueKey('operation-progress-status-fit-$label'),
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          this.status,
+                          key: ValueKey('operation-progress-status-$label'),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: _OperationProgressTypography.status(context),
+                        ),
+                      )
+                    : Text(
+                        this.status,
+                        key: ValueKey('operation-progress-status-$label'),
+                      ),
+              ),
+              if ((completion == null || keepQuickAddAffordance) &&
+                  onTap != null) ...[
+                SizedBox(width: AppSpacing.sm),
+                Icon(
+                  Icons.add_circle_outline,
+                  size: 18,
+                  color: colorScheme.primary,
+                ),
+              ],
+            ],
     );
     final referenceTitle = referenceLayout == null
         ? null
@@ -3528,15 +3576,9 @@ class _ProgressRow extends StatelessWidget {
           );
     final referenceStatus = referenceLayout == null
         ? null
-        : Row(
-            children: [
-              Expanded(child: Text(referenceLayout!.status)),
-              if (referenceLayout!.includesQuickAdd) ...[
-                SizedBox(width: AppSpacing.sm),
-                const SizedBox(width: 18, height: 18),
-              ],
-            ],
-          );
+        : referenceLayout!.includesQuickAdd
+        ? singleLineWaterStatus(text: referenceLayout!.status)
+        : Row(children: [Expanded(child: Text(referenceLayout!.status))]);
     Widget waterSizedSlot({required Widget reference, required Widget child}) =>
         LayoutBuilder(
           builder: (context, constraints) => Stack(
@@ -3595,6 +3637,27 @@ class _ProgressRow extends StatelessWidget {
       ),
       child: child,
     );
+    if (hasInlineWaterActions) {
+      return Material(
+        color: Colors.transparent,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: glassInk(
+          child: Semantics(
+            button: true,
+            label: 'Open $label',
+            child: InkWell(
+              key: ValueKey('operation-progress-body-$label'),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: content,
+              ),
+            ).actionableFeedback(),
+          ),
+        ),
+      );
+    }
     if (completion != null && overlayCompletionZone) {
       return Material(
         color: Colors.transparent,
@@ -3686,11 +3749,53 @@ class _ProgressRow extends StatelessWidget {
   }
 }
 
+class _WaterTileActions extends StatelessWidget {
+  const _WaterTileActions({required this.completion, required this.onQuickAdd});
+
+  final DailyCommandCompletionItem completion;
+  final VoidCallback? onQuickAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const ValueKey('operation-progress-water-actions'),
+      width: 48,
+      height: 20,
+      child: Row(
+        children: [
+          _CompletionHelpButton(completion: completion, compact: true),
+          const SizedBox(width: AppSpacing.sm),
+          SizedBox(
+            key: const ValueKey('operation-progress-water-quick-add'),
+            width: 20,
+            height: 20,
+            child: Semantics(
+              button: true,
+              label: 'Quick add WATER',
+              child: InkResponse(
+                radius: 12,
+                onTap: onQuickAdd,
+                child: Icon(
+                  Icons.add_circle_outline,
+                  size: 18,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CompletionHelpButton extends StatelessWidget {
-  _CompletionHelpButton({required this.completion})
+  _CompletionHelpButton({required this.completion, this.compact = false})
     : _visibleAnchorKey = GlobalKey();
 
   final DailyCommandCompletionItem completion;
+  final bool compact;
   final GlobalKey _visibleAnchorKey;
 
   @override
@@ -3733,12 +3838,14 @@ class _CompletionHelpButton extends StatelessWidget {
             '${completion.label} status: ${completion.displayState.toLowerCase()}',
         child: SizedBox(
           key: ValueKey('operation-progress-info-${completion.label}'),
-          width: _ProgressStatusAnchorGeometry.statusZoneWidth,
-          height: _ProgressStatusAnchorGeometry.statusZoneWidth,
+          width: compact ? 20 : _ProgressStatusAnchorGeometry.statusZoneWidth,
+          height: compact ? 20 : _ProgressStatusAnchorGeometry.statusZoneWidth,
           child: Padding(
-            padding: const EdgeInsets.only(
-              right: _ProgressStatusAnchorGeometry.statusZoneRightPadding,
-            ),
+            padding: compact
+                ? EdgeInsets.zero
+                : const EdgeInsets.only(
+                    right: _ProgressStatusAnchorGeometry.statusZoneRightPadding,
+                  ),
             child: Center(
               child: KeyedSubtree(
                 key: _visibleAnchorKey,
