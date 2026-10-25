@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/loading/or_loading_surface.dart';
 import 'package:or_app/features/training/training_page.dart';
 import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
 import 'package:or_app/features/training/widgets/training_kinetic_scaffold.dart';
@@ -1550,6 +1551,46 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets(
+    'V12.0 gates first TRAINING presentation on a retained decoded frame',
+    (tester) async {
+      KineticBackgroundReadiness.resetForTest();
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TrainingKineticScaffold(body: SizedBox.expand()),
+        ),
+      );
+      expect(find.byType(OrLoadingSurface), findsOneWidget);
+      final loadingContext = tester.element(find.byType(OrLoadingSurface));
+      await tester.runAsync(
+        () => KineticBackgroundReadiness.prepare(loadingContext),
+      );
+      await tester.pump();
+      expect(KineticBackgroundReadiness.isReady, isTrue);
+      expect(find.byType(TrainingAmbientComparison), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('kinetic-engine-background-image')),
+        findsOneWidget,
+      );
+      expect(
+        KineticFirstFrameInstrumentation.marks.containsKey(
+          't_backgroundPrepareReady',
+        ),
+        isTrue,
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TrainingKineticScaffold(body: SizedBox.expand()),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(OrLoadingSurface), findsNothing);
+      expect(find.byType(TrainingAmbientComparison), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _KineticAmbientCrop extends StatelessWidget {
@@ -1592,10 +1633,11 @@ Future<void> _precacheKineticBackground(WidgetTester tester) async {
       ),
     ),
   );
-  await tester.runAsync(
-    () => precacheImage(
+  await tester.runAsync(() async {
+    await precacheImage(
       const AssetImage(TrainingAmbientComparison.kineticEngineBackgroundAsset),
       context,
-    ),
-  );
+    );
+    await KineticBackgroundReadiness.prepare(context);
+  });
 }

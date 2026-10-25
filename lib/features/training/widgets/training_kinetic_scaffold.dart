@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/loading/or_loading_surface.dart';
+import '../../../core/widgets/loading/or_loading_tokens.dart';
 
 import 'training_ambient_comparison.dart';
 
@@ -19,10 +21,36 @@ class TrainingKineticScaffold extends StatefulWidget {
 }
 
 class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
+  var _backgroundReady = KineticBackgroundReadiness.isReady;
+  var _backgroundFailed = false;
+  var _preparationGeneration = 0;
+
   @override
   void initState() {
     super.initState();
     KineticFirstFrameInstrumentation.routeInit();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_backgroundReady || _backgroundFailed) return;
+    _prepareBackground();
+  }
+
+  Future<void> _prepareBackground() async {
+    final generation = ++_preparationGeneration;
+    try {
+      await KineticBackgroundReadiness.prepare(context);
+      if (!mounted || generation != _preparationGeneration) return;
+      setState(() => _backgroundReady = true);
+      KineticFirstFrameInstrumentation.routePresentedWithReadyBackground();
+    } catch (_) {
+      // The ambient's established synchronous fallback remains available for
+      // a genuine asset failure; do not block route recovery indefinitely.
+      if (!mounted || generation != _preparationGeneration) return;
+      setState(() => _backgroundFailed = true);
+    }
   }
 
   @override
@@ -34,6 +62,16 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
   @override
   Widget build(BuildContext context) {
     KineticFirstFrameInstrumentation.firstScaffoldBuild();
+    if (!_backgroundReady && !_backgroundFailed) {
+      return const Scaffold(
+        backgroundColor: Color(0xff030914),
+        body: OrLoadingSurface(
+          scope: OrLoadingScope.fullscreen,
+          title: 'PREPARING KINETIC ENGINE',
+          subtitle: 'Preparing training ambient resources',
+        ),
+      );
+    }
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final inheritedTheme = Theme.of(context);
     return Theme(

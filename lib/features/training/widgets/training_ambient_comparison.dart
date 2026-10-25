@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as math;
 
@@ -34,6 +35,81 @@ KineticDiagnosticMode kineticDiagnosticModeFromUri(Uri uri) =>
 /// profile/debug-only: it proves whether waiting for the decoded image and a
 /// static mechanical frame changes the perceived first composite.
 enum KineticCompositeStrategy { c0Reference, c1Isolated, c2Gated }
+
+/// Keeps the single KINETIC ENGINE WebP stream live after its first decoded
+/// frame.  `precacheImage` alone intentionally releases its listener after a
+/// frame; Safari may then defer a later route's texture upload.  TRAINING
+/// routes use this bounded, one-asset holder to resolve the actual frame
+/// before they present their foreground.
+class KineticBackgroundReadiness {
+  KineticBackgroundReadiness._();
+
+  static const ImageProvider<Object> _provider = AssetImage(
+    TrainingAmbientComparison.kineticEngineBackgroundAsset,
+  );
+  static ImageProvider<Object>? _preparedProvider;
+  static ImageStream? _stream;
+  static ImageStreamListener? _listener;
+  static Future<void>? _preparing;
+  static var _ready = false;
+  static var _generation = 0;
+
+  static ImageProvider<Object> get provider => _provider;
+  static bool get isReady => _ready;
+
+  static Future<void> prepare(BuildContext context) {
+    if (_ready && _preparedProvider == _provider) {
+      return Future<void>.value();
+    }
+    if (_preparing != null && _preparedProvider == _provider) {
+      return _preparing!;
+    }
+
+    _releaseListener();
+    final generation = ++_generation;
+    _preparedProvider = _provider;
+    final completer = Completer<void>();
+    KineticFirstFrameInstrumentation.backgroundPrepareStart();
+    final stream = _provider.resolve(createLocalImageConfiguration(context));
+    _stream = stream;
+    _listener = ImageStreamListener(
+      (_, _) {
+        if (generation != _generation || completer.isCompleted) return;
+        _ready = true;
+        KineticFirstFrameInstrumentation.backgroundPrepareReady();
+        completer.complete();
+      },
+      onError: (Object error, StackTrace? stackTrace) {
+        if (generation != _generation || completer.isCompleted) return;
+        _ready = false;
+        KineticFirstFrameInstrumentation.backgroundPrepareError(error);
+        completer.completeError(error, stackTrace);
+      },
+    );
+    stream.addListener(_listener!);
+    _preparing = completer.future.whenComplete(() {
+      if (generation == _generation) _preparing = null;
+    });
+    return _preparing!;
+  }
+
+  static void _releaseListener() {
+    if (_stream != null && _listener != null) {
+      _stream!.removeListener(_listener!);
+    }
+    _stream = null;
+    _listener = null;
+    _ready = false;
+  }
+
+  @visibleForTesting
+  static void resetForTest() {
+    ++_generation;
+    _releaseListener();
+    _preparedProvider = null;
+    _preparing = null;
+  }
+}
 
 KineticCompositeStrategy kineticCompositeStrategyFromUri(Uri uri) {
   if (!(kDebugMode || kProfileMode)) {
@@ -1101,9 +1177,6 @@ class TrainingAmbientComparison extends StatefulWidget {
 
 class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  static const _kineticBackgroundImage = AssetImage(
-    TrainingAmbientComparison.kineticEngineBackgroundAsset,
-  );
   Ticker? _ticker;
   final KineticActiveClock _machineClock = KineticActiveClock();
   final ValueNotifier<double> _mechanicalTime = ValueNotifier<double>(0);
@@ -1116,7 +1189,7 @@ class _TrainingAmbientComparisonState extends State<TrainingAmbientComparison>
   var _tickerStartRequested = false;
 
   ImageProvider<Object> get _imageProvider =>
-      widget.kineticImageProvider ?? _kineticBackgroundImage;
+      widget.kineticImageProvider ?? KineticBackgroundReadiness.provider;
   KineticDiagnosticMode get _diagnosticMode =>
       widget.kineticDiagnosticMode ?? kineticDiagnosticModeFromUri(Uri.base);
   KineticCompositeStrategy get _compositeStrategy =>
@@ -1464,6 +1537,12 @@ class KineticFirstFrameInstrumentation {
   }
 
   static void firstScaffoldBuild() => _mark('t_firstScaffoldBuild');
+  static void backgroundPrepareStart() => _mark('t_backgroundPrepareStart');
+  static void backgroundPrepareReady() => _mark('t_backgroundPrepareReady');
+  static void backgroundPrepareError(Object error) =>
+      _mark('t_backgroundPrepareError');
+  static void routePresentedWithReadyBackground() =>
+      _mark('t_routePresentedWithReadyBackground');
   static void imageResolveStart() => _mark('${_modeLabel}_t_imageResolveStart');
   static void imageReady() => _mark('${_modeLabel}_t_imageReady');
   static void imageError(Object error) => _mark('${_modeLabel}_t_imageError');

@@ -5,6 +5,8 @@ import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/section_header.dart';
+import '../../core/widgets/loading/or_loading_surface.dart';
+import '../../core/widgets/loading/or_loading_tokens.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 
 import 'widgets/training_history_button.dart';
@@ -24,6 +26,35 @@ class TrainingPage extends StatefulWidget {
 
 class _TrainingPageState extends State<TrainingPage> {
   TrainingAmbientVariant _ambientVariant = TrainingAmbientVariant.kineticEngine;
+  var _backgroundReady = KineticBackgroundReadiness.isReady;
+  var _backgroundFailed = false;
+  var _preparationGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    KineticFirstFrameInstrumentation.routeInit();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_backgroundReady || _backgroundFailed) return;
+    _prepareBackground();
+  }
+
+  Future<void> _prepareBackground() async {
+    final generation = ++_preparationGeneration;
+    try {
+      await KineticBackgroundReadiness.prepare(context);
+      if (!mounted || generation != _preparationGeneration) return;
+      setState(() => _backgroundReady = true);
+      KineticFirstFrameInstrumentation.routePresentedWithReadyBackground();
+    } catch (_) {
+      if (!mounted || generation != _preparationGeneration) return;
+      setState(() => _backgroundFailed = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +62,16 @@ class _TrainingPageState extends State<TrainingPage> {
     final horizontalPadding = mediaQuery.size.width < 360 ? 4.0 : AppSpacing.lg;
     final contentTopPadding =
         mediaQuery.padding.top + kToolbarHeight + AppSpacing.lg;
+    if (!_backgroundReady && !_backgroundFailed) {
+      return const Scaffold(
+        backgroundColor: Color(0xff030914),
+        body: OrLoadingSurface(
+          scope: OrLoadingScope.fullscreen,
+          title: 'PREPARING KINETIC ENGINE',
+          subtitle: 'Preparing training ambient resources',
+        ),
+      );
+    }
     return Theme(
       data: Theme.of(context).copyWith(
         extensions: [
@@ -86,34 +127,24 @@ class _TrainingPageState extends State<TrainingPage> {
                         icon: Icons.fitness_center,
                         title: 'MANUAL ENTRY',
                       ),
-
                       AppSpacing.gapSM,
-
                       const OperationDescription(
                         text:
                             '本日のトレーニング内容を\n'
                             '手動で記録します。',
                       ),
-
                       AppSpacing.gapMD,
-
                       const TrainingManualCard(),
-
                       AppSpacing.gapXL,
-
                       const SectionHeader(
                         icon: Icons.event_note_outlined,
                         title: 'PLAN',
                       ),
-
                       AppSpacing.gapSM,
-
                       const OperationDescription(
                         text: 'トレーニング記録をもとに、\n次回のプランを作成します。',
                       ),
-
                       AppSpacing.gapMD,
-
                       OperationButton(
                         icon: Icons.event_note_outlined,
                         text: 'TRAINING PLAN',
@@ -126,38 +157,26 @@ class _TrainingPageState extends State<TrainingPage> {
                           ),
                         ),
                       ),
-
                       AppSpacing.gapXL,
-
                       const SectionHeader(icon: Icons.history, title: 'RECORD'),
-
                       AppSpacing.gapSM,
-
                       const OperationDescription(
                         text:
                             '過去のトレーニング履歴を\n'
                             '確認・編集できます。',
                       ),
-
                       AppSpacing.gapMD,
-
                       const TrainingHistoryButton(),
-
                       AppSpacing.gapXL,
-
                       const SectionHeader(
                         icon: Icons.analytics_outlined,
                         title: 'ANALYSIS REPORT',
                       ),
-
                       AppSpacing.gapSM,
-
                       const OperationDescription(
                         text: 'トレーニング記録を選択して、\n分析レポートを作成・確認します。',
                       ),
-
                       AppSpacing.gapMD,
-
                       OperationButton(
                         icon: Icons.analytics_outlined,
                         text: 'TRAINING ANALYSIS REPORT',
@@ -170,22 +189,16 @@ class _TrainingPageState extends State<TrainingPage> {
                           ),
                         ),
                       ),
-
                       AppSpacing.gapXL,
-
                       const SectionHeader(
                         icon: Icons.sync,
                         title: 'REPORT SYNC',
                       ),
-
                       AppSpacing.gapSM,
-
                       const OperationDescription(
                         text: 'ChatGPTから\nトレーニング記録を取り込みます。',
                       ),
-
                       AppSpacing.gapMD,
-
                       const TrainingSyncCard(),
                     ],
                   ),
