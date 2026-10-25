@@ -8,8 +8,21 @@ enum FontReadinessState { loading, ready, failed }
 /// readiness is the completion of the real asset load, and failure remains
 /// retryable instead of holding the application in an endless splash state.
 class FontReadinessService extends ChangeNotifier {
-  FontReadinessService._();
+  FontReadinessService._([Future<void> Function()? loadFaces])
+    : _loadFaces = loadFaces ?? _loadConfiguredFaces;
   static final FontReadinessService instance = FontReadinessService._();
+
+  /// Kept public so tests and asset audits use exactly the face that the
+  /// application theme selects. This is a bundled font, never a CDN request.
+  static const fontFamily = 'MPlus1Code';
+  static const fontAsset = 'assets/fonts/MPLUS1Code[wght].ttf';
+
+  /// A narrowly-scoped seam for deterministic readiness/retry tests. The app
+  /// always uses [_loadConfiguredFaces].
+  @visibleForTesting
+  FontReadinessService.withLoaderForTesting(this._loadFaces);
+
+  final Future<void> Function() _loadFaces;
   FontReadinessState _state = FontReadinessState.loading;
   Object? _error;
   Future<void>? _future;
@@ -28,19 +41,21 @@ class FontReadinessService extends ChangeNotifier {
 
   Future<void> _load() async {
     try {
-      final regular = FontLoader('KleeOne')
-        ..addFont(rootBundle.load('assets/fonts/KleeOne-Regular.ttf'));
-      final semiBold = FontLoader('KleeOne')
-        ..addFont(rootBundle.load('assets/fonts/KleeOne-SemiBold.ttf'));
-      await Future.wait([regular.load(), semiBold.load()]);
-      // The assets are bundled and registered in pubspec.  This verifies the
-      // load boundary; actual browser glyph fallback cannot be inferred from a
-      // duration, so callers only proceed after this future succeeds.
+      await _loadFaces();
+      // The asset is bundled and registered in pubspec. This verifies the
+      // actual load boundary; it deliberately never substitutes a timer for
+      // font readiness. Platform fallback still handles symbols outside this
+      // font's cmap without reviving KleeOne as a user-visible fallback.
       _state = FontReadinessState.ready;
     } catch (error) {
       _error = error;
       _state = FontReadinessState.failed;
     }
     notifyListeners();
+  }
+
+  static Future<void> _loadConfiguredFaces() async {
+    final font = FontLoader(fontFamily)..addFont(rootBundle.load(fontAsset));
+    await font.load();
   }
 }

@@ -1,5 +1,19 @@
 # Third-Party Notices
 
+## M PLUS 1 Code
+
+- Version: Google Fonts distribution at repository main, retrieved 2026-10-26
+- Project: https://github.com/google/fonts/tree/main/ofl/mplus1code
+- Upstream author project: https://github.com/coz-m/MPLUS_FONTS
+- License: SIL Open Font License 1.1
+- Copyright: Copyright 2021 The M+ FONTS Project Authors
+- Bundled asset: `assets/fonts/MPLUS1Code[wght].ttf` (variable `wght` 100–700)
+- License copy: `assets/fonts/licenses/OFL-MPLUS1Code.txt`
+- Source metadata copy: `assets/fonts/licenses/MPLUS1Code-METADATA.pb`
+
+M PLUS 1 Code is self-hosted for Japanese-first UI text. It is loaded from the
+installed app bundle and is never requested from a runtime font CDN.
+
 ## Share Tech Mono
 
 - Version: Google Fonts distribution at repository main, retrieved 2026-09-10

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 class StandardTheme {
   static ThemeData theme = ThemeData(
     brightness: Brightness.dark,
-    fontFamily: 'KleeOne',
+    // Japanese-first default. Purposeful display and instrument typography
+    // continues to opt into its own family (for example ShareTechMono).
+    fontFamily: 'MPlus1Code',
 
     scaffoldBackgroundColor: const Color(0xFF101010),
 

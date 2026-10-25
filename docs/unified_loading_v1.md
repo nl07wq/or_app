@@ -9,6 +9,7 @@ Use `OrLoadingSurface` for full-screen and section operations, and
 `OrLoadingIndicator` is available for purpose-built surfaces. Its animation is
 purely visual: data readiness must always come from the owning operation.
 
-The V1 font readiness service loads the bundled KleeOne faces once and offers a
-retryable readiness state. It has no time-based delay. Technical numeric UI can
-continue to opt into ShareTechMono explicitly.
+The V1 font readiness service loads the bundled M PLUS 1 Code variable face
+once and offers a retryable readiness state. It has no time-based delay.
+Technical numeric UI continues to opt into ShareTechMono explicitly, while the
+Japanese UI default remains M PLUS 1 Code.

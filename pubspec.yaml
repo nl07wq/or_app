@@ -98,6 +98,15 @@ flutter:
     - assets/animations/activity/reference_motion/activity_reference_motion_v1_frame.png
 
   fonts:
+    # Official M PLUS 1 Code variable font. The single bundled asset carries
+    # the wght axis (100..700); mapping the normal application weights keeps
+    # Japanese UI text local and avoids a runtime font-provider request.
+    - family: MPlus1Code
+      fonts:
+        - asset: assets/fonts/MPLUS1Code[wght].ttf
+          weight: 400
+        - asset: assets/fonts/MPLUS1Code[wght].ttf
+          weight: 600
     - family: KleeOne
       fonts:
         - asset: assets/fonts/KleeOne-Regular.ttf
