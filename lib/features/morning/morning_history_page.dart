@@ -228,15 +228,16 @@ class _StatusRecordPlate extends StatelessWidget {
         _PlateSection(
           label: 'WORK',
           children: [
-            _PlatePair(
-              left: _PlateValue('SHIFT', data.workType.label),
-              right: _PlateValue(
-                'BREAK',
-                data.workType.isWorking && data.workBreak.isNotEmpty
-                    ? data.workBreak
-                    : '未計測',
-              ),
-            ),
+            if (data.workType.isWorking)
+              _PlatePair(
+                left: _PlateValue('SHIFT', data.workType.label),
+                right: _PlateValue(
+                  'BREAK',
+                  data.workBreak.isNotEmpty ? data.workBreak : '未計測',
+                ),
+              )
+            else
+              _PlateValue('SHIFT', data.workType.label),
             if (data.workType.isWorking) ...[
               _PlateValue('WORK HOURS', formatTime(data.workHours)),
               _PlateSecondary(
