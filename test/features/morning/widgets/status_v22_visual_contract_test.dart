@@ -7,8 +7,15 @@ void main() {
     TextEditingController weight,
     TextEditingController bodyFat, {
     bool initiallyExpanded = false,
+    double textScale = 1,
   }) => MaterialApp(
     theme: ThemeData.dark(),
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(textScale)),
+      child: child!,
+    ),
     home: Scaffold(
       body: SingleChildScrollView(
         child: BodyCard(
@@ -23,7 +30,7 @@ void main() {
     ),
   );
 
-  testWidgets('weight completion action is below the 140dp tape artwork', (
+  testWidgets('weight completion action is below the 206dp tape artwork', (
     tester,
   ) async {
     final weight = TextEditingController();
@@ -35,10 +42,10 @@ void main() {
     final done = tester.getRect(
       find.byKey(const ValueKey('status-weight-done')),
     );
-    expect(done.top, greaterThanOrEqualTo(hud.top + 148));
+    expect(done.top, greaterThanOrEqualTo(hud.top + 214));
     expect(
       tester.getSize(find.byKey(const ValueKey('status-weight-tape'))).height,
-      140,
+      206,
     );
     await tester.drag(
       find.byKey(const ValueKey('status-weight-hud')),
@@ -77,7 +84,7 @@ void main() {
     await tester.pumpWidget(app(weight, bodyFat));
     await expectLater(
       find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v26_idle.png'),
+      matchesGoldenFile('../goldens/status_weight_hud_v28_idle.png'),
     );
 
     await tester.drag(
@@ -85,10 +92,10 @@ void main() {
       const Offset(-88, 0),
     );
     await tester.tap(find.byKey(const ValueKey('status-weight-done')));
-    await tester.pump(const Duration(milliseconds: 90));
+    await tester.pump(const Duration(milliseconds: 45));
     await expectLater(
       find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v26_lock.png'),
+      matchesGoldenFile('../goldens/status_weight_hud_v28_lock.png'),
     );
   });
 
@@ -135,4 +142,19 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('body controls remain unclipped at 320dp and 1.3 text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final weight = TextEditingController();
+    final bodyFat = TextEditingController();
+    addTearDown(weight.dispose);
+    addTearDown(bodyFat.dispose);
+    await tester.pumpWidget(app(weight, bodyFat, textScale: 1.3));
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -72,12 +72,12 @@ class _WeightHud extends StatefulWidget {
   State<_WeightHud> createState() => _WeightHudState();
 }
 
-class _WeightHudState extends State<_WeightHud>
-    with SingleTickerProviderStateMixin {
+class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
   double v = 100, start = 100, dx = 0;
   bool drag = false;
   late bool _editing;
   late final AnimationController _lockController;
+  late final AnimationController _energyController;
   @override
   void initState() {
     super.initState();
@@ -94,6 +94,10 @@ class _WeightHudState extends State<_WeightHud>
             _lockController.reset();
           }
         });
+    _energyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _read();
     widget.controller.addListener(_read);
   }
@@ -102,6 +106,7 @@ class _WeightHudState extends State<_WeightHud>
   void dispose() {
     widget.controller.removeListener(_read);
     _lockController.dispose();
+    _energyController.dispose();
     super.dispose();
   }
 
@@ -114,6 +119,19 @@ class _WeightHudState extends State<_WeightHud>
 
   void _set(double n) => widget.controller.text =
       ((n.clamp(40, 180) * 10).round() / 10).toStringAsFixed(1);
+
+  void _setDragging(bool value) {
+    if (drag == value) return;
+    setState(() => drag = value);
+    if (value && !MediaQuery.disableAnimationsOf(context)) {
+      _energyController.repeat();
+    } else {
+      _energyController
+        ..stop()
+        ..reset();
+    }
+  }
+
   @override
   Widget build(BuildContext c) {
     final cs = Theme.of(c).colorScheme;
@@ -132,24 +150,29 @@ class _WeightHudState extends State<_WeightHud>
           slider: true,
           label: 'Weight ${v.toStringAsFixed(1)} kilograms',
           child: GestureDetector(
-            onHorizontalDragStart: (_) => setState(() {
-              drag = true;
-              start = v;
-              dx = 0;
-            }),
+            onHorizontalDragStart: (_) {
+              _setDragging(true);
+              setState(() {
+                start = v;
+                dx = 0;
+              });
+            },
             onHorizontalDragUpdate: (d) {
               dx += d.delta.dx;
               _set(start - dx / 88);
             },
-            onHorizontalDragEnd: (_) => setState(() => drag = false),
-            onHorizontalDragCancel: () => setState(() => drag = false),
+            onHorizontalDragEnd: (_) => _setDragging(false),
+            onHorizontalDragCancel: () => _setDragging(false),
             child: SizedBox(
-              height: 140,
+              height: 206,
               width: double.infinity,
               child: Stack(
                 children: [
                   AnimatedBuilder(
-                    animation: _lockController,
+                    animation: Listenable.merge([
+                      _lockController,
+                      _energyController,
+                    ]),
                     builder: (_, _) => TweenAnimationBuilder<double>(
                       duration: const Duration(milliseconds: 110),
                       curve: Curves.easeOutCubic,
@@ -162,6 +185,7 @@ class _WeightHudState extends State<_WeightHud>
                           cs,
                           drag,
                           _lockController.value,
+                          _energyController.value,
                         ),
                       ),
                     ),
@@ -169,7 +193,7 @@ class _WeightHudState extends State<_WeightHud>
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: 4,
+                    top: 2,
                     child: Center(
                       child: RichText(
                         text: TextSpan(
@@ -223,171 +247,320 @@ class _WeightHudState extends State<_WeightHud>
 }
 
 class _Tape extends CustomPainter {
-  const _Tape(this.v, this.colors, this.active, this.lock);
+  const _Tape(this.v, this.colors, this.active, this.lock, this.energy);
   final double v;
   final ColorScheme colors;
   final bool active;
-  final double lock;
+  final double lock, energy;
 
-  static const _laserCyan = Color(0xff20e9ff);
-  static const _laserIce = Color(0xffe8ffff);
-  static const _laserBlue = Color(0xff37a9ff);
-  static const _unlitTick = Color(0xff4d90ad);
-  static const _tapeY = 86.0;
+  static const _cyan = Color(0xff20e9ff);
+  static const _ice = Color(0xffe8ffff);
+  static const _blue = Color(0xff37a9ff);
+  static const _dim = Color(0xff4d90ad);
+  static const _tapeY = 116.0;
 
   @override
-  void paint(Canvas c, Size s) {
-    final p = Paint()..strokeCap = StrokeCap.square;
-    final cx = s.width / 2;
-    const y = _tapeY;
-    final centerQ = v * 10;
-    final firstQ = (centerQ - s.width / 17.6).floor() - 1;
-    final lastQ = (centerQ + s.width / 17.6).ceil() + 1;
-    for (var q = firstQ; q <= lastQ; q++) {
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..strokeCap = StrokeCap.square;
+    final cx = size.width / 2;
+    const cy = _tapeY;
+    final scale = math.min(1.0, size.width / 270);
+    double left(double x) => cx + (x - cx) * scale;
+    double right(double x) => size.width - left(x);
+    double dx(double x) => x * scale;
+    final lockPulse = math.sin(lock * math.pi);
+    final energyPulse = active ? 1 - (2 * energy - 1).abs() : 0.0;
+
+    _sideRulers(canvas, paint, left, right);
+    _arcs(canvas, paint, cx, cy, scale);
+    _corners(canvas, left, right);
+    _tape(canvas, paint, size, cx, cy, scale);
+    _reticle(canvas, paint, cx, cy, left, right);
+    _centerGuide(canvas, paint, cx, cy);
+    _arms(canvas, cx, cy, dx, lockPulse, energyPulse);
+    _laserLines(
+      canvas,
+      [
+        Offset(cx - dx(5), cy),
+        Offset(cx + dx(5), cy),
+        Offset(cx, cy - 5),
+        Offset(cx, cy + 5),
+      ],
+      .55,
+      lockPulse,
+    );
+  }
+
+  void _tape(
+    Canvas canvas,
+    Paint paint,
+    Size size,
+    double cx,
+    double cy,
+    double scale,
+  ) {
+    final qCenter = v * 10;
+    final first = (qCenter - size.width / (17.6 * scale)).floor() - 1;
+    final last = (qCenter + size.width / (17.6 * scale)).ceil() + 1;
+    for (var q = first; q <= last; q++) {
       if (q < 400 || q > 1800) continue;
-      final x = cx + (q - centerQ) * 8.8;
-      if (x < 0 || x > s.width) continue;
-      final major = q % 10 == 0,
-          mid = !major && q % 5 == 0,
-          fade = (1 - (x - cx).abs() / (s.width * .55))
-              .clamp(.18, 1)
-              .toDouble();
-      p
-        ..color = (major ? _laserBlue : _unlitTick).withValues(
+      final x = cx + (q - qCenter) * 8.8 * scale;
+      if (x < 0 || x > size.width || (x - cx).abs() < 28 * scale) continue;
+      final major = q % 10 == 0;
+      final medium = !major && q % 5 == 0;
+      final fade = (1 - (x - cx).abs() / (size.width * .55))
+          .clamp(.18, 1.0)
+          .toDouble();
+      final height = major
+          ? 22.0
+          : medium
+          ? 16.0
+          : 9.0;
+      paint
+        ..strokeWidth = major
+            ? 1.5
+            : medium
+            ? 1.1
+            : .75
+        ..color = (major ? _blue : _dim).withValues(
           alpha:
               (major
                   ? .72 + (active ? .12 : 0)
-                  : mid
+                  : medium
                   ? .48
                   : .28) *
               fade,
-        )
-        ..strokeWidth = major
-            ? 1.5
-            : mid
-            ? 1.1
-            : .75;
-      final h =
-          (major
-                  ? 22
-                  : mid
-                  ? 16
-                  : 9)
-              .toDouble();
-      c.drawLine(Offset(x, y - h / 2), Offset(x, y + h / 2), p);
+        );
+      canvas.drawLine(
+        Offset(x, cy - height / 2),
+        Offset(x, cy + height / 2),
+        paint,
+      );
       if (major) {
-        final t = TextPainter(
+        final label = TextPainter(
           text: TextSpan(
             text: (q ~/ 10).toString(),
             style: TextStyle(
-              color: _laserIce.withValues(alpha: .65 * fade),
+              color: _ice.withValues(alpha: .65 * fade),
               fontSize: 10,
               fontFamily: 'ShareTechMono',
             ),
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        t.paint(c, Offset(x - t.width / 2, y + 28));
+        label.paint(canvas, Offset(x - label.width / 2, cy + 16));
       }
     }
-    final lockPulse = math.sin(lock * math.pi);
-    final inset = lockPulse * 2;
-    final strength = active ? 1.16 : .76;
-    final frame = <Path>[
-      Path()
-        ..moveTo(12 + inset, 58)
-        ..lineTo(12 + inset, 39 + inset)
-        ..lineTo(48 + inset, 39 + inset),
-      Path()
-        ..moveTo(s.width - 12 - inset, 58)
-        ..lineTo(s.width - 12 - inset, 39 + inset)
-        ..lineTo(s.width - 48 - inset, 39 + inset),
-      Path()
-        ..moveTo(12 + inset, 108)
-        ..lineTo(12 + inset, 122 - inset)
-        ..lineTo(48 + inset, 122 - inset),
-      Path()
-        ..moveTo(s.width - 12 - inset, 108)
-        ..lineTo(s.width - 12 - inset, 122 - inset)
-        ..lineTo(s.width - 48 - inset, 122 - inset),
-    ];
-    _laserPaths(c, frame, strength: strength, flash: lockPulse);
-    // The tape moves underneath this stationary lock.  The short corner
-    // segments deliberately leave open sides, so it reads as an avionics
-    // capture target rather than a generic boxed control.
-    final spread = active ? 1.5 : 0.0;
-    final halfWidth = 20 + spread - lockPulse * 2;
-    final halfHeight = 17 + spread - lockPulse * 2;
-    final cornerReach = 11.0;
-    final lockBox = <Path>[
-      Path()
-        ..moveTo(cx - halfWidth, y - 5)
-        ..lineTo(cx - halfWidth, y - halfHeight)
-        ..lineTo(cx - halfWidth + cornerReach, y - halfHeight),
-      Path()
-        ..moveTo(cx + halfWidth, y - 5)
-        ..lineTo(cx + halfWidth, y - halfHeight)
-        ..lineTo(cx + halfWidth - cornerReach, y - halfHeight),
-      Path()
-        ..moveTo(cx - halfWidth, y + 5)
-        ..lineTo(cx - halfWidth, y + halfHeight)
-        ..lineTo(cx - halfWidth + cornerReach, y + halfHeight),
-      Path()
-        ..moveTo(cx + halfWidth, y + 5)
-        ..lineTo(cx + halfWidth, y + halfHeight)
-        ..lineTo(cx + halfWidth - cornerReach, y + halfHeight),
-    ];
-    _laserPaths(c, lockBox, strength: strength, flash: lockPulse);
-    final reticle = <Offset>[
-      Offset(cx - 80, y),
-      Offset(cx - halfWidth - 8, y),
-      Offset(cx + halfWidth + 8, y),
-      Offset(cx + 80, y),
-      Offset(cx, y - 36),
-      Offset(cx, y - halfHeight - 7),
-      Offset(cx, y + halfHeight + 7),
-      Offset(cx, y + 36),
-    ];
-    _laserLines(c, reticle, strength: strength, flash: lockPulse);
-    _laserLines(
-      c,
-      [
-        Offset(cx - 7, y),
-        Offset(cx + 7, y),
-        Offset(cx, y - 7),
-        Offset(cx, y + 7),
-      ],
-      strength: 1,
-      flash: lockPulse,
-    );
-    p
-      ..style = PaintingStyle.fill
-      ..color = _laserIce.withValues(alpha: .9 + lockPulse * .1);
-    c.drawCircle(Offset(cx, y), 1.5, p);
   }
 
-  void _laserPaths(
-    Canvas canvas,
-    List<Path> paths, {
-    required double strength,
-    required double flash,
-  }) {
-    for (final paint in _laserPaints(strength, flash)) {
-      for (final path in paths) {
-        canvas.drawPath(path, paint);
+  void _corners(
+    Canvas c,
+    double Function(double) left,
+    double Function(double) right,
+  ) {
+    final p = Paint()
+      ..color = const Color(0xff52d9f2).withValues(alpha: .70)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke;
+    for (final path in [
+      Path()
+        ..moveTo(left(12), 69)
+        ..lineTo(left(12), 38)
+        ..lineTo(left(47), 38),
+      Path()
+        ..moveTo(right(12), 69)
+        ..lineTo(right(12), 38)
+        ..lineTo(right(47), 38),
+      Path()
+        ..moveTo(left(12), 162)
+        ..lineTo(left(12), 187)
+        ..lineTo(left(47), 187),
+      Path()
+        ..moveTo(right(12), 162)
+        ..lineTo(right(12), 187)
+        ..lineTo(right(47), 187),
+    ]) {
+      c.drawPath(path, p);
+    }
+  }
+
+  void _sideRulers(
+    Canvas c,
+    Paint p,
+    double Function(double) left,
+    double Function(double) right,
+  ) {
+    p
+      ..color = const Color(0xff79b7d3).withValues(alpha: .20)
+      ..strokeWidth = .55;
+    c.drawLine(Offset(left(31), 18), Offset(left(31), 199), p);
+    c.drawLine(Offset(right(31), 18), Offset(right(31), 199), p);
+    const positions = [46.0, 74.0, 96.0, 136.0, 158.0, 180.0];
+    for (var index = 0; index < positions.length; index++) {
+      final length = index == 0 || index == positions.length - 1 ? 18.0 : 9.0;
+      p
+        ..color = const Color(0xff72bbd6).withValues(alpha: .36)
+        ..strokeWidth = .8;
+      c.drawLine(
+        Offset(left(31), positions[index]),
+        Offset(left(31 + length), positions[index]),
+        p,
+      );
+      c.drawLine(
+        Offset(right(31), positions[index]),
+        Offset(right(31 + length), positions[index]),
+        p,
+      );
+    }
+  }
+
+  void _arcs(Canvas c, Paint p, double cx, double cy, double xScale) {
+    void draw(
+      double radius,
+      double start,
+      double sweep,
+      Color color,
+      double alpha,
+      double width,
+    ) {
+      c.save();
+      c.translate(cx, 0);
+      c.scale(xScale, 1);
+      p
+        ..color = color.withValues(alpha: alpha)
+        ..strokeWidth = width
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.butt;
+      c.drawArc(
+        Rect.fromCircle(center: Offset(0, cy), radius: radius),
+        start * math.pi / 180,
+        sweep * math.pi / 180,
+        false,
+        p,
+      );
+      c.restore();
+    }
+
+    draw(76, 112, 136, const Color(0xff4cbee2), .64, 1.25);
+    draw(76, -68, 136, const Color(0xff4cbee2), .64, 1.25);
+    draw(61, 126, 108, const Color(0xff62cee8), .66, 1.15);
+    draw(61, -54, 108, const Color(0xff62cee8), .66, 1.15);
+    draw(47, 143, 74, const Color(0xff8adff0), .82, 1.15);
+    draw(47, -37, 74, const Color(0xff8adff0), .82, 1.15);
+    p
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xff7bddf0).withValues(alpha: .62);
+    for (final range in const [
+      [162.0, 198.0],
+      [-18.0, 18.0],
+    ]) {
+      for (var index = 0; index < 7; index++) {
+        final radians =
+            (range[0] + (range[1] - range[0]) * index / 6) * math.pi / 180;
+        c.drawCircle(
+          Offset(
+            cx + math.cos(radians) * 39 * xScale,
+            cy + math.sin(radians) * 39,
+          ),
+          1.15,
+          p,
+        );
+      }
+    }
+  }
+
+  void _reticle(
+    Canvas c,
+    Paint p,
+    double cx,
+    double cy,
+    double Function(double) left,
+    double Function(double) right,
+  ) {
+    p
+      ..color = const Color(0xff79c9e5).withValues(alpha: .45)
+      ..strokeWidth = .9
+      ..strokeCap = StrokeCap.square;
+    c.drawLine(Offset(left(12), cy), Offset(cx - 83, cy), p);
+    c.drawLine(Offset(cx - 69, cy), Offset(cx - 53, cy), p);
+    c.drawLine(Offset(cx + 53, cy), Offset(cx + 69, cy), p);
+    c.drawLine(Offset(cx + 83, cy), Offset(right(12), cy), p);
+  }
+
+  void _centerGuide(Canvas c, Paint p, double cx, double cy) {
+    p
+      ..color = const Color(0xff82dcf3).withValues(alpha: .25)
+      ..strokeWidth = .7;
+    c.drawLine(Offset(cx, cy - 70), Offset(cx, cy - 18), p);
+    c.drawLine(Offset(cx, cy + 18), Offset(cx, cy + 70), p);
+  }
+
+  void _arms(
+    Canvas c,
+    double cx,
+    double cy,
+    double Function(double) dx,
+    double lockPulse,
+    double energyPulse,
+  ) {
+    final ix = dx(3) * lockPulse;
+    final iy = 2 * lockPulse;
+    Offset pt(double x, double y) =>
+        Offset(cx + dx(x) - x.sign * ix, cy + y - y.sign * iy);
+    Path path(List<List<double>> points) {
+      final first = pt(points.first[0], points.first[1]);
+      final result = Path()..moveTo(first.dx, first.dy);
+      for (final pair in points.skip(1)) {
+        final next = pt(pair[0], pair[1]);
+        result.lineTo(next.dx, next.dy);
+      }
+      return result;
+    }
+
+    final paths = [
+      path([
+        [-63, -20],
+        [-36, -20],
+        [-25, -31],
+        [-25, -47],
+      ]),
+      path([
+        [63, -20],
+        [36, -20],
+        [25, -31],
+        [25, -47],
+      ]),
+      path([
+        [-63, 20],
+        [-36, 20],
+        [-25, 31],
+        [-25, 47],
+      ]),
+      path([
+        [63, 20],
+        [36, 20],
+        [25, 31],
+        [25, 47],
+      ]),
+    ];
+    final strength = active ? 1 + energyPulse * .13 : .85;
+    for (final p in _laserPaints(strength, lockPulse + energyPulse * .13)) {
+      for (final arm in paths) {
+        c.drawPath(arm, p);
       }
     }
   }
 
   void _laserLines(
-    Canvas canvas,
-    List<Offset> endpoints, {
-    required double strength,
-    required double flash,
-  }) {
-    for (final paint in _laserPaints(strength, flash)) {
-      for (var index = 0; index < endpoints.length; index += 2) {
-        canvas.drawLine(endpoints[index], endpoints[index + 1], paint);
+    Canvas c,
+    List<Offset> points,
+    double strength,
+    double flash,
+  ) {
+    for (final p in _laserPaints(strength, flash)) {
+      for (var index = 0; index < points.length; index += 2) {
+        c.drawLine(points[index], points[index + 1], p);
       }
     }
   }
@@ -396,23 +569,27 @@ class _Tape extends CustomPainter {
     Paint()
       ..strokeCap = StrokeCap.square
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.5
-      ..color = _laserCyan.withValues(alpha: (.1 + flash * .04) * strength),
+      ..strokeWidth = 4
+      ..color = _cyan.withValues(alpha: (.08 + flash * .08) * strength),
     Paint()
       ..strokeCap = StrokeCap.square
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = _laserCyan.withValues(alpha: (.78 + flash * .17) * strength),
+      ..strokeWidth = 1.35
+      ..color = _cyan.withValues(alpha: (.72 + flash * .24) * strength),
     Paint()
       ..strokeCap = StrokeCap.square
       ..style = PaintingStyle.stroke
-      ..strokeWidth = .7
-      ..color = _laserIce.withValues(alpha: (.68 + flash * .22) * strength),
+      ..strokeWidth = .60
+      ..color = _ice.withValues(alpha: (.42 + flash * .38) * strength),
   ];
 
   @override
-  bool shouldRepaint(covariant _Tape o) =>
-      o.v != v || o.colors != colors || o.active != active || o.lock != lock;
+  bool shouldRepaint(covariant _Tape other) =>
+      other.v != v ||
+      other.colors != colors ||
+      other.active != active ||
+      other.lock != lock ||
+      other.energy != energy;
 }
 
 class _BodyFatRing extends StatefulWidget {
@@ -466,12 +643,13 @@ class _BodyFatRingState extends State<_BodyFatRing> {
         onTap: () => setState(() => _editing = true),
       );
     }
+    final enlargedText = MediaQuery.textScalerOf(c).scale(14) > 14;
     return SizedBox(
-      height: 194,
+      height: enlargedText ? 238 : 194,
       child: Column(
         children: [
           SizedBox(
-            height: 102,
+            height: enlargedText ? 142 : 102,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final compact = constraints.maxWidth < 300;
@@ -612,14 +790,21 @@ class _Ring extends CustomPainter {
           ..strokeCap = StrokeCap.round
           ..color = c.withValues(alpha: .12);
     x.drawCircle(o, radius, p);
-    p.color = c.withValues(alpha: .78);
-    x.drawArc(
-      Rect.fromCircle(center: o, radius: radius),
-      -math.pi / 2,
-      2 * math.pi * v / 60,
-      false,
-      p,
-    );
+    if (v > 0) {
+      final rect = Rect.fromCircle(center: o, radius: radius);
+      p.shader = const SweepGradient(
+        startAngle: -math.pi / 2,
+        endAngle: math.pi * 3 / 2,
+        colors: [
+          Color(0xff20cfe4),
+          Color(0xff3bb5ee),
+          Color(0xff668fe6),
+          Color(0xff827dd8),
+        ],
+      ).createShader(rect);
+      x.drawArc(rect, -math.pi / 2, 2 * math.pi * v / 60, false, p);
+      p.shader = null;
+    }
     p
       ..strokeWidth = 1
       ..color = c.withValues(alpha: .12);
