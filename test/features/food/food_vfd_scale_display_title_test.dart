@@ -41,6 +41,33 @@ void main() {
     );
   });
 
+  test('route alphabet covers uppercase Latin without ambiguous D or R', () {
+    for (final glyph in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')) {
+      expect(
+        FoodVfdRouteGlyphGeometry.activeSegmentsFor(glyph),
+        isNotEmpty,
+        reason: '$glyph must have explicit VFD geometry',
+      );
+    }
+
+    expect(
+      FoodVfdRouteGlyphGeometry.activeSegmentsFor('D'),
+      containsAll(['upperRightShoulder', 'lowerRightShoulder']),
+    );
+    expect(
+      FoodVfdRouteGlyphGeometry.activeSegmentsFor('D'),
+      isNot(equals(FoodVfdRouteGlyphGeometry.activeSegmentsFor('O'))),
+    );
+    expect(
+      FoodVfdRouteGlyphGeometry.activeSegmentsFor('R'),
+      contains('lowerRightDiagonal'),
+    );
+    expect(
+      FoodVfdRouteGlyphGeometry.activeSegmentsFor('R'),
+      isNot(equals(FoodVfdRouteGlyphGeometry.activeSegmentsFor('A'))),
+    );
+  });
+
   test('uses one compact centered lockup without changing V1.5 glyphs', () {
     const glassSize = Size(128, 29);
     final compactRects = FoodVfdWordLockup.glyphRects(glassSize);
@@ -124,8 +151,10 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     for (final label in [
+      'FOOD RECORD',
       'FOOD DATABASE',
       'ADD FOOD',
+      'EDIT FOOD',
       'FOOD DETAIL',
       'CREATE RECIPE',
       'SELECT FOOD / RECIPE / MEAL',
@@ -159,6 +188,35 @@ void main() {
     await expectLater(
       find.byKey(const ValueKey('food-vfd-scale-title')),
       matchesGoldenFile('goldens/food_vfd_database_v11.png'),
+    );
+  });
+
+  testWidgets('FOOD RECORD renders distinct uppercase route glyphs', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _app(disableAnimations: true, label: 'FOOD RECORD'),
+    );
+
+    await expectLater(
+      find.byKey(const ValueKey('food-vfd-scale-title')),
+      matchesGoldenFile('goldens/food_vfd_record_v11a.png'),
+    );
+  });
+
+  testWidgets('required FOOD titles retain exact uppercase VFD glyphs', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(240, 300));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_titleGallery());
+    await tester.pump();
+
+    await expectLater(
+      find.byKey(const ValueKey('food-vfd-title-gallery')),
+      matchesGoldenFile('goldens/food_vfd_route_titles_v11a.png'),
     );
   });
 
@@ -326,6 +384,39 @@ Widget _app({
         nextInt: nextInt,
       ),
       body: const SizedBox.expand(),
+    ),
+  ),
+);
+
+Widget _titleGallery() => MaterialApp(
+  home: MediaQuery(
+    data: const MediaQueryData(disableAnimations: true),
+    child: Material(
+      color: Colors.black,
+      child: Center(
+        child: RepaintBoundary(
+          key: const ValueKey('food-vfd-title-gallery'),
+          child: ColoredBox(
+            color: Colors.black,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                FoodVfdScaleDisplayTitle(),
+                SizedBox(height: 4),
+                FoodVfdScaleDisplayTitle(label: 'FOOD RECORD'),
+                SizedBox(height: 4),
+                FoodVfdScaleDisplayTitle(label: 'FOOD DATABASE'),
+                SizedBox(height: 4),
+                FoodVfdScaleDisplayTitle(label: 'ADD FOOD'),
+                SizedBox(height: 4),
+                FoodVfdScaleDisplayTitle(label: 'EDIT FOOD'),
+                SizedBox(height: 4),
+                FoodVfdScaleDisplayTitle(label: 'FOOD DETAIL'),
+              ],
+            ),
+          ),
+        ),
+      ),
     ),
   ),
 );

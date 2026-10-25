@@ -368,7 +368,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final glyphs = label.toUpperCase().split('');
+    final glyphs = label.split('');
     final isFoodWord = label == 'FOOD';
     const inactive = Color(0xFF55B5A7);
     const bloom = FoodVfdScaleDisplayTitle.bloomEmissionColor;
@@ -400,7 +400,9 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 
     for (var index = 0; index < glyphs.length; index++) {
       final rect = glyphRects[index];
-      final allSegments = _inactiveSegments(inactiveRects[index]);
+      final allSegments = isFoodWord
+          ? _inactiveSegments(inactiveRects[index])
+          : _routeSegmentPaths(inactiveRects[index]).values;
       for (final segment in allSegments) {
         canvas.drawPath(
           segment,
@@ -516,61 +518,134 @@ class _FoodVfdDisplayPainter extends CustomPainter {
       return const [];
     }
     if (glyph == '/') {
-      return [_diagonal(rect.center.dx - .85, rect.top, rect.height)];
+      return [
+        _routeDiagonal(
+          Offset(rect.left + 1, rect.bottom - 1),
+          Offset(rect.right - 1, rect.top + 1),
+          _routeThickness(rect),
+        ),
+      ];
     }
-    const segments = <String, Set<String>>{
-      'A': {'a', 'b', 'c', 'e', 'f', 'g'},
-      'B': {'c', 'd', 'e', 'f', 'g'},
-      'C': {'a', 'd', 'e', 'f'},
-      'D': {'b', 'c', 'd', 'e', 'g'},
-      'E': {'a', 'd', 'e', 'f', 'g'},
-      'F': {'a', 'e', 'f', 'g'},
-      'G': {'a', 'c', 'd', 'e', 'f'},
-      'H': {'b', 'c', 'e', 'f', 'g'},
-      'I': {'b', 'c'},
-      'J': {'b', 'c', 'd', 'e'},
-      'K': {'e', 'f', 'g'},
-      'L': {'d', 'e', 'f'},
-      'M': {'a', 'b', 'c', 'e', 'f'},
-      'N': {'b', 'c', 'e', 'f'},
-      'O': {'a', 'b', 'c', 'd', 'e', 'f'},
-      'P': {'a', 'b', 'e', 'f', 'g'},
-      'Q': {'a', 'b', 'c', 'd', 'e', 'f', 'g'},
-      'R': {'a', 'b', 'c', 'e', 'f', 'g'},
-      'S': {'a', 'c', 'd', 'f', 'g'},
-      'T': {'d', 'e', 'f', 'g'},
-      'U': {'b', 'c', 'd', 'e', 'f'},
-      'V': {'c', 'd', 'e'},
-      'W': {'b', 'c', 'd', 'e', 'f'},
-      'X': {'b', 'c', 'e', 'f', 'g'},
-      'Y': {'b', 'c', 'd', 'f', 'g'},
-      'Z': {'a', 'b', 'd', 'e', 'g'},
+    final paths = _routeSegmentPaths(rect);
+    return FoodVfdRouteGlyphGeometry.activeSegmentsFor(
+      glyph,
+    ).map((segment) => paths[segment]!).toList(growable: false);
+  }
+
+  Map<String, Path> _routeSegmentPaths(Rect rect) {
+    final thickness = _routeThickness(rect);
+    final halfThickness = thickness / 2;
+    final center = rect.center;
+    final top = rect.top + halfThickness;
+    final bottom = rect.bottom - halfThickness;
+    final left = rect.left + halfThickness;
+    final right = rect.right - halfThickness;
+    final shoulderInset = min(rect.width * .14, 1.4);
+    final middleGap = min(rect.width * .045, .45);
+    final upperTop = Offset(center.dx, top + halfThickness);
+    final lowerBottom = Offset(center.dx, bottom - halfThickness);
+
+    return {
+      'top': _routeLine(
+        Offset(left + shoulderInset, top),
+        Offset(right - shoulderInset, top),
+        thickness,
+      ),
+      'upperRight': _routeLine(
+        Offset(right, top + shoulderInset),
+        Offset(right, center.dy - halfThickness),
+        thickness,
+      ),
+      'upperRightShoulder': _routeDiagonal(
+        Offset(right - shoulderInset, top),
+        Offset(right, top + shoulderInset),
+        thickness,
+      ),
+      'lowerRight': _routeLine(
+        Offset(right, center.dy + halfThickness),
+        Offset(right, bottom - shoulderInset),
+        thickness,
+      ),
+      'lowerRightShoulder': _routeDiagonal(
+        Offset(right, bottom - shoulderInset),
+        Offset(right - shoulderInset, bottom),
+        thickness,
+      ),
+      'bottom': _routeLine(
+        Offset(left + shoulderInset, bottom),
+        Offset(right - shoulderInset, bottom),
+        thickness,
+      ),
+      'lowerLeft': _routeLine(
+        Offset(left, center.dy + halfThickness),
+        Offset(left, bottom - shoulderInset),
+        thickness,
+      ),
+      'upperLeft': _routeLine(
+        Offset(left, top + shoulderInset),
+        Offset(left, center.dy - halfThickness),
+        thickness,
+      ),
+      'middleLeft': _routeLine(
+        Offset(left + halfThickness, center.dy),
+        Offset(center.dx - middleGap, center.dy),
+        thickness,
+      ),
+      'middleRight': _routeLine(
+        Offset(center.dx + middleGap, center.dy),
+        Offset(right - halfThickness, center.dy),
+        thickness,
+      ),
+      'upperLeftDiagonal': _routeDiagonal(
+        Offset(left + shoulderInset, top + halfThickness),
+        Offset(center.dx - middleGap, center.dy - halfThickness),
+        thickness,
+      ),
+      'upperCenter': _routeLine(
+        upperTop,
+        Offset(center.dx, center.dy - halfThickness),
+        thickness,
+      ),
+      'upperRightDiagonal': _routeDiagonal(
+        Offset(right - shoulderInset, top + halfThickness),
+        Offset(center.dx + middleGap, center.dy - halfThickness),
+        thickness,
+      ),
+      'lowerRightDiagonal': _routeDiagonal(
+        Offset(center.dx + middleGap, center.dy + halfThickness),
+        Offset(right - shoulderInset, bottom - halfThickness),
+        thickness,
+      ),
+      'lowerCenter': _routeLine(
+        Offset(center.dx, center.dy + halfThickness),
+        lowerBottom,
+        thickness,
+      ),
+      'lowerLeftDiagonal': _routeDiagonal(
+        Offset(center.dx - middleGap, center.dy + halfThickness),
+        Offset(left + shoulderInset, bottom - halfThickness),
+        thickness,
+      ),
     };
-    final enabled = segments[glyph] ?? const <String>{};
-    final half = rect.height / 2;
-    final paths = <Path>[];
-    if (enabled.contains('a')) {
-      paths.add(_horizontal(rect.left, rect.top, rect.width));
-    }
-    if (enabled.contains('b')) {
-      paths.add(_vertical(rect.right - 1.7, rect.top, half));
-    }
-    if (enabled.contains('c')) {
-      paths.add(_vertical(rect.right - 1.7, rect.center.dy, half));
-    }
-    if (enabled.contains('d')) {
-      paths.add(_horizontal(rect.left, rect.bottom - 1.7, rect.width));
-    }
-    if (enabled.contains('e')) {
-      paths.add(_vertical(rect.left, rect.center.dy, half));
-    }
-    if (enabled.contains('f')) {
-      paths.add(_vertical(rect.left, rect.top, half));
-    }
-    if (enabled.contains('g')) {
-      paths.add(_horizontal(rect.left, rect.center.dy - .85, rect.width));
-    }
-    return paths;
+  }
+
+  double _routeThickness(Rect rect) =>
+      (rect.width * .13).clamp(1.05, 1.6).toDouble();
+
+  Path _routeLine(Offset start, Offset end, double thickness) =>
+      _routeDiagonal(start, end, thickness);
+
+  Path _routeDiagonal(Offset start, Offset end, double thickness) {
+    final delta = end - start;
+    final length = delta.distance;
+    if (length == 0) return Path();
+    final normal = Offset(-delta.dy, delta.dx) * (thickness / length / 2);
+    return Path()..addPolygon([
+      start + normal,
+      end + normal,
+      end - normal,
+      start - normal,
+    ], true);
   }
 
   Path _chamferedLoop(Rect rect) {
@@ -715,6 +790,154 @@ class _VfdDriverDropout {
   final List<double> _emissions;
 
   double emissionFor(int index) => _emissions[index];
+}
+
+/// Explicit multi-segment geometry for FOOD-owned route titles. The diagonal
+/// and split-center electrodes keep uppercase letters distinct at fitted sizes.
+class FoodVfdRouteGlyphGeometry {
+  const FoodVfdRouteGlyphGeometry._();
+
+  static const _glyphSegments = <String, List<String>>{
+    'A': [
+      'top',
+      'upperRight',
+      'lowerRight',
+      'lowerLeft',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+    ],
+    'B': [
+      'top',
+      'upperRight',
+      'lowerRight',
+      'bottom',
+      'lowerLeft',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+    ],
+    'C': ['top', 'bottom', 'lowerLeft', 'upperLeft'],
+    'D': [
+      'top',
+      'upperRightShoulder',
+      'upperRight',
+      'lowerRight',
+      'lowerRightShoulder',
+      'bottom',
+      'lowerLeft',
+      'upperLeft',
+    ],
+    'E': [
+      'top',
+      'bottom',
+      'lowerLeft',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+    ],
+    'F': ['top', 'lowerLeft', 'upperLeft', 'middleLeft', 'middleRight'],
+    'G': [
+      'top',
+      'lowerRight',
+      'bottom',
+      'lowerLeft',
+      'upperLeft',
+      'middleRight',
+    ],
+    'H': [
+      'upperRight',
+      'lowerRight',
+      'lowerLeft',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+    ],
+    'I': ['top', 'bottom', 'upperCenter', 'lowerCenter'],
+    'J': ['upperRight', 'lowerRight', 'bottom', 'lowerLeft'],
+    'K': ['lowerLeft', 'upperLeft', 'upperRightDiagonal', 'lowerRightDiagonal'],
+    'L': ['bottom', 'lowerLeft', 'upperLeft'],
+    'M': [
+      'upperRight',
+      'lowerRight',
+      'lowerLeft',
+      'upperLeft',
+      'upperLeftDiagonal',
+      'upperRightDiagonal',
+    ],
+    'N': [
+      'upperRight',
+      'lowerRight',
+      'lowerLeft',
+      'upperLeft',
+      'upperLeftDiagonal',
+      'lowerRightDiagonal',
+    ],
+    'O': [
+      'top',
+      'upperRight',
+      'lowerRight',
+      'bottom',
+      'lowerLeft',
+      'upperLeft',
+    ],
+    'P': [
+      'top',
+      'upperRight',
+      'lowerLeft',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+    ],
+    'Q': [
+      'top',
+      'upperRight',
+      'lowerRight',
+      'bottom',
+      'lowerLeft',
+      'upperLeft',
+      'lowerRightDiagonal',
+    ],
+    'R': [
+      'top',
+      'upperRight',
+      'lowerLeft',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+      'lowerRightDiagonal',
+    ],
+    'S': [
+      'top',
+      'lowerRight',
+      'bottom',
+      'upperLeft',
+      'middleLeft',
+      'middleRight',
+    ],
+    'T': ['top', 'upperCenter', 'lowerCenter'],
+    'U': ['upperRight', 'lowerRight', 'bottom', 'lowerLeft', 'upperLeft'],
+    'V': ['upperLeft', 'upperRight', 'lowerLeftDiagonal', 'lowerRightDiagonal'],
+    'W': [
+      'upperRight',
+      'lowerRight',
+      'lowerLeft',
+      'upperLeft',
+      'lowerLeftDiagonal',
+      'lowerRightDiagonal',
+    ],
+    'X': [
+      'upperLeftDiagonal',
+      'upperRightDiagonal',
+      'lowerLeftDiagonal',
+      'lowerRightDiagonal',
+    ],
+    'Y': ['upperLeftDiagonal', 'upperRightDiagonal', 'lowerCenter'],
+    'Z': ['top', 'bottom', 'upperRightDiagonal', 'lowerLeftDiagonal'],
+  };
+
+  static List<String> activeSegmentsFor(String glyph) =>
+      _glyphSegments[glyph] ?? const [];
 }
 
 /// Explicit active geometry for the readable custom VFD alphabet. The
