@@ -26,6 +26,6 @@ void main() {
     expect(find.byType(FoodAmbientComparison), findsOneWidget);
     expect(find.text('METABOLIC CELLS'), findsNothing);
     expect(find.text('THERMAL CURRENT'), findsNothing);
-    expect(find.text('FOOD DATABASE'), findsOneWidget);
+    expect(find.bySemanticsLabel('FOOD DATABASE'), findsOneWidget);
   });
 }

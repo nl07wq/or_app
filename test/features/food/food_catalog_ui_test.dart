@@ -129,6 +129,61 @@ void main() {
     );
   });
 
+  testWidgets(
+    'database controls and result cards use separate glass surfaces',
+    (tester) async {
+      final repository = _MemoryCatalogRepository([
+        _entry(id: '11111111-1111-4111-8111-111111111111', name: 'Glass Food'),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: FoodCatalogPage(repository: repository)),
+      );
+      await tester.pumpAndSettle();
+
+      final controls = tester.widget<DecoratedBox>(
+        find.byKey(const ValueKey('food-database-controls-glass')),
+      );
+      final controlsDecoration = controls.decoration as BoxDecoration;
+      expect(controlsDecoration.color, const Color(0x66141B24));
+
+      final cards = tester.widgetList<Material>(find.byType(Material));
+      final card = cards.singleWhere(
+        (material) => material.color == const Color(0xA8141B24),
+      );
+      expect(card.shape, isA<RoundedRectangleBorder>());
+      expect(
+        find.byKey(const ValueKey('food-category-filter-scroll')),
+        findsOneWidget,
+      );
+      expect(find.text('Glass Food'), findsOneWidget);
+    },
+  );
+
+  testWidgets('database glass leaves the food ambient visible at 390dp', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _MemoryCatalogRepository([
+      _entry(
+        id: '11111111-1111-4111-8111-111111111111',
+        name: '長い名前でもカード情報が読み取れる食品データベース項目',
+        category: FoodCatalogCategory.packagedFood,
+      ),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(FoodCatalogPage),
+      matchesGoldenFile('goldens/food_catalog_glass_v11.png'),
+    );
+  });
+
   testWidgets('catalog category is presented in Japanese without enum names', (
     tester,
   ) async {

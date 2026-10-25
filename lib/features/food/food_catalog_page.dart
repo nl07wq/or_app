@@ -382,48 +382,52 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     ),
   );
 
-  Widget _foodDatabaseSurface() => Container(
-    decoration: BoxDecoration(
-      color: const Color(0xCC141B24),
-      border: Border.all(color: const Color(0xFF2C4050)),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-          child: Row(
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(
-                  Icons.search,
-                  size: 19,
-                  color: FoodFormMetrics.caption,
-                ),
+  Widget _foodDatabaseSurface() => Column(
+    children: [
+      DecoratedBox(
+        key: const ValueKey('food-database-controls-glass'),
+        decoration: BoxDecoration(
+          color: const Color(0x66141B24),
+          border: Border.all(color: const Color(0x99304659)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+              child: Row(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(
+                      Icons.search,
+                      size: 19,
+                      color: FoodFormMetrics.caption,
+                    ),
+                  ),
+                  Expanded(
+                    child: OperationTextField(
+                      key: const ValueKey('food-catalog-search'),
+                      controller: _search,
+                      label: 'SEARCH NAME / BRAND / BARCODE',
+                      glass: true,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: OperationTextField(
-                  key: const ValueKey('food-catalog-search'),
-                  controller: _search,
-                  label: 'SEARCH NAME / BRAND / BARCODE',
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-            ],
-          ),
+            ),
+            const Divider(height: 1, color: FoodFormMetrics.separator),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: _categoryFilter(),
+            ),
+          ],
         ),
-        const Divider(height: 1, color: FoodFormMetrics.separator),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          child: _categoryFilter(),
-        ),
-        const Divider(height: 1, color: FoodFormMetrics.separator),
-        Expanded(
-          child: Padding(padding: const EdgeInsets.all(10), child: _body()),
-        ),
-      ],
-    ),
+      ),
+      const SizedBox(height: 10),
+      Expanded(child: _body()),
+    ],
   );
 
   Widget _categoryFilter() => Semantics(
@@ -631,8 +635,11 @@ class _FoodCatalogListCard extends StatelessWidget {
       FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
     ].join('  ');
     return Material(
-      color: const Color(0xCC141B24),
-      borderRadius: BorderRadius.circular(14),
+      color: const Color(0xA8141B24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0x88304659)),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),

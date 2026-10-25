@@ -252,77 +252,50 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
                         stops: [0, .5, 1],
                       ),
                     ),
-                    child: _isFoodWord
-                        ? AnimatedBuilder(
-                            animation: Listenable.merge([
-                              _selfTestController,
-                              _entryEventController,
-                            ]),
-                            builder: (context, _) => Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                CustomPaint(
-                                  key: const ValueKey(
-                                    'food-vfd-inactive-structure',
-                                  ),
-                                  painter: _FoodVfdDisplayPainter(
-                                    selfTest: _selfTestController.value,
-                                    entryEvent: _entryEventController.value,
-                                    dropoutPattern: _activeDropoutPattern,
-                                  ),
-                                ),
-                                if (_selfTestController.value < 1)
-                                  const SizedBox(
-                                    key: ValueKey('food-vfd-self-test'),
-                                  ),
-                                if (_entryEventActive)
-                                  const SizedBox(
-                                    key: ValueKey('food-vfd-entry-event'),
-                                  ),
-                                if (_entryEventActive)
-                                  ..._VfdDriverDropout.from(
-                                    _entryEventController.value,
-                                    _activeDropoutPattern,
-                                  ).offCharacters.map(
-                                    (index) => SizedBox(
-                                      key: ValueKey(
-                                        'food-vfd-driver-off-$index',
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          )
-                        : Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _selfTestController,
+                        _entryEventController,
+                      ]),
+                      builder: (context, _) {
+                        final glyphCount = widget.label.length;
+                        final dropout = _VfdDriverDropout.from(
+                          _entryEventController.value,
+                          _activeDropoutPattern,
+                          glyphCount,
+                        );
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CustomPaint(
+                              key: const ValueKey(
+                                'food-vfd-inactive-structure',
                               ),
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  widget.label,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  style: const TextStyle(
-                                    fontFamily: 'ShareTechMono',
-                                    color: FoodVfdScaleDisplayTitle
-                                        .activeEmissionColor,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.1,
-                                    shadows: [
-                                      Shadow(
-                                        color: FoodVfdScaleDisplayTitle
-                                            .bloomEmissionColor,
-                                        blurRadius: 5,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                              painter: _FoodVfdDisplayPainter(
+                                label: widget.label,
+                                selfTest: _selfTestController.value,
+                                entryEvent: _entryEventController.value,
+                                dropoutPattern: _activeDropoutPattern,
                               ),
                             ),
-                          ),
+                            if (_selfTestController.value < 1)
+                              const SizedBox(
+                                key: ValueKey('food-vfd-self-test'),
+                              ),
+                            if (_entryEventActive)
+                              const SizedBox(
+                                key: ValueKey('food-vfd-entry-event'),
+                              ),
+                            if (_entryEventActive)
+                              ...dropout.offCharacters.map(
+                                (index) => SizedBox(
+                                  key: ValueKey('food-vfd-driver-off-$index'),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -382,18 +355,21 @@ class FoodVfdWordLockup {
 
 class _FoodVfdDisplayPainter extends CustomPainter {
   const _FoodVfdDisplayPainter({
+    required this.label,
     required this.selfTest,
     required this.entryEvent,
     required this.dropoutPattern,
   });
 
+  final String label;
   final double selfTest;
   final double entryEvent;
   final List<int> dropoutPattern;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const glyphs = FoodVfdWordLockup.glyphs;
+    final glyphs = label.toUpperCase().split('');
+    final isFoodWord = label == 'FOOD';
     const inactive = Color(0xFF55B5A7);
     const bloom = FoodVfdScaleDisplayTitle.bloomEmissionColor;
     const active = FoodVfdScaleDisplayTitle.activeEmissionColor;
@@ -410,9 +386,17 @@ class _FoodVfdDisplayPainter extends CustomPainter {
                 FoodVfdScaleDisplayTitle.settledInactiveSegmentOpacity) *
             structureReveal *
             (1 - structureSettle);
-    final dropout = _VfdDriverDropout.from(entryEvent, dropoutPattern);
-    final glyphRects = FoodVfdWordLockup.glyphRects(size);
-    final inactiveRects = _inactiveElectrodeRects(size);
+    final dropout = _VfdDriverDropout.from(
+      entryEvent,
+      dropoutPattern,
+      glyphs.length,
+    );
+    final glyphRects = isFoodWord
+        ? FoodVfdWordLockup.glyphRects(size)
+        : _routeGlyphRects(size, glyphs.length);
+    final inactiveRects = isFoodWord
+        ? _inactiveElectrodeRects(size)
+        : glyphRects;
 
     for (var index = 0; index < glyphs.length; index++) {
       final rect = glyphRects[index];
@@ -424,9 +408,14 @@ class _FoodVfdDisplayPainter extends CustomPainter {
         );
       }
       final glyphProgress = (phase * glyphs.length - index).clamp(0.0, 1.0);
-      if (glyphProgress == 0) continue;
+      if (glyphProgress == 0) {
+        continue;
+      }
       final opacity = Curves.easeOut.transform(glyphProgress);
-      for (final segment in _activeGlyphPaths(glyphs[index], rect)) {
+      final activeSegments = isFoodWord
+          ? _activeGlyphPaths(glyphs[index], rect)
+          : _activeRouteGlyphPaths(glyphs[index], rect);
+      for (final segment in activeSegments) {
         canvas.drawPath(
           segment,
           Paint()
@@ -487,6 +476,30 @@ class _FoodVfdDisplayPainter extends CustomPainter {
     );
   }
 
+  List<Rect> _routeGlyphRects(Size size, int glyphCount) {
+    const sidePadding = 3.0;
+    const gapFactor = .24;
+    final safeCount = max(1, glyphCount);
+    final unit =
+        (size.width - sidePadding * 2) /
+        (safeCount + max(0, safeCount - 1) * gapFactor);
+    final glyphWidth = unit;
+    final gap = unit * gapFactor;
+    final glyphHeight =
+        size.height * FoodVfdScaleDisplayTitle.activeGlyphHeightFactor;
+    final top = (size.height - glyphHeight) / 2;
+    return List<Rect>.generate(
+      safeCount,
+      (index) => Rect.fromLTWH(
+        sidePadding + index * (glyphWidth + gap),
+        top,
+        glyphWidth,
+        glyphHeight,
+      ),
+      growable: false,
+    );
+  }
+
   List<Path> _activeGlyphPaths(String glyph, Rect rect) => switch (glyph) {
     'F' => [
       _vfdStem(rect.left, rect.top, rect.height, thickness: 2.15),
@@ -497,6 +510,68 @@ class _FoodVfdDisplayPainter extends CustomPainter {
     'D' => [_classicD(rect)],
     _ => const [],
   };
+
+  List<Path> _activeRouteGlyphPaths(String glyph, Rect rect) {
+    if (glyph == ' ') {
+      return const [];
+    }
+    if (glyph == '/') {
+      return [_diagonal(rect.center.dx - .85, rect.top, rect.height)];
+    }
+    const segments = <String, Set<String>>{
+      'A': {'a', 'b', 'c', 'e', 'f', 'g'},
+      'B': {'c', 'd', 'e', 'f', 'g'},
+      'C': {'a', 'd', 'e', 'f'},
+      'D': {'b', 'c', 'd', 'e', 'g'},
+      'E': {'a', 'd', 'e', 'f', 'g'},
+      'F': {'a', 'e', 'f', 'g'},
+      'G': {'a', 'c', 'd', 'e', 'f'},
+      'H': {'b', 'c', 'e', 'f', 'g'},
+      'I': {'b', 'c'},
+      'J': {'b', 'c', 'd', 'e'},
+      'K': {'e', 'f', 'g'},
+      'L': {'d', 'e', 'f'},
+      'M': {'a', 'b', 'c', 'e', 'f'},
+      'N': {'b', 'c', 'e', 'f'},
+      'O': {'a', 'b', 'c', 'd', 'e', 'f'},
+      'P': {'a', 'b', 'e', 'f', 'g'},
+      'Q': {'a', 'b', 'c', 'd', 'e', 'f', 'g'},
+      'R': {'a', 'b', 'c', 'e', 'f', 'g'},
+      'S': {'a', 'c', 'd', 'f', 'g'},
+      'T': {'d', 'e', 'f', 'g'},
+      'U': {'b', 'c', 'd', 'e', 'f'},
+      'V': {'c', 'd', 'e'},
+      'W': {'b', 'c', 'd', 'e', 'f'},
+      'X': {'b', 'c', 'e', 'f', 'g'},
+      'Y': {'b', 'c', 'd', 'f', 'g'},
+      'Z': {'a', 'b', 'd', 'e', 'g'},
+    };
+    final enabled = segments[glyph] ?? const <String>{};
+    final half = rect.height / 2;
+    final paths = <Path>[];
+    if (enabled.contains('a')) {
+      paths.add(_horizontal(rect.left, rect.top, rect.width));
+    }
+    if (enabled.contains('b')) {
+      paths.add(_vertical(rect.right - 1.7, rect.top, half));
+    }
+    if (enabled.contains('c')) {
+      paths.add(_vertical(rect.right - 1.7, rect.center.dy, half));
+    }
+    if (enabled.contains('d')) {
+      paths.add(_horizontal(rect.left, rect.bottom - 1.7, rect.width));
+    }
+    if (enabled.contains('e')) {
+      paths.add(_vertical(rect.left, rect.center.dy, half));
+    }
+    if (enabled.contains('f')) {
+      paths.add(_vertical(rect.left, rect.top, half));
+    }
+    if (enabled.contains('g')) {
+      paths.add(_horizontal(rect.left, rect.center.dy - .85, rect.width));
+    }
+    return paths;
+  }
 
   Path _chamferedLoop(Rect rect) {
     const stroke = 1.65;
@@ -604,6 +679,7 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FoodVfdDisplayPainter oldDelegate) =>
+      oldDelegate.label != label ||
       oldDelegate.selfTest != selfTest ||
       oldDelegate.entryEvent != entryEvent ||
       oldDelegate.dropoutPattern != dropoutPattern;
@@ -612,11 +688,15 @@ class _FoodVfdDisplayPainter extends CustomPainter {
 class _VfdDriverDropout {
   const _VfdDriverDropout._(this.offCharacters, this._emissions);
 
-  factory _VfdDriverDropout.from(double value, List<int> pattern) {
-    final emissions = List<double>.filled(4, 1);
+  factory _VfdDriverDropout.from(
+    double value,
+    List<int> pattern,
+    int characterCount,
+  ) {
+    final emissions = List<double>.filled(characterCount, 1);
     final offCharacters = <int>[];
     for (var order = 0; order < pattern.length; order++) {
-      final character = pattern[order];
+      final character = pattern[order] % characterCount;
       final start = .04 + order * .22;
       final local = ((value - start) / .16).clamp(0.0, 1.0);
       if (value < start || local >= 1) continue;

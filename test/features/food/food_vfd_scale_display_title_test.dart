@@ -117,6 +117,51 @@ void main() {
     expect(find.byKey(const ValueKey('food-vfd-self-test')), findsNothing);
   });
 
+  testWidgets('route labels keep the segmented VFD rendering grammar', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    for (final label in [
+      'FOOD DATABASE',
+      'ADD FOOD',
+      'FOOD DETAIL',
+      'CREATE RECIPE',
+      'SELECT FOOD / RECIPE / MEAL',
+    ]) {
+      await tester.pumpWidget(_app(disableAnimations: true, label: label));
+      await tester.pump();
+
+      expect(find.bySemanticsLabel(label), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('food-vfd-inactive-structure')),
+        findsOneWidget,
+      );
+      expect(find.text(label), findsNothing);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('food-vfd-scale-title'))),
+        const Size(184, FoodVfdScaleDisplayTitle.height),
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('FOOD DATABASE keeps the FOOD VFD frame and segment material', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _app(disableAnimations: true, label: 'FOOD DATABASE'),
+    );
+
+    await expectLater(
+      find.byKey(const ValueKey('food-vfd-scale-title')),
+      matchesGoldenFile('goldens/food_vfd_database_v11.png'),
+    );
+  });
+
   testWidgets('self-test resolves once to the stable VFD display', (
     tester,
   ) async {
@@ -261,6 +306,7 @@ void main() {
 
 Widget _app({
   bool disableAnimations = false,
+  String label = 'FOOD',
   FoodVfdScaleDisplayMode mode = FoodVfdScaleDisplayMode.normal,
   Duration entryEventMinDelay = const Duration(seconds: 10),
   Duration entryEventMaxDelay = const Duration(seconds: 20),
@@ -273,6 +319,7 @@ Widget _app({
     ),
     child: Scaffold(
       appBar: _FoodAppBar(
+        label: label,
         mode: mode,
         entryEventMinDelay: entryEventMinDelay,
         entryEventMaxDelay: entryEventMaxDelay,
@@ -285,12 +332,14 @@ Widget _app({
 
 class _FoodAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _FoodAppBar({
+    this.label = 'FOOD',
     this.mode = FoodVfdScaleDisplayMode.normal,
     this.entryEventMinDelay = const Duration(seconds: 10),
     this.entryEventMaxDelay = const Duration(seconds: 20),
     this.nextInt,
   });
 
+  final String label;
   final FoodVfdScaleDisplayMode mode;
   final Duration entryEventMinDelay;
   final Duration entryEventMaxDelay;
@@ -308,6 +357,7 @@ class _FoodAppBar extends StatelessWidget implements PreferredSizeWidget {
       icon: const Icon(Icons.arrow_back),
     ),
     title: FoodVfdScaleDisplayTitle(
+      label: label,
       mode: mode,
       entryEventMinDelay: entryEventMinDelay,
       entryEventMaxDelay: entryEventMaxDelay,
