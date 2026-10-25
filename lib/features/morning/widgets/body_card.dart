@@ -525,17 +525,18 @@ class _Tape extends CustomPainter {
         (expansion >= 0
             ? dragDelta[index] * expansion
             : lockDelta[index] * expansion);
-    final activeGlow = .16 + .08 * energyPulse;
+    const decorationOpacity = .55;
+    final activeGlow = (.16 + .08 * energyPulse) * decorationOpacity;
     final glowAlpha = peak > 0
-        ? .05 + .25 * peak
+        ? (.05 + .25 * peak) * decorationOpacity
         : active
         ? activeGlow
-        : .05;
+        : .05 * decorationOpacity;
     final coreAlpha = peak > 0
-        ? .78 + .22 * peak
+        ? (.78 + .22 * peak) * decorationOpacity
         : active
-        ? .88 + .10 * energyPulse
-        : .72;
+        ? (.88 + .10 * energyPulse) * decorationOpacity
+        : .72 * decorationOpacity;
     final coreWidth = peak > 0
         ? 1.9
         : active
@@ -569,10 +570,10 @@ class _Tape extends CustomPainter {
       Paint()
         ..color = const Color(0xfff0ffff).withValues(
           alpha: peak > 0
-              ? .70 + .30 * peak
+              ? (.70 + .30 * peak) * decorationOpacity
               : active
-              ? .68 + .17 * energyPulse
-              : .42,
+              ? (.68 + .17 * energyPulse) * decorationOpacity
+              : .42 * decorationOpacity,
         )
         ..strokeWidth = .7
         ..style = PaintingStyle.stroke
@@ -592,7 +593,7 @@ class _Tape extends CustomPainter {
     final dotRadius = 39 + (expansion >= 0 ? 4 * expansion : 3 * expansion);
     p
       ..style = PaintingStyle.fill
-      ..color = const Color(0xff7bddf0).withValues(alpha: .62);
+      ..color = const Color(0xff7bddf0).withValues(alpha: .62 * .45);
     for (final range in const [
       [162.0, 198.0],
       [-18.0, 18.0],
@@ -689,21 +690,22 @@ class _Tape extends CustomPainter {
     ];
     final lockPeak = _lockPeak();
     final heldEnergy = active ? energyPulse : 0.0;
+    const decorationOpacity = .50;
     final haloAlpha = lockPeak > 0
-        ? .09 + .35 * lockPeak
+        ? (.09 + .35 * lockPeak) * decorationOpacity
         : active
-        ? .13 + .09 * heldEnergy
-        : .08;
+        ? (.13 + .09 * heldEnergy) * decorationOpacity
+        : .08 * decorationOpacity;
     final cyanAlpha = lockPeak > 0
-        ? .68 + .32 * lockPeak
+        ? (.68 + .32 * lockPeak) * decorationOpacity
         : active
-        ? .85 + .15 * heldEnergy
-        : .68;
+        ? (.85 + .15 * heldEnergy) * decorationOpacity
+        : .68 * decorationOpacity;
     final iceAlpha = lockPeak > 0
-        ? .35 + .60 * lockPeak
+        ? (.35 + .60 * lockPeak) * decorationOpacity
         : active
-        ? .60 + .32 * heldEnergy
-        : .35;
+        ? (.60 + .32 * heldEnergy) * decorationOpacity
+        : .35 * decorationOpacity;
     final paints = [
       Paint()
         ..strokeCap = StrokeCap.square
@@ -744,13 +746,37 @@ class _Tape extends CustomPainter {
     double Function(double) dx,
     double lockPulse,
   ) {
-    final cursorAlpha = active ? 1.0 : .80;
+    final activeIntensity = active ? 1.0 : .0;
+    final lockIntensity = lockPulse;
+    final glowIntensity = math.max(activeIntensity, lockIntensity);
+    final cursorPath = Path()
+      ..moveTo(cx - dx(10), cy)
+      ..lineTo(cx + dx(10), cy)
+      ..moveTo(cx, cy - 10)
+      ..lineTo(cx, cy + 10);
+    if (glowIntensity > 0) {
+      final wideGlow = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.square
+        ..strokeWidth = 1.05
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
+        ..color = _cyan.withValues(alpha: .18 * glowIntensity);
+      final nearGlow = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.square
+        ..strokeWidth = 1.2
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+        ..color = _ice.withValues(alpha: .55 * glowIntensity);
+      c.drawPath(cursorPath, wideGlow);
+      c.drawPath(cursorPath, nearGlow);
+    }
     final p = Paint()
       ..strokeCap = StrokeCap.square
       ..strokeWidth = lockPulse > 0 ? 1.5 : 1.05
-      ..color = const Color(0xffd4ffff).withValues(alpha: cursorAlpha);
-    c.drawLine(Offset(cx - dx(10), cy), Offset(cx + dx(10), cy), p);
-    c.drawLine(Offset(cx, cy - 10), Offset(cx, cy + 10), p);
+      ..color = const Color(
+        0xffd4ffff,
+      ).withValues(alpha: active || lockPulse > 0 ? 1.0 : .80);
+    c.drawPath(cursorPath, p);
     p
       ..strokeWidth = .7
       ..color = const Color(0xffd4ffff).withValues(alpha: .50);
@@ -973,7 +999,9 @@ class _Ring extends CustomPainter {
         ..shader = null
         ..color = const Color(0xff38b9ff).withValues(alpha: .10)
         ..strokeWidth = 12
-        ..strokeCap = StrokeCap.round;
+        // Keep the halo on the arc itself.  Round ends would read as the
+        // endpoint markers removed from the progress control.
+        ..strokeCap = StrokeCap.butt;
       x.drawArc(rect, -math.pi / 2, sweep, false, p);
       _drawContinuousProgress(x, rect, sweep, p);
     }
@@ -1006,15 +1034,6 @@ class _Ring extends CustomPainter {
         p,
       );
     }
-    final center = rect.center;
-    final radius = rect.width / 2;
-    Offset pointAt(double t) => Offset(
-      center.dx + math.cos(-math.pi / 2 + sweep * t) * radius,
-      center.dy + math.sin(-math.pi / 2 + sweep * t) * radius,
-    );
-    p.strokeCap = StrokeCap.round;
-    canvas.drawCircle(pointAt(0), 4.25, p..color = _progressColor(0));
-    canvas.drawCircle(pointAt(1), 4.25, p..color = _progressColor(1));
   }
 
   Color _progressColor(double t) {

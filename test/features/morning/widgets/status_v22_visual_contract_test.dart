@@ -70,63 +70,64 @@ void main() {
     expect(find.byKey(const ValueKey('status-weight-done')), findsOneWidget);
   });
 
-  testWidgets('weight HUD exposes idle, drag energy, and lock capture frames', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final weight = TextEditingController(text: '93.6');
-    final bodyFat = TextEditingController(text: '31.7');
-    addTearDown(weight.dispose);
-    addTearDown(bodyFat.dispose);
-    await tester.pumpWidget(app(weight, bodyFat, initiallyExpanded: true));
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_idle.png'),
-    );
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.byKey(const ValueKey('status-weight-hud'))),
-    );
-    await gesture.moveBy(const Offset(-8.8, 0));
-    await tester.pump(const Duration(milliseconds: 140));
-    expect(weight.text, '93.7');
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_drag.png'),
-    );
-    await tester.pump(const Duration(milliseconds: 110));
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_energy.png'),
-    );
-    await gesture.up();
-    await tester.pump(const Duration(milliseconds: 160));
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_release.png'),
-    );
-    await tester.tap(find.byKey(const ValueKey('status-weight-done')));
-    await tester.pump(const Duration(milliseconds: 90));
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_lock90.png'),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_lock140.png'),
-    );
-    await tester.pump(const Duration(milliseconds: 35));
-    await expectLater(
-      find.byKey(const ValueKey('status-weight-tape')),
-      matchesGoldenFile('../goldens/status_weight_hud_v30_lock175.png'),
-    );
-  });
+  testWidgets(
+    'weight HUD V3.1 captures the bright active cursor and dim decorations',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final weight = TextEditingController(text: '93.6');
+      final bodyFat = TextEditingController(text: '31.7');
+      addTearDown(weight.dispose);
+      addTearDown(bodyFat.dispose);
+      await tester.pumpWidget(app(weight, bodyFat, initiallyExpanded: true));
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_idle.png'),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('status-weight-hud'))),
+      );
+      await gesture.moveBy(const Offset(-8.8, 0));
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(weight.text, '93.7');
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_drag.png'),
+      );
+      await tester.pump(const Duration(milliseconds: 110));
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_energy.png'),
+      );
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 160));
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_release.png'),
+      );
+      await tester.tap(find.byKey(const ValueKey('status-weight-done')));
+      await tester.pump(const Duration(milliseconds: 90));
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_lock90.png'),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_lock140.png'),
+      );
+      await tester.pump(const Duration(milliseconds: 35));
+      await expectLater(
+        find.byKey(const ValueKey('status-weight-tape')),
+        matchesGoldenFile('../goldens/status_weight_hud_v31_lock175.png'),
+      );
+    },
+  );
 
   testWidgets(
-    'body fat ring renders the whole palette across active progress',
+    'body fat ring keeps its gradient without circular endpoint markers',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -140,19 +141,19 @@ void main() {
       final ring = find.byKey(const ValueKey('status-body-fat-ring'));
       await expectLater(
         ring,
-        matchesGoldenFile('../goldens/status_body_fat_v30_0.png'),
+        matchesGoldenFile('../goldens/status_body_fat_v31_0.png'),
       );
       bodyFat.text = '31.7';
       await tester.pump();
       await expectLater(
         ring,
-        matchesGoldenFile('../goldens/status_body_fat_v30_317.png'),
+        matchesGoldenFile('../goldens/status_body_fat_v31_317.png'),
       );
       bodyFat.text = '60.0';
       await tester.pump();
       await expectLater(
         ring,
-        matchesGoldenFile('../goldens/status_body_fat_v30_60.png'),
+        matchesGoldenFile('../goldens/status_body_fat_v31_60.png'),
       );
     },
   );
