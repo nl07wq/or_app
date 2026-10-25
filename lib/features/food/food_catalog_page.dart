@@ -5,7 +5,6 @@ import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/state/app_initialization_state.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
@@ -2028,21 +2027,52 @@ class FoodCatalogDetailPage extends StatelessWidget {
     final nutrition = entry.nutrition;
     final hasChart = FoodPfcBalanceCard.hasBalance(nutrition);
     return Scaffold(
+      backgroundColor: const Color(0xFF0C1119),
       appBar: AppBar(
         leading: const ActionableBackButton(),
         title: const Text('FOOD DETAIL'),
       ),
       body: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OperationCard(
+            _FoodDetailSurface(
               key: const ValueKey('food-detail-information-card'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SectionHeader(icon: Icons.restaurant_menu, title: entry.name),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF172330),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF304659)),
+                        ),
+                        child: FoodThumbnail(
+                          visualKey: entry.visualKey,
+                          size: 52,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          entry.name,
+                          key: const ValueKey('food-detail-name'),
+                          style: const TextStyle(
+                            color: Color(0xFFF1F7FF),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  const Divider(color: Color(0xFF2A4254), height: 1),
                   if (entry.brand != null) _detail('BRAND', entry.brand!),
                   _detail('CATEGORY', foodCatalogCategoryLabel(entry.category)),
                   _detail(
@@ -2055,28 +2085,43 @@ class FoodCatalogDetailPage extends StatelessWidget {
                       '${_format(entry.packageQuantity!)}${_unit(entry.packageUnit!)}',
                     ),
                   if (entry.barcodeValue != null)
-                    _detail('BARCODE / JAN', entry.barcodeValue!),
-                  if (entry.memo != null) _detail('MEMO', entry.memo!),
+                    _detail(
+                      'BARCODE / JAN',
+                      entry.barcodeValue!,
+                      selectable: true,
+                    ),
+                  if (entry.memo != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _MetadataChip(label: 'MEMO', value: entry.memo!),
+                  ],
                 ],
               ),
             ),
             if (hasChart) ...[
               AppSpacing.gapMD,
-              FoodPfcBalanceCard(nutrition: nutrition),
+              FoodPfcBalanceCard(
+                nutrition: nutrition,
+                style: FoodPfcBalanceStyle.foodDetail,
+              ),
             ],
             if (!appInitializationController.value.isReadOnly) ...[
               AppSpacing.gapMD,
-              OperationButton(
+              _FoodDetailActionButton(
                 icon: Icons.edit,
                 text: 'EDIT',
                 onPressed: () => _edit(context),
+                backgroundColor: const Color(0xFF1D3244),
+                borderColor: const Color(0xFF3B7A9C),
+                foregroundColor: const Color(0xFFF1F7FF),
               ),
               AppSpacing.gapSM,
-              OperationButton(
+              _FoodDetailActionButton(
                 icon: Icons.delete_outline,
                 text: 'DELETE',
-                role: OperationActionRole.danger,
                 onPressed: () => _delete(context),
+                backgroundColor: const Color(0xFF151B24),
+                borderColor: const Color(0xFF47323C),
+                foregroundColor: const Color(0xFFE7ADB8),
               ),
             ],
           ],
@@ -2085,29 +2130,158 @@ class FoodCatalogDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _detail(String label, String value) => Padding(
-    padding: const EdgeInsets.only(top: AppSpacing.md),
-    child: Column(
+  Widget _detail(String label, String value, {bool selectable = false}) =>
+      _FoodDetailInformationRow(
+        label: label,
+        value: value,
+        selectable: selectable,
+      );
+}
+
+class _FoodDetailSurface extends StatelessWidget {
+  const _FoodDetailSurface({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF101821), Color(0xFF172330)],
+      ),
+      borderRadius: BorderRadius.circular(19),
+      border: Border.all(color: const Color(0xFF304659)),
+    ),
+    padding: AppSpacing.cardPadding,
+    child: child,
+  );
+}
+
+class _FoodDetailInformationRow extends StatelessWidget {
+  const _FoodDetailInformationRow({
+    required this.label,
+    required this.value,
+    required this.selectable,
+  });
+
+  final String label;
+  final String value;
+  final bool selectable;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: ValueKey('food-detail-row-$label'),
+    constraints: const BoxConstraints(minHeight: 43),
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Color(0xFF273D4B))),
+    ),
+    child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 135,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF7898AB),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .55,
+            ),
+          ),
+        ),
+        Expanded(
+          child: selectable
+              ? SelectableText(value, style: _valueStyle)
+              : Text(value, style: _valueStyle),
+        ),
+      ],
+    ),
+  );
+
+  static const _valueStyle = TextStyle(
+    color: Color(0xFFF1F7FF),
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+  );
+}
+
+class _MetadataChip extends StatelessWidget {
+  const _MetadataChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0xFF17212C),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFF304659)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
           style: const TextStyle(
-            color: AppColors.primary,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.6,
+            color: Color(0xFF7898AB),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        AppSpacing.gapXS,
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF91AEB8), fontSize: 11),
           ),
         ),
       ],
     ),
+  );
+}
+
+class _FoodDetailActionButton extends StatelessWidget {
+  const _FoodDetailActionButton({
+    required this.icon,
+    required this.text,
+    required this.onPressed,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.foregroundColor,
+  });
+
+  final IconData icon;
+  final String text;
+  final VoidCallback onPressed;
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 60,
+    child: ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, color: foregroundColor),
+      label: Text(text),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+          side: BorderSide(color: borderColor),
+        ),
+      ),
+    ).actionableFeedback(role: ActionableFeedbackRole.command),
   );
 }
 

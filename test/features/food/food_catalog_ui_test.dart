@@ -887,7 +887,7 @@ void main() {
     expect(find.text('17%'), findsOneWidget);
     expect(find.text('60%'), findsOneWidget);
     expect(find.text('23%'), findsOneWidget);
-    expect(foodDetailPfcRingWidth, 12);
+    expect(foodDetailPfcRingWidth, 18);
     expect(
       (tester
                   .widget<Container>(
@@ -979,6 +979,36 @@ void main() {
     await tester.binding.setSurfaceSize(null);
   });
 
+  testWidgets(
+    'detail keeps a long Japanese name and a fallback thumbnail legible',
+    (tester) async {
+      final entry = _entry(
+        id: '11111111-1111-4111-8111-111111111111',
+        name: '国産大豆を使用した栄養バランス調整用プロテイン食品ロングネーム',
+        visualKey: null,
+      );
+      for (final width in [320.0, 375.0, 390.0, 430.0]) {
+        await tester.binding.setSurfaceSize(Size(width, 900));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: FoodCatalogDetailPage(
+              entry: entry,
+              repository: _MemoryCatalogRepository([entry]),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.byKey(const ValueKey('food-detail-name')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('food-thumbnail-fallback')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull, reason: 'width $width');
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
+
   testWidgets('missing or zero PFC does not render a chart', (tester) async {
     for (final nutrition in [
       NutritionSnapshot(calories: 100),
@@ -1016,6 +1046,11 @@ void main() {
       ),
     );
 
+    await tester.scrollUntilVisible(
+      find.text('DELETE'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('DELETE'));
     await tester.pumpAndSettle();
     expect(find.text('この食品を削除しますか？'), findsOneWidget);
