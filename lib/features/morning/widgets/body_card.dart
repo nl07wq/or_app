@@ -78,6 +78,8 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
   late bool _editing;
   late final AnimationController _lockController;
   late final AnimationController _energyController;
+  late final AnimationController _armController;
+  double _lockStartExpansion = 0;
   @override
   void initState() {
     super.initState();
@@ -98,6 +100,10 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
+    _armController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 140),
+    );
     _read();
     widget.controller.addListener(_read);
   }
@@ -107,6 +113,7 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
     widget.controller.removeListener(_read);
     _lockController.dispose();
     _energyController.dispose();
+    _armController.dispose();
     super.dispose();
   }
 
@@ -123,13 +130,30 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
   void _setDragging(bool value) {
     if (drag == value) return;
     setState(() => drag = value);
-    if (value && !MediaQuery.disableAnimationsOf(context)) {
-      _energyController.repeat();
+    if (value) {
+      _armController.forward(from: 0);
+      if (!MediaQuery.disableAnimationsOf(context)) {
+        _energyController.repeat();
+      }
     } else {
       _energyController
         ..stop()
         ..reset();
+      _armController.animateBack(
+        0,
+        duration: const Duration(milliseconds: 160),
+      );
     }
+  }
+
+  void _confirm() {
+    _lockStartExpansion = _armController.value;
+    if (drag) setState(() => drag = false);
+    _energyController
+      ..stop()
+      ..reset();
+    _armController.stop();
+    _lockController.forward(from: 0);
   }
 
   @override
@@ -172,6 +196,7 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
                     animation: Listenable.merge([
                       _lockController,
                       _energyController,
+                      _armController,
                     ]),
                     builder: (_, _) => TweenAnimationBuilder<double>(
                       duration: const Duration(milliseconds: 110),
@@ -186,6 +211,8 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
                           drag,
                           _lockController.value,
                           _energyController.value,
+                          _armController.value,
+                          _lockStartExpansion,
                         ),
                       ),
                     ),
@@ -204,6 +231,13 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
                                 : 46,
                             fontWeight: FontWeight.w800,
                             color: const Color(0xffe8ffff),
+                            shadows: const [
+                              Shadow(
+                                color: Color(0xcc000000),
+                                blurRadius: 2,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
                           ),
                           children: [
                             TextSpan(text: v.toStringAsFixed(1)),
@@ -233,9 +267,7 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               key: const ValueKey('status-weight-done'),
-              onPressed: _lockController.isAnimating
-                  ? null
-                  : () => _lockController.forward(),
+              onPressed: _lockController.isAnimating ? null : _confirm,
               icon: const Icon(Icons.lock_outline, size: 16),
               label: const Text('完了'),
             ).inputFeedback(),
@@ -247,16 +279,22 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
 }
 
 class _Tape extends CustomPainter {
-  const _Tape(this.v, this.colors, this.active, this.lock, this.energy);
+  const _Tape(
+    this.v,
+    this.colors,
+    this.active,
+    this.lock,
+    this.energy,
+    this.armExpansion,
+    this.lockStartExpansion,
+  );
   final double v;
   final ColorScheme colors;
   final bool active;
-  final double lock, energy;
+  final double lock, energy, armExpansion, lockStartExpansion;
 
   static const _cyan = Color(0xff20e9ff);
   static const _ice = Color(0xffe8ffff);
-  static const _blue = Color(0xff37a9ff);
-  static const _dim = Color(0xff4d90ad);
   static const _tapeY = 116.0;
 
   @override
@@ -278,17 +316,7 @@ class _Tape extends CustomPainter {
     _reticle(canvas, paint, cx, cy, left, right);
     _centerGuide(canvas, paint, cx, cy);
     _arms(canvas, cx, cy, dx, lockPulse, energyPulse);
-    _laserLines(
-      canvas,
-      [
-        Offset(cx - dx(5), cy),
-        Offset(cx + dx(5), cy),
-        Offset(cx, cy - 5),
-        Offset(cx, cy + 5),
-      ],
-      .55,
-      lockPulse,
-    );
+    _centerCursor(canvas, cx, cy, dx, lockPulse);
   }
 
   void _tape(
@@ -302,35 +330,56 @@ class _Tape extends CustomPainter {
     final qCenter = v * 10;
     final first = (qCenter - size.width / (17.6 * scale)).floor() - 1;
     final last = (qCenter + size.width / (17.6 * scale)).ceil() + 1;
+    paint
+      ..strokeWidth = .95
+      ..color = _cyan.withValues(alpha: active ? .65 : .40);
+    canvas.drawLine(Offset(18, cy), Offset(size.width - 18, cy), paint);
     for (var q = first; q <= last; q++) {
       if (q < 400 || q > 1800) continue;
       final x = cx + (q - qCenter) * 8.8 * scale;
-      if (x < 0 || x > size.width || (x - cx).abs() < 28 * scale) continue;
+      if (x < 0 || x > size.width) continue;
       final major = q % 10 == 0;
       final medium = !major && q % 5 == 0;
-      final fade = (1 - (x - cx).abs() / (size.width * .55))
-          .clamp(.18, 1.0)
-          .toDouble();
+      final centerRange = 100 * scale;
+      final edgeDistance = (x - cx).abs();
+      final edgeRange = math.max(1.0, size.width / 2 - centerRange);
+      final fade = edgeDistance <= centerRange
+          ? 1.0
+          : (1 - .5 * ((edgeDistance - centerRange) / edgeRange))
+                .clamp(.50, 1.0)
+                .toDouble();
       final height = major
-          ? 22.0
+          ? 28.0
           : medium
-          ? 16.0
-          : 9.0;
+          ? 18.0
+          : 10.0;
       paint
         ..strokeWidth = major
-            ? 1.5
+            ? 1.7
             : medium
-            ? 1.1
-            : .75
-        ..color = (major ? _blue : _dim).withValues(
-          alpha:
-              (major
-                  ? .72 + (active ? .12 : 0)
-                  : medium
-                  ? .48
-                  : .28) *
-              fade,
-        );
+            ? 1.25
+            : 1.0
+        ..color =
+            (major
+                    ? const Color(0xff77dfff)
+                    : medium
+                    ? const Color(0xff5bc9ee)
+                    : const Color(0xff62cdeb))
+                .withValues(
+                  alpha:
+                      (major
+                          ? active
+                                ? .95
+                                : .85
+                          : medium
+                          ? active
+                                ? .90
+                                : .73
+                          : active
+                          ? .76
+                          : .53) *
+                      fade,
+                );
       canvas.drawLine(
         Offset(x, cy - height / 2),
         Offset(x, cy + height / 2),
@@ -341,14 +390,16 @@ class _Tape extends CustomPainter {
           text: TextSpan(
             text: (q ~/ 10).toString(),
             style: TextStyle(
-              color: _ice.withValues(alpha: .65 * fade),
-              fontSize: 10,
+              color: const Color(0xffc5f5ff).withValues(alpha: .88 * fade),
+              fontSize: 12,
               fontFamily: 'ShareTechMono',
             ),
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        label.paint(canvas, Offset(x - label.width / 2, cy + 16));
+        if ((x - cx).abs() >= 28 * scale) {
+          label.paint(canvas, Offset(x - label.width / 2, 136));
+        }
       }
     }
   }
@@ -504,10 +555,11 @@ class _Tape extends CustomPainter {
     double lockPulse,
     double energyPulse,
   ) {
-    final ix = dx(3) * lockPulse;
-    final iy = 2 * lockPulse;
+    final expansion = _armExpansionForLock(lockPulse);
+    final ix = dx(7) * expansion;
+    final iy = 5 * expansion;
     Offset pt(double x, double y) =>
-        Offset(cx + dx(x) - x.sign * ix, cy + y - y.sign * iy);
+        Offset(cx + dx(x) + x.sign * ix, cy + y + y.sign * iy);
     Path path(List<List<double>> points) {
       final first = pt(points.first[0], points.first[1]);
       final result = Path()..moveTo(first.dx, first.dy);
@@ -544,44 +596,87 @@ class _Tape extends CustomPainter {
         [25, 47],
       ]),
     ];
-    final strength = active ? 1 + energyPulse * .13 : .85;
-    for (final p in _laserPaints(strength, lockPulse + energyPulse * .13)) {
+    final lockPeak = _lockPeak(lockPulse);
+    final heldEnergy = active ? energyPulse : 0.0;
+    final haloAlpha = lockPeak > 0
+        ? .08 + .17 * lockPeak
+        : active
+        ? .13 + .09 * heldEnergy
+        : .08;
+    final cyanAlpha = lockPeak > 0
+        ? .68 + .32 * lockPeak
+        : active
+        ? .85 + .15 * heldEnergy
+        : .68;
+    final iceAlpha = lockPeak > 0
+        ? .35 + .60 * lockPeak
+        : active
+        ? .60 + .32 * heldEnergy
+        : .35;
+    final paints = [
+      Paint()
+        ..strokeCap = StrokeCap.square
+        ..strokeJoin = StrokeJoin.miter
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = lockPeak > 0 || active ? 6 : 5
+        ..color = _cyan.withValues(alpha: haloAlpha),
+      Paint()
+        ..strokeCap = StrokeCap.square
+        ..strokeJoin = StrokeJoin.miter
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = lockPeak > 0 ? 1.8 : 1.3
+        ..color = _cyan.withValues(alpha: cyanAlpha),
+      Paint()
+        ..strokeCap = StrokeCap.square
+        ..strokeJoin = StrokeJoin.miter
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = lockPeak > 0 ? .8 : .55
+        ..color = _ice.withValues(alpha: iceAlpha),
+    ];
+    for (final paint in paints) {
       for (final arm in paths) {
-        c.drawPath(arm, p);
+        c.drawPath(arm, paint);
       }
     }
   }
 
-  void _laserLines(
+  double _armExpansionForLock(double lockPulse) {
+    if (lock == 0) return armExpansion;
+    if (lock < .5) {
+      return _lerp(lockStartExpansion, -1, lock / .5);
+    }
+    if (lock < .805) return -1;
+    return _lerp(-1, 0, (lock - .805) / .195);
+  }
+
+  double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  double _lockPeak(double lockPulse) {
+    if (lock < .5) return lock / .5;
+    if (lock < .805) return 1;
+    return 1 - (lock - .805) / .195;
+  }
+
+  void _centerCursor(
     Canvas c,
-    List<Offset> points,
-    double strength,
-    double flash,
+    double cx,
+    double cy,
+    double Function(double) dx,
+    double lockPulse,
   ) {
-    for (final p in _laserPaints(strength, flash)) {
-      for (var index = 0; index < points.length; index += 2) {
-        c.drawLine(points[index], points[index + 1], p);
-      }
-    }
+    final cursorAlpha = active ? 1.0 : .80;
+    final p = Paint()
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = lockPulse > 0 ? 1.5 : 1.05
+      ..color = const Color(0xffd4ffff).withValues(alpha: cursorAlpha);
+    c.drawLine(Offset(cx - dx(10), cy), Offset(cx + dx(10), cy), p);
+    c.drawLine(Offset(cx, cy - 10), Offset(cx, cy + 10), p);
+    p
+      ..strokeWidth = .7
+      ..color = const Color(0xffd4ffff).withValues(alpha: .50);
+    c.drawLine(Offset(cx - dx(5), cy), Offset(cx + dx(5), cy), p);
+    c.drawLine(Offset(cx, cy - 5), Offset(cx, cy + 5), p);
   }
-
-  List<Paint> _laserPaints(double strength, double flash) => [
-    Paint()
-      ..strokeCap = StrokeCap.square
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..color = _cyan.withValues(alpha: (.08 + flash * .08) * strength),
-    Paint()
-      ..strokeCap = StrokeCap.square
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.35
-      ..color = _cyan.withValues(alpha: (.72 + flash * .24) * strength),
-    Paint()
-      ..strokeCap = StrokeCap.square
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .60
-      ..color = _ice.withValues(alpha: (.42 + flash * .38) * strength),
-  ];
 
   @override
   bool shouldRepaint(covariant _Tape other) =>
@@ -782,32 +877,51 @@ class _Ring extends CustomPainter {
   final Color c;
   @override
   void paint(Canvas x, Size s) {
-    final o = s.center(Offset.zero),
-        radius = math.min(s.width, s.height) / 2 - 5,
-        p = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 7
-          ..strokeCap = StrokeCap.round
-          ..color = c.withValues(alpha: .12);
+    final o = s.center(Offset.zero);
+    final radius = math.min(s.width, s.height) / 2 - 5;
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8.5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xff274459).withValues(alpha: .45);
     x.drawCircle(o, radius, p);
     if (v > 0) {
       final rect = Rect.fromCircle(center: o, radius: radius);
-      p.shader = const SweepGradient(
+      final sweep = 2 * math.pi * v / 60;
+      final gradient = SweepGradient(
         startAngle: -math.pi / 2,
-        endAngle: math.pi * 3 / 2,
+        endAngle: -math.pi / 2 + sweep,
+        stops: const [0, .32, .68, 1],
         colors: [
-          Color(0xff20cfe4),
-          Color(0xff3bb5ee),
-          Color(0xff668fe6),
-          Color(0xff827dd8),
+          const Color(0xff20e9ff).withValues(alpha: .14),
+          const Color(0xff38b9ff).withValues(alpha: .14),
+          const Color(0xff576cff).withValues(alpha: .14),
+          const Color(0xffad73e8).withValues(alpha: .14),
         ],
-      ).createShader(rect);
-      x.drawArc(rect, -math.pi / 2, 2 * math.pi * v / 60, false, p);
+      );
+      p
+        ..shader = gradient.createShader(rect)
+        ..strokeWidth = 12;
+      x.drawArc(rect, -math.pi / 2, sweep, false, p);
+      p
+        ..shader = SweepGradient(
+          startAngle: -math.pi / 2,
+          endAngle: -math.pi / 2 + sweep,
+          stops: const [0, .32, .68, 1],
+          colors: const [
+            Color(0xff20e9ff),
+            Color(0xff38b9ff),
+            Color(0xff576cff),
+            Color(0xffad73e8),
+          ],
+        ).createShader(rect)
+        ..strokeWidth = 8.5;
+      x.drawArc(rect, -math.pi / 2, sweep, false, p);
       p.shader = null;
     }
     p
       ..strokeWidth = 1
-      ..color = c.withValues(alpha: .12);
+      ..color = const Color(0xff274459).withValues(alpha: .20);
     x.drawCircle(o, radius * .76, p);
   }
 
