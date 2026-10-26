@@ -15,6 +15,8 @@ enum BootSendSequencePhase { initializing, buildingData, integrating, complete }
 enum _OperationMode { brief, debrief, backup }
 
 const _cycle = Duration(milliseconds: 6000);
+const _completionTimeline = Duration(hours: 1);
+const _completionTimelineSeconds = 3600.0;
 
 class BootSendSequenceSandbox extends StatefulWidget {
   const BootSendSequenceSandbox({super.key});
@@ -36,15 +38,24 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
     super.initState();
     _completionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4000),
+      duration: _completionTimeline,
     );
     _controller = AnimationController(vsync: this, duration: _cycle)
+      ..addListener(_startCompletionTimelineAtConstructionEnd)
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
-          _completionController.repeat();
+          _startCompletionTimelineAtConstructionEnd();
         }
       })
       ..forward();
+  }
+
+  void _startCompletionTimelineAtConstructionEnd() {
+    if (mounted &&
+        _controller.value >= .999 &&
+        !_completionController.isAnimating) {
+      _completionController.forward(from: 0);
+    }
   }
 
   @override
@@ -117,7 +128,10 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
             concept: _concept,
             mode: _mode,
             progress: reducedMotion ? 1 : _controller.value,
-            completionProgress: reducedMotion ? 0 : _completionController.value,
+            completionElapsedSeconds: reducedMotion
+                ? 0
+                : _completionController.value * _completionTimelineSeconds,
+            reducedMotion: reducedMotion,
           ),
         ),
         const SizedBox(height: 8),
@@ -167,6 +181,7 @@ String bootSendSequencePhaseLabel(BootSendSequencePhase phase) =>
 
 double _phase(double value, double start, double end) =>
     ((value - start) / (end - start)).clamp(0, 1).toDouble();
+bool _isConstructionComplete(double progress) => progress >= .999;
 double _ease(double value) =>
     Curves.easeInOutCubic.transform(value.clamp(0, 1));
 
@@ -175,13 +190,15 @@ class _SendSequenceMonitor extends StatelessWidget {
     required this.concept,
     required this.mode,
     required this.progress,
-    required this.completionProgress,
+    required this.completionElapsedSeconds,
+    required this.reducedMotion,
   });
 
   final BootSendSequenceConcept concept;
   final _OperationMode mode;
   final double progress;
-  final double completionProgress;
+  final double completionElapsedSeconds;
+  final bool reducedMotion;
 
   @override
   Widget build(BuildContext context) => AspectRatio(
@@ -193,7 +210,8 @@ class _SendSequenceMonitor extends StatelessWidget {
           concept: concept,
           mode: mode,
           progress: progress,
-          completionProgress: completionProgress,
+          completionElapsedSeconds: completionElapsedSeconds,
+          reducedMotion: reducedMotion,
         ),
       ),
     ),
@@ -205,13 +223,15 @@ class _SendSequencePainter extends CustomPainter {
     required this.concept,
     required this.mode,
     required this.progress,
-    required this.completionProgress,
+    required this.completionElapsedSeconds,
+    required this.reducedMotion,
   });
 
   final BootSendSequenceConcept concept;
   final _OperationMode mode;
   final double progress;
-  final double completionProgress;
+  final double completionElapsedSeconds;
+  final bool reducedMotion;
 
   static const _screen = Color(0xff030d15);
   static const _cyan = Color(0xff39ddf2);
@@ -240,13 +260,27 @@ class _SendSequencePainter extends CustomPainter {
     _housing(canvas);
     _grid(canvas);
     _header(canvas, t);
+    final particleField = _isConstructionComplete(t)
+        ? _completedParticleField(completionElapsedSeconds)
+        : null;
+    if (particleField != null) {
+      _paintParticles(canvas, particleField, reducedMotion: reducedMotion);
+    }
     switch (concept) {
       case BootSendSequenceConcept.assemblyMatrix:
-        _assemblyMatrix(canvas, t, completionProgress);
+        _assemblyMatrix(canvas, t, completionElapsedSeconds);
       case BootSendSequenceConcept.voxelIntegration:
-        _voxelIntegration(canvas, t, completionProgress);
+        _voxelIntegration(canvas, t, completionElapsedSeconds);
       case BootSendSequenceConcept.polyhedralFold:
-        _polyhedralFold(canvas, t, completionProgress);
+        _polyhedralFold(canvas, t, completionElapsedSeconds);
+    }
+    if (particleField != null) {
+      _paintParticles(
+        canvas,
+        particleField,
+        frontOnly: true,
+        reducedMotion: reducedMotion,
+      );
     }
     _footer(canvas, t);
     _bezel(canvas);
@@ -420,6 +454,153 @@ class _SendSequencePainter extends CustomPainter {
     );
   }
 
+  SandboxParticleField _completedParticleField(double elapsedSeconds) {
+    final bounds = switch (concept) {
+      BootSendSequenceConcept.assemblyMatrix => _completedMatrixBounds(
+        elapsedSeconds,
+      ),
+      BootSendSequenceConcept.voxelIntegration => _completedVoxelBounds(
+        elapsedSeconds,
+      ),
+      BootSendSequenceConcept.polyhedralFold => _completedCubeBounds(
+        elapsedSeconds,
+      ),
+    };
+    final contentBounds = const Rect.fromLTWH(25, 72, 310, 137);
+    final expanded = Rect.fromLTRB(
+      math.max(contentBounds.left, bounds.left - 18),
+      math.max(contentBounds.top, bounds.top - 13),
+      math.min(contentBounds.right, bounds.right + 18),
+      math.min(contentBounds.bottom, bounds.bottom + 13),
+    );
+    return SandboxParticleField(
+      center: expanded.center,
+      spawnBounds: expanded,
+      palette: const [
+        Color(0xff63d8ff),
+        Color(0xffb5f3ff),
+        Color(0xffa69aff),
+        Color(0xffe8fcff),
+      ],
+      density: sandboxParticleCount(concept),
+      motionBias: switch (concept) {
+        BootSendSequenceConcept.assemblyMatrix =>
+          const SandboxParticleMotionBias(6, 9, 4, 6),
+        BootSendSequenceConcept.voxelIntegration =>
+          const SandboxParticleMotionBias(8, 14, 6, 10),
+        BootSendSequenceConcept.polyhedralFold =>
+          const SandboxParticleMotionBias(7, 12, 5, 8),
+      },
+      seed: switch (concept) {
+        BootSendSequenceConcept.assemblyMatrix => 3101,
+        BootSendSequenceConcept.voxelIntegration => 3102,
+        BootSendSequenceConcept.polyhedralFold => 3103,
+      },
+      elapsedTime: elapsedSeconds,
+      depthLayer: SandboxParticleDepthLayer.back,
+    );
+  }
+
+  Rect _completedMatrixBounds(double elapsedSeconds) {
+    final hover = math.sin(elapsedSeconds * math.pi * 2 / 3.2) * 2;
+    return Rect.fromCenter(
+      center: const Offset(180, 140) - Offset(0, 12 + hover),
+      width: 93,
+      height: 93,
+    );
+  }
+
+  Rect _completedVoxelBounds(double elapsedSeconds) {
+    const projection = SandboxProjection(Offset(181, 143));
+    final yaw = elapsedSeconds * 22 * math.pi / 180;
+    final pitch =
+        math.sin(elapsedSeconds * 2 * math.pi / 3) * 6 * math.pi / 180;
+    final hover = math.sin(elapsedSeconds * 2 * math.pi / 3.2) * 3;
+    final points = sandboxVoxelCenters()
+        .expand(
+          (center) => sandboxCubeFaces(
+            (center * (22 / 24) + SandboxVec3(0, 23 + hover, 0))
+                .rotateY(yaw)
+                .rotateX(pitch),
+            22,
+          ).expand((face) => face.vertices),
+        )
+        .map(projection.project)
+        .map((point) => point.offset);
+    return _boundsFor(points);
+  }
+
+  Rect _completedCubeBounds(double elapsedSeconds) {
+    const projection = SandboxProjection(Offset(181, 141));
+    final yaw = elapsedSeconds * 20 * math.pi / 180;
+    final pitch =
+        math.sin(elapsedSeconds * 2 * math.pi / 3) * 7 * math.pi / 180;
+    final hover = math.sin(elapsedSeconds * 2 * math.pi / 3.2) * 4;
+    final points = sandboxFoldedCubeFaces(1)
+        .expand((face) => face.vertices)
+        .map(
+          (point) => (point + SandboxVec3(0, 25 + hover, 0))
+              .rotateY(yaw)
+              .rotateX(pitch),
+        )
+        .map(projection.project)
+        .map((point) => point.offset);
+    return _boundsFor(points);
+  }
+
+  Rect _boundsFor(Iterable<Offset> points) {
+    final list = points.toList();
+    return Rect.fromLTRB(
+      list.map((point) => point.dx).reduce(math.min),
+      list.map((point) => point.dy).reduce(math.min),
+      list.map((point) => point.dx).reduce(math.max),
+      list.map((point) => point.dy).reduce(math.max),
+    );
+  }
+
+  void _paintParticles(
+    Canvas canvas,
+    SandboxParticleField field, {
+    bool frontOnly = false,
+    required bool reducedMotion,
+  }) {
+    final layers = frontOnly
+        ? const [SandboxParticleDepthLayer.front]
+        : const [
+            SandboxParticleDepthLayer.back,
+            SandboxParticleDepthLayer.side,
+          ];
+    canvas.save();
+    canvas.clipRect(const Rect.fromLTWH(20, 72, 320, 137));
+    for (final layer in layers) {
+      for (final particle in sandboxParticleVisuals(
+        field.copyWith(depthLayer: layer),
+        reducedMotion: reducedMotion,
+      )) {
+        final wide = particle.color.withValues(alpha: particle.wideAlpha);
+        final near = particle.color.withValues(alpha: particle.nearAlpha);
+        canvas.drawCircle(
+          particle.position,
+          particle.radius * 2.5,
+          _fill(wide)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.5),
+        );
+        canvas.drawCircle(
+          particle.position,
+          particle.radius * 1.55,
+          _fill(near)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.2),
+        );
+        canvas.drawCircle(
+          particle.position,
+          particle.radius,
+          _fill(particle.color.withValues(alpha: particle.coreAlpha)),
+        );
+      }
+    }
+    canvas.restore();
+  }
+
   void _assemblyMatrix(Canvas canvas, double t, double post) {
     const matrixCenter = Offset(180, 140);
     const tray = Rect.fromLTWH(37, 174, 51, 24);
@@ -428,7 +609,8 @@ class _SendSequencePainter extends CustomPainter {
     final pulses = _phase(t, 3200 / 6000, 4100 / 6000);
     final lift = _ease(_phase(t, 4100 / 6000, 4800 / 6000));
     final scan = _phase(t, 4800 / 6000, 1);
-    final hover = t >= 1 ? math.sin(post * math.pi * 2 * 4000 / 3200) * 2 : 0.0;
+    final complete = _isConstructionComplete(t);
+    final hover = complete ? math.sin(post * math.pi * 2 / 3.2) * 2 : 0.0;
     final surfaceCenter = matrixCenter - Offset(0, lift * 12 + hover);
     _text(
       canvas,
@@ -537,10 +719,10 @@ class _SendSequencePainter extends CustomPainter {
         );
       }
     }
-    final diagonal = t >= 1
+    final diagonal = complete
         ? post.remainder(2800 / 4000) / (2800 / 4000)
         : scan;
-    if (scan > 0 || t >= 1) {
+    if (scan > 0 || complete) {
       final d =
           diagonal * (matrixRect.width + matrixRect.height) - matrixRect.height;
       final path = Path()
@@ -572,8 +754,8 @@ class _SendSequencePainter extends CustomPainter {
     final centers = sandboxVoxelCenters();
     final crystallize = _ease(_phase(t, 3700 / 6000, 4400 / 6000));
     final lift = _ease(_phase(t, 4400 / 6000, 5000 / 6000));
-    final afterComplete = t >= 1;
-    final seconds = post * 4;
+    final afterComplete = _isConstructionComplete(t);
+    final seconds = post;
     final yaw = afterComplete ? seconds * 22 * math.pi / 180 : 0.0;
     final pitch = afterComplete
         ? math.sin(seconds * 2 * math.pi / 3) * 6 * math.pi / 180
@@ -640,8 +822,8 @@ class _SendSequencePainter extends CustomPainter {
     final projection = SandboxProjection(center);
     final fold = _phase(t, 0, 2800 / 6000);
     final lift = _ease(_phase(t, 3000 / 6000, 3600 / 6000));
-    final afterComplete = t >= 1;
-    final seconds = post * 4;
+    final afterComplete = _isConstructionComplete(t);
+    final seconds = post;
     final yaw = afterComplete ? seconds * 20 * math.pi / 180 : 0.0;
     final pitch = afterComplete
         ? math.sin(seconds * 2 * math.pi / 3) * 7 * math.pi / 180
@@ -783,7 +965,226 @@ class _SendSequencePainter extends CustomPainter {
       oldDelegate.concept != concept ||
       oldDelegate.mode != mode ||
       oldDelegate.progress != progress ||
-      oldDelegate.completionProgress != completionProgress;
+      oldDelegate.completionElapsedSeconds != completionElapsedSeconds ||
+      oldDelegate.reducedMotion != reducedMotion;
+}
+
+/// Stable depth partition for the completed-only floating particle field.
+enum SandboxParticleDepthLayer { back, side, front }
+
+class SandboxParticleMotionBias {
+  const SandboxParticleMotionBias(
+    this.minimumVerticalSpeed,
+    this.maximumVerticalSpeed,
+    this.minimumOscillation,
+    this.maximumOscillation,
+  );
+
+  final double minimumVerticalSpeed;
+  final double maximumVerticalSpeed;
+  final double minimumOscillation;
+  final double maximumOscillation;
+}
+
+/// Configuration accepted by the shared sandbox particle renderer.
+class SandboxParticleField {
+  const SandboxParticleField({
+    required this.center,
+    required this.spawnBounds,
+    required this.palette,
+    required this.density,
+    required this.motionBias,
+    required this.seed,
+    required this.elapsedTime,
+    required this.depthLayer,
+  });
+
+  final Offset center;
+  final Rect spawnBounds;
+  final List<Color> palette;
+  final int density;
+  final SandboxParticleMotionBias motionBias;
+  final int seed;
+  final double elapsedTime;
+  final SandboxParticleDepthLayer depthLayer;
+
+  SandboxParticleField copyWith({
+    SandboxParticleDepthLayer? depthLayer,
+    double? elapsedTime,
+  }) => SandboxParticleField(
+    center: center,
+    spawnBounds: spawnBounds,
+    palette: palette,
+    density: density,
+    motionBias: motionBias,
+    seed: seed,
+    elapsedTime: elapsedTime ?? this.elapsedTime,
+    depthLayer: depthLayer ?? this.depthLayer,
+  );
+}
+
+class SandboxParticleVisual {
+  const SandboxParticleVisual({
+    required this.index,
+    required this.position,
+    required this.radius,
+    required this.color,
+    required this.coreAlpha,
+    required this.nearAlpha,
+    required this.wideAlpha,
+    required this.depthLayer,
+  });
+
+  final int index;
+  final Offset position;
+  final double radius;
+  final Color color;
+  final double coreAlpha;
+  final double nearAlpha;
+  final double wideAlpha;
+  final SandboxParticleDepthLayer depthLayer;
+}
+
+int sandboxParticleCount(BootSendSequenceConcept concept) => switch (concept) {
+  BootSendSequenceConcept.assemblyMatrix => 12,
+  BootSendSequenceConcept.voxelIntegration => 18,
+  BootSendSequenceConcept.polyhedralFold => 15,
+};
+
+/// Pure deterministic particle positions.  It deliberately does not use
+/// Random so replaying a concept produces the same floating energy field.
+List<SandboxParticleVisual> sandboxParticleVisuals(
+  SandboxParticleField field, {
+  bool reducedMotion = false,
+}) {
+  final count = reducedMotion ? 4 : field.density;
+  final visuals = <SandboxParticleVisual>[];
+  final backCount = (count * .35).round();
+  final sideCount = (count * .45).round();
+  for (var index = 0; index < count; index++) {
+    final layer = index < backCount
+        ? SandboxParticleDepthLayer.back
+        : index < backCount + sideCount
+        ? SandboxParticleDepthLayer.side
+        : SandboxParticleDepthLayer.front;
+    if (layer != field.depthLayer) continue;
+    final sector = index % 4;
+    final horizontal = _particleUnit(field.seed, index, 1);
+    final vertical = _particleUnit(field.seed, index, 2);
+    final inset = _particleUnit(field.seed, index, 3);
+    final origin = switch (sector) {
+      0 => Offset(
+        field.spawnBounds.left + 3 + inset * 7,
+        field.spawnBounds.top +
+            field.spawnBounds.height * (.12 + vertical * .76),
+      ),
+      1 => Offset(
+        field.spawnBounds.right - 3 - inset * 7,
+        field.spawnBounds.top +
+            field.spawnBounds.height * (.12 + vertical * .76),
+      ),
+      2 => Offset(
+        field.spawnBounds.left +
+            field.spawnBounds.width * (.12 + horizontal * .76),
+        field.spawnBounds.bottom - 3 - inset * 5,
+      ),
+      _ => Offset(
+        field.spawnBounds.left +
+            field.spawnBounds.width * (.12 + horizontal * .76),
+        field.spawnBounds.top + 3 + inset * 5,
+      ),
+    };
+    final phaseOffset = _particleUnit(field.seed, index, 4);
+    final palettePick = (_particleUnit(field.seed, index, 5) * 20).floor();
+    final color =
+        field.palette[palettePick < 9
+            ? 0
+            : palettePick < 15
+            ? 1
+            : palettePick < 18
+            ? 2
+            : 3];
+    if (reducedMotion) {
+      visuals.add(
+        SandboxParticleVisual(
+          index: index,
+          position: origin,
+          radius: 1.4 + (index % 3) * .35,
+          color: field.palette[index.isEven ? 1 : 3],
+          coreAlpha: .35,
+          nearAlpha: .12,
+          wideAlpha: .08,
+          depthLayer: layer,
+        ),
+      );
+      continue;
+    }
+    final lifespan = 1.4 + _particleUnit(field.seed, index, 6) * 1.2;
+    final life = (field.elapsedTime / lifespan + phaseOffset).remainder(1.0);
+    final velocity =
+        field.motionBias.minimumVerticalSpeed +
+        _particleUnit(field.seed, index, 7) *
+            (field.motionBias.maximumVerticalSpeed -
+                field.motionBias.minimumVerticalSpeed);
+    final oscillation =
+        field.motionBias.minimumOscillation +
+        _particleUnit(field.seed, index, 8) *
+            (field.motionBias.maximumOscillation -
+                field.motionBias.minimumOscillation);
+    final period = 2 + _particleUnit(field.seed, index, 9) * 1.4;
+    final position = Offset(
+      origin.dx +
+          oscillation *
+              math.sin(
+                2 * math.pi * field.elapsedTime / period +
+                    phaseOffset * 2 * math.pi,
+              ),
+      origin.dy - velocity * lifespan * life,
+    );
+    final envelope = _particleEnvelope(life);
+    final fadeIn = _smoothStep(0, .35, field.elapsedTime);
+    final front = layer == SandboxParticleDepthLayer.front ? .75 : 1.0;
+    final corePeak = .55 + _particleUnit(field.seed, index, 10) * .35;
+    final glowPeak = .18 + _particleUnit(field.seed, index, 11) * .14;
+    final alpha = envelope * fadeIn * front;
+    visuals.add(
+      SandboxParticleVisual(
+        index: index,
+        position: position,
+        radius: _particleRadius(index),
+        color: color,
+        coreAlpha: corePeak * alpha,
+        nearAlpha: glowPeak * alpha,
+        wideAlpha: glowPeak * .72 * alpha,
+        depthLayer: layer,
+      ),
+    );
+  }
+  return visuals;
+}
+
+double _particleUnit(int seed, int index, int salt) {
+  final value =
+      math.sin(
+        (seed * 73856093 + index * 19349663 + salt * 83492791).toDouble(),
+      ) *
+      43758.5453123;
+  return value - value.floorToDouble();
+}
+
+double _particleRadius(int index) {
+  final bucket = index % 10;
+  if (bucket < 6) return 1.4;
+  if (bucket < 9) return 2.1;
+  return 2.8;
+}
+
+double _particleEnvelope(double phase) =>
+    _smoothStep(0, .15, phase) * (1 - _smoothStep(.7, 1, phase));
+
+double _smoothStep(double edge0, double edge1, double value) {
+  final normalized = ((value - edge0) / (edge1 - edge0)).clamp(0, 1).toDouble();
+  return normalized * normalized * (3 - 2 * normalized);
 }
 
 /// Small immutable 3D vector used only by the sandbox renderers and tests.

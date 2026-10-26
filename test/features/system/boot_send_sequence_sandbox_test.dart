@@ -120,6 +120,87 @@ void main() {
     expect(firstDistance, lessThan(lastDistance));
   });
 
+  test(
+    'completed particle fields are deterministic and delayed until fade in',
+    () {
+      const field = SandboxParticleField(
+        center: Offset(180, 140),
+        spawnBounds: Rect.fromLTWH(110, 90, 140, 100),
+        palette: [
+          Color(0xff63d8ff),
+          Color(0xffb5f3ff),
+          Color(0xffa69aff),
+          Color(0xffe8fcff),
+        ],
+        density: 18,
+        motionBias: SandboxParticleMotionBias(8, 14, 6, 10),
+        seed: 3102,
+        elapsedTime: 0,
+        depthLayer: SandboxParticleDepthLayer.side,
+      );
+      final initial = sandboxParticleVisuals(field);
+      final replay = sandboxParticleVisuals(field.copyWith(elapsedTime: 0));
+      final active = sandboxParticleVisuals(field.copyWith(elapsedTime: .35));
+      expect(initial, isNotEmpty);
+      expect(initial.every((particle) => particle.coreAlpha == 0), isTrue);
+      expect(
+        replay.map((particle) => particle.position),
+        initial.map((particle) => particle.position),
+      );
+      final switched = sandboxParticleVisuals(
+        SandboxParticleField(
+          center: field.center,
+          spawnBounds: field.spawnBounds,
+          palette: field.palette,
+          density: field.density,
+          motionBias: field.motionBias,
+          seed: 3103,
+          elapsedTime: 0,
+          depthLayer: field.depthLayer,
+        ),
+      );
+      expect(
+        switched.map((particle) => particle.position).toList(),
+        isNot(equals(initial.map((particle) => particle.position).toList())),
+      );
+      expect(active.any((particle) => particle.coreAlpha > 0), isTrue);
+    },
+  );
+
+  test('particle budgets and static reduced-motion field stay bounded', () {
+    expect(sandboxParticleCount(BootSendSequenceConcept.assemblyMatrix), 12);
+    expect(sandboxParticleCount(BootSendSequenceConcept.voxelIntegration), 18);
+    expect(sandboxParticleCount(BootSendSequenceConcept.polyhedralFold), 15);
+    const field = SandboxParticleField(
+      center: Offset(180, 140),
+      spawnBounds: Rect.fromLTWH(110, 90, 140, 100),
+      palette: [
+        Color(0xff63d8ff),
+        Color(0xffb5f3ff),
+        Color(0xffa69aff),
+        Color(0xffe8fcff),
+      ],
+      density: 18,
+      motionBias: SandboxParticleMotionBias(8, 14, 6, 10),
+      seed: 3102,
+      elapsedTime: 2,
+      depthLayer: SandboxParticleDepthLayer.back,
+    );
+    final staticParticles = SandboxParticleDepthLayer.values
+        .expand(
+          (layer) => sandboxParticleVisuals(
+            field.copyWith(depthLayer: layer),
+            reducedMotion: true,
+          ),
+        )
+        .toList();
+    expect(staticParticles, hasLength(4));
+    expect(
+      staticParticles.every((particle) => particle.coreAlpha <= .35),
+      isTrue,
+    );
+  });
+
   testWidgets('three selectors reset the comparison monitor and replay', (
     tester,
   ) async {
@@ -167,7 +248,21 @@ void main() {
     }
   });
 
-  const frames = [0, 1100, 2000, 2800, 3600, 4400, 5000, 6000, 6600, 8000];
+  const frames = [
+    0,
+    1100,
+    2000,
+    2800,
+    3600,
+    4400,
+    5000,
+    6000,
+    6350,
+    6600,
+    7200,
+    8000,
+    8400,
+  ];
   for (final concept in BootSendSequenceConcept.values) {
     for (final milliseconds in frames) {
       testWidgets('${concept.name} ${milliseconds}ms golden', (tester) async {
@@ -176,7 +271,7 @@ void main() {
           await tester.tap(find.text(_selectorText(concept)));
           await tester.pump();
         }
-        await tester.pump(Duration(milliseconds: milliseconds));
+        await _pumpTimeline(tester, milliseconds);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),
           matchesGoldenFile(
@@ -186,6 +281,18 @@ void main() {
       });
     }
   }
+}
+
+Future<void> _pumpTimeline(WidgetTester tester, int milliseconds) async {
+  if (milliseconds <= 6000) {
+    await tester.pump(Duration(milliseconds: milliseconds));
+    return;
+  }
+  await tester.pump(const Duration(milliseconds: 5999));
+  // Deliver construction completion before advancing the completion-only
+  // controller that owns post-build rotation and particles.
+  await tester.pump(const Duration(milliseconds: 1));
+  await tester.pump(Duration(milliseconds: milliseconds - 6000));
 }
 
 String _selectorText(BootSendSequenceConcept concept) => switch (concept) {
