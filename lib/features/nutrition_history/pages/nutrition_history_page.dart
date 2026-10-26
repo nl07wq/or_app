@@ -9,6 +9,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
 import '../../body_history/services/history_period_range.dart';
+import '../../body_history/widgets/history_feature_scaffold.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../models/nutrition_history_models.dart';
@@ -114,11 +115,9 @@ class _NutritionHistoryPageState extends State<NutritionHistoryPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('NUTRITION HISTORY'),
-    ),
+  Widget build(BuildContext context) => HistoryFeatureScaffold(
+    title: 'NUTRITION HISTORY',
+    leading: const ActionableBackButton(),
     body: FutureBuilder<_NutritionHistoryViewModel>(
       future: _model,
       builder: (context, snapshot) {

@@ -90,7 +90,7 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
           leading: const ActionableBackButton(),
           title: AnimatedBuilder(
             animation: _ambientController,
-            builder: (context, _) => _HistoryAppBarTitle(
+            builder: (context, _) => HistoryMemoryModuleTitle(
               variant: _selection.title,
               seconds: _dataVaultSeconds,
             ),
@@ -314,11 +314,17 @@ class _DataVaultImpulseSelector extends StatelessWidget {
   );
 }
 
-class _HistoryAppBarTitle extends StatelessWidget {
-  const _HistoryAppBarTitle({required this.variant, required this.seconds});
+class HistoryMemoryModuleTitle extends StatelessWidget {
+  const HistoryMemoryModuleTitle({
+    super.key,
+    required this.variant,
+    required this.seconds,
+    this.label = 'HISTORY',
+  });
 
   final HistoryTitleVariant variant;
   final double seconds;
+  final String label;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -331,11 +337,10 @@ class _HistoryAppBarTitle extends StatelessWidget {
         child: variant == HistoryTitleVariant.memoryModule
             ? Stack(
                 children: [
-                  // The physical connector bank occupies the far right.  A
-                  // constrained faceplate target centres HISTORY at x=100,
-                  // rather than under those contacts.
+                  // The physical connector bank occupies the far right. The
+                  // faceplate target remains independent from those contacts.
                   Positioned(
-                    left: 44,
+                    left: 24,
                     right: 36,
                     top: 0,
                     bottom: 0,
@@ -351,32 +356,36 @@ class _HistoryAppBarTitle extends StatelessWidget {
     ),
   );
 
-  Widget _historyTitleText(HistoryTitleVariant variant) => Text(
-    'HISTORY',
-    style: TextStyle(
-      color: variant == HistoryTitleVariant.archivePlate
-          ? const Color(0xffdcebf2)
-          : const Color(0xffd8faff),
-      fontFamily: 'ShareTechMono',
-      fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
-      fontWeight: FontWeight.w400,
-      letterSpacing: variant == HistoryTitleVariant.memoryModule
-          ? 1.0
-          : variant == HistoryTitleVariant.archivePlate
-          ? 1.45
-          : 2.1,
-      shadows: switch (variant) {
-        HistoryTitleVariant.archiveDisplay => const [
-          Shadow(color: Color(0xff3edff5), blurRadius: 7),
-        ],
-        HistoryTitleVariant.archivePlate => const [
-          Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
-          Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
-        ],
-        HistoryTitleVariant.memoryModule => const [
-          Shadow(color: Color(0xff37dff7), blurRadius: 4),
-        ],
-      },
+  Widget _historyTitleText(HistoryTitleVariant variant) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(
+      label,
+      maxLines: 1,
+      style: TextStyle(
+        color: variant == HistoryTitleVariant.archivePlate
+            ? const Color(0xffdcebf2)
+            : const Color(0xffd8faff),
+        fontFamily: 'ShareTechMono',
+        fontSize: variant == HistoryTitleVariant.memoryModule ? 17 : 19,
+        fontWeight: FontWeight.w400,
+        letterSpacing: variant == HistoryTitleVariant.memoryModule
+            ? 1.0
+            : variant == HistoryTitleVariant.archivePlate
+            ? 1.45
+            : 2.1,
+        shadows: switch (variant) {
+          HistoryTitleVariant.archiveDisplay => const [
+            Shadow(color: Color(0xff3edff5), blurRadius: 7),
+          ],
+          HistoryTitleVariant.archivePlate => const [
+            Shadow(color: Color(0xff03070a), offset: Offset(1, 1)),
+            Shadow(color: Color(0xffb6d8e2), offset: Offset(0, -0.5)),
+          ],
+          HistoryTitleVariant.memoryModule => const [
+            Shadow(color: Color(0xff37dff7), blurRadius: 4),
+          ],
+        },
+      ),
     ),
   );
 }

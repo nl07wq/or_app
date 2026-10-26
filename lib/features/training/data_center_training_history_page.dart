@@ -22,7 +22,7 @@ import 'services/training_exercise_identity.dart';
 import 'services/training_history_domain_service.dart';
 import 'services/training_recovery_evidence_adapter.dart';
 import 'widgets/body_map_svg_prototype.dart';
-import 'widgets/training_dot_matrix_title.dart';
+import '../body_history/widgets/history_feature_scaffold.dart';
 
 /// Data Center analytics. The existing TrainingHistoryPage remains the raw
 /// formal-record list and is intentionally not reused as this page.
@@ -119,12 +119,9 @@ class _DataCenterTrainingHistoryPageState
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      centerTitle: true,
-      leading: Navigator.canPop(context) ? const TrainingLedBackButton() : null,
-      title: const TrainingDotMatrixTitle(title: 'TRAINING HISTORY'),
-    ),
+  Widget build(BuildContext context) => HistoryFeatureScaffold(
+    title: 'TRAINING HISTORY',
+    leading: Navigator.canPop(context) ? const TrainingLedBackButton() : null,
     body: FutureBuilder<DateTime>(
       future: _referenceDate,
       builder: (context, referenceSnapshot) {
