@@ -11,6 +11,7 @@ enum StatusCrtMonitorMode { normal, entry }
 class StatusCrtMonitorTitle extends StatefulWidget {
   const StatusCrtMonitorTitle({
     super.key,
+    this.title = 'STATUS',
     this.mode = StatusCrtMonitorMode.normal,
     this.refreshMinDelay = const Duration(seconds: 10),
     this.refreshMaxDelay = const Duration(seconds: 25),
@@ -21,7 +22,11 @@ class StatusCrtMonitorTitle extends StatefulWidget {
   static const height = 34.0;
   static const bootDuration = Duration(milliseconds: 820);
   static const refreshDuration = Duration(milliseconds: 460);
+  static const _readoutViewportWidth = width - 12;
+  static const _marqueeHold = Duration(milliseconds: 900);
+  static const _marqueeSpeed = 24.0;
 
+  final String title;
   final StatusCrtMonitorMode mode;
   final Duration refreshMinDelay;
   final Duration refreshMaxDelay;
@@ -35,12 +40,15 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _bootController;
   late final AnimationController _refreshController;
+  late final AnimationController _marqueeController;
   final Random _random = Random();
   Timer? _refreshTimer;
   bool _bootRequested = false;
   bool _bootCompleted = false;
   bool _motionEnabled = true;
   bool _appActive = true;
+  bool _reducedMotion = false;
+  double _marqueeExtent = 0;
 
   bool get _isEntry => widget.mode == StatusCrtMonitorMode.entry;
   bool get _canAnimate =>
@@ -59,23 +67,27 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
       vsync: this,
       duration: StatusCrtMonitorTitle.refreshDuration,
     )..addStatusListener(_handleRefreshStatus);
+    _marqueeController = AnimationController(vsync: this);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+    _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reducedMotion) {
       _motionEnabled = false;
       _refreshTimer?.cancel();
       _bootCompleted = true;
       _bootController.value = 1;
       _refreshController.value = 0;
+      _marqueeController.stop();
       return;
     }
     _motionEnabled = true;
     if (!_canAnimate) {
       _refreshTimer?.cancel();
       _refreshController.stop();
+      _marqueeController.stop();
       return;
     }
     if (!_bootRequested) {
@@ -89,14 +101,25 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
         _refreshTimer == null) {
       _scheduleRefresh();
     }
+    _syncMarquee();
   }
 
   @override
   void didUpdateWidget(covariant StatusCrtMonitorTitle oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mode == widget.mode) return;
-    _refreshTimer?.cancel();
-    if (_isEntry && _bootCompleted && _canAnimate) _scheduleRefresh();
+    if (oldWidget.mode != widget.mode) {
+      _refreshTimer?.cancel();
+      if (_isEntry && _bootCompleted && _canAnimate) _scheduleRefresh();
+    }
+    if (oldWidget.title != widget.title) {
+      _marqueeController
+        ..stop()
+        ..value = 0;
+      _marqueeExtent = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncMarquee();
+      });
+    }
   }
 
   @override
@@ -107,15 +130,18 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
     if (!active) {
       _refreshTimer?.cancel();
       _refreshController.stop();
+      _marqueeController.stop();
       return;
     }
     if (_canAnimate && _bootCompleted && _isEntry) _scheduleRefresh();
+    _syncMarquee();
   }
 
   void _handleBootStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
     _bootCompleted = true;
     _scheduleRefresh();
+    _syncMarquee();
   }
 
   void _handleRefreshStatus(AnimationStatus status) {
@@ -139,6 +165,66 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
     _refreshController.forward(from: 0);
   }
 
+  void _syncMarquee() {
+    if (!_bootCompleted || !_canAnimate || _reducedMotion) {
+      _marqueeController.stop();
+      return;
+    }
+    final extent = _readoutOverflow(context);
+    if (extent <= 0) {
+      _marqueeController
+        ..stop()
+        ..value = 0;
+      _marqueeExtent = 0;
+      return;
+    }
+    if ((_marqueeExtent - extent).abs() > .01 ||
+        _marqueeController.duration == null) {
+      _marqueeExtent = extent;
+      final travel = Duration(
+        milliseconds: (extent / StatusCrtMonitorTitle._marqueeSpeed * 1000)
+            .round(),
+      );
+      _marqueeController.duration =
+          StatusCrtMonitorTitle._marqueeHold +
+          travel +
+          StatusCrtMonitorTitle._marqueeHold +
+          travel;
+      _marqueeController.value = 0;
+    }
+    if (!_marqueeController.isAnimating) {
+      _marqueeController.repeat();
+    }
+  }
+
+  double _readoutOverflow(BuildContext context) {
+    final painter = TextPainter(
+      text: _settledTerminalText(widget.title),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    return max(
+      0.0,
+      painter.width - StatusCrtMonitorTitle._readoutViewportWidth,
+    ).toDouble();
+  }
+
+  double _marqueeOffset() {
+    final duration = _marqueeController.duration;
+    if (duration == null || _marqueeExtent <= 0) return 0;
+    final elapsed = _marqueeController.value * duration.inMilliseconds;
+    final hold = StatusCrtMonitorTitle._marqueeHold.inMilliseconds.toDouble();
+    final travel = _marqueeExtent / StatusCrtMonitorTitle._marqueeSpeed * 1000;
+    if (elapsed <= hold) return 0;
+    if (elapsed <= hold + travel) {
+      return _marqueeExtent * ((elapsed - hold) / travel);
+    }
+    if (elapsed <= hold * 2 + travel) return _marqueeExtent;
+    return _marqueeExtent *
+        (1 - ((elapsed - hold * 2 - travel) / travel).clamp(0.0, 1.0));
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -149,13 +235,14 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
     _refreshController
       ..removeStatusListener(_handleRefreshStatus)
       ..dispose();
+    _marqueeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'STATUS',
+      label: widget.title,
       child: ExcludeSemantics(
         child: RepaintBoundary(
           child: SizedBox(
@@ -186,10 +273,15 @@ class _StatusCrtMonitorTitleState extends State<StatusCrtMonitorTitle>
                         animation: Listenable.merge([
                           _bootController,
                           _refreshController,
+                          _marqueeController,
                         ]),
                         builder: (context, _) => _CrtPhosphorContent(
                           bootValue: _bootController.value,
                           refreshValue: _refreshController.value,
+                          title: widget.title,
+                          marqueeOffset: _marqueeOffset(),
+                          marquee: _marqueeExtent > 0 && !_reducedMotion,
+                          reducedMotion: _reducedMotion,
                         ),
                       ),
                     ],
@@ -208,10 +300,18 @@ class _CrtPhosphorContent extends StatelessWidget {
   const _CrtPhosphorContent({
     required this.bootValue,
     required this.refreshValue,
+    required this.title,
+    required this.marqueeOffset,
+    required this.marquee,
+    required this.reducedMotion,
   });
 
   final double bootValue;
   final double refreshValue;
+  final String title;
+  final double marqueeOffset;
+  final bool marquee;
+  final bool reducedMotion;
 
   @override
   Widget build(BuildContext context) {
@@ -253,15 +353,7 @@ class _CrtPhosphorContent extends StatelessWidget {
           child: Transform.scale(
             scaleY: retrace.imageScaleY,
             alignment: Alignment.center,
-            child: Center(
-              child: Text.rich(
-                _terminalText(bootValue),
-                key: const ValueKey('status-crt-phosphor'),
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                textAlign: TextAlign.center,
-              ),
-            ),
+            child: Center(child: _readout()),
           ),
         ),
       ],
@@ -273,7 +365,7 @@ class _CrtPhosphorContent extends StatelessWidget {
       < .24 => '',
       < .38 => '',
       < .54 => 'STA',
-      _ => 'STATUS',
+      _ => title,
     };
     final showPrompt = value >= .38;
     final showCursor = value >= .7;
@@ -287,7 +379,39 @@ class _CrtPhosphorContent extends StatelessWidget {
       ],
     );
   }
+
+  Widget _readout() {
+    final text = Text.rich(
+      _terminalText(bootValue),
+      key: const ValueKey('status-crt-phosphor'),
+      maxLines: 1,
+      overflow: TextOverflow.clip,
+      textAlign: marquee ? TextAlign.left : TextAlign.center,
+    );
+    if (reducedMotion) {
+      return FittedBox(fit: BoxFit.scaleDown, child: text);
+    }
+    if (!marquee) return text;
+    return ClipRect(
+      key: const ValueKey('status-crt-marquee-viewport'),
+      child: SizedBox(
+        width: StatusCrtMonitorTitle._readoutViewportWidth,
+        child: Transform.translate(
+          offset: Offset(-marqueeOffset, 0),
+          child: Align(alignment: Alignment.centerLeft, child: text),
+        ),
+      ),
+    );
+  }
 }
+
+TextSpan _settledTerminalText(String title) => TextSpan(
+  children: [
+    const TextSpan(text: '> ', style: _TerminalStyles.prompt),
+    TextSpan(text: title, style: _TerminalStyles.status),
+    const TextSpan(text: '_', style: _TerminalStyles.cursor),
+  ],
+);
 
 abstract final class _TerminalStyles {
   static const prompt = TextStyle(

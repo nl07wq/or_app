@@ -186,6 +186,63 @@ void main() {
     expect(find.bySemanticsLabel('ACTIVITY'), findsOneWidget);
   });
 
+  testWidgets('RECORD title indexes the existing eight-cell register', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(title: ActivityMechanicalCounterTitle.recordTitle),
+    );
+    await tester.pump();
+    await tester.pump(ActivityMechanicalCounterTitle.initialIndexDuration);
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(
+      find.bySemanticsLabel(ActivityMechanicalCounterTitle.recordTitle),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(
+      find.byKey(const ValueKey('activity-counter-registering-1')),
+      findsOneWidget,
+    );
+    await tester.pump(ActivityMechanicalCounterTitle.initialIndexDuration);
+
+    const record = ' RECORD ';
+    for (var index = 0; index < record.length; index++) {
+      final cell = find.byKey(ValueKey('activity-counter-cell-$index'));
+      final glyphs = find.descendant(of: cell, matching: find.byType(Text));
+      if (record[index] == ' ') {
+        expect(glyphs, findsNothing);
+      } else {
+        expect(tester.widget<Text>(glyphs).data, record[index]);
+      }
+    }
+    expect(
+      find.byKey(const ValueKey('activity-counter-periodic-0')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'reduced motion keeps RECORD title on ACTIVITY with full semantics',
+    (tester) async {
+      await tester.pumpWidget(
+        _app(
+          disableAnimations: true,
+          title: ActivityMechanicalCounterTitle.recordTitle,
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel(ActivityMechanicalCounterTitle.recordTitle),
+        findsOneWidget,
+      );
+      expect(find.text('A'), findsOneWidget);
+      _expectNoMotion(tester);
+    },
+  );
+
   for (final width in [320.0, 390.0, 900.0]) {
     testWidgets(
       'counter remains centered and clear of actions at ${width.toInt()}px',
@@ -229,6 +286,7 @@ void _expectNoMotion(WidgetTester tester) {
 
 Widget _app({
   bool disableAnimations = false,
+  String title = ActivityMechanicalCounterTitle.word,
   ActivityMechanicalCounterMode mode = ActivityMechanicalCounterMode.normal,
   Duration entryEventMinDelay = const Duration(seconds: 8),
   Duration entryEventMaxDelay = const Duration(seconds: 20),
@@ -242,6 +300,7 @@ Widget _app({
     child: Scaffold(
       appBar: _CounterAppBar(
         mode: mode,
+        title: title,
         entryEventMinDelay: entryEventMinDelay,
         entryEventMaxDelay: entryEventMaxDelay,
         nextInt: nextInt,
@@ -253,12 +312,14 @@ Widget _app({
 
 class _CounterAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _CounterAppBar({
+    this.title = ActivityMechanicalCounterTitle.word,
     this.mode = ActivityMechanicalCounterMode.normal,
     this.entryEventMinDelay = const Duration(seconds: 8),
     this.entryEventMaxDelay = const Duration(seconds: 20),
     this.nextInt,
   });
 
+  final String title;
   final ActivityMechanicalCounterMode mode;
   final Duration entryEventMinDelay;
   final Duration entryEventMaxDelay;
@@ -276,6 +337,7 @@ class _CounterAppBar extends StatelessWidget implements PreferredSizeWidget {
       icon: const Icon(Icons.arrow_back),
     ),
     title: ActivityMechanicalCounterTitle(
+      title: title,
       mode: mode,
       entryEventMinDelay: entryEventMinDelay,
       entryEventMaxDelay: entryEventMaxDelay,
