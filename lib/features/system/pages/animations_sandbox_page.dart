@@ -21,6 +21,7 @@ import 'fox_run_v1_section.dart';
 import 'fox_rear_leg_geometry_lab.dart';
 import 'fox_pattern_preview.dart';
 import 'pixel_lab_page.dart';
+import 'boot_send_sequence_sandbox.dart';
 
 const _bootSequenceAssets = [
   _BootSequenceAsset(
@@ -122,6 +123,8 @@ class AnimationsSandboxPage extends StatelessWidget {
       padding: AppSpacing.cardPadding,
       children: [
         const _BootSequenceSandboxSection(),
+        AppSpacing.gapXL,
+        const BootSendSequenceSandbox(),
         AppSpacing.gapXL,
         _PixelLabSandboxSection(pixelLabAssetLoader: pixelLabAssetLoader),
         AppSpacing.gapXL,
