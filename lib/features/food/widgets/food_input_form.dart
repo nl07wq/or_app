@@ -32,6 +32,7 @@ import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
 import 'food_input_fields.dart';
 import 'food_item_list.dart';
+import 'food_saved_floating_hud.dart';
 import 'food_ocr_scanner.dart';
 import 'food_thumbnail.dart';
 import 'food_total_card.dart';
@@ -1608,24 +1609,28 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   Future<void> _saveCurrentToCatalog() async {
-    if (!AppRepositoryRegistry.hasContainer) return;
+    if (!AppRepositoryRegistry.hasContainer) {
+      _showCatalogSaveFailure('食品データベースを利用できません');
+      return;
+    }
     final item = _currentFoodItem();
     if (item == null) {
-      setState(() => inputError = 'Enter valid food and nutrition values.');
+      _showCatalogSaveFailure('Enter valid food and nutrition values.');
       return;
     }
     final packageText = packageQuantityController.text.trim();
     final packageQuantity = _optionalPositiveNumber(packageQuantityController);
     if ((packageText.isNotEmpty && packageQuantity == null) ||
         (packageQuantity == null) != (packageUnit == null)) {
-      setState(() => inputError = 'ENTER VALID PACKAGE QUANTITY AND UNIT.');
+      _showCatalogSaveFailure('ENTER VALID PACKAGE QUANTITY AND UNIT.');
       return;
     }
     final consumedAmount = item.physicalAmount;
     if (consumedAmount == null) {
-      setState(() => inputError = 'ENTER A VALID USED AMOUNT.');
+      _showCatalogSaveFailure('ENTER A VALID USED AMOUNT.');
       return;
     }
+    ActionableFeedbackRegion.dismissDeferred();
     final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
@@ -1661,10 +1666,20 @@ class _FoodInputFormState extends State<FoodInputForm> {
     _dismissRestoredInput();
     if (saved != null && mounted) {
       _bindCurrentItemToCatalog(saved, consumedAmount);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('SAVED · DB LINKED')));
     }
+  }
+
+  void _showCatalogSaveFailure(String detail) {
+    setState(() => inputError = detail);
+    ActionableFeedbackRegion.resolveDeferred(
+      ActionableFeedbackResult.unavailable,
+    );
+    FoodSavedFloatingHud.showFor(
+      context,
+      label: 'FOOD',
+      failed: true,
+      detail: detail,
+    );
   }
 
   void _dismissRestoredInput() {
@@ -3027,6 +3042,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                         key: const ValueKey('food-save-to-catalog'),
                         icon: Icons.add_business,
                         text: 'SAVE TO DATABASE',
+                        deferFeedback: !_isSaving,
                         onPressed: _isSaving ? null : _saveCurrentToCatalog,
                       ),
                   ] else

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
@@ -7,6 +8,22 @@ import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
 
 void main() {
+  testWidgets('blocked catalog recalculation retains unavailable feedback', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogEditorPage(repository: _Repository())),
+    );
+
+    final action = find.byKey(
+      const ValueKey('food-catalog-recalculate-nutrition'),
+    );
+    await tester.ensureVisible(action);
+    final button = tester.widget<OperationButton>(action);
+    expect(button.onPressed, isNull);
+    expect(button.reportUnavailableTap, isTrue);
+  });
+
   testWidgets('package unit suggests basis without linking package quantity', (
     tester,
   ) async {

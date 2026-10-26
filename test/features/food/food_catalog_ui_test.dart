@@ -1207,6 +1207,42 @@ void main() {
     expect(saved.nutrition.calories, 154);
   });
 
+  testWidgets('catalog save confirmation survives editor navigation', (
+    tester,
+  ) async {
+    final repository = _MemoryCatalogRepository(const []);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FoodCatalogEditorPage(repository: repository),
+                ),
+              ),
+              child: const Text('OPEN EDITOR'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN EDITOR'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'NAME'), 'New Food');
+    for (final label in ['CALORIES', 'PROTEIN', 'FAT', 'CARBOHYDRATE']) {
+      await tester.enterText(find.widgetWithText(TextField, label), '1');
+    }
+    await tester.ensureVisible(find.text('SAVE'));
+    await tester.tap(find.text('SAVE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('OPEN EDITOR'), findsOneWidget);
+    expect(find.text('FOOD SAVED'), findsOneWidget);
+    expect(find.text('CONFIRMED'), findsOneWidget);
+  });
+
   testWidgets(
     'catalog save requires each nutrition field and preserves input',
     (tester) async {
@@ -1232,7 +1268,9 @@ void main() {
         await tester.tap(find.text('SAVE'));
         await tester.pump();
 
-        expect(find.textContaining('$missing IS REQUIRED'), findsOneWidget);
+        expect(find.textContaining('$missing IS REQUIRED'), findsNWidgets(2));
+        expect(find.text('FOOD SAVE FAILED'), findsOneWidget);
+        expect(find.text('REJECTED'), findsOneWidget);
         expect(await repository.list(), isEmpty);
       }
 

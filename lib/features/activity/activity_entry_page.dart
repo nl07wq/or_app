@@ -373,7 +373,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   Future<void> _saveDraft() async {
     if (_isBusy) return;
     if (!AppRepositoryRegistry.hasContainer) {
-      _showMessage('一時保存に失敗しました');
+      _showActivityDraftFailure('一時保存に失敗しました');
       return;
     }
     setState(() => _isBusy = true);
@@ -386,9 +386,12 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
           .findByDate(_date);
       if (!mounted) return;
       setState(() => _draft = stored ?? draft);
-      _showMessage('一時保存しました');
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
+      FoodSavedFloatingHud.showFor(context, label: 'ACTIVITY DRAFT');
     } catch (_) {
-      if (mounted) _showMessage('一時保存に失敗しました');
+      if (mounted) _showActivityDraftFailure('一時保存に失敗しました');
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -665,6 +668,19 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     );
   }
 
+  void _showActivityDraftFailure(String detail) {
+    if (!mounted) return;
+    ActionableFeedbackRegion.resolveDeferred(
+      ActionableFeedbackResult.unavailable,
+    );
+    FoodSavedFloatingHud.showFor(
+      context,
+      label: 'ACTIVITY DRAFT',
+      failed: true,
+      detail: detail,
+    );
+  }
+
   static String _shapeControllerValue(int? domainShape) {
     if (domainShape == null) return '';
     return (domainShape - 1).clamp(0, 2).toString();
@@ -833,6 +849,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   icon: Icons.save_outlined,
                   text: 'SAVE DRAFT',
                   frostedGradient: true,
+                  deferFeedback: true,
                   onPressed: _isBusy ? null : _saveDraft,
                 ),
               ),

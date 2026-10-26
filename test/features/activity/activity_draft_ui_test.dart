@@ -58,7 +58,10 @@ void main() {
 
     await tester.ensureVisible(find.text('SAVE DRAFT'));
     await tester.tap(find.text('SAVE DRAFT'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('ACTIVITY DRAFT SAVED'), findsOneWidget);
+    expect(find.text('CONFIRMED'), findsOneWidget);
     final draft = await AppRepositoryRegistry.container.activityDrafts
         .findByDate(today);
     expect(draft?.digestiveEvents, isEmpty);
@@ -497,7 +500,11 @@ void main() {
 
 Future<void> _pumpEntry(WidgetTester tester) async {
   await tester.pumpWidget(const MaterialApp(home: ActivityEntryPage()));
-  await tester.pumpAndSettle();
+  // The activity ambient has a deliberate repeating ticker. A bounded pump
+  // reaches the initialized form without treating that production animation
+  // as a test failure.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
 }
 
 Future<void> _pumpEntryFromActivity(WidgetTester tester) async {

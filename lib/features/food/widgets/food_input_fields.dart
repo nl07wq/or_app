@@ -246,6 +246,7 @@ class FoodInputFields extends StatelessWidget {
             onPressed: recalculationBlockReason == null
                 ? onRecalculateNutrition
                 : null,
+            reportUnavailableTap: recalculationBlockReason != null,
           ),
 
           const SizedBox(height: AppSpacing.xs),

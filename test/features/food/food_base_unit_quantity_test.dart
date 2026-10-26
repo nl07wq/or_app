@@ -935,6 +935,10 @@ void main() {
         );
         expect(tester.widget<OperationButton>(action).onPressed, isNull);
         expect(
+          tester.widget<OperationButton>(action).reportUnavailableTap,
+          isTrue,
+        );
+        expect(
           find.text('PACKAGE AND NUTRITION BASIS UNITS MUST MATCH'),
           findsOneWidget,
         );
@@ -955,6 +959,10 @@ void main() {
         expect(_controllerText(tester, 'NUTRITION BASIS'), mismatchedBasis);
         expect(mismatchedCalories, isEmpty);
         expect(tester.widget<OperationButton>(action).onPressed, isNotNull);
+        expect(
+          tester.widget<OperationButton>(action).reportUnavailableTap,
+          isFalse,
+        );
       },
     );
 

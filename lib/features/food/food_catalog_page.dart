@@ -35,6 +35,7 @@ import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
 import 'widgets/food_form_theme.dart';
 import 'widgets/food_feature_chrome.dart';
+import 'widgets/food_saved_floating_hud.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -1286,10 +1287,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         base <= 0 ||
         (_packageQuantity.text.trim().isNotEmpty && package == null) ||
         (package == null) != (_packageUnit == null)) {
-      ActionableFeedbackRegion.resolveDeferred(
-        ActionableFeedbackResult.unavailable,
-      );
-      setState(() => _error = 'ENTER VALID FOOD AND QUANTITY VALUES');
+      _showSaveFailure('ENTER VALID FOOD AND QUANTITY VALUES');
       return;
     }
     final barcode = _barcode.text.trim().isEmpty ? null : _barcode.text.trim();
@@ -1301,19 +1299,13 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       );
       if (duplicate.isNotEmpty) {
         if (!mounted) return;
-        ActionableFeedbackRegion.resolveDeferred(
-          ActionableFeedbackResult.unavailable,
-        );
-        setState(() => _error = 'EXISTING FOOD FOUND: ${duplicate.first.name}');
+        _showSaveFailure('EXISTING FOOD FOUND: ${duplicate.first.name}');
         return;
       }
     }
     final nutritionErrors = _requiredNutritionErrors();
     if (nutritionErrors.isNotEmpty) {
-      ActionableFeedbackRegion.resolveDeferred(
-        ActionableFeedbackResult.unavailable,
-      );
-      setState(() => _error = nutritionErrors.join('\n'));
+      _showSaveFailure(nutritionErrors.join('\n'));
       return;
     }
     final timestamp = DateTime.now().toUtc();
@@ -1368,23 +1360,32 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       final saved = (await widget.repository.list()).singleWhere(
         (candidate) => candidate.foodId == entry.foodId,
       );
-      if (mounted) {
-        ActionableFeedbackRegion.resolveDeferred(
-          ActionableFeedbackResult.accepted,
-        );
-        Navigator.pop(context, saved);
-      }
+      if (!mounted) return;
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
+      FoodSavedFloatingHud.showFor(context, label: 'FOOD');
+      Navigator.pop(context, saved);
     } catch (error) {
-      if (mounted) {
-        ActionableFeedbackRegion.resolveDeferred(
-          ActionableFeedbackResult.unavailable,
-        );
-        setState(() {
-          _saving = false;
-          _error = '食品データベースへの保存に失敗しました';
-        });
-      }
+      if (!mounted) return;
+      _showSaveFailure('食品データベースへの保存に失敗しました', clearSaving: true);
     }
+  }
+
+  void _showSaveFailure(String detail, {bool clearSaving = false}) {
+    ActionableFeedbackRegion.resolveDeferred(
+      ActionableFeedbackResult.unavailable,
+    );
+    setState(() {
+      if (clearSaving) _saving = false;
+      _error = detail;
+    });
+    FoodSavedFloatingHud.showFor(
+      context,
+      label: 'FOOD',
+      failed: true,
+      detail: detail,
+    );
   }
 
   @override
@@ -1517,6 +1518,7 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
                   onPressed: _recalculationBlockReason == null
                       ? _previewNutritionRecalculation
                       : null,
+                  reportUnavailableTap: _recalculationBlockReason != null,
                 ),
                 if (_recalculationBlockReason case final reason?) ...[
                   AppSpacing.gapXS,
