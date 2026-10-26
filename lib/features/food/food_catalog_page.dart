@@ -1378,7 +1378,9 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     );
     setState(() {
       if (clearSaving) _saving = false;
-      _error = detail;
+      // Save failures are presented by the shared HUD. Keep values editable
+      // without duplicating the same validation detail inline.
+      _error = null;
     });
     FoodSavedFloatingHud.showFor(
       context,

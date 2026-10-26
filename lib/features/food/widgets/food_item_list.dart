@@ -26,6 +26,7 @@ class FoodItemList extends StatelessWidget {
   final IconData actionIcon;
   final String actionText;
   final VoidCallback onAction;
+  final bool deferFeedback;
   final IconData? secondaryActionIcon;
   final String? secondaryActionText;
   final VoidCallback? onSecondaryAction;
@@ -44,6 +45,7 @@ class FoodItemList extends StatelessWidget {
     required this.actionIcon,
     required this.actionText,
     required this.onAction,
+    this.deferFeedback = false,
     this.secondaryActionIcon,
     this.secondaryActionText,
     this.onSecondaryAction,
@@ -81,6 +83,7 @@ class FoodItemList extends StatelessWidget {
               key: const ValueKey('food-meal-item-action'),
               icon: actionIcon,
               text: actionText,
+              deferFeedback: deferFeedback,
               onPressed: onAction,
             ),
             AppSpacing.gapMD,

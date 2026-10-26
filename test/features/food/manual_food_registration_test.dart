@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/widgets/food_form_theme.dart';
@@ -10,6 +11,59 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  testWidgets('invalid ADD FOOD uses one failed HUD instead of inline error', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(onSave: (_) async => true),
+          ),
+        ),
+      ),
+    );
+
+    final action = find.byKey(const ValueKey('food-meal-item-action'));
+    await tester.ensureVisible(action);
+    expect(tester.widget<OperationButton>(action).deferFeedback, isTrue);
+    await tester.tap(action);
+    await tester.pump();
+
+    expect(find.text('FOOD SAVE FAILED'), findsOneWidget);
+    expect(find.text('REJECTED'), findsOneWidget);
+    expect(
+      find.text(
+        'Enter valid food, base amount, quantity, and nutrition values.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('MEAL ITEMS (0)'), findsOneWidget);
+  });
+
+  testWidgets('unavailable SAVE TO DATABASE uses the failed HUD only', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(onSave: (_) async => true),
+          ),
+        ),
+      ),
+    );
+
+    final saveToCatalog = find.byKey(const ValueKey('food-save-to-catalog'));
+    await tester.ensureVisible(saveToCatalog);
+    await tester.tap(saveToCatalog);
+    await tester.pump();
+
+    expect(find.text('FOOD SAVE FAILED'), findsOneWidget);
+    expect(find.text('REJECTED'), findsOneWidget);
+    expect(find.text('食品データベースを利用できません'), findsOneWidget);
+  });
+
   testWidgets(
     'SAVE TO DATABASE binds the current manual item to its saved master',
     (tester) async {

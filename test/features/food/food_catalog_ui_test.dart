@@ -1268,7 +1268,7 @@ void main() {
         await tester.tap(find.text('SAVE'));
         await tester.pump();
 
-        expect(find.textContaining('$missing IS REQUIRED'), findsNWidgets(2));
+        expect(find.textContaining('$missing IS REQUIRED'), findsOneWidget);
         expect(find.text('FOOD SAVE FAILED'), findsOneWidget);
         expect(find.text('REJECTED'), findsOneWidget);
         expect(await repository.list(), isEmpty);

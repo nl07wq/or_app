@@ -605,10 +605,17 @@ class _FoodInputFormState extends State<FoodInputForm> {
     final item = _currentFoodItem();
 
     if (item == null) {
-      setState(() {
-        inputError =
-            'Enter valid food, base amount, quantity, and nutrition values.';
-      });
+      setState(() => inputError = null);
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
+      FoodSavedFloatingHud.showFor(
+        context,
+        label: 'FOOD',
+        failed: true,
+        detail:
+            'Enter valid food, base amount, quantity, and nutrition values.',
+      );
       return;
     }
 
@@ -632,6 +639,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
       inputError = null;
       _clearFoodInputs();
     });
+    ActionableFeedbackRegion.resolveDeferred(ActionableFeedbackResult.accepted);
   }
 
   void removeFood(int index) {
@@ -1670,7 +1678,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
   }
 
   void _showCatalogSaveFailure(String detail) {
-    setState(() => inputError = detail);
+    setState(() => inputError = null);
     ActionableFeedbackRegion.resolveDeferred(
       ActionableFeedbackResult.unavailable,
     );
@@ -3086,6 +3094,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                       editableItemCount: items.length,
                       actionIcon: Icons.add_circle_outline,
                       actionText: 'ADD FOOD',
+                      deferFeedback: true,
                       onAction: addFood,
                       showPrimaryAction:
                           _inputMode == _FoodEntryInputMode.manual,
