@@ -2,22 +2,23 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-enum BootSendSequenceConcept { terminalSend, packetUplink, archiveDispatch }
-
-enum BootSendSequencePhase {
-  initializing,
-  buildingData,
-  transmitting,
-  complete,
+/// These prototypes are deliberately sandbox-only: they do not own data,
+/// storage, sound, or transport behavior.
+enum BootSendSequenceConcept {
+  assemblyMatrix,
+  voxelIntegration,
+  polyhedralFold,
 }
+
+enum BootSendSequencePhase { initializing, buildingData, integrating, complete }
 
 enum _OperationMode { brief, debrief, backup }
 
 const _cycle = Duration(milliseconds: 6000);
 
-/// A comparison-only monitor. It has no production data or transport hook.
 class BootSendSequenceSandbox extends StatefulWidget {
   const BootSendSequenceSandbox({super.key});
+
   @override
   State<BootSendSequenceSandbox> createState() =>
       _BootSendSequenceSandboxState();
@@ -26,8 +27,9 @@ class BootSendSequenceSandbox extends StatefulWidget {
 class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  var _concept = BootSendSequenceConcept.terminalSend;
+  var _concept = BootSendSequenceConcept.assemblyMatrix;
   var _mode = _OperationMode.brief;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +43,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   }
 
   void _replay() => _controller.forward(from: 0);
+
   @override
   Widget build(BuildContext context) {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
@@ -58,21 +61,21 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
           key: const ValueKey('boot-send-sequence-selector'),
           segments: const [
             ButtonSegment(
-              value: BootSendSequenceConcept.terminalSend,
-              label: Text('TERMINAL'),
+              value: BootSendSequenceConcept.assemblyMatrix,
+              label: FittedBox(child: Text('ASSEMBLY MATRIX')),
             ),
             ButtonSegment(
-              value: BootSendSequenceConcept.packetUplink,
-              label: Text('PACKET'),
+              value: BootSendSequenceConcept.voxelIntegration,
+              label: FittedBox(child: Text('VOXEL INTEGRATION')),
             ),
             ButtonSegment(
-              value: BootSendSequenceConcept.archiveDispatch,
-              label: Text('ARCHIVE'),
+              value: BootSendSequenceConcept.polyhedralFold,
+              label: FittedBox(child: Text('POLYHEDRAL FOLD')),
             ),
           ],
           selected: {_concept},
-          onSelectionChanged: (v) {
-            setState(() => _concept = v.first);
+          onSelectionChanged: (value) {
+            setState(() => _concept = value.first);
             _replay();
           },
         ),
@@ -88,7 +91,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
             ButtonSegment(value: _OperationMode.backup, label: Text('BACKUP')),
           ],
           selected: {_mode},
-          onSelectionChanged: (v) => setState(() => _mode = v.first),
+          onSelectionChanged: (value) => setState(() => _mode = value.first),
         ),
         const SizedBox(height: 12),
         AnimatedBuilder(
@@ -116,32 +119,38 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   }
 }
 
-String _caption(BootSendSequenceConcept c) => switch (c) {
-  BootSendSequenceConcept.terminalSend => 'TERMINAL SEND',
-  BootSendSequenceConcept.packetUplink => 'PACKET UPLINK',
-  BootSendSequenceConcept.archiveDispatch => 'ARCHIVE DISPATCH',
+String _caption(BootSendSequenceConcept concept) => switch (concept) {
+  BootSendSequenceConcept.assemblyMatrix => 'ASSEMBLY MATRIX',
+  BootSendSequenceConcept.voxelIntegration => 'VOXEL INTEGRATION',
+  BootSendSequenceConcept.polyhedralFold => 'POLYHEDRAL FOLD',
 };
-String _modeTitle(_OperationMode m) => switch (m) {
+
+String _modeTitle(_OperationMode mode) => switch (mode) {
   _OperationMode.brief => 'BRIEF SEQUENCE',
   _OperationMode.debrief => 'DEBRIEF SEQUENCE',
   _OperationMode.backup => 'BACKUP SEQUENCE',
 };
-BootSendSequencePhase bootSendSequencePhase(double p) =>
-    switch (p.clamp(0, 1)) {
-      < 2 / 15 => BootSendSequencePhase.initializing,
-      < 2 / 5 => BootSendSequencePhase.buildingData,
-      < 23 / 30 => BootSendSequencePhase.transmitting,
-      _ => BootSendSequencePhase.complete,
+
+BootSendSequencePhase bootSendSequencePhase(double progress) {
+  final value = progress.clamp(0, 1).toDouble();
+  if (value < .2) return BootSendSequencePhase.initializing;
+  if (value < 7 / 15) return BootSendSequencePhase.buildingData;
+  if (value < 23 / 30) return BootSendSequencePhase.integrating;
+  return BootSendSequencePhase.complete;
+}
+
+String bootSendSequencePhaseLabel(BootSendSequencePhase phase) =>
+    switch (phase) {
+      BootSendSequencePhase.initializing => 'INITIALIZING',
+      BootSendSequencePhase.buildingData => 'BUILDING DATA',
+      BootSendSequencePhase.integrating => 'INTEGRATING',
+      BootSendSequencePhase.complete => 'COMPLETE',
     };
-String bootSendSequencePhaseLabel(BootSendSequencePhase p) => switch (p) {
-  BootSendSequencePhase.initializing => 'INITIALIZING',
-  BootSendSequencePhase.buildingData => 'BUILDING DATA',
-  BootSendSequencePhase.transmitting => 'TRANSMITTING',
-  BootSendSequencePhase.complete => 'COMPLETE',
-};
-double _phase(double t, double start, double end) =>
-    ((t - start) / (end - start)).clamp(0, 1).toDouble();
-double _ease(double t) => Curves.easeInOutCubic.transform(t.clamp(0, 1));
+
+double _phase(double value, double start, double end) =>
+    ((value - start) / (end - start)).clamp(0, 1).toDouble();
+double _ease(double value) =>
+    Curves.easeInOutCubic.transform(value.clamp(0, 1));
 
 class _SendSequenceMonitor extends StatelessWidget {
   const _SendSequenceMonitor({
@@ -149,9 +158,11 @@ class _SendSequenceMonitor extends StatelessWidget {
     required this.mode,
     required this.progress,
   });
+
   final BootSendSequenceConcept concept;
   final _OperationMode mode;
   final double progress;
+
   @override
   Widget build(BuildContext context) => AspectRatio(
     aspectRatio: 360 / 280,
@@ -174,169 +185,172 @@ class _SendSequencePainter extends CustomPainter {
     required this.mode,
     required this.progress,
   });
+
   final BootSendSequenceConcept concept;
   final _OperationMode mode;
   final double progress;
+
   static const _screen = Color(0xff030d15);
   static const _cyan = Color(0xff39ddf2);
-  static const _mint = Color(0xff35e2c2);
-  Paint _fill(Color c) => Paint()..color = c;
-  Paint _line(Color c, [double w = 1]) => Paint()
-    ..color = c
+  static const _ice = Color(0xffd8fbff);
+  static const _violet = Color(0xff9588d9);
+  static const _amber = Color(0xffcaa765);
+
+  Paint _fill(Color color) => Paint()..color = color;
+  Paint _line(Color color, [double width = 1]) => Paint()
+    ..color = color
     ..style = PaintingStyle.stroke
-    ..strokeWidth = w;
-  Paint _glow(Color c, double sigma, [double w = 1]) =>
-      _line(c, w)..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
+    ..strokeWidth = width;
+  Paint _glow(Color color, double sigma, [double width = 1]) =>
+      _line(color, width)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
+
   @override
-  void paint(Canvas c, Size size) {
+  void paint(Canvas canvas, Size size) {
     final scale = math.min(size.width / 360, size.height / 280);
-    c.save();
-    c.translate(
+    canvas.save();
+    canvas.translate(
       (size.width - 360 * scale) / 2,
       (size.height - 280 * scale) / 2,
     );
-    c.scale(scale);
+    canvas.scale(scale);
     final t = progress.clamp(0, 1).toDouble();
-    _housing(c);
-    _grid(c);
-    _header(c, t);
+    _housing(canvas);
+    _grid(canvas);
+    _header(canvas, t);
     switch (concept) {
-      case BootSendSequenceConcept.terminalSend:
-        _terminal(c, t);
-      case BootSendSequenceConcept.packetUplink:
-        _packet(c, t);
-      case BootSendSequenceConcept.archiveDispatch:
-        _archive(c, t);
+      case BootSendSequenceConcept.assemblyMatrix:
+        _assemblyMatrix(canvas, t);
+      case BootSendSequenceConcept.voxelIntegration:
+        _voxelIntegration(canvas, t);
+      case BootSendSequenceConcept.polyhedralFold:
+        _polyhedralFold(canvas, t);
     }
-    _footer(c, t);
-    _bezel(c);
-    c.restore();
+    _footer(canvas, t);
+    _bezel(canvas);
+    canvas.restore();
   }
 
-  void _housing(Canvas c) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, 4, 352, 272),
-        const Radius.circular(13),
-      ),
-      _fill(const Color(0xff101c25)),
+  void _housing(Canvas canvas) {
+    final body = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(4, 4, 352, 272),
+      const Radius.circular(13),
     );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, 4, 352, 272),
-        const Radius.circular(13),
-      ),
-      _line(const Color(0xff45697a), 2),
-    );
-    c.drawRRect(
+    canvas.drawRRect(body, _fill(const Color(0xff101c25)));
+    canvas.drawRRect(body, _line(const Color(0xff45697a), 2));
+    canvas.drawRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(10, 10, 340, 260),
         const Radius.circular(9),
       ),
       _fill(const Color(0xff061018)),
     );
-    c.drawRect(const Rect.fromLTWH(19, 21, 322, 238), _fill(_screen));
-    c.drawRect(
+    canvas.drawRect(const Rect.fromLTWH(19, 21, 322, 238), _fill(_screen));
+    canvas.drawRect(
       const Rect.fromLTWH(19, 21, 322, 238),
       _line(const Color(0xff31788a)),
     );
     for (final x in [31.0, 303.0]) {
-      c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 14, 26, 3),
-          const Radius.circular(1),
-        ),
-        _fill(const Color(0xff294957)),
-      );
-      c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 18, 26, 3),
-          const Radius.circular(1),
-        ),
-        _fill(const Color(0xff172f3b)),
-      );
+      for (var row = 0; row < 2; row++) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, 14 + row * 4, 26, 3),
+            const Radius.circular(1),
+          ),
+          _fill(row == 0 ? const Color(0xff294957) : const Color(0xff172f3b)),
+        );
+      }
     }
-    for (final p in const [
+    for (final point in const [
       Offset(13, 13),
       Offset(347, 13),
       Offset(13, 267),
       Offset(347, 267),
     ]) {
-      c.drawCircle(p, 2, _fill(const Color(0xff5a7a87)));
-      c.drawCircle(p, .75, _fill(const Color(0xff0b151c)));
+      canvas.drawCircle(point, 2, _fill(const Color(0xff5a7a87)));
+      canvas.drawCircle(point, .75, _fill(const Color(0xff0b151c)));
     }
-    for (final q in const [
+    for (final point in const [
       Offset(20, 22),
       Offset(340, 22),
       Offset(20, 258),
       Offset(340, 258),
     ]) {
-      final sx = q.dx < 180 ? 1.0 : -1.0,
-          sy = q.dy < 140 ? 1.0 : -1.0,
-          p = _line(const Color(0xff64bfcf), 1.4);
-      c.drawLine(q, q + Offset(12 * sx, 0), p);
-      c.drawLine(q, q + Offset(0, 12 * sy), p);
+      final sx = point.dx < 180 ? 1.0 : -1.0;
+      final sy = point.dy < 140 ? 1.0 : -1.0;
+      final paint = _line(const Color(0xff64bfcf), 1.4);
+      canvas.drawLine(point, point + Offset(12 * sx, 0), paint);
+      canvas.drawLine(point, point + Offset(0, 12 * sy), paint);
     }
   }
 
-  void _grid(Canvas c) {
-    final p = _line(const Color(0xff6ba4b5).withValues(alpha: .045), .6);
+  void _grid(Canvas canvas) {
+    final paint = _line(const Color(0xff6ba4b5).withValues(alpha: .045), .6);
     for (var x = 20.0; x < 341; x += 24) {
-      c.drawLine(Offset(x, 22), Offset(x, 258), p);
+      canvas.drawLine(Offset(x, 22), Offset(x, 258), paint);
     }
     for (var y = 22.0; y < 259; y += 24) {
-      c.drawLine(Offset(20, y), Offset(340, y), p);
+      canvas.drawLine(Offset(20, y), Offset(340, y), paint);
     }
   }
 
-  void _header(Canvas c, double t) {
-    _text(c, 'SYSTEM / 01', const Offset(30, 35), 9, const Color(0xff7ba9b8));
-    _center(
-      c,
-      _modeTitle(mode),
-      const Offset(180, 39),
-      10,
-      const Color(0xffd8fbff),
+  void _header(Canvas canvas, double t) {
+    _text(
+      canvas,
+      'SYSTEM / 01',
+      const Offset(30, 35),
+      9,
+      const Color(0xff7ba9b8),
     );
-    _text(c, 'SIMULATION', const Offset(272, 35), 8, const Color(0xff6f9bac));
-    final on = t >= 23 / 30 ? const Color(0xff8af6e9) : const Color(0xff2d8fa7);
-    c.drawCircle(
+    _center(canvas, _modeTitle(mode), const Offset(180, 39), 10, _ice);
+    _text(canvas, 'SANDBOX', const Offset(279, 35), 8, const Color(0xff6f9bac));
+    final color = t >= 23 / 30
+        ? const Color(0xff8af6e9)
+        : const Color(0xff2d8fa7);
+    canvas.drawCircle(
       const Offset(327, 39),
       5,
-      _glow(on.withValues(alpha: .42), 7, 5),
+      _glow(color.withValues(alpha: .35), 7, 5),
     );
-    c.drawCircle(
+    canvas.drawCircle(
       const Offset(327, 39),
       5,
-      _glow(on.withValues(alpha: .75), 3, 3),
+      _glow(color.withValues(alpha: .75), 3, 3),
     );
-    c.drawCircle(const Offset(327, 39), 3, _fill(on));
-    c.drawLine(
+    canvas.drawCircle(const Offset(327, 39), 3, _fill(color));
+    canvas.drawLine(
       const Offset(30, 65),
       const Offset(330, 65),
       _line(const Color(0xff386277), .7),
     );
   }
 
-  void _footer(Canvas c, double t) {
+  void _footer(Canvas canvas, double t) {
     final phase = bootSendSequencePhase(t);
-    final status = phase == BootSendSequencePhase.complete
+    final state = phase == BootSendSequencePhase.complete
         ? switch (concept) {
-            BootSendSequenceConcept.terminalSend => 'TRANSMISSION COMPLETE',
-            BootSendSequenceConcept.packetUplink => 'UPLINK VERIFIED',
-            BootSendSequenceConcept.archiveDispatch => 'ARCHIVE VERIFIED',
+            BootSendSequenceConcept.assemblyMatrix => 'ASSEMBLY COMPLETE',
+            BootSendSequenceConcept.voxelIntegration => 'INTEGRATION COMPLETE',
+            BootSendSequenceConcept.polyhedralFold => 'FOLD COMPLETE',
           }
         : bootSendSequencePhaseLabel(phase);
     _text(
-      c,
-      bootSendSequencePhaseLabel(phase),
-      const Offset(30, 230),
+      canvas,
+      _caption(concept),
+      const Offset(30, 219),
+      8,
+      const Color(0xff71a7b8),
+    );
+    _text(
+      canvas,
+      '${(t * 100).round().clamp(0, 100)}%',
+      const Offset(30, 231),
       9,
       const Color(0xffa1dbe6),
     );
     _right(
-      c,
-      status,
+      canvas,
+      state,
       const Offset(330, 230),
       8.5,
       phase == BootSendSequencePhase.complete
@@ -344,15 +358,15 @@ class _SendSequencePainter extends CustomPainter {
           : const Color(0xff6694a5),
     );
     final active = (t * 20).floor().clamp(0, 20);
-    for (var i = 0; i < 20; i++) {
+    for (var index = 0; index < 20; index++) {
       final color = phase == BootSendSequencePhase.complete
           ? const Color(0xff8af6e9)
-          : i < active
+          : index < active
           ? const Color(0xff42daf2)
           : const Color(0xff193443);
-      c.drawRRect(
+      canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(30 + i * 14, 242, 10, 5),
+          Rect.fromLTWH(30 + index * 14, 242, 10, 5),
           const Radius.circular(1),
         ),
         _fill(color),
@@ -360,358 +374,567 @@ class _SendSequencePainter extends CustomPainter {
     }
   }
 
-  void _bezel(Canvas c) {
-    c.drawLine(
+  void _bezel(Canvas canvas) {
+    canvas.drawLine(
       const Offset(13, 29),
       const Offset(13, 245),
       _line(const Color(0xff7bc6d5).withValues(alpha: .17), .7),
     );
-    c.drawLine(
+    canvas.drawLine(
       const Offset(347, 29),
       const Offset(347, 245),
       _line(const Color(0xff02080c)),
     );
   }
 
-  void _panel(Canvas c, Rect r, Color accent) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(3)),
+  void _panel(Canvas canvas, Rect rect, Color accent) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(3)),
       _fill(const Color(0xff071923)),
     );
-    c.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(3)),
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(3)),
       _line(accent.withValues(alpha: .55)),
     );
   }
 
-  void _terminal(Canvas c, double t) {
-    const left = Rect.fromLTWH(28, 77, 177, 126),
-        right = Rect.fromLTWH(213, 77, 118, 126);
-    _panel(c, left, _cyan);
-    _panel(c, right, _cyan);
-    final lines = [
-      'SOURCE LINK',
-      'VERIFY RECORDS',
-      'BUILD PAYLOAD',
-      'SERIALIZE DATA',
-      'OPEN CHANNEL',
-      'TRANSMIT BUFFER',
+  void _assemblyMatrix(Canvas canvas, double t) {
+    const matrix = Rect.fromLTWH(114, 78, 132, 126);
+    const tray = Rect.fromLTWH(34, 166, 57, 30);
+    const seal = Rect.fromLTWH(270, 80, 52, 34);
+    final build = _phase(t, .2, 7 / 15);
+    final integrate = _phase(t, 7 / 15, 23 / 30);
+    final lock = _phase(t, 23 / 30, 1);
+    _text(
+      canvas,
+      'SOURCE TRAY',
+      const Offset(34, 153),
+      7.5,
+      const Color(0xff86b7c5),
+    );
+    _panel(canvas, tray, _cyan);
+    _text(canvas, 'SEAL', const Offset(270, 72), 7.5, const Color(0xff86b7c5));
+    _panel(canvas, seal, _cyan);
+    _text(
+      canvas,
+      lock >= 1
+          ? 'SAVED'
+          : lock > 0
+          ? 'LOCK'
+          : 'WAIT',
+      const Offset(278, 93),
+      8,
+      lock > 0 ? _ice : const Color(0xff5f8795),
+    );
+    final litSource = (math.max(_phase(t, 0, .2), build) * 10).ceil().clamp(
+      0,
+      10,
+    );
+    for (var index = 0; index < 10; index++) {
+      final x = tray.left + 7 + (index % 5) * 9.5;
+      final y = tray.top + 8 + (index ~/ 5) * 11;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, 6, 6),
+          const Radius.circular(1),
+        ),
+        _fill(
+          index < litSource
+              ? _cyan.withValues(alpha: .85)
+              : const Color(0xff153542),
+        ),
+      );
+    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(matrix, const Radius.circular(4)),
+      _fill(const Color(0xff061520)),
+    );
+    const order = [
+      0,
+      7,
+      1,
+      8,
+      14,
+      2,
+      15,
+      21,
+      9,
+      3,
+      16,
+      22,
+      28,
+      10,
+      4,
+      17,
+      23,
+      29,
+      35,
+      11,
+      5,
+      18,
+      24,
+      30,
+      6,
+      12,
+      19,
+      25,
+      31,
+      13,
+      20,
+      26,
+      32,
+      27,
+      33,
+      34,
     ];
-    final b = _phase(t, 2 / 15, .4);
-    final visible = (b * 6).ceil().clamp(0, 6);
-    for (var i = 0; i < visible; i++) {
-      final done = i < b * 6 - .55 || t >= .4,
-          current = !done && i == visible - 1,
-          color = done ? const Color(0xff8adfea) : const Color(0xffe2ffff),
-          y = 88 + i * 19.0;
-      c.drawCircle(
-        Offset(39, y - 3),
-        2,
-        _fill(done ? _cyan : const Color(0xff315263)),
+    final filled = (build * 24).floor() + (integrate * 12).floor();
+    for (var visualIndex = 0; visualIndex < 36; visualIndex++) {
+      final cell = order[visualIndex];
+      final x = matrix.left + 9 + (cell % 6) * 19;
+      final y = matrix.top + 8 + (cell ~/ 6) * 19;
+      final active = visualIndex < filled;
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, 16, 16),
+        const Radius.circular(2),
       );
-      _text(c, '> ${lines[i]}', Offset(46, y - 8), 9.5, color);
-      if (current) c.drawRect(Rect.fromLTWH(184, y - 8, 2, 11), _fill(_cyan));
+      if (active) {
+        canvas.drawRRect(
+          rect,
+          _fill(_cyan.withValues(alpha: .55 + (visualIndex % 4) * .08)),
+        );
+      }
+      canvas.drawRRect(
+        rect,
+        _line(
+          active ? _ice.withValues(alpha: .75) : _cyan.withValues(alpha: .22),
+          .7,
+        ),
+      );
     }
-    final banks = (b * 4).ceil().clamp(0, 4);
-    for (var i = 0; i < 4; i++) {
-      final bank = Rect.fromLTWH(222, 88 + i * 19, 27, 11), on = i < banks;
-      c.drawRect(
-        bank,
-        _fill(on ? const Color(0xff1c6676) : const Color(0xff102b36)),
+    if (build > 0 && build < 1) {
+      final cell = order[(build * 24).floor().clamp(0, 23)];
+      final target = Offset(
+        matrix.left + 17 + (cell % 6) * 19,
+        matrix.top + 16 + (cell ~/ 6) * 19,
       );
-      c.drawRect(bank, _line(const Color(0xff6ecfdf), .7));
-      if (on) {
-        c.drawLine(
-          Offset(bank.right, bank.center.dy),
-          const Offset(260, 126),
-          _line(_cyan.withValues(alpha: .65), .9),
+      final point = Offset.lerp(tray.center, target, _ease((build * 24) % 1))!;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: point, width: 10, height: 10),
+          const Radius.circular(2),
+        ),
+        _fill(_ice),
+      );
+    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(matrix, const Radius.circular(4)),
+      _line(_cyan.withValues(alpha: .35 + integrate * .55), 1.1),
+    );
+    if (integrate > 0) {
+      for (var scan = 0; scan < 3; scan++) {
+        final offset = ((integrate * 1.4) + scan * .31).remainder(1.0);
+        final y = matrix.top + 6 + offset * (matrix.height - 12);
+        canvas.drawLine(
+          Offset(matrix.left + 5, y),
+          Offset(matrix.right - 5, y),
+          _glow(_ice.withValues(alpha: .45), 2, 1.1),
+        );
+        canvas.drawLine(
+          Offset(matrix.left + 5, y),
+          Offset(matrix.right - 5, y),
+          _line(_ice.withValues(alpha: .78), .7),
         );
       }
     }
-    const encode = Rect.fromLTWH(258, 111, 27, 30);
-    c.drawRect(encode, _fill(const Color(0xff102c39)));
-    c.drawRect(encode, _line(const Color(0xff92efff)));
-    _center(c, 'ENC', encode.center, 7, const Color(0xffb9f8ff));
-    c.drawLine(
-      const Offset(285, 126),
-      const Offset(310, 126),
-      _line(const Color(0xff4ccfe5)),
-    );
-    c.drawPath(
-      Path()
-        ..moveTo(310, 120)
-        ..lineTo(320, 126)
-        ..lineTo(310, 132),
-      _line(const Color(0xff92efff), 1.2),
-    );
-    final tx = _phase(t, .4, 23 / 30);
-    for (var i = 0; i < 5; i++) {
-      final p = ((tx * 1.65) - i * .23).clamp(0.0, 1.0);
-      if (p > 0 && p < 1) {
-        c.drawRect(
-          Rect.fromLTWH(286 + p * 24, 123 + (i.isEven ? -3 : 3), 12, 4),
-          _fill(const Color(0xffe2ffff)),
-        );
-      }
+    final bracket = 12 * _ease(lock);
+    for (final point in [
+      Offset(matrix.left, matrix.top),
+      Offset(matrix.right, matrix.top),
+      Offset(matrix.left, matrix.bottom),
+      Offset(matrix.right, matrix.bottom),
+    ]) {
+      final dx = point.dx < matrix.center.dx ? 1.0 : -1.0;
+      final dy = point.dy < matrix.center.dy ? 1.0 : -1.0;
+      final paint = _line(_ice.withValues(alpha: .45 + lock * .55), 1.4);
+      canvas.drawLine(point, point + Offset(dx * bracket, 0), paint);
+      canvas.drawLine(point, point + Offset(0, dy * bracket), paint);
     }
   }
 
-  void _packet(Canvas c, double t) {
-    const source = Rect.fromLTWH(27, 92, 84, 88),
-        dest = Rect.fromLTWH(249, 92, 84, 88);
-    _panel(c, source, const Color(0xff4aaeff));
-    _panel(c, dest, const Color(0xff4aaeff));
+  void _voxelIntegration(Canvas canvas, double t) {
+    const accent = Color(0xff69b9ff);
+    const chamber = Rect.fromLTWH(103, 82, 154, 112);
+    final build = _phase(t, .2, 7 / 15);
+    final integrate = _phase(t, 7 / 15, 23 / 30);
+    final lock = _phase(t, 23 / 30, 1);
     _text(
-      c,
-      'LINK / TX / RX',
-      const Offset(28, 78),
+      canvas,
+      'VOXEL CHAMBER',
+      const Offset(111, 72),
       8,
       const Color(0xffb0e6ff),
     );
-    final b = _phase(t, 2 / 15, .4), tx = _phase(t, .4, 23 / 30);
-    _memory(c, source, (b * 8).ceil().clamp(0, 8), const Color(0xff4aaeff));
-    _memory(c, dest, (tx * 8).floor().clamp(0, 8), const Color(0xffb0e6ff));
-    final p = _line(const Color(0xff4aaeff).withValues(alpha: .5), .8);
-    c.drawArc(const Rect.fromLTWH(114, 101, 132, 35), 0, math.pi, false, p);
-    c.drawArc(
-      const Rect.fromLTWH(114, 126, 132, 35),
-      math.pi,
-      math.pi,
-      false,
-      p,
+    _isometricChamber(canvas, chamber, accent);
+    const nodes = [
+      Offset(53, 102),
+      Offset(53, 168),
+      Offset(306, 102),
+      Offset(306, 168),
+    ];
+    for (var index = 0; index < nodes.length; index++) {
+      final node = nodes[index];
+      canvas.drawCircle(node, 6, _line(accent.withValues(alpha: .45), 1));
+      if (t >= index * .045) {
+        canvas.drawCircle(node, 3, _fill(accent.withValues(alpha: .75)));
+      }
+      canvas.drawLine(
+        node,
+        chamber.center,
+        _line(accent.withValues(alpha: .14), .7),
+      );
+    }
+    const targets = [
+      Offset(148, 138),
+      Offset(164, 130),
+      Offset(180, 138),
+      Offset(196, 130),
+      Offset(156, 151),
+      Offset(172, 143),
+      Offset(188, 151),
+      Offset(204, 143),
+      Offset(164, 164),
+      Offset(180, 156),
+      Offset(196, 164),
+      Offset(212, 156),
+      Offset(172, 177),
+      Offset(188, 169),
+      Offset(204, 177),
+      Offset(220, 169),
+    ];
+    final count = (build * 8).floor() + (integrate * 8).floor();
+    for (var index = 0; index < targets.length; index++) {
+      if (index < count) {
+        _cube(canvas, targets[index], accent, bright: lock > 0 || index >= 8);
+      }
+    }
+    if (build > 0 && build < 1) {
+      final index = (build * 8).floor().clamp(0, 7);
+      final point = Offset.lerp(
+        nodes[index % nodes.length],
+        targets[index],
+        _ease((build * 8) % 1),
+      )!;
+      _cube(canvas, point, _ice, bright: true);
+    }
+    if (integrate > 0 && integrate < 1) {
+      final index = 8 + (integrate * 8).floor().clamp(0, 7);
+      final point = Offset.lerp(
+        nodes[index % nodes.length],
+        targets[index],
+        _ease((integrate * 8) % 1),
+      )!;
+      _cube(canvas, point, _ice, bright: true);
+    }
+    if (integrate > 0) {
+      final frame = RRect.fromRectAndRadius(
+        const Rect.fromLTWH(137, 119, 94, 67),
+        const Radius.circular(3),
+      );
+      canvas.drawRRect(
+        frame,
+        _line(accent.withValues(alpha: .25 + integrate * .55), 1),
+      );
+    }
+    if (lock > 0) {
+      final plate = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: const Offset(184, 151),
+          width: 62 * lock,
+          height: 18 * lock,
+        ),
+        const Radius.circular(2),
+      );
+      canvas.drawRRect(plate, _fill(_ice.withValues(alpha: .14)));
+      canvas.drawRRect(plate, _line(_ice.withValues(alpha: .7), .8));
+      _center(canvas, 'LOCK', const Offset(184, 151), 7, _ice);
+    }
+  }
+
+  void _isometricChamber(Canvas canvas, Rect rect, Color accent) {
+    final top = Path()
+      ..moveTo(rect.center.dx, rect.top)
+      ..lineTo(rect.right, rect.top + 25)
+      ..lineTo(rect.center.dx, rect.top + 50)
+      ..lineTo(rect.left, rect.top + 25)
+      ..close();
+    final left = Path()
+      ..moveTo(rect.left, rect.top + 25)
+      ..lineTo(rect.center.dx, rect.top + 50)
+      ..lineTo(rect.center.dx, rect.bottom)
+      ..lineTo(rect.left, rect.bottom - 25)
+      ..close();
+    final right = Path()
+      ..moveTo(rect.right, rect.top + 25)
+      ..lineTo(rect.center.dx, rect.top + 50)
+      ..lineTo(rect.center.dx, rect.bottom)
+      ..lineTo(rect.right, rect.bottom - 25)
+      ..close();
+    canvas.drawPath(top, _fill(const Color(0xff0e2b3a)));
+    canvas.drawPath(left, _fill(const Color(0xff09202d)));
+    canvas.drawPath(right, _fill(const Color(0xff12354a)));
+    canvas.drawPath(top, _line(accent.withValues(alpha: .62), 1));
+    canvas.drawPath(left, _line(accent.withValues(alpha: .34), .8));
+    canvas.drawPath(right, _line(accent.withValues(alpha: .46), .8));
+  }
+
+  void _cube(
+    Canvas canvas,
+    Offset center,
+    Color color, {
+    required bool bright,
+  }) {
+    const width = 15.0;
+    const height = 9.0;
+    final top = Path()
+      ..moveTo(center.dx, center.dy - height)
+      ..lineTo(center.dx + width / 2, center.dy - height / 2)
+      ..lineTo(center.dx, center.dy)
+      ..lineTo(center.dx - width / 2, center.dy - height / 2)
+      ..close();
+    final left = Path()
+      ..moveTo(center.dx - width / 2, center.dy - height / 2)
+      ..lineTo(center.dx, center.dy)
+      ..lineTo(center.dx, center.dy + height)
+      ..lineTo(center.dx - width / 2, center.dy + height / 2)
+      ..close();
+    final right = Path()
+      ..moveTo(center.dx + width / 2, center.dy - height / 2)
+      ..lineTo(center.dx, center.dy)
+      ..lineTo(center.dx, center.dy + height)
+      ..lineTo(center.dx + width / 2, center.dy + height / 2)
+      ..close();
+    if (bright) {
+      canvas.drawCircle(center, 8, _glow(color.withValues(alpha: .25), 3, 6));
+    }
+    canvas.drawPath(top, _fill(color.withValues(alpha: .88)));
+    canvas.drawPath(left, _fill(color.withValues(alpha: .42)));
+    canvas.drawPath(right, _fill(color.withValues(alpha: .64)));
+    canvas.drawPath(
+      top,
+      _line(_ice.withValues(alpha: bright ? .85 : .45), .65),
     );
-    c.drawLine(
-      const Offset(114, 136),
-      const Offset(246, 136),
-      _line(const Color(0xff79d8ff).withValues(alpha: .35)),
+  }
+
+  void _polyhedralFold(Canvas canvas, double t) {
+    final build = _phase(t, .2, 7 / 15);
+    final integrate = _phase(t, 7 / 15, 23 / 30);
+    final lock = _phase(t, 23 / 30, 1);
+    _text(
+      canvas,
+      'UNFOLDED NET',
+      const Offset(37, 79),
+      7.5,
+      const Color(0xffb5adf2),
     );
-    for (var i = 0; i < 8; i++) {
-      final local = ((tx - (.10 + i * .09)) / .245).clamp(0.0, 1.0);
-      if (local > 0 && local < 1) {
-        final x = 108 + _ease(local) * 142;
-        final r = RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 133, 12, 6),
+    _text(
+      canvas,
+      'FOLD ARRAY',
+      const Offset(151, 79),
+      7.5,
+      const Color(0xffb5adf2),
+    );
+    _text(
+      canvas,
+      'ARCHIVE BAY',
+      const Offset(260, 79),
+      7.5,
+      const Color(0xffb5adf2),
+    );
+    const origin = Offset(70, 137);
+    const center = Offset(184, 137);
+    final finalCenter = Offset.lerp(
+      center,
+      const Offset(286, 137),
+      _ease(lock),
+    )!;
+    _archiveBay(canvas);
+    for (var index = 0; index < 6; index++) {
+      final local = index < 3
+          ? ((build * 3) - index).clamp(0.0, 1.0)
+          : ((integrate * 3) - (index - 3)).clamp(0.0, 1.0);
+      final source = origin + _netOffset(index);
+      final target = finalCenter + _capsuleOffset(index);
+      final face = Offset.lerp(source, target, _ease(local))!;
+      _foldFace(canvas, face, index, local);
+      if (local < 1) {
+        canvas.drawLine(
+          origin,
+          source,
+          _line(_violet.withValues(alpha: .22), .7),
+        );
+      }
+    }
+    if (integrate > .66) {
+      final path = _capsulePath(finalCenter, 34);
+      canvas.drawPath(path, _glow(_ice.withValues(alpha: .28), 3, 2));
+      canvas.drawPath(path, _line(_ice.withValues(alpha: .86), 1.2));
+    }
+    if (lock > 0) {
+      canvas.drawCircle(
+        finalCenter,
+        29 + lock * 7,
+        _line(_ice.withValues(alpha: .4 + lock * .35), 1),
+      );
+      final reticle = 12 * lock;
+      canvas.drawLine(
+        finalCenter - Offset(reticle, 0),
+        finalCenter + Offset(reticle, 0),
+        _line(_ice, 1),
+      );
+      canvas.drawLine(
+        finalCenter - Offset(0, reticle),
+        finalCenter + Offset(0, reticle),
+        _line(_ice, 1),
+      );
+      _center(canvas, 'SEAL', finalCenter + const Offset(0, 42), 7, _ice);
+    }
+  }
+
+  Offset _netOffset(int index) => switch (index) {
+    0 => const Offset(0, 0),
+    1 => const Offset(-25, 0),
+    2 => const Offset(25, 0),
+    3 => const Offset(0, -25),
+    4 => const Offset(0, 25),
+    _ => const Offset(-25, 25),
+  };
+  Offset _capsuleOffset(int index) => switch (index) {
+    0 => const Offset(0, -18),
+    1 => const Offset(-21, -4),
+    2 => const Offset(21, -4),
+    3 => const Offset(-12, 16),
+    4 => const Offset(12, 16),
+    _ => const Offset(0, 2),
+  };
+
+  void _foldFace(Canvas canvas, Offset center, int index, double folded) {
+    final width = 28 - folded * 6;
+    final height = 23 - folded * 7;
+    final tilt = (index.isEven ? 1 : -1) * folded * 7;
+    final path = Path()
+      ..moveTo(center.dx - width / 2, center.dy - height / 2 + tilt)
+      ..lineTo(center.dx + width / 2, center.dy - height / 2 - tilt)
+      ..lineTo(center.dx + width / 2, center.dy + height / 2 - tilt)
+      ..lineTo(center.dx - width / 2, center.dy + height / 2 + tilt)
+      ..close();
+    canvas.drawPath(path, _fill(_violet.withValues(alpha: .22 + folded * .48)));
+    canvas.drawPath(
+      path,
+      _line(_ice.withValues(alpha: .35 + folded * .55), .9),
+    );
+    canvas.drawLine(
+      Offset(center.dx - width / 2 + 4, center.dy),
+      Offset(center.dx + width / 2 - 4, center.dy),
+      _line(_amber.withValues(alpha: .22), .55),
+    );
+  }
+
+  Path _capsulePath(Offset center, double radius) => Path()
+    ..moveTo(center.dx, center.dy - radius)
+    ..lineTo(center.dx + radius * .82, center.dy - radius * .42)
+    ..lineTo(center.dx + radius * .82, center.dy + radius * .42)
+    ..lineTo(center.dx, center.dy + radius)
+    ..lineTo(center.dx - radius * .82, center.dy + radius * .42)
+    ..lineTo(center.dx - radius * .82, center.dy - radius * .42)
+    ..close();
+
+  void _archiveBay(Canvas canvas) {
+    const bay = Rect.fromLTWH(257, 91, 62, 92);
+    _panel(canvas, bay, _violet);
+    for (var index = 0; index < 3; index++) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(266, 106 + index * 21, 44, 13),
           const Radius.circular(2),
-        );
-        c.drawRRect(
-          r,
-          _glow(const Color(0xff4aaeff).withValues(alpha: .55), 2, 6),
-        );
-        c.drawRRect(r, _fill(const Color(0xffd9f6ff)));
-      }
-    }
-    _text(
-      c,
-      'PACKETS ${(tx * 8).floor().clamp(0, 8).toString().padLeft(2, '0')}/08',
-      const Offset(115, 172),
-      8,
-      const Color(0xff9ac8dc),
-    );
-    _text(
-      c,
-      tx >= 1 ? 'LINK STATE  STABLE' : 'LINK STATE  UPLINK',
-      const Offset(115, 184),
-      8,
-      const Color(0xff8fc8df),
-    );
-  }
-
-  void _memory(Canvas c, Rect r, int filled, Color accent) {
-    for (var i = 0; i < 8; i++) {
-      final cell = Rect.fromLTWH(
-        r.left + 11 + (i % 4) * 17,
-        r.top + 20 + (i ~/ 4) * 22,
-        13,
-        12,
-      );
-      c.drawRRect(
-        RRect.fromRectAndRadius(cell, const Radius.circular(1)),
-        _fill(
-          i < filled ? accent.withValues(alpha: .72) : const Color(0xff102b38),
         ),
-      );
-      c.drawRRect(
-        RRect.fromRectAndRadius(cell, const Radius.circular(1)),
-        _line(accent.withValues(alpha: .7), .7),
+        _line(_violet.withValues(alpha: .45), .7),
       );
     }
   }
 
-  void _archive(Canvas c, double t) {
-    const input = Rect.fromLTWH(29, 93, 83, 90),
-        chamber = Rect.fromLTWH(135, 87, 90, 105),
-        output = Rect.fromLTWH(248, 93, 82, 90);
-    _text(c, 'ARCHIVE INPUT', const Offset(29, 78), 8, const Color(0xffb7fff0));
-    _stack(c, input, 5, _mint, false);
-    _chamber(c, chamber, t);
-    final tx = _phase(t, .4, 23 / 30);
-    _stack(c, output, (tx * 5).floor().clamp(0, 5), _mint, true);
-    final b = _phase(t, 2 / 15, .4);
-    for (var i = 0; i < 5; i++) {
-      final p = ((b - i * .1625) / .16).clamp(0.0, 1.0);
-      if (p > 0 && p < 1) {
-        _document(
-          c,
-          Rect.fromLTWH(35 + p * 116, 107 + i * 11, 52 - 24 * p, 18 - 8 * p),
-          i,
-          const Color(0xffb7fff0),
-        );
-      }
-    }
-    c.drawLine(
-      const Offset(220, 123),
-      const Offset(249, 112),
-      _line(_mint.withValues(alpha: .45)),
-    );
-    c.drawLine(
-      const Offset(220, 157),
-      const Offset(249, 168),
-      _line(_mint.withValues(alpha: .45)),
-    );
-    for (var i = 0; i < 5; i++) {
-      final p = ((tx * 1.45) - i * .22).clamp(0.0, 1.0);
-      if (p > 0 && p < 1) {
-        c.drawRect(
-          Rect.fromLTWH(214 + _ease(p) * 42, 132 + (i % 2) * 8, 15, 9),
-          _fill(const Color(0xffd7fff7)),
-        );
-      }
-    }
-  }
-
-  void _stack(Canvas c, Rect r, int count, Color accent, bool receiving) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(3)),
-      _fill(const Color(0xff071923)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(3)),
-      _line(accent.withValues(alpha: .55)),
-    );
-    for (var i = 0; i < 5; i++) {
-      final y = r.bottom - 18 - i * 13;
-      if (!receiving || i < count) {
-        _document(c, Rect.fromLTWH(r.left + 10 + i * 2, y, 52, 18), i, accent);
-      } else {
-        c.drawRect(
-          Rect.fromLTWH(r.left + 11, y, 54, 17),
-          _line(const Color(0xff29505a), .6),
-        );
-      }
-    }
-  }
-
-  void _document(Canvas c, Rect r, int index, Color accent) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(1)),
-      _fill(const Color(0xff103440)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(1)),
-      _line(accent.withValues(alpha: .85), .8),
-    );
-    for (var l = 0; l < 4; l++) {
-      c.drawLine(
-        Offset(r.left + 12, r.top + 4 + l * 3),
-        Offset(r.right - 4, r.top + 4 + l * 3),
-        _line(accent.withValues(alpha: .42), .55),
-      );
-    }
-    _text(c, '${index + 1}', Offset(r.left + 3, r.top + 3), 6, accent);
-  }
-
-  void _chamber(Canvas c, Rect r, double t) {
-    final center = r.center, path = Path();
-    for (var i = 0; i < 6; i++) {
-      final a = -math.pi / 2 + i * math.pi / 3,
-          p = center + Offset(math.cos(a) * 43, math.sin(a) * 43);
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
-    }
-    path.close();
-    c.drawPath(path, _fill(const Color(0xff09242c)));
-    c.drawPath(path, _line(_mint.withValues(alpha: .75), 1.2));
-    final core = Rect.fromCenter(center: center, width: 55, height: 55);
-    c.drawRect(core, _fill(const Color(0xff0e3540)));
-    c.drawRect(core, _line(const Color(0xffb7fff0), .8));
-    final b = _phase(t, 2 / 15, .4);
-    for (var i = 0; i < 16; i++) {
-      final on = i < (b * 16).ceil() || t >= .4;
-      c.drawRect(
-        Rect.fromLTWH(
-          core.left + 8 + (i % 4) * 10,
-          core.top + 8 + (i ~/ 4) * 10,
-          6,
-          6,
-        ),
-        _fill(on ? _mint : const Color(0xff17434c)),
-      );
-    }
-    for (final p in [
-      Offset(core.left - 7, core.top + 8),
-      Offset(core.right + 2, core.top + 8),
-      Offset(core.left - 7, core.bottom - 14),
-      Offset(core.right + 2, core.bottom - 14),
-    ]) {
-      c.drawRect(
-        Rect.fromLTWH(p.dx, p.dy, 5, 12),
-        _fill(const Color(0xff80e7d8)),
-      );
-    }
-  }
-
-  void _text(Canvas c, String text, Offset at, double size, Color color) {
-    final p = TextPainter(
+  void _text(
+    Canvas canvas,
+    String value,
+    Offset offset,
+    double size,
+    Color color,
+  ) {
+    final painter = TextPainter(
       text: TextSpan(
-        text: text,
+        text: value,
         style: TextStyle(
-          fontFamily: 'ShareTechMono',
-          fontSize: size,
           color: color,
-          letterSpacing: .35,
+          fontSize: size,
+          fontFamily: 'ShareTechMono',
+          fontWeight: FontWeight.w500,
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    p.paint(c, at);
+    painter.paint(canvas, offset);
   }
 
-  void _center(Canvas c, String text, Offset at, double size, Color color) {
-    final p = TextPainter(
+  void _center(
+    Canvas canvas,
+    String value,
+    Offset center,
+    double size,
+    Color color,
+  ) {
+    final painter = TextPainter(
       text: TextSpan(
-        text: text,
+        text: value,
         style: TextStyle(
-          fontFamily: 'ShareTechMono',
-          fontSize: size,
           color: color,
-          letterSpacing: .35,
+          fontSize: size,
+          fontFamily: 'ShareTechMono',
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    p.paint(c, at - Offset(p.width / 2, p.height / 2));
+    painter.paint(
+      canvas,
+      center - Offset(painter.width / 2, painter.height / 2),
+    );
   }
 
-  void _right(Canvas c, String text, Offset at, double size, Color color) {
-    final p = TextPainter(
+  void _right(
+    Canvas canvas,
+    String value,
+    Offset right,
+    double size,
+    Color color,
+  ) {
+    final painter = TextPainter(
       text: TextSpan(
-        text: text,
+        text: value,
         style: TextStyle(
-          fontFamily: 'ShareTechMono',
-          fontSize: size,
           color: color,
-          letterSpacing: .3,
+          fontSize: size,
+          fontFamily: 'ShareTechMono',
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    p.paint(c, Offset(at.dx - p.width, at.dy));
+    painter.paint(
+      canvas,
+      Offset(right.dx - painter.width, right.dy - painter.height / 2),
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _SendSequencePainter old) =>
-      old.concept != concept || old.mode != mode || old.progress != progress;
+  bool shouldRepaint(covariant _SendSequencePainter oldDelegate) =>
+      oldDelegate.concept != concept ||
+      oldDelegate.mode != mode ||
+      oldDelegate.progress != progress;
 }
