@@ -118,6 +118,33 @@ void main() {
       (order.last % 6 - 2.5).abs(),
     );
     expect(firstDistance, lessThan(lastDistance));
+    final centers = sandboxMatrixModuleCenters();
+    expect(centers, hasLength(36));
+    expect(sandboxMatrixAdjacencyLinks(), hasLength(60));
+    final module = sandboxRectangularPrismFaces(centers.first, 13, 13, 7);
+    expect(module, hasLength(6));
+    expect(module.expand((face) => face.vertices).toSet(), hasLength(8));
+  });
+
+  test('fusion starts as six independent square panels and seals a cube', () {
+    final initial = sandboxFusionCubeFaces(0);
+    final finalFaces = sandboxFusionCubeFaces(1);
+    expect(initial, hasLength(6));
+    expect(finalFaces, hasLength(6));
+    expect(
+      initial
+          .map((face) => face.vertices.reduce((a, b) => a + b) * .25)
+          .toSet(),
+      hasLength(6),
+    );
+    final vertices = finalFaces
+        .expand((face) => face.vertices)
+        .map(
+          (point) => '${point.x.round()}:${point.y.round()}:${point.z.round()}',
+        )
+        .toSet();
+    expect(vertices, hasLength(8));
+    expect(sandboxCubeEdges(), hasLength(12));
   });
 
   test(
@@ -250,17 +277,16 @@ void main() {
 
   const frames = [
     0,
-    1100,
-    2000,
-    2800,
-    3600,
-    4400,
+    600,
+    1200,
+    1800,
+    2400,
+    3000,
+    3500,
+    4100,
     5000,
     6000,
-    6350,
-    6600,
     7200,
-    8000,
     8400,
   ];
   for (final concept in BootSendSequenceConcept.values) {

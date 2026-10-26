@@ -266,6 +266,8 @@ class _SendSequencePainter extends CustomPainter {
     if (particleField != null) {
       _paintParticles(canvas, particleField, reducedMotion: reducedMotion);
     }
+    canvas.save();
+    canvas.clipRect(const Rect.fromLTWH(20, 72, 320, 137));
     switch (concept) {
       case BootSendSequenceConcept.assemblyMatrix:
         _assemblyMatrix(canvas, t, completionElapsedSeconds);
@@ -274,6 +276,7 @@ class _SendSequencePainter extends CustomPainter {
       case BootSendSequenceConcept.polyhedralFold:
         _polyhedralFold(canvas, t, completionElapsedSeconds);
     }
+    canvas.restore();
     if (particleField != null) {
       _paintParticles(
         canvas,
@@ -443,17 +446,6 @@ class _SendSequencePainter extends CustomPainter {
     );
   }
 
-  void _panel(Canvas canvas, Rect rect, Color accent) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(3)),
-      _fill(const Color(0xff071923)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(3)),
-      _line(accent.withValues(alpha: .55)),
-    );
-  }
-
   SandboxParticleField _completedParticleField(double elapsedSeconds) {
     final bounds = switch (concept) {
       BootSendSequenceConcept.assemblyMatrix => _completedMatrixBounds(
@@ -503,11 +495,24 @@ class _SendSequencePainter extends CustomPainter {
 
   Rect _completedMatrixBounds(double elapsedSeconds) {
     final hover = math.sin(elapsedSeconds * math.pi * 2 / 3.2) * 2;
-    return Rect.fromCenter(
-      center: const Offset(180, 140) - Offset(0, 12 + hover),
-      width: 93,
-      height: 93,
-    );
+    final yaw =
+        -18 * math.pi / 180 +
+        math.sin(elapsedSeconds * math.pi * 2 / 4) * 5 * math.pi / 180;
+    final pitch =
+        12 * math.pi / 180 +
+        math.sin(elapsedSeconds * math.pi * 2 / 4.6) * 3 * math.pi / 180;
+    const projection = SandboxProjection(Offset(180, 140));
+    final points = sandboxMatrixModuleCenters()
+        .expand((center) => sandboxRectangularPrismFaces(center, 13, 13, 7))
+        .expand((face) => face.vertices)
+        .map(
+          (point) => (point + SandboxVec3(0, 14 + hover, 0))
+              .rotateY(yaw)
+              .rotateX(pitch),
+        )
+        .map(projection.project)
+        .map((point) => point.offset);
+    return _boundsFor(points);
   }
 
   Rect _completedVoxelBounds(double elapsedSeconds) {
@@ -531,12 +536,12 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   Rect _completedCubeBounds(double elapsedSeconds) {
-    const projection = SandboxProjection(Offset(181, 141));
+    const projection = SandboxProjection(Offset(181, 148));
     final yaw = elapsedSeconds * 20 * math.pi / 180;
     final pitch =
         math.sin(elapsedSeconds * 2 * math.pi / 3) * 7 * math.pi / 180;
     final hover = math.sin(elapsedSeconds * 2 * math.pi / 3.2) * 4;
-    final points = sandboxFoldedCubeFaces(1)
+    final points = sandboxFusionCubeFaces(1)
         .expand((face) => face.vertices)
         .map(
           (point) => (point + SandboxVec3(0, 25 + hover, 0))
@@ -602,149 +607,85 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _assemblyMatrix(Canvas canvas, double t, double post) {
-    const matrixCenter = Offset(180, 140);
-    const tray = Rect.fromLTWH(37, 174, 51, 24);
-    final build = _phase(t, 0, 2600 / 6000);
-    final trace = _phase(t, 2600 / 6000, 3200 / 6000);
-    final pulses = _phase(t, 3200 / 6000, 4100 / 6000);
-    final lift = _ease(_phase(t, 4100 / 6000, 4800 / 6000));
-    final scan = _phase(t, 4800 / 6000, 1);
+    const projection = SandboxProjection(Offset(180, 140));
     final complete = _isConstructionComplete(t);
-    final hover = complete ? math.sin(post * math.pi * 2 / 3.2) * 2 : 0.0;
-    final surfaceCenter = matrixCenter - Offset(0, lift * 12 + hover);
-    _text(
-      canvas,
-      'SOURCE',
-      const Offset(37, 164),
-      7.5,
-      const Color(0xff86b7c5),
-    );
-    _panel(canvas, tray, _cyan);
-    for (var index = 0; index < 8; index++) {
-      final ready = index < (build * 8).ceil();
-      canvas.drawRect(
-        Rect.fromLTWH(43 + (index % 4) * 10, 181 + (index ~/ 4) * 7, 6, 4),
-        _fill(ready ? _cyan : const Color(0xff153542)),
+    final lift = _ease(_phase(t, 4100 / 6000, 4700 / 6000));
+    final hover = complete ? math.sin(post * math.pi * 2 / 3.2) * 3 : 0.0;
+    final yaw =
+        -18 * math.pi / 180 +
+        (complete ? math.sin(post * math.pi * 2 / 4) * 5 * math.pi / 180 : 0);
+    final pitch =
+        12 * math.pi / 180 +
+        (complete ? math.sin(post * math.pi * 2 / 4.6) * 3 * math.pi / 180 : 0);
+    SandboxVec3 transform(SandboxVec3 point) =>
+        (point + SandboxVec3(0, 14 * lift + hover, 0))
+            .rotateY(yaw)
+            .rotateX(pitch);
+    final faces = <_RenderFace>[];
+    for (var index = 0; index < 36; index++) {
+      final target = sandboxMatrixModuleCenters()[index];
+      final start = SandboxVec3(
+        target.x + 65 * math.cos(index * 2.399963229728653),
+        target.y + 48 * math.sin(index * 2.399963229728653),
+        35 + (index % 5) * 10,
       );
-    }
-    final filled = (build * 36).floor();
-    const cell = 13.0;
-    const gap = 3.0;
-    final matrixRect = Rect.fromCenter(
-      center: surfaceCenter,
-      width: 93,
-      height: 93,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(matrixRect.inflate(5), const Radius.circular(4)),
-      _fill(const Color(0xff061520)),
-    );
-    final order = sandboxMatrixAssemblyOrder();
-    for (var ordinal = 0; ordinal < order.length; ordinal++) {
-      final index = order[ordinal];
-      final row = index ~/ 6;
-      final column = index % 6;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          matrixRect.left + column * (cell + gap),
-          matrixRect.top + row * (cell + gap),
-          cell,
-          cell,
-        ),
-        const Radius.circular(2),
+      final arrival = _ease(
+        _phase(t, (400 + index * 35) / 6000, (400 + index * 35 + 720) / 6000),
       );
-      final active = ordinal < filled;
-      canvas.drawRRect(
-        rect,
-        _fill(
-          active
-              ? _cyan.withValues(alpha: .5 + (ordinal % 3) * .1)
-              : const Color(0xff0b2531),
-        ),
-      );
-      canvas.drawRRect(
-        rect,
-        _line(
-          active ? _ice.withValues(alpha: .82) : _cyan.withValues(alpha: .2),
-          .75,
-        ),
-      );
-    }
-    if (build > 0 && build < 1) {
-      final index = order[(build * 36).floor().clamp(0, 35)];
-      final target = Offset(
-        matrixRect.left + (index % 6) * 16 + cell / 2,
-        matrixRect.top + (index ~/ 6) * 16 + cell / 2,
-      );
-      final source = tray.center;
-      final point = Offset.lerp(source, target, _ease((build * 36) % 1))!;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: point, width: 9, height: 9),
-          const Radius.circular(2),
-        ),
-        _fill(_ice),
-      );
-    }
-    if (trace > 0) {
-      final segments = (trace * 12).floor();
-      for (var row = 0; row < 6; row++) {
-        if (row < segments ~/ 2) {
-          final y = matrixRect.top + row * 16 + cell / 2;
-          canvas.drawLine(
-            Offset(matrixRect.left, y),
-            Offset(matrixRect.right, y),
-            _line(_ice.withValues(alpha: .55), .55),
-          );
-        }
-      }
-      for (var column = 0; column < 6; column++) {
-        if (column < segments - 6) {
-          final x = matrixRect.left + column * 16 + cell / 2;
-          canvas.drawLine(
-            Offset(x, matrixRect.top),
-            Offset(x, matrixRect.bottom),
-            _line(_ice.withValues(alpha: .55), .55),
-          );
-        }
-      }
-    }
-    if (pulses > 0) {
-      for (var pulse = 0; pulse < 3; pulse++) {
-        final radius = ((pulses * 1.35 + pulse * .24).remainder(1.0)) * 62;
-        canvas.drawCircle(
-          surfaceCenter,
-          radius,
-          _line(_cyan.withValues(alpha: .28 * (1 - radius / 62)), .8),
+      final position =
+          SandboxVec3.lerp(start, target, arrival) +
+          SandboxVec3(0, 0, math.sin(arrival * math.pi) * 14);
+      for (final face in sandboxRectangularPrismFaces(
+        transform(position),
+        13,
+        13,
+        7,
+      )) {
+        faces.add(
+          _RenderFace(face.vertices, face.normal, _cyan.withValues(alpha: .86)),
         );
       }
     }
-    final diagonal = complete
-        ? post.remainder(2800 / 4000) / (2800 / 4000)
-        : scan;
-    if (scan > 0 || complete) {
-      final d =
-          diagonal * (matrixRect.width + matrixRect.height) - matrixRect.height;
-      final path = Path()
-        ..moveTo(matrixRect.left + d, matrixRect.bottom)
-        ..lineTo(matrixRect.left + d + matrixRect.height, matrixRect.top);
-      canvas.save();
-      canvas.clipRect(matrixRect);
-      canvas.drawPath(path, _glow(_ice.withValues(alpha: .38), 2, 2));
-      canvas.drawPath(path, _line(_ice.withValues(alpha: .82), .8));
-      canvas.restore();
+    _paint3dFaces(
+      canvas,
+      projection,
+      faces,
+      border: _ice.withValues(alpha: .8),
+    );
+    final connections = _phase(t, 2500 / 6000, 3200 / 6000);
+    final centers = sandboxMatrixModuleCenters().map(transform).toList();
+    final links = sandboxMatrixAdjacencyLinks();
+    for (var index = 0; index < (links.length * connections).floor(); index++) {
+      final link = links[index];
+      final a = projection.project(centers[link.$1]).offset;
+      final b = projection.project(centers[link.$2]).offset;
+      canvas.drawLine(a, b, _line(_ice.withValues(alpha: .55), .7));
     }
-    final bracket = t >= 4800 / 6000 ? 11.0 : 4.0;
-    for (final point in [
-      Offset(matrixRect.left - 4, matrixRect.top - 4),
-      Offset(matrixRect.right + 4, matrixRect.top - 4),
-      Offset(matrixRect.left - 4, matrixRect.bottom + 4),
-      Offset(matrixRect.right + 4, matrixRect.bottom + 4),
-    ]) {
-      final dx = point.dx < surfaceCenter.dx ? 1.0 : -1.0;
-      final dy = point.dy < surfaceCenter.dy ? 1.0 : -1.0;
-      canvas.drawLine(point, point + Offset(dx * bracket, 0), _line(_ice, 1.2));
-      canvas.drawLine(point, point + Offset(0, dy * bracket), _line(_ice, 1.2));
+    final pulse = _phase(t, 3200 / 6000, 4100 / 6000);
+    if (pulse > 0) {
+      for (final center in centers) {
+        final distance = math.max(center.x.abs(), center.y.abs()) / 74;
+        final energy = (1 - ((pulse * 3 - distance * 2.4).remainder(1)).abs())
+            .clamp(0, 1);
+        if (energy > .78) {
+          canvas.drawCircle(
+            projection.project(center).offset,
+            2.5,
+            _fill(_ice.withValues(alpha: (energy - .78) * 1.2)),
+          );
+        }
+      }
+    }
+    if (t >= 4700 / 6000 || complete) {
+      final scan = complete
+          ? (post / 2.8).remainder(1)
+          : _phase(t, 4700 / 6000, 1);
+      final y = 96 + scan * 88;
+      canvas.drawLine(
+        Offset(122, y),
+        Offset(238, y - 24),
+        _glow(_ice.withValues(alpha: .42), 2, 1.5),
+      );
     }
   }
 
@@ -787,14 +728,30 @@ class _SendSequencePainter extends CustomPainter {
       final source = sandboxVoxelSource(index);
       final finalCenter = centers[index] * (1 - crystallize * (2 / 24));
       var position = SandboxVec3.lerp(source, finalCenter, travel);
+      final previous = SandboxVec3.lerp(
+        source,
+        finalCenter,
+        math.max(0, travel - .12),
+      );
       position = position + SandboxVec3(0, rise, 0);
       position = position.rotateY(yaw).rotateX(pitch);
-      final base = sandboxVoxelColor(centers[index]);
+      final base = sandboxVoxelColorForIndex(
+        centers[index],
+        index,
+      ).withValues(alpha: .84);
       final cube = sandboxCubeFaces(position, 22);
       for (final face in cube) {
         faces.add(_RenderFace(face.vertices, face.normal, base));
       }
       final projected = projection.project(position);
+      if (travel > 0 && travel < 1) {
+        final trail = projection.project(previous).offset;
+        canvas.drawLine(
+          trail,
+          projected.offset,
+          _glow(base.withValues(alpha: .18 * (1 - travel)), 2.5, 1.4),
+        );
+      }
       canvas.drawCircle(
         projected.offset,
         4.5,
@@ -810,7 +767,7 @@ class _SendSequencePainter extends CustomPainter {
       canvas,
       projection,
       faces,
-      border: _ice.withValues(alpha: .38),
+      border: _ice.withValues(alpha: .84),
     );
     if (afterComplete || t >= 5000 / 6000) {
       _center(canvas, 'CORE INTEGRATED', const Offset(181, 202), 8, _ice);
@@ -818,10 +775,10 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _polyhedralFold(Canvas canvas, double t, double post) {
-    const center = Offset(181, 141);
+    const center = Offset(181, 148);
     final projection = SandboxProjection(center);
-    final fold = _phase(t, 0, 2800 / 6000);
-    final lift = _ease(_phase(t, 3000 / 6000, 3600 / 6000));
+    final fuse = _phase(t, 600 / 6000, 2400 / 6000);
+    final lift = _ease(_phase(t, 3500 / 6000, 4100 / 6000));
     final afterComplete = _isConstructionComplete(t);
     final seconds = post;
     final yaw = afterComplete ? seconds * 20 * math.pi / 180 : 0.0;
@@ -831,22 +788,18 @@ class _SendSequencePainter extends CustomPainter {
     final hover = afterComplete
         ? math.sin(seconds * 2 * math.pi / 3.2) * 4
         : 0.0;
-    final faces = sandboxFoldedCubeFaces(fold)
-        .map(
-          (face) => face.transform(
-            (point) => (point + SandboxVec3(0, 25 * lift + hover, 0))
-                .rotateY(yaw)
-                .rotateX(pitch),
-          ),
-        )
-        .map(
-          (face) => _RenderFace(
-            face.vertices,
-            face.normal.rotateY(yaw).rotateX(pitch),
-            _violet,
-          ),
-        )
-        .toList();
+    final faces = sandboxFusionCubeFaces(fuse).asMap().entries.map((entry) {
+      final face = entry.value.transform(
+        (point) => (point + SandboxVec3(0, 25 * lift + hover, 0))
+            .rotateY(yaw)
+            .rotateX(pitch),
+      );
+      return _RenderFace(
+        face.vertices,
+        face.normal.rotateY(yaw).rotateX(pitch),
+        Color.lerp(_cyan, _violet, (entry.key % 3) / 3)!.withValues(alpha: .76),
+      );
+    }).toList();
     final shadow = 1 - lift * .15;
     canvas.drawOval(
       Rect.fromCenter(center: center + Offset(0, 56), width: 94, height: 17),
@@ -856,9 +809,29 @@ class _SendSequencePainter extends CustomPainter {
       canvas,
       projection,
       faces,
-      border: _ice.withValues(alpha: t >= 2800 / 6000 ? .88 : .48),
+      border: _ice.withValues(alpha: t >= 2400 / 6000 ? .9 : .6),
     );
-    if (t >= 2800 / 6000) {
+    if (t >= 2400 / 6000) {
+      final progress = _phase(t, 2400 / 6000, 3500 / 6000);
+      final edges = sandboxCubeEdges();
+      for (var index = 0; index < (edges.length * progress).floor(); index++) {
+        final edge = edges[index];
+        final a = projection
+            .project(
+              (edge.$1 + SandboxVec3(0, 25 * lift + hover, 0))
+                  .rotateY(yaw)
+                  .rotateX(pitch),
+            )
+            .offset;
+        final b = projection
+            .project(
+              (edge.$2 + SandboxVec3(0, 25 * lift + hover, 0))
+                  .rotateY(yaw)
+                  .rotateX(pitch),
+            )
+            .offset;
+        canvas.drawLine(a, b, _glow(_ice.withValues(alpha: .55), 2, 1.1));
+      }
       _center(canvas, 'CUBE SEALED', const Offset(181, 205), 8, _ice);
     }
   }
@@ -1313,6 +1286,21 @@ List<int> sandboxMatrixAssemblyOrder() {
   return cells;
 }
 
+List<SandboxVec3> sandboxMatrixModuleCenters() => [
+  for (var row = 0; row < 6; row++)
+    for (var column = 0; column < 6; column++)
+      SandboxVec3((column - 2.5) * 16, (2.5 - row) * 16, 0),
+];
+
+List<(int, int)> sandboxMatrixAdjacencyLinks() => [
+  for (var row = 0; row < 6; row++)
+    for (var column = 0; column < 5; column++)
+      (row * 6 + column, row * 6 + column + 1),
+  for (var row = 0; row < 5; row++)
+    for (var column = 0; column < 6; column++)
+      (row * 6 + column, (row + 1) * 6 + column),
+];
+
 List<SandboxVec3> sandboxVoxelCenters() => [
   for (final z in [-24.0, 0.0, 24.0])
     for (final y in [-24.0, 0.0, 24.0])
@@ -1349,6 +1337,11 @@ Color sandboxVoxelColor(SandboxVec3 center) {
   return _scaleColor(blended, brightness);
 }
 
+Color sandboxVoxelColorForIndex(SandboxVec3 center, int index) {
+  final variation = ((index * 7) % 9 - 4) / 100;
+  return _scaleColor(sandboxVoxelColor(center), 1 + variation);
+}
+
 Color _scaleColor(Color color, double factor) => Color.from(
   alpha: color.a,
   red: (color.r * factor).clamp(0, 1),
@@ -1358,7 +1351,38 @@ Color _scaleColor(Color color, double factor) => Color.from(
 
 double sandboxFaceShade(SandboxVec3 normal, SandboxVec3 light) {
   final diffuse = math.max(0, normal.normalized().dot(light.normalized()));
-  return .67 + .33 * diffuse;
+  return .45 + .55 * diffuse;
+}
+
+List<SandboxFace> sandboxRectangularPrismFaces(
+  SandboxVec3 center,
+  double width,
+  double height,
+  double depth,
+) {
+  final halfX = width / 2;
+  final halfY = height / 2;
+  final halfZ = depth / 2;
+  final vertices = [
+    SandboxVec3(center.x - halfX, center.y - halfY, center.z - halfZ),
+    SandboxVec3(center.x + halfX, center.y - halfY, center.z - halfZ),
+    SandboxVec3(center.x + halfX, center.y + halfY, center.z - halfZ),
+    SandboxVec3(center.x - halfX, center.y + halfY, center.z - halfZ),
+    SandboxVec3(center.x - halfX, center.y - halfY, center.z + halfZ),
+    SandboxVec3(center.x + halfX, center.y - halfY, center.z + halfZ),
+    SandboxVec3(center.x + halfX, center.y + halfY, center.z + halfZ),
+    SandboxVec3(center.x - halfX, center.y + halfY, center.z + halfZ),
+  ];
+  SandboxFace face(List<int> points, SandboxVec3 normal) =>
+      SandboxFace(points.map((index) => vertices[index]).toList(), normal);
+  return [
+    face([4, 5, 6, 7], const SandboxVec3(0, 0, 1)),
+    face([1, 0, 3, 2], const SandboxVec3(0, 0, -1)),
+    face([1, 2, 6, 5], const SandboxVec3(1, 0, 0)),
+    face([0, 4, 7, 3], const SandboxVec3(-1, 0, 0)),
+    face([3, 7, 6, 2], const SandboxVec3(0, 1, 0)),
+    face([0, 1, 5, 4], const SandboxVec3(0, -1, 0)),
+  ];
 }
 
 List<SandboxFace> sandboxCubeFaces(SandboxVec3 center, double side) {
@@ -1387,6 +1411,80 @@ List<SandboxFace> sandboxCubeFaces(SandboxVec3 center, double side) {
 
 List<SandboxFace> sandboxFinalCubeFaces() =>
     sandboxCubeFaces(SandboxVec3.zero, 80);
+
+List<SandboxFace> sandboxFusionCubeFaces(double progress) {
+  final targets = sandboxFinalCubeFaces();
+  final order = [5, 0, 3, 2, 1, 4];
+  final orderIndex = {for (var i = 0; i < order.length; i++) order[i]: i};
+  const offsets = [
+    SandboxVec3(12, -12, 0),
+    SandboxVec3(-10, 14, 0),
+    SandboxVec3(0, 15, 10),
+    SandboxVec3(0, -12, -14),
+    SandboxVec3(16, 0, 8),
+    SandboxVec3(-14, 0, -10),
+  ];
+  return [
+    for (var index = 0; index < targets.length; index++)
+      _fusionFace(
+        targets[index],
+        offsets[index],
+        _ease(
+          _phase(
+            progress,
+            orderIndex[index]! * .08,
+            .6 + orderIndex[index]! * .08,
+          ),
+        ),
+      ),
+  ];
+}
+
+SandboxFace _fusionFace(SandboxFace target, SandboxVec3 tangent, double t) {
+  final center = target.vertices.reduce((a, b) => a + b) * .25;
+  final sourceCenter = center + target.normal * 65 + tangent;
+  final axis = target.normal.z.abs() > .5
+      ? const SandboxVec3(0, 1, 0)
+      : const SandboxVec3(1, 0, 0);
+  final initialAngle = 15 * math.pi / 180;
+  final currentCenter = SandboxVec3.lerp(sourceCenter, center, t);
+  return SandboxFace(
+    target.vertices.map((vertex) {
+      final sourceOffset = (vertex - center).rotateAroundAxis(
+        SandboxVec3.zero,
+        axis,
+        initialAngle,
+      );
+      return currentCenter +
+          sourceOffset.rotateAroundAxis(
+            SandboxVec3.zero,
+            axis,
+            -initialAngle * t,
+          );
+    }).toList(),
+    target.normal.rotateAroundAxis(
+      SandboxVec3.zero,
+      axis,
+      initialAngle * (1 - t),
+    ),
+  );
+}
+
+List<(SandboxVec3, SandboxVec3)> sandboxCubeEdges() {
+  final edges = <String, (SandboxVec3, SandboxVec3)>{};
+  for (final face in sandboxFinalCubeFaces()) {
+    for (var index = 0; index < 4; index++) {
+      final a = face.vertices[index];
+      final b = face.vertices[(index + 1) % 4];
+      final key = [
+        a,
+        b,
+      ].map((point) => '${point.x}:${point.y}:${point.z}').toList()..sort();
+      edges[key.join('|')] = (a, b);
+    }
+  }
+  return edges.values.toList();
+}
 
 List<SandboxFace> sandboxFoldedCubeFaces(double progress) {
   const side = 80.0;
