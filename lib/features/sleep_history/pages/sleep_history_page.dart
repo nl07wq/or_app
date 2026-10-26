@@ -11,6 +11,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
 import '../../body_history/services/history_period_range.dart';
+import '../../body_history/widgets/history_feature_scaffold.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/sleep_history_models.dart';
@@ -116,11 +117,9 @@ class _SleepHistoryPageState extends State<SleepHistoryPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('SLEEP HISTORY'),
-    ),
+  Widget build(BuildContext context) => HistoryFeatureScaffold(
+    title: 'SLEEP HISTORY',
+    leading: const ActionableBackButton(),
     body: FutureBuilder<_SleepViewModel>(
       future: _model,
       builder: (context, snapshot) {

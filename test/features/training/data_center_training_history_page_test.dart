@@ -10,6 +10,7 @@ import 'package:or_app/core/models/training_set_v2.dart';
 import 'package:or_app/core/models/training_exercise_v2.dart';
 import 'package:or_app/core/models/training_equipment_snapshot.dart';
 import 'package:or_app/features/training/data_center_training_history_page.dart';
+import 'package:or_app/features/body_history/widgets/history_feature_scaffold.dart';
 import 'package:or_app/features/training/models/training_record_read_model.dart';
 import 'package:or_app/features/training/services/training_history_overview_adapter.dart';
 import 'package:or_app/features/training/services/training_history_domain_service.dart';
@@ -18,6 +19,11 @@ import 'package:or_app/features/training/services/training_recovery_evidence_ada
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUpAll(() => HistoryFeatureScaffold.debugDisableAmbientAnimation = true);
+  tearDownAll(
+    () => HistoryFeatureScaffold.debugDisableAmbientAnimation = false,
+  );
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });

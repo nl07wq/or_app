@@ -84,7 +84,7 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
         scrolledUnderElevation: 0,
         forceMaterialTransparency: true,
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
-        title: const StatusCrtMonitorTitle(),
+        title: const StatusCrtMonitorTitle(title: 'STATUS RECORD'),
       ),
       ambient: const StatusAmbientBackground(),
       body: FutureBuilder<List<MorningData>>(

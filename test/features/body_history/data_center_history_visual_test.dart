@@ -293,9 +293,7 @@ void main() {
       for (var block = 0; block < 12; block++) {
         final surfaces = [
           for (var offset = 0; offset < 4; offset++)
-            HistoryDataVaultMotion.compositeScanSurfaceFor(
-              block * 4 + offset,
-            ),
+            HistoryDataVaultMotion.compositeScanSurfaceFor(block * 4 + offset),
         ];
         expect(surfaces.toSet(), hasLength(4));
       }
@@ -403,13 +401,10 @@ void main() {
         find.descendant(of: title, matching: find.text('HISTORY')),
         findsOneWidget,
       );
-      final text = find.descendant(
-        of: title,
-        matching: find.text('HISTORY'),
-      );
+      final text = find.descendant(of: title, matching: find.text('HISTORY'));
       final localCenter =
           tester.getCenter(text).dx - tester.getTopLeft(title).dx;
-      expect(localCenter, closeTo(100, 2));
+      expect(localCenter, closeTo(90, 2));
       await expectLater(
         title,
         matchesGoldenFile('goldens/history_memory_module_v26_${frame.$1}.png'),

@@ -12,6 +12,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
 import '../../body_history/services/data_center_history_range_preference.dart';
 import '../../body_history/services/history_period_range.dart';
+import '../../body_history/widgets/history_feature_scaffold.dart';
 import '../../operation_date/services/operation_date_service.dart';
 import '../../repositories/app_repository_container.dart';
 import '../models/digestive_history_models.dart';
@@ -133,11 +134,9 @@ class _DigestiveHistoryPageState extends State<DigestiveHistoryPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DIGESTIVE HISTORY'),
-    ),
+  Widget build(BuildContext context) => HistoryFeatureScaffold(
+    title: 'DIGESTIVE HISTORY',
+    leading: const ActionableBackButton(),
     body: FutureBuilder<_ViewModel>(
       future: _model,
       builder: (context, snapshot) {

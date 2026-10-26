@@ -14,6 +14,7 @@ enum ActivityMechanicalCounterMode { normal, entry }
 class ActivityMechanicalCounterTitle extends StatefulWidget {
   const ActivityMechanicalCounterTitle({
     super.key,
+    this.title = word,
     this.mode = ActivityMechanicalCounterMode.normal,
     this.entryEventMinDelay = const Duration(seconds: 8),
     this.entryEventMaxDelay = const Duration(seconds: 20),
@@ -21,12 +22,17 @@ class ActivityMechanicalCounterTitle extends StatefulWidget {
   });
 
   static const word = 'ACTIVITY';
+  static const recordTitle = 'ACTIVITY RECORD';
+  static const _recordWindow = ' RECORD ';
   static const width = 136.0;
   static const height = 34.0;
   static const cellCount = word.length;
   static const initialIndexDuration = Duration(milliseconds: 1120);
   static const periodicIndexDuration = Duration(milliseconds: 480);
 
+  /// The complete accessible title.  The physical register remains eight
+  /// cells wide; RECORD mode alternates its two mechanical registrations.
+  final String title;
   final ActivityMechanicalCounterMode mode;
   final Duration entryEventMinDelay;
   final Duration entryEventMaxDelay;
@@ -46,6 +52,7 @@ class _ActivityMechanicalCounterTitleState
   late final AnimationController _controller;
   final Random _random = Random();
   Timer? _entryEventTimer;
+  Timer? _recordTransitionTimer;
   List<_CounterMotionPlan?> _plans = List<_CounterMotionPlan?>.filled(
     ActivityMechanicalCounterTitle.cellCount,
     null,
@@ -55,9 +62,16 @@ class _ActivityMechanicalCounterTitleState
   bool _appActive = true;
   bool _initializing = false;
   bool _periodicIndexing = false;
+  bool _recordIndexing = false;
   bool _initialRequested = false;
+  bool _showingRecordWindow = false;
 
   bool get _isEntry => widget.mode == ActivityMechanicalCounterMode.entry;
+  bool get _isRecordMode =>
+      widget.title == ActivityMechanicalCounterTitle.recordTitle;
+  String get _displayWord => _isRecordMode && _showingRecordWindow
+      ? ActivityMechanicalCounterTitle._recordWindow
+      : ActivityMechanicalCounterTitle.word;
   bool get _canAnimate =>
       _motionEnabled && _appActive && TickerMode.valuesOf(context).enabled;
 
@@ -79,6 +93,7 @@ class _ActivityMechanicalCounterTitleState
     if (reducedMotion) {
       _motionEnabled = false;
       _entryEventTimer?.cancel();
+      _recordTransitionTimer?.cancel();
       _controller.value = 1;
       _plans = List<_CounterMotionPlan?>.filled(
         ActivityMechanicalCounterTitle.cellCount,
@@ -86,11 +101,13 @@ class _ActivityMechanicalCounterTitleState
       );
       _initializing = false;
       _periodicIndexing = false;
+      _recordIndexing = false;
       return;
     }
     _motionEnabled = true;
     if (!_canAnimate) {
       _entryEventTimer?.cancel();
+      _recordTransitionTimer?.cancel();
       _controller.stop();
       return;
     }
@@ -99,18 +116,25 @@ class _ActivityMechanicalCounterTitleState
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _canAnimate) _beginInitialIndex();
       });
-    } else if (!_initializing && !_periodicIndexing) {
-      _scheduleEntryEvent();
+    } else if (!_initializing && !_periodicIndexing && !_recordIndexing) {
+      _scheduleNextMotion();
     }
   }
 
   @override
   void didUpdateWidget(covariant ActivityMechanicalCounterTitle oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mode == widget.mode) return;
+    if (oldWidget.mode == widget.mode && oldWidget.title == widget.title) {
+      return;
+    }
     _entryEventTimer?.cancel();
-    if (!_isEntry) return;
-    if (!_initializing && !_periodicIndexing) _scheduleEntryEvent();
+    _recordTransitionTimer?.cancel();
+    if (oldWidget.title != widget.title) {
+      _showingRecordWindow = false;
+    }
+    if (!_initializing && !_periodicIndexing && !_recordIndexing) {
+      _scheduleNextMotion();
+    }
   }
 
   @override
@@ -120,23 +144,27 @@ class _ActivityMechanicalCounterTitleState
     _appActive = active;
     if (!active) {
       _entryEventTimer?.cancel();
+      _recordTransitionTimer?.cancel();
       _controller.stop();
       return;
     }
     if (!_canAnimate) return;
-    if (_controller.value < 1 && (_initializing || _periodicIndexing)) {
+    if (_controller.value < 1 &&
+        (_initializing || _periodicIndexing || _recordIndexing)) {
       _controller.forward();
-    } else if (!_initializing && !_periodicIndexing) {
-      _scheduleEntryEvent();
+    } else if (!_initializing && !_periodicIndexing && !_recordIndexing) {
+      _scheduleNextMotion();
     }
   }
 
   void _beginInitialIndex() {
     if (!_canAnimate) return;
     _entryEventTimer?.cancel();
+    _recordTransitionTimer?.cancel();
     setState(() {
       _initializing = true;
       _periodicIndexing = false;
+      _recordIndexing = false;
       _plans = [
         for (
           var index = 0;
@@ -161,7 +189,7 @@ class _ActivityMechanicalCounterTitleState
           null,
         );
       });
-      _scheduleEntryEvent();
+      _scheduleNextMotion();
       return;
     }
     if (_periodicIndexing) {
@@ -172,12 +200,39 @@ class _ActivityMechanicalCounterTitleState
           null,
         );
       });
+      _scheduleNextMotion();
+      return;
+    }
+    if (_recordIndexing) {
+      setState(() {
+        _recordIndexing = false;
+        _showingRecordWindow = !_showingRecordWindow;
+        _plans = List<_CounterMotionPlan?>.filled(
+          ActivityMechanicalCounterTitle.cellCount,
+          null,
+        );
+      });
+      _scheduleNextMotion();
+    }
+  }
+
+  void _scheduleNextMotion() {
+    if (_isRecordMode) {
+      _scheduleRecordTransition();
+    } else {
       _scheduleEntryEvent();
     }
   }
 
   void _scheduleEntryEvent() {
-    if (!_isEntry || !_canAnimate || _initializing || _periodicIndexing) return;
+    if (!_isEntry ||
+        _isRecordMode ||
+        !_canAnimate ||
+        _initializing ||
+        _periodicIndexing ||
+        _recordIndexing) {
+      return;
+    }
     _entryEventTimer?.cancel();
     final minimum = widget.entryEventMinDelay.inMilliseconds;
     final maximum = widget.entryEventMaxDelay.inMilliseconds;
@@ -220,10 +275,48 @@ class _ActivityMechanicalCounterTitleState
     _controller.forward(from: 0);
   }
 
+  void _scheduleRecordTransition() {
+    if (!_isRecordMode ||
+        !_canAnimate ||
+        _initializing ||
+        _periodicIndexing ||
+        _recordIndexing) {
+      return;
+    }
+    _recordTransitionTimer?.cancel();
+    _recordTransitionTimer = Timer(
+      const Duration(milliseconds: 1800),
+      _beginRecordTransition,
+    );
+  }
+
+  void _beginRecordTransition() {
+    if (!mounted || !_isRecordMode || !_canAnimate) return;
+    final from = _displayWord;
+    final to = _showingRecordWindow
+        ? ActivityMechanicalCounterTitle.word
+        : ActivityMechanicalCounterTitle._recordWindow;
+    setState(() {
+      _recordIndexing = true;
+      _plans = [
+        for (
+          var index = 0;
+          index < ActivityMechanicalCounterTitle.cellCount;
+          index++
+        )
+          _CounterMotionPlan.registration(from: from[index], to: to[index]),
+      ];
+      _controller.duration =
+          ActivityMechanicalCounterTitle.initialIndexDuration;
+    });
+    _controller.forward(from: 0);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _entryEventTimer?.cancel();
+    _recordTransitionTimer?.cancel();
     _controller
       ..removeStatusListener(_handleMotionStatus)
       ..dispose();
@@ -234,7 +327,7 @@ class _ActivityMechanicalCounterTitleState
   Widget build(BuildContext context) {
     final borderRadius = BorderRadius.circular(5);
     return Semantics(
-      label: ActivityMechanicalCounterTitle.word,
+      label: widget.title,
       child: ExcludeSemantics(
         child: SizedBox(
           key: const ValueKey('activity-mechanical-counter-title'),
@@ -258,7 +351,7 @@ class _ActivityMechanicalCounterTitleState
                     Expanded(
                       child: _MechanicalCounterCell(
                         key: ValueKey('activity-counter-cell-$index'),
-                        character: ActivityMechanicalCounterTitle.word[index],
+                        character: _displayWord[index],
                         index: index,
                         animation: _controller,
                         plan: _plans[index],
@@ -274,18 +367,35 @@ class _ActivityMechanicalCounterTitleState
   }
 }
 
-enum _CounterMotionKind { initial, periodic }
+enum _CounterMotionKind { initial, periodic, registration }
 
 class _CounterMotionPlan {
-  const _CounterMotionPlan._(this.kind, this.detents);
+  const _CounterMotionPlan._(this.kind, this.detents, {this.from, this.to});
 
   factory _CounterMotionPlan.initial({required int detents}) =>
       _CounterMotionPlan._(_CounterMotionKind.initial, detents);
   factory _CounterMotionPlan.periodic({required int detents}) =>
       _CounterMotionPlan._(_CounterMotionKind.periodic, detents);
+  factory _CounterMotionPlan.registration({
+    required String from,
+    required String to,
+  }) => _CounterMotionPlan._(
+    _CounterMotionKind.registration,
+    _registrationDetents(from, to),
+    from: from,
+    to: to,
+  );
+
+  static int _registrationDetents(String from, String to) {
+    if (from == ' ' || to == ' ') return 1;
+    final distance = (to.codeUnitAt(0) - from.codeUnitAt(0) + 26) % 26;
+    return max(1, distance);
+  }
 
   final _CounterMotionKind kind;
   final int detents;
+  final String? from;
+  final String? to;
 }
 
 class _MechanicalCounterCell extends StatelessWidget {
@@ -324,6 +434,26 @@ class _MechanicalCounterCell extends StatelessWidget {
 
   _DrumStep _drumStep(double progress) {
     final currentPlan = plan!;
+    if (currentPlan.kind == _CounterMotionKind.registration) {
+      final from = currentPlan.from!;
+      final to = currentPlan.to!;
+      if (from == ' ' || to == ' ') {
+        return _DrumStep(
+          from: from,
+          to: to,
+          progress: _detentProgress(progress),
+        );
+      }
+      final scaled = progress * currentPlan.detents;
+      final completed = scaled.floor().clamp(0, currentPlan.detents - 1);
+      return _DrumStep(
+        from: _registerCharacter(from, completed),
+        to: completed == currentPlan.detents - 1
+            ? to
+            : _registerCharacter(from, completed + 1),
+        progress: _detentProgress(scaled - scaled.floor()),
+      );
+    }
     if (currentPlan.kind == _CounterMotionKind.initial) {
       final scaled = progress * currentPlan.detents;
       final completed = scaled.floor().clamp(0, currentPlan.detents - 1);
@@ -344,6 +474,11 @@ class _MechanicalCounterCell extends StatelessWidget {
       to: isReturn ? character : _offsetCharacter(completed + 1),
       progress: _detentProgress(scaled - scaled.floor()),
     );
+  }
+
+  String _registerCharacter(String from, int detent) {
+    final base = from.codeUnitAt(0) - 65;
+    return String.fromCharCode(65 + (base + detent) % 26);
   }
 
   /// Keeps each indexed character legible at its registered detent before
@@ -416,15 +551,13 @@ class _MechanicalCounterCell extends StatelessWidget {
                           children: [
                             if (step != null)
                               Transform.translate(
-                                key: ValueKey(
-                                  currentPlan!.kind ==
-                                          _CounterMotionKind.initial
-                                      ? 'activity-counter-indexing-$index'
-                                      : 'activity-counter-periodic-$index',
-                                ),
+                                key: ValueKey(_motionKey(currentPlan!.kind)),
                                 offset: Offset(0, -travel * step.progress),
                                 child: Center(
-                                  child: Text(step.from, style: textStyle),
+                                  child: _DrumGlyph(
+                                    character: step.from,
+                                    style: textStyle,
+                                  ),
                                 ),
                               ),
                             Transform.translate(
@@ -433,8 +566,8 @@ class _MechanicalCounterCell extends StatelessWidget {
                                 step == null ? 0 : travel * (1 - step.progress),
                               ),
                               child: Center(
-                                child: Text(
-                                  step?.to ?? character,
+                                child: _DrumGlyph(
+                                  character: step?.to ?? character,
                                   key: ValueKey(
                                     'activity-counter-character-$index',
                                   ),
@@ -468,6 +601,24 @@ class _MechanicalCounterCell extends StatelessWidget {
       },
     );
   }
+
+  String _motionKey(_CounterMotionKind kind) => switch (kind) {
+    _CounterMotionKind.initial => 'activity-counter-indexing-$index',
+    _CounterMotionKind.periodic => 'activity-counter-periodic-$index',
+    _CounterMotionKind.registration => 'activity-counter-registering-$index',
+  };
+}
+
+class _DrumGlyph extends StatelessWidget {
+  const _DrumGlyph({super.key, required this.character, required this.style});
+
+  final String character;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) => character == ' '
+      ? const SizedBox.shrink()
+      : Text(character, style: style);
 }
 
 class _DrumStep {

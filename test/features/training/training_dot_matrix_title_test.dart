@@ -89,6 +89,29 @@ void main() {
     },
   );
 
+  testWidgets('RECORD title reuses the existing fixed-width LED marquee', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            centerTitle: true,
+            title: const TrainingDotMatrixTitle(title: 'TRAINING RECORD'),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.bySemanticsLabel('TRAINING RECORD'), findsOneWidget);
+    expect(find.byType(TrainingDotMatrixFrame), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('training-dot-matrix-marquee')),
+      findsOneWidget,
+    );
+    expect(TrainingDotMatrixGeometry.panelWidth, 150);
+  });
+
   testWidgets(
     'Reduced Motion keeps long titles static and state colors remain configurable',
     (tester) async {

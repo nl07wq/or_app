@@ -816,8 +816,11 @@ bool _hasEnabledAction(Widget widget) => switch (widget) {
   ButtonStyleButton(:final onPressed) => onPressed != null,
   IconButton(:final onPressed) => onPressed != null,
   FloatingActionButton(:final onPressed) => onPressed != null,
-  SegmentedButton<dynamic>(:final onSelectionChanged) =>
-    onSelectionChanged != null,
+  // A SegmentedButton callback is invariant in T. Reading it through an
+  // existential Widget reference forces a Set<T> -> Set<dynamic> cast.
+  // SegmentedButton itself owns disabled-state handling; treat its semantic
+  // control as actionable without inspecting the typed callback.
+  SegmentedButton() => true,
   TabBar() => true,
   ChoiceChip(:final onSelected) => onSelected != null,
   FilterChip(:final onSelected) => onSelected != null,

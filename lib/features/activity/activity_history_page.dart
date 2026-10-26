@@ -63,7 +63,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
         leading: Navigator.canPop(context)
             ? const ActivityMechanicalBackButton()
             : null,
-        title: const ActivityMechanicalCounterTitle(),
+        title: const ActivityMechanicalCounterTitle(title: 'ACTIVITY RECORD'),
       ),
       ambient: const ActivityAmbientBackground(),
       body: FutureBuilder<List<ActivityData>>(

@@ -11,10 +11,16 @@ import 'package:or_app/features/daily_aggregate/models/daily_aggregate_v1.dart';
 import 'package:or_app/features/daily_aggregate/repository/daily_aggregate_repository.dart';
 import 'package:or_app/features/digestive_history/pages/digestive_history_page.dart';
 import 'package:or_app/features/digestive_history/services/digestive_history_source_resolver.dart';
+import 'package:or_app/features/body_history/widgets/history_feature_scaffold.dart';
 
 import '../operation_date/operation_date_test_fixture.dart';
 
 void main() {
+  setUpAll(() => HistoryFeatureScaffold.debugDisableAmbientAnimation = true);
+  tearDownAll(
+    () => HistoryFeatureScaffold.debugDisableAmbientAnimation = false,
+  );
+
   testWidgets('limits a long Trend to seven latest rows until expanded', (
     tester,
   ) async {

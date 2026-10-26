@@ -94,6 +94,41 @@ void main() {
     expect(find.byKey(const ValueKey('status-crt-retrace-line')), findsNothing);
   });
 
+  testWidgets('RECORD title scrolls inside the fixed CRT viewport after boot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(title: 'STATUS RECORD'));
+    await tester.pump();
+    await tester.pump(StatusCrtMonitorTitle.bootDuration);
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.bySemanticsLabel('STATUS RECORD'), findsOneWidget);
+    expect(find.text('> STATUS RECORD_'), findsOneWidget);
+    final viewport = find.byKey(const ValueKey('status-crt-marquee-viewport'));
+    expect(viewport, findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 980));
+    final translation = tester.widget<Transform>(
+      find.descendant(of: viewport, matching: find.byType(Transform)),
+    );
+    expect(translation.transform.storage[12], lessThan(0));
+  });
+
+  testWidgets('reduced motion keeps the complete RECORD title readable', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(disableAnimations: true, title: 'STATUS RECORD'),
+    );
+
+    expect(find.bySemanticsLabel('STATUS RECORD'), findsOneWidget);
+    expect(find.text('> STATUS RECORD_'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('status-crt-marquee-viewport')),
+      findsNothing,
+    );
+  });
+
   testWidgets('ENTRY performs a bounded CRT retrace only after boot settles', (
     tester,
   ) async {
@@ -175,6 +210,7 @@ void main() {
 
 Widget _app({
   bool disableAnimations = false,
+  String title = 'STATUS',
   StatusCrtMonitorMode mode = StatusCrtMonitorMode.normal,
   Duration refreshMinDelay = const Duration(seconds: 10),
   Duration refreshMaxDelay = const Duration(seconds: 25),
@@ -188,6 +224,7 @@ Widget _app({
     child: Scaffold(
       appBar: _StatusAppBar(
         mode: mode,
+        title: title,
         refreshMinDelay: refreshMinDelay,
         refreshMaxDelay: refreshMaxDelay,
         nextInt: nextInt,
@@ -199,12 +236,14 @@ Widget _app({
 
 class _StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _StatusAppBar({
+    this.title = 'STATUS',
     this.mode = StatusCrtMonitorMode.normal,
     this.refreshMinDelay = const Duration(seconds: 10),
     this.refreshMaxDelay = const Duration(seconds: 25),
     this.nextInt,
   });
 
+  final String title;
   final StatusCrtMonitorMode mode;
   final Duration refreshMinDelay;
   final Duration refreshMaxDelay;
@@ -218,6 +257,7 @@ class _StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
     centerTitle: true,
     leading: const StatusCrtBackButton(key: ValueKey('status-back')),
     title: StatusCrtMonitorTitle(
+      title: title,
       mode: mode,
       refreshMinDelay: refreshMinDelay,
       refreshMaxDelay: refreshMaxDelay,

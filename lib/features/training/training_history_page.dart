@@ -71,7 +71,7 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
         leading: Navigator.canPop(context)
             ? const TrainingLedBackButton()
             : null,
-        title: const TrainingDotMatrixTitle(),
+        title: const TrainingDotMatrixTitle(title: 'TRAINING RECORD'),
       ),
       body: Padding(
         padding: AppSpacing.cardPadding,

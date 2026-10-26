@@ -102,17 +102,20 @@ String _tooltipText(BarChart chart) {
   return tooltip.text;
 }
 
-Future<Widget> _page() async => MaterialApp(
-  home: SleepHistoryPage(
-    resolver: SleepHistorySourceResolver(
-      statusRepository: _StatusRepository([
-        _status('2026-09-07', hours: 13.35, score: 91),
-        _status('2026-09-08', hours: 3.7, score: 47),
-        _status('2026-09-13', hours: 6.05, score: 81),
-      ]),
-      dailyAggregateRepository: const _AggregateRepository(),
+Future<Widget> _page() async => TickerMode(
+  enabled: false,
+  child: MaterialApp(
+    home: SleepHistoryPage(
+      resolver: SleepHistorySourceResolver(
+        statusRepository: _StatusRepository([
+          _status('2026-09-07', hours: 13.35, score: 91),
+          _status('2026-09-08', hours: 3.7, score: 47),
+          _status('2026-09-13', hours: 6.05, score: 81),
+        ]),
+        dailyAggregateRepository: const _AggregateRepository(),
+      ),
+      operationDateService: await operationDateServiceFor('2026-09-13'),
     ),
-    operationDateService: await operationDateServiceFor('2026-09-13'),
   ),
 );
 

@@ -8,10 +8,16 @@ import 'package:or_app/features/nutrition_history/models/nutrition_history_model
 import 'package:or_app/features/nutrition_history/pages/nutrition_history_page.dart';
 import 'package:or_app/features/nutrition_history/services/nutrition_history_chart_engine.dart';
 import 'package:or_app/features/nutrition_history/services/nutrition_history_source_resolver.dart';
+import 'package:or_app/features/body_history/widgets/history_feature_scaffold.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   const engine = NutritionHistoryChartEngine();
+
+  setUpAll(() => HistoryFeatureScaffold.debugDisableAmbientAnimation = true);
+  tearDownAll(
+    () => HistoryFeatureScaffold.debugDisableAmbientAnimation = false,
+  );
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});

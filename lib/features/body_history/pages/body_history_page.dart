@@ -13,6 +13,7 @@ import '../models/body_history_models.dart';
 import '../services/body_history_chart_engine.dart';
 import '../services/data_center_history_range_preference.dart';
 import '../services/history_period_range.dart';
+import '../widgets/history_feature_scaffold.dart';
 import '../services/body_history_source_resolver.dart';
 import '../widgets/body_history_chart.dart';
 
@@ -113,11 +114,9 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('BODY HISTORY'),
-    ),
+  Widget build(BuildContext context) => HistoryFeatureScaffold(
+    title: 'BODY HISTORY',
+    leading: const ActionableBackButton(),
     body: FutureBuilder<_BodyHistoryViewModel>(
       future: _model,
       builder: (context, snapshot) {
