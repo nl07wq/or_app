@@ -30,10 +30,16 @@ void main() {
     expect(find.text('ARCHIVE DISPATCH'), findsWidgets);
 
     await tester.pump(const Duration(milliseconds: 6100));
-    expect(find.text('ARCHIVE SENT'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-send-sequence-monitor')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('boot-send-sequence-replay')));
     await tester.pump();
-    expect(find.text('INITIALIZING'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-send-sequence-monitor')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -53,6 +59,43 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('TRANSMISSION COMPLETE'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('boot-send-sequence-monitor')),
+      findsOneWidget,
+    );
   });
+
+  const frames = [0, 800, 1600, 3000, 4100, 5200, 6000];
+  for (final concept in BootSendSequenceConcept.values) {
+    for (final milliseconds in frames) {
+      testWidgets('${concept.name} industrial frame ${milliseconds}ms', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(390, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: BootSendSequenceSandbox())),
+        );
+        if (concept != BootSendSequenceConcept.terminalSend) {
+          await tester.tap(
+            find.text(switch (concept) {
+              BootSendSequenceConcept.packetUplink => 'PACKET',
+              BootSendSequenceConcept.archiveDispatch => 'ARCHIVE',
+              BootSendSequenceConcept.terminalSend => 'TERMINAL',
+            }),
+          );
+          await tester.pump();
+        }
+        await tester.pump(Duration(milliseconds: milliseconds));
+        await expectLater(
+          find.byKey(const ValueKey('boot-send-sequence-monitor')),
+          matchesGoldenFile(
+            'goldens/boot_send_${concept.name}_${milliseconds}ms.png',
+          ),
+        );
+      });
+    }
+  }
 }
