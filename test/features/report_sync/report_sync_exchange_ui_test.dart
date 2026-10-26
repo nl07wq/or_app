@@ -7,6 +7,8 @@ import 'package:or_app/core/models/meal_data.dart';
 import 'package:or_app/core/services/daily_log_confirmation_validation.dart';
 import 'package:or_app/core/theme/app_colors.dart';
 import 'package:or_app/core/theme/app_theme.dart';
+import 'package:or_app/core/services/touch_ripple_audio.dart';
+import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/features/import_export/services/backup_file_gateway.dart';
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
@@ -812,6 +814,117 @@ void main() {
     expect(find.text('VALIDATE'), findsOneWidget);
   });
 
+  testWidgets('response actions resolve one semantic result after outcome', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    final clipboard = _FakeClipboardGateway();
+    await tester.pumpWidget(
+      _feedbackApp(
+        audio: audio,
+        child: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(),
+          fileGateway: _FakeFileGateway(),
+          clipboardGateway: clipboard,
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('report-sync-response-action-paste')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('report-sync-response-action-paste')),
+    );
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-response-action-paste')),
+    );
+    await tester.pumpAndSettle();
+    expect(audio.played, <TouchFeedbackSound>[TouchFeedbackSound.failure]);
+
+    clipboard.text = '{"pasted":true}';
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-response-action-paste')),
+    );
+    await tester.pumpAndSettle();
+    expect(audio.played, <TouchFeedbackSound>[
+      TouchFeedbackSound.failure,
+      TouchFeedbackSound.success,
+    ]);
+  });
+
+  testWidgets('invalid response JSON resolves unavailable once', (
+    tester,
+  ) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      _feedbackApp(
+        audio: audio,
+        child: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.food,
+          gateway: _FakeExchangeGateway(
+            previewError: const FormatException('Invalid response JSON.'),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('report-sync-response-input')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final responseField = find.descendant(
+      of: find.byKey(const ValueKey('report-sync-response-input')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(responseField, '{');
+    await tester.tap(
+      find.byKey(const ValueKey('report-sync-response-action-validate')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(audio.played, <TouchFeedbackSound>[TouchFeedbackSound.failure]);
+    expect(
+      find.byKey(const ValueKey('report-sync-import-action-error')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('file-selection cancellation remains silent', (tester) async {
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      _feedbackApp(
+        audio: audio,
+        child: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.trainingAnalysis,
+          gateway: _FakeExchangeGateway(),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('SELECT RESPONSE FILE'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('SELECT RESPONSE FILE'));
+    await tester.pumpAndSettle();
+
+    expect(audio.played, isEmpty);
+    expect(find.text('FILE SELECTION CANCELLED'), findsOneWidget);
+  });
+
   testWidgets('CLEAR resets only response-derived import state', (
     tester,
   ) async {
@@ -1411,6 +1524,11 @@ void main() {
   }
 }
 
+Widget _feedbackApp({required TouchRippleAudio audio, required Widget child}) =>
+    MaterialApp(
+      home: GlobalTouchRipple(audio: audio, child: child),
+    );
+
 Future<void> _validateAndConfirmImport(
   WidgetTester tester,
   String importLabel,
@@ -1947,4 +2065,17 @@ class _FakeFileGateway implements BackupFileGateway {
 
   @override
   Future<BackupSelectedFile?> selectJson() async => null;
+}
+
+class _RecordingTouchRippleAudio implements TouchRippleAudio {
+  final played = <TouchFeedbackSound>[];
+
+  @override
+  void dispose() {}
+
+  @override
+  void playFromUserGesture(TouchFeedbackSound sound) => played.add(sound);
+
+  @override
+  void prepare() {}
 }

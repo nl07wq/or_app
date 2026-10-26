@@ -19,6 +19,7 @@ import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/widgets/section_header.dart';
 import '../food/widgets/food_input_fields.dart';
+import '../food/widgets/food_saved_floating_hud.dart';
 import '../repositories/app_repository_container.dart';
 import '../operation_date/services/operation_date_service.dart';
 import 'models/activity_draft.dart';
@@ -286,7 +287,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         carryOver == null ||
         carryOver < 0 ||
         _officialSteps == null) {
-      _showMessage('正式歩数が0以上になるように入力してください');
+      _showActivitySaveFailure('正式歩数は0以上で入力してください');
       return false;
     }
     return true;
@@ -318,7 +319,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         ? _digestiveValidationMessage()
         : null;
     if (validationMessage != null) {
-      _showMessage(validationMessage);
+      _showActivitySaveFailure(validationMessage);
       return;
     }
 
@@ -344,22 +345,24 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     try {
       await saveActivity(updated);
     } on ConfirmedDailyLogException catch (error) {
-      if (mounted) showConfirmedLogMessage(context, error);
+      if (mounted) {
+        showConfirmedLogMessage(context, error);
+        _showActivitySaveFailure(error.toString());
+      }
       return;
     } on ArgumentError {
-      _showMessage(
-        'Official steps cannot be negative. Review Carry Over values.',
-      );
+      _showActivitySaveFailure('正式歩数は0以上で入力してください');
       return;
     } catch (_) {
-      if (mounted) _showMessage('ACTIVITYの保存に失敗しました');
+      if (mounted) _showActivitySaveFailure('ACTIVITYの保存に失敗しました');
       return;
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
 
     if (!mounted) return;
-    _showMessage('ACTIVITYを保存しました');
+    ActionableFeedbackRegion.resolveDeferred(ActionableFeedbackResult.accepted);
+    FoodSavedFloatingHud.showFor(context, label: 'ACTIVITY');
     if (widget.returnAfterSave) {
       Navigator.pop(context, true);
     } else {
@@ -395,7 +398,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
     if (_isBusy || !_validateSteps()) return;
     final validationMessage = _digestiveValidationMessage();
     if (validationMessage != null) {
-      _showMessage(validationMessage);
+      _showActivitySaveFailure(validationMessage);
       return;
     }
     if (!AppRepositoryRegistry.hasContainer) {
@@ -425,12 +428,19 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         _mode = _EntryMode.formal;
       });
       _showMessage('${_formatDate(_date)}のActivity記録を確定しました');
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
+      FoodSavedFloatingHud.showFor(context, label: 'ACTIVITY');
       Navigator.popUntil(context, ModalRoute.withName(AppRoutes.activity));
     } on ConfirmedDailyLogException catch (error) {
-      if (mounted) showConfirmedLogMessage(context, error);
+      if (mounted) {
+        showConfirmedLogMessage(context, error);
+        _showActivitySaveFailure(error.toString());
+      }
     } catch (_) {
       if (mounted) {
-        _showMessage('${_formatDate(_date)}のActivity記録を確定できませんでした');
+        _showActivitySaveFailure('${_formatDate(_date)}のActivity記録を確定できませんでした');
       }
     } finally {
       if (mounted) setState(() => _isBusy = false);
@@ -642,6 +652,19 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _showActivitySaveFailure(String detail) {
+    if (!mounted) return;
+    ActionableFeedbackRegion.resolveDeferred(
+      ActionableFeedbackResult.unavailable,
+    );
+    FoodSavedFloatingHud.showFor(
+      context,
+      label: 'ACTIVITY',
+      failed: true,
+      detail: detail,
+    );
+  }
+
   static String _shapeControllerValue(int? domainShape) {
     if (domainShape == null) return '';
     return (domainShape - 1).clamp(0, 2).toString();
@@ -795,6 +818,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   OperationButton(
                     text: 'SAVE ACTIVITY',
                     frostedGradient: true,
+                    deferFeedback: true,
                     onPressed: _isBusy ? null : _saveExisting,
                   ),
                   AppSpacing.gapSM,
@@ -821,6 +845,7 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                 child: OperationButton(
                   text: 'SAVE ACTIVITY',
                   frostedGradient: true,
+                  deferFeedback: true,
                   onPressed: _isBusy ? null : _finalizeDraft,
                 ),
               ),

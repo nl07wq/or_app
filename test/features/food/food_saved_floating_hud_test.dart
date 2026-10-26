@@ -91,7 +91,7 @@ void main() {
       expect(confirmed.left - mealSaved.right, closeTo(10, 1));
       expect((icon.left + confirmed.right) / 2, closeTo(surface.center.dx, 1));
       expect(innerLine.height, closeTo(1, .01));
-      expect(innerLine.left, closeTo(mealSaved.left, 1));
+      expect(innerLine.left, closeTo(icon.left, 1));
       expect(innerLine.right, closeTo(confirmed.right, 1));
       expect(innerLine.top, greaterThan(mealSaved.bottom));
       expect(innerLine.bottom, lessThan(surface.bottom - 6));
@@ -114,6 +114,42 @@ void main() {
       matchesGoldenFile('goldens/food_saved_floating_hud.png'),
     );
   });
+
+  testWidgets(
+    'renders a failed HUD with its detail below the group underline',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 294,
+                child: FoodSavedFloatingHud.surfaceForTesting(
+                  label: 'ACTIVITY',
+                  failed: true,
+                  detail: '正式歩数は0以上で入力してください',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('ACTIVITY SAVE FAILED'), findsOneWidget);
+      expect(find.text('REJECTED'), findsOneWidget);
+      expect(find.text('正式歩数は0以上で入力してください'), findsOneWidget);
+      final line = tester.getRect(
+        find.byKey(const ValueKey('food-saved-floating-hud-inner-line')),
+      );
+      final detail = tester.getRect(find.text('正式歩数は0以上で入力してください'));
+      expect(detail.top, greaterThan(line.bottom));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'replaces a prior FOOD success HUD instead of accumulating notices',

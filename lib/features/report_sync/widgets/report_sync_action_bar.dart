@@ -10,12 +10,18 @@ class ReportSyncActionBar extends StatelessWidget {
     required this.onPaste,
     required this.onClear,
     required this.onValidate,
+    this.deferPaste = false,
+    this.deferValidate = false,
+    this.reportUnavailableFeedback = false,
   });
 
   final bool enabled;
   final VoidCallback onPaste;
   final VoidCallback onClear;
   final VoidCallback onValidate;
+  final bool deferPaste;
+  final bool deferValidate;
+  final bool reportUnavailableFeedback;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -27,6 +33,8 @@ class ReportSyncActionBar extends StatelessWidget {
           icon: Icons.content_paste_outlined,
           label: 'PASTE',
           onPressed: enabled ? onPaste : null,
+          deferFeedback: deferPaste,
+          reportUnavailableFeedback: reportUnavailableFeedback,
         ),
       ),
       const SizedBox(width: AppSpacing.sm),
@@ -36,6 +44,7 @@ class ReportSyncActionBar extends StatelessWidget {
           icon: Icons.backspace_outlined,
           label: 'CLEAR',
           onPressed: enabled ? onClear : null,
+          reportUnavailableFeedback: reportUnavailableFeedback,
         ),
       ),
       const SizedBox(width: AppSpacing.sm),
@@ -45,6 +54,8 @@ class ReportSyncActionBar extends StatelessWidget {
           icon: Icons.fact_check_outlined,
           label: 'VALIDATE',
           onPressed: enabled ? onValidate : null,
+          deferFeedback: deferValidate,
+          reportUnavailableFeedback: reportUnavailableFeedback,
         ),
       ),
     ],
@@ -57,15 +68,23 @@ class _ReportSyncActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.deferFeedback = false,
+    this.reportUnavailableFeedback = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final bool deferFeedback;
+  final bool reportUnavailableFeedback;
 
   @override
   Widget build(BuildContext context) => ActionableFeedbackRegion(
-    enabled: onPressed != null,
+    enabled: onPressed != null || reportUnavailableFeedback,
+    result: onPressed == null
+        ? ActionableFeedbackResult.unavailable
+        : ActionableFeedbackResult.accepted,
+    deferResolution: onPressed != null && deferFeedback,
     child: SizedBox(
       height: 44,
       child: OutlinedButton(

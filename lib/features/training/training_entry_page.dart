@@ -26,6 +26,7 @@ import 'services/training_status_weight_resolver.dart';
 import 'services/training_v2_form_mapper.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
+import '../food/widgets/food_saved_floating_hud.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_dot_matrix_title.dart';
@@ -195,10 +196,16 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       _form.restoreDraftTimes(startTime: _form.startTime, endTime: previousEnd);
       _form.isPaused = previousPaused;
       _showError(error.message);
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
     } on ConfirmedDailyLogException catch (error) {
       _form.restoreDraftTimes(startTime: _form.startTime, endTime: previousEnd);
       _form.isPaused = previousPaused;
       if (mounted) showConfirmedLogMessage(context, error);
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
     } catch (_) {
       _form.restoreDraftTimes(startTime: _form.startTime, endTime: previousEnd);
       _form.isPaused = previousPaused;
@@ -207,11 +214,17 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('トレーニングの保存に失敗しました。入力内容を維持しています。')),
         );
+        FoodSavedFloatingHud.showFor(context, label: 'TRAINING', failed: true);
       }
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
     if (!saved || !mounted) return;
+    ActionableFeedbackRegion.resolveDeferred(ActionableFeedbackResult.accepted);
+    FoodSavedFloatingHud.showFor(context, label: 'TRAINING');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(_isEditing ? 'TRAININGを更新しました' : 'TRAININGを保存しました'),
@@ -720,6 +733,7 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
                     child: OperationButton(
                       icon: Icons.save,
                       text: _isEditing ? 'UPDATE TRAINING' : 'SAVE TRAINING',
+                      deferFeedback: true,
                       onPressed: _isSaving ? null : _save,
                     ),
                   ),

@@ -151,6 +151,10 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
 
   Future<void> _openSync() async {
     var imported = false;
+    // Opening the exchange is this control's completed action. Import has its
+    // own pointer owner inside ReportSyncExchangePage, so this parent action
+    // must not remain deferred while the child route is open.
+    ActionableFeedbackRegion.resolveDeferred(ActionableFeedbackResult.accepted);
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
@@ -206,6 +210,10 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
                     onPressed: appInitializationController.value.isReadOnly
                         ? null
                         : _openSync,
+                    deferFeedback:
+                        !appInitializationController.value.isReadOnly,
+                    reportUnavailableTap:
+                        appInitializationController.value.isReadOnly,
                   ),
                   AppSpacing.gapXL,
                   const SectionHeader(
@@ -364,6 +372,7 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
     if (selected == null) return;
     DailyLogValidationResult? currentOperationDateValidation;
     final isCurrentTarget = selected == data.operationState.operationDate.value;
+    var rejected = false;
     if (data.operationState.phase == OperationPhase.open) {
       final sourceSnapshot = await widget.sourceLoader(
         data.operationState.operationDate.value,
@@ -392,11 +401,18 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
             await prepare(selected, estimatedTotalBurn);
           }
         } on DailyLogValidationException {
+          rejected = true;
+          ActionableFeedbackRegion.resolveDeferred(
+            ActionableFeedbackResult.unavailable,
+          );
           // Keep the exact current target and open its readiness view. The
           // same validation object is supplied to that view, so the blocker
           // remains visible instead of existing only as transient feedback.
         } on DailyFinalizeException catch (error) {
           if (!mounted) return;
+          ActionableFeedbackRegion.resolveDeferred(
+            ActionableFeedbackResult.unavailable,
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('CREATE DAILY DEBRIEF failed: ${error.code.name}'),
@@ -432,12 +448,18 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         }
       } on DailyLogValidationException catch (error) {
         if (!mounted) return;
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(error.toString())));
         return;
       } on DailyFinalizeException catch (error) {
         if (!mounted) return;
+        ActionableFeedbackRegion.resolveDeferred(
+          ActionableFeedbackResult.unavailable,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('CREATE DAILY DEBRIEF failed: ${error.code.name}'),
@@ -448,6 +470,14 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
       if (!mounted) return;
     }
     var imported = false;
+    if (!mounted) return;
+    if (!rejected) {
+      // The child Report Sync page owns validation/import feedback after this
+      // navigation. Resolve this create action before crossing the route.
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
+    }
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
@@ -2109,6 +2139,8 @@ class _DailyDebriefCreateButton extends StatelessWidget {
         text: 'CREATE DAILY DEBRIEF',
         icon: isCompact ? null : Icons.add_circle_outline,
         onPressed: onPressed,
+        deferFeedback: onPressed != null,
+        reportUnavailableTap: onPressed == null,
       );
       if (!isCompact) return button;
       return Theme(

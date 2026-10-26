@@ -298,6 +298,33 @@ class GlobalTouchRipple extends StatefulWidget {
     _release(pointer);
   }
 
+  /// Completes the newest deferred semantic interaction without an accepted
+  /// or unavailable result. This is used for a genuine user cancellation,
+  /// such as dismissing an import confirmation, where neither sound is
+  /// appropriate.
+  static void dismissDeferredFeedback() {
+    MapEntry<int, _TouchFeedbackOwnership>? selected;
+    for (final entry in _ownership.entries) {
+      final ownership = entry.value;
+      if (!ownership.deferred ||
+          ownership.deferredResolved ||
+          ownership.inputExcluded ||
+          (selected != null &&
+              ownership.semanticSequence <= selected.value.semanticSequence)) {
+        continue;
+      }
+      selected = entry;
+    }
+    if (selected != null) _release(selected.key);
+  }
+
+  /// A deferred operation starts on pointer-down but resolves after its
+  /// callback. Once the pointer is released, its long-press timer must no
+  /// longer invalidate an otherwise valid asynchronous result.
+  static void finishDeferredPointer(int pointer) {
+    _ownership[pointer]?.semanticLongPressTimer?.cancel();
+  }
+
   static int _semanticSequence = 0;
 
   static void updateSemanticPointer(int pointer, Offset position) {
@@ -674,6 +701,10 @@ class ActionableFeedbackRegion extends StatelessWidget {
   static void resolveDeferred(ActionableFeedbackResult result) =>
       GlobalTouchRipple.resolveDeferredFeedback(result);
 
+  /// Ends a deferred action that the user explicitly cancelled. No semantic
+  /// sound is produced.
+  static void dismissDeferred() => GlobalTouchRipple.dismissDeferredFeedback();
+
   @override
   Widget build(BuildContext context) {
     if (!enabled) return child;
@@ -715,6 +746,8 @@ class ActionableFeedbackRegion extends StatelessWidget {
       onPointerUp: (event) {
         if (!deferResolution) {
           GlobalTouchRipple.confirmSemanticFeedback(event.pointer);
+        } else {
+          GlobalTouchRipple.finishDeferredPointer(event.pointer);
         }
       },
       child: child,

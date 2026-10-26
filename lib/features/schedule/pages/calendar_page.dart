@@ -1074,16 +1074,16 @@ class _CalendarPageState extends State<CalendarPage> {
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('DELETE ENTRY?'),
-            content: Text('Remove "${record.title}" from the planner?'),
+            title: const Text('予定を削除しますか？'),
+            content: Text('「${record.title}」を削除しますか？'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('CANCEL'),
+                child: const Text('キャンセル'),
               ).actionableFeedback(),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('DELETE'),
+                child: const Text('削除'),
               ).actionableFeedback(),
             ],
           ),

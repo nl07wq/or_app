@@ -446,7 +446,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       final selected = await _fileGateway.selectJson();
       if (selected == null) {
         _importMessage = 'FILE SELECTION CANCELLED';
-        return;
+        return _ImportActionOutcome.cancelled;
       }
       if (!selected.name.toLowerCase().endsWith('.json')) {
         throw const FormatException('JSON file is required.');
@@ -460,6 +460,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       );
       _preview = null;
       _importMessage = 'RESPONSE FILE LOADED';
+      return _ImportActionOutcome.accepted;
     });
   }
 
@@ -479,6 +480,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _selectedMealIds = const {};
       _importError = null;
       _importMessage = 'クリップボードの内容を貼り付けました';
+      return _ImportActionOutcome.accepted;
     });
   }
 
@@ -513,6 +515,7 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       };
       _history = await _gateway.history(widget.exchangeType);
       _importMessage = 'RESPONSE READY';
+      return _ImportActionOutcome.accepted;
     }, errorFormatter: (error) => _validationErrorText(error, raw));
   }
 
@@ -536,7 +539,10 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      ActionableFeedbackRegion.dismissDeferred();
+      return;
+    }
     setState(() {
       _busy = true;
       _importError = null;
@@ -568,11 +574,17 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       // while refreshing a page that is about to close must not relabel a
       // verified, committed DAILY BRIEF as an unexpected import failure.
       widget.onApplied?.call();
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
     } catch (error) {
       _importError = _importErrorText(error);
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -597,11 +609,11 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     }
   }
 
-  Future<void> _runImport(
-    Future<void> Function() action, {
+  Future<_ImportActionOutcome> _runImport(
+    Future<_ImportActionOutcome> Function() action, {
     String Function(Object error)? errorFormatter,
   }) async {
-    if (_busy) return;
+    if (_busy) return _ImportActionOutcome.cancelled;
     setState(() {
       _busy = true;
       _importActionError = null;
@@ -609,13 +621,49 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _importMessage = null;
     });
     try {
-      await action();
+      final outcome = await action();
+      switch (outcome) {
+        case _ImportActionOutcome.accepted:
+          ActionableFeedbackRegion.resolveDeferred(
+            ActionableFeedbackResult.accepted,
+          );
+        case _ImportActionOutcome.rejected:
+          ActionableFeedbackRegion.resolveDeferred(
+            ActionableFeedbackResult.unavailable,
+          );
+        case _ImportActionOutcome.cancelled:
+          ActionableFeedbackRegion.dismissDeferred();
+          break;
+      }
+      return outcome;
     } catch (error) {
       _importActionError = (errorFormatter ?? _errorText)(error);
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
+      return _ImportActionOutcome.rejected;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  Widget _deferredImportButton({
+    required bool enabled,
+    required Future<void> Function() onPressed,
+    required IconData icon,
+    required String label,
+  }) => ActionableFeedbackRegion(
+    enabled: true,
+    result: enabled
+        ? ActionableFeedbackResult.accepted
+        : ActionableFeedbackResult.unavailable,
+    deferResolution: enabled,
+    child: OutlinedButton.icon(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(icon),
+      label: Text(label),
+    ),
+  );
 
   void _clearExportFeedback() {
     _generateMessage = null;
@@ -896,27 +944,33 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
             onPaste: _pasteResponse,
             onClear: _clearResponse,
             onValidate: _validate,
+            deferPaste: true,
+            deferValidate: true,
+            reportUnavailableFeedback: true,
           )
         else
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton.icon(
-                onPressed: ready && !_busy ? _selectResponseFile : null,
-                icon: const Icon(Icons.file_open_outlined),
-                label: const Text('SELECT RESPONSE FILE'),
-              ).actionableFeedback(),
-              OutlinedButton.icon(
-                onPressed: ready && !_busy ? _pasteResponse : null,
-                icon: const Icon(Icons.content_paste_outlined),
-                label: const Text('PASTE'),
-              ).actionableFeedback(),
-              OutlinedButton.icon(
-                onPressed: ready && !_busy ? _validate : null,
-                icon: const Icon(Icons.fact_check_outlined),
-                label: const Text('VALIDATE'),
-              ).actionableFeedback(),
+              _deferredImportButton(
+                enabled: ready && !_busy,
+                onPressed: _selectResponseFile,
+                icon: Icons.file_open_outlined,
+                label: 'SELECT RESPONSE FILE',
+              ),
+              _deferredImportButton(
+                enabled: ready && !_busy,
+                onPressed: _pasteResponse,
+                icon: Icons.content_paste_outlined,
+                label: 'PASTE',
+              ),
+              _deferredImportButton(
+                enabled: ready && !_busy,
+                onPressed: _validate,
+                icon: Icons.fact_check_outlined,
+                label: 'VALIDATE',
+              ),
             ],
           ),
         _ActionFeedback(
@@ -966,6 +1020,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                   : _importLabel(widget.exchangeType),
               icon: Icons.save_alt,
               onPressed: _busy || !_canApplyCurrent ? null : _apply,
+              deferFeedback: !_busy && _canApplyCurrent,
+              reportUnavailableTap: _busy || !_canApplyCurrent,
             ),
             if (_importError != null) ...[
               AppSpacing.gapSM,
@@ -1009,6 +1065,8 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
 
 enum _ExportAction { generate, prompt, source }
 
+enum _ImportActionOutcome { accepted, rejected, cancelled }
+
 class _StatusSourceResultRow extends StatelessWidget {
   const _StatusSourceResultRow({
     required this.label,
@@ -1024,12 +1082,14 @@ class _StatusSourceResultRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [
       Text('$label  '),
-      Text(
-        value,
-        style: TextStyle(
-          color: statusSourceVisualColor(
-            visualState,
-            Theme.of(context).colorScheme,
+      Expanded(
+        child: Text(
+          value,
+          style: TextStyle(
+            color: statusSourceVisualColor(
+              visualState,
+              Theme.of(context).colorScheme,
+            ),
           ),
         ),
       ),

@@ -11,12 +11,33 @@ class FoodSavedFloatingHud {
   static const _iceBlue = Color(0xffe2f9ff);
   static const _confirmed = Color(0xff65a5b8);
 
-  static Widget _surface() => const _FoodSavedFloatingHudSurface();
+  static Widget _surface({
+    String label = 'MEAL',
+    bool failed = false,
+    String? detail,
+  }) => _FoodSavedFloatingHudSurface(
+    label: label,
+    failed: failed,
+    detail: detail,
+  );
 
   @visibleForTesting
-  static Widget surfaceForTesting() => _surface();
+  static Widget surfaceForTesting({
+    String label = 'MEAL',
+    bool failed = false,
+    String? detail,
+  }) => _surface(label: label, failed: failed, detail: detail);
 
   static void show(BuildContext context) {
+    showFor(context, label: 'MEAL');
+  }
+
+  static void showFor(
+    BuildContext context, {
+    required String label,
+    bool failed = false,
+    String? detail,
+  }) {
     final messenger = ScaffoldMessenger.of(context);
     messenger
       ..removeCurrentSnackBar()
@@ -27,21 +48,28 @@ class FoodSavedFloatingHud {
           elevation: 0,
           padding: EdgeInsets.zero,
           margin: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: detail == null ? 2 : 3),
           dismissDirection: DismissDirection.down,
-          content: _surface(),
+          content: _surface(label: label, failed: failed, detail: detail),
         ),
       );
   }
 }
 
 class _FoodSavedFloatingHudSurface extends StatelessWidget {
-  const _FoodSavedFloatingHudSurface();
+  const _FoodSavedFloatingHudSurface({
+    required this.label,
+    required this.failed,
+    this.detail,
+  });
+  final String label;
+  final bool failed;
+  final String? detail;
 
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('food-saved-floating-hud'),
-    height: 46,
+    height: detail == null ? 46 : null,
     child: ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
@@ -64,65 +92,93 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
               ),
             ],
           ),
-          child: Stack(
-            children: [
-              const Positioned.fill(
-                // Keep the row constrained to the full HUD so its center is
-                // stable on mobile web. The accent belongs to the label
-                // group, not to the outer bottom border.
-                child: Center(
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            size: 19,
-                            color: FoodSavedFloatingHud._accent,
-                          ),
-                          SizedBox(width: 9),
-                          Text(
-                            'MEAL SAVED',
-                            style: TextStyle(
-                              color: FoodSavedFloatingHud._iceBlue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.05,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: detail == null ? 0 : 8),
+            child: Center(
+              // Keep the row constrained to the full HUD so its center is
+              // stable on mobile web. The accent belongs to the label
+              // group, not to the outer bottom border.
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: IntrinsicWidth(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  failed
+                                      ? Icons.error_outline_rounded
+                                      : Icons.check_circle_rounded,
+                                  size: 19,
+                                  color: failed
+                                      ? const Color(0xffff9ea9)
+                                      : FoodSavedFloatingHud._accent,
+                                ),
+                                SizedBox(width: 9),
+                                Text(
+                                  '$label ${failed ? 'SAVE FAILED' : 'SAVED'}',
+                                  style: TextStyle(
+                                    color: failed
+                                        ? const Color(0xffffdce1)
+                                        : FoodSavedFloatingHud._iceBlue,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.05,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  failed ? 'REJECTED' : 'CONFIRMED',
+                                  style: TextStyle(
+                                    color: failed
+                                        ? const Color(0xffe8a3b1)
+                                        : FoodSavedFloatingHud._confirmed,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: .7,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'CONFIRMED',
-                            style: TextStyle(
-                              color: FoodSavedFloatingHud._confirmed,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: .7,
+                            SizedBox(
+                              key: const ValueKey(
+                                'food-saved-floating-hud-inner-line',
+                              ),
+                              height: 1,
+                              width: double.infinity,
+                              child: ColoredBox(
+                                color: failed
+                                    ? const Color(0xffff9ea9)
+                                    : FoodSavedFloatingHud._accent,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      Positioned(
-                        key: ValueKey('food-saved-floating-hud-inner-line'),
-                        left: 28,
-                        right: 0,
-                        top: 19,
-                        child: SizedBox(
-                          height: 1,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: FoodSavedFloatingHud._accent,
-                            ),
+                    ),
+                    if (detail != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          detail!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Color(0xffffd5dc),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

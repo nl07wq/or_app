@@ -131,9 +131,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       return false;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('MEAL SAVE FAILED')));
+        FoodSavedFloatingHud.showFor(context, label: 'MEAL', failed: true);
       }
       return false;
     }
@@ -170,9 +168,7 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
       return false;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('MEAL SAVE FAILED')));
+        FoodSavedFloatingHud.showFor(context, label: 'MEAL', failed: true);
       }
       return false;
     }

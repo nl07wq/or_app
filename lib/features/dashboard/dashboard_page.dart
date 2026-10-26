@@ -35,6 +35,7 @@ import '../../core/state/app_initialization_state.dart';
 
 import '../food/services/food_submit_service.dart';
 import '../food/data/water_quick_presets.dart';
+import '../food/widgets/food_saved_floating_hud.dart';
 import '../morning/models/morning_fact.dart';
 import '../morning/models/morning_fact_state.dart';
 
@@ -3521,7 +3522,9 @@ class _ProgressRow extends StatelessWidget {
                   text,
                   maxLines: 1,
                   softWrap: false,
-                  style: _OperationProgressTypography.status(context),
+                  style: _OperationProgressTypography.status(
+                    context,
+                  ).copyWith(fontSize: 14),
                 ),
               ),
             );
@@ -3909,6 +3912,15 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
 
     if (amountMl == null || amountMl <= 0) {
       setState(() => _validationMessage = '正の整数の ml を入力してください。');
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
+      FoodSavedFloatingHud.showFor(
+        context,
+        label: 'WATER',
+        failed: true,
+        detail: _validationMessage,
+      );
       return;
     }
 
@@ -3933,21 +3945,27 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
 
       if (!mounted || !widget.dashboardContext.mounted) return;
 
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(
-        widget.dashboardContext,
-      ).showSnackBar(SnackBar(content: Text('Water +$amountMl ml recorded')));
+      FoodSavedFloatingHud.showFor(widget.dashboardContext, label: 'WATER');
     } on ConfirmedDailyLogException catch (error) {
       if (!mounted) return;
       setState(() => _isSaving = false);
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
       showConfirmedLogMessage(context, error);
+      FoodSavedFloatingHud.showFor(context, label: 'WATER', failed: true);
     } catch (_) {
       if (!mounted) return;
 
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Water を記録できませんでした')));
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
+      FoodSavedFloatingHud.showFor(context, label: 'WATER', failed: true);
     }
   }
 
@@ -4021,6 +4039,7 @@ class _QuickWaterSheetState extends State<_QuickWaterSheet> {
               OperationButton(
                 icon: Icons.save_outlined,
                 text: 'Save Water',
+                deferFeedback: true,
                 onPressed: _isSaving ? null : _saveCustomAmount,
               ),
               TextButton(

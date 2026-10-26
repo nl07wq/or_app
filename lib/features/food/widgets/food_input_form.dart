@@ -1845,7 +1845,13 @@ class _FoodInputFormState extends State<FoodInputForm> {
     }
 
     if (!mounted) return;
-    if (!saved) return;
+    if (!saved) {
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
+      return;
+    }
+    ActionableFeedbackRegion.resolveDeferred(ActionableFeedbackResult.accepted);
     _clearForm();
   }
 
@@ -3095,6 +3101,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                           ? 'SAVE MEAL'
                           : 'UPDATE MEAL',
                       frostedGradient: true,
+                      deferFeedback: true,
                       onPressed: _isSaving ? null : saveMeal,
                     ),
                   ],
