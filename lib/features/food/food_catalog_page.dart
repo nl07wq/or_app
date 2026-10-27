@@ -700,25 +700,33 @@ class _FoodCatalogListCard extends StatelessWidget {
                   final cells = [
                     _NutritionCell(
                       label: 'kcal',
-                      value: _nutritionValue(
+                      number: _nutritionNumber(
                         entry.nutrition.calories,
                         kcal: true,
                       ),
+                      unit: entry.nutrition.calories == null ? '' : 'kcal',
+                      valueColor: const Color(0xFFF1F7FF),
                     ),
                     _NutritionCell(
                       label: 'P',
-                      value: _nutritionValue(entry.nutrition.protein),
-                      color: FoodFormMetrics.protein,
+                      number: _nutritionNumber(entry.nutrition.protein),
+                      unit: entry.nutrition.protein == null ? '' : 'g',
+                      valueColor: foodDetailProteinColor,
+                      labelColor: FoodFormMetrics.protein,
                     ),
                     _NutritionCell(
                       label: 'F',
-                      value: _nutritionValue(entry.nutrition.fat),
-                      color: FoodFormMetrics.fat,
+                      number: _nutritionNumber(entry.nutrition.fat),
+                      unit: entry.nutrition.fat == null ? '' : 'g',
+                      valueColor: foodDetailFatColor,
+                      labelColor: FoodFormMetrics.fat,
                     ),
                     _NutritionCell(
                       label: 'C',
-                      value: _nutritionValue(entry.nutrition.carbohydrate),
-                      color: FoodFormMetrics.carbohydrate,
+                      number: _nutritionNumber(entry.nutrition.carbohydrate),
+                      unit: entry.nutrition.carbohydrate == null ? '' : 'g',
+                      valueColor: foodDetailCarbohydrateColor,
+                      labelColor: FoodFormMetrics.carbohydrate,
                     ),
                   ];
                   final row = constraints.maxWidth >= 250
@@ -754,19 +762,27 @@ class _FoodCatalogListCard extends StatelessWidget {
     );
   }
 
-  String _nutritionValue(num? value, {bool kcal = false}) => value == null
+  String _nutritionNumber(num? value, {bool kcal = false}) => value == null
       ? '—'
       : kcal
-      ? '${FoodNutritionFormatter.calories(value)} kcal'
-      : '${FoodNutritionFormatter.macro(value)} g';
+      ? FoodNutritionFormatter.calories(value)
+      : FoodNutritionFormatter.macro(value);
 }
 
 class _NutritionCell extends StatelessWidget {
-  const _NutritionCell({required this.label, required this.value, this.color});
+  const _NutritionCell({
+    required this.label,
+    required this.number,
+    required this.unit,
+    required this.valueColor,
+    this.labelColor,
+  });
 
   final String label;
-  final String value;
-  final Color? color;
+  final String number;
+  final String unit;
+  final Color valueColor;
+  final Color? labelColor;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -774,12 +790,38 @@ class _NutritionCell extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(value, style: Theme.of(context).textTheme.bodySmall),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: number,
+                  style: TextStyle(
+                    color: valueColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (unit.isNotEmpty)
+                  TextSpan(
+                    text: ' $unit',
+                    style: TextStyle(
+                      color: valueColor.withValues(alpha: .78),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+          ),
+        ),
         const SizedBox(height: 2),
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: color ?? FoodFormMetrics.caption,
+            color: labelColor ?? FoodFormMetrics.caption,
           ),
         ),
       ],

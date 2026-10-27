@@ -491,6 +491,22 @@ void main() {
     expect(primaryName.style?.fontWeight, FontWeight.w700);
     expect(primaryName.style?.fontSize, greaterThan(metadata.style!.fontSize!));
     expect(metadata.style?.fontSize, 14);
+    final calories = tester.widget<Text>(find.text('33 kcal'));
+    final calorieSpans = (calories.textSpan! as TextSpan).children!
+        .cast<TextSpan>()
+        .toList();
+    expect(calorieSpans.first.style?.fontSize, 15);
+    expect(calorieSpans.first.style?.fontWeight, FontWeight.w600);
+    expect(calorieSpans.first.style?.color, const Color(0xFFF1F7FF));
+    expect(calorieSpans.last.style?.fontSize, 11);
+    expect(calorieSpans.last.style?.fontWeight, FontWeight.w400);
+    final carbohydrate = tester.widget<Text>(find.text('8.4 g'));
+    final carbohydrateSpans = (carbohydrate.textSpan! as TextSpan).children!
+        .cast<TextSpan>()
+        .toList();
+    expect(carbohydrateSpans.first.style?.fontSize, 15);
+    expect(carbohydrateSpans.first.style?.color, const Color(0xFF9B8CFF));
+    expect(carbohydrateSpans.last.style?.fontSize, 11);
   });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
@@ -970,6 +986,26 @@ void main() {
     expect(find.text('23%'), findsOneWidget);
     expect(foodDetailPfcRingWidth, 18);
     expect(
+      tester.getSize(find.byKey(const ValueKey('food-detail-pfc-donut'))),
+      const Size(112, 112),
+    );
+    final centerCalories = tester.widget<Text>(find.text('286'));
+    expect(centerCalories.style?.fontSize, 24);
+    expect(centerCalories.style?.color, const Color(0xFFF1F7FF));
+    final proteinGrams = tester.widget<Text>(find.text('12.2 g'));
+    final proteinGramSpans = (proteinGrams.textSpan! as TextSpan).children!
+        .cast<TextSpan>()
+        .toList();
+    expect(proteinGramSpans.first.style?.fontSize, 17);
+    expect(proteinGramSpans.first.style?.fontWeight, FontWeight.w700);
+    expect(proteinGramSpans.first.style?.color, const Color(0xFF63D8FF));
+    expect(proteinGramSpans.last.style?.fontSize, 12);
+    expect(proteinGramSpans.last.style?.fontWeight, FontWeight.w400);
+    final proteinPercent = tester.widget<Text>(find.text('17%'));
+    expect(proteinPercent.style?.fontSize, 15);
+    expect(proteinPercent.style?.fontWeight, FontWeight.w600);
+    expect(proteinPercent.style?.color, const Color(0xFFF1F7FF));
+    expect(
       (tester
                   .widget<Container>(
                     find.byKey(const ValueKey('food-detail-pfc-PROTEIN-dot')),
@@ -1057,6 +1093,38 @@ void main() {
       );
       expect(tester.takeException(), isNull, reason: 'width $width');
     }
+    await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets('PFC detail preserves enlarged extreme gram values', (
+    tester,
+  ) async {
+    for (final nutrition in [
+      NutritionSnapshot(calories: 162, protein: 0, fat: 0, carbohydrate: 999.9),
+      NutritionSnapshot(calories: 162, protein: 100, fat: 0, carbohydrate: 0),
+    ]) {
+      for (final width in [320.0, 375.0, 390.0, 430.0]) {
+        await tester.binding.setSurfaceSize(Size(width, 900));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: FoodPfcBalanceCard(
+                nutrition: nutrition,
+                style: FoodPfcBalanceStyle.foodDetail,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.text('0 g'), findsWidgets);
+        expect(
+          find.text(nutrition.carbohydrate == 999.9 ? '999.9 g' : '100 g'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull, reason: 'width $width');
+      }
+    }
+    expect(find.text('100%'), findsOneWidget);
     await tester.binding.setSurfaceSize(null);
   });
 

@@ -111,98 +111,48 @@ class FoodPfcBalanceCard extends StatelessWidget {
           SectionHeader(icon: Icons.donut_large, title: title),
           AppSpacing.gapSM,
         ],
-        Row(
-          key: ValueKey('$keyPrefix-horizontal'),
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              key: ValueKey('$keyPrefix-donut'),
-              width: donutSize,
-              height: donutSize,
-              child: Stack(
-                fit: StackFit.expand,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compactDetail = detail && constraints.maxWidth < 280;
+            final donut = _donut(
+              values,
+              colors,
+              detailStyle,
+              detail,
+              ringWidth,
+              donutSize,
+            );
+            final metrics = _metrics(
+              context,
+              labels,
+              grams,
+              values,
+              total,
+              colors,
+              detailStyle,
+              detail,
+            );
+            if (compactDetail) {
+              return Column(
+                key: ValueKey('$keyPrefix-horizontal'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  CustomPaint(
-                    painter: _PfcPainter(
-                      values,
-                      colors,
-                      trackColor: detailStyle?.trackColor ?? Colors.transparent,
-                      ringWidth: ringWidth,
-                      inset: detail ? ringWidth / 2 : 10,
-                      drawTrack: detail,
-                    ),
-                  ),
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              nutrition.calories == null
-                                  ? 'N/A'
-                                  : FoodNutritionFormatter.calories(
-                                      nutrition.calories!,
-                                    ),
-                              key: ValueKey('$keyPrefix-center-calories'),
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: detail ? const Color(0xFFF1F7FF) : null,
-                                fontSize: detail ? 24 : 18,
-                                fontWeight: FontWeight.bold,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                          if (nutrition.calories != null)
-                            Text(
-                              'kcal',
-                              style: TextStyle(
-                                color: detail ? const Color(0xFFF1F7FF) : null,
-                                fontSize: detail ? 11 : 10,
-                                height: 1.1,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  Center(child: donut),
+                  AppSpacing.gapMD,
+                  metrics,
                 ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                children: [
-                  for (var index = 0; index < values.length; index++) ...[
-                    _PfcMetricRow(
-                      key: ValueKey('$keyPrefix-${labels[index]}'),
-                      label: labels[index],
-                      grams: grams[index],
-                      percent: (values[index] / total * 100).round(),
-                      color: colors[index],
-                      textColor: detail
-                          ? const Color(0xFFF1F7FF)
-                          : Theme.of(context).colorScheme.onSurface,
-                      dotKey: ValueKey('$keyPrefix-${labels[index]}-dot'),
-                    ),
-                    if (index < values.length - 1)
-                      detail
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Divider(
-                                color: detailStyle.dividerColor,
-                                height: 1,
-                              ),
-                            )
-                          : AppSpacing.gapSM,
-                  ],
-                ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Row(
+              key: ValueKey('$keyPrefix-horizontal'),
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                donut,
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: metrics),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -216,6 +166,104 @@ class FoodPfcBalanceCard extends StatelessWidget {
       child: content,
     );
   }
+
+  Widget _donut(
+    List<double> values,
+    List<Color> colors,
+    FoodPfcBalanceStyle? detailStyle,
+    bool detail,
+    double ringWidth,
+    double donutSize,
+  ) => SizedBox(
+    key: ValueKey('$keyPrefix-donut'),
+    width: donutSize,
+    height: donutSize,
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        CustomPaint(
+          painter: _PfcPainter(
+            values,
+            colors,
+            trackColor: detailStyle?.trackColor ?? Colors.transparent,
+            ringWidth: ringWidth,
+            inset: detail ? ringWidth / 2 : 10,
+            drawTrack: detail,
+          ),
+        ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    nutrition.calories == null
+                        ? 'N/A'
+                        : FoodNutritionFormatter.calories(nutrition.calories!),
+                    key: ValueKey('$keyPrefix-center-calories'),
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: detail ? const Color(0xFFF1F7FF) : null,
+                      fontSize: detail ? 24 : 18,
+                      fontWeight: FontWeight.bold,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                if (nutrition.calories != null)
+                  Text(
+                    'kcal',
+                    style: TextStyle(
+                      color: detail ? const Color(0xFFF1F7FF) : null,
+                      fontSize: detail ? 11 : 10,
+                      height: 1.1,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _metrics(
+    BuildContext context,
+    List<String> labels,
+    List<double> grams,
+    List<double> values,
+    double total,
+    List<Color> colors,
+    FoodPfcBalanceStyle? detailStyle,
+    bool detail,
+  ) => Column(
+    children: [
+      for (var index = 0; index < values.length; index++) ...[
+        _PfcMetricRow(
+          key: ValueKey('$keyPrefix-${labels[index]}'),
+          label: labels[index],
+          grams: grams[index],
+          percent: (values[index] / total * 100).round(),
+          color: colors[index],
+          textColor: detail
+              ? const Color(0xFFF1F7FF)
+              : Theme.of(context).colorScheme.onSurface,
+          emphasized: detail,
+          dotKey: ValueKey('$keyPrefix-${labels[index]}-dot'),
+        ),
+        if (index < values.length - 1)
+          detail
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Divider(color: detailStyle!.dividerColor, height: 1),
+                )
+              : AppSpacing.gapSM,
+      ],
+    ],
+  );
 }
 
 class _PfcMetricRow extends StatelessWidget {
@@ -226,6 +274,7 @@ class _PfcMetricRow extends StatelessWidget {
     required this.percent,
     required this.color,
     required this.textColor,
+    required this.emphasized,
     required this.dotKey,
   });
 
@@ -234,13 +283,23 @@ class _PfcMetricRow extends StatelessWidget {
   final int percent;
   final Color color;
   final Color textColor;
+  final bool emphasized;
   final Key dotKey;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final style = TextStyle(color: textColor, fontWeight: FontWeight.w700);
+      final labelStyle = TextStyle(
+        color: textColor,
+        fontWeight: FontWeight.w700,
+      );
       final compact = constraints.maxWidth < 190;
+      final gramsWidth = emphasized
+          ? (compact ? 72.0 : 80.0)
+          : (compact ? 48.0 : 58.0);
+      final percentWidth = emphasized
+          ? (compact ? 42.0 : 46.0)
+          : (compact ? 34.0 : 36.0);
       return Row(
         children: [
           Container(
@@ -254,25 +313,53 @@ class _PfcMetricRow extends StatelessWidget {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text(label, maxLines: 1, style: style),
+              child: Text(label, maxLines: 1, style: labelStyle),
             ),
           ),
           SizedBox(
-            width: compact ? 48 : 58,
+            width: gramsWidth,
             child: Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                '${FoodNutritionFormatter.macro(grams)} g',
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: FoodNutritionFormatter.macro(grams),
+                      style: TextStyle(
+                        color: emphasized ? color : textColor,
+                        fontSize: emphasized ? 17 : null,
+                        fontWeight: emphasized
+                            ? FontWeight.w700
+                            : FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' g',
+                      style: TextStyle(
+                        color: emphasized ? color : textColor,
+                        fontSize: emphasized ? 12 : null,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
                 maxLines: 1,
-                style: style,
               ),
             ),
           ),
           SizedBox(
-            width: compact ? 34 : 36,
+            width: percentWidth,
             child: Align(
               alignment: Alignment.centerRight,
-              child: Text('$percent%', maxLines: 1, style: style),
+              child: Text(
+                '$percent%',
+                maxLines: 1,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: emphasized ? 15 : null,
+                  fontWeight: emphasized ? FontWeight.w600 : FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ],
