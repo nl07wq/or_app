@@ -103,6 +103,8 @@ class DeviceSettingsPage extends StatelessWidget {
               ],
             ),
           ),
+          AppSpacing.gapSM,
+          const _SoundInventoryCard(),
           if (TouchRippleAudioDiagnostics.enabled) ...[
             AppSpacing.gapSM,
             _AudioDiagnosticCard(),
@@ -205,6 +207,61 @@ class DeviceSettingsPage extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+
+class _SoundInventoryCard extends StatelessWidget {
+  const _SoundInventoryCard();
+
+  @override
+  Widget build(BuildContext context) => OperationCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('SOUND INVENTORY'),
+        AppSpacing.gapXS,
+        const Text(
+          'Active semantic feedback sounds. Previews use the current mute and channel levels.',
+        ),
+        AppSpacing.gapSM,
+        for (final entry in touchFeedbackSoundInventory) ...[
+          _SoundInventoryRow(entry: entry),
+          if (entry != touchFeedbackSoundInventory.last) const Divider(),
+        ],
+      ],
+    ),
+  );
+}
+
+class _SoundInventoryRow extends StatelessWidget {
+  const _SoundInventoryRow({required this.entry});
+
+  final TouchFeedbackSoundInventoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(entry.semanticName),
+            const SizedBox(height: 2),
+            Text(
+              '${entry.channel.name.toUpperCase()}  •  ${entry.asset.split('/').last}',
+              style: Theme.of(context).textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+      IconButton(
+        key: ValueKey('audio-preview-${entry.sound.name}'),
+        tooltip: 'Preview ${entry.semanticName}',
+        onPressed: () => GlobalTouchRipple.previewFeedback(entry.sound),
+        icon: const Icon(Icons.play_arrow_rounded),
+      ).actionableFeedback(role: ActionableFeedbackRole.silent),
+    ],
   );
 }
 

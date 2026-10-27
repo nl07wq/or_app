@@ -30,6 +30,8 @@ class WorkCalculator {
     return work;
   }
 
+  static bool isValidClockTime(String value) => _toHours(value) != null;
+
   static double? _toHours(String value) {
     final parts = value.split(":");
 
@@ -38,7 +40,13 @@ class WorkCalculator {
     final h = int.tryParse(parts[0]);
     final m = int.tryParse(parts[1]);
 
-    if (h == null || m == null) {
+    if (h == null ||
+        m == null ||
+        h < 0 ||
+        h > 24 ||
+        m < 0 ||
+        m >= 60 ||
+        (h == 24 && m != 0)) {
       return null;
     }
 

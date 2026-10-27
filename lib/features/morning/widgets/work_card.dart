@@ -472,19 +472,17 @@ class _WorkClockRowState extends State<_WorkClockRow> {
     if (mounted) setState(() {});
   }
 
-  TimeOfDay get _time {
-    final p = widget.controller.text.split(':');
-    return TimeOfDay(
-      hour: (int.tryParse(p.first) ?? 0).clamp(0, 23),
-      minute: (p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0).clamp(0, 59),
-    );
-  }
+  OperationCivilTime get _time =>
+      OperationCivilTime.tryParse(widget.controller.text) ??
+      const OperationCivilTime(hour: 0, minute: 0);
 
   Future<void> _pick() async {
-    final result = await showSharedTimePicker(context, initialTime: _time);
+    final result = await showSharedStatusWorkTimePicker(
+      context,
+      initialTime: _time,
+    );
     if (result != null) {
-      widget.controller.text =
-          '${result.hour.toString().padLeft(2, '0')}:${result.minute.toString().padLeft(2, '0')}';
+      widget.controller.text = result.clockString;
       if (mounted) setState(() => _collapsed = true);
     }
   }
@@ -577,7 +575,13 @@ bool _isValidTime(String value) {
   if (p.length != 2) return false;
   final h = int.tryParse(p[0]);
   final m = int.tryParse(p[1]);
-  return h != null && m != null && h >= 0 && h <= 23 && m >= 0 && m <= 59;
+  return h != null &&
+      m != null &&
+      h >= 0 &&
+      h <= 24 &&
+      m >= 0 &&
+      m <= 59 &&
+      (h != 24 || m == 0);
 }
 
 class _BreakTimeStepper extends StatefulWidget {
@@ -720,7 +724,7 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
               key: const ValueKey('work-break-done'),
               onPressed: () => setState(() => _editing = false),
               child: const Text('完了'),
-            ).actionableFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.cursor),
           ),
         ],
       ),

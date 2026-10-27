@@ -7,6 +7,7 @@ import 'daily_nutrition_analysis_page.dart';
 import 'food_edit_page.dart';
 import 'meal_analysis_page.dart';
 import 'services/food_submit_service.dart';
+import 'services/food_history_catalog_registration_store.dart';
 import 'services/daily_meal_v2_editor.dart';
 
 import '../../core/models/meal_data.dart';
@@ -49,6 +50,8 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
   List<FoodUnifiedReadModel> _historyOrder = const [];
   Map<String, FoodCatalogEntry> _catalogEntries = const {};
   Map<String, FoodRecipeDefinition> _recipeEntries = const {};
+  Map<String, String> _catalogRegistrationByItem = const {};
+  final Set<String> _registrationInProgress = <String>{};
   Object? _loadError;
 
   @override
@@ -75,13 +78,18 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
           : const <DailyMealV2>[];
       _v2Records = v2Records.reversed.toList(growable: false);
       if (AppRepositoryRegistry.hasContainer) {
+        final registrations =
+            await FoodHistoryCatalogRegistrationStore.readAll();
+        _catalogRegistrationByItem = registrations;
         _historyOrder = await AppRepositoryRegistry.container.foodMixedRead
             .readHistory();
-        final referenceIds = v2Records
-            .expand((meal) => meal.items)
-            .map((item) => item.foodReferenceId)
-            .whereType<String>()
-            .toSet();
+        final referenceIds =
+            v2Records
+                .expand((meal) => meal.items)
+                .map((item) => item.foodReferenceId)
+                .whereType<String>()
+                .toSet()
+              ..addAll(registrations.values);
         final catalog = await Future.wait(
           referenceIds.map(
             AppRepositoryRegistry.container.foodCatalog.readById,
@@ -109,6 +117,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
         _historyOrder = const [];
         _catalogEntries = const {};
         _recipeEntries = const {};
+        _catalogRegistrationByItem = const {};
       }
     } catch (error) {
       loadError = error;
@@ -288,8 +297,15 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 title: Text('${meal.waterMl!.toStringAsFixed(0)} ml'),
               )
             else
-              ...meal.items.map(
-                (item) => Column(
+              ...meal.items.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
+                final registrationKey =
+                    FoodHistoryCatalogRegistrationStore.legacyItemKey(
+                      meal.id,
+                      index,
+                    );
+                return Column(
                   children: [
                     ListTile(
                       dense: true,
@@ -316,18 +332,25 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                         "  C ${FoodNutritionFormatter.macro(item.totalCarbohydrate)}",
                       ),
                     ),
-                    if (!appInitializationController.value.isReadOnly)
+                    if (!appInitializationController.value.isReadOnly &&
+                        !_hasActiveCatalogRegistration(registrationKey))
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton.icon(
-                          onPressed: () => _addLegacyItemToCatalog(item),
+                          onPressed:
+                              _registrationInProgress.contains(registrationKey)
+                              ? null
+                              : () => _addLegacyItemToCatalog(
+                                  item,
+                                  registrationKey,
+                                ),
                           icon: const Icon(Icons.add_business),
                           label: const Text('ADD TO FOOD DATABASE'),
                         ).actionableFeedback(),
                       ),
                   ],
-                ),
-              ),
+                );
+              }),
             if (meal.memo.isNotEmpty) ...[
               AppSpacing.gapMD,
               ListTile(
@@ -343,9 +366,13 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     ).actionableFeedback();
   }
 
-  Future<void> _addLegacyItemToCatalog(FoodItem item) async {
+  Future<void> _addLegacyItemToCatalog(
+    FoodItem item,
+    String registrationKey,
+  ) async {
     if (!AppRepositoryRegistry.hasContainer) return;
-    await Navigator.push<FoodCatalogEntry>(
+    setState(() => _registrationInProgress.add(registrationKey));
+    final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogEditorPage(
@@ -370,6 +397,16 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
         ),
       ),
     );
+    if (saved != null) {
+      await FoodHistoryCatalogRegistrationStore.link(
+        recordItemKey: registrationKey,
+        catalogId: saved.foodId,
+      );
+      await _loadRecords(showLoading: false);
+    }
+    if (mounted) {
+      setState(() => _registrationInProgress.remove(registrationKey));
+    }
   }
 
   Widget _buildV2MealCard(DailyMealV2 meal) {
@@ -471,11 +508,25 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 isThreeLine: true,
               ),
               if (!appInitializationController.value.isReadOnly &&
-                  !_hasActiveMasterReference(item))
+                  !_hasActiveMasterReference(item) &&
+                  !_hasActiveCatalogRegistration(
+                    FoodHistoryCatalogRegistrationStore.v2ItemKey(
+                      meal.mealId,
+                      item.mealItemId,
+                    ),
+                  ))
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
-                    onPressed: () => _addV2ItemToCatalog(item),
+                    onPressed:
+                        _registrationInProgress.contains(
+                          FoodHistoryCatalogRegistrationStore.v2ItemKey(
+                            meal.mealId,
+                            item.mealItemId,
+                          ),
+                        )
+                        ? null
+                        : () => _addV2ItemToCatalog(meal.mealId, item),
                     icon: const Icon(Icons.add_business),
                     label: const Text('ADD TO FOOD DATABASE'),
                   ).actionableFeedback(),
@@ -501,9 +552,24 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
     return false;
   }
 
-  Future<void> _addV2ItemToCatalog(DailyMealItemSnapshot item) async {
+  bool _hasActiveCatalogRegistration(String recordItemKey) {
+    final catalogId = _catalogRegistrationByItem[recordItemKey];
+    if (catalogId == null) return false;
+    final entry = _catalogEntries[catalogId];
+    return entry != null && !entry.isArchived;
+  }
+
+  Future<void> _addV2ItemToCatalog(
+    String mealId,
+    DailyMealItemSnapshot item,
+  ) async {
     if (!AppRepositoryRegistry.hasContainer) return;
-    await Navigator.push<FoodCatalogEntry>(
+    final registrationKey = FoodHistoryCatalogRegistrationStore.v2ItemKey(
+      mealId,
+      item.mealItemId,
+    );
+    setState(() => _registrationInProgress.add(registrationKey));
+    final saved = await Navigator.push<FoodCatalogEntry>(
       context,
       MaterialPageRoute(
         builder: (_) => FoodCatalogEditorPage(
@@ -518,6 +584,16 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
         ),
       ),
     );
+    if (saved != null) {
+      await FoodHistoryCatalogRegistrationStore.link(
+        recordItemKey: registrationKey,
+        catalogId: saved.foodId,
+      );
+      await _loadRecords(showLoading: false);
+    }
+    if (mounted) {
+      setState(() => _registrationInProgress.remove(registrationKey));
+    }
   }
 
   @override

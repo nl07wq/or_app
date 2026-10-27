@@ -147,7 +147,7 @@ class _SleepDurationOrbitalInputState
     final hour = int.tryParse(parts.first) ?? 0;
     final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
     return Duration(
-      hours: hour.clamp(0, 23).toInt(),
+      hours: hour < 0 ? 0 : hour,
       minutes: minute.clamp(0, 59).toInt(),
     );
   }
@@ -339,7 +339,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
               key: const ValueKey('status-sleep-score-done'),
               onPressed: () => setState(() => _editing = false),
               child: const Text('完了'),
-            ).inputFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.cursor),
           ),
         ],
       ),

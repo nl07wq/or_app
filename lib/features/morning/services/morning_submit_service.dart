@@ -53,6 +53,11 @@ class MorningSubmitService {
           workBreak.trim().isEmpty) {
         return '勤務時間を入力してください';
       }
+      if (!WorkCalculator.isValidClockTime(workStart) ||
+          !WorkCalculator.isValidClockTime(workEnd) ||
+          !WorkCalculator.isValidClockTime(workBreak)) {
+        return '勤務時間は 00:00 から 24:00 の形式で入力してください';
+      }
     }
 
     // 数値変換

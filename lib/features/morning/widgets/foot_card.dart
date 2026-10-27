@@ -162,7 +162,7 @@ class _FootCardState extends State<FootCard> {
                 key: const Key('foot-pain-done'),
                 onPressed: () => setState(() => _editing = false),
                 child: const Text('完了'),
-              ).inputFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
             ),
           ],
         ],

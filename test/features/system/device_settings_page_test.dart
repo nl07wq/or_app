@@ -108,6 +108,22 @@ void main() {
     expect(audio.played, [TouchFeedbackSound.failure]);
   });
 
+  testWidgets('sound inventory exposes every active semantic sound', (
+    tester,
+  ) async {
+    final controller = DeviceSettingsController();
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceSettingsPage(controller: controller)),
+    );
+    for (final entry in touchFeedbackSoundInventory) {
+      final preview = find.byKey(ValueKey('audio-preview-${entry.sound.name}'));
+      await tester.scrollUntilVisible(preview, 200);
+      expect(preview, findsOneWidget);
+      expect(find.text(entry.semanticName), findsWidgets);
+    }
+  });
+
   testWidgets('audio diagnostics exposes the isolated AudioBuffer route', (
     tester,
   ) async {
@@ -125,6 +141,7 @@ void main() {
     final audioBuffer = find.byKey(
       const ValueKey('audio-diagnostic-rejected-audio-buffer'),
     );
+    await tester.scrollUntilVisible(audioBuffer, 300);
     expect(audioBuffer, findsOneWidget);
     expect(
       find.byKey(const ValueKey('audio-diagnostic-rejected-web-audio')),
@@ -250,10 +267,7 @@ void main() {
     final density = find.byKey(
       const ValueKey('device-settings-mid-rear-density'),
     );
-    await tester.drag(
-      find.byKey(const ValueKey('device-settings-content')),
-      const Offset(0, -900),
-    );
+    await tester.scrollUntilVisible(density, 300);
     await tester.pumpAndSettle();
     await tester.tap(density);
     await tester.pumpAndSettle();

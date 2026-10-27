@@ -284,7 +284,7 @@ class _WeightHudState extends State<_WeightHud> with TickerProviderStateMixin {
               onPressed: _lockController.isAnimating ? null : _confirm,
               icon: const Icon(Icons.lock_outline, size: 16),
               label: const Text('完了'),
-            ).inputFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.cursor),
           ),
         ),
       ],
@@ -933,6 +933,12 @@ class _BodyFatRingState extends State<_BodyFatRing> {
 
   void _set(double n) => widget.controller.text =
       ((n.clamp(0, 60) * 10).round() / 10).toStringAsFixed(1);
+
+  void _stepTenths(int delta) {
+    final currentTenths = (v * 10).round();
+    _set((currentTenths + delta).clamp(0, 600) / 10);
+  }
+
   @override
   Widget build(BuildContext c) {
     final cs = Theme.of(c).colorScheme;
@@ -972,14 +978,45 @@ class _BodyFatRingState extends State<_BodyFatRing> {
                             'BODY FAT',
                             style: Theme.of(c).textTheme.labelMedium,
                           ),
-                          Text(
-                            '${v.toStringAsFixed(1)}%',
-                            style: Theme.of(c).textTheme.headlineMedium
-                                ?.copyWith(
-                                  fontFamily: 'ShareTechMono',
-                                  fontSize: compact ? 30 : 33,
-                                  fontWeight: FontWeight.w800,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '${v.toStringAsFixed(1)}%',
+                                  overflow: TextOverflow.clip,
+                                  style: Theme.of(c).textTheme.headlineMedium
+                                      ?.copyWith(
+                                        fontFamily: 'ShareTechMono',
+                                        fontSize: compact ? 30 : 33,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                 ),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                key: const ValueKey('status-body-fat-minus'),
+                                tooltip: 'Decrease body fat by 0.1%',
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.remove, size: 18),
+                                onPressed: v <= 0
+                                    ? null
+                                    : () => _stepTenths(-1),
+                              ).actionableFeedback(
+                                role: ActionableFeedbackRole.cursor,
+                              ),
+                              IconButton(
+                                key: const ValueKey('status-body-fat-plus'),
+                                tooltip: 'Increase body fat by 0.1%',
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.add, size: 18),
+                                onPressed: v >= 60
+                                    ? null
+                                    : () => _stepTenths(1),
+                              ).actionableFeedback(
+                                role: ActionableFeedbackRole.cursor,
+                              ),
+                            ],
                           ),
                           Text(
                             '0.1% STEP',
@@ -1016,7 +1053,7 @@ class _BodyFatRingState extends State<_BodyFatRing> {
               key: const ValueKey('status-body-fat-done'),
               onPressed: () => setState(() => _editing = false),
               child: const Text('完了'),
-            ).inputFeedback(),
+            ).actionableFeedback(role: ActionableFeedbackRole.cursor),
           ),
         ],
       ),

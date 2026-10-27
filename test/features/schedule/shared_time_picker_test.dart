@@ -46,6 +46,15 @@ void main() {
     });
   });
 
+  group('OperationCivilTime', () {
+    test('keeps 00:00, 12:00, and 24:00 distinct', () {
+      expect(OperationCivilTime.tryParse('00:00')?.clockString, '00:00');
+      expect(OperationCivilTime.tryParse('12:00')?.clockString, '12:00');
+      expect(OperationCivilTime.tryParse('24:00')?.clockString, '24:00');
+      expect(OperationCivilTime.tryParse('24:01'), isNull);
+    });
+  });
+
   Future<TimeOfDay?> showPicker(
     WidgetTester tester,
     TimeOfDay initial, {
@@ -229,6 +238,60 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('orbital-time-picker-ok')));
     await tester.pumpAndSettle();
     expect(result, const Duration(hours: 7, minutes: 5));
+  });
+
+  testWidgets('duration mode keeps keyboard-entered long durations', (
+    tester,
+  ) async {
+    Duration? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () async {
+              result = await showSharedDurationPicker(
+                context,
+                initialDuration: const Duration(hours: 25, minutes: 30),
+              );
+            },
+            child: const Text('OPEN LONG DURATION'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN LONG DURATION'));
+    await tester.pumpAndSettle();
+    expect(find.text('25'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('orbital-time-picker-ok')));
+    await tester.pumpAndSettle();
+    expect(result, const Duration(hours: 25, minutes: 30));
+  });
+
+  testWidgets('STATUS work picker returns the explicit 24:00 boundary', (
+    tester,
+  ) async {
+    OperationCivilTime? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () async {
+              result = await showSharedStatusWorkTimePicker(
+                context,
+                initialTime: const OperationCivilTime(hour: 24, minute: 0),
+              );
+            },
+            child: const Text('OPEN WORK'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN WORK'));
+    await tester.pumpAndSettle();
+    expect(find.text('24'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('orbital-time-picker-ok')));
+    await tester.pumpAndSettle();
+    expect(result?.clockString, '24:00');
   });
 
   testWidgets('fits narrow, short and enlarged-text viewports', (tester) async {

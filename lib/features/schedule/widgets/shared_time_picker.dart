@@ -17,20 +17,60 @@ Future<TimeOfDay?> showSharedTimePicker(
 Future<Duration?> showSharedDurationPicker(
   BuildContext context, {
   required Duration initialDuration,
-}) async {
-  final selected = await showDialog<TimeOfDay>(
-    context: context,
-    builder: (_) => OperationOrbitalTimePickerDialog(
-      initialTime: TimeOfDay(
-        hour: initialDuration.inHours.clamp(0, 23).toInt(),
-        minute: initialDuration.inMinutes.remainder(60),
-      ),
-      durationMode: true,
-    ),
-  );
-  if (selected == null) return null;
-  return Duration(hours: selected.hour, minutes: selected.minute);
+}) => showDialog<Duration>(
+  context: context,
+  builder: (_) => OperationOrbitalTimePickerDialog(
+    initialTime: const TimeOfDay(hour: 0, minute: 0),
+    durationMode: true,
+    initialDuration: initialDuration,
+  ),
+);
+
+/// A STATUS-only civil-time value. Unlike [TimeOfDay], it deliberately keeps
+/// the end-of-day boundary (`24:00`) distinct from `00:00`.
+@immutable
+class OperationCivilTime {
+  const OperationCivilTime({required this.hour, required this.minute})
+    : assert(hour >= 0 && hour <= 24),
+      assert(minute >= 0 && minute <= 59),
+      assert(hour != 24 || minute == 0);
+
+  final int hour;
+  final int minute;
+
+  String get clockString =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+
+  static OperationCivilTime? tryParse(String value) {
+    final parts = value.trim().split(':');
+    if (parts.length != 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 24 ||
+        minute < 0 ||
+        minute > 59 ||
+        (hour == 24 && minute != 0)) {
+      return null;
+    }
+    return OperationCivilTime(hour: hour, minute: minute);
+  }
 }
+
+/// STATUS WORK's explicit civil-time boundary. Schedule and Reminder continue
+/// to use [showSharedTimePicker] and its regular [TimeOfDay] contract.
+Future<OperationCivilTime?> showSharedStatusWorkTimePicker(
+  BuildContext context, {
+  required OperationCivilTime initialTime,
+}) => showDialog<OperationCivilTime>(
+  context: context,
+  builder: (_) => OperationOrbitalTimePickerDialog(
+    initialTime: const TimeOfDay(hour: 0, minute: 0),
+    civilInitialTime: initialTime,
+  ),
+);
 
 /// Clock-face conversion kept separate from the dialog so 24:00 can never
 /// leak into persisted [TimeOfDay] values.
@@ -64,10 +104,14 @@ class OperationOrbitalTimePickerDialog extends StatefulWidget {
     super.key,
     required this.initialTime,
     this.durationMode = false,
+    this.initialDuration,
+    this.civilInitialTime,
   });
 
   final TimeOfDay initialTime;
   final bool durationMode;
+  final Duration? initialDuration;
+  final OperationCivilTime? civilInitialTime;
 
   @override
   State<OperationOrbitalTimePickerDialog> createState() =>
@@ -85,10 +129,20 @@ class _OperationOrbitalTimePickerDialogState
   late final TextEditingController _hourController;
   late final TextEditingController _minuteController;
 
-  bool get _pm => OperationOrbitalTimeMapping.isPm(_hour24);
-  int get _dialHour => OperationOrbitalTimeMapping.dialHour(_hour24);
+  bool get _isCivilMode => widget.civilInitialTime != null;
+  bool get _pm => _isCivilMode
+      ? _hour24 >= 13 && _hour24 <= 24
+      : OperationOrbitalTimeMapping.isPm(_hour24);
+  int get _dialHour {
+    if (_isCivilMode && (_hour24 == 0 || _hour24 == 12 || _hour24 == 24)) {
+      return 12;
+    }
+    return OperationOrbitalTimeMapping.dialHour(_hour24);
+  }
 
   String _displayHourText() => widget.durationMode
+      ? _hour24.toString()
+      : _isCivilMode
       ? _hour24.toString()
       : OperationOrbitalTimeMapping.displayHour(_hour24).toString();
   bool get _validKeyboard {
@@ -99,15 +153,23 @@ class _OperationOrbitalTimePickerDialogState
         minute >= 0 &&
         minute <= 59 &&
         (widget.durationMode
-            ? hour >= 0 && hour <= 23
+            ? hour >= 0
+            : _isCivilMode
+            ? hour >= 0 && hour <= 24 && (hour != 24 || minute == 0)
             : (_pm ? hour >= 13 && hour <= 24 : hour >= 1 && hour <= 12));
   }
 
   @override
   void initState() {
     super.initState();
-    _hour24 = widget.initialTime.hour;
-    _minute = widget.initialTime.minute;
+    _hour24 =
+        widget.initialDuration?.inHours ??
+        widget.civilInitialTime?.hour ??
+        widget.initialTime.hour;
+    _minute =
+        widget.initialDuration?.inMinutes.remainder(60) ??
+        widget.civilInitialTime?.minute ??
+        widget.initialTime.minute;
     _hourController = TextEditingController(text: _displayHourText());
     _minuteController = TextEditingController(
       text: _minute.toString().padLeft(2, '0'),
@@ -129,10 +191,14 @@ class _OperationOrbitalTimePickerDialogState
   void _setPeriod(bool pm) {
     if (_pm == pm) return;
     setState(() {
-      _hour24 = OperationOrbitalTimeMapping.fromDialHour(
-        dialHour: _dialHour,
-        pm: pm,
-      );
+      if (_isCivilMode) {
+        _hour24 = pm ? (_dialHour == 12 ? 24 : _dialHour + 12) : _dialHour;
+      } else {
+        _hour24 = OperationOrbitalTimeMapping.fromDialHour(
+          dialHour: _dialHour,
+          pm: pm,
+        );
+      }
       _syncInputs();
     });
   }
@@ -145,13 +211,17 @@ class _OperationOrbitalTimePickerDialogState
     setState(() {
       if (mode == _OrbitalMode.hour) {
         if (widget.durationMode) {
-          _hour24 = (angle / (math.pi * 2) * 24).round() % 24;
+          final value = (angle / (math.pi * 2) * 12).round() % 12;
+          _hour24 = value == 0 ? 12 : value;
         } else {
           final value = (angle / (math.pi * 2) * 12).round() % 12;
-          _hour24 = OperationOrbitalTimeMapping.fromDialHour(
-            dialHour: value == 0 ? 12 : value,
-            pm: _pm,
-          );
+          final dialHour = value == 0 ? 12 : value;
+          _hour24 = _isCivilMode
+              ? (_pm ? (dialHour == 12 ? 24 : dialHour + 12) : dialHour)
+              : OperationOrbitalTimeMapping.fromDialHour(
+                  dialHour: dialHour,
+                  pm: _pm,
+                );
         }
       } else {
         _minute = (angle / (math.pi * 2) * 60).round() % 60;
@@ -201,7 +271,7 @@ class _OperationOrbitalTimePickerDialogState
     if (_keyboard) {
       if (!_validKeyboard) return;
       final enteredHour = int.parse(_hourController.text);
-      _hour24 = widget.durationMode
+      _hour24 = widget.durationMode || _isCivilMode
           ? enteredHour
           : OperationOrbitalTimeMapping.fromDialHour(
               dialHour: _pm
@@ -211,7 +281,12 @@ class _OperationOrbitalTimePickerDialogState
             );
       _minute = int.parse(_minuteController.text);
     }
-    Navigator.of(context).pop(TimeOfDay(hour: _hour24, minute: _minute));
+    final Object result = widget.durationMode
+        ? Duration(hours: _hour24, minutes: _minute)
+        : _isCivilMode
+        ? OperationCivilTime(hour: _hour24, minute: _minute)
+        : TimeOfDay(hour: _hour24, minute: _minute);
+    Navigator.of(context).pop(result);
   }
 
   @override
@@ -413,7 +488,7 @@ class _OperationOrbitalTimePickerDialogState
           painter: _OrbitalClockPainter(
             pm: _pm,
             mode: _mode,
-            hour: widget.durationMode ? _hour24 : _dialHour,
+            hour: _dialHour,
             minute: _minute,
             durationMode: widget.durationMode,
           ),
@@ -429,7 +504,9 @@ class _OperationOrbitalTimePickerDialogState
         Expanded(
           child: _NumericInput(
             label: widget.durationMode
-                ? 'DURATION HOUR (0–23)'
+                ? 'DURATION HOUR (0+)'
+                : _isCivilMode
+                ? 'CIVIL HOUR (00–24)'
                 : (_pm ? 'PM HOUR (13–24)' : 'AM HOUR (1–12)'),
             controller: _hourController,
             valid: _validKeyboard,
@@ -682,7 +759,7 @@ class _OrbitalClockPainter extends CustomPainter {
           ..strokeWidth = major ? 1 : .65,
       );
     }
-    final hourDivisions = durationMode ? 24 : 12;
+    final hourDivisions = 12;
     final selectedPosition = mode == _OrbitalMode.hour
         ? hour % hourDivisions
         : minute;
@@ -760,25 +837,21 @@ class _OrbitalClockPainter extends CustomPainter {
     }
     final labels = mode == _OrbitalMode.hour
         ? (durationMode
-              ? List<int>.generate(12, (i) => i * 2)
+              ? List<int>.generate(12, (i) => i + 1)
               : List<int>.generate(12, (i) {
                   final h = i == 0 ? 12 : i;
                   return pm ? (h == 12 ? 24 : h + 12) : h;
                 }))
         : List<int>.generate(12, (i) => i * 5);
     for (var i = 0; i < labels.length; i++) {
-      final pos = mode == _OrbitalMode.hour
-          ? (durationMode ? i * 2 : i)
-          : i * 5;
+      final pos = mode == _OrbitalMode.hour ? i : i * 5;
       final angle =
           pos * math.pi * 2 / (mode == _OrbitalMode.hour ? hourDivisions : 60) -
           math.pi / 2;
       final point = c + Offset(math.cos(angle), math.sin(angle)) * labelRadius;
       final text = mode == _OrbitalMode.minute
           ? labels[i].toString().padLeft(2, '0')
-          : (durationMode
-                ? labels[i].toString().padLeft(2, '0')
-                : labels[i].toString());
+          : labels[i].toString();
       final tp = TextPainter(
         text: TextSpan(
           text: text,

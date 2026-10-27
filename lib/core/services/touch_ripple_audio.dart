@@ -32,6 +32,69 @@ enum TouchFeedbackSound {
   enter,
 }
 
+@immutable
+class TouchFeedbackSoundInventoryEntry {
+  const TouchFeedbackSoundInventoryEntry({
+    required this.semanticName,
+    required this.sound,
+    required this.asset,
+    required this.channel,
+  });
+
+  final String semanticName;
+  final TouchFeedbackSound sound;
+  final String asset;
+  final DeviceFeedbackChannel channel;
+}
+
+/// The complete user-facing semantic SE inventory. Multiple interaction
+/// families may map to one item; entries intentionally describe sound assets,
+/// not fabricated per-screen audio variants.
+const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'WATER',
+    sound: TouchFeedbackSound.water,
+    asset: touchRippleAudioAssetUrl,
+    channel: DeviceFeedbackChannel.ambient,
+  ),
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'COMMAND / ACCEPTED',
+    sound: TouchFeedbackSound.success,
+    asset: touchRippleSuccessAudioAssetUrl,
+    channel: DeviceFeedbackChannel.command,
+  ),
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'REJECTED',
+    sound: TouchFeedbackSound.failure,
+    asset: touchRippleFailureAudioAssetUrl,
+    channel: DeviceFeedbackChannel.rejected,
+  ),
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'EXIT',
+    sound: TouchFeedbackSound.exit,
+    asset: touchRippleExitAudioAssetUrl,
+    channel: DeviceFeedbackChannel.exit,
+  ),
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'PAGE FLIP',
+    sound: TouchFeedbackSound.pageFlip,
+    asset: touchRipplePageFlipAudioAssetUrl,
+    channel: DeviceFeedbackChannel.command,
+  ),
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'CURSOR / SELECTION',
+    sound: TouchFeedbackSound.cursor,
+    asset: touchRippleCursorAudioAssetUrl,
+    channel: DeviceFeedbackChannel.command,
+  ),
+  TouchFeedbackSoundInventoryEntry(
+    semanticName: 'ENTER / BOOT',
+    sound: TouchFeedbackSound.enter,
+    asset: touchRippleEnterAudioAssetUrl,
+    channel: DeviceFeedbackChannel.command,
+  ),
+];
+
 /// Diagnostic-only output routes for comparing the same REJECTED asset on a
 /// physical browser. These are never selected by normal application feedback.
 enum TouchFeedbackDiagnosticRoute { webAudio, audioBuffer, directHtml }
