@@ -42,37 +42,41 @@ void main() {
     );
   });
 
-  test(
-    'pixel builder fills and fragments deterministically into 27 voxels',
-    () {
-      expect(sandboxPixelBuilderFilledSegments(0), 0);
-      expect(sandboxPixelBuilderFilledSegments(249), 0);
-      expect(sandboxPixelBuilderFilledSegments(480), 1);
-      expect(sandboxPixelBuilderFilledSegments(1450), 5);
-      expect(sandboxPixelBuilderFilledSegments(2550), 10);
-      expect(sandboxPixelFragmentCount, 27);
-      expect(
-        List<int>.generate(
-          sandboxPixelFragmentCount,
-          sandboxPixelFragmentModule,
-        ).where((module) => module < 7),
-        hasLength(21),
+  test('pixel builder uses the V3.5 tempo and deterministic fragments', () {
+    expect(sandboxPixelBuilderFilledSegments(0), 0);
+    expect(sandboxPixelBuilderFilledSegments(249), 0);
+    expect(sandboxPixelBuilderFilledSegments(557), 0);
+    expect(sandboxPixelBuilderFilledSegments(558), 1);
+    expect(sandboxPixelBuilderFilledSegments(2095), 6);
+    expect(sandboxPixelBuilderFilledSegments(2500), 6);
+    expect(sandboxPixelBuilderFilledSegments(3825), 10);
+    expect(sandboxPixelBuilderCycleStartMs(6), 2595);
+    expect(sandboxPixelBuilderStrikeCount(0), 2);
+    expect(sandboxPixelBuilderStrikeCount(2), 3);
+    expect(sandboxPixelBuilderStrikeCount(5), 3);
+    expect(sandboxPixelBuilderStrikeCount(8), 3);
+    expect(sandboxPixelFragmentCount, 27);
+    expect(
+      List<int>.generate(
+        sandboxPixelFragmentCount,
+        sandboxPixelFragmentModule,
+      ).where((module) => module < 7),
+      hasLength(21),
+    );
+    expect(
+      List<int>.generate(
+        sandboxPixelFragmentCount,
+        sandboxPixelFragmentModule,
+      ).where((module) => module >= 7),
+      hasLength(6),
+    );
+    for (var index = 0; index < sandboxPixelFragmentCount; index++) {
+      final rect = sandboxPixelBuilderSegmentRect(
+        sandboxPixelFragmentModule(index),
       );
-      expect(
-        List<int>.generate(
-          sandboxPixelFragmentCount,
-          sandboxPixelFragmentModule,
-        ).where((module) => module >= 7),
-        hasLength(6),
-      );
-      for (var index = 0; index < sandboxPixelFragmentCount; index++) {
-        final rect = sandboxPixelBuilderSegmentRect(
-          sandboxPixelFragmentModule(index),
-        );
-        expect(rect.contains(sandboxPixelFragmentSource(index)), isTrue);
-      }
-    },
-  );
+      expect(rect.contains(sandboxPixelFragmentSource(index)), isTrue);
+    }
+  });
 
   test('folded net finishes as six joined 80-unit cube faces', () {
     final faces = sandboxFoldedCubeFaces(1);
@@ -268,6 +272,8 @@ void main() {
     expect(find.text('ASSEMBLY MATRIX'), findsWidgets);
     expect(find.text('VOXEL INTEGRATION'), findsOneWidget);
     expect(find.text('POLYHEDRAL FOLD'), findsOneWidget);
+    expect(find.text('ORIGINAL'), findsOneWidget);
+    expect(find.text('ARK'), findsOneWidget);
     await tester.tap(find.text('VOXEL INTEGRATION'));
     await tester.pump();
     expect(
@@ -275,6 +281,8 @@ void main() {
       findsOneWidget,
     );
     await tester.pump(const Duration(milliseconds: 2800));
+    await tester.tap(find.text('ARK'));
+    await tester.pump();
     await tester.tap(find.text('SEND'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('boot-send-sequence-replay')));
@@ -301,7 +309,7 @@ void main() {
     for (final width in [320.0, 375.0, 390.0, 430.0]) {
       await _pumpSandbox(tester, width: width);
       await tester.pump(const Duration(milliseconds: 5000));
-      await tester.pump(const Duration(milliseconds: 4380));
+      await tester.pump(const Duration(milliseconds: 5655));
       expect(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         findsOneWidget,
@@ -310,6 +318,38 @@ void main() {
     }
   });
 
+  for (final milliseconds in [0, 1450, 2350, 3825, 4355]) {
+    testWidgets('ARK robot ${milliseconds}ms golden', (tester) async {
+      await _pumpSandbox(tester);
+      await tester.tap(find.text('VOXEL INTEGRATION'));
+      await tester.pump();
+      await tester.tap(find.text('ARK'));
+      await tester.pump();
+      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 10655);
+      await expectLater(
+        find.byKey(const ValueKey('boot-send-sequence-monitor')),
+        matchesGoldenFile('goldens/boot_send_voxel_ark_${milliseconds}ms.png'),
+      );
+    });
+  }
+
+  for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
+    testWidgets('$mode completion icon golden', (tester) async {
+      await _pumpSandbox(tester);
+      await tester.tap(find.text('VOXEL INTEGRATION'));
+      await tester.pump();
+      await tester.tap(find.text(mode));
+      await tester.pump();
+      await _pumpTimeline(tester, 11105, totalMilliseconds: 10655);
+      await expectLater(
+        find.byKey(const ValueKey('boot-send-sequence-monitor')),
+        matchesGoldenFile(
+          'goldens/boot_send_voxel_${mode.toLowerCase()}_icon.png',
+        ),
+      );
+    });
+  }
+
   for (final concept in BootSendSequenceConcept.values) {
     for (final operation in TransferOperation.values) {
       final frames = concept == BootSendSequenceConcept.voxelIntegration
@@ -317,19 +357,20 @@ void main() {
               0,
               250,
               1450,
-              2550,
-              2660,
-              2780,
-              3000,
-              3380,
-              4480,
-              7080,
-              8380,
-              9380,
+              2095,
+              2350,
+              3825,
+              4055,
+              4355,
+              4655,
+              5755,
+              8355,
+              9655,
+              10655,
             ]
           : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
       final total = concept == BootSendSequenceConcept.voxelIntegration
-          ? 9380
+          ? 10655
           : 6000;
       for (final milliseconds in frames) {
         testWidgets(
@@ -367,7 +408,7 @@ void main() {
           await tester.pump();
         }
         final postCompletion =
-            concept == BootSendSequenceConcept.voxelIntegration ? 10580 : 7200;
+            concept == BootSendSequenceConcept.voxelIntegration ? 11855 : 7200;
         await _pumpTimeline(tester, postCompletion, totalMilliseconds: total);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),

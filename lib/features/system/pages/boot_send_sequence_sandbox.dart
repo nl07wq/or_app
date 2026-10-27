@@ -18,8 +18,24 @@ enum TransferOperation { save, send }
 
 enum _OperationMode { brief, debrief, backup }
 
+/// Appearance-only choice for the Pixel Builder character. Both variants use
+/// the identical construction timeline and data hand-off.
+enum SandboxRobotAppearance { original, ark }
+
 const _cycle = Duration(milliseconds: 6000);
-const _pixelVoxelCycle = Duration(milliseconds: 9380);
+const _pixelBuilderInitialMs = 250.0;
+const _pixelBuilderCycleMs = 307.5;
+const _pixelBuilderHesitationMs = 500.0;
+const _pixelBuilderHesitationStartMs =
+    _pixelBuilderInitialMs + _pixelBuilderCycleMs * 6;
+const _pixelBuilderHesitationEndMs =
+    _pixelBuilderHesitationStartMs + _pixelBuilderHesitationMs;
+const _pixelBuilderLoadingEndMs = 3825.0;
+const _pixelBuilderJumpEndMs = 4055.0;
+const _pixelVoxelFragmentsEndMs = 4655.0;
+const _pixelVoxelConstructionStartMs = _pixelVoxelFragmentsEndMs;
+const _pixelVoxelConstructionEndMs = _pixelVoxelConstructionStartMs + 6000.0;
+const _pixelVoxelCycle = Duration(milliseconds: 10655);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
 
@@ -38,6 +54,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   var _concept = BootSendSequenceConcept.assemblyMatrix;
   var _mode = _OperationMode.brief;
   var _operation = TransferOperation.save;
+  var _robotAppearance = SandboxRobotAppearance.original;
 
   @override
   void initState() {
@@ -139,6 +156,33 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
           onSelectionChanged: (value) => setState(() => _mode = value.first),
         ),
         const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text('ROBOT:', style: TextStyle(fontSize: 11)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SegmentedButton<SandboxRobotAppearance>(
+                key: const ValueKey('boot-send-sequence-robot-selector'),
+                segments: const [
+                  ButtonSegment(
+                    value: SandboxRobotAppearance.original,
+                    label: Text('ORIGINAL'),
+                  ),
+                  ButtonSegment(
+                    value: SandboxRobotAppearance.ark,
+                    label: Text('ARK'),
+                  ),
+                ],
+                selected: {_robotAppearance},
+                onSelectionChanged: (value) {
+                  setState(() => _robotAppearance = value.first);
+                  _replay();
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         SegmentedButton<TransferOperation>(
           key: const ValueKey('boot-send-sequence-operation-selector'),
           segments: const [
@@ -158,6 +202,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
             concept: _concept,
             mode: _mode,
             operation: _operation,
+            robotAppearance: _robotAppearance,
             progress: reducedMotion ? 1 : _controller.value,
             completionElapsedSeconds: reducedMotion
                 ? 0
@@ -208,15 +253,40 @@ String _voxelCompletionMessage(
 
 const sandboxPixelFragmentCount = 27;
 
-/// Each completed work cycle writes one bar segment.  The final segment locks
-/// at 2550ms, matching the end of the tenth 230ms work cycle.
+/// The seventh through tenth work cycles are shifted by the one deliberate
+/// recovery pause after the sixth completed segment.
+double sandboxPixelBuilderCycleStartMs(int index) {
+  assert(index >= 0 && index < 10);
+  return _pixelBuilderInitialMs +
+      _pixelBuilderCycleMs * index +
+      (index >= 6 ? _pixelBuilderHesitationMs : 0);
+}
+
+int sandboxPixelBuilderStrikeCount(int segmentIndex) {
+  assert(segmentIndex >= 0 && segmentIndex < 10);
+  return switch (segmentIndex) {
+    2 || 5 || 8 => 3,
+    _ => 2,
+  };
+}
+
+/// A segment permanently locks at the end of its final work cycle. This makes
+/// the visible 100% transition land exactly at 3825ms.
 int sandboxPixelBuilderFilledSegments(int elapsedMs) {
-  if (elapsedMs < 250) return 0;
-  return ((elapsedMs - 250) ~/ 230).clamp(0, 10);
+  var filled = 0;
+  for (var index = 0; index < 10; index++) {
+    if (elapsedMs >=
+        sandboxPixelBuilderCycleStartMs(index) + _pixelBuilderCycleMs) {
+      filled++;
+    }
+  }
+  return filled;
 }
 
 double _pixelBuilderLocalMs(double elapsedMs, int index) =>
-    (elapsedMs - 250 - index * 230).clamp(0, 230).toDouble();
+    (elapsedMs - sandboxPixelBuilderCycleStartMs(index))
+        .clamp(0, _pixelBuilderCycleMs)
+        .toDouble();
 
 Rect sandboxPixelBuilderSegmentRect(int index) {
   assert(index >= 0 && index < 10);
@@ -270,6 +340,7 @@ class _SendSequenceMonitor extends StatelessWidget {
     required this.concept,
     required this.mode,
     required this.operation,
+    required this.robotAppearance,
     required this.progress,
     required this.completionElapsedSeconds,
     required this.reducedMotion,
@@ -278,6 +349,7 @@ class _SendSequenceMonitor extends StatelessWidget {
   final BootSendSequenceConcept concept;
   final _OperationMode mode;
   final TransferOperation operation;
+  final SandboxRobotAppearance robotAppearance;
   final double progress;
   final double completionElapsedSeconds;
   final bool reducedMotion;
@@ -292,6 +364,7 @@ class _SendSequenceMonitor extends StatelessWidget {
           concept: concept,
           mode: mode,
           operation: operation,
+          robotAppearance: robotAppearance,
           progress: progress,
           completionElapsedSeconds: completionElapsedSeconds,
           reducedMotion: reducedMotion,
@@ -306,6 +379,7 @@ class _SendSequencePainter extends CustomPainter {
     required this.concept,
     required this.mode,
     required this.operation,
+    required this.robotAppearance,
     required this.progress,
     required this.completionElapsedSeconds,
     required this.reducedMotion,
@@ -314,6 +388,7 @@ class _SendSequencePainter extends CustomPainter {
   final BootSendSequenceConcept concept;
   final _OperationMode mode;
   final TransferOperation operation;
+  final SandboxRobotAppearance robotAppearance;
   final double progress;
   final double completionElapsedSeconds;
   final bool reducedMotion;
@@ -474,9 +549,11 @@ class _SendSequencePainter extends CustomPainter {
     final state = concept == BootSendSequenceConcept.voxelIntegration
         ? completed
               ? _voxelCompletionMessage(mode, operation)
-              : t < 2550 / 9380
+              : t < _pixelBuilderLoadingEndMs / _pixelVoxelCycle.inMilliseconds
               ? 'PIXEL BUILD'
-              : t < 3380 / 9380
+              : t <
+                    _pixelVoxelConstructionStartMs /
+                        _pixelVoxelCycle.inMilliseconds
               ? 'FRAGMENTING DATA'
               : 'VOXEL ASSEMBLY'
         : completed
@@ -782,22 +859,23 @@ class _SendSequencePainter extends CustomPainter {
 
   void _voxelIntegration(Canvas canvas, double t, double post) {
     final elapsedMs = t * _pixelVoxelCycle.inMilliseconds;
-    if (elapsedMs < 3380) {
+    if (elapsedMs < _pixelVoxelConstructionStartMs) {
       _pixelBuilder(canvas, elapsedMs);
       return;
     }
 
     // Pixel fragments end at exactly the V3.2 source coordinates.  The
     // original 6000ms voxel construction then starts without acceleration.
-    final local = ((elapsedMs - 3380) / _cycle.inMilliseconds)
-        .clamp(0, 1)
-        .toDouble();
+    final local =
+        ((elapsedMs - _pixelVoxelConstructionStartMs) / _cycle.inMilliseconds)
+            .clamp(0, 1)
+            .toDouble();
     const sceneCenter = Offset(181, 143);
     final projection = SandboxProjection(sceneCenter);
     final centers = sandboxVoxelCenters();
     final crystallize = _ease(_phase(local, 3700 / 6000, 4400 / 6000));
     final lift = _ease(_phase(local, 4400 / 6000, 5000 / 6000));
-    final complete = local >= .999;
+    final complete = elapsedMs >= _pixelVoxelConstructionEndMs;
     final yaw = complete ? post * 22 * math.pi / 180 : 0.0;
     final pitch = complete
         ? math.sin(post * 2 * math.pi / 3) * 6 * math.pi / 180
@@ -868,21 +946,18 @@ class _SendSequencePainter extends CustomPainter {
       border: _ice.withValues(alpha: .84),
     );
     if (complete) {
-      final labelAlpha = reducedMotion ? 1.0 : _phase(post, 0, .25);
-      _center(
-        canvas,
-        _voxelCompletionMessage(mode, operation),
-        const Offset(181, 202),
-        8,
-        _ice.withValues(alpha: labelAlpha),
-      );
+      _voxelCompletionLabel(canvas, post);
     }
   }
 
   void _pixelBuilder(Canvas canvas, double elapsedMs) {
     const barY = 158.0;
-    final visible = _phase(elapsedMs, 0, 250);
-    final fragmentation = _phase(elapsedMs, 2780, 2980);
+    final visible = _phase(elapsedMs, 0, _pixelBuilderInitialMs);
+    final fragmentation = _phase(
+      elapsedMs,
+      _pixelBuilderJumpEndMs,
+      _pixelBuilderJumpEndMs + 200,
+    );
     final filled = sandboxPixelBuilderFilledSegments(elapsedMs.round());
     _center(
       canvas,
@@ -893,13 +968,13 @@ class _SendSequencePainter extends CustomPainter {
     );
     for (var index = 0; index < 10; index++) {
       final rect = sandboxPixelBuilderSegmentRect(index);
+      final local = _pixelBuilderLocalMs(elapsedMs, index);
       final active =
-          elapsedMs >= 250 + index * 230 && elapsedMs < 250 + (index + 1) * 230;
-      final flash = active
-          ? 1 -
-                ((_pixelBuilderLocalMs(elapsedMs, index) - 145) / 45)
-                    .clamp(0, 1)
-                    .toDouble()
+          elapsedMs >= sandboxPixelBuilderCycleStartMs(index) &&
+          elapsedMs <
+              sandboxPixelBuilderCycleStartMs(index) + _pixelBuilderCycleMs;
+      final flash = active && local >= 255 && local < 285
+          ? 1 - _phase(local, 255, 285)
           : 0.0;
       final color = index < filled
           ? const Color(0xff63d8ff)
@@ -927,15 +1002,18 @@ class _SendSequencePainter extends CustomPainter {
       8,
       _ice,
     );
-    if (elapsedMs < 2780) {
+    if (elapsedMs < _pixelBuilderJumpEndMs) {
       _pixelBuilderRobot(canvas, elapsedMs, visible);
     }
-    if (elapsedMs >= 2780) {
+    if (elapsedMs >= _pixelBuilderJumpEndMs) {
       _pixelFragments(canvas, elapsedMs);
     }
     // A single synchronized completion flash, after the tenth tap.
-    if (elapsedMs >= 2550 && elapsedMs < 2780) {
-      final alpha = 1 - _phase(elapsedMs, 2550, 2780);
+    if (elapsedMs >= _pixelBuilderLoadingEndMs &&
+        elapsedMs < _pixelBuilderJumpEndMs) {
+      final alpha =
+          1 -
+          _phase(elapsedMs, _pixelBuilderLoadingEndMs, _pixelBuilderJumpEndMs);
       canvas.drawLine(
         const Offset(56, barY - 2),
         const Offset(274, barY - 2),
@@ -945,23 +1023,105 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _pixelBuilderRobot(Canvas canvas, double elapsedMs, double visibility) {
-    final completion = _phase(elapsedMs, 2550, 2780);
-    final index = ((elapsedMs - 250) / 230).floor().clamp(0, 9);
+    final completion = _phase(
+      elapsedMs,
+      _pixelBuilderLoadingEndMs,
+      _pixelBuilderJumpEndMs,
+    );
+    final hesitation =
+        elapsedMs >= _pixelBuilderHesitationStartMs &&
+        elapsedMs < _pixelBuilderHesitationEndMs;
+    final index = hesitation
+        ? 5
+        : List<int>.generate(10, (value) => value).lastWhere(
+            (value) => elapsedMs >= sandboxPixelBuilderCycleStartMs(value),
+            orElse: () => 0,
+          );
     final local = _pixelBuilderLocalMs(elapsedMs, index);
     final previousX = 64.5 + 22 * math.max(0, index - 1);
     final targetX = 64.5 + 22 * index;
-    final move = _phase(local, 0, 70);
+    final move = _phase(local, 0, 45);
     var centerX = previousX + (targetX - previousX) * _ease(move);
-    if (elapsedMs < 250) centerX = 64.5;
-    final tapping = local >= 70 && local < 190;
-    final flash = local >= 145 && local < 190;
-    final jump = completion == 0
-        ? 0.0
-        : -6 * math.sin(math.pi * _phase(elapsedMs, 2550, 2780));
+    if (elapsedMs < _pixelBuilderInitialMs) centerX = 64.5;
+    final strikeCount = sandboxPixelBuilderStrikeCount(index);
+    final striking = !hesitation && local >= 45 && local < 255;
+    final strikeDuration = 210 / strikeCount;
+    final strikeLocal = (local - 45).clamp(0, 210).toDouble();
+    final strikeProgress = striking
+        ? (strikeLocal % strikeDuration) / strikeDuration
+        : 0.0;
+    final armContact = striking ? math.sin(math.pi * strikeProgress) : 0.0;
+    final finalFlash = !hesitation && local >= 255 && local < 285;
+    final jump = completion == 0 ? 0.0 : -6 * math.sin(math.pi * completion);
     final alpha = visibility * (1 - completion);
-    final bodyBottom = 154.0 + jump + (tapping ? 2 : 0);
+    final hesitationPhase = _phase(
+      elapsedMs,
+      _pixelBuilderHesitationStartMs,
+      _pixelBuilderHesitationEndMs,
+    );
+    final toolAdjust =
+        hesitation && hesitationPhase >= .52 && hesitationPhase < .82
+        ? math.sin((hesitationPhase - .52) / .30 * math.pi * 4) * 2
+        : 0.0;
+    final bodyBottom = 154.0 + jump + armContact * 2;
+    final headTilt =
+        hesitation && hesitationPhase >= .2 && hesitationPhase < .52
+        ? 2.0
+        : 0.0;
+    final eyeFlicker =
+        hesitation && hesitationPhase >= .2 && hesitationPhase < .52;
+    final armY = completion > 0
+        ? bodyBottom - 17
+        : hesitation
+        ? bodyBottom - 8 + toolAdjust
+        : bodyBottom - 8 + armContact * 12;
+    final stride = local < 45 ? (local / 45) * 2 : 0.0;
+    if (robotAppearance == SandboxRobotAppearance.original) {
+      _paintOriginalPixelRobot(
+        canvas,
+        centerX: centerX,
+        bodyBottom: bodyBottom,
+        alpha: alpha,
+        stride: stride,
+        armY: armY,
+        completion: completion > 0,
+        headTilt: headTilt,
+        eyeFlicker: eyeFlicker,
+      );
+    } else {
+      _paintArkPixelRobot(
+        canvas,
+        centerX: centerX,
+        bodyBottom: bodyBottom,
+        alpha: alpha,
+        stride: stride,
+        armY: armY,
+        completion: completion > 0,
+        headTilt: headTilt,
+        eyeFlicker: eyeFlicker,
+      );
+    }
+    if (striking && armContact > .87) {
+      _pixelSparks(canvas, Offset(centerX + 11, 158), alpha * armContact);
+    }
+    if (finalFlash) {
+      _pixelSparks(canvas, Offset(centerX + 11, 158), alpha);
+    }
+  }
+
+  void _paintOriginalPixelRobot(
+    Canvas canvas, {
+    required double centerX,
+    required double bodyBottom,
+    required double alpha,
+    required double stride,
+    required double armY,
+    required bool completion,
+    required double headTilt,
+    required bool eyeFlicker,
+  }) {
     final head = Rect.fromCenter(
-      center: Offset(centerX, bodyBottom - 20),
+      center: Offset(centerX + headTilt, bodyBottom - 20),
       width: 20,
       height: 15,
     );
@@ -988,10 +1148,12 @@ class _SendSequencePainter extends CustomPainter {
           width: 2.5,
           height: 2.5,
         ),
-        _fill(const Color(0xffddffff).withValues(alpha: alpha)),
+        _fill(
+          (eyeFlicker ? const Color(0xffbff6ff) : const Color(0xffddffff))
+              .withValues(alpha: alpha),
+        ),
       );
     }
-    final stride = local < 70 ? (local / 70) * 2 : 0.0;
     for (final entry in [(-4.0, stride), (4.0, -stride)]) {
       canvas.drawLine(
         Offset(centerX + entry.$1, bodyBottom - 4),
@@ -999,11 +1161,6 @@ class _SendSequencePainter extends CustomPainter {
         _line(const Color(0xff97bfe6).withValues(alpha: alpha), 2),
       );
     }
-    final armY = completion > 0
-        ? bodyBottom - 17
-        : tapping
-        ? bodyBottom + 4
-        : bodyBottom - 8;
     final armStart = Offset(centerX + 7, bodyBottom - 10);
     final armEnd = Offset(centerX + 11, armY);
     canvas.drawLine(armStart, armEnd, _line(outline, 2));
@@ -1011,7 +1168,7 @@ class _SendSequencePainter extends CustomPainter {
       Rect.fromCenter(center: armEnd, width: 3, height: 3),
       _fill(const Color(0xffb9f8ff).withValues(alpha: alpha)),
     );
-    if (completion > 0) {
+    if (completion) {
       // A second raised arm during the one-time celebration.
       canvas.drawLine(
         Offset(centerX - 7, bodyBottom - 10),
@@ -1019,7 +1176,6 @@ class _SendSequencePainter extends CustomPainter {
         _line(outline, 2),
       );
     }
-    if (flash) _pixelSparks(canvas, Offset(centerX + 11, 158), alpha);
   }
 
   void _pixelSparks(Canvas canvas, Offset origin, double alpha) {
@@ -1031,9 +1187,111 @@ class _SendSequencePainter extends CustomPainter {
     }
   }
 
+  void _paintArkPixelRobot(
+    Canvas canvas, {
+    required double centerX,
+    required double bodyBottom,
+    required double alpha,
+    required double stride,
+    required double armY,
+    required bool completion,
+    required double headTilt,
+    required bool eyeFlicker,
+  }) {
+    final outline = const Color(0xff93dcf0).withValues(alpha: alpha);
+    final hood = Path()
+      ..moveTo(centerX - 10 + headTilt, bodyBottom - 28)
+      ..lineTo(centerX - 6 + headTilt, bodyBottom - 32)
+      ..lineTo(centerX + 7 + headTilt, bodyBottom - 32)
+      ..lineTo(centerX + 11 + headTilt, bodyBottom - 27)
+      ..lineTo(centerX + 10 + headTilt, bodyBottom - 15)
+      ..lineTo(centerX - 10 + headTilt, bodyBottom - 15)
+      ..close();
+    canvas.drawPath(
+      hood,
+      _fill(const Color(0xff315f7d).withValues(alpha: alpha)),
+    );
+    canvas.drawPath(hood, _line(outline, 1));
+    final face = Rect.fromCenter(
+      center: Offset(centerX + headTilt, bodyBottom - 23),
+      width: 15,
+      height: 8,
+    );
+    canvas.drawRect(
+      face,
+      _fill(const Color(0xff0c202d).withValues(alpha: alpha)),
+    );
+    for (final dx in [-3.0, 3.0]) {
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(centerX + headTilt + dx, bodyBottom - 23),
+          width: 2.5,
+          height: 2.5,
+        ),
+        _fill(
+          (eyeFlicker ? const Color(0xffbff6ff) : const Color(0xffddffff))
+              .withValues(alpha: alpha),
+        ),
+      );
+    }
+    final robe = Path()
+      ..moveTo(centerX - 6, bodyBottom - 16)
+      ..lineTo(centerX + 6, bodyBottom - 16)
+      ..lineTo(centerX + 10, bodyBottom - 4)
+      ..lineTo(centerX - 10, bodyBottom - 4)
+      ..close();
+    canvas.drawPath(
+      robe,
+      _fill(const Color(0xff315f7d).withValues(alpha: alpha)),
+    );
+    canvas.drawPath(robe, _line(outline, 1));
+    for (final entry in [(-4.0, stride), (4.0, -stride)]) {
+      canvas.drawLine(
+        Offset(centerX + entry.$1, bodyBottom - 4),
+        Offset(centerX + entry.$1 + entry.$2, bodyBottom),
+        _line(const Color(0xff97bfe6).withValues(alpha: alpha), 2),
+      );
+    }
+    final armStart = Offset(centerX + 7, bodyBottom - 12);
+    final armEnd = Offset(centerX + 11, armY);
+    canvas.drawLine(armStart, armEnd, _line(outline, 2));
+    _arkWrench(canvas, armEnd, alpha);
+    if (completion) {
+      canvas.drawLine(
+        Offset(centerX - 7, bodyBottom - 12),
+        Offset(centerX - 11, bodyBottom - 18),
+        _line(outline, 2),
+      );
+    }
+  }
+
+  /// An open-ended C jaw faces right. It deliberately has no middle prong.
+  void _arkWrench(Canvas canvas, Offset origin, double alpha) {
+    final paint = _line(const Color(0xffb9f8ff).withValues(alpha: alpha), 1.8);
+    canvas.drawLine(origin, origin + const Offset(6, 0), paint);
+    final jaw = Path()
+      ..moveTo(origin.dx + 10, origin.dy - 5)
+      ..lineTo(origin.dx + 6, origin.dy - 5)
+      ..lineTo(origin.dx + 4, origin.dy - 3)
+      ..lineTo(origin.dx + 4, origin.dy + 3)
+      ..lineTo(origin.dx + 6, origin.dy + 5)
+      ..lineTo(origin.dx + 10, origin.dy + 5);
+    canvas.drawPath(jaw, paint);
+  }
+
   void _pixelFragments(Canvas canvas, double elapsedMs) {
-    final detach = _phase(elapsedMs, 2780, 2980);
-    final scatter = _ease(_phase(elapsedMs, 2980, 3380));
+    final detach = _phase(
+      elapsedMs,
+      _pixelBuilderJumpEndMs,
+      _pixelBuilderJumpEndMs + 200,
+    );
+    final scatter = _ease(
+      _phase(
+        elapsedMs,
+        _pixelBuilderJumpEndMs + 200,
+        _pixelVoxelFragmentsEndMs,
+      ),
+    );
     final projection = const SandboxProjection(Offset(181, 143));
     for (var index = 0; index < sandboxPixelFragmentCount; index++) {
       final source = sandboxPixelFragmentSource(index);
@@ -1054,6 +1312,93 @@ class _SendSequencePainter extends CustomPainter {
       canvas.drawRect(
         Rect.fromCenter(center: position, width: 4, height: 4),
         _line(_ice.withValues(alpha: .7), .55),
+      );
+    }
+  }
+
+  void _voxelCompletionLabel(Canvas canvas, double post) {
+    final iconAlpha = reducedMotion ? 1.0 : _phase(post, 0, .2);
+    final textAlpha = reducedMotion ? 1.0 : _phase(post, .2, .45);
+    final text = _voxelCompletionMessage(mode, operation);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: _ice.withValues(alpha: textAlpha),
+          fontSize: 8,
+          fontFamily: 'ShareTechMono',
+          letterSpacing: .45,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    const iconSize = 13.0;
+    const gap = 4.0;
+    final left = 181 - (iconSize + gap + painter.width) / 2;
+    _completionIcon(
+      canvas,
+      Offset(left + iconSize / 2, 202),
+      archive: mode == _OperationMode.backup,
+      alpha: iconAlpha,
+    );
+    painter.paint(
+      canvas,
+      Offset(left + iconSize + gap, 202 - painter.height / 2),
+    );
+  }
+
+  void _completionIcon(
+    Canvas canvas,
+    Offset center, {
+    required bool archive,
+    required double alpha,
+  }) {
+    final color = _ice.withValues(alpha: alpha);
+    if (!archive) {
+      final document = Rect.fromCenter(center: center, width: 10, height: 12);
+      canvas.drawRect(document, _line(color, 1));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(center.dx, document.top + 1.2),
+            width: 4,
+            height: 2.4,
+          ),
+          const Radius.circular(.6),
+        ),
+        _line(color, 1),
+      );
+      for (final y in [
+        document.top + 5,
+        document.top + 7.4,
+        document.top + 9.8,
+      ]) {
+        canvas.drawLine(
+          Offset(document.left + 2, y),
+          Offset(document.right - 2, y),
+          _line(color, .8),
+        );
+      }
+      return;
+    }
+    final hexagon = Path();
+    for (var index = 0; index < 6; index++) {
+      final angle = -math.pi / 2 + index * math.pi / 3;
+      final point = center + Offset(math.cos(angle) * 6, math.sin(angle) * 6);
+      if (index == 0) {
+        hexagon.moveTo(point.dx, point.dy);
+      } else {
+        hexagon.lineTo(point.dx, point.dy);
+      }
+    }
+    hexagon.close();
+    canvas.drawPath(hexagon, _line(color, 1));
+    canvas.drawCircle(center, 1.5, _fill(color));
+    for (final y in [-2.5, 2.5]) {
+      canvas.drawLine(
+        Offset(center.dx - 3, center.dy + y),
+        Offset(center.dx + 3, center.dy + y),
+        _line(color, .75),
       );
     }
   }
@@ -1354,6 +1699,7 @@ class _SendSequencePainter extends CustomPainter {
       oldDelegate.concept != concept ||
       oldDelegate.mode != mode ||
       oldDelegate.operation != operation ||
+      oldDelegate.robotAppearance != robotAppearance ||
       oldDelegate.progress != progress ||
       oldDelegate.completionElapsedSeconds != completionElapsedSeconds ||
       oldDelegate.reducedMotion != reducedMotion;
