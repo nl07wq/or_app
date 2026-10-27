@@ -19,6 +19,7 @@ enum TransferOperation { save, send }
 enum _OperationMode { brief, debrief, backup }
 
 const _cycle = Duration(milliseconds: 6000);
+const _pixelVoxelCycle = Duration(milliseconds: 9380);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
 
@@ -45,20 +46,23 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
       vsync: this,
       duration: _completionTimeline,
     );
-    _controller = AnimationController(vsync: this, duration: _cycle)
-      ..addListener(_startCompletionTimelineAtConstructionEnd)
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.completed && mounted) {
-          _startCompletionTimelineAtConstructionEnd();
-        }
-      })
-      ..forward();
+    _controller =
+        AnimationController(vsync: this, duration: _durationFor(_concept))
+          ..addListener(_startCompletionTimelineAtConstructionEnd)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              _startCompletionTimelineAtConstructionEnd();
+            }
+          })
+          ..forward();
   }
 
   void _startCompletionTimelineAtConstructionEnd() {
-    if (mounted &&
-        _controller.value >= .999 &&
-        !_completionController.isAnimating) {
+    final constructionComplete =
+        _concept == BootSendSequenceConcept.voxelIntegration
+        ? _controller.isCompleted
+        : _controller.value >= .999;
+    if (mounted && constructionComplete && !_completionController.isAnimating) {
       _completionController.forward(from: 0);
     }
   }
@@ -76,6 +80,11 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
       ..value = 0;
     _controller.forward(from: 0);
   }
+
+  Duration _durationFor(BootSendSequenceConcept concept) =>
+      concept == BootSendSequenceConcept.voxelIntegration
+      ? _pixelVoxelCycle
+      : _cycle;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +117,10 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
           ],
           selected: {_concept},
           onSelectionChanged: (value) {
-            setState(() => _concept = value.first);
+            setState(() {
+              _concept = value.first;
+              _controller.duration = _durationFor(_concept);
+            });
             _replay();
           },
         ),
@@ -181,6 +193,55 @@ String _modeTitle(_OperationMode mode) => switch (mode) {
   _OperationMode.debrief => 'DEBRIEF SEQUENCE',
   _OperationMode.backup => 'BACKUP SEQUENCE',
 };
+
+/// The mode and transfer selectors only label this visual sandbox; neither
+/// selector invokes an operation outside the monitor prototype.
+String _voxelCompletionMessage(
+  _OperationMode mode,
+  TransferOperation operation,
+) => switch ((mode, operation)) {
+  (_OperationMode.backup, _) => 'BACKUP COMPLETE',
+  (_, TransferOperation.save) => 'SAVE COMPLETE',
+  (_OperationMode.brief, TransferOperation.send) => 'BRIEF RECEIVED',
+  (_OperationMode.debrief, TransferOperation.send) => 'DEBRIEF RECEIVED',
+};
+
+const sandboxPixelFragmentCount = 27;
+
+/// Each completed work cycle writes one bar segment.  The final segment locks
+/// at 2550ms, matching the end of the tenth 230ms work cycle.
+int sandboxPixelBuilderFilledSegments(int elapsedMs) {
+  if (elapsedMs < 250) return 0;
+  return ((elapsedMs - 250) ~/ 230).clamp(0, 10);
+}
+
+double _pixelBuilderLocalMs(double elapsedMs, int index) =>
+    (elapsedMs - 250 - index * 230).clamp(0, 230).toDouble();
+
+Rect sandboxPixelBuilderSegmentRect(int index) {
+  assert(index >= 0 && index < 10);
+  return Rect.fromLTWH(56 + 22.0 * index, 158, 17, 18);
+}
+
+/// Deterministic 10-to-27 mapping: the first seven bar modules split into
+/// three fragments, while the final three split into two.
+int sandboxPixelFragmentModule(int fragmentIndex) {
+  assert(fragmentIndex >= 0 && fragmentIndex < sandboxPixelFragmentCount);
+  if (fragmentIndex < 21) return fragmentIndex ~/ 3;
+  return 7 + ((fragmentIndex - 21) ~/ 2);
+}
+
+Offset sandboxPixelFragmentSource(int fragmentIndex) {
+  final module = sandboxPixelFragmentModule(fragmentIndex);
+  final rect = sandboxPixelBuilderSegmentRect(module);
+  final first = module < 7;
+  final localIndex = first ? fragmentIndex % 3 : (fragmentIndex - 21) % 2;
+  final pieces = first ? 3 : 2;
+  return Offset(
+    rect.left + rect.width * ((localIndex + .5) / pieces),
+    rect.center.dy,
+  );
+}
 
 BootSendSequencePhase bootSendSequencePhase(double progress) {
   final value = progress.clamp(0, 1).toDouble();
@@ -410,7 +471,15 @@ class _SendSequencePainter extends CustomPainter {
 
   void _footer(Canvas canvas, double t) {
     final completed = _isConstructionComplete(t);
-    final state = completed
+    final state = concept == BootSendSequenceConcept.voxelIntegration
+        ? completed
+              ? _voxelCompletionMessage(mode, operation)
+              : t < 2550 / 9380
+              ? 'PIXEL BUILD'
+              : t < 3380 / 9380
+              ? 'FRAGMENTING DATA'
+              : 'VOXEL ASSEMBLY'
+        : completed
         ? operation == TransferOperation.save
               ? 'STORAGE LOCKED'
               : 'RECEIVER ACK'
@@ -478,10 +547,10 @@ class _SendSequencePainter extends CustomPainter {
         56,
       ),
       BootSendSequenceConcept.voxelIntegration => const Rect.fromLTWH(
-        276,
-        105,
-        58,
-        68,
+        116,
+        86,
+        130,
+        112,
       ),
       BootSendSequenceConcept.polyhedralFold => const Rect.fromLTWH(
         274,
@@ -712,90 +781,281 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _voxelIntegration(Canvas canvas, double t, double post) {
-    const process = Offset(180, 140);
-    const source = Offset(55, 140);
-    const destination = Offset(307, 140);
-    final isSave = operation == TransferOperation.save;
-    final transfer = isSave ? _phase(t, .567, .883) : _phase(t, .517, .817);
-    final scale = 1 - .5 * _ease(transfer);
-    final center =
-        Offset.lerp(process, destination, _ease(transfer))! +
-        Offset(0, -12 * math.sin(math.pi * transfer));
-    _sourceDevice(canvas, source, active: t < (isSave ? .567 : .817));
-    if (isSave) {
-      _storageBay(
-        canvas,
-        destination,
-        fill: _phase(t, .883, 1),
-        locked: t >= 1,
-      );
-    } else {
-      _receiver(
-        canvas,
-        destination,
-        fill: _phase(t, .817, .933),
-        acknowledged: t >= .933,
-      );
+    final elapsedMs = t * _pixelVoxelCycle.inMilliseconds;
+    if (elapsedMs < 3380) {
+      _pixelBuilder(canvas, elapsedMs);
+      return;
     }
-    final projection = SandboxProjection(center);
+
+    // Pixel fragments end at exactly the V3.2 source coordinates.  The
+    // original 6000ms voxel construction then starts without acceleration.
+    final local = ((elapsedMs - 3380) / _cycle.inMilliseconds)
+        .clamp(0, 1)
+        .toDouble();
+    const sceneCenter = Offset(181, 143);
+    final projection = SandboxProjection(sceneCenter);
+    final centers = sandboxVoxelCenters();
+    final crystallize = _ease(_phase(local, 3700 / 6000, 4400 / 6000));
+    final lift = _ease(_phase(local, 4400 / 6000, 5000 / 6000));
+    final complete = local >= .999;
+    final yaw = complete ? post * 22 * math.pi / 180 : 0.0;
+    final pitch = complete
+        ? math.sin(post * 2 * math.pi / 3) * 6 * math.pi / 180
+        : 0.0;
+    final hover = complete ? math.sin(post * 2 * math.pi / 3.2) * 3 : 0.0;
+    final rise = 23 * lift + hover;
+    final emission = local >= 4400 / 6000 && local < 4700 / 6000
+        ? .52
+        : complete
+        ? .28
+        : crystallize > 0
+        ? .22 + crystallize * .2
+        : .22;
+    _text(
+      canvas,
+      'VOXEL CHAMBER / 3x3x3',
+      const Offset(108, 75),
+      8,
+      const Color(0xffb0e6ff),
+    );
     final faces = <_RenderFace>[];
-    for (var index = 0; index < 27; index++) {
-      final start = .117 + index * .0075;
-      final arrive = _ease(_phase(t, start, start + .117));
-      final position =
-          SandboxVec3.lerp(
-            sandboxVoxelSource(index),
-            sandboxVoxelCenters()[index],
-            arrive,
-          ) *
-          scale;
-      final previous =
-          SandboxVec3.lerp(
-            sandboxVoxelSource(index),
-            sandboxVoxelCenters()[index],
-            math.max(0, arrive - .13),
-          ) *
-          scale;
-      if (arrive > 0 && arrive < 1) {
+    for (var index = 0; index < centers.length; index++) {
+      final travelStart = 1100 / 6000 + index * (45 / 6000);
+      final travel = _ease(
+        _phase(local, travelStart, travelStart + 700 / 6000),
+      );
+      final source = sandboxVoxelSource(index);
+      final target = centers[index] * (1 - crystallize * (2 / 24));
+      var position = SandboxVec3.lerp(source, target, travel);
+      final previous = SandboxVec3.lerp(
+        source,
+        target,
+        math.max(0, travel - .12),
+      );
+      position = (position + SandboxVec3(0, rise, 0))
+          .rotateY(yaw)
+          .rotateX(pitch);
+      final base = sandboxVoxelColorForIndex(
+        centers[index],
+        index,
+      ).withValues(alpha: .84);
+      if (travel > 0 && travel < 1) {
         canvas.drawLine(
           projection.project(previous).offset,
           projection.project(position).offset,
-          _glow(_cyan.withValues(alpha: .2), 2.5, 1.2),
+          _glow(base.withValues(alpha: .18 * (1 - travel)), 2.5, 1.4),
         );
       }
-      for (final face in sandboxCubeFaces(position, 22 * scale)) {
-        faces.add(
-          _RenderFace(
-            face.vertices,
-            face.normal,
-            sandboxVoxelColorForIndex(
-              sandboxVoxelCenters()[index],
-              index,
-            ).withValues(alpha: .83),
-          ),
-        );
+      for (final face in sandboxCubeFaces(position, 22)) {
+        faces.add(_RenderFace(face.vertices, face.normal, base));
       }
+      final projected = projection.project(position);
+      canvas.drawCircle(
+        projected.offset,
+        4.5,
+        _glow(base.withValues(alpha: emission), 5, 5),
+      );
+      canvas.drawCircle(
+        projected.offset,
+        2.2,
+        _glow(_ice.withValues(alpha: emission), 2.5, 2.5),
+      );
     }
     _paint3dFaces(
       canvas,
       projection,
       faces,
-      border: _ice.withValues(alpha: .82),
+      border: _ice.withValues(alpha: .84),
     );
-    if (!isSave && t >= .933) {
-      _packet(
+    if (complete) {
+      final labelAlpha = reducedMotion ? 1.0 : _phase(post, 0, .25);
+      _center(
         canvas,
-        Offset.lerp(destination, source, _phase(t, .933, 1))!,
-        color: const Color(0xff8af6e9),
+        _voxelCompletionMessage(mode, operation),
+        const Offset(181, 202),
+        8,
+        _ice.withValues(alpha: labelAlpha),
       );
+    }
+  }
+
+  void _pixelBuilder(Canvas canvas, double elapsedMs) {
+    const barY = 158.0;
+    final visible = _phase(elapsedMs, 0, 250);
+    final fragmentation = _phase(elapsedMs, 2780, 2980);
+    final filled = sandboxPixelBuilderFilledSegments(elapsedMs.round());
+    _center(
+      canvas,
+      'PIXEL BUILDER',
+      const Offset(180, 100),
+      10,
+      _ice.withValues(alpha: visible),
+    );
+    for (var index = 0; index < 10; index++) {
+      final rect = sandboxPixelBuilderSegmentRect(index);
+      final active =
+          elapsedMs >= 250 + index * 230 && elapsedMs < 250 + (index + 1) * 230;
+      final flash = active
+          ? 1 -
+                ((_pixelBuilderLocalMs(elapsedMs, index) - 145) / 45)
+                    .clamp(0, 1)
+                    .toDouble()
+          : 0.0;
+      final color = index < filled
+          ? const Color(0xff63d8ff)
+          : const Color(0xff243d50);
+      canvas.drawRect(rect, _fill(color.withValues(alpha: 1 - fragmentation)));
+      canvas.drawRect(
+        rect,
+        _line(
+          (active || index < filled ? const Color(0xffbff6ff) : _cyan)
+              .withValues(alpha: .65 * (1 - fragmentation)),
+          .8,
+        ),
+      );
+      if (flash > 0) {
+        canvas.drawRect(
+          rect.deflate(2),
+          _fill(const Color(0xffbff6ff).withValues(alpha: flash)),
+        );
+      }
     }
     _center(
       canvas,
-      isSave ? 'CORE / STORAGE CAPTURE' : 'CORE / RECEIVER LINK',
-      const Offset(180, 79),
-      7,
+      '${(filled * 10).clamp(0, 100)}%',
+      const Offset(180, 188),
+      8,
       _ice,
     );
+    if (elapsedMs < 2780) {
+      _pixelBuilderRobot(canvas, elapsedMs, visible);
+    }
+    if (elapsedMs >= 2780) {
+      _pixelFragments(canvas, elapsedMs);
+    }
+    // A single synchronized completion flash, after the tenth tap.
+    if (elapsedMs >= 2550 && elapsedMs < 2780) {
+      final alpha = 1 - _phase(elapsedMs, 2550, 2780);
+      canvas.drawLine(
+        const Offset(56, barY - 2),
+        const Offset(274, barY - 2),
+        _glow(_ice.withValues(alpha: .6 * alpha), 3, 1.4),
+      );
+    }
+  }
+
+  void _pixelBuilderRobot(Canvas canvas, double elapsedMs, double visibility) {
+    final completion = _phase(elapsedMs, 2550, 2780);
+    final index = ((elapsedMs - 250) / 230).floor().clamp(0, 9);
+    final local = _pixelBuilderLocalMs(elapsedMs, index);
+    final previousX = 64.5 + 22 * math.max(0, index - 1);
+    final targetX = 64.5 + 22 * index;
+    final move = _phase(local, 0, 70);
+    var centerX = previousX + (targetX - previousX) * _ease(move);
+    if (elapsedMs < 250) centerX = 64.5;
+    final tapping = local >= 70 && local < 190;
+    final flash = local >= 145 && local < 190;
+    final jump = completion == 0
+        ? 0.0
+        : -6 * math.sin(math.pi * _phase(elapsedMs, 2550, 2780));
+    final alpha = visibility * (1 - completion);
+    final bodyBottom = 154.0 + jump + (tapping ? 2 : 0);
+    final head = Rect.fromCenter(
+      center: Offset(centerX, bodyBottom - 20),
+      width: 20,
+      height: 15,
+    );
+    final body = Rect.fromCenter(
+      center: Offset(centerX, bodyBottom - 8),
+      width: 13,
+      height: 9,
+    );
+    final outline = const Color(0xff93dcf0).withValues(alpha: alpha);
+    canvas.drawRect(
+      head,
+      _fill(const Color(0xff315f7d).withValues(alpha: alpha)),
+    );
+    canvas.drawRect(head, _line(outline, 1));
+    canvas.drawRect(
+      body,
+      _fill(const Color(0xff315f7d).withValues(alpha: alpha)),
+    );
+    canvas.drawRect(body, _line(outline, 1));
+    for (final dx in [-4.0, 4.0]) {
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(centerX + dx, bodyBottom - 20),
+          width: 2.5,
+          height: 2.5,
+        ),
+        _fill(const Color(0xffddffff).withValues(alpha: alpha)),
+      );
+    }
+    final stride = local < 70 ? (local / 70) * 2 : 0.0;
+    for (final entry in [(-4.0, stride), (4.0, -stride)]) {
+      canvas.drawLine(
+        Offset(centerX + entry.$1, bodyBottom - 4),
+        Offset(centerX + entry.$1 + entry.$2, bodyBottom),
+        _line(const Color(0xff97bfe6).withValues(alpha: alpha), 2),
+      );
+    }
+    final armY = completion > 0
+        ? bodyBottom - 17
+        : tapping
+        ? bodyBottom + 4
+        : bodyBottom - 8;
+    final armStart = Offset(centerX + 7, bodyBottom - 10);
+    final armEnd = Offset(centerX + 11, armY);
+    canvas.drawLine(armStart, armEnd, _line(outline, 2));
+    canvas.drawRect(
+      Rect.fromCenter(center: armEnd, width: 3, height: 3),
+      _fill(const Color(0xffb9f8ff).withValues(alpha: alpha)),
+    );
+    if (completion > 0) {
+      // A second raised arm during the one-time celebration.
+      canvas.drawLine(
+        Offset(centerX - 7, bodyBottom - 10),
+        Offset(centerX - 11, bodyBottom - 17),
+        _line(outline, 2),
+      );
+    }
+    if (flash) _pixelSparks(canvas, Offset(centerX + 11, 158), alpha);
+  }
+
+  void _pixelSparks(Canvas canvas, Offset origin, double alpha) {
+    for (final entry in const [Offset(-3, -4), Offset(2, -5), Offset(4, -1)]) {
+      canvas.drawRect(
+        Rect.fromCenter(center: origin + entry, width: 2, height: 2),
+        _fill(const Color(0xffbff6ff).withValues(alpha: alpha)),
+      );
+    }
+  }
+
+  void _pixelFragments(Canvas canvas, double elapsedMs) {
+    final detach = _phase(elapsedMs, 2780, 2980);
+    final scatter = _ease(_phase(elapsedMs, 2980, 3380));
+    final projection = const SandboxProjection(Offset(181, 143));
+    for (var index = 0; index < sandboxPixelFragmentCount; index++) {
+      final source = sandboxPixelFragmentSource(index);
+      final target = projection.project(sandboxVoxelSource(index)).offset;
+      final detachOffset = Offset(
+        ((index % 3) - 1) * 3 * detach,
+        ((index % 4) - 1.5) * 2 * detach,
+      );
+      final position = Offset.lerp(source + detachOffset, target, scatter)!;
+      final color = sandboxVoxelColorForIndex(
+        sandboxVoxelCenters()[index],
+        index,
+      );
+      canvas.drawRect(
+        Rect.fromCenter(center: position, width: 4, height: 4),
+        _fill(color.withValues(alpha: .92)),
+      );
+      canvas.drawRect(
+        Rect.fromCenter(center: position, width: 4, height: 4),
+        _line(_ice.withValues(alpha: .7), .55),
+      );
+    }
   }
 
   void _polyhedralFold(Canvas canvas, double t, double post) {

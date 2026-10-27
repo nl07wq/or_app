@@ -42,6 +42,38 @@ void main() {
     );
   });
 
+  test(
+    'pixel builder fills and fragments deterministically into 27 voxels',
+    () {
+      expect(sandboxPixelBuilderFilledSegments(0), 0);
+      expect(sandboxPixelBuilderFilledSegments(249), 0);
+      expect(sandboxPixelBuilderFilledSegments(480), 1);
+      expect(sandboxPixelBuilderFilledSegments(1450), 5);
+      expect(sandboxPixelBuilderFilledSegments(2550), 10);
+      expect(sandboxPixelFragmentCount, 27);
+      expect(
+        List<int>.generate(
+          sandboxPixelFragmentCount,
+          sandboxPixelFragmentModule,
+        ).where((module) => module < 7),
+        hasLength(21),
+      );
+      expect(
+        List<int>.generate(
+          sandboxPixelFragmentCount,
+          sandboxPixelFragmentModule,
+        ).where((module) => module >= 7),
+        hasLength(6),
+      );
+      for (var index = 0; index < sandboxPixelFragmentCount; index++) {
+        final rect = sandboxPixelBuilderSegmentRect(
+          sandboxPixelFragmentModule(index),
+        );
+        expect(rect.contains(sandboxPixelFragmentSource(index)), isTrue);
+      }
+    },
+  );
+
   test('folded net finishes as six joined 80-unit cube faces', () {
     final faces = sandboxFoldedCubeFaces(1);
     expect(faces, hasLength(6));
@@ -269,6 +301,7 @@ void main() {
     for (final width in [320.0, 375.0, 390.0, 430.0]) {
       await _pumpSandbox(tester, width: width);
       await tester.pump(const Duration(milliseconds: 5000));
+      await tester.pump(const Duration(milliseconds: 4380));
       expect(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         findsOneWidget,
@@ -277,9 +310,27 @@ void main() {
     }
   });
 
-  const frames = [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
   for (final concept in BootSendSequenceConcept.values) {
     for (final operation in TransferOperation.values) {
+      final frames = concept == BootSendSequenceConcept.voxelIntegration
+          ? const [
+              0,
+              250,
+              1450,
+              2550,
+              2660,
+              2780,
+              3000,
+              3380,
+              4480,
+              7080,
+              8380,
+              9380,
+            ]
+          : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
+      final total = concept == BootSendSequenceConcept.voxelIntegration
+          ? 9380
+          : 6000;
       for (final milliseconds in frames) {
         testWidgets(
           '${concept.name} ${operation.name} ${milliseconds}ms golden',
@@ -293,7 +344,7 @@ void main() {
               await tester.tap(find.text('SEND'));
               await tester.pump();
             }
-            await _pumpTimeline(tester, milliseconds);
+            await _pumpTimeline(tester, milliseconds, totalMilliseconds: total);
             await expectLater(
               find.byKey(const ValueKey('boot-send-sequence-monitor')),
               matchesGoldenFile(
@@ -315,11 +366,13 @@ void main() {
           await tester.tap(find.text('SEND'));
           await tester.pump();
         }
-        await _pumpTimeline(tester, 7200);
+        final postCompletion =
+            concept == BootSendSequenceConcept.voxelIntegration ? 10580 : 7200;
+        await _pumpTimeline(tester, postCompletion, totalMilliseconds: total);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),
           matchesGoldenFile(
-            'goldens/boot_send_${concept.name}_${operation.name}_7200ms.png',
+            'goldens/boot_send_${concept.name}_${operation.name}_${postCompletion}ms.png',
           ),
         );
       });
@@ -327,16 +380,20 @@ void main() {
   }
 }
 
-Future<void> _pumpTimeline(WidgetTester tester, int milliseconds) async {
-  if (milliseconds <= 6000) {
+Future<void> _pumpTimeline(
+  WidgetTester tester,
+  int milliseconds, {
+  int totalMilliseconds = 6000,
+}) async {
+  if (milliseconds <= totalMilliseconds) {
     await tester.pump(Duration(milliseconds: milliseconds));
     return;
   }
-  await tester.pump(const Duration(milliseconds: 5999));
+  await tester.pump(Duration(milliseconds: totalMilliseconds - 1));
   // Deliver construction completion before advancing the completion-only
   // controller that owns post-build rotation and particles.
   await tester.pump(const Duration(milliseconds: 1));
-  await tester.pump(Duration(milliseconds: milliseconds - 6000));
+  await tester.pump(Duration(milliseconds: milliseconds - totalMilliseconds));
 }
 
 String _selectorText(BootSendSequenceConcept concept) => switch (concept) {
