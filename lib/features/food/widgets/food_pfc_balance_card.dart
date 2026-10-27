@@ -327,7 +327,7 @@ class _PfcMetricRow extends StatelessWidget {
                       text: FoodNutritionFormatter.macro(grams),
                       style: TextStyle(
                         color: emphasized ? color : textColor,
-                        fontSize: emphasized ? 17 : null,
+                        fontSize: emphasized ? 15 : null,
                         fontWeight: emphasized
                             ? FontWeight.w700
                             : FontWeight.w700,
@@ -356,7 +356,7 @@ class _PfcMetricRow extends StatelessWidget {
                 maxLines: 1,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: emphasized ? 15 : null,
+                  fontSize: emphasized ? 14 : null,
                   fontWeight: emphasized ? FontWeight.w600 : FontWeight.w700,
                 ),
               ),

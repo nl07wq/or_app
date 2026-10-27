@@ -713,6 +713,7 @@ class _FoodCatalogListCard extends StatelessWidget {
                       unit: entry.nutrition.protein == null ? '' : 'g',
                       valueColor: foodDetailProteinColor,
                       labelColor: FoodFormMetrics.protein,
+                      numericFontSize: 13,
                     ),
                     _NutritionCell(
                       label: 'F',
@@ -720,6 +721,7 @@ class _FoodCatalogListCard extends StatelessWidget {
                       unit: entry.nutrition.fat == null ? '' : 'g',
                       valueColor: foodDetailFatColor,
                       labelColor: FoodFormMetrics.fat,
+                      numericFontSize: 13,
                     ),
                     _NutritionCell(
                       label: 'C',
@@ -727,6 +729,7 @@ class _FoodCatalogListCard extends StatelessWidget {
                       unit: entry.nutrition.carbohydrate == null ? '' : 'g',
                       valueColor: foodDetailCarbohydrateColor,
                       labelColor: FoodFormMetrics.carbohydrate,
+                      numericFontSize: 13,
                     ),
                   ];
                   final row = constraints.maxWidth >= 250
@@ -776,6 +779,7 @@ class _NutritionCell extends StatelessWidget {
     required this.unit,
     required this.valueColor,
     this.labelColor,
+    this.numericFontSize = 15,
   });
 
   final String label;
@@ -783,6 +787,7 @@ class _NutritionCell extends StatelessWidget {
   final String unit;
   final Color valueColor;
   final Color? labelColor;
+  final double numericFontSize;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -799,7 +804,7 @@ class _NutritionCell extends StatelessWidget {
                   text: number,
                   style: TextStyle(
                     color: valueColor,
-                    fontSize: 15,
+                    fontSize: numericFontSize,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

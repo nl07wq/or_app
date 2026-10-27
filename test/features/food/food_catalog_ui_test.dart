@@ -504,9 +504,25 @@ void main() {
     final carbohydrateSpans = (carbohydrate.textSpan! as TextSpan).children!
         .cast<TextSpan>()
         .toList();
-    expect(carbohydrateSpans.first.style?.fontSize, 15);
+    expect(carbohydrateSpans.first.style?.fontSize, 13);
     expect(carbohydrateSpans.first.style?.color, const Color(0xFF9B8CFF));
     expect(carbohydrateSpans.last.style?.fontSize, 11);
+    expect(carbohydrateSpans.first.style?.fontWeight, FontWeight.w600);
+    final proteinSpans =
+        (tester.widget<Text>(find.text('1 g')).textSpan! as TextSpan).children!
+            .cast<TextSpan>()
+            .toList();
+    expect(proteinSpans.first.style?.fontSize, 13);
+    expect(proteinSpans.first.style?.fontWeight, FontWeight.w600);
+    expect(proteinSpans.first.style?.color, const Color(0xFF63D8FF));
+    final fatSpans =
+        (tester.widget<Text>(find.text('0.1 g')).textSpan! as TextSpan)
+            .children!
+            .cast<TextSpan>()
+            .toList();
+    expect(fatSpans.first.style?.fontSize, 13);
+    expect(fatSpans.first.style?.fontWeight, FontWeight.w600);
+    expect(fatSpans.first.style?.color, const Color(0xFF7EA8FF));
   });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
@@ -996,13 +1012,13 @@ void main() {
     final proteinGramSpans = (proteinGrams.textSpan! as TextSpan).children!
         .cast<TextSpan>()
         .toList();
-    expect(proteinGramSpans.first.style?.fontSize, 17);
+    expect(proteinGramSpans.first.style?.fontSize, 15);
     expect(proteinGramSpans.first.style?.fontWeight, FontWeight.w700);
     expect(proteinGramSpans.first.style?.color, const Color(0xFF63D8FF));
     expect(proteinGramSpans.last.style?.fontSize, 12);
     expect(proteinGramSpans.last.style?.fontWeight, FontWeight.w400);
     final proteinPercent = tester.widget<Text>(find.text('17%'));
-    expect(proteinPercent.style?.fontSize, 15);
+    expect(proteinPercent.style?.fontSize, 14);
     expect(proteinPercent.style?.fontWeight, FontWeight.w600);
     expect(proteinPercent.style?.color, const Color(0xFFF1F7FF));
     expect(
