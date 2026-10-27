@@ -243,6 +243,8 @@ void main() {
       findsOneWidget,
     );
     await tester.pump(const Duration(milliseconds: 2800));
+    await tester.tap(find.text('SEND'));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('boot-send-sequence-replay')));
     await tester.pump();
     expect(tester.takeException(), isNull);
@@ -275,33 +277,49 @@ void main() {
     }
   });
 
-  const frames = [
-    0,
-    600,
-    1200,
-    1800,
-    2400,
-    3000,
-    3500,
-    4100,
-    5000,
-    6000,
-    7200,
-    8400,
-  ];
+  const frames = [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
   for (final concept in BootSendSequenceConcept.values) {
-    for (final milliseconds in frames) {
-      testWidgets('${concept.name} ${milliseconds}ms golden', (tester) async {
+    for (final operation in TransferOperation.values) {
+      for (final milliseconds in frames) {
+        testWidgets(
+          '${concept.name} ${operation.name} ${milliseconds}ms golden',
+          (tester) async {
+            await _pumpSandbox(tester);
+            if (concept != BootSendSequenceConcept.assemblyMatrix) {
+              await tester.tap(find.text(_selectorText(concept)));
+              await tester.pump();
+            }
+            if (operation == TransferOperation.send) {
+              await tester.tap(find.text('SEND'));
+              await tester.pump();
+            }
+            await _pumpTimeline(tester, milliseconds);
+            await expectLater(
+              find.byKey(const ValueKey('boot-send-sequence-monitor')),
+              matchesGoldenFile(
+                'goldens/boot_send_${concept.name}_${operation.name}_${milliseconds}ms.png',
+              ),
+            );
+          },
+        );
+      }
+      testWidgets('${concept.name} ${operation.name} post-completion golden', (
+        tester,
+      ) async {
         await _pumpSandbox(tester);
         if (concept != BootSendSequenceConcept.assemblyMatrix) {
           await tester.tap(find.text(_selectorText(concept)));
           await tester.pump();
         }
-        await _pumpTimeline(tester, milliseconds);
+        if (operation == TransferOperation.send) {
+          await tester.tap(find.text('SEND'));
+          await tester.pump();
+        }
+        await _pumpTimeline(tester, 7200);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),
           matchesGoldenFile(
-            'goldens/boot_send_${concept.name}_${milliseconds}ms.png',
+            'goldens/boot_send_${concept.name}_${operation.name}_7200ms.png',
           ),
         );
       });
