@@ -483,11 +483,31 @@ void main() {
       find.byKey(const ValueKey('food-nutrition-focus-toolbar')),
       findsOneWidget,
     );
+    await tester.showKeyboard(find.widgetWithText(TextField, 'CALORIES'));
+    expect(calories.hasFocus, isTrue);
+    await tester.tap(
+      find.byKey(const ValueKey('food-nutrition-focus-previous')),
+    );
+    await tester.pump();
+    expect(calories.hasFocus, isTrue);
     await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
     await tester.pump();
     expect(protein.hasFocus, isTrue);
     controllers.protein.text = '12.3';
     await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
+    await tester.pump();
+    expect(fat.hasFocus, isTrue);
+    controllers.fat.text = '4.5';
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
+    await tester.pump();
+    expect(carbohydrate.hasFocus, isTrue);
+    controllers.carbohydrate.text = '21.0';
+    await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-next')));
+    await tester.pump();
+    expect(carbohydrate.hasFocus, isTrue);
+    await tester.tap(
+      find.byKey(const ValueKey('food-nutrition-focus-previous')),
+    );
     await tester.pump();
     expect(fat.hasFocus, isTrue);
     await tester.tap(
@@ -496,6 +516,13 @@ void main() {
     await tester.pump();
     expect(protein.hasFocus, isTrue);
     expect(controllers.protein.text, '12.3');
+    await tester.tap(
+      find.byKey(const ValueKey('food-nutrition-focus-previous')),
+    );
+    await tester.pump();
+    expect(calories.hasFocus, isTrue);
+    expect(controllers.fat.text, '4.5');
+    expect(controllers.carbohydrate.text, '21.0');
     await tester.tap(find.byKey(const ValueKey('food-nutrition-focus-done')));
     await tester.pump();
     expect(
@@ -506,26 +533,27 @@ void main() {
   });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
-    testWidgets('PFC stays three columns with full carbohydrate label at $width', (
-      tester,
-    ) async {
-      final controllers = _Controllers();
-      addTearDown(controllers.dispose);
-      await tester.binding.setSurfaceSize(Size(width, 844));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(_subject(controllers, width: width - 32));
+    testWidgets(
+      'PFC stays three columns with full carbohydrate label at $width',
+      (tester) async {
+        final controllers = _Controllers();
+        addTearDown(controllers.dispose);
+        await tester.binding.setSurfaceSize(Size(width, 844));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(_subject(controllers, width: width - 32));
 
-      final protein = _field('PROTEIN');
-      final fat = _field('FAT');
-      final carbohydrate = _field('CARBOHYDRATE');
-      expect(_top(tester, protein), _top(tester, fat));
-      expect(_top(tester, protein), _top(tester, carbohydrate));
-      expect(
-        tester.widget<TextField>(carbohydrate).decoration?.labelText,
-        'CARBOHYDRATE',
-      );
-      expect(tester.takeException(), isNull);
-    });
+        final protein = _field('PROTEIN');
+        final fat = _field('FAT');
+        final carbohydrate = _field('CARBOHYDRATE');
+        expect(_top(tester, protein), _top(tester, fat));
+        expect(_top(tester, protein), _top(tester, carbohydrate));
+        expect(
+          tester.widget<TextField>(carbohydrate).decoration?.labelText,
+          'CARBOHYDRATE',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }
 

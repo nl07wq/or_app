@@ -137,6 +137,125 @@ void main() {
     );
   });
 
+  testWidgets('daily debrief missing-source copy emits one failure feedback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final audio = _RecordingTouchRippleAudio();
+    var copied = 0;
+    await tester.pumpWidget(
+      _feedbackApp(
+        audio: audio,
+        child: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+          gateway: _FakeExchangeGateway(
+            preparation: const ReportSyncRequestPreparation(
+              operationDate: '2026-10-26',
+              statusLabel: 'SOURCE NOT READY',
+              blockingReasons: [
+                'STATUS: NOT RECORDED (STATUS)',
+                'ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)',
+              ],
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async => copied++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('COPY CHATGPT PROMPT'));
+    await tester.pumpAndSettle();
+
+    expect(audio.played, <TouchFeedbackSound>[TouchFeedbackSound.failure]);
+    expect(copied, 0);
+    expect(find.text('SOURCE NOT READY'), findsOneWidget);
+  });
+
+  testWidgets('daily brief missing STATUS source emits one failure feedback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final audio = _RecordingTouchRippleAudio();
+    await tester.pumpWidget(
+      _feedbackApp(
+        audio: audio,
+        child: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.morningBrief,
+          gateway: _FakeExchangeGateway(
+            preparation: const ReportSyncRequestPreparation(
+              operationDate: '2026-10-26',
+              statusLabel: 'NOT READY',
+              blockingReason: 'STATUS: NOT RECORDED',
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('GENERATE STATUS SOURCE'));
+    await tester.pumpAndSettle();
+
+    expect(audio.played, <TouchFeedbackSound>[TouchFeedbackSound.failure]);
+    expect(
+      find.byKey(const ValueKey('report-sync-export-generate-error')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('status-source-preview-text')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('daily brief valid STATUS source resolves accepted once', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final audio = _RecordingTouchRippleAudio();
+    final source = _statusSourceExport();
+    await tester.pumpWidget(
+      _feedbackApp(
+        audio: audio,
+        child: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.morningBrief,
+          gateway: _FakeExchangeGateway(
+            preparation: ReportSyncRequestPreparation(
+              operationDate: '2026-10-26',
+              sourceText: source.plainText,
+              statusSourceExport: source,
+              statusLabel: 'READY',
+            ),
+          ),
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('GENERATE STATUS SOURCE'));
+    await tester.pumpAndSettle();
+
+    expect(audio.played, <TouchFeedbackSound>[TouchFeedbackSound.success]);
+    expect(
+      find.byKey(const ValueKey('status-source-preview-text')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('successful DD import returns to the existing top page', (
     tester,
   ) async {

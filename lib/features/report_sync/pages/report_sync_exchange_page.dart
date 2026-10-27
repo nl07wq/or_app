@@ -602,12 +602,39 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     });
     try {
       await action();
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.accepted,
+      );
     } catch (error) {
       _setExportError(exportAction, _errorText(error));
+      ActionableFeedbackRegion.resolveDeferred(
+        ActionableFeedbackResult.unavailable,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Export validation is asynchronous.  This region owns the real button
+  /// pointer so success and rejection resolve exactly once, including a
+  /// pointer-aware failure response for a visually disabled export action.
+  Widget _deferredExportButton({
+    required bool enabled,
+    required Future<void> Function() onPressed,
+    required IconData icon,
+    required String label,
+  }) => ActionableFeedbackRegion(
+    enabled: true,
+    result: enabled
+        ? ActionableFeedbackResult.accepted
+        : ActionableFeedbackResult.unavailable,
+    deferResolution: enabled,
+    child: OutlinedButton.icon(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(icon),
+      label: Text(label),
+    ),
+  );
 
   Future<_ImportActionOutcome> _runImport(
     Future<_ImportActionOutcome> Function() action, {
@@ -813,11 +840,12 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
         if (_isImportOnly) ...[
           Align(
             alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: ready && !_busy ? _copyInstruction : null,
-              icon: const Icon(Icons.content_copy),
-              label: const Text('COPY CHATGPT PROMPT'),
-            ).actionableFeedback(),
+            child: _deferredExportButton(
+              enabled: ready && !_busy,
+              onPressed: _copyInstruction,
+              icon: Icons.content_copy,
+              label: 'COPY CHATGPT PROMPT',
+            ),
           ),
           _ActionFeedback(
             message: _promptCopyMessage,
@@ -828,13 +856,12 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           if (widget.exchangeType == ReportSyncExchangeType.morningBrief) ...[
             Align(
               alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _hasValidSelectedDate && !_busy
-                    ? _generateStatusSource
-                    : null,
-                icon: const Icon(Icons.description_outlined),
-                label: const Text('GENERATE STATUS SOURCE'),
-              ).actionableFeedback(),
+              child: _deferredExportButton(
+                enabled: _hasValidSelectedDate && !_busy,
+                onPressed: _generateStatusSource,
+                icon: Icons.description_outlined,
+                label: 'GENERATE STATUS SOURCE',
+              ),
             ),
             _ActionFeedback(
               message: _generateMessage,
@@ -845,18 +872,16 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
           ],
           Align(
             alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed:
+            child: _deferredExportButton(
+              enabled:
                   ready &&
-                      !_busy &&
-                      (widget.exchangeType !=
-                              ReportSyncExchangeType.morningBrief ||
-                          _statusSourceGenerated)
-                  ? _copyInstruction
-                  : null,
-              icon: const Icon(Icons.content_copy),
-              label: const Text('COPY CHATGPT PROMPT'),
-            ).actionableFeedback(),
+                  !_busy &&
+                  (widget.exchangeType != ReportSyncExchangeType.morningBrief ||
+                      _statusSourceGenerated),
+              onPressed: _copyInstruction,
+              icon: Icons.content_copy,
+              label: 'COPY CHATGPT PROMPT',
+            ),
           ),
           _ActionFeedback(
             message: _promptCopyMessage,

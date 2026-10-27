@@ -134,7 +134,14 @@ class FoodNutritionFocusToolbar extends StatefulWidget {
 }
 
 class _FoodNutritionFocusToolbarState extends State<FoodNutritionFocusToolbar> {
-  int get _currentIndex => widget.nodes.indexWhere((node) => node.hasFocus);
+  int _activeIndex = -1;
+
+  int get _focusedIndex => widget.nodes.indexWhere((node) => node.hasFocus);
+
+  int get _currentIndex {
+    final focused = _focusedIndex;
+    return focused >= 0 ? focused : _activeIndex;
+  }
 
   @override
   void initState() {
@@ -165,7 +172,23 @@ class _FoodNutritionFocusToolbarState extends State<FoodNutritionFocusToolbar> {
   }
 
   void _handleFocusChanged() {
+    final focused = _focusedIndex;
+    if (focused >= 0) _activeIndex = focused;
     if (mounted) setState(() {});
+  }
+
+  void _moveFocus(int targetIndex) {
+    if (targetIndex < 0 || targetIndex >= widget.nodes.length) return;
+    // A touch control must never become the browser's active element.  Keep
+    // the current numeric field alive through the handoff, then request the
+    // target node that is already owned by the form.
+    setState(() => _activeIndex = targetIndex);
+    FocusScope.of(context).requestFocus(widget.nodes[targetIndex]);
+  }
+
+  void _finishEditing() {
+    setState(() => _activeIndex = -1);
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -187,23 +210,21 @@ class _FoodNutritionFocusToolbarState extends State<FoodNutritionFocusToolbar> {
                 key: const ValueKey('food-nutrition-focus-previous'),
                 icon: Icons.keyboard_arrow_up,
                 tooltip: 'Previous nutrition field',
-                onPressed: current > 0
-                    ? () => widget.nodes[current - 1].requestFocus()
-                    : null,
+                onPressed: current > 0 ? () => _moveFocus(current - 1) : null,
               ),
               _button(
                 key: const ValueKey('food-nutrition-focus-next'),
                 icon: Icons.keyboard_arrow_down,
                 tooltip: 'Next nutrition field',
                 onPressed: current < widget.nodes.length - 1
-                    ? () => widget.nodes[current + 1].requestFocus()
+                    ? () => _moveFocus(current + 1)
                     : null,
               ),
               _button(
                 key: const ValueKey('food-nutrition-focus-done'),
                 icon: Icons.done,
                 tooltip: 'Finish nutrition editing',
-                onPressed: () => FocusScope.of(context).unfocus(),
+                onPressed: _finishEditing,
               ),
             ],
           ),
@@ -217,16 +238,30 @@ class _FoodNutritionFocusToolbarState extends State<FoodNutritionFocusToolbar> {
     required IconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
-  }) => Focus(
-    canRequestFocus: false,
-    skipTraversal: true,
-    child: IconButton(
-      key: key,
-      tooltip: tooltip,
-      onPressed: onPressed,
-      icon: Icon(icon, size: 19),
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+  }) => Tooltip(
+    message: tooltip,
+    child: Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: tooltip,
+      child: SizedBox(
+        key: key,
+        width: 44,
+        height: 44,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPressed,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 19,
+              color: onPressed == null
+                  ? Theme.of(context).disabledColor
+                  : IconTheme.of(context).color,
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }
