@@ -37,12 +37,14 @@ class TouchFeedbackSoundInventoryEntry {
   const TouchFeedbackSoundInventoryEntry({
     required this.semanticName,
     required this.sound,
+    required this.setting,
     required this.asset,
     required this.channel,
   });
 
   final String semanticName;
   final TouchFeedbackSound sound;
+  final DeviceFeedbackSound setting;
   final String asset;
   final DeviceFeedbackChannel channel;
 }
@@ -54,42 +56,49 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'WATER',
     sound: TouchFeedbackSound.water,
+    setting: DeviceFeedbackSound.water,
     asset: touchRippleAudioAssetUrl,
     channel: DeviceFeedbackChannel.ambient,
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'COMMAND / ACCEPTED',
     sound: TouchFeedbackSound.success,
+    setting: DeviceFeedbackSound.accepted,
     asset: touchRippleSuccessAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'REJECTED',
     sound: TouchFeedbackSound.failure,
+    setting: DeviceFeedbackSound.rejected,
     asset: touchRippleFailureAudioAssetUrl,
     channel: DeviceFeedbackChannel.rejected,
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'EXIT',
     sound: TouchFeedbackSound.exit,
+    setting: DeviceFeedbackSound.exit,
     asset: touchRippleExitAudioAssetUrl,
     channel: DeviceFeedbackChannel.exit,
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'PAGE FLIP',
     sound: TouchFeedbackSound.pageFlip,
+    setting: DeviceFeedbackSound.pageFlip,
     asset: touchRipplePageFlipAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'CURSOR / SELECTION',
     sound: TouchFeedbackSound.cursor,
+    setting: DeviceFeedbackSound.cursor,
     asset: touchRippleCursorAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'ENTER / BOOT',
     sound: TouchFeedbackSound.enter,
+    setting: DeviceFeedbackSound.enter,
     asset: touchRippleEnterAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
   ),
@@ -156,13 +165,22 @@ double touchFeedbackEffectiveVolume(
       TouchFeedbackSound.success => DeviceFeedbackChannel.command,
       TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
       TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
-      // Report navigation is a semantic command; it deliberately uses the
-      // existing COMMAND level rather than introducing a second settings UI.
+      // Report navigation remains a semantic COMMAND event while retaining a
+      // separate per-sound multiplier in Device Settings.
       TouchFeedbackSound.pageFlip => DeviceFeedbackChannel.command,
-      // Selection and boot-enter are command semantics, so they follow the
-      // existing MASTER × COMMAND slider rather than adding new settings UI.
+      // Selection and boot-enter remain COMMAND events while retaining their
+      // own per-sound multipliers in Device Settings.
       TouchFeedbackSound.cursor => DeviceFeedbackChannel.command,
       TouchFeedbackSound.enter => DeviceFeedbackChannel.command,
+    }) *
+    settings.soundVolumeMultiplierFor(switch (sound) {
+      TouchFeedbackSound.water => DeviceFeedbackSound.water,
+      TouchFeedbackSound.success => DeviceFeedbackSound.accepted,
+      TouchFeedbackSound.failure => DeviceFeedbackSound.rejected,
+      TouchFeedbackSound.exit => DeviceFeedbackSound.exit,
+      TouchFeedbackSound.pageFlip => DeviceFeedbackSound.pageFlip,
+      TouchFeedbackSound.cursor => DeviceFeedbackSound.cursor,
+      TouchFeedbackSound.enter => DeviceFeedbackSound.enter,
     });
 
 abstract interface class TouchRippleAudio {

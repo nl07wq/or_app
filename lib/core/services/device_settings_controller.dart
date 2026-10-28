@@ -25,6 +25,19 @@ enum CommandCenterMidRearDensity {
 
 enum DeviceFeedbackChannel { command, exit, rejected, ambient }
 
+/// Individual sound controls are deliberately separate from semantic
+/// channels: PAGE FLIP, CURSOR, and ENTER remain COMMAND events while still
+/// retaining their own user-adjustable multiplier.
+enum DeviceFeedbackSound {
+  water,
+  accepted,
+  rejected,
+  exit,
+  pageFlip,
+  cursor,
+  enter,
+}
+
 /// OR-APP-local presentation and feedback preferences.
 ///
 /// The defaults intentionally multiply the released feedback levels by 1.0
@@ -38,6 +51,13 @@ class DeviceSettings {
     this.exitVolume = 1,
     this.rejectedVolume = 1,
     this.ambientVolume = 1,
+    this.waterSoundVolume = 1,
+    this.acceptedSoundVolume = 1,
+    this.rejectedSoundVolume = 1,
+    this.exitSoundVolume = 1,
+    this.pageFlipSoundVolume = 1,
+    this.cursorSoundVolume = 1,
+    this.enterSoundVolume = 1,
     this.brightness = 1,
     this.rippleEnabled = true,
     this.ambientCircuitEnabled = true,
@@ -57,6 +77,13 @@ class DeviceSettings {
   final double exitVolume;
   final double rejectedVolume;
   final double ambientVolume;
+  final double waterSoundVolume;
+  final double acceptedSoundVolume;
+  final double rejectedSoundVolume;
+  final double exitSoundVolume;
+  final double pageFlipSoundVolume;
+  final double cursorSoundVolume;
+  final double enterSoundVolume;
   final double brightness;
   final bool rippleEnabled;
   final bool ambientCircuitEnabled;
@@ -78,6 +105,27 @@ class DeviceSettings {
     return masterVolume * roleVolume;
   }
 
+  double soundVolumeMultiplierFor(DeviceFeedbackSound sound) => switch (sound) {
+    DeviceFeedbackSound.water => waterSoundVolume,
+    DeviceFeedbackSound.accepted => acceptedSoundVolume,
+    DeviceFeedbackSound.rejected => rejectedSoundVolume,
+    DeviceFeedbackSound.exit => exitSoundVolume,
+    DeviceFeedbackSound.pageFlip => pageFlipSoundVolume,
+    DeviceFeedbackSound.cursor => cursorSoundVolume,
+    DeviceFeedbackSound.enter => enterSoundVolume,
+  };
+
+  DeviceSettings copyWithSoundVolume(DeviceFeedbackSound sound, double value) =>
+      switch (sound) {
+        DeviceFeedbackSound.water => copyWith(waterSoundVolume: value),
+        DeviceFeedbackSound.accepted => copyWith(acceptedSoundVolume: value),
+        DeviceFeedbackSound.rejected => copyWith(rejectedSoundVolume: value),
+        DeviceFeedbackSound.exit => copyWith(exitSoundVolume: value),
+        DeviceFeedbackSound.pageFlip => copyWith(pageFlipSoundVolume: value),
+        DeviceFeedbackSound.cursor => copyWith(cursorSoundVolume: value),
+        DeviceFeedbackSound.enter => copyWith(enterSoundVolume: value),
+      };
+
   /// Resolves the tri-state preference used by every OR-APP visual effect.
   bool resolvesReducedMotion(bool platformReducedMotion) =>
       switch (reducedMotion) {
@@ -93,6 +141,13 @@ class DeviceSettings {
     double? exitVolume,
     double? rejectedVolume,
     double? ambientVolume,
+    double? waterSoundVolume,
+    double? acceptedSoundVolume,
+    double? rejectedSoundVolume,
+    double? exitSoundVolume,
+    double? pageFlipSoundVolume,
+    double? cursorSoundVolume,
+    double? enterSoundVolume,
     double? brightness,
     bool? rippleEnabled,
     bool? ambientCircuitEnabled,
@@ -109,6 +164,13 @@ class DeviceSettings {
     exitVolume: exitVolume ?? this.exitVolume,
     rejectedVolume: rejectedVolume ?? this.rejectedVolume,
     ambientVolume: ambientVolume ?? this.ambientVolume,
+    waterSoundVolume: waterSoundVolume ?? this.waterSoundVolume,
+    acceptedSoundVolume: acceptedSoundVolume ?? this.acceptedSoundVolume,
+    rejectedSoundVolume: rejectedSoundVolume ?? this.rejectedSoundVolume,
+    exitSoundVolume: exitSoundVolume ?? this.exitSoundVolume,
+    pageFlipSoundVolume: pageFlipSoundVolume ?? this.pageFlipSoundVolume,
+    cursorSoundVolume: cursorSoundVolume ?? this.cursorSoundVolume,
+    enterSoundVolume: enterSoundVolume ?? this.enterSoundVolume,
     brightness: brightness ?? this.brightness,
     rippleEnabled: rippleEnabled ?? this.rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled ?? this.ambientCircuitEnabled,
@@ -132,6 +194,13 @@ class DeviceSettings {
     exitVolume: _unit(exitVolume),
     rejectedVolume: _unit(rejectedVolume),
     ambientVolume: _unit(ambientVolume),
+    waterSoundVolume: _unit(waterSoundVolume),
+    acceptedSoundVolume: _unit(acceptedSoundVolume),
+    rejectedSoundVolume: _unit(rejectedSoundVolume),
+    exitSoundVolume: _unit(exitSoundVolume),
+    pageFlipSoundVolume: _unit(pageFlipSoundVolume),
+    cursorSoundVolume: _unit(cursorSoundVolume),
+    enterSoundVolume: _unit(enterSoundVolume),
     brightness: _brightness(brightness),
     rippleEnabled: rippleEnabled,
     ambientCircuitEnabled: ambientCircuitEnabled,
@@ -150,6 +219,13 @@ class DeviceSettings {
     'exitVolume': exitVolume,
     'rejectedVolume': rejectedVolume,
     'ambientVolume': ambientVolume,
+    'waterSoundVolume': waterSoundVolume,
+    'acceptedSoundVolume': acceptedSoundVolume,
+    'rejectedSoundVolume': rejectedSoundVolume,
+    'exitSoundVolume': exitSoundVolume,
+    'pageFlipSoundVolume': pageFlipSoundVolume,
+    'cursorSoundVolume': cursorSoundVolume,
+    'enterSoundVolume': enterSoundVolume,
     'brightness': brightness,
     'rippleEnabled': rippleEnabled,
     'ambientCircuitEnabled': ambientCircuitEnabled,
@@ -205,6 +281,13 @@ class DeviceSettings {
       exitVolume: number('exitVolume', 1),
       rejectedVolume: number('rejectedVolume', 1),
       ambientVolume: number('ambientVolume', 1),
+      waterSoundVolume: number('waterSoundVolume', 1),
+      acceptedSoundVolume: number('acceptedSoundVolume', 1),
+      rejectedSoundVolume: number('rejectedSoundVolume', 1),
+      exitSoundVolume: number('exitSoundVolume', 1),
+      pageFlipSoundVolume: number('pageFlipSoundVolume', 1),
+      cursorSoundVolume: number('cursorSoundVolume', 1),
+      enterSoundVolume: number('enterSoundVolume', 1),
       brightness: number('brightness', 1),
       rippleEnabled: flag('rippleEnabled', true),
       ambientCircuitEnabled: flag('ambientCircuitEnabled', true),

@@ -101,7 +101,12 @@ class DeviceSettingsPage extends StatelessWidget {
                   ),
                 ),
                 const Divider(),
-                const _SoundInventorySection(),
+                _SoundInventorySection(
+                  settings: settings,
+                  onSoundVolumeChanged: (sound, value) => _controller.update(
+                    settings.copyWithSoundVolume(sound, value),
+                  ),
+                ),
               ],
             ),
           ),
@@ -211,7 +216,14 @@ class DeviceSettingsPage extends StatelessWidget {
 }
 
 class _SoundInventorySection extends StatelessWidget {
-  const _SoundInventorySection();
+  const _SoundInventorySection({
+    required this.settings,
+    required this.onSoundVolumeChanged,
+  });
+
+  final DeviceSettings settings;
+  final void Function(DeviceFeedbackSound sound, double value)
+  onSoundVolumeChanged;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -224,7 +236,12 @@ class _SoundInventorySection extends StatelessWidget {
       ),
       AppSpacing.gapSM,
       for (final entry in touchFeedbackSoundInventory) ...[
-        _SoundInventoryRow(entry: entry),
+        _SoundInventoryRow(
+          entry: entry,
+          volume: settings.soundVolumeMultiplierFor(entry.setting),
+          onVolumeChanged: (value) =>
+              onSoundVolumeChanged(entry.setting, value),
+        ),
         if (entry != touchFeedbackSoundInventory.last) const Divider(),
       ],
     ],
@@ -232,33 +249,68 @@ class _SoundInventorySection extends StatelessWidget {
 }
 
 class _SoundInventoryRow extends StatelessWidget {
-  const _SoundInventoryRow({required this.entry});
+  const _SoundInventoryRow({
+    required this.entry,
+    required this.volume,
+    required this.onVolumeChanged,
+  });
 
   final TouchFeedbackSoundInventoryEntry entry;
+  final double volume;
+  final ValueChanged<double> onVolumeChanged;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(entry.semanticName),
+                const SizedBox(height: 2),
+                Text(
+                  '${entry.channel.name.toUpperCase()}  •  ${entry.asset.split('/').last}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            key: ValueKey('audio-preview-${entry.sound.name}'),
+            tooltip: 'Preview ${entry.semanticName}',
+            onPressed: () => GlobalTouchRipple.previewFeedback(entry.sound),
+            icon: const Icon(Icons.play_arrow_rounded),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
+        ],
+      ),
+      Semantics(
+        label: '${entry.semanticName} volume',
+        value: '${(volume * 100).round()}%',
+        child: Row(
           children: [
-            Text(entry.semanticName),
-            const SizedBox(height: 2),
-            Text(
-              '${entry.channel.name.toUpperCase()}  •  ${entry.asset.split('/').last}',
-              style: Theme.of(context).textTheme.bodySmall,
-              overflow: TextOverflow.ellipsis,
+            const Text('VOLUME'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Slider(
+                key: ValueKey('audio-volume-${entry.sound.name}'),
+                value: volume,
+                onChanged: onVolumeChanged,
+              ).inputFeedback(),
+            ),
+            SizedBox(
+              width: 40,
+              child: Text(
+                '${(volume * 100).round()}%',
+                textAlign: TextAlign.end,
+              ),
             ),
           ],
         ),
       ),
-      IconButton(
-        key: ValueKey('audio-preview-${entry.sound.name}'),
-        tooltip: 'Preview ${entry.semanticName}',
-        onPressed: () => GlobalTouchRipple.previewFeedback(entry.sound),
-        icon: const Icon(Icons.play_arrow_rounded),
-      ).actionableFeedback(role: ActionableFeedbackRole.silent),
     ],
   );
 }

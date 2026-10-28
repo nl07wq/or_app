@@ -10,11 +10,11 @@ void main() {
 
   test('master and each role scale only the intended released levels', () {
     const defaults = DeviceSettings();
-    final cases = <TouchFeedbackSound, DeviceSettings>{
-      TouchFeedbackSound.success: defaults.copyWith(commandVolume: .5),
-      TouchFeedbackSound.exit: defaults.copyWith(exitVolume: .5),
-      TouchFeedbackSound.failure: defaults.copyWith(rejectedVolume: .5),
-      TouchFeedbackSound.water: defaults.copyWith(ambientVolume: .5),
+    final cases = <DeviceFeedbackChannel, DeviceSettings>{
+      DeviceFeedbackChannel.command: defaults.copyWith(commandVolume: .5),
+      DeviceFeedbackChannel.exit: defaults.copyWith(exitVolume: .5),
+      DeviceFeedbackChannel.rejected: defaults.copyWith(rejectedVolume: .5),
+      DeviceFeedbackChannel.ambient: defaults.copyWith(ambientVolume: .5),
     };
     for (final sound in TouchFeedbackSound.values) {
       final base = sound == TouchFeedbackSound.water ? .28 : .34;
@@ -27,9 +27,12 @@ void main() {
         base * .5,
       );
       for (final entry in cases.entries) {
+        final channel = touchFeedbackSoundInventory
+            .firstWhere((item) => item.sound == sound)
+            .channel;
         expect(
           touchFeedbackEffectiveVolume(sound, entry.value),
-          base * (sound == entry.key ? .5 : 1),
+          base * (channel == entry.key ? .5 : 1),
         );
       }
       expect(
@@ -70,6 +73,21 @@ void main() {
         closeTo(expected, .000001),
         reason: 'MASTER $master × COMMAND $channel',
       );
+    }
+  });
+
+  test('each active sound has an independent persistent multiplier', () {
+    const defaults = DeviceSettings();
+    for (final selected in touchFeedbackSoundInventory) {
+      final settings = defaults.copyWithSoundVolume(selected.setting, .4);
+      for (final entry in touchFeedbackSoundInventory) {
+        final base = touchFeedbackBaseVolume(entry.sound);
+        expect(
+          touchFeedbackEffectiveVolume(entry.sound, settings),
+          closeTo(base * (entry == selected ? .4 : 1), .000001),
+          reason: '${entry.semanticName} must remain independent',
+        );
+      }
     }
   });
 
@@ -148,6 +166,9 @@ void main() {
     );
     expect(settings.ambientKineticFieldEnabled, isTrue);
     expect(settings.ambientWildlifeEnabled, isTrue);
+    for (final entry in touchFeedbackSoundInventory) {
+      expect(settings.soundVolumeMultiplierFor(entry.setting), 1);
+    }
   });
 
   test(
@@ -162,6 +183,13 @@ void main() {
         'exitVolume': .3,
         'rejectedVolume': .2,
         'ambientVolume': .1,
+        'waterSoundVolume': .11,
+        'acceptedSoundVolume': .22,
+        'rejectedSoundVolume': .33,
+        'exitSoundVolume': .44,
+        'pageFlipSoundVolume': .55,
+        'cursorSoundVolume': .66,
+        'enterSoundVolume': .77,
         'brightness': .6,
         'rippleEnabled': false,
         'ambientCircuitEnabled': false,
@@ -181,6 +209,13 @@ void main() {
       expect(restored.value.exitVolume, .3);
       expect(restored.value.rejectedVolume, .2);
       expect(restored.value.ambientVolume, .1);
+      expect(restored.value.waterSoundVolume, .11);
+      expect(restored.value.acceptedSoundVolume, .22);
+      expect(restored.value.rejectedSoundVolume, .33);
+      expect(restored.value.exitSoundVolume, .44);
+      expect(restored.value.pageFlipSoundVolume, .55);
+      expect(restored.value.cursorSoundVolume, .66);
+      expect(restored.value.enterSoundVolume, .77);
       expect(restored.value.brightness, .6);
       expect(restored.value.rippleEnabled, isFalse);
       expect(restored.value.ambientCircuitEnabled, isFalse);
@@ -216,6 +251,9 @@ void main() {
       CommandCenterMidRearDensity.low,
     );
     expect(controller.value.reducedMotion, ReducedMotionPreference.system);
+    for (final entry in touchFeedbackSoundInventory) {
+      expect(controller.value.soundVolumeMultiplierFor(entry.setting), 1);
+    }
   });
 
   test('mute suppresses every channel without erasing channel values', () {

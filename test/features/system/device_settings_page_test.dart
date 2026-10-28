@@ -122,7 +122,42 @@ void main() {
       await tester.scrollUntilVisible(preview, 200);
       expect(preview, findsOneWidget);
       expect(find.text(entry.semanticName), findsWidgets);
+      expect(
+        find.byKey(ValueKey('audio-volume-${entry.sound.name}')),
+        findsOneWidget,
+      );
     }
+  });
+
+  testWidgets('individual sound sliders update without generic feedback', (
+    tester,
+  ) async {
+    final original = DeviceSettingsController.instance.value;
+    addTearDown(
+      () => DeviceSettingsController.instance.resetForTesting(original),
+    );
+    DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
+    final audio = _RecordingAudio();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GlobalTouchRipple(
+          audio: audio,
+          child: const DeviceSettingsPage(),
+        ),
+      ),
+    );
+
+    final cursor = find.byKey(const ValueKey('audio-volume-cursor'));
+    await tester.scrollUntilVisible(cursor, 200);
+    final slider = tester.widget<Slider>(cursor);
+    slider.onChanged!(.6);
+    await tester.pump();
+    expect(audio.played, isEmpty);
+    expect(
+      DeviceSettingsController.instance.value.cursorSoundVolume,
+      lessThan(1),
+    );
+    expect(DeviceSettingsController.instance.value.pageFlipSoundVolume, 1);
   });
 
   testWidgets('sound inventory stays inside the AUDIO settings card', (

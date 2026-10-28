@@ -95,6 +95,20 @@ class OperationOrbitalTimeMapping {
     if (pm) return dialHour == 12 ? 12 : dialHour + 12;
     return dialHour == 12 ? 0 : dialHour;
   }
+
+  /// Positions are clockwise from the conventional 12 o'clock origin.
+  /// Keeping the conversion shared by hit-testing and painting prevents the
+  /// duration dial from ever showing a label at a different position than the
+  /// value it selects.
+  static int durationHourForDialPosition(int position) {
+    assert(position >= 0 && position < 12);
+    return position == 0 ? 12 : position;
+  }
+
+  static int durationDialPositionForHour(int hour) {
+    assert(hour >= 1 && hour <= 12);
+    return hour % 12;
+  }
 }
 
 enum _OrbitalMode { hour, minute }
@@ -211,8 +225,10 @@ class _OperationOrbitalTimePickerDialogState
     setState(() {
       if (mode == _OrbitalMode.hour) {
         if (widget.durationMode) {
-          final value = (angle / (math.pi * 2) * 12).round() % 12;
-          _hour24 = value == 0 ? 12 : value;
+          final position = (angle / (math.pi * 2) * 12).round() % 12;
+          _hour24 = OperationOrbitalTimeMapping.durationHourForDialPosition(
+            position,
+          );
         } else {
           final value = (angle / (math.pi * 2) * 12).round() % 12;
           final dialHour = value == 0 ? 12 : value;
@@ -761,47 +777,54 @@ class _OrbitalClockPainter extends CustomPainter {
     }
     final hourDivisions = 12;
     final selectedPosition = mode == _OrbitalMode.hour
-        ? hour % hourDivisions
+        ? (durationMode && hour == 0
+              ? null
+              : durationMode
+              ? OperationOrbitalTimeMapping.durationDialPositionForHour(hour)
+              : hour % hourDivisions)
         : minute;
-    final selectedAngle =
-        selectedPosition *
-            math.pi *
-            2 /
-            (mode == _OrbitalMode.hour ? hourDivisions : 60) -
-        math.pi / 2;
     final labelRadius = r * .73;
-    final node =
-        c +
-        Offset(math.cos(selectedAngle), math.sin(selectedAngle)) * labelRadius;
     final nodeR = (size.width <= 320 ? 17 : 19) * scale;
-    final guideEnd =
-        c + (node - c) / (node - c).distance * (labelRadius - nodeR);
-    canvas.drawLine(
-      c,
-      guideEnd,
-      paint
-        ..color = const Color(0xff5cd9fa).withValues(alpha: .10)
-        ..strokeWidth = 3.2 * scale,
-    );
-    canvas.drawLine(
-      c,
-      guideEnd,
-      paint
-        ..color = const Color(0xff80dffb).withValues(alpha: .80)
-        ..strokeWidth = 1.5 * scale,
-    );
-    canvas.drawCircle(
-      node,
-      nodeR,
-      Paint()..color = const Color(0xff185f83).withValues(alpha: .82),
-    );
-    canvas.drawCircle(
-      node,
-      nodeR,
-      paint
-        ..color = const Color(0xff8defff)
-        ..strokeWidth = 1.5 * scale,
-    );
+    if (selectedPosition != null) {
+      final selectedAngle =
+          selectedPosition *
+              math.pi *
+              2 /
+              (mode == _OrbitalMode.hour ? hourDivisions : 60) -
+          math.pi / 2;
+      final node =
+          c +
+          Offset(math.cos(selectedAngle), math.sin(selectedAngle)) *
+              labelRadius;
+      final guideEnd =
+          c + (node - c) / (node - c).distance * (labelRadius - nodeR);
+      canvas.drawLine(
+        c,
+        guideEnd,
+        paint
+          ..color = const Color(0xff5cd9fa).withValues(alpha: .10)
+          ..strokeWidth = 3.2 * scale,
+      );
+      canvas.drawLine(
+        c,
+        guideEnd,
+        paint
+          ..color = const Color(0xff80dffb).withValues(alpha: .80)
+          ..strokeWidth = 1.5 * scale,
+      );
+      canvas.drawCircle(
+        node,
+        nodeR,
+        Paint()..color = const Color(0xff185f83).withValues(alpha: .82),
+      );
+      canvas.drawCircle(
+        node,
+        nodeR,
+        paint
+          ..color = const Color(0xff8defff)
+          ..strokeWidth = 1.5 * scale,
+      );
+    }
     canvas.drawCircle(
       c,
       18 * scale,
@@ -837,7 +860,10 @@ class _OrbitalClockPainter extends CustomPainter {
     }
     final labels = mode == _OrbitalMode.hour
         ? (durationMode
-              ? List<int>.generate(12, (i) => i + 1)
+              ? List<int>.generate(
+                  12,
+                  OperationOrbitalTimeMapping.durationHourForDialPosition,
+                )
               : List<int>.generate(12, (i) {
                   final h = i == 0 ? 12 : i;
                   return pm ? (h == 12 ? 24 : h + 12) : h;

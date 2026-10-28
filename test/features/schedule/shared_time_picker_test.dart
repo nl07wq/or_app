@@ -6,6 +6,20 @@ import 'package:or_app/features/schedule/widgets/shared_time_picker.dart';
 
 void main() {
   group('OperationOrbitalTimeMapping', () {
+    test('duration dial uses conventional clockwise 12-hour geometry', () {
+      const expectedHours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+      for (var position = 0; position < 12; position++) {
+        final hour = OperationOrbitalTimeMapping.durationHourForDialPosition(
+          position,
+        );
+        expect(hour, expectedHours[position]);
+        expect(
+          OperationOrbitalTimeMapping.durationDialPositionForHour(hour),
+          position,
+        );
+      }
+    });
+
     test('maps the AM and PM display contract without persisting 24', () {
       final cases = <TimeOfDay, int>{
         const TimeOfDay(hour: 0, minute: 0): 12,
@@ -238,6 +252,42 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('orbital-time-picker-ok')));
     await tester.pumpAndSettle();
     expect(result, const Duration(hours: 7, minutes: 5));
+  });
+
+  testWidgets('duration dial selection and readout agree for every hour', (
+    tester,
+  ) async {
+    for (var hour = 1; hour <= 12; hour++) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => showSharedDurationPicker(
+                context,
+                initialDuration: const Duration(hours: 1),
+              ),
+              child: const Text('OPEN DURATION'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('OPEN DURATION'));
+      await tester.pumpAndSettle();
+      final dial = tester.getRect(
+        find.byKey(const ValueKey('orbital-time-picker-dial')),
+      );
+      final position = OperationOrbitalTimeMapping.durationDialPositionForHour(
+        hour,
+      );
+      final angle = position * 2 * math.pi / 12 - math.pi / 2;
+      await tester.tapAt(
+        dial.center + Offset(88 * math.cos(angle), 88 * math.sin(angle)),
+      );
+      await tester.pump();
+      expect(find.text(hour.toString().padLeft(2, '0')), findsWidgets);
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('duration mode keeps keyboard-entered long durations', (
