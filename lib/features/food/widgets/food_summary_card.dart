@@ -17,6 +17,9 @@ class FoodSummaryCard extends StatelessWidget {
         ListTileTheme.of(context).titleTextStyle ??
         Theme.of(context).textTheme.titleMedium ??
         DefaultTextStyle.of(context).style;
+    final numericFontSize = titleStyle.fontSize == null
+        ? null
+        : titleStyle.fontSize! - 1;
     return OperationCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,7 +38,7 @@ class FoodSummaryCard extends StatelessWidget {
               key: const ValueKey('food-summary-calories-value'),
               value: FoodNutritionFormatter.calories(summary.calories),
               unit: 'kcal',
-              numericFontSize: titleStyle.fontSize,
+              numericFontSize: numericFontSize,
             ),
             contentPadding: EdgeInsets.zero,
           ),
@@ -47,7 +50,7 @@ class FoodSummaryCard extends StatelessWidget {
               key: const ValueKey('food-summary-protein-value'),
               value: FoodNutritionFormatter.macro(summary.protein),
               unit: 'g',
-              numericFontSize: titleStyle.fontSize,
+              numericFontSize: numericFontSize,
             ),
             contentPadding: EdgeInsets.zero,
           ),
@@ -59,7 +62,7 @@ class FoodSummaryCard extends StatelessWidget {
               key: const ValueKey('food-summary-fat-value'),
               value: FoodNutritionFormatter.macro(summary.fat),
               unit: 'g',
-              numericFontSize: titleStyle.fontSize,
+              numericFontSize: numericFontSize,
             ),
             contentPadding: EdgeInsets.zero,
           ),
@@ -71,7 +74,7 @@ class FoodSummaryCard extends StatelessWidget {
               key: const ValueKey('food-summary-carbohydrate-value'),
               value: FoodNutritionFormatter.macro(summary.carbohydrates),
               unit: 'g',
-              numericFontSize: titleStyle.fontSize,
+              numericFontSize: numericFontSize,
             ),
             contentPadding: EdgeInsets.zero,
           ),
@@ -79,7 +82,12 @@ class FoodSummaryCard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.water_drop_outlined),
             title: const Text("Water"),
-            trailing: Text("${summary.hydrationMl.toStringAsFixed(0)} ml"),
+            trailing: _NutritionValue(
+              key: const ValueKey('food-summary-water-value'),
+              value: summary.hydrationMl.toStringAsFixed(0),
+              unit: 'ml',
+              numericFontSize: numericFontSize,
+            ),
             contentPadding: EdgeInsets.zero,
           ),
         ],

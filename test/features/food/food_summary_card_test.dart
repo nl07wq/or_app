@@ -38,24 +38,26 @@ void main() {
           .children!
           .cast<TextSpan>();
 
-  testWidgets('nutrition values use the ListTile title font size only', (
+  testWidgets('all values use title font size minus one while units stay put', (
     tester,
   ) async {
     await tester.pumpWidget(app());
+    final titleFontSize = Theme.of(
+      tester.element(find.byType(FoodSummaryCard)),
+    ).textTheme.titleMedium!.fontSize!;
 
     for (final key in const [
       ValueKey('food-summary-calories-value'),
       ValueKey('food-summary-protein-value'),
       ValueKey('food-summary-fat-value'),
       ValueKey('food-summary-carbohydrate-value'),
+      ValueKey('food-summary-water-value'),
     ]) {
       final valueSpans = spans(tester, key);
-      expect(valueSpans.first.style?.fontSize, 17);
+      expect(valueSpans.first.style?.fontSize, titleFontSize - 1);
       expect(valueSpans.last.style, isNull);
     }
 
-    final water = tester.widget<Text>(find.text('1200 ml'));
-    expect(water.style, isNull);
     expect(
       spans(tester, const ValueKey('food-summary-calories-value')).first.text,
       '162',
@@ -75,6 +77,11 @@ void main() {
       ).first.text,
       '34.8',
     );
+    expect(
+      spans(tester, const ValueKey('food-summary-water-value')).first.text,
+      '1200',
+    );
+    expect(tester.widget<Text>(find.text('Calories')).style, isNull);
   });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
@@ -93,6 +100,10 @@ void main() {
           const ValueKey('food-summary-carbohydrate-value'),
         ).first.text,
         '34.8',
+      );
+      expect(
+        spans(tester, const ValueKey('food-summary-water-value')).first.text,
+        '1200',
       );
       expect(tester.takeException(), isNull);
     });
