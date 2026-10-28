@@ -158,30 +158,30 @@ double touchFeedbackBaseVolume(TouchFeedbackSound sound) =>
 double touchFeedbackEffectiveVolume(
   TouchFeedbackSound sound,
   DeviceSettings settings,
-) =>
-    touchFeedbackBaseVolume(sound) *
-    settings.normalized().volumeMultiplierFor(switch (sound) {
-      TouchFeedbackSound.water => DeviceFeedbackChannel.ambient,
-      TouchFeedbackSound.success => DeviceFeedbackChannel.command,
-      TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
-      TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
-      // Report navigation remains a semantic COMMAND event while retaining a
-      // separate per-sound multiplier in Device Settings.
-      TouchFeedbackSound.pageFlip => DeviceFeedbackChannel.command,
-      // Selection and boot-enter remain COMMAND events while retaining their
-      // own per-sound multipliers in Device Settings.
-      TouchFeedbackSound.cursor => DeviceFeedbackChannel.command,
-      TouchFeedbackSound.enter => DeviceFeedbackChannel.command,
-    }) *
-    settings.soundVolumeMultiplierFor(switch (sound) {
-      TouchFeedbackSound.water => DeviceFeedbackSound.water,
-      TouchFeedbackSound.success => DeviceFeedbackSound.accepted,
-      TouchFeedbackSound.failure => DeviceFeedbackSound.rejected,
-      TouchFeedbackSound.exit => DeviceFeedbackSound.exit,
-      TouchFeedbackSound.pageFlip => DeviceFeedbackSound.pageFlip,
-      TouchFeedbackSound.cursor => DeviceFeedbackSound.cursor,
-      TouchFeedbackSound.enter => DeviceFeedbackSound.enter,
-    });
+) {
+  final channel = switch (sound) {
+    TouchFeedbackSound.water => DeviceFeedbackChannel.ambient,
+    TouchFeedbackSound.success => DeviceFeedbackChannel.command,
+    TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
+    TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
+    // Report navigation remains a semantic COMMAND event.
+    TouchFeedbackSound.pageFlip => DeviceFeedbackChannel.command,
+    // Selection and boot-enter remain COMMAND events.
+    TouchFeedbackSound.cursor => DeviceFeedbackChannel.command,
+    TouchFeedbackSound.enter => DeviceFeedbackChannel.command,
+  };
+  final DeviceFeedbackSound? individualSetting = switch (sound) {
+    TouchFeedbackSound.pageFlip => DeviceFeedbackSound.pageFlip,
+    TouchFeedbackSound.cursor => DeviceFeedbackSound.cursor,
+    TouchFeedbackSound.enter => DeviceFeedbackSound.enter,
+    _ => null,
+  };
+  return touchFeedbackBaseVolume(sound) *
+      settings.normalized().volumeMultiplierFor(channel) *
+      (individualSetting == null
+          ? 1
+          : settings.soundVolumeMultiplierFor(individualSetting));
+}
 
 abstract interface class TouchRippleAudio {
   void prepare();

@@ -100,13 +100,38 @@ class DeviceSettingsPage extends StatelessWidget {
                     TouchFeedbackSound.water,
                   ),
                 ),
-                const Divider(),
-                _SoundInventorySection(
-                  settings: settings,
-                  onSoundVolumeChanged: (sound, value) => _controller.update(
-                    settings.copyWithSoundVolume(sound, value),
+                _SettingsSlider(
+                  label: 'PAGE FLIP',
+                  value: settings.pageFlipSoundVolume,
+                  onChanged: (value) => _controller.update(
+                    settings.copyWith(pageFlipSoundVolume: value),
+                  ),
+                  onChangeEnd: (_) => GlobalTouchRipple.previewFeedback(
+                    TouchFeedbackSound.pageFlip,
                   ),
                 ),
+                _SettingsSlider(
+                  label: 'CURSOR',
+                  value: settings.cursorSoundVolume,
+                  onChanged: (value) => _controller.update(
+                    settings.copyWith(cursorSoundVolume: value),
+                  ),
+                  onChangeEnd: (_) => GlobalTouchRipple.previewFeedback(
+                    TouchFeedbackSound.cursor,
+                  ),
+                ),
+                _SettingsSlider(
+                  label: 'ENTER',
+                  value: settings.enterSoundVolume,
+                  onChanged: (value) => _controller.update(
+                    settings.copyWith(enterSoundVolume: value),
+                  ),
+                  onChangeEnd: (_) => GlobalTouchRipple.previewFeedback(
+                    TouchFeedbackSound.enter,
+                  ),
+                ),
+                const Divider(),
+                const _SoundInventorySection(),
               ],
             ),
           ),
@@ -216,14 +241,7 @@ class DeviceSettingsPage extends StatelessWidget {
 }
 
 class _SoundInventorySection extends StatelessWidget {
-  const _SoundInventorySection({
-    required this.settings,
-    required this.onSoundVolumeChanged,
-  });
-
-  final DeviceSettings settings;
-  final void Function(DeviceFeedbackSound sound, double value)
-  onSoundVolumeChanged;
+  const _SoundInventorySection();
 
   @override
   Widget build(BuildContext context) => Column(
@@ -236,12 +254,7 @@ class _SoundInventorySection extends StatelessWidget {
       ),
       AppSpacing.gapSM,
       for (final entry in touchFeedbackSoundInventory) ...[
-        _SoundInventoryRow(
-          entry: entry,
-          volume: settings.soundVolumeMultiplierFor(entry.setting),
-          onVolumeChanged: (value) =>
-              onSoundVolumeChanged(entry.setting, value),
-        ),
+        _SoundInventoryRow(entry: entry),
         if (entry != touchFeedbackSoundInventory.last) const Divider(),
       ],
     ],
@@ -249,68 +262,33 @@ class _SoundInventorySection extends StatelessWidget {
 }
 
 class _SoundInventoryRow extends StatelessWidget {
-  const _SoundInventoryRow({
-    required this.entry,
-    required this.volume,
-    required this.onVolumeChanged,
-  });
+  const _SoundInventoryRow({required this.entry});
 
   final TouchFeedbackSoundInventoryEntry entry;
-  final double volume;
-  final ValueChanged<double> onVolumeChanged;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => Row(
     children: [
-      Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(entry.semanticName),
-                const SizedBox(height: 2),
-                Text(
-                  '${entry.channel.name.toUpperCase()}  •  ${entry.asset.split('/').last}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            key: ValueKey('audio-preview-${entry.sound.name}'),
-            tooltip: 'Preview ${entry.semanticName}',
-            onPressed: () => GlobalTouchRipple.previewFeedback(entry.sound),
-            icon: const Icon(Icons.play_arrow_rounded),
-          ).actionableFeedback(role: ActionableFeedbackRole.silent),
-        ],
-      ),
-      Semantics(
-        label: '${entry.semanticName} volume',
-        value: '${(volume * 100).round()}%',
-        child: Row(
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('VOLUME'),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Slider(
-                key: ValueKey('audio-volume-${entry.sound.name}'),
-                value: volume,
-                onChanged: onVolumeChanged,
-              ).inputFeedback(),
-            ),
-            SizedBox(
-              width: 40,
-              child: Text(
-                '${(volume * 100).round()}%',
-                textAlign: TextAlign.end,
-              ),
+            Text(entry.semanticName),
+            const SizedBox(height: 2),
+            Text(
+              '${entry.channel.name.toUpperCase()}  •  ${entry.asset.split('/').last}',
+              style: Theme.of(context).textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
       ),
+      IconButton(
+        key: ValueKey('audio-preview-${entry.sound.name}'),
+        tooltip: 'Preview ${entry.semanticName}',
+        onPressed: () => GlobalTouchRipple.previewFeedback(entry.sound),
+        icon: const Icon(Icons.play_arrow_rounded),
+      ).actionableFeedback(role: ActionableFeedbackRole.silent),
     ],
   );
 }

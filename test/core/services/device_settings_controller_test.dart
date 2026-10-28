@@ -76,19 +76,53 @@ void main() {
     }
   });
 
-  test('each active sound has an independent persistent multiplier', () {
+  test('PAGE FLIP, CURSOR, and ENTER have independent multipliers', () {
     const defaults = DeviceSettings();
-    for (final selected in touchFeedbackSoundInventory) {
-      final settings = defaults.copyWithSoundVolume(selected.setting, .4);
+    for (final selected in DeviceFeedbackSound.values) {
+      final settings = defaults.copyWithSoundVolume(selected, .4);
       for (final entry in touchFeedbackSoundInventory) {
         final base = touchFeedbackBaseVolume(entry.sound);
+        final setting = switch (entry.sound) {
+          TouchFeedbackSound.pageFlip => DeviceFeedbackSound.pageFlip,
+          TouchFeedbackSound.cursor => DeviceFeedbackSound.cursor,
+          TouchFeedbackSound.enter => DeviceFeedbackSound.enter,
+          _ => null,
+        };
         expect(
           touchFeedbackEffectiveVolume(entry.sound, settings),
-          closeTo(base * (entry == selected ? .4 : 1), .000001),
+          closeTo(base * (setting == selected ? .4 : 1), .000001),
           reason: '${entry.semanticName} must remain independent',
         );
       }
     }
+  });
+
+  test('V1.2 values migrate without double attenuation', () {
+    final settings = DeviceSettings.fromJson({
+      'commandVolume': .8,
+      'ambientVolume': .7,
+      'acceptedSoundVolume': .2,
+      'waterSoundVolume': .3,
+      'pageFlipSoundVolume': .5,
+      'cursorSoundVolume': .6,
+      'enterSoundVolume': .7,
+    });
+
+    expect(settings.pageFlipSoundVolume, .5);
+    expect(settings.cursorSoundVolume, .6);
+    expect(settings.enterSoundVolume, .7);
+    expect(
+      touchFeedbackEffectiveVolume(TouchFeedbackSound.success, settings),
+      closeTo(.34 * .8, .000001),
+    );
+    expect(
+      touchFeedbackEffectiveVolume(TouchFeedbackSound.water, settings),
+      closeTo(.28 * .7, .000001),
+    );
+    expect(
+      touchFeedbackEffectiveVolume(TouchFeedbackSound.pageFlip, settings),
+      closeTo(.34 * .8 * .5, .000001),
+    );
   });
 
   test(
@@ -166,8 +200,8 @@ void main() {
     );
     expect(settings.ambientKineticFieldEnabled, isTrue);
     expect(settings.ambientWildlifeEnabled, isTrue);
-    for (final entry in touchFeedbackSoundInventory) {
-      expect(settings.soundVolumeMultiplierFor(entry.setting), 1);
+    for (final sound in DeviceFeedbackSound.values) {
+      expect(settings.soundVolumeMultiplierFor(sound), 1);
     }
   });
 
@@ -251,8 +285,8 @@ void main() {
       CommandCenterMidRearDensity.low,
     );
     expect(controller.value.reducedMotion, ReducedMotionPreference.system);
-    for (final entry in touchFeedbackSoundInventory) {
-      expect(controller.value.soundVolumeMultiplierFor(entry.setting), 1);
+    for (final sound in DeviceFeedbackSound.values) {
+      expect(controller.value.soundVolumeMultiplierFor(sound), 1);
     }
   });
 

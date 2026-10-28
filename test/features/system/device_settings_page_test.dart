@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  for (final width in [320.0, 390.0, 900.0]) {
+  for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets('settings are usable at width $width', (tester) async {
       tester.view.physicalSize = Size(width, 900);
       tester.view.devicePixelRatio = 1;
@@ -124,12 +124,26 @@ void main() {
       expect(find.text(entry.semanticName), findsWidgets);
       expect(
         find.byKey(ValueKey('audio-volume-${entry.sound.name}')),
+        findsNothing,
+      );
+    }
+    for (final label in [
+      'COMMAND',
+      'EXIT',
+      'REJECTED',
+      'AMBIENT',
+      'PAGE FLIP',
+      'CURSOR',
+      'ENTER',
+    ]) {
+      expect(
+        find.byKey(ValueKey('device-settings-${label.toLowerCase()}-slider')),
         findsOneWidget,
       );
     }
   });
 
-  testWidgets('individual sound sliders update without generic feedback', (
+  testWidgets('upper PAGE FLIP, CURSOR, and ENTER sliders own their sounds', (
     tester,
   ) async {
     final original = DeviceSettingsController.instance.value;
@@ -147,17 +161,27 @@ void main() {
       ),
     );
 
-    final cursor = find.byKey(const ValueKey('audio-volume-cursor'));
-    await tester.scrollUntilVisible(cursor, 200);
-    final slider = tester.widget<Slider>(cursor);
-    slider.onChanged!(.6);
-    await tester.pump();
-    expect(audio.played, isEmpty);
-    expect(
-      DeviceSettingsController.instance.value.cursorSoundVolume,
-      lessThan(1),
-    );
-    expect(DeviceSettingsController.instance.value.pageFlipSoundVolume, 1);
+    for (final (label, sound) in [
+      ('PAGE FLIP', TouchFeedbackSound.pageFlip),
+      ('CURSOR', TouchFeedbackSound.cursor),
+      ('ENTER', TouchFeedbackSound.enter),
+    ]) {
+      final slider = find.byKey(
+        ValueKey('device-settings-${label.toLowerCase()}-slider'),
+      );
+      await tester.scrollUntilVisible(slider, 200);
+      final control = tester.widget<Slider>(slider);
+      control.onChanged!(.6);
+      await tester.pump();
+      expect(audio.played, isEmpty);
+      control.onChangeEnd!(.6);
+      await tester.pump();
+      expect(audio.played, [sound]);
+      audio.played.clear();
+    }
+    expect(DeviceSettingsController.instance.value.pageFlipSoundVolume, .6);
+    expect(DeviceSettingsController.instance.value.cursorSoundVolume, .6);
+    expect(DeviceSettingsController.instance.value.enterSoundVolume, .6);
   });
 
   testWidgets('sound inventory stays inside the AUDIO settings card', (
@@ -175,6 +199,10 @@ void main() {
       matching: find.byType(OperationCard),
     );
     expect(audioCard, findsOneWidget);
+    expect(
+      find.descendant(of: audioCard, matching: find.byType(Slider)),
+      findsNWidgets(8),
+    );
     expect(
       find.descendant(of: audioCard, matching: find.text('AMBIENT')),
       findsOneWidget,
