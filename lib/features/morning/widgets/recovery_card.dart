@@ -66,7 +66,7 @@ class RecoveryCard extends StatelessWidget {
                     onSelected: (selected) {
                       if (selected) onSleepTypeChanged(value);
                     },
-                  ).inputFeedback(),
+                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
                 )
                 .toList(),
           ),
@@ -236,7 +236,7 @@ class _SleepDurationOrbitalInputState
             ],
           ),
         ),
-      ).inputFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
     );
   }
 }
@@ -395,7 +395,7 @@ class _CollapsedRecoveryValue extends StatelessWidget {
             ],
           ),
         ),
-      ).inputFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
     );
   }
 }
@@ -443,7 +443,7 @@ class _UnmeasuredToggle extends StatelessWidget {
     label: const Text('未計測'),
     selected: selected,
     onSelected: (_) => onPressed(),
-  ).inputFeedback();
+  ).actionableFeedback(role: ActionableFeedbackRole.cursor);
 }
 
 class _UnmeasuredValue extends StatelessWidget {

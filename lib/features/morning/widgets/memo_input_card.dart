@@ -62,7 +62,7 @@ class _MemoInputCardState extends State<MemoInputCard> {
                     color: Colors.lightBlueAccent,
                   ),
                 ),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
             ),
 
           if (expanded) ...[
@@ -80,7 +80,7 @@ class _MemoInputCardState extends State<MemoInputCard> {
               child: FilledButton(
                 onPressed: collapse,
                 child: const Text("完了"),
-              ).actionableFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
             ),
           ],
         ],

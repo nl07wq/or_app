@@ -70,6 +70,47 @@ void main() {
     expect(find.byKey(const ValueKey('status-weight-done')), findsOneWidget);
   });
 
+  testWidgets('BODY FAT step controls are equal HUD buttons and use tenths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 375.0, 390.0, 430.0]) {
+      tester.view.physicalSize = Size(width, 844);
+      tester.view.devicePixelRatio = 1;
+      final weight = TextEditingController(text: '72.0');
+      final bodyFat = TextEditingController(text: '32.0');
+      addTearDown(weight.dispose);
+      addTearDown(bodyFat.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BodyCard(
+              key: ValueKey('body-fat-$width'),
+              weightController: weight,
+              bodyFatController: bodyFat,
+              weightUnmeasured: false,
+              onWeightUnmeasured: () {},
+              onWeightMeasured: () {},
+              initiallyExpanded: true,
+            ),
+          ),
+        ),
+      );
+      final minus = find.byKey(const ValueKey('status-body-fat-minus'));
+      final plus = find.byKey(const ValueKey('status-body-fat-plus'));
+      expect(tester.getSize(minus), const Size(42, 42));
+      expect(tester.getSize(plus), const Size(42, 42));
+      await tester.tap(plus);
+      await tester.pump();
+      expect(bodyFat.text, '32.1');
+      await tester.tap(minus);
+      await tester.pump();
+      expect(bodyFat.text, '32.0');
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('weight HUD V3.3 interpolates its High Energy B primary cursor', (
     tester,
   ) async {

@@ -100,11 +100,11 @@ class DeviceSettingsPage extends StatelessWidget {
                     TouchFeedbackSound.water,
                   ),
                 ),
+                const Divider(),
+                const _SoundInventorySection(),
               ],
             ),
           ),
-          AppSpacing.gapSM,
-          const _SoundInventoryCard(),
           if (TouchRippleAudioDiagnostics.enabled) ...[
             AppSpacing.gapSM,
             _AudioDiagnosticCard(),
@@ -210,26 +210,24 @@ class DeviceSettingsPage extends StatelessWidget {
   );
 }
 
-class _SoundInventoryCard extends StatelessWidget {
-  const _SoundInventoryCard();
+class _SoundInventorySection extends StatelessWidget {
+  const _SoundInventorySection();
 
   @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text('SOUND INVENTORY'),
-        AppSpacing.gapXS,
-        const Text(
-          'Active semantic feedback sounds. Previews use the current mute and channel levels.',
-        ),
-        AppSpacing.gapSM,
-        for (final entry in touchFeedbackSoundInventory) ...[
-          _SoundInventoryRow(entry: entry),
-          if (entry != touchFeedbackSoundInventory.last) const Divider(),
-        ],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text('SOUND INVENTORY'),
+      AppSpacing.gapXS,
+      const Text(
+        'Active semantic feedback sounds. Previews use the current mute and channel levels.',
+      ),
+      AppSpacing.gapSM,
+      for (final entry in touchFeedbackSoundInventory) ...[
+        _SoundInventoryRow(entry: entry),
+        if (entry != touchFeedbackSoundInventory.last) const Divider(),
       ],
-    ),
+    ],
   );
 }
 

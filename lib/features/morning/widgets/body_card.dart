@@ -952,7 +952,10 @@ class _BodyFatRingState extends State<_BodyFatRing> {
     }
     final enlargedText = MediaQuery.textScalerOf(c).scale(14) > 14;
     return SizedBox(
-      height: enlargedText ? 238 : 194,
+      // The completion control keeps its normal Material touch target at
+      // larger accessibility text scales, so reserve that extra vertical
+      // room rather than clipping the control below the rail.
+      height: enlargedText ? 270 : 194,
       child: Column(
         children: [
           SizedBox(
@@ -982,39 +985,39 @@ class _BodyFatRingState extends State<_BodyFatRing> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Flexible(
-                                child: Text(
-                                  '${v.toStringAsFixed(1)}%',
-                                  overflow: TextOverflow.clip,
-                                  style: Theme.of(c).textTheme.headlineMedium
-                                      ?.copyWith(
-                                        fontFamily: 'ShareTechMono',
-                                        fontSize: compact ? 30 : 33,
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    '${v.toStringAsFixed(1)}%',
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: Theme.of(c).textTheme.headlineMedium
+                                        ?.copyWith(
+                                          fontFamily: 'ShareTechMono',
+                                          fontSize: compact ? 30 : 33,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              IconButton(
+                              _BodyFatStepButton(
                                 key: const ValueKey('status-body-fat-minus'),
                                 tooltip: 'Decrease body fat by 0.1%',
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(Icons.remove, size: 18),
+                                icon: Icons.remove,
                                 onPressed: v <= 0
                                     ? null
                                     : () => _stepTenths(-1),
-                              ).actionableFeedback(
-                                role: ActionableFeedbackRole.cursor,
                               ),
-                              IconButton(
+                              const SizedBox(width: 6),
+                              _BodyFatStepButton(
                                 key: const ValueKey('status-body-fat-plus'),
                                 tooltip: 'Increase body fat by 0.1%',
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(Icons.add, size: 18),
+                                icon: Icons.add,
                                 onPressed: v >= 60
                                     ? null
                                     : () => _stepTenths(1),
-                              ).actionableFeedback(
-                                role: ActionableFeedbackRole.cursor,
                               ),
                             ],
                           ),
@@ -1058,6 +1061,52 @@ class _BodyFatRingState extends State<_BodyFatRing> {
         ],
       ),
     );
+  }
+}
+
+class _BodyFatStepButton extends StatelessWidget {
+  const _BodyFatStepButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final enabled = onPressed != null;
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: Material(
+          color: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(
+              color: colors.primary.withValues(alpha: enabled ? .52 : .16),
+            ),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(10),
+            child: Icon(
+              icon,
+              size: 19,
+              color: enabled
+                  ? colors.primary
+                  : colors.onSurface.withValues(alpha: .30),
+            ),
+          ),
+        ),
+      ),
+    ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
 }
 
@@ -1109,7 +1158,7 @@ class _CollapsedStatusValue extends StatelessWidget {
             ],
           ),
         ),
-      ).inputFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
     );
   }
 }
@@ -1218,7 +1267,7 @@ class _Toggle extends StatelessWidget {
     label: const Text('未計測'),
     selected: selected,
     onSelected: (_) => onPressed(),
-  ).inputFeedback();
+  ).actionableFeedback(role: ActionableFeedbackRole.cursor);
 }
 
 class _Unmeasured extends StatelessWidget {

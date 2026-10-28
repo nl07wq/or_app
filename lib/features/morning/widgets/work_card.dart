@@ -231,7 +231,7 @@ class _WorkCardState extends State<WorkCard> {
                   tooltip: 'EDIT SHIFT PRESETS',
                   onPressed: _loadingPresets ? null : _showPresetSettings,
                   icon: const Icon(Icons.edit_outlined),
-                ).actionableFeedback(),
+                ).actionableFeedback(role: ActionableFeedbackRole.cursor),
               ],
             ),
 
@@ -251,7 +251,7 @@ class _WorkCardState extends State<WorkCard> {
                       labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       selected: false,
                       onSelected: (_) => _applyPreset(_presets[index]),
-                    ).inputFeedback(),
+                    ).actionableFeedback(role: ActionableFeedbackRole.cursor),
                   ),
                 ],
               ],
@@ -424,7 +424,7 @@ class _WorkTypeSelector extends StatelessWidget {
             ),
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
     );
   }
 }
@@ -525,7 +525,7 @@ class _WorkClockRowState extends State<_WorkClockRow> {
               ],
             ),
           ),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: ActionableFeedbackRole.cursor),
       );
     }
     return Semantics(
@@ -565,7 +565,7 @@ class _WorkClockRowState extends State<_WorkClockRow> {
             ],
           ),
         ),
-      ).actionableFeedback(),
+      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
     );
   }
 }
@@ -671,7 +671,7 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
               ],
             ),
           ),
-        ).actionableFeedback(),
+        ).actionableFeedback(role: ActionableFeedbackRole.cursor),
       );
     }
     return Container(
@@ -709,13 +709,13 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
                 key: const ValueKey('work-break-minus'),
                 icon: const Icon(Icons.remove),
                 onPressed: _minutes <= 0 ? null : () => _step(-15),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
               const SizedBox(width: 36),
               IconButton(
                 key: const ValueKey('work-break-plus'),
                 icon: const Icon(Icons.add),
                 onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
-              ),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
             ],
           ),
           Align(

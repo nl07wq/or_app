@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/touch_ripple_audio.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/system/pages/device_settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -122,6 +123,27 @@ void main() {
       expect(preview, findsOneWidget);
       expect(find.text(entry.semanticName), findsWidgets);
     }
+  });
+
+  testWidgets('sound inventory stays inside the AUDIO settings card', (
+    tester,
+  ) async {
+    final controller = DeviceSettingsController();
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceSettingsPage(controller: controller)),
+    );
+    final inventory = find.text('SOUND INVENTORY');
+    await tester.scrollUntilVisible(inventory, 200);
+    final audioCard = find.ancestor(
+      of: inventory,
+      matching: find.byType(OperationCard),
+    );
+    expect(audioCard, findsOneWidget);
+    expect(
+      find.descendant(of: audioCard, matching: find.text('AMBIENT')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('audio diagnostics exposes the isolated AudioBuffer route', (

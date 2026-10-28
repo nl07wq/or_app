@@ -115,7 +115,7 @@ class _FootCardState extends State<FootCard> {
                     ],
                   ),
                 ),
-              ).inputFeedback(),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
             )
           else ...[
             SizedBox(
@@ -227,7 +227,7 @@ class _FootPainScale extends StatelessWidget {
               ),
             ),
           ),
-        ).inputFeedback(),
+        ),
       );
     },
   );
