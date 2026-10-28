@@ -276,7 +276,7 @@ class _SoundInventoryRow extends StatelessWidget {
             Text(entry.semanticName),
             const SizedBox(height: 2),
             Text(
-              '${entry.channel.name.toUpperCase()}  •  ${entry.asset.split('/').last}',
+              '${entry.volumeCategory}  •  ${entry.asset.split('/').last}',
               style: Theme.of(context).textTheme.bodySmall,
               overflow: TextOverflow.ellipsis,
             ),

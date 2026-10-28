@@ -27,12 +27,19 @@ void main() {
         base * .5,
       );
       for (final entry in cases.entries) {
-        final channel = touchFeedbackSoundInventory
-            .firstWhere((item) => item.sound == sound)
-            .channel;
+        final affected = switch (sound) {
+          TouchFeedbackSound.water =>
+            entry.key == DeviceFeedbackChannel.ambient,
+          TouchFeedbackSound.success =>
+            entry.key == DeviceFeedbackChannel.command,
+          TouchFeedbackSound.failure =>
+            entry.key == DeviceFeedbackChannel.rejected,
+          TouchFeedbackSound.exit => entry.key == DeviceFeedbackChannel.exit,
+          _ => false,
+        };
         expect(
           touchFeedbackEffectiveVolume(sound, entry.value),
-          base * (channel == entry.key ? .5 : 1),
+          base * (affected ? .5 : 1),
         );
       }
       expect(
@@ -121,7 +128,7 @@ void main() {
     );
     expect(
       touchFeedbackEffectiveVolume(TouchFeedbackSound.pageFlip, settings),
-      closeTo(.34 * .8 * .5, .000001),
+      closeTo(.34 * .5, .000001),
     );
   });
 

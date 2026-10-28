@@ -123,6 +123,10 @@ void main() {
       expect(preview, findsOneWidget);
       expect(find.text(entry.semanticName), findsWidgets);
       expect(
+        find.textContaining('${entry.volumeCategory}  •  '),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(ValueKey('audio-volume-${entry.sound.name}')),
         findsNothing,
       );

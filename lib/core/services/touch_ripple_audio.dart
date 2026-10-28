@@ -40,6 +40,7 @@ class TouchFeedbackSoundInventoryEntry {
     required this.setting,
     required this.asset,
     required this.channel,
+    required this.volumeCategory,
   });
 
   final String semanticName;
@@ -47,6 +48,7 @@ class TouchFeedbackSoundInventoryEntry {
   final DeviceFeedbackSound setting;
   final String asset;
   final DeviceFeedbackChannel channel;
+  final String volumeCategory;
 }
 
 /// The complete user-facing semantic SE inventory. Multiple interaction
@@ -59,6 +61,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.water,
     asset: touchRippleAudioAssetUrl,
     channel: DeviceFeedbackChannel.ambient,
+    volumeCategory: 'AMBIENT',
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'COMMAND / ACCEPTED',
@@ -66,6 +69,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.accepted,
     asset: touchRippleSuccessAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
+    volumeCategory: 'COMMAND',
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'REJECTED',
@@ -73,6 +77,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.rejected,
     asset: touchRippleFailureAudioAssetUrl,
     channel: DeviceFeedbackChannel.rejected,
+    volumeCategory: 'REJECTED',
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'EXIT',
@@ -80,6 +85,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.exit,
     asset: touchRippleExitAudioAssetUrl,
     channel: DeviceFeedbackChannel.exit,
+    volumeCategory: 'EXIT',
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'PAGE FLIP',
@@ -87,6 +93,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.pageFlip,
     asset: touchRipplePageFlipAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
+    volumeCategory: 'PAGE FLIP',
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'CURSOR / SELECTION',
@@ -94,6 +101,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.cursor,
     asset: touchRippleCursorAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
+    volumeCategory: 'CURSOR',
   ),
   TouchFeedbackSoundInventoryEntry(
     semanticName: 'ENTER / BOOT',
@@ -101,6 +109,7 @@ const touchFeedbackSoundInventory = <TouchFeedbackSoundInventoryEntry>[
     setting: DeviceFeedbackSound.enter,
     asset: touchRippleEnterAudioAssetUrl,
     channel: DeviceFeedbackChannel.command,
+    volumeCategory: 'ENTER',
   ),
 ];
 
@@ -159,28 +168,18 @@ double touchFeedbackEffectiveVolume(
   TouchFeedbackSound sound,
   DeviceSettings settings,
 ) {
-  final channel = switch (sound) {
-    TouchFeedbackSound.water => DeviceFeedbackChannel.ambient,
-    TouchFeedbackSound.success => DeviceFeedbackChannel.command,
-    TouchFeedbackSound.failure => DeviceFeedbackChannel.rejected,
-    TouchFeedbackSound.exit => DeviceFeedbackChannel.exit,
-    // Report navigation remains a semantic COMMAND event.
-    TouchFeedbackSound.pageFlip => DeviceFeedbackChannel.command,
-    // Selection and boot-enter remain COMMAND events.
-    TouchFeedbackSound.cursor => DeviceFeedbackChannel.command,
-    TouchFeedbackSound.enter => DeviceFeedbackChannel.command,
-  };
-  final DeviceFeedbackSound? individualSetting = switch (sound) {
-    TouchFeedbackSound.pageFlip => DeviceFeedbackSound.pageFlip,
-    TouchFeedbackSound.cursor => DeviceFeedbackSound.cursor,
-    TouchFeedbackSound.enter => DeviceFeedbackSound.enter,
-    _ => null,
+  final normalized = settings.normalized();
+  final categoryVolume = switch (sound) {
+    TouchFeedbackSound.water => normalized.ambientVolume,
+    TouchFeedbackSound.success => normalized.commandVolume,
+    TouchFeedbackSound.failure => normalized.rejectedVolume,
+    TouchFeedbackSound.exit => normalized.exitVolume,
+    TouchFeedbackSound.pageFlip => normalized.pageFlipSoundVolume,
+    TouchFeedbackSound.cursor => normalized.cursorSoundVolume,
+    TouchFeedbackSound.enter => normalized.enterSoundVolume,
   };
   return touchFeedbackBaseVolume(sound) *
-      settings.normalized().volumeMultiplierFor(channel) *
-      (individualSetting == null
-          ? 1
-          : settings.soundVolumeMultiplierFor(individualSetting));
+      (normalized.muted ? 0 : normalized.masterVolume * categoryVolume);
 }
 
 abstract interface class TouchRippleAudio {
