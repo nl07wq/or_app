@@ -11,6 +11,7 @@ import 'services/daily_meal_v2_editor.dart';
 import 'models/daily_meal_v2_models.dart';
 import 'models/food_entry_sources.dart';
 import 'widgets/food_input_form.dart';
+import 'widgets/food_saved_floating_hud.dart';
 import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_feature_chrome.dart';
 
@@ -41,9 +42,11 @@ class FoodEditPage extends StatelessWidget {
 
     if (!context.mounted) return true;
 
-    ScaffoldMessenger.of(
+    FoodSavedFloatingHud.showFor(
       context,
-    ).showSnackBar(const SnackBar(content: Text('MEALを更新しました')));
+      label: 'MEAL',
+      successLabel: 'UPDATED',
+    );
 
     if (returnAfterSave || data.isWaterEntry) {
       Navigator.pop(context, true);
@@ -103,9 +106,11 @@ class DailyMealV2EditPage extends StatelessWidget {
       return false;
     }
     if (!context.mounted) return true;
-    ScaffoldMessenger.of(
+    FoodSavedFloatingHud.showFor(
       context,
-    ).showSnackBar(const SnackBar(content: Text('MEALを更新しました')));
+      label: 'MEAL',
+      successLabel: 'UPDATED',
+    );
     Navigator.pop(context, true);
     return true;
   }

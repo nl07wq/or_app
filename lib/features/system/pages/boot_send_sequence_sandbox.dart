@@ -23,19 +23,26 @@ enum _OperationMode { brief, debrief, backup }
 enum SandboxRobotAppearance { original, ark }
 
 const _cycle = Duration(milliseconds: 6000);
-const _pixelBuilderInitialMs = 250.0;
-const _pixelBuilderCycleMs = 307.5;
-const _pixelBuilderHesitationMs = 500.0;
+// Pixel Builder deliberately has a relaxed, readable cadence. The first nine
+// cells use a conventional work cycle; the tenth owns a short final-act beat.
+const _pixelBuilderInitialMs = 300.0;
+const _pixelBuilderCycleMs = 430.0;
+const _pixelBuilderHesitationMs = 650.0;
 const _pixelBuilderHesitationStartMs =
     _pixelBuilderInitialMs + _pixelBuilderCycleMs * 6;
 const _pixelBuilderHesitationEndMs =
     _pixelBuilderHesitationStartMs + _pixelBuilderHesitationMs;
-const _pixelBuilderLoadingEndMs = 3825.0;
-const _pixelBuilderJumpEndMs = 4055.0;
-const _pixelVoxelFragmentsEndMs = 4655.0;
+const _pixelBuilderFinalActMs = 1050.0;
+const _pixelBuilderFinalActStartMs =
+    _pixelBuilderInitialMs +
+    _pixelBuilderCycleMs * 9 +
+    _pixelBuilderHesitationMs;
+const _pixelBuilderLoadingEndMs =
+    _pixelBuilderFinalActStartMs + _pixelBuilderFinalActMs;
+const _pixelVoxelFragmentsEndMs = _pixelBuilderLoadingEndMs + 750.0;
 const _pixelVoxelConstructionStartMs = _pixelVoxelFragmentsEndMs;
 const _pixelVoxelConstructionEndMs = _pixelVoxelConstructionStartMs + 6000.0;
-const _pixelVoxelCycle = Duration(milliseconds: 10655);
+const _pixelVoxelCycle = Duration(milliseconds: 12620);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
 
@@ -274,12 +281,14 @@ int sandboxPixelBuilderStrikeCount(int segmentIndex) {
 /// the visible 100% transition land exactly at 3825ms.
 int sandboxPixelBuilderFilledSegments(int elapsedMs) {
   var filled = 0;
-  for (var index = 0; index < 10; index++) {
+  for (var index = 0; index < 9; index++) {
     if (elapsedMs >=
         sandboxPixelBuilderCycleStartMs(index) + _pixelBuilderCycleMs) {
       filled++;
     }
   }
+  // The final module is completed by the falling robot, not another strike.
+  if (elapsedMs >= _pixelBuilderLoadingEndMs) filled++;
   return filled;
 }
 
@@ -874,6 +883,7 @@ class _SendSequencePainter extends CustomPainter {
     final projection = SandboxProjection(sceneCenter);
     final centers = sandboxVoxelCenters();
     final crystallize = _ease(_phase(local, 3700 / 6000, 4400 / 6000));
+    final sourceMaterialize = _ease(_phase(local, 0, 280 / 6000));
     final lift = _ease(_phase(local, 4400 / 6000, 5000 / 6000));
     final complete = elapsedMs >= _pixelVoxelConstructionEndMs;
     final yaw = complete ? post * 22 * math.pi / 180 : 0.0;
@@ -924,7 +934,8 @@ class _SendSequencePainter extends CustomPainter {
           _glow(base.withValues(alpha: .18 * (1 - travel)), 2.5, 1.4),
         );
       }
-      for (final face in sandboxCubeFaces(position, 22)) {
+      final side = 4 + (22 - 4) * sourceMaterialize;
+      for (final face in sandboxCubeFaces(position, side)) {
         faces.add(_RenderFace(face.vertices, face.normal, base));
       }
       final projected = projection.project(position);
@@ -955,8 +966,8 @@ class _SendSequencePainter extends CustomPainter {
     final visible = _phase(elapsedMs, 0, _pixelBuilderInitialMs);
     final fragmentation = _phase(
       elapsedMs,
-      _pixelBuilderJumpEndMs,
-      _pixelBuilderJumpEndMs + 200,
+      _pixelBuilderLoadingEndMs,
+      _pixelBuilderLoadingEndMs + 200,
     );
     final filled = sandboxPixelBuilderFilledSegments(elapsedMs.round());
     _center(
@@ -969,12 +980,15 @@ class _SendSequencePainter extends CustomPainter {
     for (var index = 0; index < 10; index++) {
       final rect = sandboxPixelBuilderSegmentRect(index);
       final local = _pixelBuilderLocalMs(elapsedMs, index);
-      final active =
-          elapsedMs >= sandboxPixelBuilderCycleStartMs(index) &&
-          elapsedMs <
-              sandboxPixelBuilderCycleStartMs(index) + _pixelBuilderCycleMs;
-      final flash = active && local >= 255 && local < 285
-          ? 1 - _phase(local, 255, 285)
+      final active = index == 9
+          ? elapsedMs >= _pixelBuilderFinalActStartMs &&
+                elapsedMs < _pixelBuilderLoadingEndMs
+          : elapsedMs >= sandboxPixelBuilderCycleStartMs(index) &&
+                elapsedMs <
+                    sandboxPixelBuilderCycleStartMs(index) +
+                        _pixelBuilderCycleMs;
+      final flash = index < 9 && active && local >= 350 && local < 395
+          ? 1 - _phase(local, 350, 395)
           : 0.0;
       final color = index < filled
           ? const Color(0xff63d8ff)
@@ -1002,18 +1016,21 @@ class _SendSequencePainter extends CustomPainter {
       8,
       _ice,
     );
-    if (elapsedMs < _pixelBuilderJumpEndMs) {
+    if (elapsedMs < _pixelBuilderLoadingEndMs) {
       _pixelBuilderRobot(canvas, elapsedMs, visible);
     }
-    if (elapsedMs >= _pixelBuilderJumpEndMs) {
+    if (elapsedMs >= _pixelBuilderLoadingEndMs) {
       _pixelFragments(canvas, elapsedMs);
     }
-    // A single synchronized completion flash, after the tenth tap.
-    if (elapsedMs >= _pixelBuilderLoadingEndMs &&
-        elapsedMs < _pixelBuilderJumpEndMs) {
-      final alpha =
-          1 -
-          _phase(elapsedMs, _pixelBuilderLoadingEndMs, _pixelBuilderJumpEndMs);
+    // A small synchronized confirmation once the robot has become the final
+    // module. It fades before the physical data-fragment handoff begins.
+    if (elapsedMs >= _pixelBuilderLoadingEndMs - 160 &&
+        elapsedMs < _pixelBuilderLoadingEndMs) {
+      final alpha = _phase(
+        elapsedMs,
+        _pixelBuilderLoadingEndMs - 160,
+        _pixelBuilderLoadingEndMs,
+      );
       canvas.drawLine(
         const Offset(56, barY - 2),
         const Offset(274, barY - 2),
@@ -1023,17 +1040,16 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _pixelBuilderRobot(Canvas canvas, double elapsedMs, double visibility) {
-    final completion = _phase(
-      elapsedMs,
-      _pixelBuilderLoadingEndMs,
-      _pixelBuilderJumpEndMs,
-    );
+    if (elapsedMs >= _pixelBuilderFinalActStartMs) {
+      _pixelBuilderFinalActRobot(canvas, elapsedMs, visibility);
+      return;
+    }
     final hesitation =
         elapsedMs >= _pixelBuilderHesitationStartMs &&
         elapsedMs < _pixelBuilderHesitationEndMs;
     final index = hesitation
         ? 5
-        : List<int>.generate(10, (value) => value).lastWhere(
+        : List<int>.generate(9, (value) => value).lastWhere(
             (value) => elapsedMs >= sandboxPixelBuilderCycleStartMs(value),
             orElse: () => 0,
           );
@@ -1044,16 +1060,15 @@ class _SendSequencePainter extends CustomPainter {
     var centerX = previousX + (targetX - previousX) * _ease(move);
     if (elapsedMs < _pixelBuilderInitialMs) centerX = 64.5;
     final strikeCount = sandboxPixelBuilderStrikeCount(index);
-    final striking = !hesitation && local >= 45 && local < 255;
-    final strikeDuration = 210 / strikeCount;
-    final strikeLocal = (local - 45).clamp(0, 210).toDouble();
+    final striking = !hesitation && local >= 70 && local < 350;
+    final strikeDuration = 280 / strikeCount;
+    final strikeLocal = (local - 70).clamp(0, 280).toDouble();
     final strikeProgress = striking
         ? (strikeLocal % strikeDuration) / strikeDuration
         : 0.0;
     final armContact = striking ? math.sin(math.pi * strikeProgress) : 0.0;
-    final finalFlash = !hesitation && local >= 255 && local < 285;
-    final jump = completion == 0 ? 0.0 : -6 * math.sin(math.pi * completion);
-    final alpha = visibility * (1 - completion);
+    final finalFlash = !hesitation && local >= 350 && local < 395;
+    final alpha = visibility;
     final hesitationPhase = _phase(
       elapsedMs,
       _pixelBuilderHesitationStartMs,
@@ -1063,19 +1078,17 @@ class _SendSequencePainter extends CustomPainter {
         hesitation && hesitationPhase >= .52 && hesitationPhase < .82
         ? math.sin((hesitationPhase - .52) / .30 * math.pi * 4) * 2
         : 0.0;
-    final bodyBottom = 154.0 + jump + armContact * 2;
+    final bodyBottom = 154.0 + armContact * 2;
     final headTilt =
         hesitation && hesitationPhase >= .2 && hesitationPhase < .52
         ? 2.0
         : 0.0;
     final eyeFlicker =
         hesitation && hesitationPhase >= .2 && hesitationPhase < .52;
-    final armY = completion > 0
-        ? bodyBottom - 17
-        : hesitation
+    final armY = hesitation
         ? bodyBottom - 8 + toolAdjust
         : bodyBottom - 8 + armContact * 12;
-    final stride = local < 45 ? (local / 45) * 2 : 0.0;
+    final stride = local < 70 ? (local / 70) * 2 : 0.0;
     if (robotAppearance == SandboxRobotAppearance.original) {
       _paintOriginalPixelRobot(
         canvas,
@@ -1084,7 +1097,7 @@ class _SendSequencePainter extends CustomPainter {
         alpha: alpha,
         stride: stride,
         armY: armY,
-        completion: completion > 0,
+        completion: false,
         headTilt: headTilt,
         eyeFlicker: eyeFlicker,
       );
@@ -1096,7 +1109,7 @@ class _SendSequencePainter extends CustomPainter {
         alpha: alpha,
         stride: stride,
         armY: armY,
-        completion: completion > 0,
+        completion: false,
         headTilt: headTilt,
         eyeFlicker: eyeFlicker,
       );
@@ -1106,6 +1119,66 @@ class _SendSequencePainter extends CustomPainter {
     }
     if (finalFlash) {
       _pixelSparks(canvas, Offset(centerX + 11, 158), alpha);
+    }
+  }
+
+  /// The final block gets a short character beat: inspect, try to land on it,
+  /// miss, then settle into the bar as the block itself. Keeping this entirely
+  /// on the common timeline makes replay and the ARK variant deterministic.
+  void _pixelBuilderFinalActRobot(
+    Canvas canvas,
+    double elapsedMs,
+    double visibility,
+  ) {
+    final local = elapsedMs - _pixelBuilderFinalActStartMs;
+    final last = sandboxPixelBuilderSegmentRect(9);
+    final look = _phase(local, 0, 260);
+    final jump = _phase(local, 260, 520);
+    final fall = _phase(local, 520, 780);
+    final settle = _phase(local, 780, _pixelBuilderFinalActMs);
+    final centerX = last.center.dx - (1 - look) * 5 + jump * 5;
+    final rise = -8 * math.sin(math.pi * jump);
+    final drop = 22 * _ease(fall);
+    final bodyBottom = 154 + rise + drop;
+    final alpha = visibility * (1 - settle);
+    final armY = local < 260 ? bodyBottom - 6 : bodyBottom - 17;
+    if (robotAppearance == SandboxRobotAppearance.original) {
+      _paintOriginalPixelRobot(
+        canvas,
+        centerX: centerX,
+        bodyBottom: bodyBottom,
+        alpha: alpha,
+        stride: 0,
+        armY: armY,
+        completion: local >= 260 && local < 520,
+        headTilt: local < 260 ? 1.5 : 0,
+        eyeFlicker: local < 260,
+      );
+    } else {
+      _paintArkPixelRobot(
+        canvas,
+        centerX: centerX,
+        bodyBottom: bodyBottom,
+        alpha: alpha,
+        stride: 0,
+        armY: armY,
+        completion: local >= 260 && local < 520,
+        headTilt: local < 260 ? 1.5 : 0,
+        eyeFlicker: local < 260,
+      );
+    }
+    if (local >= 260 && local < 520 && jump > .72) {
+      _pixelSparks(canvas, Offset(last.center.dx, last.top), alpha * .65);
+    }
+    if (settle > 0) {
+      canvas.drawRect(
+        last.deflate(1.2),
+        _fill(const Color(0xff63d8ff).withValues(alpha: settle)),
+      );
+      canvas.drawRect(
+        last.deflate(1.2),
+        _line(const Color(0xffbff6ff).withValues(alpha: settle), .8),
+      );
     }
   }
 
@@ -1282,13 +1355,13 @@ class _SendSequencePainter extends CustomPainter {
   void _pixelFragments(Canvas canvas, double elapsedMs) {
     final detach = _phase(
       elapsedMs,
-      _pixelBuilderJumpEndMs,
-      _pixelBuilderJumpEndMs + 200,
+      _pixelBuilderLoadingEndMs,
+      _pixelBuilderLoadingEndMs + 200,
     );
     final scatter = _ease(
       _phase(
         elapsedMs,
-        _pixelBuilderJumpEndMs + 200,
+        _pixelBuilderLoadingEndMs + 200,
         _pixelVoxelFragmentsEndMs,
       ),
     );

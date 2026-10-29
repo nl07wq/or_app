@@ -1488,7 +1488,11 @@ void main() {
       await tester.pumpAndSettle();
 
       _expectFoodModule();
-      expect(find.text('MEALを更新しました'), findsOneWidget);
+      expect(find.text('MEAL UPDATED'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('food-saved-floating-hud')),
+        findsOneWidget,
+      );
       expect(find.byType(FoodEditPage), findsNothing);
       expect(observer.popCount, 1);
     });

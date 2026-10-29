@@ -224,11 +224,10 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
     }
     if (!saved || !mounted) return;
     ActionableFeedbackRegion.resolveDeferred(ActionableFeedbackResult.accepted);
-    FoodSavedFloatingHud.showFor(context, label: 'TRAINING');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isEditing ? 'TRAININGを更新しました' : 'TRAININGを保存しました'),
-      ),
+    FoodSavedFloatingHud.showFor(
+      context,
+      label: 'TRAINING',
+      successLabel: _isEditing ? 'UPDATED' : 'SAVED',
     );
     final createReport = await showDialog<bool>(
       context: context,

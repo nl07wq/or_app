@@ -42,15 +42,18 @@ void main() {
     );
   });
 
-  test('pixel builder uses the V3.5 tempo and deterministic fragments', () {
+  test('pixel builder uses the V3.6 tempo and deterministic fragments', () {
     expect(sandboxPixelBuilderFilledSegments(0), 0);
     expect(sandboxPixelBuilderFilledSegments(249), 0);
-    expect(sandboxPixelBuilderFilledSegments(557), 0);
-    expect(sandboxPixelBuilderFilledSegments(558), 1);
-    expect(sandboxPixelBuilderFilledSegments(2095), 6);
-    expect(sandboxPixelBuilderFilledSegments(2500), 6);
-    expect(sandboxPixelBuilderFilledSegments(3825), 10);
-    expect(sandboxPixelBuilderCycleStartMs(6), 2595);
+    expect(sandboxPixelBuilderFilledSegments(729), 0);
+    expect(sandboxPixelBuilderFilledSegments(730), 1);
+    expect(sandboxPixelBuilderFilledSegments(2880), 6);
+    expect(sandboxPixelBuilderFilledSegments(3300), 6);
+    // The last cell is supplied by the robot's fall, after its readable
+    // final-act pause rather than a tenth rapid tool cycle.
+    expect(sandboxPixelBuilderFilledSegments(5869), 9);
+    expect(sandboxPixelBuilderFilledSegments(5870), 10);
+    expect(sandboxPixelBuilderCycleStartMs(6), 3530);
     expect(sandboxPixelBuilderStrikeCount(0), 2);
     expect(sandboxPixelBuilderStrikeCount(2), 3);
     expect(sandboxPixelBuilderStrikeCount(5), 3);
@@ -309,7 +312,7 @@ void main() {
     for (final width in [320.0, 375.0, 390.0, 430.0]) {
       await _pumpSandbox(tester, width: width);
       await tester.pump(const Duration(milliseconds: 5000));
-      await tester.pump(const Duration(milliseconds: 5655));
+      await tester.pump(const Duration(milliseconds: 7620));
       expect(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         findsOneWidget,
@@ -318,14 +321,14 @@ void main() {
     }
   });
 
-  for (final milliseconds in [0, 1450, 2350, 3825, 4355]) {
+  for (final milliseconds in [0, 1700, 2880, 5200, 6200]) {
     testWidgets('ARK robot ${milliseconds}ms golden', (tester) async {
       await _pumpSandbox(tester);
       await tester.tap(find.text('VOXEL INTEGRATION'));
       await tester.pump();
       await tester.tap(find.text('ARK'));
       await tester.pump();
-      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 10655);
+      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 12620);
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile('goldens/boot_send_voxel_ark_${milliseconds}ms.png'),
@@ -340,7 +343,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text(mode));
       await tester.pump();
-      await _pumpTimeline(tester, 11105, totalMilliseconds: 10655);
+      await _pumpTimeline(tester, 13070, totalMilliseconds: 12620);
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile(
@@ -356,21 +359,21 @@ void main() {
           ? const [
               0,
               250,
-              1450,
-              2095,
-              2350,
-              3825,
-              4055,
-              4355,
-              4655,
-              5755,
-              8355,
-              9655,
-              10655,
+              1700,
+              2880,
+              4820,
+              5200,
+              5870,
+              6200,
+              6620,
+              7720,
+              10320,
+              11620,
+              12620,
             ]
           : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
       final total = concept == BootSendSequenceConcept.voxelIntegration
-          ? 10655
+          ? 12620
           : 6000;
       for (final milliseconds in frames) {
         testWidgets(
@@ -408,7 +411,7 @@ void main() {
           await tester.pump();
         }
         final postCompletion =
-            concept == BootSendSequenceConcept.voxelIntegration ? 11855 : 7200;
+            concept == BootSendSequenceConcept.voxelIntegration ? 13820 : 7200;
         await _pumpTimeline(tester, postCompletion, totalMilliseconds: total);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),

@@ -90,10 +90,9 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
 
     if (!mounted) return true;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(data.isWaterEntry ? 'Water saved' : 'MEALを保存しました'),
-      ),
+    FoodSavedFloatingHud.showFor(
+      context,
+      label: data.isWaterEntry ? 'WATER' : 'MEAL',
     );
 
     _returnToFood();
@@ -188,10 +187,9 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        FocusScope.of(context).unfocus();
-        return true;
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) FocusScope.of(context).unfocus();
       },
       child: FoodFeatureScaffold(
         appBar: foodFeatureAppBar(

@@ -13,10 +13,12 @@ class FoodSavedFloatingHud {
 
   static Widget _surface({
     String label = 'MEAL',
+    String successLabel = 'SAVED',
     bool failed = false,
     String? detail,
   }) => _FoodSavedFloatingHudSurface(
     label: label,
+    successLabel: successLabel,
     failed: failed,
     detail: detail,
   );
@@ -24,9 +26,15 @@ class FoodSavedFloatingHud {
   @visibleForTesting
   static Widget surfaceForTesting({
     String label = 'MEAL',
+    String successLabel = 'SAVED',
     bool failed = false,
     String? detail,
-  }) => _surface(label: label, failed: failed, detail: detail);
+  }) => _surface(
+    label: label,
+    successLabel: successLabel,
+    failed: failed,
+    detail: detail,
+  );
 
   static void show(BuildContext context) {
     showFor(context, label: 'MEAL');
@@ -35,6 +43,7 @@ class FoodSavedFloatingHud {
   static void showFor(
     BuildContext context, {
     required String label,
+    String successLabel = 'SAVED',
     bool failed = false,
     String? detail,
   }) {
@@ -50,7 +59,12 @@ class FoodSavedFloatingHud {
           margin: const EdgeInsets.fromLTRB(32, 0, 32, 16),
           duration: Duration(seconds: detail == null ? 2 : 3),
           dismissDirection: DismissDirection.down,
-          content: _surface(label: label, failed: failed, detail: detail),
+          content: _surface(
+            label: label,
+            successLabel: successLabel,
+            failed: failed,
+            detail: detail,
+          ),
         ),
       );
   }
@@ -59,10 +73,12 @@ class FoodSavedFloatingHud {
 class _FoodSavedFloatingHudSurface extends StatelessWidget {
   const _FoodSavedFloatingHudSurface({
     required this.label,
+    required this.successLabel,
     required this.failed,
     this.detail,
   });
   final String label;
+  final String successLabel;
   final bool failed;
   final String? detail;
 
@@ -123,7 +139,7 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
                                 ),
                                 SizedBox(width: 9),
                                 Text(
-                                  '$label ${failed ? 'SAVE FAILED' : 'SAVED'}',
+                                  '$label ${failed ? 'SAVE FAILED' : successLabel}',
                                   style: TextStyle(
                                     color: failed
                                         ? const Color(0xffffdce1)

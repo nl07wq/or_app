@@ -198,8 +198,14 @@ void main() {
       await _pumpEntry(tester);
       await tester.ensureVisible(find.text('SAVE STATUS'));
       await tester.tap(find.text('SAVE STATUS'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
 
+      expect(find.text('STATUS SAVED'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('food-saved-floating-hud')),
+        findsOneWidget,
+      );
       expect(find.text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'), findsOneWidget);
       expect(
         await AppRepositoryRegistry.container.status.findByLocalDate(
@@ -209,7 +215,8 @@ void main() {
       );
 
       await tester.tap(find.text('NO'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('DASHBOARD TEST'), findsOneWidget);
     },
   );
@@ -435,11 +442,15 @@ Future<void> _pumpEntry(
       },
     ),
   );
-  await tester.pumpAndSettle();
+  // STATUS owns a perpetual ambient ticker; bounded pumps reach the routes
+  // without asking the test binding to settle that presentation animation.
+  await tester.pump();
   await tester.tap(find.text('OPEN STATUS TEST'));
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
   await tester.tap(find.text('OPEN STATUS FACT TEST'));
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 Future<void> _pumpEntryFromParent(

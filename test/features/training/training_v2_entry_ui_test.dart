@@ -1041,6 +1041,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('TRAINING REPORT'), findsOneWidget);
+    expect(find.text('TRAINING SAVED'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-saved-floating-hud')),
+      findsOneWidget,
+    );
     expect(find.text('YES'), findsOneWidget);
     expect(find.text('NO'), findsOneWidget);
     expect(

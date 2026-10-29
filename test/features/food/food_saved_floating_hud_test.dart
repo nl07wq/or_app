@@ -115,6 +115,33 @@ void main() {
     );
   });
 
+  testWidgets('uses the same HUD surface for a verified update', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 294,
+              child: FoodSavedFloatingHud.surfaceForTesting(
+                label: 'TRAINING',
+                successLabel: 'UPDATED',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('TRAINING UPDATED'), findsOneWidget);
+    expect(find.text('CONFIRMED'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('food-saved-floating-hud-inner-line')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'renders a failed HUD with its detail below the group underline',
     (tester) async {

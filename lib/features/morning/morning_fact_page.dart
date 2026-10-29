@@ -13,6 +13,7 @@ import '../command_center/pages/command_center_page.dart';
 import '../command_center/widgets/brief_debrief_page.dart';
 import '../report_sync/models/report_sync_envelope.dart';
 import '../report_sync/pages/report_sync_exchange_page.dart';
+import '../food/widgets/food_saved_floating_hud.dart';
 
 import 'services/morning_fact_initializer.dart';
 import 'services/morning_submit_service.dart';
@@ -398,6 +399,15 @@ class _MorningFactPageState extends State<MorningFactPage> {
                           _showError(error);
                           return;
                         }
+
+                        // Use the established bottom confirmation surface for
+                        // both a new STATUS record and a verified update. The
+                        // messenger survives the following route hand-off.
+                        FoodSavedFloatingHud.showFor(
+                          context,
+                          label: 'STATUS',
+                          successLabel: widget.isEdit ? 'UPDATED' : 'SAVED',
+                        );
 
                         if (!widget.isEdit &&
                             await _confirmDailyBriefCreation()) {
