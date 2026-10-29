@@ -12,6 +12,7 @@ import '../../status/models/persisted_status_record.dart';
 import '../../schedule/models/schedule_record.dart';
 import '../../reminders/models/reminder_definition.dart';
 import '../../reminders/models/reminder_occurrence.dart';
+import '../../notifications/models/notification_time_zone.dart';
 import '../../training/models/persisted_custom_training_exercise_record.dart';
 import '../../training/models/persisted_training_record.dart';
 import '../../training_analysis/models/training_analysis_report.dart';
@@ -266,6 +267,18 @@ abstract final class BackupStoreRegistry {
     for (final entry in source.entries)
       entry.key.toString(): _deepCopyValue(entry.value),
   };
+
+  /// Applies the current local notification contract only at restore time.
+  /// Decode validation intentionally sees original backup bytes first so their
+  /// published integrity digests remain meaningful.
+  static Map<String, Object?> normalizeForImport(
+    String section,
+    Map<String, Object?> record,
+  ) =>
+      section == BackupSections.schedules ||
+          section == BackupSections.reminderDefinitions
+      ? normalizeNotificationTimeZoneRecord(record)
+      : record;
 
   static Object? _deepCopyValue(Object? value) {
     if (value is Map) return _deepCopyMap(value);

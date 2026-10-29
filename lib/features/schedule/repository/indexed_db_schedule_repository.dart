@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../reminders/models/reminder_definition.dart';
+import '../../notifications/models/notification_time_zone.dart';
 import '../../reminders/services/reminder_recurrence_engine.dart';
 import '../../repositories/repository_exception.dart';
 import '../models/schedule_record.dart';
@@ -95,7 +96,9 @@ class IndexedDbScheduleRepository implements ScheduleRepository {
               recurrenceMonthWeek: record.recurrenceMonthWeek,
               recurrenceMonthWeeks: record.recurrenceMonthWeeks,
               notificationOffsetsMinutes: record.notificationOffsetsMinutes,
-              notificationTimeZone: record.notificationTimeZone,
+              notificationTimeZone: normalizeNotificationTimeZone(
+                record.notificationTimeZone,
+              ),
               seriesId: record.seriesId,
               occurrenceDate: record.occurrenceDate,
               occurrenceExcluded: record.occurrenceExcluded,

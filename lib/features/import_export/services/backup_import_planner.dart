@@ -34,7 +34,10 @@ class BackupImportPlanner {
                     ProfileModel.fromRecord(stored.single).toBackupRecord(),
                   ])
           : BackupStoreRegistry.validateAndSort(section, stored);
-      final incoming = package.data[section] ?? const [];
+      final incoming = [
+        for (final record in package.data[section] ?? const [])
+          BackupStoreRegistry.normalizeForImport(section, record),
+      ];
       if (mode == BackupImportMode.replaceAll) {
         plans[section] = BackupSectionPlan(
           existing: existing.length,

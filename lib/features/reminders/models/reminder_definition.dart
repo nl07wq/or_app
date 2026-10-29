@@ -1,3 +1,5 @@
+import '../../notifications/models/notification_time_zone.dart';
+
 enum ReminderRecurrence {
   none,
   daily,
@@ -35,7 +37,7 @@ class ReminderDefinition {
     this.monthWeek,
     this.monthWeeks = const [],
     this.notificationOffsetsMinutes = const [],
-    this.notificationTimeZone = 'Etc/UTC',
+    this.notificationTimeZone = notificationTimeZoneAsiaTokyo,
     this.effectiveFrom,
     this.retiredAt,
   });
@@ -111,13 +113,15 @@ class ReminderDefinition {
     }
     final created = DateTime.tryParse(createdAt);
     final updated = DateTime.tryParse(updatedAt);
-    if (created == null || updated == null)
+    if (created == null || updated == null) {
       throw const FormatException('Invalid reminder timestamp.');
+    }
     List<int> readInts(Object? raw, int min, int max) {
       if (raw == null) return const [];
       if (raw is! List ||
-          raw.any((item) => item is! int || item < min || item > max))
+          raw.any((item) => item is! int || item < min || item > max)) {
         throw const FormatException('Invalid reminder recurrence values.');
+      }
       return List.unmodifiable(raw.cast<int>().toSet().toList()..sort());
     }
 
@@ -151,8 +155,9 @@ class ReminderDefinition {
         0,
         525600 * 10,
       ),
-      notificationTimeZone:
-          value['notificationTimeZone'] as String? ?? 'Etc/UTC',
+      notificationTimeZone: normalizeNotificationTimeZone(
+        value['notificationTimeZone'] as String?,
+      ),
       active: value['active'] != false,
       createdAt: created.toUtc(),
       updatedAt: updated.toUtc(),

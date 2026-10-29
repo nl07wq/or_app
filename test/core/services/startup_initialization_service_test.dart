@@ -93,7 +93,7 @@ void main() {
       final metadata = await database.findAll(
         IndexedDbStoreNames.migrationMetadata,
       );
-      expect(metadata, hasLength(8));
+      expect(metadata, hasLength(9));
       expect(
         (await SharedPreferences.getInstance()).getString('unrelated'),
         'keep',

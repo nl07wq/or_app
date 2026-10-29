@@ -61,5 +61,6 @@ void main() {
     expect(legacy.recurrence, ReminderRecurrence.biweekly);
     expect(legacy.monthWeeks, isEmpty);
     expect(legacy.notificationOffsetsMinutes, isEmpty);
+    expect(legacy.notificationTimeZone, 'Asia/Tokyo');
   });
 }

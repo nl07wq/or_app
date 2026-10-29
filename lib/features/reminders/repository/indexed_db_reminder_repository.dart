@@ -1,6 +1,7 @@
 import '../../../data/indexed_db/indexed_db_database_contract.dart';
 import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../../repositories/repository_exception.dart';
+import '../../notifications/models/notification_time_zone.dart';
 import '../models/reminder_definition.dart';
 import '../models/reminder_occurrence.dart';
 import 'reminder_repository.dart';
@@ -30,12 +31,37 @@ class IndexedDbReminderRepository implements ReminderRepository {
 
   @override
   Future<void> saveDefinition(ReminderDefinition definition) async {
-    if (definition.title.trim().isEmpty)
+    if (definition.title.trim().isEmpty) {
       throw ArgumentError.value(definition.title, 'title');
+    }
     try {
       await _database.put(
         IndexedDbStoreNames.reminderDefinitions,
-        definition.toRecord(),
+        ReminderDefinition(
+          id: definition.id,
+          title: definition.title,
+          note: definition.note,
+          startDate: definition.startDate,
+          allDay: definition.allDay,
+          time: definition.time,
+          endTime: definition.endTime,
+          recurrence: definition.recurrence,
+          recurrenceEnd: definition.recurrenceEnd,
+          weekdays: definition.weekdays,
+          monthDays: definition.monthDays,
+          monthEnd: definition.monthEnd,
+          monthWeek: definition.monthWeek,
+          monthWeeks: definition.monthWeeks,
+          notificationOffsetsMinutes: definition.notificationOffsetsMinutes,
+          notificationTimeZone: normalizeNotificationTimeZone(
+            definition.notificationTimeZone,
+          ),
+          active: definition.active,
+          createdAt: definition.createdAt,
+          updatedAt: definition.updatedAt,
+          effectiveFrom: definition.effectiveFrom,
+          retiredAt: definition.retiredAt,
+        ).toRecord(),
       );
     } catch (error) {
       throw RepositoryException(

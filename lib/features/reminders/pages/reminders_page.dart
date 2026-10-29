@@ -12,6 +12,7 @@ import '../../schedule/widgets/shared_time_picker.dart';
 import '../../schedule/widgets/shared_date_time_recurrence_editor.dart';
 import '../../notifications/models/notification_configuration.dart';
 import '../../notifications/services/notification_profile_controller.dart';
+import '../../notifications/models/notification_time_zone.dart';
 import '../../notifications/widgets/shared_notification_editor.dart';
 import '../models/reminder_definition.dart';
 import '../models/reminder_occurrence.dart';
@@ -1488,7 +1489,7 @@ class _ReminderDraft {
     this.monthWeek,
     this.monthWeeks = const [],
     this.notificationOffsetsMinutes = const [],
-    this.notificationTimeZone = 'Etc/UTC',
+    this.notificationTimeZone = notificationTimeZoneAsiaTokyo,
   });
   final String title;
   final String? note;

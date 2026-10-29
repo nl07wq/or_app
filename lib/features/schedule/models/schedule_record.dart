@@ -1,4 +1,5 @@
 import '../../reminders/models/reminder_definition.dart';
+import '../../notifications/models/notification_time_zone.dart';
 
 enum ScheduleType { work, personal, appointment, training, other }
 
@@ -26,7 +27,7 @@ class ScheduleRecord {
     this.recurrenceMonthWeek,
     this.recurrenceMonthWeeks = const [],
     this.notificationOffsetsMinutes = const [],
-    this.notificationTimeZone = 'Etc/UTC',
+    this.notificationTimeZone = notificationTimeZoneAsiaTokyo,
     this.seriesId,
     this.occurrenceDate,
     this.occurrenceExcluded = false,
@@ -190,8 +191,9 @@ class ScheduleRecord {
         0,
         525600 * 10,
       ),
-      notificationTimeZone:
-          record['notificationTimeZone'] as String? ?? 'Etc/UTC',
+      notificationTimeZone: normalizeNotificationTimeZone(
+        record['notificationTimeZone'] as String?,
+      ),
       seriesId: record['seriesId'] as String?,
       occurrenceDate: record['occurrenceDate'] as String?,
       occurrenceExcluded: record['occurrenceExcluded'] == true,

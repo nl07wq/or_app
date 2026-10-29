@@ -37,6 +37,31 @@ void main() {
     },
   );
 
+  test('schedule saves pin notification timezones to Asia/Tokyo', () async {
+    final database = FakeIndexedDbDatabase();
+    final repository = IndexedDbScheduleRepository(database);
+    await repository.save(
+      ScheduleRecord(
+        id: 'legacy-zone',
+        localDate: '2026-10-08',
+        type: ScheduleType.appointment,
+        title: 'appointment',
+        startTime: '15:15',
+        notificationTimeZone: 'Etc/UTC',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      ),
+    );
+    expect(
+      database.rawRecord(
+        'schedule_records',
+        'legacy-zone',
+      )?['notificationTimeZone'],
+      'Asia/Tokyo',
+    );
+    expect((await repository.findAll()).single.startTime, '15:15');
+  });
+
   test('one WORK schedule per operation date is enforced by type', () async {
     final repository = IndexedDbScheduleRepository(FakeIndexedDbDatabase());
     await repository.save(

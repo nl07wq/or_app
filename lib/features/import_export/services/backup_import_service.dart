@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../core/services/daily_state_restore_service.dart';
 import '../../../core/services/device_settings_controller.dart';
 import '../../../core/state/app_initialization_state.dart';
@@ -9,6 +11,7 @@ import 'backup_import_planner.dart';
 import 'backup_canonical_codec.dart';
 import 'backup_store_registry.dart';
 import '../../system/models/profile_model.dart';
+import '../../notifications/services/notification_profile_controller.dart';
 
 typedef BackupRestoreState = Future<void> Function();
 typedef BackupRestoreDeviceSettings =
@@ -128,7 +131,11 @@ class BackupImportService {
             activeSection = section;
             final store = BackupStoreRegistry.stores[section]!;
             final sectionPlan = approvedPlan.sections[section]!;
-            for (final record in approvedPlan.package.data[section]!) {
+            for (final source in approvedPlan.package.data[section]!) {
+              final record = BackupStoreRegistry.normalizeForImport(
+                section,
+                source,
+              );
               if (approvedPlan.mode == BackupImportMode.merge) {
                 final id = BackupStoreRegistry.recordId(section, record);
                 if (sectionPlan.conflictingRecordIds.contains(id)) continue;
@@ -220,6 +227,13 @@ class BackupImportService {
         deviceSettingsRestored = true;
       }
       _controller.markReady();
+      // Reconciliation replaces the complete projection generation, which
+      // removes stale UTC schedules without resending past notifications.
+      if (NotificationProfileController.instance.configured) {
+        unawaited(
+          NotificationProfileController.instance.reconcileFromRepositories(),
+        );
+      }
       final restoresOperationState =
           approvedPlan.mode == BackupImportMode.replaceAll &&
           approvedPlan.package.schemaVersion >= 3;
@@ -382,7 +396,10 @@ class BackupImportService {
           ]
         : stored;
     final actual = BackupStoreRegistry.validateAndSort(section, comparable);
-    final incoming = plan.package.data[section]!;
+    final incoming = [
+      for (final record in plan.package.data[section]!)
+        BackupStoreRegistry.normalizeForImport(section, record),
+    ];
     if (plan.mode == BackupImportMode.replaceAll) {
       if (!_recordListsEqual(actual, incoming)) {
         throw BackupException(

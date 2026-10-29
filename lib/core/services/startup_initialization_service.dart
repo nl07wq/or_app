@@ -10,6 +10,7 @@ import '../../features/daily_log_confirmation/migration/daily_log_confirmation_l
 import '../../features/daily_log_confirmation/migration/daily_log_confirmation_migration_service.dart';
 import '../../features/food/migration/food_legacy_reader.dart';
 import '../../features/food/migration/food_migration_service.dart';
+import '../../features/notifications/services/notification_time_zone_normalization_service.dart';
 import '../../features/operation_date/services/operation_state_bootstrap_service.dart';
 import '../../features/operation_date/services/operation_date_service.dart';
 import '../../features/operation_date/models/operation_state.dart';
@@ -220,6 +221,12 @@ class StartupInitializationService {
         InitializationStage.migratingConfirmation,
         () => DailyLogConfirmationMigrationService(database).migrate(),
       );
+      await _runMigration(
+        database,
+        NotificationTimeZoneNormalizationService.migrationId,
+        InitializationStage.checkingMigrations,
+        () => NotificationTimeZoneNormalizationService(database).migrate(),
+      );
 
       controller.updateStage(InitializationStage.verifyingRepositories);
       await _verifyMetadata(database);
@@ -361,6 +368,7 @@ class StartupInitializationService {
       LegacyTrainingsMigrationService.migrationId,
       CustomTrainingExerciseMigrationService.migrationId,
       DailyLogConfirmationMigrationService.migrationId,
+      NotificationTimeZoneNormalizationService.migrationId,
     ]) {
       final metadata = await _readMetadata(database, id);
       if (metadata?.status != IndexedDbMigrationStatus.completed ||

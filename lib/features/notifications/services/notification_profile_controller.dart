@@ -10,6 +10,7 @@ import '../../reminders/models/reminder_occurrence.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../schedule/services/schedule_recurrence_service.dart';
+import '../models/notification_time_zone.dart';
 import 'notification_projection.dart';
 import 'push_bridge.dart';
 
@@ -113,7 +114,10 @@ class NotificationProfileController
   bool _disposed = false;
 
   String? get profileId => _profileId;
-  String get timeZone => _bridge.timeZone();
+
+  /// Schedules and reminders are explicitly pinned to Japan civil time.
+  /// Browser locale is intentionally not a persistence input.
+  String get timeZone => notificationTimeZoneAsiaTokyo;
   bool get configured => _profileId != null && _profileSecret != null;
 
   Future<void> initialize() async {
