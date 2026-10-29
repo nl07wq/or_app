@@ -22,6 +22,10 @@ enum _OperationMode { brief, debrief, backup }
 /// the identical construction timeline and data hand-off.
 enum SandboxRobotAppearance { original, ark }
 
+/// The deliberately readable last-cell beat. It is exposed for focused
+/// sandbox verification only; it has no production-operation meaning.
+enum SandboxPixelBuilderFinalAct { looking, walking, wobbling, falling, cell }
+
 const _cycle = Duration(milliseconds: 6000);
 // Pixel Builder deliberately has a relaxed, readable cadence. The first nine
 // cells use a conventional work cycle; the tenth owns a short final-act beat.
@@ -275,6 +279,15 @@ int sandboxPixelBuilderStrikeCount(int segmentIndex) {
     2 || 5 || 8 => 3,
     _ => 2,
   };
+}
+
+SandboxPixelBuilderFinalAct sandboxPixelBuilderFinalAct(int elapsedMs) {
+  final local = elapsedMs - _pixelBuilderFinalActStartMs;
+  if (local < 300) return SandboxPixelBuilderFinalAct.looking;
+  if (local < 590) return SandboxPixelBuilderFinalAct.walking;
+  if (local < 770) return SandboxPixelBuilderFinalAct.wobbling;
+  if (local < 950) return SandboxPixelBuilderFinalAct.falling;
+  return SandboxPixelBuilderFinalAct.cell;
 }
 
 /// A segment permanently locks at the end of its final work cycle. This makes
@@ -1122,9 +1135,10 @@ class _SendSequencePainter extends CustomPainter {
     }
   }
 
-  /// The final block gets a short character beat: inspect, try to land on it,
-  /// miss, then settle into the bar as the block itself. Keeping this entirely
-  /// on the common timeline makes replay and the ARK variant deterministic.
+  /// The final block gets a short character beat: inspect it, walk beside it,
+  /// lose balance, then land and compact into that exact cell. Keeping the
+  /// motion on the common timeline makes replay and the ARK variant
+  /// deterministic.
   void _pixelBuilderFinalActRobot(
     Canvas canvas,
     double elapsedMs,
@@ -1132,27 +1146,53 @@ class _SendSequencePainter extends CustomPainter {
   ) {
     final local = elapsedMs - _pixelBuilderFinalActStartMs;
     final last = sandboxPixelBuilderSegmentRect(9);
-    final look = _phase(local, 0, 260);
-    final jump = _phase(local, 260, 520);
-    final fall = _phase(local, 520, 780);
-    final settle = _phase(local, 780, _pixelBuilderFinalActMs);
-    final centerX = last.center.dx - (1 - look) * 5 + jump * 5;
-    final rise = -8 * math.sin(math.pi * jump);
-    final drop = 22 * _ease(fall);
-    final bodyBottom = 154 + rise + drop;
+    final stage = sandboxPixelBuilderFinalAct(elapsedMs.round());
+    final walk = _ease(_phase(local, 300, 590));
+    final wobble = _phase(local, 590, 770);
+    final fall = _ease(_phase(local, 770, 950));
+    final settle = _phase(local, 950, _pixelBuilderFinalActMs);
+    final previousCenterX = last.center.dx - 22;
+    final walkingCenterX =
+        previousCenterX + (last.center.dx - previousCenterX) * walk;
+    final wobbleOffset = stage == SandboxPixelBuilderFinalAct.wobbling
+        ? math.sin(wobble * math.pi * 3) * 3
+        : 0.0;
+    final centerX = stage == SandboxPixelBuilderFinalAct.looking
+        ? previousCenterX
+        : stage == SandboxPixelBuilderFinalAct.walking
+        ? walkingCenterX
+        : last.center.dx + wobbleOffset;
+    // Feet travel down to the final cell's lower boundary; the final compact
+    // shape is drawn with that same cell rect below, eliminating the former
+    // apparent split between the fall and the completed gauge block.
+    final bodyBottom = 154 + (last.bottom - 154) * fall;
     final alpha = visibility * (1 - settle);
-    final armY = local < 260 ? bodyBottom - 6 : bodyBottom - 17;
+    final armY = stage == SandboxPixelBuilderFinalAct.looking
+        ? bodyBottom - 6
+        : stage == SandboxPixelBuilderFinalAct.walking
+        ? bodyBottom - 8
+        : bodyBottom - 13;
+    final stride = stage == SandboxPixelBuilderFinalAct.walking
+        ? math.sin(walk * math.pi * 3) * 2
+        : 0.0;
+    final headTilt = stage == SandboxPixelBuilderFinalAct.looking
+        ? 1.5
+        : stage == SandboxPixelBuilderFinalAct.wobbling
+        ? math.sin(wobble * math.pi * 3) * 3
+        : stage == SandboxPixelBuilderFinalAct.falling
+        ? fall * 4
+        : 0.0;
     if (robotAppearance == SandboxRobotAppearance.original) {
       _paintOriginalPixelRobot(
         canvas,
         centerX: centerX,
         bodyBottom: bodyBottom,
         alpha: alpha,
-        stride: 0,
+        stride: stride,
         armY: armY,
-        completion: local >= 260 && local < 520,
-        headTilt: local < 260 ? 1.5 : 0,
-        eyeFlicker: local < 260,
+        completion: false,
+        headTilt: headTilt,
+        eyeFlicker: stage == SandboxPixelBuilderFinalAct.looking,
       );
     } else {
       _paintArkPixelRobot(
@@ -1160,23 +1200,25 @@ class _SendSequencePainter extends CustomPainter {
         centerX: centerX,
         bodyBottom: bodyBottom,
         alpha: alpha,
-        stride: 0,
+        stride: stride,
         armY: armY,
-        completion: local >= 260 && local < 520,
-        headTilt: local < 260 ? 1.5 : 0,
-        eyeFlicker: local < 260,
+        completion: false,
+        headTilt: headTilt,
+        eyeFlicker: stage == SandboxPixelBuilderFinalAct.looking,
       );
     }
-    if (local >= 260 && local < 520 && jump > .72) {
-      _pixelSparks(canvas, Offset(last.center.dx, last.top), alpha * .65);
+    if (stage == SandboxPixelBuilderFinalAct.falling && fall > .55) {
+      _pixelSparks(canvas, Offset(last.center.dx, last.top), alpha * .35);
     }
     if (settle > 0) {
+      // Match the bar's existing full cell dimensions, center, and border.
+      // The compacting robot fades only as this exact gauge cell appears.
       canvas.drawRect(
-        last.deflate(1.2),
+        last,
         _fill(const Color(0xff63d8ff).withValues(alpha: settle)),
       );
       canvas.drawRect(
-        last.deflate(1.2),
+        last,
         _line(const Color(0xffbff6ff).withValues(alpha: settle), .8),
       );
     }

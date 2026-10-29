@@ -53,6 +53,23 @@ void main() {
     // final-act pause rather than a tenth rapid tool cycle.
     expect(sandboxPixelBuilderFilledSegments(5869), 9);
     expect(sandboxPixelBuilderFilledSegments(5870), 10);
+    expect(
+      sandboxPixelBuilderFinalAct(4820),
+      SandboxPixelBuilderFinalAct.looking,
+    );
+    expect(
+      sandboxPixelBuilderFinalAct(5200),
+      SandboxPixelBuilderFinalAct.walking,
+    );
+    expect(
+      sandboxPixelBuilderFinalAct(5450),
+      SandboxPixelBuilderFinalAct.wobbling,
+    );
+    expect(
+      sandboxPixelBuilderFinalAct(5700),
+      SandboxPixelBuilderFinalAct.falling,
+    );
+    expect(sandboxPixelBuilderFinalAct(5870), SandboxPixelBuilderFinalAct.cell);
     expect(sandboxPixelBuilderCycleStartMs(6), 3530);
     expect(sandboxPixelBuilderStrikeCount(0), 2);
     expect(sandboxPixelBuilderStrikeCount(2), 3);
@@ -321,7 +338,7 @@ void main() {
     }
   });
 
-  for (final milliseconds in [0, 1700, 2880, 5200, 6200]) {
+  for (final milliseconds in [0, 1700, 2880, 5200, 5450, 5700, 6200]) {
     testWidgets('ARK robot ${milliseconds}ms golden', (tester) async {
       await _pumpSandbox(tester);
       await tester.tap(find.text('VOXEL INTEGRATION'));
@@ -363,6 +380,8 @@ void main() {
               2880,
               4820,
               5200,
+              5450,
+              5700,
               5870,
               6200,
               6620,
