@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/reminders/models/reminder_definition.dart';
+import 'package:or_app/features/reminders/models/reminder_occurrence.dart';
 import 'package:or_app/features/reminders/services/reminder_occurrence_service.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/models/schedule_plan_revision.dart';
@@ -57,7 +58,7 @@ void main() {
       expect(find.text('Live reminder'), findsOneWidget);
       expect(find.textContaining('09:15'), findsOneWidget);
       expect(
-        find.byKey(ValueKey('calendar-reminder-bell-live@$todayKey')),
+        find.byKey(ValueKey('calendar-timeline-marker-toggle-live@$todayKey')),
         findsOneWidget,
       );
 
@@ -103,7 +104,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Live reminder'), findsNothing);
       expect(
-        find.byKey(ValueKey('calendar-reminder-bell-live@$tomorrowKey')),
+        find.byKey(
+          ValueKey('calendar-timeline-marker-toggle-live@$tomorrowKey'),
+        ),
         findsNothing,
       );
 
@@ -160,14 +163,10 @@ void main() {
       notifySchedulePlanChanged();
       await tester.pumpAndSettle();
       expect(
-        tester
-            .widget<Icon>(
-              find.byKey(
-                ValueKey('calendar-reminder-bell-daily-live@$todayKey'),
-              ),
-            )
-            .icon,
-        Icons.check_circle,
+        find.byKey(
+          ValueKey('calendar-timeline-marker-toggle-daily-live@$todayKey'),
+        ),
+        findsOneWidget,
       );
       expect(find.text('Daily live'), findsOneWidget);
 
@@ -222,6 +221,64 @@ void main() {
     expect(find.text('Carryover reminder'), findsNothing);
     await _selectCalendarDate(tester, _dateKey(yesterday));
     expect(find.text('Carryover reminder'), findsOneWidget);
+  });
+
+  testWidgets('timeline markers toggle schedule and reminder completion', (
+    tester,
+  ) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final todayKey = _dateKey(today);
+    final createdAt = DateTime.utc(2026, 10, 7);
+    await container.schedules.save(
+      ScheduleRecord(
+        id: 'toggle-schedule',
+        localDate: todayKey,
+        type: ScheduleType.work,
+        title: 'Toggle schedule',
+        allDay: true,
+        createdAt: createdAt,
+        updatedAt: createdAt,
+      ),
+    );
+    await container.reminders.saveDefinition(
+      _definition(
+        id: 'toggle-reminder',
+        title: 'Toggle reminder',
+        startDate: todayKey,
+        time: '09:00',
+        createdAt: createdAt,
+      ),
+    );
+    await _pumpCalendar(tester, today);
+
+    final scheduleMarker = find.byKey(
+      const ValueKey('calendar-timeline-marker-toggle-toggle-schedule'),
+    );
+    await tester.ensureVisible(scheduleMarker);
+    await tester.tap(scheduleMarker);
+    await tester.pumpAndSettle();
+    expect((await container.schedules.findAll()).single.completed, isTrue);
+    expect(
+      tester.widget<Text>(find.text('Toggle schedule')).style?.decoration,
+      TextDecoration.lineThrough,
+    );
+
+    final reminderId = 'toggle-reminder@$todayKey';
+    final reminderMarker = find.byKey(
+      ValueKey('calendar-timeline-marker-toggle-$reminderId'),
+    );
+    await tester.ensureVisible(reminderMarker);
+    await tester.tap(reminderMarker);
+    await tester.pumpAndSettle();
+    final occurrence = (await ReminderOccurrenceService(
+      container.reminders,
+    ).inRange(DateTimeRange(start: today, end: today))).single;
+    expect(occurrence.status, ReminderOccurrenceStatus.completed);
+
+    await tester.ensureVisible(scheduleMarker);
+    await tester.tap(scheduleMarker);
+    await tester.pumpAndSettle();
+    expect((await container.schedules.findAll()).single.completed, isFalse);
   });
 }
 

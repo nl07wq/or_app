@@ -86,7 +86,6 @@ class OperationOrbitalTimeMapping {
 
   static int displayHour(int hour24) {
     if (hour24 == 0) return 12;
-    if (hour24 == 12) return 24;
     return hour24;
   }
 
@@ -170,7 +169,7 @@ class _OperationOrbitalTimePickerDialogState
             ? hour >= 0
             : _isCivilMode
             ? hour >= 0 && hour <= 24 && (hour != 24 || minute == 0)
-            : (_pm ? hour >= 13 && hour <= 24 : hour >= 1 && hour <= 12));
+            : (_pm ? hour >= 12 && hour <= 23 : hour >= 1 && hour <= 12));
   }
 
   @override
@@ -291,7 +290,7 @@ class _OperationOrbitalTimePickerDialogState
           ? enteredHour
           : OperationOrbitalTimeMapping.fromDialHour(
               dialHour: _pm
-                  ? (enteredHour == 24 ? 12 : enteredHour - 12)
+                  ? (enteredHour == 12 ? 12 : enteredHour - 12)
                   : enteredHour,
               pm: _pm,
             );
@@ -445,7 +444,7 @@ class _OperationOrbitalTimePickerDialogState
         Expanded(
           child: _PeriodCell(
             key: const ValueKey('orbital-time-picker-pm'),
-            label: 'PM  /  13–24',
+            label: _isCivilMode ? 'PM  /  13–24' : 'PM  /  12–23',
             active: _pm,
             pm: true,
             onTap: () => _setPeriod(true),
@@ -523,7 +522,7 @@ class _OperationOrbitalTimePickerDialogState
                 ? 'DURATION HOUR (0+)'
                 : _isCivilMode
                 ? 'CIVIL HOUR (00–24)'
-                : (_pm ? 'PM HOUR (13–24)' : 'AM HOUR (1–12)'),
+                : (_pm ? 'PM HOUR (12–23)' : 'AM HOUR (1–12)'),
             controller: _hourController,
             valid: _validKeyboard,
             onChanged: (_) => setState(() {}),

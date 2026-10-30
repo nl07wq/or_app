@@ -20,12 +20,12 @@ void main() {
       }
     });
 
-    test('maps the AM and PM display contract without persisting 24', () {
+    test('maps normal clock noon to 12 without persisting 24', () {
       final cases = <TimeOfDay, int>{
         const TimeOfDay(hour: 0, minute: 0): 12,
         const TimeOfDay(hour: 11, minute: 35): 11,
-        const TimeOfDay(hour: 12, minute: 0): 24,
-        const TimeOfDay(hour: 12, minute: 15): 24,
+        const TimeOfDay(hour: 12, minute: 0): 12,
+        const TimeOfDay(hour: 12, minute: 15): 12,
         const TimeOfDay(hour: 13, minute: 0): 13,
         const TimeOfDay(hour: 23, minute: 59): 23,
       };
@@ -105,10 +105,13 @@ void main() {
     return result;
   }
 
-  testWidgets('cancel returns null and PM 24 reopens as noon', (tester) async {
+  testWidgets('cancel returns null and normal picker reopens noon as 12', (
+    tester,
+  ) async {
     await showPicker(tester, const TimeOfDay(hour: 12, minute: 15));
-    expect(find.text('24'), findsWidgets);
-    expect(find.text('PM  /  13–24'), findsOneWidget);
+    expect(find.text('12'), findsWidgets);
+    expect(find.text('24'), findsNothing);
+    expect(find.text('PM  /  12–23'), findsOneWidget);
     await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
     expect(
@@ -128,6 +131,36 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('normal keyboard noon returns 12:00, not 24:00', (tester) async {
+    TimeOfDay? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () async => result = await showSharedTimePicker(
+              context,
+              initialTime: const TimeOfDay(hour: 11, minute: 0),
+            ),
+            child: const Text('OPEN'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('OPEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('orbital-time-picker-pm')));
+    await tester.tap(
+      find.byKey(const ValueKey('orbital-time-picker-keyboard')),
+    );
+    await tester.pump();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.first, '12');
+    await tester.enterText(fields.last, '30');
+    await tester.tap(find.byKey(const ValueKey('orbital-time-picker-ok')));
+    await tester.pumpAndSettle();
+    expect(result, const TimeOfDay(hour: 12, minute: 30));
+  });
 
   testWidgets('dial minute drag retains one minute precision', (tester) async {
     await showPicker(tester, const TimeOfDay(hour: 23, minute: 0));

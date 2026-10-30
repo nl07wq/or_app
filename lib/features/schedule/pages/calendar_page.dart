@@ -933,15 +933,10 @@ class _CalendarPageState extends State<CalendarPage> {
                                                         }
                                                         _openEditor(entry.$2);
                                                       },
-                                                      onReminderToggle:
-                                                          entry.$2.kind ==
-                                                              ScheduleEntryKind
-                                                                  .reminder
-                                                          ? () =>
-                                                                _toggleReminder(
-                                                                  entry.$2,
-                                                                )
-                                                          : null,
+                                                      onToggle: () =>
+                                                          _toggleCompletion(
+                                                            entry.$2,
+                                                          ),
                                                       onMove: (minutes) =>
                                                           _moveTimed(
                                                             entry.$2,
@@ -982,7 +977,7 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Future<void> _toggleReminder(ScheduleRecord record) async {
+  Future<void> _toggleCompletion(ScheduleRecord record) async {
     final occurrence = _projectedReminders[record.id];
     if (occurrence != null) {
       final service = ReminderOccurrenceService(
@@ -5170,7 +5165,7 @@ class _TimelineEntry extends StatefulWidget {
     required this.onMove,
     required this.markerKey,
     required this.descriptionKey,
-    this.onReminderToggle,
+    required this.onToggle,
   });
   final ScheduleRecord record;
   final bool overdue;
@@ -5178,7 +5173,7 @@ class _TimelineEntry extends StatefulWidget {
   final ValueChanged<int> onMove;
   final Key markerKey;
   final Key descriptionKey;
-  final VoidCallback? onReminderToggle;
+  final VoidCallback onToggle;
   @override
   State<_TimelineEntry> createState() => _TimelineEntryState();
 }
@@ -5191,7 +5186,13 @@ class _TimelineEntryState extends State<_TimelineEntry> {
     final record = widget.record;
     final timed = record.startTime != null && !record.allDay;
     final colorScheme = Theme.of(context).colorScheme;
-    final textColor = widget.overdue ? colorScheme.error : null;
+    final completedColor = colorScheme.onSurface.withValues(alpha: .52);
+    final textColor = record.completed
+        ? completedColor
+        : widget.overdue
+        ? colorScheme.error
+        : null;
+    final decoration = record.completed ? TextDecoration.lineThrough : null;
     return GestureDetector(
       onTap: widget.onTap,
       onLongPressStart: timed
@@ -5226,24 +5227,38 @@ class _TimelineEntryState extends State<_TimelineEntry> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: calendarTimelineRailColumnWidth,
-                child: KeyedSubtree(
-                  key: widget.markerKey,
-                  child: SizedBox(
-                    key: ValueKey('calendar-timeline-anchor-${record.id}'),
-                    width: calendarTimelineMarkerDiameter,
-                    height: calendarTimelineMarkerDiameter,
-                    child: CustomPaint(
-                      painter: _TimelineMarkerPainter(
-                        color: colorScheme.primary.withValues(
-                          alpha: holographicTimelineNodeOpacity,
+                width:
+                    calendarTimelineRailColumnWidth +
+                    calendarTimelineContentGap,
+                child: GestureDetector(
+                  key: ValueKey('calendar-timeline-marker-toggle-${record.id}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onToggle,
+                  child: Row(
+                    children: [
+                      KeyedSubtree(
+                        key: widget.markerKey,
+                        child: SizedBox(
+                          key: ValueKey(
+                            'calendar-timeline-anchor-${record.id}',
+                          ),
+                          width: calendarTimelineMarkerDiameter,
+                          height: calendarTimelineMarkerDiameter,
+                          child: CustomPaint(
+                            painter: _TimelineMarkerPainter(
+                              color: colorScheme.primary.withValues(
+                                alpha: holographicTimelineNodeOpacity,
+                              ),
+                              completed: record.completed,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: calendarTimelineContentGap),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: calendarTimelineContentGap),
               Expanded(
                 child: Container(
                   key: ValueKey('calendar-timeline-content-${record.id}'),
@@ -5255,6 +5270,7 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: textColor,
+                          decoration: decoration,
                         ),
                       ),
                       KeyedSubtree(
@@ -5266,11 +5282,14 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                           _timelineDescription(record),
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
-                                color: widget.overdue
+                                color: record.completed
+                                    ? completedColor
+                                    : widget.overdue
                                     ? colorScheme.error
                                     : colorScheme.primary.withValues(
                                         alpha: .72,
                                       ),
+                                decoration: decoration,
                               ),
                         ),
                       ),
@@ -5278,16 +5297,6 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                   ),
                 ),
               ),
-              if (widget.onReminderToggle != null)
-                IconButton(
-                  icon: Icon(
-                    key: ValueKey('calendar-reminder-bell-${record.id}'),
-                    record.completed
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                  ),
-                  onPressed: widget.onReminderToggle,
-                ).actionableFeedback(),
             ],
           ),
         ),
@@ -5352,26 +5361,45 @@ double calendarTimelineTailEnd({
 );
 
 class _TimelineMarkerPainter extends CustomPainter {
-  const _TimelineMarkerPainter({required this.color});
+  const _TimelineMarkerPainter({required this.color, required this.completed});
 
   final Color color;
+  final bool completed;
 
   @override
   void paint(Canvas canvas, Size size) {
     final radius = (size.shortestSide - calendarTimelineMarkerStrokeWidth) / 2;
-    canvas.drawCircle(
-      size.center(Offset.zero),
-      radius,
-      Paint()
-        ..color = color
+    final center = size.center(Offset.zero);
+    final paint = Paint()..color = color;
+    if (completed) {
+      canvas.drawCircle(center, radius, paint);
+      final check = Paint()
+        ..color = const Color(0xffe4faff)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = calendarTimelineMarkerStrokeWidth,
-    );
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(
+        Path()
+          ..moveTo(center.dx - radius * .46, center.dy)
+          ..lineTo(center.dx - radius * .12, center.dy + radius * .33)
+          ..lineTo(center.dx + radius * .52, center.dy - radius * .35),
+        check,
+      );
+    } else {
+      canvas.drawCircle(
+        center,
+        radius,
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = calendarTimelineMarkerStrokeWidth,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _TimelineMarkerPainter oldDelegate) =>
-      oldDelegate.color != color;
+      oldDelegate.color != color || oldDelegate.completed != completed;
 }
 
 /// The selected-day list owns one rail, so variable-height rows cannot leave
@@ -5425,7 +5453,7 @@ class _DailyTimelineRailPainter extends CustomPainter {
       oldDelegate.descriptionBounds != descriptionBounds;
 }
 
-const calendarTimelineContentGap = 10.0;
+const calendarTimelineContentGap = 25.0;
 
 class _CalendarTimelineAddControl extends StatelessWidget {
   const _CalendarTimelineAddControl({required this.onPressed});
