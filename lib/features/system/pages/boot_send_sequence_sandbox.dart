@@ -34,7 +34,7 @@ const _cycle = Duration(milliseconds: 6000);
 // Pixel Builder deliberately has a relaxed, readable cadence. The first nine
 // cells use a conventional work cycle; the tenth owns a short final-act beat.
 const _pixelBuilderInitialMs = 300.0;
-const _pixelBuilderWorkScale = 1.4;
+const _pixelBuilderWorkScale = 1.6;
 const _pixelBuilderCycleMs = 430.0 / _pixelBuilderWorkScale;
 const _pixelBuilderHesitationMs = 650.0 / _pixelBuilderWorkScale;
 const _pixelBuilderHesitationStartMs =
@@ -51,7 +51,7 @@ const _pixelBuilderLoadingEndMs =
 const _pixelVoxelFragmentsEndMs = _pixelBuilderLoadingEndMs + 750.0;
 const _pixelVoxelConstructionStartMs = _pixelVoxelFragmentsEndMs;
 const _pixelVoxelConstructionEndMs = _pixelVoxelConstructionStartMs + 6000.0;
-const _pixelVoxelCycle = Duration(milliseconds: 11329);
+const _pixelVoxelCycle = Duration(milliseconds: 10925);
 const _messageAssemblyCycle = Duration(milliseconds: 6500);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
@@ -357,6 +357,99 @@ List<Offset> sandboxMessageAssemblyTargets(String mode) {
   }
   return targets;
 }
+
+/// Immutable graph data is calculated once per message. It is shared by paint
+/// and tests, so replay cannot invent a new network or depend on frame rate.
+class SandboxMessageNetworkEdge {
+  const SandboxMessageNetworkEdge(this.a, this.b, this.wave);
+
+  final int a;
+  final int b;
+  final int wave;
+}
+
+final _messageNetworkCache = <String, List<SandboxMessageNetworkEdge>>{};
+final _messageTargetCountCache = <String, int>{};
+
+Offset _messageBlockStart(String mode, int index) {
+  final count = _messageTargetCountCache.putIfAbsent(
+    mode,
+    () => sandboxMessageAssemblyTargets(mode).length,
+  );
+  const scene = Rect.fromLTWH(24, 105, 312, 69);
+  final seed = index * 12.9898 + count * 3.17 + 78.233;
+  return Offset(
+    scene.left + ((math.sin(seed) * 43758.5453).abs() % 1) * scene.width,
+    scene.top + ((math.sin(seed * 1.71) * 12345.678).abs() % 1) * scene.height,
+  );
+}
+
+List<SandboxMessageNetworkEdge> sandboxMessageNetworkEdges(String mode) =>
+    _messageNetworkCache.putIfAbsent(mode, () {
+      final starts = List<Offset>.generate(
+        sandboxMessageAssemblyTargets(mode).length,
+        (index) => _messageBlockStart(mode, index),
+      );
+      final degree = List<int>.filled(starts.length, 0);
+      final pairs = <(int, int)>[];
+      final seen = <String>{};
+      for (var index = 0; index < starts.length; index++) {
+        final candidates = List<int>.generate(starts.length, (value) => value)
+          ..remove(index)
+          ..sort(
+            (a, b) => (starts[a] - starts[index]).distanceSquared.compareTo(
+              (starts[b] - starts[index]).distanceSquared,
+            ),
+          );
+        for (final neighbor in candidates.take(3)) {
+          final key = index < neighbor
+              ? '$index:$neighbor'
+              : '$neighbor:$index';
+          if (degree[index] >= 3 || degree[neighbor] >= 4 || !seen.add(key)) {
+            continue;
+          }
+          if ((starts[index] - starts[neighbor]).distance > 62) continue;
+          pairs.add((index, neighbor));
+          degree[index]++;
+          degree[neighbor]++;
+          if (degree[index] >= 2) break;
+        }
+      }
+      final adjacency = List<List<int>>.generate(starts.length, (_) => []);
+      for (var edgeIndex = 0; edgeIndex < pairs.length; edgeIndex++) {
+        adjacency[pairs[edgeIndex].$1].add(edgeIndex);
+        adjacency[pairs[edgeIndex].$2].add(edgeIndex);
+      }
+      final nodeWave = List<int>.filled(starts.length, -1)..[0] = 0;
+      final queue = <int>[0];
+      while (queue.isNotEmpty) {
+        final node = queue.removeAt(0);
+        for (final edgeIndex in adjacency[node]) {
+          final edge = pairs[edgeIndex];
+          final next = edge.$1 == node ? edge.$2 : edge.$1;
+          if (nodeWave[next] == -1) {
+            nodeWave[next] = nodeWave[node] + 1;
+            queue.add(next);
+          }
+        }
+      }
+      return List<SandboxMessageNetworkEdge>.unmodifiable([
+        for (final pair in pairs)
+          SandboxMessageNetworkEdge(
+            pair.$1,
+            pair.$2,
+            math.max(
+              0,
+              math.min(
+                2,
+                nodeWave[pair.$1] == -1
+                    ? (pair.$1 + pair.$2) % 3
+                    : math.min(nodeWave[pair.$1], nodeWave[pair.$2]),
+              ),
+            ),
+          ),
+      ]);
+    });
 
 /// The mode and transfer selectors only label this visual sandbox; neither
 /// selector invokes an operation outside the monitor prototype.
@@ -876,37 +969,98 @@ class _SendSequencePainter extends CustomPainter {
   /// deterministic square data blocks rather than a Text fade-in.
   void _messageAssembly(Canvas canvas, double t) {
     final elapsed = t * _messageAssemblyCycle.inMilliseconds;
-    final targets = sandboxMessageAssemblyTargets(_modeName(mode));
+    final modeName = _modeName(mode);
+    final targets = sandboxMessageAssemblyTargets(modeName);
+    final edges = sandboxMessageNetworkEdges(modeName);
     const scene = Rect.fromLTWH(24, 105, 312, 69);
-    final dispersed = _phase(elapsed, 0, 900);
-    final lock = _phase(elapsed, 4300, 4800);
+    final dispersed = _phase(elapsed, 0, 1000);
+    final lock = _phase(elapsed, 4200, 4800);
+    final settle = _phase(elapsed, 4200, 4800);
+    final positions = <Offset>[];
+    final depths = <double>[];
     for (var index = 0; index < targets.length; index++) {
       final target = targets[index];
       final seed = index * 12.9898 + 78.233;
-      final start = Offset(
-        scene.left + ((math.sin(seed) * 43758.5453).abs() % 1) * scene.width,
-        scene.top +
-            ((math.sin(seed * 1.71) * 12345.678).abs() % 1) * scene.height,
-      );
-      final delay = 900 + (index % 29) * 31.0;
-      final arrive = _ease(_phase(elapsed, delay, 4300 + (index % 7) * 35));
+      final start = _messageBlockStart(modeName, index);
+      final depth = .55 + ((index * 17) % 47) / 100;
+      final delay = 2300 + (index % 29) * 38.0;
+      final arrive = _ease(_phase(elapsed, delay, 4200 + (index % 7) * 45));
       final control = Offset(
         (start.dx + target.dx) / 2 + math.sin(seed * .37) * 18,
         (start.dy + target.dy) / 2 - 17 - (index % 5) * 3,
       );
-      final position = elapsed < 900
+      final position = elapsed < 1000
           ? Offset(
-              start.dx + math.sin(elapsed / 260 + seed) * 2.2 * dispersed,
-              start.dy + math.cos(elapsed / 310 + seed) * 1.8 * dispersed,
+              start.dx +
+                  math.sin(elapsed / 260 + seed) * 3.2 * dispersed * depth,
+              start.dy +
+                  math.cos(elapsed / 310 + seed) * 2.4 * dispersed * depth,
             )
-          : _quadratic(start, control, target, arrive);
+          : Offset.lerp(
+              _quadratic(start, control, target, arrive),
+              target,
+              settle,
+            )!;
+      positions.add(position);
+      depths.add(depth);
+    }
+
+    // The graph is first visible for the full 1000-2300ms activation phase,
+    // then follows those exact same block endpoints during convergence.
+    for (var edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
+      final edge = edges[edgeIndex];
+      final activation = 1000 + edge.wave * 310 + (edgeIndex % 8) * 62.0;
+      final propagation = _phase(elapsed, activation, activation + 430);
+      final fade = 1 - _phase(elapsed, 4200, 4800);
+      if (propagation <= 0 || fade <= 0) continue;
+      final from = positions[edge.a];
+      final to = positions[edge.b];
+      final depth = (depths[edge.a] + depths[edge.b]) / 2;
+      final dim = propagation * fade * (.38 + depth * .34);
+      final front = Offset.lerp(from, to, propagation)!;
+      canvas.drawLine(
+        from,
+        to,
+        _glow(_cyan.withValues(alpha: dim * .32), 5.5, 5.5),
+      );
+      canvas.drawLine(from, front, _line(_cyan.withValues(alpha: dim), 1.55));
+      canvas.drawLine(
+        from,
+        front,
+        _line(_ice.withValues(alpha: dim * .92), .65),
+      );
+      canvas.drawCircle(
+        front,
+        2.2 + depth,
+        _glow(_ice.withValues(alpha: dim * .8), 2.5, 2.5),
+      );
+      if (propagation > .88) {
+        canvas.drawCircle(
+          to,
+          2.8 + depth,
+          _glow(_ice.withValues(alpha: (propagation - .88) * 2.3 * fade), 3),
+        );
+      }
+    }
+
+    for (var index = 0; index < targets.length; index++) {
+      final target = targets[index];
+      final seed = index * 12.9898 + 78.233;
+      final start = _messageBlockStart(modeName, index);
+      final delay = 2300 + (index % 29) * 38.0;
+      final arrive = _ease(_phase(elapsed, delay, 4200 + (index % 7) * 45));
+      final position = positions[index];
       final color = switch (index % 5) {
         0 => const Color(0xffb5f3ff),
         1 => const Color(0xff7ea8ff),
         _ => const Color(0xff63d8ff),
       };
-      final size = 2.2 + (index % 3) * .45;
+      final size = (2.1 + (index % 3) * .45) * depths[index];
       if (arrive > 0 && arrive < 1) {
+        final control = Offset(
+          (start.dx + target.dx) / 2 + math.sin(seed * .37) * 18,
+          (start.dy + target.dy) / 2 - 17 - (index % 5) * 3,
+        );
         final trail = _quadratic(
           start,
           control,
@@ -1384,11 +1538,11 @@ class _SendSequencePainter extends CustomPainter {
     // Feet travel down to the final cell's lower boundary; the final compact
     // shape is drawn with that same cell rect below, eliminating the former
     // apparent split between the fall and the completed gauge block.
-    final integration = _ease(_phase(local, 770, 950));
+    final integration = _ease(_phase(local, 770, walkIn ? 900 : 950));
     final bodyBottom = walkIn
         ? 154 + (last.bottom - 154) * integration
         : 154 + (last.bottom - 154) * fall;
-    final transform = walkIn ? _phase(local, 770, 950) : settle;
+    final transform = walkIn ? _phase(local, 770, 900) : settle;
     final alpha = visibility * (1 - transform);
     final armY = stage == SandboxPixelBuilderFinalAct.looking
         ? bodyBottom - 6
@@ -1433,9 +1587,32 @@ class _SendSequencePainter extends CustomPainter {
     if (!walkIn && stage == SandboxPixelBuilderFinalAct.falling && fall > .55) {
       _pixelSparks(canvas, Offset(last.center.dx, last.top), alpha * .35);
     }
-    final cellProgress = walkIn
-        ? _phase(local, 770, _pixelBuilderFinalActMs)
-        : settle;
+    final faceOpacity = walkIn
+        ? _phase(local, 800, 850) * (1 - _phase(local, 900, 1050))
+        : 0.0;
+    if (faceOpacity > 0) {
+      // The same authoritative segment rect contains the compressed robot
+      // face; no independent tile coordinates can drift from the gauge.
+      canvas.drawRect(
+        last.deflate(1.25),
+        _fill(const Color(0xff102a38).withValues(alpha: faceOpacity)),
+      );
+      canvas.drawRect(
+        last,
+        _line(const Color(0xffbff6ff).withValues(alpha: faceOpacity), .8),
+      );
+      for (final dx in [-3.2, 3.2]) {
+        canvas.drawRect(
+          Rect.fromCenter(
+            center: Offset(last.center.dx + dx, last.center.dy),
+            width: 2.1,
+            height: 2.1,
+          ),
+          _fill(const Color(0xffddffff).withValues(alpha: faceOpacity)),
+        );
+      }
+    }
+    final cellProgress = walkIn ? _phase(local, 900, 1050) : settle;
     if (cellProgress > 0) {
       // Match the bar's existing full cell dimensions, center, and border.
       // The compacting robot fades only as this exact gauge cell appears.

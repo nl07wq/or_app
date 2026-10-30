@@ -42,35 +42,35 @@ void main() {
     );
   });
 
-  test('pixel builder scales the nine-cell work timeline by 1.4x', () {
+  test('pixel builder scales the nine-cell work timeline by 1.6x', () {
     expect(sandboxPixelBuilderFilledSegments(0), 0);
     expect(sandboxPixelBuilderFilledSegments(249), 0);
-    expect(sandboxPixelBuilderFilledSegments(606), 0);
-    expect(sandboxPixelBuilderFilledSegments(608), 1);
-    expect(sandboxPixelBuilderFilledSegments(2143), 6);
-    expect(sandboxPixelBuilderFilledSegments(2500), 6);
+    expect(sandboxPixelBuilderFilledSegments(568), 0);
+    expect(sandboxPixelBuilderFilledSegments(570), 1);
+    expect(sandboxPixelBuilderFilledSegments(1913), 6);
+    expect(sandboxPixelBuilderFilledSegments(2200), 6);
     // The last cell is supplied by the robot's fall, after its readable
     // final-act pause rather than a tenth rapid tool cycle.
-    expect(sandboxPixelBuilderFilledSegments(4578), 9);
-    expect(sandboxPixelBuilderFilledSegments(4579), 10);
+    expect(sandboxPixelBuilderFilledSegments(4174), 9);
+    expect(sandboxPixelBuilderFilledSegments(4175), 10);
     expect(
-      sandboxPixelBuilderFinalAct(3529),
+      sandboxPixelBuilderFinalAct(3125),
       SandboxPixelBuilderFinalAct.looking,
     );
     expect(
-      sandboxPixelBuilderFinalAct(3900),
+      sandboxPixelBuilderFinalAct(3500),
       SandboxPixelBuilderFinalAct.walking,
     );
     expect(
-      sandboxPixelBuilderFinalAct(4200),
+      sandboxPixelBuilderFinalAct(3725),
       SandboxPixelBuilderFinalAct.wobbling,
     );
     expect(
-      sandboxPixelBuilderFinalAct(4400),
+      sandboxPixelBuilderFinalAct(3975),
       SandboxPixelBuilderFinalAct.falling,
     );
-    expect(sandboxPixelBuilderFinalAct(4579), SandboxPixelBuilderFinalAct.cell);
-    expect(sandboxPixelBuilderCycleStartMs(6), closeTo(2607.14, .01));
+    expect(sandboxPixelBuilderFinalAct(4175), SandboxPixelBuilderFinalAct.cell);
+    expect(sandboxPixelBuilderCycleStartMs(6), closeTo(2318.75, .01));
     expect(sandboxPixelBuilderStrikeCount(0), 2);
     expect(sandboxPixelBuilderStrikeCount(2), 3);
     expect(sandboxPixelBuilderStrikeCount(5), 3);
@@ -103,14 +103,14 @@ void main() {
     () {
       expect(
         sandboxPixelBuilderFinalAct(
-          3900,
+          3500,
           finale: SandboxPixelBuilderFinale.walkIn,
         ),
         SandboxPixelBuilderFinalAct.walking,
       );
       expect(
         sandboxPixelBuilderFinalAct(
-          4300,
+          4000,
           finale: SandboxPixelBuilderFinale.walkIn,
         ),
         SandboxPixelBuilderFinalAct.cell,
@@ -138,6 +138,34 @@ void main() {
     expect(sandboxMessageAssemblyMessage('DEBRIEF'), 'DEBRIEF RECEIVED');
     expect(sandboxMessageAssemblyMessage('BACKUP'), 'BACKUP COMPLETE');
   });
+
+  test(
+    'message assembly network is bounded, deterministic, and wave ordered',
+    () {
+      final targets = sandboxMessageAssemblyTargets('DEBRIEF');
+      final edges = sandboxMessageNetworkEdges('DEBRIEF');
+      expect(edges, isNotEmpty);
+      expect(edges, sandboxMessageNetworkEdges('DEBRIEF'));
+      final pairs = edges.map((edge) {
+        final endpoints = [edge.a, edge.b]..sort();
+        return endpoints.join(':');
+      }).toSet();
+      expect(pairs, hasLength(edges.length));
+      final degree = List<int>.filled(targets.length, 0);
+      for (final edge in edges) {
+        expect(edge.a, inInclusiveRange(0, targets.length - 1));
+        expect(edge.b, inInclusiveRange(0, targets.length - 1));
+        expect(edge.wave, inInclusiveRange(0, 2));
+        degree[edge.a]++;
+        degree[edge.b]++;
+      }
+      expect(degree.every((value) => value <= 4), isTrue);
+      expect(
+        edges.map((edge) => edge.wave).toSet().length,
+        greaterThanOrEqualTo(2),
+      );
+    },
+  );
 
   test('folded net finishes as six joined 80-unit cube faces', () {
     final faces = sandboxFoldedCubeFaces(1);
@@ -391,7 +419,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('ARK'));
       await tester.pump();
-      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 12620);
+      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 10925);
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile('goldens/boot_send_voxel_ark_${milliseconds}ms.png'),
@@ -415,7 +443,7 @@ void main() {
           await tester.tap(find.text('WALK-IN'));
           await tester.pump();
         }
-        await _pumpTimeline(tester, 4200, totalMilliseconds: 11329);
+        await _pumpTimeline(tester, 4000, totalMilliseconds: 10925);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),
           matchesGoldenFile(
@@ -426,6 +454,21 @@ void main() {
     }
   }
 
+  testWidgets('walk-in face tile fades into the final cyan cell golden', (
+    tester,
+  ) async {
+    await _pumpSandbox(tester);
+    await tester.tap(find.text('VOXEL INTEGRATION'));
+    await tester.pump();
+    await tester.tap(find.text('WALK-IN'));
+    await tester.pump();
+    await _pumpTimeline(tester, 4125, totalMilliseconds: 10925);
+    await expectLater(
+      find.byKey(const ValueKey('boot-send-sequence-monitor')),
+      matchesGoldenFile('goldens/pixel_finale_walk_in_face_to_fill.png'),
+    );
+  });
+
   for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
     testWidgets('$mode completion icon golden', (tester) async {
       await _pumpSandbox(tester);
@@ -433,7 +476,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text(mode));
       await tester.pump();
-      await _pumpTimeline(tester, 13070, totalMilliseconds: 12620);
+      await _pumpTimeline(tester, 12125, totalMilliseconds: 10925);
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile(
@@ -443,7 +486,7 @@ void main() {
     });
   }
 
-  for (final milliseconds in [0, 1400, 3000, 4600, 6200]) {
+  for (final milliseconds in [500, 1400, 1900, 3000, 3900, 4600, 5500]) {
     testWidgets('message assembly BRIEF ${milliseconds}ms golden', (
       tester,
     ) async {
@@ -501,7 +544,7 @@ void main() {
           ? const [0, 900, 2500, 4300, 4800, 6500]
           : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
       final total = concept == BootSendSequenceConcept.voxelIntegration
-          ? 11329
+          ? 10925
           : concept == BootSendSequenceConcept.messageAssembly
           ? 6500
           : 6000;
@@ -542,7 +585,7 @@ void main() {
         }
         final postCompletion =
             concept == BootSendSequenceConcept.voxelIntegration
-            ? 12529
+            ? 12125
             : concept == BootSendSequenceConcept.messageAssembly
             ? 6500
             : 7200;
