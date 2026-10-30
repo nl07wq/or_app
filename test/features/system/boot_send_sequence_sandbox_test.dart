@@ -190,12 +190,25 @@ void main() {
     final selected = sandboxMessageSelectedNetworkEdges('BRIEF');
     final particles = sandboxMessageParticles('BRIEF');
     expect(selected, sandboxMessageSelectedNetworkEdges('BRIEF'));
-    expect(selected, isNotEmpty);
-    expect(selected.length, lessThanOrEqualTo(12));
+    expect(selected.length, inInclusiveRange(36, 52));
     expect(
       selected.every((edge) => edge.a < cubes.length && edge.b < cubes.length),
       isTrue,
     );
+    final reachable = <int>{0};
+    while (true) {
+      final before = reachable.length;
+      for (final edge in selected) {
+        if (reachable.contains(edge.a)) reachable.add(edge.b);
+        if (reachable.contains(edge.b)) reachable.add(edge.a);
+      }
+      if (reachable.length == before) break;
+    }
+    for (final edge in selected) {
+      expect(reachable, contains(edge.a));
+      expect(reachable, contains(edge.b));
+    }
+    expect(selected.map((edge) => edge.wave).toSet(), containsAll([0, 1, 2]));
     expect(particles, sandboxMessageParticles('BRIEF'));
     expect(particles, hasLength(cubes.length * 6));
     expect(
@@ -203,6 +216,13 @@ void main() {
       isTrue,
     );
     expect(particles.every((particle) => particle.size >= .6), isTrue);
+    expect(sandboxMessageSurfaceReveal(3200), closeTo(.12, .001));
+    expect(sandboxMessageSurfaceReveal(4200), closeTo(.45, .001));
+    expect(sandboxMessageSurfaceReveal(5200), closeTo(1, .001));
+    expect(sandboxMessageCameraZoom(3450), closeTo(3.3, .001));
+    expect(sandboxMessageCameraZoom(5650), closeTo(1, .001));
+    expect(sandboxMessageScreenRoll(3350), closeTo(-72, .001));
+    expect(sandboxMessageScreenRoll(5560), closeTo(0, .001));
   });
 
   test('voxel completion boundary always reaches both fractional finales', () {
@@ -566,7 +586,20 @@ void main() {
     });
   }
 
-  for (final milliseconds in [900, 1800, 2800, 3600, 4300, 4900, 5500, 6500]) {
+  for (final milliseconds in [
+    900,
+    1600,
+    2100,
+    2600,
+    3200,
+    3700,
+    4200,
+    4700,
+    5100,
+    5500,
+    6000,
+    6500,
+  ]) {
     testWidgets('message assembly BRIEF ${milliseconds}ms golden', (
       tester,
     ) async {
@@ -621,7 +654,7 @@ void main() {
               12620,
             ]
           : concept == BootSendSequenceConcept.messageAssembly
-          ? const [0, 900, 2500, 4300, 4800, 6500]
+          ? const [0, 900, 1600, 2100, 2600, 3700, 4200, 5100, 6000, 6500]
           : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
       final total = concept == BootSendSequenceConcept.voxelIntegration
           ? sandboxPixelVoxelCycle(
