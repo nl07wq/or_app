@@ -77,7 +77,7 @@ void main() {
     );
     expect(
       sandboxPixelVoxelCycle(SandboxPixelBuilderFinale.walkIn).inMilliseconds,
-      11413,
+      11414,
     );
     expect(sandboxPixelBuilderStrikeCount(0), 2);
     expect(sandboxPixelBuilderStrikeCount(2), 3);
@@ -184,6 +184,42 @@ void main() {
       );
     },
   );
+
+  test('message sparse graph and cube-emitted particles are deterministic', () {
+    final cubes = sandboxMessageCubes('BRIEF');
+    final selected = sandboxMessageSelectedNetworkEdges('BRIEF');
+    final particles = sandboxMessageParticles('BRIEF');
+    expect(selected, sandboxMessageSelectedNetworkEdges('BRIEF'));
+    expect(selected, isNotEmpty);
+    expect(selected.length, lessThanOrEqualTo(12));
+    expect(
+      selected.every((edge) => edge.a < cubes.length && edge.b < cubes.length),
+      isTrue,
+    );
+    expect(particles, sandboxMessageParticles('BRIEF'));
+    expect(particles, hasLength(cubes.length * 6));
+    expect(
+      particles.every((particle) => particle.sourceId < cubes.length),
+      isTrue,
+    );
+    expect(particles.every((particle) => particle.size >= .6), isTrue);
+  });
+
+  test('voxel completion boundary always reaches both fractional finales', () {
+    for (final finale in SandboxPixelBuilderFinale.values) {
+      final constructionEnd = sandboxPixelVoxelConstructionEndMs(finale);
+      final duration = sandboxPixelVoxelCycle(finale).inMilliseconds;
+      expect(duration, constructionEnd.ceil());
+      expect(
+        sandboxPixelVoxelConstructionComplete(duration.toDouble(), finale),
+        isTrue,
+      );
+      expect(
+        sandboxPixelVoxelConstructionComplete(constructionEnd - .01, finale),
+        isFalse,
+      );
+    }
+  });
 
   test('folded net finishes as six joined 80-unit cube faces', () {
     final faces = sandboxFoldedCubeFaces(1);
@@ -530,7 +566,7 @@ void main() {
     });
   }
 
-  for (final milliseconds in [1500, 2800, 3600, 4200, 4600, 5000, 5500, 6500]) {
+  for (final milliseconds in [900, 1800, 2800, 3600, 4300, 4900, 5500, 6500]) {
     testWidgets('message assembly BRIEF ${milliseconds}ms golden', (
       tester,
     ) async {

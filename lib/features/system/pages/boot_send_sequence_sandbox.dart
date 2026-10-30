@@ -68,7 +68,15 @@ double sandboxPixelVoxelConstructionEndMs(SandboxPixelBuilderFinale finale) =>
     sandboxPixelVoxelFragmentsEndMs(finale) + 6000.0;
 
 Duration sandboxPixelVoxelCycle(SandboxPixelBuilderFinale finale) =>
-    Duration(milliseconds: sandboxPixelVoxelConstructionEndMs(finale).round());
+    Duration(milliseconds: sandboxPixelVoxelConstructionEndMs(finale).ceil());
+
+/// One authoritative completion predicate for the fractional Pixel Builder
+/// timeline. The controller duration is rounded upward, so its last frame is
+/// always a completed voxel frame instead of falling just short of it.
+bool sandboxPixelVoxelConstructionComplete(
+  double elapsedMs,
+  SandboxPixelBuilderFinale finale,
+) => elapsedMs + .0001 >= sandboxPixelVoxelConstructionEndMs(finale);
 
 class BootSendSequenceSandbox extends StatefulWidget {
   const BootSendSequenceSandbox({super.key});
@@ -87,6 +95,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   var _operation = TransferOperation.save;
   var _robotAppearance = SandboxRobotAppearance.original;
   var _pixelBuilderFinale = SandboxPixelBuilderFinale.fall;
+  var _completionStarted = false;
 
   @override
   void initState() {
@@ -107,11 +116,15 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   }
 
   void _startCompletionTimelineAtConstructionEnd() {
+    // Voxel needs the exact terminal frame because its construction boundary
+    // has a fractional millisecond. The older sandbox scenes deliberately
+    // retain their accepted near-terminal completion timing.
     final constructionComplete =
         _concept == BootSendSequenceConcept.voxelIntegration
-        ? _controller.isCompleted
+        ? _controller.value >= 1
         : _controller.value >= .999;
-    if (mounted && constructionComplete && !_completionController.isAnimating) {
+    if (mounted && constructionComplete && !_completionStarted) {
+      _completionStarted = true;
       _completionController.forward(from: 0);
     }
   }
@@ -124,6 +137,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   }
 
   void _replay() {
+    _completionStarted = false;
     _completionController
       ..stop()
       ..value = 0;
@@ -441,6 +455,8 @@ class SandboxMessageNetworkEdge {
 }
 
 final _messageNetworkCache = <String, List<SandboxMessageNetworkEdge>>{};
+final _messageSelectedNetworkCache =
+    <String, List<SandboxMessageNetworkEdge>>{};
 final _messageTargetCountCache = <String, int>{};
 
 Offset _messageBlockStart(String mode, int index) {
@@ -520,6 +536,100 @@ List<SandboxMessageNetworkEdge> sandboxMessageNetworkEdges(String mode) =>
               ),
             ),
           ),
+      ]);
+    });
+
+/// A deliberately sparse, impact-reachable subset. It is selected once from
+/// the full deterministic topology so high-intensity beams read as causal
+/// energy transfers instead of a permanent web over the cuboids.
+List<SandboxMessageNetworkEdge> sandboxMessageSelectedNetworkEdges(
+  String mode,
+) => _messageSelectedNetworkCache.putIfAbsent(mode, () {
+  final cubes = sandboxMessageCubes(mode);
+  final remaining = [...sandboxMessageNetworkEdges(mode)];
+  final connected = <int>{0};
+  final selected = <SandboxMessageNetworkEdge>[];
+  final degree = <int, int>{};
+  while (selected.length < 12) {
+    final candidates =
+        remaining
+            .where(
+              (edge) =>
+                  connected.contains(edge.a) != connected.contains(edge.b) &&
+                  (degree[edge.a] ?? 0) < 3 &&
+                  (degree[edge.b] ?? 0) < 3,
+            )
+            .toList()
+          ..sort((a, b) {
+            final aDistance = (cubes[a.a].start - cubes[a.b].start).length;
+            final bDistance = (cubes[b.a].start - cubes[b.b].start).length;
+            final aScore = aDistance + a.wave * 18;
+            final bScore = bDistance + b.wave * 18;
+            return aScore.compareTo(bScore);
+          });
+    if (candidates.isEmpty) break;
+    final edge = candidates.first;
+    remaining.remove(edge);
+    selected.add(edge);
+    connected
+      ..add(edge.a)
+      ..add(edge.b);
+    degree[edge.a] = (degree[edge.a] ?? 0) + 1;
+    degree[edge.b] = (degree[edge.b] ?? 0) + 1;
+  }
+  return List<SandboxMessageNetworkEdge>.unmodifiable(selected);
+});
+
+/// A fine luminous material point emitted from one persistent message cube.
+/// Its seed and final glyph-stroke sample are immutable, making every replay
+/// reproduce the same cube-to-particle transformation.
+class SandboxMessageParticle {
+  const SandboxMessageParticle({
+    required this.sourceId,
+    required this.index,
+    required this.target,
+    required this.delay,
+    required this.size,
+    required this.depth,
+  });
+
+  final int sourceId;
+  final int index;
+  final SandboxVec3 target;
+  final double delay;
+  final double size;
+  final double depth;
+}
+
+final _messageParticleCache = <String, List<SandboxMessageParticle>>{};
+
+List<SandboxMessageParticle> sandboxMessageParticles(String mode) =>
+    _messageParticleCache.putIfAbsent(mode, () {
+      final targets = sandboxMessageAssemblyTargets(mode);
+      final cubes = sandboxMessageCubes(mode);
+      return List<SandboxMessageParticle>.unmodifiable([
+        for (final cube in cubes)
+          for (var particle = 0; particle < 6; particle++)
+            () {
+              final targetIndex =
+                  (cube.id * 7 + particle * 29 + particle ~/ 2) %
+                  targets.length;
+              final base = targets[targetIndex];
+              final offsetX = ((particle * 17 + cube.id * 3) % 5 - 2) * .46;
+              final offsetY = ((particle * 11 + cube.id * 5) % 5 - 2) * .46;
+              return SandboxMessageParticle(
+                sourceId: cube.id,
+                index: particle,
+                target: SandboxVec3(
+                  (base.dx + offsetX - 180) / .775,
+                  (140 - (base.dy + offsetY)) / .775,
+                  ((particle + cube.id) % 4 - 1.5) * .72,
+                ),
+                delay: (cube.id % 17) * 16.0 + particle * 23.0,
+                size: .65 + ((cube.id * 5 + particle * 3) % 7) * .17,
+                depth: ((cube.id * 19 + particle * 7) % 11) / 10,
+              );
+            }(),
       ]);
     });
 
@@ -704,6 +814,11 @@ class _SendSequencePainter extends CustomPainter {
   final double completionElapsedSeconds;
   final bool reducedMotion;
 
+  bool _monitorConstructionComplete(double progress) =>
+      concept == BootSendSequenceConcept.voxelIntegration
+      ? progress >= 1
+      : _isConstructionComplete(progress);
+
   static const _screen = Color(0xff030d15);
   static const _cyan = Color(0xff39ddf2);
   static const _ice = Color(0xffd8fbff);
@@ -731,7 +846,7 @@ class _SendSequencePainter extends CustomPainter {
     _housing(canvas);
     _grid(canvas);
     _header(canvas, t);
-    final particleField = _isConstructionComplete(t)
+    final particleField = _monitorConstructionComplete(t)
         ? _completedParticleField(completionElapsedSeconds)
         : null;
     if (particleField != null) {
@@ -836,7 +951,7 @@ class _SendSequencePainter extends CustomPainter {
     );
     _center(canvas, _modeTitle(mode), const Offset(180, 39), 10, _ice);
     _text(canvas, 'SANDBOX', const Offset(279, 35), 8, const Color(0xff6f9bac));
-    final color = _isConstructionComplete(t)
+    final color = _monitorConstructionComplete(t)
         ? const Color(0xff8af6e9)
         : const Color(0xff2d8fa7);
     canvas.drawCircle(
@@ -858,7 +973,7 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _footer(Canvas canvas, double t) {
-    final completed = _isConstructionComplete(t);
+    final completed = _monitorConstructionComplete(t);
     final state = concept == BootSendSequenceConcept.messageAssembly
         ? completed
               ? sandboxMessageAssemblyMessage(_modeName(mode))
@@ -1052,7 +1167,8 @@ class _SendSequencePainter extends CustomPainter {
     final elapsed = t * _messageAssemblyCycle.inMilliseconds;
     final modeName = _modeName(mode);
     final cubes = sandboxMessageCubes(modeName);
-    final edges = sandboxMessageNetworkEdges(modeName);
+    final edges = sandboxMessageSelectedNetworkEdges(modeName);
+    final particles = sandboxMessageParticles(modeName);
     const scene = Rect.fromLTWH(14, 72, 332, 128);
     canvas.save();
     canvas.clipRect(scene);
@@ -1063,11 +1179,10 @@ class _SendSequencePainter extends CustomPainter {
       for (final transform in transforms) _messageProject(transform, elapsed),
     ];
     final impact = _messageImpactIntensity(elapsed);
-    // The graph is an activation aid, not the subject. It recedes before
-    // glyph formation so the actual cuboids remain dominant.
-    final beamFade = 1 - _ease(_phase(elapsed, 2500, 3900));
-    final glyphScale = _ease(_phase(elapsed, 3300, 5600));
-    final glyphLock = _ease(_phase(elapsed, 4300, 5600));
+    // The graph is an activation aid, not the subject. It stays bright while
+    // a pulse is travelling, then leaves only a compact afterglow as the
+    // cube material transfers into the flowing particle field.
+    final beamFade = 1 - _ease(_phase(elapsed, 2400, 3600));
 
     // The comet is intentionally the first major event, and targets cube 0.
     if (elapsed >= 350 && elapsed <= 1050) {
@@ -1104,9 +1219,6 @@ class _SendSequencePainter extends CustomPainter {
 
     // Beams precede faces so nearby cuboids still occlude background links.
     for (var edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
-      // A bounded third of the cached graph supplies readable, local energy
-      // links without turning the cloud into a persistent spiderweb.
-      if (edgeIndex % 3 != 0) continue;
       final edge = edges[edgeIndex];
       final pulse = _messageEdgePulse(elapsed, edge, edgeIndex);
       final strength =
@@ -1118,35 +1230,27 @@ class _SendSequencePainter extends CustomPainter {
       canvas.drawLine(
         from,
         to,
-        _glow(
-          const Color(0xff45eac6).withValues(alpha: strength * .12),
-          3,
-          2.5,
-        ),
+        _glow(const Color(0xff45eac6).withValues(alpha: strength * .12), 7, 6),
       );
       canvas.drawLine(
         from,
         head,
-        _line(_cyan.withValues(alpha: strength * .42), 1),
+        _line(_cyan.withValues(alpha: strength * .88), 1.8),
       );
-      canvas.drawLine(
-        from,
-        head,
-        _line(_ice.withValues(alpha: strength * .7), .4),
-      );
+      canvas.drawLine(from, head, _line(_ice.withValues(alpha: strength), .75));
       canvas.drawCircle(
         head,
-        2.2,
-        _glow(_ice.withValues(alpha: strength * .72), 2.2, 2),
+        3.4,
+        _glow(_ice.withValues(alpha: strength), 3.4, 3),
       );
       if (pulse > .94) {
         canvas.drawCircle(
           to,
-          3.2,
+          4.2,
           _glow(
-            const Color(0xff85ffe1).withValues(alpha: strength * .4),
-            2.5,
-            2,
+            const Color(0xff85ffe1).withValues(alpha: strength * .62),
+            4,
+            3,
           ),
         );
       }
@@ -1156,23 +1260,25 @@ class _SendSequencePainter extends CustomPainter {
     for (var index = 0; index < cubes.length; index++) {
       final cube = cubes[index];
       final transform = transforms[index];
-      // Large cinematic nodes continuously resolve into fine, uniform glyph
-      // material. This keeps each block's identity while preventing an early
-      // foreground cube from obscuring a completed letter.
-      final glyphSize = 2.25 + (index % 3) * .18;
-      final renderSize = cube.size + (glyphSize - cube.size) * glyphScale;
+      final materialTransfer = _messageMaterialTransfer(elapsed, cube);
+      // The intact solid recedes only after its own local stream is visible.
+      // It never turns into a one-cube bitmap text pixel.
+      final renderSize = cube.size * (1 - materialTransfer * .62);
       final illumination = math.max(
         _messageNodeIllumination(elapsed, index),
         index == 0 ? impact : 0,
       );
-      final base = switch (index % 4) {
-        0 => const Color(0xffb5f3ff),
-        1 => const Color(0xff7ea8ff),
-        _ => const Color(0xff63d8ff),
-      }.withValues(alpha: .72 + illumination * .23);
+      final base =
+          switch (index % 4) {
+            0 => const Color(0xffb5f3ff),
+            1 => const Color(0xff7ea8ff),
+            _ => const Color(0xff63d8ff),
+          }.withValues(
+            alpha: (.72 + illumination * .23) * (1 - materialTransfer * .94),
+          );
       final angle =
           (cube.spin + elapsed / 1000 * (.42 + (index % 3) * .12)) *
-          (1 - glyphLock);
+          (1 - materialTransfer * .72);
       // Spin faces around their own cube center only. Rotating absolute
       // coordinates here would make an already-arrived glyph cube orbit away
       // from its target and visually postpone letter formation.
@@ -1185,14 +1291,16 @@ class _SendSequencePainter extends CustomPainter {
           .rotateX(angle * .55)
           .rotateY(_messageWorldYaw(elapsed))
           .rotateX(_messageWorldPitch(elapsed));
-      for (final face in sandboxCubeFaces(transform, renderSize)) {
-        faces.add(
-          _RenderFace(
-            face.vertices.map(orientVertex).toList(),
-            orientNormal(face.normal),
-            base,
-          ),
-        );
+      if (base.a > .02) {
+        for (final face in sandboxCubeFaces(transform, renderSize)) {
+          faces.add(
+            _RenderFace(
+              face.vertices.map(orientVertex).toList(),
+              orientNormal(face.normal),
+              base,
+            ),
+          );
+        }
       }
       if (illumination > .2) {
         canvas.drawCircle(
@@ -1208,6 +1316,7 @@ class _SendSequencePainter extends CustomPainter {
       faces,
       border: _ice.withValues(alpha: .68),
     );
+    _paintMessageParticles(canvas, particles, cubes, transforms, elapsed);
     // Keep a compact foreground specular flash at the actual struck node.
     // The radial bloom above is correctly behind the opaque cube faces; this
     // small overlay keeps the impact legible at native phone scale.
@@ -1267,6 +1376,102 @@ class _SendSequencePainter extends CustomPainter {
         .rotateX(-rotation * 15 * math.pi / 180);
     final contracted = SandboxVec3.lerp(cloud, cloud * .34, contraction);
     return SandboxVec3.lerp(contracted, cube.target, attraction);
+  }
+
+  double _messageMaterialTransfer(double elapsed, SandboxMessageCube cube) =>
+      _ease(_phase(elapsed, 2400 + cube.delay * .28, 4100 + cube.delay * .22));
+
+  double _messageParticleFlow(
+    double elapsed,
+    SandboxMessageParticle particle,
+  ) => _ease(
+    _phase(elapsed, 2650 + particle.delay, 4650 + particle.delay * .28),
+  );
+
+  Offset _messageBezier(
+    Offset start,
+    Offset firstControl,
+    Offset secondControl,
+    Offset end,
+    double progress,
+  ) {
+    final inverse = 1 - progress;
+    return start * (inverse * inverse * inverse) +
+        firstControl * (3 * inverse * inverse * progress) +
+        secondControl * (3 * inverse * progress * progress) +
+        end * (progress * progress * progress);
+  }
+
+  void _paintMessageParticles(
+    Canvas canvas,
+    List<SandboxMessageParticle> particles,
+    List<SandboxMessageCube> cubes,
+    List<SandboxVec3> transforms,
+    double elapsed,
+  ) {
+    // Sorting by immutable depth keeps foreground glints crisp without
+    // reconstructing any scene topology in the paint loop.
+    for (final particle in particles) {
+      final cube = cubes[particle.sourceId];
+      final transfer = _messageMaterialTransfer(elapsed, cube);
+      if (transfer <= 0) continue;
+      final flow = _messageParticleFlow(elapsed, particle);
+      final sourceCenter = _messageProject(
+        transforms[particle.sourceId],
+        elapsed,
+      ).offset;
+      final faceAngle = cube.spin + particle.index * 1.71;
+      final source =
+          sourceCenter +
+          Offset(math.cos(faceAngle), math.sin(faceAngle)) *
+              (cube.size * (.11 + particle.depth * .06));
+      final target = _messageProject(particle.target, elapsed).offset;
+      final travel = target - source;
+      final travelLength = travel.distance;
+      final tangent = travelLength == 0
+          ? Offset.zero
+          : Offset(-travel.dy / travelLength, travel.dx / travelLength) *
+                (10 + particle.depth * 15);
+      final swirl =
+          Offset(
+            math.cos(faceAngle * 1.9) * (8 + particle.depth * 8),
+            math.sin(faceAngle * 1.9) * (8 + particle.depth * 8),
+          ) *
+          (1 - flow);
+      final position = _messageBezier(
+        source,
+        source + tangent + swirl,
+        target - tangent * .42 + swirl * .35,
+        target,
+        flow,
+      );
+      final color = switch ((cube.id + particle.index) % 4) {
+        0 => const Color(0xffb5f3ff),
+        1 => const Color(0xff85ffe1),
+        2 => const Color(0xff7ea8ff),
+        _ => const Color(0xff63d8ff),
+      };
+      final visible = _ease(_phase(transfer, 0, .35));
+      final alpha = (.35 + flow * .42) * visible;
+      final size = particle.size * (.8 + particle.depth * .32);
+      // Only a representative sixth receives blur; the majority remain
+      // inexpensive square/point material rather than a full-screen glow.
+      if ((cube.id + particle.index) % 6 == 0) {
+        canvas.drawCircle(
+          position,
+          size * 2.6,
+          _glow(color.withValues(alpha: alpha * .34), 3.2, 2.4),
+        );
+      }
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: position,
+          width: size * 1.7,
+          height: size * 1.7,
+        ),
+        _fill(color.withValues(alpha: alpha)),
+      );
+    }
   }
 
   SandboxProjectedPoint _messageProject(SandboxVec3 point, double elapsed) =>
@@ -1458,9 +1663,6 @@ class _SendSequencePainter extends CustomPainter {
 
   void _voxelIntegration(Canvas canvas, double t, double post) {
     final fragmentsEnd = sandboxPixelVoxelFragmentsEndMs(pixelBuilderFinale);
-    final constructionEnd = sandboxPixelVoxelConstructionEndMs(
-      pixelBuilderFinale,
-    );
     final elapsedMs =
         t * sandboxPixelVoxelCycle(pixelBuilderFinale).inMilliseconds;
     if (elapsedMs < fragmentsEnd) {
@@ -1479,7 +1681,12 @@ class _SendSequencePainter extends CustomPainter {
     final crystallize = _ease(_phase(local, 3700 / 6000, 4400 / 6000));
     final sourceMaterialize = _ease(_phase(local, 0, 280 / 6000));
     final lift = _ease(_phase(local, 4400 / 6000, 5000 / 6000));
-    final complete = elapsedMs >= constructionEnd;
+    // The controller uses the same ceiling boundary as the renderer. The
+    // explicit terminal-frame branch prevents a fractional end timestamp from
+    // suppressing completed rotation, label, and particle state.
+    final complete =
+        t >= 1 ||
+        sandboxPixelVoxelConstructionComplete(elapsedMs, pixelBuilderFinale);
     final yaw = complete ? post * 22 * math.pi / 180 : 0.0;
     final pitch = complete
         ? math.sin(post * 2 * math.pi / 3) * 6 * math.pi / 180
@@ -2432,6 +2639,7 @@ class _SendSequencePainter extends CustomPainter {
       oldDelegate.mode != mode ||
       oldDelegate.operation != operation ||
       oldDelegate.robotAppearance != robotAppearance ||
+      oldDelegate.pixelBuilderFinale != pixelBuilderFinale ||
       oldDelegate.progress != progress ||
       oldDelegate.completionElapsedSeconds != completionElapsedSeconds ||
       oldDelegate.reducedMotion != reducedMotion;
