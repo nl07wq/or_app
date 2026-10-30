@@ -34,27 +34,41 @@ const _cycle = Duration(milliseconds: 6000);
 // Pixel Builder deliberately has a relaxed, readable cadence. The first nine
 // cells use a conventional work cycle; the tenth owns a short final-act beat.
 const _pixelBuilderInitialMs = 300.0;
-const _pixelBuilderWorkScale = 1.6;
+const _pixelBuilderWorkScale = 1.5;
 const _pixelBuilderCycleMs = 430.0 / _pixelBuilderWorkScale;
 const _pixelBuilderHesitationMs = 650.0 / _pixelBuilderWorkScale;
 const _pixelBuilderHesitationStartMs =
     _pixelBuilderInitialMs + _pixelBuilderCycleMs * 6;
 const _pixelBuilderHesitationEndMs =
     _pixelBuilderHesitationStartMs + _pixelBuilderHesitationMs;
-const _pixelBuilderFinalActMs = 1050.0;
+const _pixelBuilderFallFinalActMs = 1050.0;
+const _pixelBuilderWalkInFinalActMs = 1350.0;
 const _pixelBuilderFinalActStartMs =
     _pixelBuilderInitialMs +
     _pixelBuilderCycleMs * 9 +
     _pixelBuilderHesitationMs;
-const _pixelBuilderLoadingEndMs =
-    _pixelBuilderFinalActStartMs + _pixelBuilderFinalActMs;
-const _pixelVoxelFragmentsEndMs = _pixelBuilderLoadingEndMs + 750.0;
-const _pixelVoxelConstructionStartMs = _pixelVoxelFragmentsEndMs;
-const _pixelVoxelConstructionEndMs = _pixelVoxelConstructionStartMs + 6000.0;
-const _pixelVoxelCycle = Duration(milliseconds: 10925);
 const _messageAssemblyCycle = Duration(milliseconds: 6500);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
+
+double sandboxPixelBuilderFinalActDurationMs(
+  SandboxPixelBuilderFinale finale,
+) => finale == SandboxPixelBuilderFinale.walkIn
+    ? _pixelBuilderWalkInFinalActMs
+    : _pixelBuilderFallFinalActMs;
+
+double sandboxPixelBuilderLoadingEndMs(SandboxPixelBuilderFinale finale) =>
+    _pixelBuilderFinalActStartMs +
+    sandboxPixelBuilderFinalActDurationMs(finale);
+
+double sandboxPixelVoxelFragmentsEndMs(SandboxPixelBuilderFinale finale) =>
+    sandboxPixelBuilderLoadingEndMs(finale) + 750.0;
+
+double sandboxPixelVoxelConstructionEndMs(SandboxPixelBuilderFinale finale) =>
+    sandboxPixelVoxelFragmentsEndMs(finale) + 6000.0;
+
+Duration sandboxPixelVoxelCycle(SandboxPixelBuilderFinale finale) =>
+    Duration(milliseconds: sandboxPixelVoxelConstructionEndMs(finale).round());
 
 class BootSendSequenceSandbox extends StatefulWidget {
   const BootSendSequenceSandbox({super.key});
@@ -118,7 +132,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
 
   Duration _durationFor(BootSendSequenceConcept concept) =>
       concept == BootSendSequenceConcept.voxelIntegration
-      ? _pixelVoxelCycle
+      ? sandboxPixelVoxelCycle(_pixelBuilderFinale)
       : concept == BootSendSequenceConcept.messageAssembly
       ? _messageAssemblyCycle
       : _cycle;
@@ -227,7 +241,10 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
                   ],
                   selected: {_pixelBuilderFinale},
                   onSelectionChanged: (value) {
-                    setState(() => _pixelBuilderFinale = value.first);
+                    setState(() {
+                      _pixelBuilderFinale = value.first;
+                      _controller.duration = _durationFor(_concept);
+                    });
                     _replay();
                   },
                 ),
@@ -556,7 +573,10 @@ SandboxPixelBuilderFinalAct sandboxPixelBuilderFinalAct(
 
 /// A segment permanently locks at the end of its final work cycle. This makes
 /// the visible 100% transition land exactly at 3825ms.
-int sandboxPixelBuilderFilledSegments(int elapsedMs) {
+int sandboxPixelBuilderFilledSegments(
+  int elapsedMs, {
+  SandboxPixelBuilderFinale finale = SandboxPixelBuilderFinale.fall,
+}) {
   var filled = 0;
   for (var index = 0; index < 9; index++) {
     if (elapsedMs >=
@@ -565,7 +585,7 @@ int sandboxPixelBuilderFilledSegments(int elapsedMs) {
     }
   }
   // The final module is completed by the falling robot, not another strike.
-  if (elapsedMs >= _pixelBuilderLoadingEndMs) filled++;
+  if (elapsedMs >= sandboxPixelBuilderLoadingEndMs(finale)) filled++;
   return filled;
 }
 
@@ -846,11 +866,17 @@ class _SendSequencePainter extends CustomPainter {
         : concept == BootSendSequenceConcept.voxelIntegration
         ? completed
               ? _voxelCompletionMessage(mode, operation)
-              : t < _pixelBuilderLoadingEndMs / _pixelVoxelCycle.inMilliseconds
+              : t <
+                    sandboxPixelBuilderLoadingEndMs(pixelBuilderFinale) /
+                        sandboxPixelVoxelCycle(
+                          pixelBuilderFinale,
+                        ).inMilliseconds
               ? 'PIXEL BUILD'
               : t <
-                    _pixelVoxelConstructionStartMs /
-                        _pixelVoxelCycle.inMilliseconds
+                    sandboxPixelVoxelFragmentsEndMs(pixelBuilderFinale) /
+                        sandboxPixelVoxelCycle(
+                          pixelBuilderFinale,
+                        ).inMilliseconds
               ? 'FRAGMENTING DATA'
               : 'VOXEL ASSEMBLY'
         : completed
@@ -1037,10 +1063,11 @@ class _SendSequencePainter extends CustomPainter {
       for (final transform in transforms) _messageProject(transform, elapsed),
     ];
     final impact = _messageImpactIntensity(elapsed);
-    // Network links stay dominant through connected convergence, then clear
-    // early enough for the same cuboids' glyph geometry to become legible.
-    final beamFade = 1 - _ease(_phase(elapsed, 4200, 4700));
-    final glyphLock = _ease(_phase(elapsed, 4100, 4700));
+    // The graph is an activation aid, not the subject. It recedes before
+    // glyph formation so the actual cuboids remain dominant.
+    final beamFade = 1 - _ease(_phase(elapsed, 2500, 3900));
+    final glyphScale = _ease(_phase(elapsed, 3300, 5600));
+    final glyphLock = _ease(_phase(elapsed, 4300, 5600));
 
     // The comet is intentionally the first major event, and targets cube 0.
     if (elapsed >= 350 && elapsed <= 1050) {
@@ -1077,37 +1104,49 @@ class _SendSequencePainter extends CustomPainter {
 
     // Beams precede faces so nearby cuboids still occlude background links.
     for (var edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
+      // A bounded third of the cached graph supplies readable, local energy
+      // links without turning the cloud into a persistent spiderweb.
+      if (edgeIndex % 3 != 0) continue;
       final edge = edges[edgeIndex];
       final pulse = _messageEdgePulse(elapsed, edge, edgeIndex);
-      if (pulse <= 0 || beamFade <= 0) continue;
+      final strength =
+          _messageEdgeStrength(elapsed, edge, edgeIndex) * beamFade;
+      if (pulse <= 0 || strength <= 0) continue;
       final from = projected[edge.a].offset;
       final to = projected[edge.b].offset;
-      final strength = pulse * beamFade;
       final head = Offset.lerp(from, to, pulse)!;
       canvas.drawLine(
         from,
         to,
-        _glow(const Color(0xff45eac6).withValues(alpha: strength * .28), 7, 6),
+        _glow(
+          const Color(0xff45eac6).withValues(alpha: strength * .12),
+          3,
+          2.5,
+        ),
       );
       canvas.drawLine(
         from,
         head,
-        _line(_cyan.withValues(alpha: strength * .88), 1.8),
+        _line(_cyan.withValues(alpha: strength * .42), 1),
       );
-      canvas.drawLine(from, head, _line(_ice.withValues(alpha: strength), .75));
+      canvas.drawLine(
+        from,
+        head,
+        _line(_ice.withValues(alpha: strength * .7), .4),
+      );
       canvas.drawCircle(
         head,
-        3.4,
-        _glow(_ice.withValues(alpha: strength), 3, 3),
+        2.2,
+        _glow(_ice.withValues(alpha: strength * .72), 2.2, 2),
       );
       if (pulse > .94) {
         canvas.drawCircle(
           to,
-          5,
+          3.2,
           _glow(
-            const Color(0xff85ffe1).withValues(alpha: strength * .65),
-            4,
-            3,
+            const Color(0xff85ffe1).withValues(alpha: strength * .4),
+            2.5,
+            2,
           ),
         );
       }
@@ -1121,7 +1160,7 @@ class _SendSequencePainter extends CustomPainter {
       // material. This keeps each block's identity while preventing an early
       // foreground cube from obscuring a completed letter.
       final glyphSize = 2.25 + (index % 3) * .18;
-      final renderSize = cube.size + (glyphSize - cube.size) * glyphLock;
+      final renderSize = cube.size + (glyphSize - cube.size) * glyphScale;
       final illumination = math.max(
         _messageNodeIllumination(elapsed, index),
         index == 0 ? impact : 0,
@@ -1134,7 +1173,14 @@ class _SendSequencePainter extends CustomPainter {
       final angle =
           (cube.spin + elapsed / 1000 * (.42 + (index % 3) * .12)) *
           (1 - glyphLock);
-      SandboxVec3 orient(SandboxVec3 point) => point
+      // Spin faces around their own cube center only. Rotating absolute
+      // coordinates here would make an already-arrived glyph cube orbit away
+      // from its target and visually postpone letter formation.
+      SandboxVec3 orientVertex(SandboxVec3 point) =>
+          (transform + (point - transform).rotateY(angle).rotateX(angle * .55))
+              .rotateY(_messageWorldYaw(elapsed))
+              .rotateX(_messageWorldPitch(elapsed));
+      SandboxVec3 orientNormal(SandboxVec3 normal) => normal
           .rotateY(angle)
           .rotateX(angle * .55)
           .rotateY(_messageWorldYaw(elapsed))
@@ -1142,8 +1188,8 @@ class _SendSequencePainter extends CustomPainter {
       for (final face in sandboxCubeFaces(transform, renderSize)) {
         faces.add(
           _RenderFace(
-            face.vertices.map(orient).toList(),
-            orient(face.normal),
+            face.vertices.map(orientVertex).toList(),
+            orientNormal(face.normal),
             base,
           ),
         );
@@ -1192,8 +1238,8 @@ class _SendSequencePainter extends CustomPainter {
         _fill(const Color(0xfff1ffff).withValues(alpha: impact)),
       );
     }
-    if (elapsed >= 4800) {
-      final wave = _phase(elapsed, 4800, 5100);
+    if (elapsed >= 5100) {
+      final wave = _phase(elapsed, 5100, 5600);
       canvas.drawLine(
         Offset(scene.left + scene.width * wave, scene.top),
         Offset(scene.left + scene.width * wave - 28, scene.bottom),
@@ -1209,10 +1255,18 @@ class _SendSequencePainter extends CustomPainter {
       math.cos(elapsed / 510 + cube.spin) * 2,
       math.sin(elapsed / 610 + cube.spin) * 3,
     );
-    final converge = _ease(
-      _phase(elapsed, 2100 + cube.delay * .5, 4400 + cube.delay * .1),
+    // Common rotation and contraction keep the cloud visibly connected. Each
+    // cube then receives a staggered attraction to its permanent glyph slot.
+    final rotation = _ease(_phase(elapsed, 2400, 4000));
+    final contraction = _ease(_phase(elapsed, 2700, 4400));
+    final attraction = _ease(
+      _phase(elapsed, 3000 + cube.delay * .25, 4500 + cube.delay * .1),
     );
-    return SandboxVec3.lerp(cube.start + drift, cube.target, converge);
+    final cloud = (cube.start + drift)
+        .rotateY(rotation * 85 * math.pi / 180)
+        .rotateX(-rotation * 15 * math.pi / 180);
+    final contracted = SandboxVec3.lerp(cloud, cloud * .34, contraction);
+    return SandboxVec3.lerp(contracted, cube.target, attraction);
   }
 
   SandboxProjectedPoint _messageProject(SandboxVec3 point, double elapsed) =>
@@ -1235,20 +1289,29 @@ class _SendSequencePainter extends CustomPainter {
     return _phase(elapsed, start, start + 190 + (index % 4) * 20);
   }
 
+  double _messageEdgeStrength(
+    double elapsed,
+    SandboxMessageNetworkEdge edge,
+    int index,
+  ) {
+    final start = 1120 + edge.wave * 260 + (index % 7) * 44.0;
+    final duration = 190 + (index % 4) * 20.0;
+    return 1 - _ease(_phase(elapsed, start + duration, start + duration + 420));
+  }
+
   double _messageNodeIllumination(double elapsed, int node) {
     final wave = (node * 17) % 3;
     return _messageImpactIntensity(elapsed) * (node == 0 ? 1 : 0) +
-        _phase(elapsed, 1150 + wave * 250, 1450 + wave * 250) * .55;
+        _phase(elapsed, 1150 + wave * 250, 1450 + wave * 250) * .38;
   }
 
   double _messageWorldYaw(double elapsed) {
-    final turn = _ease(_phase(elapsed, 2400, 3600));
-    final frontal = _ease(_phase(elapsed, 4200, 4600));
-    return (-25 + 85 * turn) * (1 - frontal) * math.pi / 180;
+    final frontal = _ease(_phase(elapsed, 3000, 4700));
+    return -25 * (1 - frontal) * math.pi / 180;
   }
 
   double _messageWorldPitch(double elapsed) =>
-      (18 - 18 * _ease(_phase(elapsed, 2400, 4600))) * math.pi / 180;
+      (18 - 18 * _ease(_phase(elapsed, 3000, 4700))) * math.pi / 180;
 
   void _assemblyMatrix(Canvas canvas, double t, double post) {
     const process = Offset(180, 140);
@@ -1394,25 +1457,29 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _voxelIntegration(Canvas canvas, double t, double post) {
-    final elapsedMs = t * _pixelVoxelCycle.inMilliseconds;
-    if (elapsedMs < _pixelVoxelConstructionStartMs) {
+    final fragmentsEnd = sandboxPixelVoxelFragmentsEndMs(pixelBuilderFinale);
+    final constructionEnd = sandboxPixelVoxelConstructionEndMs(
+      pixelBuilderFinale,
+    );
+    final elapsedMs =
+        t * sandboxPixelVoxelCycle(pixelBuilderFinale).inMilliseconds;
+    if (elapsedMs < fragmentsEnd) {
       _pixelBuilder(canvas, elapsedMs);
       return;
     }
 
     // Pixel fragments end at exactly the V3.2 source coordinates.  The
     // original 6000ms voxel construction then starts without acceleration.
-    final local =
-        ((elapsedMs - _pixelVoxelConstructionStartMs) / _cycle.inMilliseconds)
-            .clamp(0, 1)
-            .toDouble();
+    final local = ((elapsedMs - fragmentsEnd) / _cycle.inMilliseconds)
+        .clamp(0, 1)
+        .toDouble();
     const sceneCenter = Offset(181, 143);
     final projection = SandboxProjection(sceneCenter);
     final centers = sandboxVoxelCenters();
     final crystallize = _ease(_phase(local, 3700 / 6000, 4400 / 6000));
     final sourceMaterialize = _ease(_phase(local, 0, 280 / 6000));
     final lift = _ease(_phase(local, 4400 / 6000, 5000 / 6000));
-    final complete = elapsedMs >= _pixelVoxelConstructionEndMs;
+    final complete = elapsedMs >= constructionEnd;
     final yaw = complete ? post * 22 * math.pi / 180 : 0.0;
     final pitch = complete
         ? math.sin(post * 2 * math.pi / 3) * 6 * math.pi / 180
@@ -1490,13 +1557,13 @@ class _SendSequencePainter extends CustomPainter {
 
   void _pixelBuilder(Canvas canvas, double elapsedMs) {
     const barY = 158.0;
+    final loadingEnd = sandboxPixelBuilderLoadingEndMs(pixelBuilderFinale);
     final visible = _phase(elapsedMs, 0, _pixelBuilderInitialMs);
-    final fragmentation = _phase(
-      elapsedMs,
-      _pixelBuilderLoadingEndMs,
-      _pixelBuilderLoadingEndMs + 200,
+    final fragmentation = _phase(elapsedMs, loadingEnd, loadingEnd + 200);
+    final filled = sandboxPixelBuilderFilledSegments(
+      elapsedMs.round(),
+      finale: pixelBuilderFinale,
     );
-    final filled = sandboxPixelBuilderFilledSegments(elapsedMs.round());
     _center(
       canvas,
       'PIXEL BUILDER',
@@ -1508,8 +1575,7 @@ class _SendSequencePainter extends CustomPainter {
       final rect = sandboxPixelBuilderSegmentRect(index);
       final local = _pixelBuilderLocalMs(elapsedMs, index);
       final active = index == 9
-          ? elapsedMs >= _pixelBuilderFinalActStartMs &&
-                elapsedMs < _pixelBuilderLoadingEndMs
+          ? elapsedMs >= _pixelBuilderFinalActStartMs && elapsedMs < loadingEnd
           : elapsedMs >= sandboxPixelBuilderCycleStartMs(index) &&
                 elapsedMs <
                     sandboxPixelBuilderCycleStartMs(index) +
@@ -1543,21 +1609,16 @@ class _SendSequencePainter extends CustomPainter {
       8,
       _ice,
     );
-    if (elapsedMs < _pixelBuilderLoadingEndMs) {
+    if (elapsedMs < loadingEnd) {
       _pixelBuilderRobot(canvas, elapsedMs, visible);
     }
-    if (elapsedMs >= _pixelBuilderLoadingEndMs) {
+    if (elapsedMs >= loadingEnd) {
       _pixelFragments(canvas, elapsedMs);
     }
     // A small synchronized confirmation once the robot has become the final
     // module. It fades before the physical data-fragment handoff begins.
-    if (elapsedMs >= _pixelBuilderLoadingEndMs - 160 &&
-        elapsedMs < _pixelBuilderLoadingEndMs) {
-      final alpha = _phase(
-        elapsedMs,
-        _pixelBuilderLoadingEndMs - 160,
-        _pixelBuilderLoadingEndMs,
-      );
+    if (elapsedMs >= loadingEnd - 160 && elapsedMs < loadingEnd) {
+      final alpha = _phase(elapsedMs, loadingEnd - 160, loadingEnd);
       canvas.drawLine(
         const Offset(56, barY - 2),
         const Offset(274, barY - 2),
@@ -1665,10 +1726,13 @@ class _SendSequencePainter extends CustomPainter {
       finale: pixelBuilderFinale,
     );
     final walkIn = pixelBuilderFinale == SandboxPixelBuilderFinale.walkIn;
+    final finalActDuration = sandboxPixelBuilderFinalActDurationMs(
+      pixelBuilderFinale,
+    );
     final walk = _ease(_phase(local, 300, walkIn ? 770 : 590));
     final wobble = _phase(local, 590, 770);
     final fall = _ease(_phase(local, 770, 950));
-    final settle = _phase(local, 950, _pixelBuilderFinalActMs);
+    final settle = _phase(local, 950, finalActDuration);
     final previousCenterX = last.center.dx - 22;
     final walkingCenterX =
         previousCenterX + (last.center.dx - previousCenterX) * walk;
@@ -1733,7 +1797,7 @@ class _SendSequencePainter extends CustomPainter {
       _pixelSparks(canvas, Offset(last.center.dx, last.top), alpha * .35);
     }
     final faceOpacity = walkIn
-        ? _phase(local, 800, 850) * (1 - _phase(local, 900, 1050))
+        ? _phase(local, 870, 900) * (1 - _phase(local, 1180, 1350))
         : 0.0;
     if (faceOpacity > 0) {
       // The same authoritative segment rect contains the compressed robot
@@ -1758,7 +1822,7 @@ class _SendSequencePainter extends CustomPainter {
         );
       }
     }
-    final cellProgress = walkIn ? _phase(local, 900, 1050) : settle;
+    final cellProgress = walkIn ? _phase(local, 1180, 1350) : settle;
     if (cellProgress > 0) {
       // Match the bar's existing full cell dimensions, center, and border.
       // The compacting robot fades only as this exact gauge cell appears.
@@ -1774,12 +1838,14 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   double _walkInEyeOffset(double local) {
-    if (local < 855) return 0;
-    if (local < 900) return -1.8 * _ease(_phase(local, 855, 900));
-    if (local < 945) {
-      return -1.8 + 3.6 * _ease(_phase(local, 900, 945));
+    if (local < 940) return 0;
+    if (local < 980) return -1.8 * _ease(_phase(local, 940, 980));
+    if (local < 1030) return -1.8;
+    if (local < 1090) {
+      return -1.8 + 3.6 * _ease(_phase(local, 1030, 1090));
     }
-    if (local < 975) return 1.8 * (1 - _ease(_phase(local, 945, 975)));
+    if (local < 1140) return 1.8;
+    if (local < 1180) return 1.8 * (1 - _ease(_phase(local, 1140, 1180)));
     return 0;
   }
 
@@ -1954,18 +2020,10 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   void _pixelFragments(Canvas canvas, double elapsedMs) {
-    final detach = _phase(
-      elapsedMs,
-      _pixelBuilderLoadingEndMs,
-      _pixelBuilderLoadingEndMs + 200,
-    );
-    final scatter = _ease(
-      _phase(
-        elapsedMs,
-        _pixelBuilderLoadingEndMs + 200,
-        _pixelVoxelFragmentsEndMs,
-      ),
-    );
+    final loadingEnd = sandboxPixelBuilderLoadingEndMs(pixelBuilderFinale);
+    final fragmentsEnd = sandboxPixelVoxelFragmentsEndMs(pixelBuilderFinale);
+    final detach = _phase(elapsedMs, loadingEnd, loadingEnd + 200);
+    final scatter = _ease(_phase(elapsedMs, loadingEnd + 200, fragmentsEnd));
     final projection = const SandboxProjection(Offset(181, 143));
     for (var index = 0; index < sandboxPixelFragmentCount; index++) {
       final source = sandboxPixelFragmentSource(index);

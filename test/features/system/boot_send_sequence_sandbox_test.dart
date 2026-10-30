@@ -42,35 +42,43 @@ void main() {
     );
   });
 
-  test('pixel builder scales the nine-cell work timeline by 1.6x', () {
+  test('pixel builder scales the nine-cell work timeline by 1.5x', () {
     expect(sandboxPixelBuilderFilledSegments(0), 0);
     expect(sandboxPixelBuilderFilledSegments(249), 0);
-    expect(sandboxPixelBuilderFilledSegments(568), 0);
-    expect(sandboxPixelBuilderFilledSegments(570), 1);
-    expect(sandboxPixelBuilderFilledSegments(1913), 6);
+    expect(sandboxPixelBuilderFilledSegments(586), 0);
+    expect(sandboxPixelBuilderFilledSegments(587), 1);
+    expect(sandboxPixelBuilderFilledSegments(2021), 6);
     expect(sandboxPixelBuilderFilledSegments(2200), 6);
     // The last cell is supplied by the robot's fall, after its readable
     // final-act pause rather than a tenth rapid tool cycle.
-    expect(sandboxPixelBuilderFilledSegments(4174), 9);
-    expect(sandboxPixelBuilderFilledSegments(4175), 10);
+    expect(sandboxPixelBuilderFilledSegments(4362), 9);
+    expect(sandboxPixelBuilderFilledSegments(4364), 10);
     expect(
-      sandboxPixelBuilderFinalAct(3125),
+      sandboxPixelBuilderFinalAct(3313),
       SandboxPixelBuilderFinalAct.looking,
     );
     expect(
-      sandboxPixelBuilderFinalAct(3500),
+      sandboxPixelBuilderFinalAct(3700),
       SandboxPixelBuilderFinalAct.walking,
     );
     expect(
-      sandboxPixelBuilderFinalAct(3725),
+      sandboxPixelBuilderFinalAct(3950),
       SandboxPixelBuilderFinalAct.wobbling,
     );
     expect(
-      sandboxPixelBuilderFinalAct(3975),
+      sandboxPixelBuilderFinalAct(4250),
       SandboxPixelBuilderFinalAct.falling,
     );
-    expect(sandboxPixelBuilderFinalAct(4175), SandboxPixelBuilderFinalAct.cell);
-    expect(sandboxPixelBuilderCycleStartMs(6), closeTo(2318.75, .01));
+    expect(sandboxPixelBuilderFinalAct(4364), SandboxPixelBuilderFinalAct.cell);
+    expect(sandboxPixelBuilderCycleStartMs(6), closeTo(2453.33, .01));
+    expect(
+      sandboxPixelBuilderFinalActDurationMs(SandboxPixelBuilderFinale.walkIn),
+      1350,
+    );
+    expect(
+      sandboxPixelVoxelCycle(SandboxPixelBuilderFinale.walkIn).inMilliseconds,
+      11413,
+    );
     expect(sandboxPixelBuilderStrikeCount(0), 2);
     expect(sandboxPixelBuilderStrikeCount(2), 3);
     expect(sandboxPixelBuilderStrikeCount(5), 3);
@@ -103,14 +111,14 @@ void main() {
     () {
       expect(
         sandboxPixelBuilderFinalAct(
-          3500,
+          3700,
           finale: SandboxPixelBuilderFinale.walkIn,
         ),
         SandboxPixelBuilderFinalAct.walking,
       );
       expect(
         sandboxPixelBuilderFinalAct(
-          4000,
+          4150,
           finale: SandboxPixelBuilderFinale.walkIn,
         ),
         SandboxPixelBuilderFinalAct.cell,
@@ -429,7 +437,13 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('ARK'));
       await tester.pump();
-      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 10925);
+      await _pumpTimeline(
+        tester,
+        milliseconds,
+        totalMilliseconds: sandboxPixelVoxelCycle(
+          SandboxPixelBuilderFinale.fall,
+        ).inMilliseconds,
+      );
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile('goldens/boot_send_voxel_ark_${milliseconds}ms.png'),
@@ -453,7 +467,11 @@ void main() {
           await tester.tap(find.text('WALK-IN'));
           await tester.pump();
         }
-        await _pumpTimeline(tester, 4000, totalMilliseconds: 10925);
+        await _pumpTimeline(
+          tester,
+          finale == SandboxPixelBuilderFinale.walkIn ? 4500 : 4000,
+          totalMilliseconds: sandboxPixelVoxelCycle(finale).inMilliseconds,
+        );
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),
           matchesGoldenFile(
@@ -464,7 +482,7 @@ void main() {
     }
   }
 
-  for (final localMilliseconds in [830, 875, 920, 960, 1040]) {
+  for (final localMilliseconds in [930, 990, 1110, 1160, 1300]) {
     testWidgets('walk-in face tile ${localMilliseconds}ms golden', (
       tester,
     ) async {
@@ -475,8 +493,10 @@ void main() {
       await tester.pump();
       await _pumpTimeline(
         tester,
-        3125 + localMilliseconds,
-        totalMilliseconds: 10925,
+        3313 + localMilliseconds,
+        totalMilliseconds: sandboxPixelVoxelCycle(
+          SandboxPixelBuilderFinale.walkIn,
+        ).inMilliseconds,
       );
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
@@ -494,7 +514,13 @@ void main() {
       await tester.pump();
       await tester.tap(find.text(mode));
       await tester.pump();
-      await _pumpTimeline(tester, 12125, totalMilliseconds: 10925);
+      await _pumpTimeline(
+        tester,
+        12125,
+        totalMilliseconds: sandboxPixelVoxelCycle(
+          SandboxPixelBuilderFinale.fall,
+        ).inMilliseconds,
+      );
       await expectLater(
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile(
@@ -504,17 +530,7 @@ void main() {
     });
   }
 
-  for (final milliseconds in [
-    500,
-    950,
-    1600,
-    2200,
-    3200,
-    4000,
-    4600,
-    5200,
-    6500,
-  ]) {
+  for (final milliseconds in [1500, 2800, 3600, 4200, 4600, 5000, 5500, 6500]) {
     testWidgets('message assembly BRIEF ${milliseconds}ms golden', (
       tester,
     ) async {
@@ -572,7 +588,9 @@ void main() {
           ? const [0, 900, 2500, 4300, 4800, 6500]
           : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
       final total = concept == BootSendSequenceConcept.voxelIntegration
-          ? 10925
+          ? sandboxPixelVoxelCycle(
+              SandboxPixelBuilderFinale.fall,
+            ).inMilliseconds
           : concept == BootSendSequenceConcept.messageAssembly
           ? 6500
           : 6000;
