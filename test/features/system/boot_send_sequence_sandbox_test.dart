@@ -129,7 +129,7 @@ void main() {
       expect(targets, sandboxMessageAssemblyTargets(mode));
       expect(
         targets.every(
-          (point) => const Rect.fromLTWH(24, 105, 312, 69).contains(point),
+          (point) => const Rect.fromLTWH(24, 110, 312, 60).contains(point),
         ),
         isTrue,
       );
@@ -137,6 +137,16 @@ void main() {
     expect(sandboxMessageAssemblyMessage('BRIEF'), 'BRIEF RECEIVED');
     expect(sandboxMessageAssemblyMessage('DEBRIEF'), 'DEBRIEF RECEIVED');
     expect(sandboxMessageAssemblyMessage('BACKUP'), 'BACKUP COMPLETE');
+  });
+
+  test('message assembly keeps deterministic 3D cube material identities', () {
+    final cubes = sandboxMessageCubes('DEBRIEF');
+    expect(cubes, isNotEmpty);
+    expect(cubes, sandboxMessageCubes('DEBRIEF'));
+    expect(cubes.map((cube) => cube.id).toSet(), hasLength(cubes.length));
+    expect(cubes.take(16).every((cube) => cube.size >= 10), isTrue);
+    expect(cubes.every((cube) => cube.size > 0), isTrue);
+    expect(cubes.map((cube) => cube.target).toSet(), hasLength(cubes.length));
   });
 
   test(
@@ -454,20 +464,28 @@ void main() {
     }
   }
 
-  testWidgets('walk-in face tile fades into the final cyan cell golden', (
-    tester,
-  ) async {
-    await _pumpSandbox(tester);
-    await tester.tap(find.text('VOXEL INTEGRATION'));
-    await tester.pump();
-    await tester.tap(find.text('WALK-IN'));
-    await tester.pump();
-    await _pumpTimeline(tester, 4125, totalMilliseconds: 10925);
-    await expectLater(
-      find.byKey(const ValueKey('boot-send-sequence-monitor')),
-      matchesGoldenFile('goldens/pixel_finale_walk_in_face_to_fill.png'),
-    );
-  });
+  for (final localMilliseconds in [830, 875, 920, 960, 1040]) {
+    testWidgets('walk-in face tile ${localMilliseconds}ms golden', (
+      tester,
+    ) async {
+      await _pumpSandbox(tester);
+      await tester.tap(find.text('VOXEL INTEGRATION'));
+      await tester.pump();
+      await tester.tap(find.text('WALK-IN'));
+      await tester.pump();
+      await _pumpTimeline(
+        tester,
+        3125 + localMilliseconds,
+        totalMilliseconds: 10925,
+      );
+      await expectLater(
+        find.byKey(const ValueKey('boot-send-sequence-monitor')),
+        matchesGoldenFile(
+          'goldens/pixel_finale_walk_in_${localMilliseconds}ms.png',
+        ),
+      );
+    });
+  }
 
   for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
     testWidgets('$mode completion icon golden', (tester) async {
@@ -486,7 +504,17 @@ void main() {
     });
   }
 
-  for (final milliseconds in [500, 1400, 1900, 3000, 3900, 4600, 5500]) {
+  for (final milliseconds in [
+    500,
+    950,
+    1600,
+    2200,
+    3200,
+    4000,
+    4600,
+    5200,
+    6500,
+  ]) {
     testWidgets('message assembly BRIEF ${milliseconds}ms golden', (
       tester,
     ) async {

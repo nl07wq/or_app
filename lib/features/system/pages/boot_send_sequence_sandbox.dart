@@ -333,7 +333,7 @@ const _messageGlyphs = <String, List<String>>{
 List<Offset> sandboxMessageAssemblyTargets(String mode) {
   final text = sandboxMessageAssemblyMessage(mode);
   final columns = text.length * 6 - 1;
-  const bounds = Rect.fromLTWH(24, 105, 312, 69);
+  const bounds = Rect.fromLTWH(24, 110, 312, 60);
   final step = math.min(bounds.width / columns, bounds.height / 7);
   final width = columns * step;
   final left = bounds.center.dx - width / 2;
@@ -357,6 +357,61 @@ List<Offset> sandboxMessageAssemblyTargets(String mode) {
   }
   return targets;
 }
+
+/// A stable three-dimensional descriptor for the MESSAGE ASSEMBLY material.
+/// These cubes are the same objects throughout impact, propagation, and text
+/// formation; the renderer never swaps in a separate text or particle set.
+class SandboxMessageCube {
+  const SandboxMessageCube({
+    required this.id,
+    required this.start,
+    required this.target,
+    required this.size,
+    required this.spin,
+    required this.delay,
+  });
+
+  final int id;
+  final SandboxVec3 start;
+  final SandboxVec3 target;
+  final double size;
+  final double spin;
+  final double delay;
+}
+
+final _messageCubeCache = <String, List<SandboxMessageCube>>{};
+
+List<SandboxMessageCube> sandboxMessageCubes(String mode) =>
+    _messageCubeCache.putIfAbsent(mode, () {
+      final targets = sandboxMessageAssemblyTargets(mode);
+      return List<SandboxMessageCube>.unmodifiable([
+        for (var index = 0; index < targets.length; index++)
+          SandboxMessageCube(
+            id: index,
+            // The first large cube is deliberately placed at the comet impact
+            // position when the close camera is active.
+            start: index == 0
+                ? const SandboxVec3(-18, -8, 22)
+                : SandboxVec3(
+                    math.sin(index * 2.39996) * (78 + index % 5 * 16),
+                    math.cos(index * 1.713) * (45 + index % 4 * 13),
+                    -58 + ((index * 37) % 132).toDouble(),
+                  ),
+            target: SandboxVec3(
+              (targets[index].dx - 180) / .775,
+              (140 - targets[index].dy) / .775,
+              (index % 3 - 1) * 1.25,
+            ),
+            size: index < 16
+                ? 10 + (index % 4) * 2
+                : index < 62
+                ? 5 + (index % 3)
+                : 2.2 + (index % 3) * .45,
+            spin: (index * 1.137).remainder(math.pi * 2),
+            delay: (index % 18) * 19.0,
+          ),
+      ]);
+    });
 
 /// Immutable graph data is calculated once per message. It is shared by paint
 /// and tests, so replay cannot invent a new network or depend on frame rate.
@@ -966,144 +1021,234 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   /// A fourth, independent scene. Its typography is made exclusively from
-  /// deterministic square data blocks rather than a Text fade-in.
+  /// deterministic 3D data cubes rather than a Text fade-in.
   void _messageAssembly(Canvas canvas, double t) {
     final elapsed = t * _messageAssemblyCycle.inMilliseconds;
     final modeName = _modeName(mode);
-    final targets = sandboxMessageAssemblyTargets(modeName);
+    final cubes = sandboxMessageCubes(modeName);
     final edges = sandboxMessageNetworkEdges(modeName);
-    const scene = Rect.fromLTWH(24, 105, 312, 69);
-    final dispersed = _phase(elapsed, 0, 1000);
-    final lock = _phase(elapsed, 4200, 4800);
-    final settle = _phase(elapsed, 4200, 4800);
-    final positions = <Offset>[];
-    final depths = <double>[];
-    for (var index = 0; index < targets.length; index++) {
-      final target = targets[index];
-      final seed = index * 12.9898 + 78.233;
-      final start = _messageBlockStart(modeName, index);
-      final depth = .55 + ((index * 17) % 47) / 100;
-      final delay = 2300 + (index % 29) * 38.0;
-      final arrive = _ease(_phase(elapsed, delay, 4200 + (index % 7) * 45));
-      final control = Offset(
-        (start.dx + target.dx) / 2 + math.sin(seed * .37) * 18,
-        (start.dy + target.dy) / 2 - 17 - (index % 5) * 3,
+    const scene = Rect.fromLTWH(14, 72, 332, 128);
+    canvas.save();
+    canvas.clipRect(scene);
+    final transforms = [
+      for (final cube in cubes) _messageCubeTransform(cube, elapsed),
+    ];
+    final projected = [
+      for (final transform in transforms) _messageProject(transform, elapsed),
+    ];
+    final impact = _messageImpactIntensity(elapsed);
+    // Network links stay dominant through connected convergence, then clear
+    // early enough for the same cuboids' glyph geometry to become legible.
+    final beamFade = 1 - _ease(_phase(elapsed, 4200, 4700));
+    final glyphLock = _ease(_phase(elapsed, 4100, 4700));
+
+    // The comet is intentionally the first major event, and targets cube 0.
+    if (elapsed >= 350 && elapsed <= 1050) {
+      final comet = Offset.lerp(
+        const Offset(380, 78),
+        projected.first.offset,
+        _ease(_phase(elapsed, 350, 850)),
+      )!;
+      canvas.drawLine(
+        Offset(comet.dx + 42, comet.dy - 16),
+        comet,
+        _glow(const Color(0xff63f4d4).withValues(alpha: .55), 8, 5),
       );
-      final position = elapsed < 1000
-          ? Offset(
-              start.dx +
-                  math.sin(elapsed / 260 + seed) * 3.2 * dispersed * depth,
-              start.dy +
-                  math.cos(elapsed / 310 + seed) * 2.4 * dispersed * depth,
-            )
-          : Offset.lerp(
-              _quadratic(start, control, target, arrive),
-              target,
-              settle,
-            )!;
-      positions.add(position);
-      depths.add(depth);
+      canvas.drawCircle(comet, 5 + impact * 8, _glow(_ice, 5, 4));
+      canvas.drawCircle(comet, 2.8, _fill(const Color(0xfff1ffff)));
+    }
+    if (impact > 0) {
+      final point = projected.first.offset;
+      for (var ray = 0; ray < 9; ray++) {
+        final angle = ray * math.pi * 2 / 9 + .17;
+        final length = 14 + impact * 38;
+        canvas.drawLine(
+          point,
+          point + Offset(math.cos(angle) * length, math.sin(angle) * length),
+          _glow(const Color(0xff85ffe1).withValues(alpha: impact * .34), 4, 2),
+        );
+      }
+      canvas.drawCircle(
+        point,
+        14 + impact * 20,
+        _glow(_ice.withValues(alpha: impact * .55), 9, 6),
+      );
     }
 
-    // The graph is first visible for the full 1000-2300ms activation phase,
-    // then follows those exact same block endpoints during convergence.
+    // Beams precede faces so nearby cuboids still occlude background links.
     for (var edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
       final edge = edges[edgeIndex];
-      final activation = 1000 + edge.wave * 310 + (edgeIndex % 8) * 62.0;
-      final propagation = _phase(elapsed, activation, activation + 430);
-      final fade = 1 - _phase(elapsed, 4200, 4800);
-      if (propagation <= 0 || fade <= 0) continue;
-      final from = positions[edge.a];
-      final to = positions[edge.b];
-      final depth = (depths[edge.a] + depths[edge.b]) / 2;
-      final dim = propagation * fade * (.38 + depth * .34);
-      final front = Offset.lerp(from, to, propagation)!;
+      final pulse = _messageEdgePulse(elapsed, edge, edgeIndex);
+      if (pulse <= 0 || beamFade <= 0) continue;
+      final from = projected[edge.a].offset;
+      final to = projected[edge.b].offset;
+      final strength = pulse * beamFade;
+      final head = Offset.lerp(from, to, pulse)!;
       canvas.drawLine(
         from,
         to,
-        _glow(_cyan.withValues(alpha: dim * .32), 5.5, 5.5),
+        _glow(const Color(0xff45eac6).withValues(alpha: strength * .28), 7, 6),
       );
-      canvas.drawLine(from, front, _line(_cyan.withValues(alpha: dim), 1.55));
       canvas.drawLine(
         from,
-        front,
-        _line(_ice.withValues(alpha: dim * .92), .65),
+        head,
+        _line(_cyan.withValues(alpha: strength * .88), 1.8),
       );
+      canvas.drawLine(from, head, _line(_ice.withValues(alpha: strength), .75));
       canvas.drawCircle(
-        front,
-        2.2 + depth,
-        _glow(_ice.withValues(alpha: dim * .8), 2.5, 2.5),
+        head,
+        3.4,
+        _glow(_ice.withValues(alpha: strength), 3, 3),
       );
-      if (propagation > .88) {
+      if (pulse > .94) {
         canvas.drawCircle(
           to,
-          2.8 + depth,
-          _glow(_ice.withValues(alpha: (propagation - .88) * 2.3 * fade), 3),
+          5,
+          _glow(
+            const Color(0xff85ffe1).withValues(alpha: strength * .65),
+            4,
+            3,
+          ),
         );
       }
     }
 
-    for (var index = 0; index < targets.length; index++) {
-      final target = targets[index];
-      final seed = index * 12.9898 + 78.233;
-      final start = _messageBlockStart(modeName, index);
-      final delay = 2300 + (index % 29) * 38.0;
-      final arrive = _ease(_phase(elapsed, delay, 4200 + (index % 7) * 45));
-      final position = positions[index];
-      final color = switch (index % 5) {
+    final faces = <_RenderFace>[];
+    for (var index = 0; index < cubes.length; index++) {
+      final cube = cubes[index];
+      final transform = transforms[index];
+      // Large cinematic nodes continuously resolve into fine, uniform glyph
+      // material. This keeps each block's identity while preventing an early
+      // foreground cube from obscuring a completed letter.
+      final glyphSize = 2.25 + (index % 3) * .18;
+      final renderSize = cube.size + (glyphSize - cube.size) * glyphLock;
+      final illumination = math.max(
+        _messageNodeIllumination(elapsed, index),
+        index == 0 ? impact : 0,
+      );
+      final base = switch (index % 4) {
         0 => const Color(0xffb5f3ff),
         1 => const Color(0xff7ea8ff),
         _ => const Color(0xff63d8ff),
-      };
-      final size = (2.1 + (index % 3) * .45) * depths[index];
-      if (arrive > 0 && arrive < 1) {
-        final control = Offset(
-          (start.dx + target.dx) / 2 + math.sin(seed * .37) * 18,
-          (start.dy + target.dy) / 2 - 17 - (index % 5) * 3,
-        );
-        final trail = _quadratic(
-          start,
-          control,
-          target,
-          math.max(0, arrive - .09),
-        );
-        canvas.drawLine(
-          trail,
-          position,
-          _glow(color.withValues(alpha: .18 * (1 - arrive)), 2.2, 1),
-        );
-      }
-      canvas.drawRect(
-        Rect.fromCenter(center: position, width: size, height: size),
-        _fill(color.withValues(alpha: .55 + arrive * .35)),
-      );
-      if (arrive > .7 || lock > 0) {
-        canvas.drawRect(
-          Rect.fromCenter(
-            center: position,
-            width: size + .7,
-            height: size + .7,
+      }.withValues(alpha: .72 + illumination * .23);
+      final angle =
+          (cube.spin + elapsed / 1000 * (.42 + (index % 3) * .12)) *
+          (1 - glyphLock);
+      SandboxVec3 orient(SandboxVec3 point) => point
+          .rotateY(angle)
+          .rotateX(angle * .55)
+          .rotateY(_messageWorldYaw(elapsed))
+          .rotateX(_messageWorldPitch(elapsed));
+      for (final face in sandboxCubeFaces(transform, renderSize)) {
+        faces.add(
+          _RenderFace(
+            face.vertices.map(orient).toList(),
+            orient(face.normal),
+            base,
           ),
-          _glow(color.withValues(alpha: .18 + lock * .16), 2),
+        );
+      }
+      if (illumination > .2) {
+        canvas.drawCircle(
+          projected[index].offset,
+          4 + renderSize * .20,
+          _glow(base.withValues(alpha: illumination * .25), 4, 3),
         );
       }
     }
-    if (lock > 0) {
-      final sweep = scene.left + scene.width * lock;
-      canvas.drawLine(
-        Offset(sweep, scene.top),
-        Offset(sweep - 26, scene.bottom),
-        _glow(_ice.withValues(alpha: .18 * (1 - lock)), 3, 1.2),
+    _paint3dFaces(
+      canvas,
+      _MessageProjection(elapsed),
+      faces,
+      border: _ice.withValues(alpha: .68),
+    );
+    // Keep a compact foreground specular flash at the actual struck node.
+    // The radial bloom above is correctly behind the opaque cube faces; this
+    // small overlay keeps the impact legible at native phone scale.
+    if (impact > 0) {
+      final point = projected.first.offset;
+      for (var ray = 0; ray < 6; ray++) {
+        final angle = ray * math.pi * 2 / 6 + .31;
+        final end =
+            point +
+            Offset(
+              math.cos(angle) * (7 + impact * 18),
+              math.sin(angle) * (7 + impact * 18),
+            );
+        canvas.drawLine(
+          point,
+          end,
+          _line(_ice.withValues(alpha: impact * .58), .8),
+        );
+      }
+      canvas.drawCircle(
+        point,
+        3 + impact * 7,
+        _glow(_ice.withValues(alpha: impact * .82), 6, 4),
+      );
+      canvas.drawCircle(
+        point,
+        1.6 + impact * 1.4,
+        _fill(const Color(0xfff1ffff).withValues(alpha: impact)),
       );
     }
+    if (elapsed >= 4800) {
+      final wave = _phase(elapsed, 4800, 5100);
+      canvas.drawLine(
+        Offset(scene.left + scene.width * wave, scene.top),
+        Offset(scene.left + scene.width * wave - 28, scene.bottom),
+        _glow(_ice.withValues(alpha: .22 * (1 - wave)), 4, 1.4),
+      );
+    }
+    canvas.restore();
   }
 
-  Offset _quadratic(Offset start, Offset control, Offset end, double value) {
-    final inverse = 1 - value;
-    return start * (inverse * inverse) +
-        control * (2 * inverse * value) +
-        end * (value * value);
+  SandboxVec3 _messageCubeTransform(SandboxMessageCube cube, double elapsed) {
+    final drift = SandboxVec3(
+      math.sin(elapsed / 430 + cube.spin) * 3,
+      math.cos(elapsed / 510 + cube.spin) * 2,
+      math.sin(elapsed / 610 + cube.spin) * 3,
+    );
+    final converge = _ease(
+      _phase(elapsed, 2100 + cube.delay * .5, 4400 + cube.delay * .1),
+    );
+    return SandboxVec3.lerp(cube.start + drift, cube.target, converge);
   }
+
+  SandboxProjectedPoint _messageProject(SandboxVec3 point, double elapsed) =>
+      _MessageProjection(elapsed).project(
+        point
+            .rotateY(_messageWorldYaw(elapsed))
+            .rotateX(_messageWorldPitch(elapsed)),
+      );
+
+  double _messageImpactIntensity(double elapsed) =>
+      _ease(_phase(elapsed, 850, 930)) *
+      (1 - _ease(_phase(elapsed, 1080, 1300)));
+
+  double _messageEdgePulse(
+    double elapsed,
+    SandboxMessageNetworkEdge edge,
+    int index,
+  ) {
+    final start = 1120 + edge.wave * 260 + (index % 7) * 44.0;
+    return _phase(elapsed, start, start + 190 + (index % 4) * 20);
+  }
+
+  double _messageNodeIllumination(double elapsed, int node) {
+    final wave = (node * 17) % 3;
+    return _messageImpactIntensity(elapsed) * (node == 0 ? 1 : 0) +
+        _phase(elapsed, 1150 + wave * 250, 1450 + wave * 250) * .55;
+  }
+
+  double _messageWorldYaw(double elapsed) {
+    final turn = _ease(_phase(elapsed, 2400, 3600));
+    final frontal = _ease(_phase(elapsed, 4200, 4600));
+    return (-25 + 85 * turn) * (1 - frontal) * math.pi / 180;
+  }
+
+  double _messageWorldPitch(double elapsed) =>
+      (18 - 18 * _ease(_phase(elapsed, 2400, 4600))) * math.pi / 180;
 
   void _assemblyMatrix(Canvas canvas, double t, double post) {
     const process = Offset(180, 140);
@@ -1601,10 +1746,11 @@ class _SendSequencePainter extends CustomPainter {
         last,
         _line(const Color(0xffbff6ff).withValues(alpha: faceOpacity), .8),
       );
+      final eyeOffset = _walkInEyeOffset(local);
       for (final dx in [-3.2, 3.2]) {
         canvas.drawRect(
           Rect.fromCenter(
-            center: Offset(last.center.dx + dx, last.center.dy),
+            center: Offset(last.center.dx + dx + eyeOffset, last.center.dy),
             width: 2.1,
             height: 2.1,
           ),
@@ -1625,6 +1771,16 @@ class _SendSequencePainter extends CustomPainter {
         _line(const Color(0xffbff6ff).withValues(alpha: cellProgress), .8),
       );
     }
+  }
+
+  double _walkInEyeOffset(double local) {
+    if (local < 855) return 0;
+    if (local < 900) return -1.8 * _ease(_phase(local, 855, 900));
+    if (local < 945) {
+      return -1.8 + 3.6 * _ease(_phase(local, 900, 945));
+    }
+    if (local < 975) return 1.8 * (1 - _ease(_phase(local, 945, 975)));
+    return 0;
   }
 
   void _paintOriginalPixelRobot(
@@ -2516,6 +2672,29 @@ class SandboxProjection {
     final scale = _focalLength / denominator;
     return SandboxProjectedPoint(
       Offset(center.dx + viewed.x * scale, center.dy - viewed.y * scale),
+      viewed.z,
+    );
+  }
+}
+
+/// MESSAGE ASSEMBLY owns a cinematic camera without changing the projection
+/// contract used by the accepted Matrix, Voxel, and Polyhedral scenes.
+class _MessageProjection extends SandboxProjection {
+  const _MessageProjection(this.elapsed) : super(const Offset(180, 140));
+
+  final double elapsed;
+
+  @override
+  SandboxProjectedPoint project(SandboxVec3 point) {
+    final pullBack = _smoothStep(3000, 4700, elapsed);
+    final multiplier = 1.85 + (1 - 1.85) * pullBack;
+    final yaw = (-25 + 25 * pullBack) * math.pi / 180;
+    final pitch = (18 - 18 * pullBack) * math.pi / 180;
+    final viewed = point.rotateY(yaw).rotateX(pitch);
+    final denominator = math.max(24.0, 400 - viewed.z);
+    final scale = 310 / denominator * multiplier;
+    return SandboxProjectedPoint(
+      Offset(180 + viewed.x * scale, 140 - viewed.y * scale),
       viewed.z,
     );
   }
