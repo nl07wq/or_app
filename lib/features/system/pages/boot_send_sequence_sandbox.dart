@@ -8,6 +8,7 @@ enum BootSendSequenceConcept {
   assemblyMatrix,
   voxelIntegration,
   polyhedralFold,
+  messageAssembly,
 }
 
 enum BootSendSequencePhase { initializing, buildingData, integrating, complete }
@@ -22,6 +23,9 @@ enum _OperationMode { brief, debrief, backup }
 /// the identical construction timeline and data hand-off.
 enum SandboxRobotAppearance { original, ark }
 
+/// The final tenth-cell beat is intentionally independent from the robot skin.
+enum SandboxPixelBuilderFinale { fall, walkIn }
+
 /// The deliberately readable last-cell beat. It is exposed for focused
 /// sandbox verification only; it has no production-operation meaning.
 enum SandboxPixelBuilderFinalAct { looking, walking, wobbling, falling, cell }
@@ -30,8 +34,9 @@ const _cycle = Duration(milliseconds: 6000);
 // Pixel Builder deliberately has a relaxed, readable cadence. The first nine
 // cells use a conventional work cycle; the tenth owns a short final-act beat.
 const _pixelBuilderInitialMs = 300.0;
-const _pixelBuilderCycleMs = 430.0;
-const _pixelBuilderHesitationMs = 650.0;
+const _pixelBuilderWorkScale = 1.4;
+const _pixelBuilderCycleMs = 430.0 / _pixelBuilderWorkScale;
+const _pixelBuilderHesitationMs = 650.0 / _pixelBuilderWorkScale;
 const _pixelBuilderHesitationStartMs =
     _pixelBuilderInitialMs + _pixelBuilderCycleMs * 6;
 const _pixelBuilderHesitationEndMs =
@@ -46,7 +51,8 @@ const _pixelBuilderLoadingEndMs =
 const _pixelVoxelFragmentsEndMs = _pixelBuilderLoadingEndMs + 750.0;
 const _pixelVoxelConstructionStartMs = _pixelVoxelFragmentsEndMs;
 const _pixelVoxelConstructionEndMs = _pixelVoxelConstructionStartMs + 6000.0;
-const _pixelVoxelCycle = Duration(milliseconds: 12620);
+const _pixelVoxelCycle = Duration(milliseconds: 11329);
+const _messageAssemblyCycle = Duration(milliseconds: 6500);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
 
@@ -66,6 +72,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   var _mode = _OperationMode.brief;
   var _operation = TransferOperation.save;
   var _robotAppearance = SandboxRobotAppearance.original;
+  var _pixelBuilderFinale = SandboxPixelBuilderFinale.fall;
 
   @override
   void initState() {
@@ -112,6 +119,8 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
   Duration _durationFor(BootSendSequenceConcept concept) =>
       concept == BootSendSequenceConcept.voxelIntegration
       ? _pixelVoxelCycle
+      : concept == BootSendSequenceConcept.messageAssembly
+      ? _messageAssemblyCycle
       : _cycle;
 
   @override
@@ -142,6 +151,10 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
               value: BootSendSequenceConcept.polyhedralFold,
               label: FittedBox(child: Text('POLYHEDRAL FOLD')),
             ),
+            ButtonSegment(
+              value: BootSendSequenceConcept.messageAssembly,
+              label: FittedBox(child: Text('MESSAGE ASSEMBLY')),
+            ),
           ],
           selected: {_concept},
           onSelectionChanged: (value) {
@@ -166,33 +179,62 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
           selected: {_mode},
           onSelectionChanged: (value) => setState(() => _mode = value.first),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Text('ROBOT:', style: TextStyle(fontSize: 11)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SegmentedButton<SandboxRobotAppearance>(
-                key: const ValueKey('boot-send-sequence-robot-selector'),
-                segments: const [
-                  ButtonSegment(
-                    value: SandboxRobotAppearance.original,
-                    label: Text('ORIGINAL'),
-                  ),
-                  ButtonSegment(
-                    value: SandboxRobotAppearance.ark,
-                    label: Text('ARK'),
-                  ),
-                ],
-                selected: {_robotAppearance},
-                onSelectionChanged: (value) {
-                  setState(() => _robotAppearance = value.first);
-                  _replay();
-                },
+        if (_concept == BootSendSequenceConcept.voxelIntegration) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text('ROBOT:', style: TextStyle(fontSize: 11)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SegmentedButton<SandboxRobotAppearance>(
+                  key: const ValueKey('boot-send-sequence-robot-selector'),
+                  segments: const [
+                    ButtonSegment(
+                      value: SandboxRobotAppearance.original,
+                      label: Text('ORIGINAL'),
+                    ),
+                    ButtonSegment(
+                      value: SandboxRobotAppearance.ark,
+                      label: Text('ARK'),
+                    ),
+                  ],
+                  selected: {_robotAppearance},
+                  onSelectionChanged: (value) {
+                    setState(() => _robotAppearance = value.first);
+                    _replay();
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('FINALE:', style: TextStyle(fontSize: 11)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SegmentedButton<SandboxPixelBuilderFinale>(
+                  key: const ValueKey('boot-send-sequence-finale-selector'),
+                  segments: const [
+                    ButtonSegment(
+                      value: SandboxPixelBuilderFinale.fall,
+                      label: Text('FALL'),
+                    ),
+                    ButtonSegment(
+                      value: SandboxPixelBuilderFinale.walkIn,
+                      label: Text('WALK-IN'),
+                    ),
+                  ],
+                  selected: {_pixelBuilderFinale},
+                  onSelectionChanged: (value) {
+                    setState(() => _pixelBuilderFinale = value.first);
+                    _replay();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         SegmentedButton<TransferOperation>(
           key: const ValueKey('boot-send-sequence-operation-selector'),
@@ -214,6 +256,7 @@ class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
             mode: _mode,
             operation: _operation,
             robotAppearance: _robotAppearance,
+            pixelBuilderFinale: _pixelBuilderFinale,
             progress: reducedMotion ? 1 : _controller.value,
             completionElapsedSeconds: reducedMotion
                 ? 0
@@ -242,6 +285,7 @@ String _caption(BootSendSequenceConcept concept) => switch (concept) {
   BootSendSequenceConcept.assemblyMatrix => 'ASSEMBLY MATRIX',
   BootSendSequenceConcept.voxelIntegration => 'VOXEL INTEGRATION',
   BootSendSequenceConcept.polyhedralFold => 'POLYHEDRAL FOLD',
+  BootSendSequenceConcept.messageAssembly => 'MESSAGE ASSEMBLY',
 };
 
 String _modeTitle(_OperationMode mode) => switch (mode) {
@@ -249,6 +293,70 @@ String _modeTitle(_OperationMode mode) => switch (mode) {
   _OperationMode.debrief => 'DEBRIEF SEQUENCE',
   _OperationMode.backup => 'BACKUP SEQUENCE',
 };
+
+String _modeName(_OperationMode mode) => switch (mode) {
+  _OperationMode.brief => 'BRIEF',
+  _OperationMode.debrief => 'DEBRIEF',
+  _OperationMode.backup => 'BACKUP',
+};
+
+/// Public, pure helpers make the message particle geometry testable without a
+/// running Canvas. The operation selector deliberately does not affect it.
+String sandboxMessageAssemblyMessage(String mode) => switch (mode) {
+  'BRIEF' => 'BRIEF RECEIVED',
+  'DEBRIEF' => 'DEBRIEF RECEIVED',
+  'BACKUP' => 'BACKUP COMPLETE',
+  _ => 'BRIEF RECEIVED',
+};
+
+const _messageGlyphs = <String, List<String>>{
+  'A': ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  'B': ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  'C': ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  'D': ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  'E': ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  'F': ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  'I': ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  'K': ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  'L': ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  'M': ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  'O': ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  'P': ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  'R': ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  'T': ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  'U': ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  'V': ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+};
+
+/// One square is created for every occupied 5x7 glyph pixel. Target spacing
+/// is uniform for the full string so DEBRIEF remains inside the chamber.
+List<Offset> sandboxMessageAssemblyTargets(String mode) {
+  final text = sandboxMessageAssemblyMessage(mode);
+  final columns = text.length * 6 - 1;
+  const bounds = Rect.fromLTWH(24, 105, 312, 69);
+  final step = math.min(bounds.width / columns, bounds.height / 7);
+  final width = columns * step;
+  final left = bounds.center.dx - width / 2;
+  final top = bounds.center.dy - 7 * step / 2;
+  final targets = <Offset>[];
+  for (var glyphIndex = 0; glyphIndex < text.length; glyphIndex++) {
+    final glyph = _messageGlyphs[text[glyphIndex]];
+    if (glyph == null) continue;
+    for (var row = 0; row < 7; row++) {
+      for (var column = 0; column < 5; column++) {
+        if (glyph[row][column] == '1') {
+          targets.add(
+            Offset(
+              left + (glyphIndex * 6 + column + .5) * step,
+              top + (row + .5) * step,
+            ),
+          );
+        }
+      }
+    }
+  }
+  return targets;
+}
 
 /// The mode and transfer selectors only label this visual sandbox; neither
 /// selector invokes an operation outside the monitor prototype.
@@ -281,9 +389,17 @@ int sandboxPixelBuilderStrikeCount(int segmentIndex) {
   };
 }
 
-SandboxPixelBuilderFinalAct sandboxPixelBuilderFinalAct(int elapsedMs) {
+SandboxPixelBuilderFinalAct sandboxPixelBuilderFinalAct(
+  int elapsedMs, {
+  SandboxPixelBuilderFinale finale = SandboxPixelBuilderFinale.fall,
+}) {
   final local = elapsedMs - _pixelBuilderFinalActStartMs;
   if (local < 300) return SandboxPixelBuilderFinalAct.looking;
+  if (finale == SandboxPixelBuilderFinale.walkIn) {
+    return local < 770
+        ? SandboxPixelBuilderFinalAct.walking
+        : SandboxPixelBuilderFinalAct.cell;
+  }
   if (local < 590) return SandboxPixelBuilderFinalAct.walking;
   if (local < 770) return SandboxPixelBuilderFinalAct.wobbling;
   if (local < 950) return SandboxPixelBuilderFinalAct.falling;
@@ -363,6 +479,7 @@ class _SendSequenceMonitor extends StatelessWidget {
     required this.mode,
     required this.operation,
     required this.robotAppearance,
+    required this.pixelBuilderFinale,
     required this.progress,
     required this.completionElapsedSeconds,
     required this.reducedMotion,
@@ -372,6 +489,7 @@ class _SendSequenceMonitor extends StatelessWidget {
   final _OperationMode mode;
   final TransferOperation operation;
   final SandboxRobotAppearance robotAppearance;
+  final SandboxPixelBuilderFinale pixelBuilderFinale;
   final double progress;
   final double completionElapsedSeconds;
   final bool reducedMotion;
@@ -387,6 +505,7 @@ class _SendSequenceMonitor extends StatelessWidget {
           mode: mode,
           operation: operation,
           robotAppearance: robotAppearance,
+          pixelBuilderFinale: pixelBuilderFinale,
           progress: progress,
           completionElapsedSeconds: completionElapsedSeconds,
           reducedMotion: reducedMotion,
@@ -402,6 +521,7 @@ class _SendSequencePainter extends CustomPainter {
     required this.mode,
     required this.operation,
     required this.robotAppearance,
+    required this.pixelBuilderFinale,
     required this.progress,
     required this.completionElapsedSeconds,
     required this.reducedMotion,
@@ -411,6 +531,7 @@ class _SendSequencePainter extends CustomPainter {
   final _OperationMode mode;
   final TransferOperation operation;
   final SandboxRobotAppearance robotAppearance;
+  final SandboxPixelBuilderFinale pixelBuilderFinale;
   final double progress;
   final double completionElapsedSeconds;
   final bool reducedMotion;
@@ -457,6 +578,8 @@ class _SendSequencePainter extends CustomPainter {
         _voxelIntegration(canvas, t, completionElapsedSeconds);
       case BootSendSequenceConcept.polyhedralFold:
         _polyhedralFold(canvas, t, completionElapsedSeconds);
+      case BootSendSequenceConcept.messageAssembly:
+        _messageAssembly(canvas, t);
     }
     canvas.restore();
     if (particleField != null) {
@@ -568,7 +691,11 @@ class _SendSequencePainter extends CustomPainter {
 
   void _footer(Canvas canvas, double t) {
     final completed = _isConstructionComplete(t);
-    final state = concept == BootSendSequenceConcept.voxelIntegration
+    final state = concept == BootSendSequenceConcept.messageAssembly
+        ? completed
+              ? sandboxMessageAssemblyMessage(_modeName(mode))
+              : 'MESSAGE ASSEMBLY'
+        : concept == BootSendSequenceConcept.voxelIntegration
         ? completed
               ? _voxelCompletionMessage(mode, operation)
               : t < _pixelBuilderLoadingEndMs / _pixelVoxelCycle.inMilliseconds
@@ -657,6 +784,12 @@ class _SendSequencePainter extends CustomPainter {
         60,
         70,
       ),
+      BootSendSequenceConcept.messageAssembly => const Rect.fromLTWH(
+        24,
+        105,
+        312,
+        69,
+      ),
     };
     final contentBounds = const Rect.fromLTWH(25, 72, 310, 137);
     final expanded = Rect.fromLTRB(
@@ -682,11 +815,14 @@ class _SendSequencePainter extends CustomPainter {
           const SandboxParticleMotionBias(8, 14, 6, 10),
         BootSendSequenceConcept.polyhedralFold =>
           const SandboxParticleMotionBias(7, 12, 5, 8),
+        BootSendSequenceConcept.messageAssembly =>
+          const SandboxParticleMotionBias(6, 9, 4, 6),
       },
       seed: switch (concept) {
         BootSendSequenceConcept.assemblyMatrix => 3101,
         BootSendSequenceConcept.voxelIntegration => 3102,
         BootSendSequenceConcept.polyhedralFold => 3103,
+        BootSendSequenceConcept.messageAssembly => 3104,
       },
       elapsedTime: elapsedSeconds,
       depthLayer: SandboxParticleDepthLayer.back,
@@ -734,6 +870,85 @@ class _SendSequencePainter extends CustomPainter {
       }
     }
     canvas.restore();
+  }
+
+  /// A fourth, independent scene. Its typography is made exclusively from
+  /// deterministic square data blocks rather than a Text fade-in.
+  void _messageAssembly(Canvas canvas, double t) {
+    final elapsed = t * _messageAssemblyCycle.inMilliseconds;
+    final targets = sandboxMessageAssemblyTargets(_modeName(mode));
+    const scene = Rect.fromLTWH(24, 105, 312, 69);
+    final dispersed = _phase(elapsed, 0, 900);
+    final lock = _phase(elapsed, 4300, 4800);
+    for (var index = 0; index < targets.length; index++) {
+      final target = targets[index];
+      final seed = index * 12.9898 + 78.233;
+      final start = Offset(
+        scene.left + ((math.sin(seed) * 43758.5453).abs() % 1) * scene.width,
+        scene.top +
+            ((math.sin(seed * 1.71) * 12345.678).abs() % 1) * scene.height,
+      );
+      final delay = 900 + (index % 29) * 31.0;
+      final arrive = _ease(_phase(elapsed, delay, 4300 + (index % 7) * 35));
+      final control = Offset(
+        (start.dx + target.dx) / 2 + math.sin(seed * .37) * 18,
+        (start.dy + target.dy) / 2 - 17 - (index % 5) * 3,
+      );
+      final position = elapsed < 900
+          ? Offset(
+              start.dx + math.sin(elapsed / 260 + seed) * 2.2 * dispersed,
+              start.dy + math.cos(elapsed / 310 + seed) * 1.8 * dispersed,
+            )
+          : _quadratic(start, control, target, arrive);
+      final color = switch (index % 5) {
+        0 => const Color(0xffb5f3ff),
+        1 => const Color(0xff7ea8ff),
+        _ => const Color(0xff63d8ff),
+      };
+      final size = 2.2 + (index % 3) * .45;
+      if (arrive > 0 && arrive < 1) {
+        final trail = _quadratic(
+          start,
+          control,
+          target,
+          math.max(0, arrive - .09),
+        );
+        canvas.drawLine(
+          trail,
+          position,
+          _glow(color.withValues(alpha: .18 * (1 - arrive)), 2.2, 1),
+        );
+      }
+      canvas.drawRect(
+        Rect.fromCenter(center: position, width: size, height: size),
+        _fill(color.withValues(alpha: .55 + arrive * .35)),
+      );
+      if (arrive > .7 || lock > 0) {
+        canvas.drawRect(
+          Rect.fromCenter(
+            center: position,
+            width: size + .7,
+            height: size + .7,
+          ),
+          _glow(color.withValues(alpha: .18 + lock * .16), 2),
+        );
+      }
+    }
+    if (lock > 0) {
+      final sweep = scene.left + scene.width * lock;
+      canvas.drawLine(
+        Offset(sweep, scene.top),
+        Offset(sweep - 26, scene.bottom),
+        _glow(_ice.withValues(alpha: .18 * (1 - lock)), 3, 1.2),
+      );
+    }
+  }
+
+  Offset _quadratic(Offset start, Offset control, Offset end, double value) {
+    final inverse = 1 - value;
+    return start * (inverse * inverse) +
+        control * (2 * inverse * value) +
+        end * (value * value);
   }
 
   void _assemblyMatrix(Canvas canvas, double t, double post) {
@@ -1146,8 +1361,12 @@ class _SendSequencePainter extends CustomPainter {
   ) {
     final local = elapsedMs - _pixelBuilderFinalActStartMs;
     final last = sandboxPixelBuilderSegmentRect(9);
-    final stage = sandboxPixelBuilderFinalAct(elapsedMs.round());
-    final walk = _ease(_phase(local, 300, 590));
+    final stage = sandboxPixelBuilderFinalAct(
+      elapsedMs.round(),
+      finale: pixelBuilderFinale,
+    );
+    final walkIn = pixelBuilderFinale == SandboxPixelBuilderFinale.walkIn;
+    final walk = _ease(_phase(local, 300, walkIn ? 770 : 590));
     final wobble = _phase(local, 590, 770);
     final fall = _ease(_phase(local, 770, 950));
     final settle = _phase(local, 950, _pixelBuilderFinalActMs);
@@ -1165,13 +1384,17 @@ class _SendSequencePainter extends CustomPainter {
     // Feet travel down to the final cell's lower boundary; the final compact
     // shape is drawn with that same cell rect below, eliminating the former
     // apparent split between the fall and the completed gauge block.
-    final bodyBottom = 154 + (last.bottom - 154) * fall;
-    final alpha = visibility * (1 - settle);
+    final integration = _ease(_phase(local, 770, 950));
+    final bodyBottom = walkIn
+        ? 154 + (last.bottom - 154) * integration
+        : 154 + (last.bottom - 154) * fall;
+    final transform = walkIn ? _phase(local, 770, 950) : settle;
+    final alpha = visibility * (1 - transform);
     final armY = stage == SandboxPixelBuilderFinalAct.looking
         ? bodyBottom - 6
         : stage == SandboxPixelBuilderFinalAct.walking
         ? bodyBottom - 8
-        : bodyBottom - 13;
+        : bodyBottom - (walkIn ? 8 : 13);
     final stride = stage == SandboxPixelBuilderFinalAct.walking
         ? math.sin(walk * math.pi * 3) * 2
         : 0.0;
@@ -1207,19 +1430,22 @@ class _SendSequencePainter extends CustomPainter {
         eyeFlicker: stage == SandboxPixelBuilderFinalAct.looking,
       );
     }
-    if (stage == SandboxPixelBuilderFinalAct.falling && fall > .55) {
+    if (!walkIn && stage == SandboxPixelBuilderFinalAct.falling && fall > .55) {
       _pixelSparks(canvas, Offset(last.center.dx, last.top), alpha * .35);
     }
-    if (settle > 0) {
+    final cellProgress = walkIn
+        ? _phase(local, 770, _pixelBuilderFinalActMs)
+        : settle;
+    if (cellProgress > 0) {
       // Match the bar's existing full cell dimensions, center, and border.
       // The compacting robot fades only as this exact gauge cell appears.
       canvas.drawRect(
         last,
-        _fill(const Color(0xff63d8ff).withValues(alpha: settle)),
+        _fill(const Color(0xff63d8ff).withValues(alpha: cellProgress)),
       );
       canvas.drawRect(
         last,
-        _line(const Color(0xffbff6ff).withValues(alpha: settle), .8),
+        _line(const Color(0xffbff6ff).withValues(alpha: cellProgress), .8),
       );
     }
   }
@@ -1900,6 +2126,7 @@ int sandboxParticleCount(BootSendSequenceConcept concept) => switch (concept) {
   BootSendSequenceConcept.assemblyMatrix => 12,
   BootSendSequenceConcept.voxelIntegration => 18,
   BootSendSequenceConcept.polyhedralFold => 15,
+  BootSendSequenceConcept.messageAssembly => 0,
 };
 
 /// Pure deterministic particle positions.  It deliberately does not use

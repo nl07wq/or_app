@@ -42,35 +42,35 @@ void main() {
     );
   });
 
-  test('pixel builder uses the V3.6 tempo and deterministic fragments', () {
+  test('pixel builder scales the nine-cell work timeline by 1.4x', () {
     expect(sandboxPixelBuilderFilledSegments(0), 0);
     expect(sandboxPixelBuilderFilledSegments(249), 0);
-    expect(sandboxPixelBuilderFilledSegments(729), 0);
-    expect(sandboxPixelBuilderFilledSegments(730), 1);
-    expect(sandboxPixelBuilderFilledSegments(2880), 6);
-    expect(sandboxPixelBuilderFilledSegments(3300), 6);
+    expect(sandboxPixelBuilderFilledSegments(606), 0);
+    expect(sandboxPixelBuilderFilledSegments(608), 1);
+    expect(sandboxPixelBuilderFilledSegments(2143), 6);
+    expect(sandboxPixelBuilderFilledSegments(2500), 6);
     // The last cell is supplied by the robot's fall, after its readable
     // final-act pause rather than a tenth rapid tool cycle.
-    expect(sandboxPixelBuilderFilledSegments(5869), 9);
-    expect(sandboxPixelBuilderFilledSegments(5870), 10);
+    expect(sandboxPixelBuilderFilledSegments(4578), 9);
+    expect(sandboxPixelBuilderFilledSegments(4579), 10);
     expect(
-      sandboxPixelBuilderFinalAct(4820),
+      sandboxPixelBuilderFinalAct(3529),
       SandboxPixelBuilderFinalAct.looking,
     );
     expect(
-      sandboxPixelBuilderFinalAct(5200),
+      sandboxPixelBuilderFinalAct(3900),
       SandboxPixelBuilderFinalAct.walking,
     );
     expect(
-      sandboxPixelBuilderFinalAct(5450),
+      sandboxPixelBuilderFinalAct(4200),
       SandboxPixelBuilderFinalAct.wobbling,
     );
     expect(
-      sandboxPixelBuilderFinalAct(5700),
+      sandboxPixelBuilderFinalAct(4400),
       SandboxPixelBuilderFinalAct.falling,
     );
-    expect(sandboxPixelBuilderFinalAct(5870), SandboxPixelBuilderFinalAct.cell);
-    expect(sandboxPixelBuilderCycleStartMs(6), 3530);
+    expect(sandboxPixelBuilderFinalAct(4579), SandboxPixelBuilderFinalAct.cell);
+    expect(sandboxPixelBuilderCycleStartMs(6), closeTo(2607.14, .01));
     expect(sandboxPixelBuilderStrikeCount(0), 2);
     expect(sandboxPixelBuilderStrikeCount(2), 3);
     expect(sandboxPixelBuilderStrikeCount(5), 3);
@@ -96,6 +96,47 @@ void main() {
       );
       expect(rect.contains(sandboxPixelFragmentSource(index)), isTrue);
     }
+  });
+
+  test(
+    'walk-in finale stays horizontal before integrating in the final rect',
+    () {
+      expect(
+        sandboxPixelBuilderFinalAct(
+          3900,
+          finale: SandboxPixelBuilderFinale.walkIn,
+        ),
+        SandboxPixelBuilderFinalAct.walking,
+      );
+      expect(
+        sandboxPixelBuilderFinalAct(
+          4300,
+          finale: SandboxPixelBuilderFinale.walkIn,
+        ),
+        SandboxPixelBuilderFinalAct.cell,
+      );
+      expect(
+        sandboxPixelBuilderSegmentRect(9),
+        const Rect.fromLTWH(254, 158, 17, 18),
+      );
+    },
+  );
+
+  test('message assembly uses deterministic occupied bitmap targets', () {
+    for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
+      final targets = sandboxMessageAssemblyTargets(mode);
+      expect(targets, isNotEmpty);
+      expect(targets, sandboxMessageAssemblyTargets(mode));
+      expect(
+        targets.every(
+          (point) => const Rect.fromLTWH(24, 105, 312, 69).contains(point),
+        ),
+        isTrue,
+      );
+    }
+    expect(sandboxMessageAssemblyMessage('BRIEF'), 'BRIEF RECEIVED');
+    expect(sandboxMessageAssemblyMessage('DEBRIEF'), 'DEBRIEF RECEIVED');
+    expect(sandboxMessageAssemblyMessage('BACKUP'), 'BACKUP COMPLETE');
   });
 
   test('folded net finishes as six joined 80-unit cube faces', () {
@@ -292,16 +333,21 @@ void main() {
     expect(find.text('ASSEMBLY MATRIX'), findsWidgets);
     expect(find.text('VOXEL INTEGRATION'), findsOneWidget);
     expect(find.text('POLYHEDRAL FOLD'), findsOneWidget);
-    expect(find.text('ORIGINAL'), findsOneWidget);
-    expect(find.text('ARK'), findsOneWidget);
+    expect(find.text('MESSAGE ASSEMBLY'), findsOneWidget);
     await tester.tap(find.text('VOXEL INTEGRATION'));
     await tester.pump();
+    expect(find.text('ORIGINAL'), findsOneWidget);
+    expect(find.text('ARK'), findsOneWidget);
+    expect(find.text('FALL'), findsOneWidget);
+    expect(find.text('WALK-IN'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('boot-send-sequence-monitor')),
       findsOneWidget,
     );
     await tester.pump(const Duration(milliseconds: 2800));
     await tester.tap(find.text('ARK'));
+    await tester.pump();
+    await tester.tap(find.text('WALK-IN'));
     await tester.pump();
     await tester.tap(find.text('SEND'));
     await tester.pump();
@@ -353,6 +399,33 @@ void main() {
     });
   }
 
+  for (final appearance in SandboxRobotAppearance.values) {
+    for (final finale in SandboxPixelBuilderFinale.values) {
+      testWidgets('${appearance.name} ${finale.name} finale golden', (
+        tester,
+      ) async {
+        await _pumpSandbox(tester);
+        await tester.tap(find.text('VOXEL INTEGRATION'));
+        await tester.pump();
+        if (appearance == SandboxRobotAppearance.ark) {
+          await tester.tap(find.text('ARK'));
+          await tester.pump();
+        }
+        if (finale == SandboxPixelBuilderFinale.walkIn) {
+          await tester.tap(find.text('WALK-IN'));
+          await tester.pump();
+        }
+        await _pumpTimeline(tester, 4200, totalMilliseconds: 11329);
+        await expectLater(
+          find.byKey(const ValueKey('boot-send-sequence-monitor')),
+          matchesGoldenFile(
+            'goldens/pixel_finale_${appearance.name}_${finale.name}.png',
+          ),
+        );
+      });
+    }
+  }
+
   for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
     testWidgets('$mode completion icon golden', (tester) async {
       await _pumpSandbox(tester);
@@ -365,6 +438,40 @@ void main() {
         find.byKey(const ValueKey('boot-send-sequence-monitor')),
         matchesGoldenFile(
           'goldens/boot_send_voxel_${mode.toLowerCase()}_icon.png',
+        ),
+      );
+    });
+  }
+
+  for (final milliseconds in [0, 1400, 3000, 4600, 6200]) {
+    testWidgets('message assembly BRIEF ${milliseconds}ms golden', (
+      tester,
+    ) async {
+      await _pumpSandbox(tester);
+      await tester.tap(find.text('MESSAGE ASSEMBLY'));
+      await tester.pump();
+      await _pumpTimeline(tester, milliseconds, totalMilliseconds: 6500);
+      await expectLater(
+        find.byKey(const ValueKey('boot-send-sequence-monitor')),
+        matchesGoldenFile(
+          'goldens/message_assembly_brief_${milliseconds}ms.png',
+        ),
+      );
+    });
+  }
+
+  for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
+    testWidgets('message assembly $mode final golden', (tester) async {
+      await _pumpSandbox(tester);
+      await tester.tap(find.text('MESSAGE ASSEMBLY'));
+      await tester.pump();
+      await tester.tap(find.text(mode));
+      await tester.pump();
+      await _pumpTimeline(tester, 6200, totalMilliseconds: 6500);
+      await expectLater(
+        find.byKey(const ValueKey('boot-send-sequence-monitor')),
+        matchesGoldenFile(
+          'goldens/message_assembly_${mode.toLowerCase()}_final.png',
         ),
       );
     });
@@ -390,9 +497,13 @@ void main() {
               11620,
               12620,
             ]
+          : concept == BootSendSequenceConcept.messageAssembly
+          ? const [0, 900, 2500, 4300, 4800, 6500]
           : const [0, 800, 1600, 2800, 3500, 4500, 5300, 6000];
       final total = concept == BootSendSequenceConcept.voxelIntegration
-          ? 12620
+          ? 11329
+          : concept == BootSendSequenceConcept.messageAssembly
+          ? 6500
           : 6000;
       for (final milliseconds in frames) {
         testWidgets(
@@ -430,7 +541,11 @@ void main() {
           await tester.pump();
         }
         final postCompletion =
-            concept == BootSendSequenceConcept.voxelIntegration ? 13820 : 7200;
+            concept == BootSendSequenceConcept.voxelIntegration
+            ? 12529
+            : concept == BootSendSequenceConcept.messageAssembly
+            ? 6500
+            : 7200;
         await _pumpTimeline(tester, postCompletion, totalMilliseconds: total);
         await expectLater(
           find.byKey(const ValueKey('boot-send-sequence-monitor')),
@@ -463,6 +578,7 @@ String _selectorText(BootSendSequenceConcept concept) => switch (concept) {
   BootSendSequenceConcept.assemblyMatrix => 'ASSEMBLY MATRIX',
   BootSendSequenceConcept.voxelIntegration => 'VOXEL INTEGRATION',
   BootSendSequenceConcept.polyhedralFold => 'POLYHEDRAL FOLD',
+  BootSendSequenceConcept.messageAssembly => 'MESSAGE ASSEMBLY',
 };
 
 Future<void> _pumpSandbox(
