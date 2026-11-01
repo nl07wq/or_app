@@ -155,6 +155,22 @@ void main() {
     expect(cubes.take(16).every((cube) => cube.size >= 10), isTrue);
     expect(cubes.every((cube) => cube.size > 0), isTrue);
     expect(cubes.map((cube) => cube.target).toSet(), hasLength(cubes.length));
+    expect(
+      cubes.map((cube) => cube.depthLayer).toSet(),
+      containsAll([0, 1, 2]),
+    );
+    expect(
+      cubes
+          .where((cube) => cube.depthLayer == 0)
+          .every((cube) => cube.start.z > 180),
+      isTrue,
+    );
+    expect(
+      cubes
+          .where((cube) => cube.depthLayer == 2)
+          .every((cube) => cube.start.z < -180),
+      isTrue,
+    );
   });
 
   test('message cube activation is causal, persistent, and irreversible', () {
@@ -233,20 +249,23 @@ void main() {
       expect(reachable, contains(edge.a));
       expect(reachable, contains(edge.b));
     }
-    expect(selected.map((edge) => edge.wave).toSet(), containsAll([0, 1, 2]));
+    expect(
+      selected.map((edge) => edge.wave).toSet(),
+      containsAll(List<int>.generate(12, (index) => index)),
+    );
     expect(particles, sandboxMessageParticles('BRIEF'));
-    expect(particles, hasLength(cubes.length * 6));
+    expect(particles, hasLength(cubes.length * 8));
     expect(
       particles.every((particle) => particle.sourceId < cubes.length),
       isTrue,
     );
     expect(particles.every((particle) => particle.size >= .6), isTrue);
-    expect(sandboxMessageSurfaceReveal(3500), closeTo(.12, .001));
-    expect(sandboxMessageSurfaceReveal(4200), closeTo(.45, .001));
-    expect(sandboxMessageSurfaceReveal(5400), closeTo(1, .001));
-    expect(sandboxMessageCameraZoom(3450), closeTo(3.3, .001));
-    expect(sandboxMessageCameraZoom(5650), closeTo(1, .001));
-    expect(sandboxMessageScreenRoll(3350), closeTo(-72, .001));
+    expect(sandboxMessageSurfaceReveal(3350), closeTo(0, .001));
+    expect(sandboxMessageSurfaceReveal(4475), closeTo(.516875, .001));
+    expect(sandboxMessageSurfaceReveal(5600), closeTo(1, .001));
+    expect(sandboxMessageCameraZoom(3350), closeTo(1.12, .001));
+    expect(sandboxMessageCameraZoom(5600), closeTo(1, .001));
+    expect(sandboxMessageScreenRoll(3350), closeTo(0, .001));
     expect(sandboxMessageScreenRoll(5560), closeTo(0, .001));
   });
 
@@ -612,17 +631,23 @@ void main() {
   }
 
   for (final milliseconds in [
+    650,
     900,
     1600,
+    1900,
     2100,
     2600,
+    2900,
     3200,
     3700,
+    3900,
     4200,
     4700,
+    5000,
     5100,
     5500,
     6000,
+    6200,
     6500,
   ]) {
     testWidgets('message assembly BRIEF ${milliseconds}ms golden', (

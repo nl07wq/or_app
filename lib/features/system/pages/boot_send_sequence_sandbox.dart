@@ -526,6 +526,7 @@ class SandboxMessageCube {
     required this.size,
     required this.spin,
     required this.delay,
+    required this.depthLayer,
   });
 
   final int id;
@@ -534,41 +535,56 @@ class SandboxMessageCube {
   final double size;
   final double spin;
   final double delay;
+
+  /// 0 foreground, 1 middle depth, 2 background.
+  final int depthLayer;
 }
 
 final _messageCubeCache = <String, List<SandboxMessageCube>>{};
 
-List<SandboxMessageCube> sandboxMessageCubes(String mode) =>
-    _messageCubeCache.putIfAbsent(mode, () {
-      final targets = sandboxMessageAssemblyTargets(mode);
-      return List<SandboxMessageCube>.unmodifiable([
-        for (var index = 0; index < targets.length; index++)
-          SandboxMessageCube(
-            id: index,
-            // The first large cube is deliberately placed at the comet impact
-            // position when the close camera is active.
-            start: index == 0
-                ? const SandboxVec3(-18, -8, 22)
-                : SandboxVec3(
-                    math.sin(index * 2.39996) * (78 + index % 5 * 16),
-                    math.cos(index * 1.713) * (45 + index % 4 * 13),
-                    -58 + ((index * 37) % 132).toDouble(),
-                  ),
-            target: SandboxVec3(
-              (targets[index].dx - 180) / .775,
-              (140 - targets[index].dy) / .775,
-              (index % 3 - 1) * 1.25,
-            ),
-            size: index < 16
-                ? 10 + (index % 4) * 2
-                : index < 62
-                ? 5 + (index % 3)
-                : 2.2 + (index % 3) * .45,
-            spin: (index * 1.137).remainder(math.pi * 2),
-            delay: (index % 18) * 19.0,
+List<SandboxMessageCube> sandboxMessageCubes(
+  String mode,
+) => _messageCubeCache.putIfAbsent(mode, () {
+  final targets = sandboxMessageAssemblyTargets(mode);
+  return List<SandboxMessageCube>.unmodifiable([
+    for (var index = 0; index < targets.length; index++)
+      () {
+        final depthLayer = index % 3;
+        final ring = index ~/ 3;
+        final layerZ = switch (depthLayer) {
+          0 => 240.0,
+          1 => 0.0,
+          _ => -240.0,
+        };
+        return SandboxMessageCube(
+          id: index,
+          // Cube zero is the comet-struck foreground node. All remaining
+          // cubes occupy the same deep world volume, not 2D layers.
+          start: index == 0
+              ? const SandboxVec3(-18, -8, 240)
+              : SandboxVec3(
+                  math.sin(ring * 2.39996 + depthLayer) * (92 + ring % 5 * 14),
+                  math.cos(ring * 1.713 + depthLayer) * (54 + ring % 4 * 12),
+                  layerZ + math.sin(ring * .73) * 34,
+                ),
+          // Particles, not cube bodies, own this final typography target.
+          target: SandboxVec3(
+            (targets[index].dx - 180) / .775,
+            (140 - targets[index].dy) / .775,
+            (index % 3 - 1) * 1.25,
           ),
-      ]);
-    });
+          size: index < 16
+              ? 10 + (index % 4) * 2
+              : index < 62
+              ? 5 + (index % 3)
+              : 2.2 + (index % 3) * .45,
+          spin: (index * 1.137).remainder(math.pi * 2),
+          delay: (index % 18) * 19.0,
+          depthLayer: depthLayer,
+        );
+      }(),
+  ]);
+});
 
 /// Immutable graph data is calculated once per message. It is shared by paint
 /// and tests, so replay cannot invent a new network or depend on frame rate.
@@ -671,39 +687,49 @@ List<SandboxMessageNetworkEdge> sandboxMessageNetworkEdges(String mode) =>
 List<SandboxMessageNetworkEdge> sandboxMessageSelectedNetworkEdges(
   String mode,
 ) => _messageSelectedNetworkCache.putIfAbsent(mode, () {
-  final ids = <int>[
-    ...List<int>.generate(16, (index) => index),
-    23,
-    31,
-    43,
-    57,
-    71,
-    89,
-    107,
-    131,
+  final cubes = sandboxMessageCubes(mode);
+  final idsByLayer = [
+    [
+      for (final cube in cubes.where((cube) => cube.depthLayer == 0).take(11))
+        cube.id,
+    ],
+    [
+      for (final cube in cubes.where((cube) => cube.depthLayer == 1).take(11))
+        cube.id,
+    ],
+    [
+      for (final cube in cubes.where((cube) => cube.depthLayer == 2).take(11))
+        cube.id,
+    ],
   ];
   final selected = <SandboxMessageNetworkEdge>[];
-  final degree = List<int>.filled(ids.length, 0);
+  final degree = List<int>.filled(cubes.length, 0);
   final seen = <String>{};
   void add(int a, int b, int wave) {
     if (degree[a] >= 4 || degree[b] >= 4) return;
     final key = a < b ? '$a:$b' : '$b:$a';
     if (!seen.add(key)) return;
-    selected.add(SandboxMessageNetworkEdge(ids[a], ids[b], wave));
+    selected.add(SandboxMessageNetworkEdge(a, b, wave));
     degree[a]++;
     degree[b]++;
   }
 
-  // The first 23 edges are a real impact-rooted spanning backbone. Branches
-  // are then added only where their endpoints remain visually distinct.
-  for (var node = 1; node < ids.length; node++) {
-    add((node - 1) ~/ 2, node, node ~/ 8);
-  }
-  for (var node = 2; node < ids.length - 2; node++) {
-    add(node, node + 2, math.max(node ~/ 8, (node + 2) ~/ 8));
-  }
-  for (var node = 3; node < ids.length - 4; node += 2) {
-    add(node, node + 4, math.max(node ~/ 8, (node + 4) ~/ 8));
+  // Four branch stages per depth tier, with physical bridges between tiers.
+  // Waves 0..3 are foreground, 4..7 middle, and 8..11 background.
+  for (var layer = 0; layer < idsByLayer.length; layer++) {
+    final ids = idsByLayer[layer];
+    final baseWave = layer * 4;
+    for (var node = 1; node < ids.length; node++) {
+      add(
+        ids[(node - 1) ~/ 2],
+        ids[node],
+        baseWave + math.min(3, node.bitLength - 1),
+      );
+    }
+    for (var node = 3; node < ids.length - 2; node += 3) {
+      add(ids[node], ids[node + 2], baseWave + math.min(3, node.bitLength - 1));
+    }
+    if (layer > 0) add(idsByLayer[layer - 1][0], ids[0], baseWave);
   }
   return List<SandboxMessageNetworkEdge>.unmodifiable(selected);
 });
@@ -719,10 +745,24 @@ List<SandboxMessageNetworkEdge> sandboxMessageActivationNetworkEdges(
 ]);
 
 double sandboxMessageCubeActivationStartMs(String mode, int id) {
-  if (id == 0) return 850;
-  final depth = id.bitLength - 1;
-  final branch = id - (1 << depth);
-  return 1050 + depth * 178 + (branch % 4) * 24.0;
+  // The impact cube is the only node that starts lit. Every other cube is
+  // activated at the arrival of a real, depth-ordered propagation edge.
+  if (id == 0) return 700;
+  final selected = sandboxMessageSelectedNetworkEdges(mode);
+  final incomingIndex = selected.indexWhere((edge) => edge.b == id);
+  if (incomingIndex >= 0) {
+    final edge = selected[incomingIndex];
+    final start = 850 + edge.wave * 190 + (incomingIndex % 3) * 32.0;
+    return start + 220 + (incomingIndex % 4) * 12;
+  }
+  final cube = sandboxMessageCubes(mode)[id];
+  final rank = id ~/ 3;
+  final tierStart = switch (cube.depthLayer) {
+    0 => 860.0,
+    1 => 1450.0,
+    _ => 2400.0,
+  };
+  return tierStart + math.min(3, rank.bitLength - 1) * 185 + (rank % 3) * 29;
 }
 
 double sandboxMessageCubeActivationProgress(
@@ -748,29 +788,23 @@ SandboxMessageCubeState sandboxMessageCubeStateAt(
         ? SandboxMessageCubeState.inactive
         : SandboxMessageCubeState.activated;
   }
-  final convergence = _phase(elapsedMs, 2800, 5000);
+  final convergence = _phase(elapsedMs, 3350, 5600);
   return convergence < 1
       ? SandboxMessageCubeState.converging
       : SandboxMessageCubeState.integrated;
 }
 
-/// Smooth local-surface reveal used by the one coherent MESSAGE word object.
-/// It deliberately describes material coverage, not camera framing.
+/// Progress of fine particle typography after the depth propagation ends.
 double sandboxMessageSurfaceReveal(double elapsedMs) {
-  if (elapsedMs <= 3500) return .12;
-  if (elapsedMs <= 4200) return .12 + (elapsedMs - 3500) / 700 * .33;
-  if (elapsedMs <= 5000) return .45 + (elapsedMs - 4200) / 800 * .30;
-  if (elapsedMs <= 5400) return .75 + (elapsedMs - 5000) / 400 * .25;
-  return 1;
+  return _ease(_phase(elapsedMs, 3350, 5600));
 }
 
 double sandboxMessageCameraZoom(double elapsedMs) =>
-    3.3 + (1 - 3.3) * _smoothStep(3450, 5650, elapsedMs);
+    1.12 + (1 - 1.12) * _smoothStep(3350, 5600, elapsedMs);
 
 /// Canvas has positive Y downward, so this increasing angle is a visible
 /// clockwise roll from an oblique local letter surface toward horizontal.
-double sandboxMessageScreenRoll(double elapsedMs) =>
-    -72 * (1 - _smoothStep(3350, 5560, elapsedMs));
+double sandboxMessageScreenRoll(double elapsedMs) => 0;
 
 /// A fine luminous material point emitted from one persistent message cube.
 /// Its seed and final glyph-stroke sample are immutable, making every replay
@@ -801,14 +835,16 @@ List<SandboxMessageParticle> sandboxMessageParticles(String mode) =>
       final cubes = sandboxMessageCubes(mode);
       return List<SandboxMessageParticle>.unmodifiable([
         for (final cube in cubes)
-          for (var particle = 0; particle < 6; particle++)
+          // Eight fine particles per persistent source keep the final word
+          // granular and phosphorescent without turning cubes into glyph tiles.
+          for (var particle = 0; particle < 8; particle++)
             () {
               final targetIndex =
                   (cube.id * 7 + particle * 29 + particle ~/ 2) %
                   targets.length;
               final base = targets[targetIndex];
-              final offsetX = ((particle * 17 + cube.id * 3) % 5 - 2) * .46;
-              final offsetY = ((particle * 11 + cube.id * 5) % 5 - 2) * .46;
+              final offsetX = ((particle * 17 + cube.id * 3) % 7 - 3) * .34;
+              final offsetY = ((particle * 11 + cube.id * 5) % 7 - 3) * .34;
               return SandboxMessageParticle(
                 sourceId: cube.id,
                 index: particle,
@@ -817,8 +853,8 @@ List<SandboxMessageParticle> sandboxMessageParticles(String mode) =>
                   (140 - (base.dy + offsetY)) / .775,
                   ((particle + cube.id) % 4 - 1.5) * .72,
                 ),
-                delay: (cube.id % 17) * 16.0 + particle * 23.0,
-                size: .65 + ((cube.id * 5 + particle * 3) % 7) * .17,
+                delay: (cube.id % 17) * 13.0 + particle * 19.0,
+                size: .62 + ((cube.id * 5 + particle * 3) % 7) * .19,
                 depth: ((cube.id * 19 + particle * 7) % 11) / 10,
               );
             }(),
@@ -1353,8 +1389,9 @@ class _SendSequencePainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// A fourth, independent scene. Its typography is made exclusively from
-  /// deterministic 3D data cubes rather than a Text fade-in.
+  /// A fourth, independent scene. Persistent 3D data cubes receive the
+  /// impact wave, then emit deterministic fine material that becomes the
+  /// phosphorescent message without a Text fade-in.
   void _messageAssembly(Canvas canvas, double t) {
     final elapsed = t * _messageAssemblyCycle.inMilliseconds;
     final modeName = _modeName(mode);
@@ -1384,15 +1421,15 @@ class _SendSequencePainter extends CustomPainter {
     // The graph is an activation aid, not the subject. It stays bright while
     // a pulse is travelling, then leaves only a compact afterglow as the
     // cube material transfers into the flowing particle field.
-    final beamFade = 1 - _ease(_phase(elapsed, 2800, 3500));
+    final beamFade = 1 - _ease(_phase(elapsed, 2800, 3350));
     final nodeIllumination = List<double>.filled(cubes.length, 0)..[0] = impact;
 
     // The comet is intentionally the first major event, and targets cube 0.
-    if (elapsed >= 550 && elapsed <= 1050) {
+    if (elapsed >= 300 && elapsed <= 900) {
       final comet = Offset.lerp(
         const Offset(380, 78),
         projected.first.offset,
-        _ease(_phase(elapsed, 550, 850)),
+        _ease(_phase(elapsed, 300, 700)),
       )!;
       canvas.drawLine(
         Offset(comet.dx + 42, comet.dy - 16),
@@ -1485,14 +1522,14 @@ class _SendSequencePainter extends CustomPainter {
       // Activation is material state, not a transient beam effect. The lime
       // phosphorescence survives after the propagating edge has expired.
       final phosphor = Color.lerp(
-        const Color(0xff293845),
-        const Color(0xffa7d84c),
+        const Color(0xff26343b),
+        const Color(0xff78ff42),
         activation[index],
       )!;
       final base =
           Color.lerp(
             phosphor,
-            const Color(0xffdfff8a),
+            const Color(0xffe5ffd0),
             illumination * .52,
           )!.withValues(
             alpha: (.70 + activation[index] * .20) * (1 - materialTransfer),
@@ -1528,7 +1565,7 @@ class _SendSequencePainter extends CustomPainter {
           projected[index].offset,
           4 + renderSize * .22,
           _glow(
-            const Color(0xffb8ff43).withValues(
+            const Color(0xff17c94b).withValues(
               alpha: (.10 + illumination * .18) * (1 - materialTransfer),
             ),
             4,
@@ -1551,15 +1588,6 @@ class _SendSequencePainter extends CustomPainter {
       activation,
       elapsed,
     );
-    if (elapsed >= 3500) {
-      _paintIntegratedMessageSurface(
-        canvas,
-        cubes,
-        transforms,
-        activation,
-        elapsed,
-      );
-    }
     // Keep a compact foreground specular flash at the actual struck node.
     // The radial bloom above is correctly behind the opaque cube faces; this
     // small overlay keeps the impact legible at native phone scale.
@@ -1590,8 +1618,8 @@ class _SendSequencePainter extends CustomPainter {
         _fill(const Color(0xfff1ffff).withValues(alpha: impact)),
       );
     }
-    if (elapsed >= 5100) {
-      final wave = _phase(elapsed, 5100, 5600);
+    if (elapsed >= 5600) {
+      final wave = _phase(elapsed, 5600, 6500);
       canvas.drawLine(
         Offset(scene.left + scene.width * wave, scene.top),
         Offset(scene.left + scene.width * wave - 28, scene.bottom),
@@ -1611,20 +1639,14 @@ class _SendSequencePainter extends CustomPainter {
       math.cos(elapsed / 510 + cube.spin) * 2,
       math.sin(elapsed / 610 + cube.spin) * 3,
     );
-    // Common rotation and contraction keep the cloud visibly connected. Each
-    // cube then receives a staggered attraction to its permanent glyph slot.
-    final rotation = _ease(_phase(elapsed, 2800, 4000)) * activation;
-    final contraction = _ease(_phase(elapsed, 2900, 4600)) * activation;
-    final attraction =
-        _ease(
-          _phase(elapsed, 3000 + cube.delay * .25, 5200 + cube.delay * .1),
-        ) *
-        activation;
+    // Cubes remain a connected 3D cloud. Particle material alone owns the
+    // typography targets, preventing cube letters and double-drawn surfaces.
+    final rotation = _ease(_phase(elapsed, 2800, 3900)) * activation;
+    final contraction = _ease(_phase(elapsed, 2900, 4300)) * activation;
     final cloud = (cube.start + drift)
         .rotateY(rotation * 85 * math.pi / 180)
         .rotateX(-rotation * 15 * math.pi / 180);
-    final contracted = SandboxVec3.lerp(cloud, cloud * .34, contraction);
-    return SandboxVec3.lerp(contracted, cube.target, attraction);
+    return SandboxVec3.lerp(cloud, cloud * .52, contraction);
   }
 
   double _messageMaterialTransfer(
@@ -1632,14 +1654,14 @@ class _SendSequencePainter extends CustomPainter {
     SandboxMessageCube cube,
     double activation,
   ) =>
-      _ease(_phase(elapsed, 3000 + cube.delay * .28, 5000 + cube.delay * .22)) *
+      _ease(_phase(elapsed, 3350 + cube.delay * .28, 4550 + cube.delay * .22)) *
       activation;
 
   double _messageParticleFlow(
     double elapsed,
     SandboxMessageParticle particle,
   ) => _ease(
-    _phase(elapsed, 3000 + particle.delay, 5100 + particle.delay * .28),
+    _phase(elapsed, 3350 + particle.delay, 5600 + particle.delay * .28),
   );
 
   Offset _messageBezier(
@@ -1705,18 +1727,15 @@ class _SendSequencePainter extends CustomPainter {
         flow,
       );
       final color = Color.lerp(
-        const Color(0xffa7d84c),
-        const Color(0xfff1ffba),
+        const Color(0xff80ff42),
+        const Color(0xffdfffbe),
         ((cube.id + particle.index) % 4) / 3,
       )!;
       final visible = _ease(_phase(transfer, 0, .35));
-      // The travelling field dissipates once it has reached the local word
-      // surface. The final phrase is therefore smooth material, never a
-      // frozen dot-matrix copy of the former cube targets.
-      final alpha =
-          (.35 + flow * .42) *
-          visible *
-          (1 - _ease(_phase(elapsed, 4700, 5400)));
+      // The same emitted particles remain as the final phosphorescent word;
+      // no independent text/surface layer appears over them.
+      final holdPulse = .88 + math.sin((elapsed + cube.id * 37) / 480) * .12;
+      final alpha = (.38 + flow * .50) * visible * holdPulse;
       final size = particle.size * (.8 + particle.depth * .32);
       // Only a representative sixth receives blur; the majority remain
       // inexpensive square/point material rather than a full-screen glow.
@@ -1738,44 +1757,6 @@ class _SendSequencePainter extends CustomPainter {
     }
   }
 
-  /// The smooth word surface is derived only from integrated cube occupancy.
-  /// No independent TextPainter word is painted over the moving material.
-  void _paintIntegratedMessageSurface(
-    Canvas canvas,
-    List<SandboxMessageCube> cubes,
-    List<SandboxVec3> transforms,
-    List<double> activation,
-    double elapsed,
-  ) {
-    final emission = 1 - _ease(_phase(elapsed, 5200, 6100));
-    for (var index = 0; index < cubes.length; index++) {
-      final integration = _messageMaterialTransfer(
-        elapsed,
-        cubes[index],
-        activation[index],
-      );
-      if (integration <= .55) continue;
-      final surface = _ease(_phase(integration, .55, .95));
-      final point = _messageProject(transforms[index], elapsed).offset;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: point, width: 4.05, height: 4.05),
-        const Radius.circular(.65),
-      );
-      final color = Color.lerp(
-        const Color(0xffa7d84c),
-        const Color(0xffd8fbff),
-        1 - emission,
-      )!;
-      canvas.drawRRect(rect, _fill(color.withValues(alpha: surface)));
-      if (surface > .45) {
-        canvas.drawRRect(
-          rect,
-          _line(const Color(0xfff1ffba).withValues(alpha: surface * .42), .3),
-        );
-      }
-    }
-  }
-
   SandboxProjectedPoint _messageProject(SandboxVec3 point, double elapsed) =>
       _MessageProjection(elapsed).project(
         point
@@ -1784,16 +1765,16 @@ class _SendSequencePainter extends CustomPainter {
       );
 
   double _messageImpactIntensity(double elapsed) =>
-      _ease(_phase(elapsed, 850, 930)) *
-      (1 - _ease(_phase(elapsed, 1080, 1300)));
+      _ease(_phase(elapsed, 700, 780)) *
+      (1 - _ease(_phase(elapsed, 980, 1120)));
 
   double _messageEdgePulse(
     double elapsed,
     SandboxMessageNetworkEdge edge,
     int index,
   ) {
-    final start = 1120 + edge.wave * 260 + (index % 7) * 44.0;
-    return _phase(elapsed, start, start + 190 + (index % 4) * 20);
+    final start = 850 + edge.wave * 190 + (index % 3) * 32.0;
+    return _phase(elapsed, start, start + 220 + (index % 4) * 12);
   }
 
   double _messageEdgeStrength(
@@ -1801,18 +1782,18 @@ class _SendSequencePainter extends CustomPainter {
     SandboxMessageNetworkEdge edge,
     int index,
   ) {
-    final start = 1120 + edge.wave * 260 + (index % 7) * 44.0;
-    final duration = 190 + (index % 4) * 20.0;
-    return 1 - _ease(_phase(elapsed, start + duration, start + duration + 420));
+    final start = 850 + edge.wave * 190 + (index % 3) * 32.0;
+    final duration = 220 + (index % 4) * 12.0;
+    return 1 - _ease(_phase(elapsed, start + duration, start + duration + 220));
   }
 
   double _messageWorldYaw(double elapsed) {
-    final frontal = _ease(_phase(elapsed, 3000, 4700));
-    return -25 * (1 - frontal) * math.pi / 180;
+    final frontal = _ease(_phase(elapsed, 3350, 5600));
+    return -14 * (1 - frontal) * math.pi / 180;
   }
 
   double _messageWorldPitch(double elapsed) =>
-      (18 - 18 * _ease(_phase(elapsed, 3000, 4700))) * math.pi / 180;
+      (9 - 9 * _ease(_phase(elapsed, 3350, 5600))) * math.pi / 180;
 
   void _assemblyMatrix(Canvas canvas, double t, double post) {
     const process = Offset(180, 140);
@@ -3248,13 +3229,15 @@ class _MessageProjection extends SandboxProjection {
 
   @override
   SandboxProjectedPoint project(SandboxVec3 point) {
-    final pullBack = _smoothStep(3000, 4700, elapsed);
-    final multiplier = 1.85 + (1 - 1.85) * pullBack;
-    final yaw = (-25 + 25 * pullBack) * math.pi / 180;
-    final pitch = (18 - 18 * pullBack) * math.pi / 180;
+    // Keep a real perspective camera. This is a restrained pull-back across
+    // the particle formation, not a 2D scale of a finished message.
+    final pullBack = _smoothStep(3350, 5600, elapsed);
+    final multiplier = 1.12 + (1 - 1.12) * pullBack;
+    final yaw = (-14 + 14 * pullBack) * math.pi / 180;
+    final pitch = (9 - 9 * pullBack) * math.pi / 180;
     final viewed = point.rotateY(yaw).rotateX(pitch);
-    final denominator = math.max(24.0, 400 - viewed.z);
-    final scale = 310 / denominator * multiplier;
+    final denominator = math.max(120.0, 850 - viewed.z);
+    final scale = 650 / denominator * multiplier;
     return SandboxProjectedPoint(
       Offset(180 + viewed.x * scale, 140 - viewed.y * scale),
       viewed.z,
