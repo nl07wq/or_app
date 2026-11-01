@@ -1,16 +1,107 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
-
-import 'base_camp_military_walker_preview.dart';
 
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
 /// always receive the same [InteractiveViewer] transform.
 const baseCampMapAsset = 'assets/images/themes/new/base_camp_map.png';
+const baseCampWalkerUpLeftAsset =
+    'assets/images/themes/new/base_camp_walker_up_left.gif';
+const baseCampWalkerDownRightAsset =
+    'assets/images/themes/new/base_camp_walker_down_right.gif';
+
+/// The source dimensions of both the approved map and the white-line route
+/// reference. Keeping route points in this coordinate system makes their
+/// alignment independent of the dashboard's displayed size and map zoom.
+const baseCampMapSourceSize = Size(1280, 719);
+
+/// Tunable walking presentation values in map-source pixels/seconds.
+abstract final class BaseCampWalkingSettings {
+  static const spriteHeight = 66.0;
+  static const routeBSpeed = 54.0;
+  static const routeCSpeed = 50.0;
+}
+
+@immutable
+class BaseCampWalkerRoute {
+  const BaseCampWalkerRoute({
+    required this.id,
+    required this.sourcePoints,
+    required this.speed,
+    required this.pausePatternSeconds,
+    this.initialPhaseSeconds = 0,
+  });
+
+  final String id;
+
+  /// Centre-line coordinates digitised from the supplied 1280 x 719 route
+  /// reference image. Route A is intentionally absent: its direction does
+  /// not match either approved GIF direction.
+  final List<Offset> sourcePoints;
+  final double speed;
+
+  /// Deterministic 2–4 second endpoint dwell times. Cycling the pattern keeps
+  /// the routes replayable while avoiding a visually mechanical fixed pause.
+  final List<double> pausePatternSeconds;
+  final double initialPhaseSeconds;
+
+  List<Offset> get normalizedPoints => sourcePoints
+      .map(
+        (point) => Offset(
+          point.dx / baseCampMapSourceSize.width,
+          point.dy / baseCampMapSourceSize.height,
+        ),
+      )
+      .toList(growable: false);
+}
+
+/// The two approved walker routes, digitised from the white-line map.
+///
+/// Route B: (770,275) -> (1128,416), forward direction is right/down.
+/// Route C: (533,503) -> (785,611), forward direction is right/down.
+/// The reverse leg uses the separately supplied up/left GIF without rotating
+/// or transforming either asset.
+const baseCampWalkerRoutes = <BaseCampWalkerRoute>[
+  BaseCampWalkerRoute(
+    id: 'route-b',
+    sourcePoints: <Offset>[
+      Offset(770, 275),
+      Offset(806, 292),
+      Offset(850, 309),
+      Offset(899, 319),
+      Offset(945, 330),
+      Offset(989, 350),
+      Offset(1030, 375),
+      Offset(1070, 399),
+      Offset(1128, 416),
+    ],
+    speed: BaseCampWalkingSettings.routeBSpeed,
+    pausePatternSeconds: <double>[3.2, 2.5, 3.8, 2.3],
+    initialPhaseSeconds: 1.8,
+  ),
+  BaseCampWalkerRoute(
+    id: 'route-c',
+    sourcePoints: <Offset>[
+      Offset(533, 503),
+      Offset(566, 520),
+      Offset(606, 537),
+      Offset(649, 553),
+      Offset(691, 568),
+      Offset(730, 588),
+      Offset(758, 603),
+      Offset(785, 611),
+    ],
+    speed: BaseCampWalkingSettings.routeCSpeed,
+    pausePatternSeconds: <double>[3.7, 2.8, 2.4, 3.3],
+    initialPhaseSeconds: 7.1,
+  ),
+];
 
 @immutable
 class BaseCampFacility {
@@ -127,7 +218,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   bool _isNavigating = false;
   BaseCampFacility? _selectedFacility;
   late final AnimationController _selectionPulse;
-  late final AnimationController _personnelTimeline;
+  late final AnimationController _walkerTimeline;
 
   @override
   void initState() {
@@ -136,9 +227,11 @@ class _BaseCampMapState extends State<BaseCampMap>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat();
-    _personnelTimeline = AnimationController(
+    _walkerTimeline = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 30),
+      // The sampler is time based. A long controller avoids a visible reset
+      // while keeping its ticker scoped to the dashboard's TickerMode.
+      duration: const Duration(hours: 24),
     )..repeat();
   }
 
@@ -146,7 +239,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   void dispose() {
     _interactionRelease?.cancel();
     _selectionPulse.dispose();
-    _personnelTimeline.dispose();
+    _walkerTimeline.dispose();
     _transform.dispose();
     super.dispose();
   }
@@ -170,11 +263,6 @@ class _BaseCampMapState extends State<BaseCampMap>
       _transform.value = Matrix4.identity();
     });
   }
-
-  Future<void> _openWalkingPreview() => showDialog<void>(
-    context: context,
-    builder: (_) => const BaseCampMilitaryWalkerPreview(),
-  );
 
   void _openFacility(BaseCampFacility facility) {
     if (_isTransforming) return;
@@ -236,21 +324,20 @@ class _BaseCampMapState extends State<BaseCampMap>
                         IgnorePointer(
                           child: RepaintBoundary(
                             child: AnimatedBuilder(
-                              animation: _personnelTimeline,
-                              builder: (context, _) => CustomPaint(
+                              animation: _walkerTimeline,
+                              builder: (context, _) => _BaseCampWalkerLayer(
                                 key: const ValueKey(
-                                  'new-theme-base-camp-personnel',
+                                  'new-theme-base-camp-walkers',
                                 ),
-                                painter: _BaseCampPersonnelPainter(
-                                  elapsed: reducedMotion
-                                      ? Duration.zero
-                                      : Duration(
-                                          milliseconds:
-                                              (_personnelTimeline.value * 30000)
-                                                  .round(),
-                                        ),
-                                ),
-                                child: const SizedBox.expand(),
+                                elapsed: reducedMotion
+                                    ? Duration.zero
+                                    : Duration(
+                                        microseconds:
+                                            (_walkerTimeline.value *
+                                                    Duration.microsecondsPerDay)
+                                                .round(),
+                                      ),
+                                reducedMotion: reducedMotion,
                               ),
                             ),
                           ),
@@ -291,21 +378,11 @@ class _BaseCampMapState extends State<BaseCampMap>
                 right: 8,
                 child: Tooltip(
                   message: 'Reset map framing',
-                  child: Material(
-                    color: Theme.of(context).colorScheme.secondaryContainer,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      key: const ValueKey('new-theme-base-camp-reset'),
-                      customBorder: const CircleBorder(),
-                      onTap: _reset,
-                      onLongPress: _openWalkingPreview,
-                      child: const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Icon(Icons.refresh),
-                      ),
-                    ).actionableFeedback(role: ActionableFeedbackRole.cursor),
-                  ),
+                  child: IconButton.filledTonal(
+                    key: const ValueKey('new-theme-base-camp-reset'),
+                    onPressed: _reset,
+                    icon: const Icon(Icons.refresh),
+                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
                 ),
               ),
               if (selectedFacility != null)
@@ -544,261 +621,265 @@ class _FacilitySelectionFramePainter extends CustomPainter {
 }
 
 @immutable
-class BaseCampPersonnelPose {
-  const BaseCampPersonnelPose({
-    required this.position,
+class BaseCampWalkerPose {
+  const BaseCampWalkerPose({
+    required this.sourcePosition,
     required this.direction,
-    required this.isMoving,
+    required this.isWalking,
   });
 
-  final Offset position;
-  final double direction;
-  final bool isMoving;
+  final Offset sourcePosition;
+  final Offset direction;
+  final bool isWalking;
+
+  bool get usesDownRightAsset => direction.dx >= 0 && direction.dy >= 0;
 }
 
-/// Deterministic, normalised route sampler.  Keeping it public gives the
-/// widget tests a stable way to verify continuity without inspecting pixels.
-BaseCampPersonnelPose baseCampPersonnelPose(String id, Duration elapsed) {
-  final second = elapsed.inMilliseconds / 1000;
-  switch (id) {
-    case 'soldier-a':
-      return _routePose(
-        second,
-        18,
-        const Offset(.395, .505),
-        const Offset(.535, .455),
-        7,
-        10,
-        18,
-      );
-    case 'soldier-b':
-      return _routePose(
-        second + 5.5,
-        24,
-        const Offset(.435, .355),
-        const Offset(.565, .395),
-        8,
-        12,
-        20,
-      );
-    case 'soldier-c':
-      return _routePose(
-        second + 11,
-        21,
-        const Offset(.625, .680),
-        const Offset(.755, .605),
-        8,
-        11,
-        18,
-      );
-    case 'jeep':
-      return _routePose(
-        second + 15,
-        30,
-        const Offset(.345, .535),
-        const Offset(.570, .465),
-        8,
-        12,
-        22,
-      );
-    default:
-      throw ArgumentError.value(id, 'id', 'Unknown Base Camp personnel route');
-  }
+/// Time-based route sampler. It is independent of render frame rate and keeps
+/// a walker exactly on its digitised source-image polyline in either direction.
+BaseCampWalkerPose baseCampWalkerPose(String id, Duration elapsed) {
+  final route = baseCampWalkerRoutes.singleWhere((route) => route.id == id);
+  final metrics = _BaseCampRouteMetrics(route);
+  final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+  final local = (seconds + route.initialPhaseSeconds) % metrics.cycleSeconds;
+  return metrics.poseAtElapsed(local);
 }
 
-BaseCampPersonnelPose _routePose(
-  double seconds,
-  double period,
-  Offset start,
-  Offset end,
-  double outboundEnd,
-  double returnStart,
-  double returnEnd,
-) {
-  final local = seconds % period;
-  if (local < outboundEnd) {
-    final progress = local / outboundEnd;
-    return BaseCampPersonnelPose(
-      position: Offset.lerp(start, end, progress)!,
-      direction: (end - start).direction,
-      isMoving: true,
-    );
-  }
-  if (local < returnStart) {
-    return BaseCampPersonnelPose(
-      position: end,
-      direction: (end - start).direction,
-      isMoving: false,
-    );
-  }
-  if (local < returnEnd) {
-    final progress = (local - returnStart) / (returnEnd - returnStart);
-    return BaseCampPersonnelPose(
-      position: Offset.lerp(end, start, progress)!,
-      direction: (start - end).direction,
-      isMoving: true,
-    );
-  }
-  return BaseCampPersonnelPose(
-    position: start,
-    direction: (end - start).direction,
-    isMoving: false,
+/// Exposed for deterministic route-cycle verification without inspecting a
+/// rendered frame. The duration includes the deterministic randomised pattern
+/// of endpoint waits.
+Duration baseCampWalkerCycleDuration(String id) {
+  final route = baseCampWalkerRoutes.singleWhere((route) => route.id == id);
+  return Duration(
+    microseconds:
+        (_BaseCampRouteMetrics(route).cycleSeconds *
+                Duration.microsecondsPerSecond)
+            .round(),
   );
 }
 
-class _BaseCampPersonnelPainter extends CustomPainter {
-  const _BaseCampPersonnelPainter({required this.elapsed});
-
-  final Duration elapsed;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final unit = size.width / 650;
-    _paintSoldier(canvas, size, unit, 'soldier-a');
-    _paintSoldier(canvas, size, unit, 'soldier-b');
-    _paintSoldier(canvas, size, unit, 'soldier-c');
-    _paintJeep(canvas, size, unit);
+class _BaseCampRouteMetrics {
+  _BaseCampRouteMetrics(this.route)
+    : segments = List<_BaseCampRouteSegment>.generate(
+        route.sourcePoints.length - 1,
+        (index) => _BaseCampRouteSegment(
+          route.sourcePoints[index],
+          route.sourcePoints[index + 1],
+        ),
+      ) {
+    length = segments.fold<double>(0, (sum, segment) => sum + segment.length);
   }
 
-  void _paintSoldier(Canvas canvas, Size size, double unit, String id) {
-    final pose = baseCampPersonnelPose(id, elapsed);
-    final position = Offset(
-      pose.position.dx * size.width,
-      pose.position.dy * size.height,
-    );
-    final phase = pose.isMoving
-        ? (elapsed.inMilliseconds / 650) * math.pi * 2
-        : 0.0;
-    canvas.save();
-    canvas.translate(position.dx, position.dy);
-    canvas.rotate(pose.direction + math.pi / 2);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(0, 4.5 * unit),
-        width: 10 * unit,
-        height: 3.2 * unit,
-      ),
-      Paint()..color = const Color(0x88151A14),
-    );
-    final limb = math.sin(phase) * 2.4 * unit;
-    final dark = Paint()..color = const Color(0xFF353D2C);
-    final khaki = Paint()..color = const Color(0xFF8A8060);
-    final olive = Paint()..color = const Color(0xFF626B45);
-    final boot = Paint()..color = const Color(0xFF151A14);
-    canvas.drawLine(
-      Offset(-2.2 * unit, 2 * unit),
-      Offset(-2.8 * unit + limb, 6.2 * unit),
-      dark..strokeWidth = 1.6 * unit,
-    );
-    canvas.drawLine(
-      Offset(2.2 * unit, 2 * unit),
-      Offset(2.8 * unit - limb, 6.2 * unit),
-      dark..strokeWidth = 1.6 * unit,
-    );
-    canvas.drawCircle(Offset(-2.8 * unit + limb, 6.2 * unit), .9 * unit, boot);
-    canvas.drawCircle(Offset(2.8 * unit - limb, 6.2 * unit), .9 * unit, boot);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset.zero,
-          width: 6.4 * unit,
-          height: 7.6 * unit,
-        ),
-        (1.3 * unit).toRadius(),
-      ),
-      khaki,
-    );
-    canvas.drawLine(
-      Offset(-2.7 * unit, -.5 * unit),
-      Offset(-4.8 * unit - limb, 2.3 * unit),
-      olive..strokeWidth = 1.4 * unit,
-    );
-    canvas.drawLine(
-      Offset(2.7 * unit, -.5 * unit),
-      Offset(4.8 * unit + limb, 2.3 * unit),
-      olive..strokeWidth = 1.4 * unit,
-    );
-    canvas.drawCircle(Offset(0, -5.0 * unit), 2.9 * unit, olive);
-    canvas.drawRect(
-      Rect.fromCenter(
-        center: Offset(0, -5.9 * unit),
-        width: 5.2 * unit,
-        height: 1.5 * unit,
-      ),
-      dark,
-    );
-    canvas.restore();
-  }
+  final BaseCampWalkerRoute route;
+  final List<_BaseCampRouteSegment> segments;
+  late final double length;
 
-  void _paintJeep(Canvas canvas, Size size, double unit) {
-    final pose = baseCampPersonnelPose('jeep', elapsed);
-    final position = Offset(
-      pose.position.dx * size.width,
-      pose.position.dy * size.height,
-    );
-    canvas.save();
-    canvas.translate(position.dx, position.dy);
-    canvas.rotate(pose.direction);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(0, 5 * unit),
-        width: 34 * unit,
-        height: 8 * unit,
-      ),
-      Paint()..color = const Color(0x88151A14),
-    );
-    final body = Paint()..color = const Color(0xFF626B45);
-    final side = Paint()..color = const Color(0xFF353D2C);
-    final khaki = Paint()..color = const Color(0xFF8A8060);
-    final window = Paint()..color = const Color(0xFF39474A);
-    final tyre = Paint()..color = const Color(0xFF151A14);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset.zero,
-          width: 32 * unit,
-          height: 12 * unit,
-        ),
-        (2 * unit).toRadius(),
-      ),
-      body,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(-5 * unit, -6 * unit)
-        ..lineTo(8 * unit, -6 * unit)
-        ..lineTo(11 * unit, -1 * unit)
-        ..lineTo(-8 * unit, -1 * unit)
-        ..close(),
-      khaki,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(-3 * unit, -5 * unit, 9 * unit, 3.3 * unit),
-        (1 * unit).toRadius(),
-      ),
-      window,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(-15 * unit, 2 * unit, 30 * unit, 3.2 * unit),
-      side,
-    );
-    for (final x in <double>[-10, 10]) {
-      canvas.drawCircle(Offset(x * unit, 5 * unit), 3.2 * unit, tyre);
-      canvas.drawCircle(Offset(x * unit, 5 * unit), 1.25 * unit, khaki);
+  double get travelSeconds => length / route.speed;
+  double get cycleSeconds =>
+      travelSeconds * route.pausePatternSeconds.length +
+      route.pausePatternSeconds.fold<double>(0, (sum, pause) => sum + pause);
+
+  double distanceAtTime(double seconds) => (seconds / travelSeconds) * length;
+
+  BaseCampWalkerPose poseAtElapsed(double elapsedSeconds) {
+    var remaining = elapsedSeconds;
+    for (var leg = 0; leg < route.pausePatternSeconds.length; leg++) {
+      final forward = leg.isEven;
+      if (remaining < travelSeconds) {
+        final distance = distanceAtTime(remaining);
+        return poseAtDistance(
+          forward ? distance : length - distance,
+          isWalking: true,
+          forward: forward,
+        );
+      }
+      remaining -= travelSeconds;
+      if (remaining < route.pausePatternSeconds[leg]) {
+        return poseAtDistance(
+          forward ? length : 0,
+          isWalking: false,
+          forward: forward,
+        );
+      }
+      remaining -= route.pausePatternSeconds[leg];
     }
-    canvas.drawRect(
-      Rect.fromLTWH(13 * unit, -3 * unit, 3 * unit, 4 * unit),
-      khaki,
-    );
-    canvas.restore();
+    return poseAtDistance(0, isWalking: false, forward: false);
   }
 
-  @override
-  bool shouldRepaint(_BaseCampPersonnelPainter oldDelegate) =>
-      oldDelegate.elapsed != elapsed;
+  BaseCampWalkerPose poseAtDistance(
+    double distance, {
+    required bool isWalking,
+    required bool forward,
+  }) {
+    var remaining = distance.clamp(0, length).toDouble();
+    for (final segment in segments) {
+      if (remaining <= segment.length) {
+        return BaseCampWalkerPose(
+          sourcePosition: Offset.lerp(
+            segment.start,
+            segment.end,
+            segment.length == 0 ? 0 : remaining / segment.length,
+          )!,
+          direction: forward ? segment.delta : -segment.delta,
+          isWalking: isWalking,
+        );
+      }
+      remaining -= segment.length;
+    }
+    final segment = segments.last;
+    return BaseCampWalkerPose(
+      sourcePosition: segment.end,
+      direction: forward ? segment.delta : -segment.delta,
+      isWalking: isWalking,
+    );
+  }
 }
 
-extension on double {
-  Radius toRadius() => Radius.circular(this);
+class _BaseCampRouteSegment {
+  const _BaseCampRouteSegment(this.start, this.end);
+
+  final Offset start;
+  final Offset end;
+
+  Offset get delta => end - start;
+  double get length => delta.distance;
+}
+
+class _BaseCampWalkerLayer extends StatelessWidget {
+  const _BaseCampWalkerLayer({
+    super.key,
+    required this.elapsed,
+    required this.reducedMotion,
+  });
+
+  final Duration elapsed;
+  final bool reducedMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mapSize = constraints.biggest;
+        final spriteHeight =
+            mapSize.width /
+            baseCampMapSourceSize.width *
+            BaseCampWalkingSettings.spriteHeight;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            for (final route in baseCampWalkerRoutes)
+              _BaseCampGifWalkerPositioned(
+                route: route,
+                pose: baseCampWalkerPose(route.id, elapsed),
+                mapSize: mapSize,
+                spriteHeight: spriteHeight,
+                reducedMotion: reducedMotion,
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BaseCampGifWalkerPositioned extends StatelessWidget {
+  const _BaseCampGifWalkerPositioned({
+    required this.route,
+    required this.pose,
+    required this.mapSize,
+    required this.spriteHeight,
+    required this.reducedMotion,
+  });
+
+  final BaseCampWalkerRoute route;
+  final BaseCampWalkerPose pose;
+  final Size mapSize;
+  final double spriteHeight;
+  final bool reducedMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = spriteHeight * .6;
+    final position = Offset(
+      pose.sourcePosition.dx / baseCampMapSourceSize.width * mapSize.width,
+      pose.sourcePosition.dy / baseCampMapSourceSize.height * mapSize.height,
+    );
+    return Positioned(
+      key: ValueKey('new-theme-base-camp-walker-${route.id}'),
+      left: position.dx - width / 2,
+      top: position.dy - spriteHeight,
+      width: width,
+      height: spriteHeight,
+      child: _BaseCampGifWalker(
+        assetPath: pose.usesDownRightAsset
+            ? baseCampWalkerDownRightAsset
+            : baseCampWalkerUpLeftAsset,
+        walking: pose.isWalking,
+        reducedMotion: reducedMotion,
+      ),
+    );
+  }
+}
+
+/// Uses the approved animated asset while travelling, and its decoded first
+/// GIF frame at route endpoints so a stopped walker does not keep stepping.
+class _BaseCampGifWalker extends StatefulWidget {
+  const _BaseCampGifWalker({
+    required this.assetPath,
+    required this.walking,
+    required this.reducedMotion,
+  });
+
+  final String assetPath;
+  final bool walking;
+  final bool reducedMotion;
+
+  @override
+  State<_BaseCampGifWalker> createState() => _BaseCampGifWalkerState();
+}
+
+class _BaseCampGifWalkerState extends State<_BaseCampGifWalker> {
+  ui.Image? _firstFrame;
+  String? _loadedAsset;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFirstFrame();
+  }
+
+  @override
+  void didUpdateWidget(_BaseCampGifWalker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetPath != widget.assetPath) _loadFirstFrame();
+  }
+
+  Future<void> _loadFirstFrame() async {
+    final assetPath = widget.assetPath;
+    final bytes = await rootBundle.load(assetPath);
+    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    codec.dispose();
+    if (!mounted || assetPath != widget.assetPath) return;
+    setState(() {
+      _firstFrame = frame.image;
+      _loadedAsset = assetPath;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showAnimation = widget.walking && !widget.reducedMotion;
+    if (!showAnimation &&
+        _loadedAsset == widget.assetPath &&
+        _firstFrame != null) {
+      return RawImage(image: _firstFrame, fit: BoxFit.contain);
+    }
+    return Image.asset(
+      widget.assetPath,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.none,
+      gaplessPlayback: true,
+    );
+  }
 }

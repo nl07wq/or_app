@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/themes/new/widgets/base_camp_map.dart';
@@ -165,29 +166,86 @@ void main() {
     expect(selected, isNull);
   });
 
-  test('personnel routes are periodic, continuous and include their stops', () {
-    final start = baseCampPersonnelPose('soldier-a', Duration.zero);
-    final end = baseCampPersonnelPose('soldier-a', const Duration(seconds: 18));
-    expect(end.position, start.position);
+  test('two approved routes preserve their digitised source coordinates', () {
+    expect(baseCampWalkerRoutes.map((route) => route.id), [
+      'route-b',
+      'route-c',
+    ]);
+    expect(baseCampWalkerRoutes, hasLength(2));
     expect(
-      baseCampPersonnelPose('soldier-a', const Duration(seconds: 8)).isMoving,
+      baseCampWalkerRoutes.first.sourcePoints.first,
+      const Offset(770, 275),
+    );
+    expect(
+      baseCampWalkerRoutes.first.sourcePoints.last,
+      const Offset(1128, 416),
+    );
+    expect(
+      baseCampWalkerRoutes.last.sourcePoints.first,
+      const Offset(533, 503),
+    );
+    expect(baseCampWalkerRoutes.last.sourcePoints.last, const Offset(785, 611));
+    expect(
+      baseCampWalkerRoutes.first.normalizedPoints.first.dx,
+      closeTo(.602, .001),
+    );
+    expect(
+      baseCampWalkerRoutes.last.normalizedPoints.last.dy,
+      closeTo(.850, .001),
+    );
+    for (final route in baseCampWalkerRoutes) {
+      expect(route.pausePatternSeconds, everyElement(inInclusiveRange(2.0, 4.0)));
+    }
+  });
+
+  test('walkers use continuous, periodic path sampling and endpoint stops', () {
+    for (final route in baseCampWalkerRoutes) {
+      final cycle = baseCampWalkerCycleDuration(route.id);
+      final start = baseCampWalkerPose(route.id, Duration.zero);
+      final end = baseCampWalkerPose(route.id, cycle);
+      expect(end.sourcePosition.dx, closeTo(start.sourcePosition.dx, .001));
+      expect(end.sourcePosition.dy, closeTo(start.sourcePosition.dy, .001));
+    }
+
+    // Route B enters its explicit 3.2 second end-stop after its forward leg.
+    expect(
+      baseCampWalkerPose('route-b', const Duration(seconds: 6)).isWalking,
       isFalse,
     );
     expect(
-      baseCampPersonnelPose('soldier-b', const Duration(seconds: 3)).isMoving,
-      isFalse,
-    );
-    expect(
-      baseCampPersonnelPose('soldier-c', const Duration(seconds: 10)).isMoving,
+      baseCampWalkerPose('route-c', const Duration(seconds: 3)).isWalking,
       isTrue,
     );
     expect(
-      baseCampPersonnelPose('jeep', const Duration(seconds: 24)).isMoving,
+      baseCampWalkerPose('route-b', Duration.zero).usesDownRightAsset,
+      isTrue,
+    );
+    expect(
+      baseCampWalkerPose('route-b', const Duration(seconds: 10))
+          .usesDownRightAsset,
       isFalse,
     );
   });
 
-  testWidgets('personnel layer remains present with reduced motion', (
+  test('walker assets are the supplied paired directional GIFs', () {
+    expect(
+      baseCampWalkerDownRightAsset,
+      endsWith('base_camp_walker_down_right.gif'),
+    );
+    expect(baseCampWalkerUpLeftAsset, endsWith('base_camp_walker_up_left.gif'));
+  });
+
+  test('approved walker GIF assets are registered and non-empty', () async {
+    for (final asset in [
+      baseCampWalkerDownRightAsset,
+      baseCampWalkerUpLeftAsset,
+    ]) {
+      final data = await rootBundle.load(asset);
+      expect(data.lengthInBytes, greaterThan(100000));
+    }
+  });
+
+  testWidgets('two GIF walkers remain present with reduced motion', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -201,8 +259,20 @@ void main() {
       ),
     );
     expect(
-      find.byKey(const ValueKey('new-theme-base-camp-personnel')),
+      find.byKey(const ValueKey('new-theme-base-camp-walkers')),
       findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('new-theme-base-camp-walker-route-b')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('new-theme-base-camp-walker-route-c')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('new-theme-base-camp-personnel')),
+      findsNothing,
     );
   });
 
