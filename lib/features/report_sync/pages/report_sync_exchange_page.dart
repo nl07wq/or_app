@@ -14,6 +14,7 @@ import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
 import '../../operation_date/models/operation_local_date.dart';
+import '../../system/widgets/operation_sequence_overlay.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/daily_debrief_record.dart';
@@ -549,12 +550,33 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
       _importMessage = null;
     });
     try {
-      final result = await _gateway.apply(
-        preview,
-        selectedMealIds: widget.exchangeType == ReportSyncExchangeType.food
-            ? _selectedMealIds
-            : null,
-      );
+      final sequenceMode = switch (widget.exchangeType) {
+        ReportSyncExchangeType.morningBrief => OperationSequenceMode.brief,
+        ReportSyncExchangeType.dailyDebrief => OperationSequenceMode.debrief,
+        _ => null,
+      };
+      final result = sequenceMode == null
+          ? await _gateway.apply(
+              preview,
+              selectedMealIds:
+                  widget.exchangeType == ReportSyncExchangeType.food
+                  ? _selectedMealIds
+                  : null,
+            )
+          : await OperationSequenceOverlay.run(
+              context,
+              operationMode: sequenceMode,
+              task: () async {
+                final applied = await _gateway.apply(
+                  preview,
+                  selectedMealIds: null,
+                );
+                if (!applied.readBackVerified) {
+                  throw StateError('Read-back verification failed.');
+                }
+                return applied;
+              },
+            );
       if (!result.readBackVerified) {
         throw StateError('Read-back verification failed.');
       }

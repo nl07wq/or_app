@@ -17,6 +17,7 @@ import 'services/backup_file_gateway.dart';
 import 'services/backup_import_service.dart';
 import 'services/backup_package_codec.dart';
 import 'services/backup_v14_transform.dart';
+import '../system/widgets/operation_sequence_overlay.dart';
 
 class BackupRestorePage extends StatefulWidget {
   const BackupRestorePage({super.key});
@@ -59,9 +60,15 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       _message = null;
     });
     try {
-      final result = await BackupFileExportService(
-        fileGateway: _fileGateway,
-      ).exportV15Bundle();
+      final result = await OperationSequenceOverlay.run(
+        context,
+        operationMode: OperationSequenceMode.backup,
+        task: () => BackupFileExportService(
+          fileGateway: _fileGateway,
+        ).exportV15Bundle(),
+        isSuccess: (value) =>
+            value.normalDelivery != BackupFileDelivery.cancelled,
+      );
       if (result.normalDelivery == BackupFileDelivery.cancelled) {
         if (mounted) {
           setState(() => _message = 'BACKUPの保存をキャンセルしました。');
@@ -89,9 +96,14 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       _message = null;
     });
     try {
-      final result = await BackupFileExportService(
-        fileGateway: _fileGateway,
-      ).exportLegacyV13();
+      final result = await OperationSequenceOverlay.run(
+        context,
+        operationMode: OperationSequenceMode.backup,
+        task: () => BackupFileExportService(
+          fileGateway: _fileGateway,
+        ).exportLegacyV13(),
+        isSuccess: (value) => value.delivery != BackupFileDelivery.cancelled,
+      );
       if (mounted) {
         setState(() {
           _message = result.delivery == BackupFileDelivery.cancelled
@@ -234,7 +246,12 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       _busy = true;
       _message = null;
     });
-    final result = await BackupImportService().execute(plan);
+    final result = await OperationSequenceOverlay.run(
+      context,
+      operationMode: OperationSequenceMode.backup,
+      task: () => BackupImportService().execute(plan),
+      isSuccess: (value) => value.success,
+    );
     if (!mounted) return;
     setState(() {
       _busy = false;

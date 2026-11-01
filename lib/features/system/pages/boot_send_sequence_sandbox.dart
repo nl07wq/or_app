@@ -19,6 +19,12 @@ enum TransferOperation { save, send }
 
 enum _OperationMode { brief, debrief, backup }
 
+/// Production-safe labels for the two Sandbox renderers that can be embedded
+/// without bringing the Sandbox selectors or simulated operation state along.
+enum OperationSequenceMode { brief, debrief, backup }
+
+enum OperationSequenceMotion { messageAssembly, voxelWalkIn }
+
 /// Appearance-only choice for the Pixel Builder character. Both variants use
 /// the identical construction timeline and data hand-off.
 enum SandboxRobotAppearance { original, ark }
@@ -84,6 +90,108 @@ class BootSendSequenceSandbox extends StatefulWidget {
   @override
   State<BootSendSequenceSandbox> createState() =>
       _BootSendSequenceSandboxState();
+}
+
+/// A presentation-only monitor shared by the Sandbox and production overlay.
+/// It owns no repositories, navigation, or operation outcome semantics.
+class OperationSequenceAnimation extends StatefulWidget {
+  const OperationSequenceAnimation({
+    super.key,
+    required this.operationMode,
+    required this.motion,
+  });
+
+  final OperationSequenceMode operationMode;
+  final OperationSequenceMotion motion;
+
+  @override
+  State<OperationSequenceAnimation> createState() =>
+      _OperationSequenceAnimationState();
+}
+
+class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
+    with TickerProviderStateMixin {
+  late final AnimationController _construction;
+  late final AnimationController _completion;
+  var _completionStarted = false;
+
+  Duration get _duration => widget.motion == OperationSequenceMotion.voxelWalkIn
+      ? sandboxPixelVoxelCycle(SandboxPixelBuilderFinale.walkIn)
+      : _messageAssemblyCycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _completion = AnimationController(
+      vsync: this,
+      duration: _completionTimeline,
+    );
+    _construction = AnimationController(vsync: this, duration: _duration)
+      ..addListener(_startCompletion)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _startCompletion();
+      })
+      ..forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant OperationSequenceAnimation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.motion == widget.motion) return;
+    _completionStarted = false;
+    _completion
+      ..stop()
+      ..value = 0;
+    _construction
+      ..duration = _duration
+      ..forward(from: 0);
+  }
+
+  void _startCompletion() {
+    if (widget.motion != OperationSequenceMotion.voxelWalkIn ||
+        _construction.value < 1 ||
+        _completionStarted) {
+      return;
+    }
+    _completionStarted = true;
+    _completion.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _construction.dispose();
+    _completion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (reducedMotion && _construction.isAnimating) _construction.stop();
+    final mode = switch (widget.operationMode) {
+      OperationSequenceMode.brief => _OperationMode.brief,
+      OperationSequenceMode.debrief => _OperationMode.debrief,
+      OperationSequenceMode.backup => _OperationMode.backup,
+    };
+    final concept = widget.motion == OperationSequenceMotion.voxelWalkIn
+        ? BootSendSequenceConcept.voxelIntegration
+        : BootSendSequenceConcept.messageAssembly;
+    return AnimatedBuilder(
+      animation: Listenable.merge([_construction, _completion]),
+      builder: (_, _) => _SendSequenceMonitor(
+        concept: concept,
+        mode: mode,
+        operation: TransferOperation.save,
+        robotAppearance: SandboxRobotAppearance.original,
+        pixelBuilderFinale: SandboxPixelBuilderFinale.walkIn,
+        progress: reducedMotion ? 1 : _construction.value,
+        completionElapsedSeconds: reducedMotion
+            ? 0
+            : _completion.value * _completionTimelineSeconds,
+        reducedMotion: reducedMotion,
+      ),
+    );
+  }
 }
 
 class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
@@ -334,10 +442,10 @@ String _modeName(_OperationMode mode) => switch (mode) {
 /// Public, pure helpers make the message particle geometry testable without a
 /// running Canvas. The operation selector deliberately does not affect it.
 String sandboxMessageAssemblyMessage(String mode) => switch (mode) {
-  'BRIEF' => 'BRIEF RECEIVED',
+  'BRIEF' => 'BRIEF RECIVED',
   'DEBRIEF' => 'DEBRIEF RECEIVED',
   'BACKUP' => 'BACKUP COMPLETE',
-  _ => 'BRIEF RECEIVED',
+  _ => 'BRIEF RECIVED',
 };
 
 const _messageGlyphs = <String, List<String>>{
@@ -585,11 +693,10 @@ List<SandboxMessageNetworkEdge> sandboxMessageSelectedNetworkEdges(
 /// Smooth local-surface reveal used by the one coherent MESSAGE word object.
 /// It deliberately describes material coverage, not camera framing.
 double sandboxMessageSurfaceReveal(double elapsedMs) {
-  if (elapsedMs <= 3200) return .12;
-  if (elapsedMs <= 3700) return .12 + (elapsedMs - 3200) / 500 * .13;
-  if (elapsedMs <= 4200) return .25 + (elapsedMs - 3700) / 500 * .20;
-  if (elapsedMs <= 4700) return .45 + (elapsedMs - 4200) / 500 * .30;
-  if (elapsedMs <= 5200) return .75 + (elapsedMs - 4700) / 500 * .25;
+  if (elapsedMs <= 3500) return .12;
+  if (elapsedMs <= 4200) return .12 + (elapsedMs - 3500) / 700 * .33;
+  if (elapsedMs <= 5000) return .45 + (elapsedMs - 4200) / 800 * .30;
+  if (elapsedMs <= 5400) return .75 + (elapsedMs - 5000) / 400 * .25;
   return 1;
 }
 
@@ -1207,6 +1314,11 @@ class _SendSequencePainter extends CustomPainter {
     const scene = Rect.fromLTWH(14, 72, 332, 128);
     canvas.save();
     canvas.clipRect(scene);
+    canvas.drawRect(scene, _fill(const Color(0xff050704)));
+    canvas.drawOval(
+      Rect.fromCenter(center: scene.center, width: 238, height: 82),
+      _fill(const Color(0xff23331b).withValues(alpha: .16)),
+    );
     final transforms = [
       for (final cube in cubes) _messageCubeTransform(cube, elapsed),
     ];
@@ -1217,15 +1329,15 @@ class _SendSequencePainter extends CustomPainter {
     // The graph is an activation aid, not the subject. It stays bright while
     // a pulse is travelling, then leaves only a compact afterglow as the
     // cube material transfers into the flowing particle field.
-    final beamFade = 1 - _ease(_phase(elapsed, 2400, 3600));
+    final beamFade = 1 - _ease(_phase(elapsed, 2800, 3500));
     final nodeIllumination = List<double>.filled(cubes.length, 0)..[0] = impact;
 
     // The comet is intentionally the first major event, and targets cube 0.
-    if (elapsed >= 350 && elapsed <= 1050) {
+    if (elapsed >= 550 && elapsed <= 1050) {
       final comet = Offset.lerp(
         const Offset(380, 78),
         projected.first.offset,
-        _ease(_phase(elapsed, 350, 850)),
+        _ease(_phase(elapsed, 550, 850)),
       )!;
       canvas.drawLine(
         Offset(comet.dx + 42, comet.dy - 16),
@@ -1357,7 +1469,7 @@ class _SendSequencePainter extends CustomPainter {
       border: _ice.withValues(alpha: .68),
     );
     _paintMessageParticles(canvas, particles, cubes, transforms, elapsed);
-    if (elapsed >= 3000) {
+    if (elapsed >= 3500) {
       _paintMessageWordSurface(canvas, modeName, elapsed);
     }
     // Keep a compact foreground specular flash at the actual struck node.
@@ -1409,10 +1521,10 @@ class _SendSequencePainter extends CustomPainter {
     );
     // Common rotation and contraction keep the cloud visibly connected. Each
     // cube then receives a staggered attraction to its permanent glyph slot.
-    final rotation = _ease(_phase(elapsed, 2400, 4000));
-    final contraction = _ease(_phase(elapsed, 2700, 4400));
+    final rotation = _ease(_phase(elapsed, 2800, 4000));
+    final contraction = _ease(_phase(elapsed, 2900, 4600));
     final attraction = _ease(
-      _phase(elapsed, 3000 + cube.delay * .25, 4500 + cube.delay * .1),
+      _phase(elapsed, 3000 + cube.delay * .25, 5200 + cube.delay * .1),
     );
     final cloud = (cube.start + drift)
         .rotateY(rotation * 85 * math.pi / 180)
@@ -1422,13 +1534,13 @@ class _SendSequencePainter extends CustomPainter {
   }
 
   double _messageMaterialTransfer(double elapsed, SandboxMessageCube cube) =>
-      _ease(_phase(elapsed, 2400 + cube.delay * .28, 4100 + cube.delay * .22));
+      _ease(_phase(elapsed, 3000 + cube.delay * .28, 5000 + cube.delay * .22));
 
   double _messageParticleFlow(
     double elapsed,
     SandboxMessageParticle particle,
   ) => _ease(
-    _phase(elapsed, 2650 + particle.delay, 4650 + particle.delay * .28),
+    _phase(elapsed, 3000 + particle.delay, 5100 + particle.delay * .28),
   );
 
   Offset _messageBezier(
@@ -1501,7 +1613,7 @@ class _SendSequencePainter extends CustomPainter {
       final alpha =
           (.35 + flow * .42) *
           visible *
-          (1 - _ease(_phase(elapsed, 3600, 4350)));
+          (1 - _ease(_phase(elapsed, 4700, 5400)));
       final size = particle.size * (.8 + particle.depth * .32);
       // Only a representative sixth receives blur; the majority remain
       // inexpensive square/point material rather than a full-screen glow.
@@ -1557,8 +1669,8 @@ class _SendSequencePainter extends CustomPainter {
     final roll = sandboxMessageScreenRoll(elapsed) * math.pi / 180;
     final yaw = (58 * (1 - pullBack)) * math.pi / 180;
     final focusX = word.width * (.10 + .40 * pullBack);
-    final surfaceAlpha = _ease(_phase(elapsed, 3150, 5200));
-    final emission = 1 - _ease(_phase(elapsed, 5000, 5900));
+    final surfaceAlpha = _ease(_phase(elapsed, 3500, 5600));
+    final emission = 1 - _ease(_phase(elapsed, 5200, 6100));
     final visibleWidth = word.width * reveal;
 
     canvas.save();
@@ -1607,7 +1719,7 @@ class _SendSequencePainter extends CustomPainter {
       final unitX = _particleUnit(443, index, 1);
       final unitY = _particleUnit(443, index, 2);
       if (unitX > reveal) continue;
-      final flow = _ease(_phase(elapsed, 3050 + (index % 19) * 24, 4900));
+      final flow = _ease(_phase(elapsed, 3500 + (index % 19) * 24, 5300));
       final x = unitX * word.width;
       final y = unitY * word.height;
       final offset = Offset(

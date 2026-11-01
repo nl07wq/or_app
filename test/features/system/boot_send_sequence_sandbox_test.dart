@@ -142,7 +142,7 @@ void main() {
         isTrue,
       );
     }
-    expect(sandboxMessageAssemblyMessage('BRIEF'), 'BRIEF RECEIVED');
+    expect(sandboxMessageAssemblyMessage('BRIEF'), 'BRIEF RECIVED');
     expect(sandboxMessageAssemblyMessage('DEBRIEF'), 'DEBRIEF RECEIVED');
     expect(sandboxMessageAssemblyMessage('BACKUP'), 'BACKUP COMPLETE');
   });
@@ -216,9 +216,9 @@ void main() {
       isTrue,
     );
     expect(particles.every((particle) => particle.size >= .6), isTrue);
-    expect(sandboxMessageSurfaceReveal(3200), closeTo(.12, .001));
+    expect(sandboxMessageSurfaceReveal(3500), closeTo(.12, .001));
     expect(sandboxMessageSurfaceReveal(4200), closeTo(.45, .001));
-    expect(sandboxMessageSurfaceReveal(5200), closeTo(1, .001));
+    expect(sandboxMessageSurfaceReveal(5400), closeTo(1, .001));
     expect(sandboxMessageCameraZoom(3450), closeTo(3.3, .001));
     expect(sandboxMessageCameraZoom(5650), closeTo(1, .001));
     expect(sandboxMessageScreenRoll(3350), closeTo(-72, .001));
