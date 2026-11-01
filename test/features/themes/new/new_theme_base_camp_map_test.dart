@@ -21,36 +21,47 @@ void main() {
     );
   });
 
-  testWidgets('all five normalised Base Camp facilities navigate by callback', (
-    tester,
-  ) async {
-    final selected = <String>[];
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            width: 390,
-            child: BaseCampMap(
-              onFacilityPressed: (facility) => selected.add(facility.id),
+  testWidgets(
+    'facility selection waits for YES before navigating by callback',
+    (tester) async {
+      final selected = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              child: BaseCampMap(
+                onFacilityPressed: (facility) => selected.add(facility.id),
+              ),
             ),
           ),
         ),
-      ),
-    );
-
-    expect(baseCampFacilities, hasLength(5));
-    for (final facility in baseCampFacilities) {
-      await tester.tap(
-        find.byKey(ValueKey('new-theme-base-camp-facility-${facility.id}')),
       );
-      await tester.pump();
-    }
 
-    expect(
-      selected,
-      baseCampFacilities.map((facility) => facility.id).toList(),
-    );
-  });
+      expect(baseCampFacilities, hasLength(5));
+      for (var index = 0; index < baseCampFacilities.length; index++) {
+        final facility = baseCampFacilities[index];
+        await tester.tap(
+          find.byKey(ValueKey('new-theme-base-camp-facility-${facility.id}')),
+        );
+        await tester.pump();
+        expect(selected, hasLength(index));
+        expect(
+          find.byKey(const ValueKey('new-theme-base-camp-selection-frame')),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('new-theme-base-camp-confirm-yes')),
+        );
+        await tester.pump();
+      }
+
+      expect(
+        selected,
+        baseCampFacilities.map((facility) => facility.id).toList(),
+      );
+    },
+  );
 
   testWidgets('RESET retains all Base Camp facility hit regions', (
     tester,
@@ -80,8 +91,52 @@ void main() {
       find.byKey(const ValueKey('new-theme-base-camp-facility-command-center')),
     );
     await tester.pump();
+    expect(selected, isNull);
+    await tester.tap(
+      find.byKey(const ValueKey('new-theme-base-camp-confirm-yes')),
+    );
+    await tester.pump();
 
     expect(selected, 'command-center');
+  });
+
+  testWidgets('NO clears selection and another facility replaces it', (
+    tester,
+  ) async {
+    final selected = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(
+              onFacilityPressed: (facility) => selected.add(facility.id),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('new-theme-base-camp-facility-status')),
+    );
+    await tester.pump();
+    expect(find.text('STATUS'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('new-theme-base-camp-facility-food')),
+    );
+    await tester.pump();
+    expect(find.text('FOOD'), findsOneWidget);
+    expect(selected, isEmpty);
+    await tester.tap(
+      find.byKey(const ValueKey('new-theme-base-camp-confirm-no')),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('new-theme-base-camp-selection-frame')),
+      findsNothing,
+    );
+    expect(selected, isEmpty);
   });
 
   testWidgets('map drags do not trigger facility navigation', (tester) async {
@@ -110,6 +165,47 @@ void main() {
     expect(selected, isNull);
   });
 
+  test('personnel routes are periodic, continuous and include their stops', () {
+    final start = baseCampPersonnelPose('soldier-a', Duration.zero);
+    final end = baseCampPersonnelPose('soldier-a', const Duration(seconds: 18));
+    expect(end.position, start.position);
+    expect(
+      baseCampPersonnelPose('soldier-a', const Duration(seconds: 8)).isMoving,
+      isFalse,
+    );
+    expect(
+      baseCampPersonnelPose('soldier-b', const Duration(seconds: 3)).isMoving,
+      isFalse,
+    );
+    expect(
+      baseCampPersonnelPose('soldier-c', const Duration(seconds: 10)).isMoving,
+      isTrue,
+    );
+    expect(
+      baseCampPersonnelPose('jeep', const Duration(seconds: 24)).isMoving,
+      isFalse,
+    );
+  });
+
+  testWidgets('personnel layer remains present with reduced motion', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(
+            body: BaseCampMap(onFacilityPressed: _ignoreFacility),
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('new-theme-base-camp-personnel')),
+      findsOneWidget,
+    );
+  });
+
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets('Base Camp map has no overflow at width $width', (
       tester,
@@ -129,3 +225,5 @@ void main() {
     });
   }
 }
+
+void _ignoreFacility(BaseCampFacility _) {}
