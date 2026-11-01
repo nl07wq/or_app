@@ -10,6 +10,13 @@ import '../../features/notifications/models/notification_configuration.dart';
 /// platform, while [on] and [off] are explicit application overrides.
 enum ReducedMotionPreference { system, on, off }
 
+/// Selects an independently owned presentation layer while retaining the
+/// application's single data, repository, and operation implementation.
+///
+/// [standard] is deliberately the backwards-compatible default so existing
+/// installations do not acquire a new visual presentation unexpectedly.
+enum AppPresentationTheme { standard, newTheme }
+
 /// MID-REAR is the only user-adjustable Command Center Data Rain layer.
 /// The exact 390px allocations are deliberately part of the preference
 /// contract so backup/restore preserves the requested visual comparison.
@@ -67,6 +74,7 @@ class DeviceSettings {
     this.ambientWildlifeEnabled = true,
     this.reducedMotion = ReducedMotionPreference.system,
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
+    this.presentationTheme = AppPresentationTheme.standard,
   });
 
   static const minimumBrightness = .35;
@@ -93,6 +101,7 @@ class DeviceSettings {
   final bool ambientWildlifeEnabled;
   final ReducedMotionPreference reducedMotion;
   final NotificationPrivacyMode notificationPrivacyMode;
+  final AppPresentationTheme presentationTheme;
 
   double volumeMultiplierFor(DeviceFeedbackChannel channel) {
     if (muted) return 0;
@@ -157,6 +166,7 @@ class DeviceSettings {
     bool? ambientWildlifeEnabled,
     ReducedMotionPreference? reducedMotion,
     NotificationPrivacyMode? notificationPrivacyMode,
+    AppPresentationTheme? presentationTheme,
   }) => DeviceSettings(
     masterVolume: masterVolume ?? this.masterVolume,
     muted: muted ?? this.muted,
@@ -185,6 +195,7 @@ class DeviceSettings {
     reducedMotion: reducedMotion ?? this.reducedMotion,
     notificationPrivacyMode:
         notificationPrivacyMode ?? this.notificationPrivacyMode,
+    presentationTheme: presentationTheme ?? this.presentationTheme,
   ).normalized();
 
   DeviceSettings normalized() => DeviceSettings(
@@ -210,6 +221,7 @@ class DeviceSettings {
     ambientWildlifeEnabled: ambientWildlifeEnabled,
     reducedMotion: reducedMotion,
     notificationPrivacyMode: notificationPrivacyMode,
+    presentationTheme: presentationTheme,
   );
 
   Map<String, Object?> toJson() => {
@@ -235,6 +247,7 @@ class DeviceSettings {
     'ambientWildlifeEnabled': ambientWildlifeEnabled,
     'reducedMotion': reducedMotion.name,
     'notificationPrivacyMode': notificationPrivacyMode.name,
+    'presentationTheme': presentationTheme.name,
   };
 
   factory DeviceSettings.fromJson(Object? raw) {
@@ -263,6 +276,14 @@ class DeviceSettings {
     for (final candidate in NotificationPrivacyMode.values) {
       if (candidate.name == privacyName) {
         notificationPrivacyMode = candidate;
+        break;
+      }
+    }
+    final presentationThemeName = json['presentationTheme'];
+    AppPresentationTheme? presentationTheme;
+    for (final candidate in AppPresentationTheme.values) {
+      if (candidate.name == presentationThemeName) {
+        presentationTheme = candidate;
         break;
       }
     }
@@ -299,6 +320,7 @@ class DeviceSettings {
       reducedMotion: reducedMotion ?? ReducedMotionPreference.system,
       notificationPrivacyMode:
           notificationPrivacyMode ?? NotificationPrivacyMode.contentHidden,
+      presentationTheme: presentationTheme ?? AppPresentationTheme.standard,
     ).normalized();
   }
 

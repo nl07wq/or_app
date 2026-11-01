@@ -239,6 +239,7 @@ void main() {
         'ambientKineticFieldEnabled': false,
         'ambientWildlifeEnabled': false,
         'reducedMotion': 'on',
+        'presentationTheme': 'newTheme',
       });
 
       final restored = DeviceSettingsController();
@@ -268,6 +269,7 @@ void main() {
       expect(restored.value.ambientKineticFieldEnabled, isFalse);
       expect(restored.value.ambientWildlifeEnabled, isFalse);
       expect(restored.value.reducedMotion, ReducedMotionPreference.on);
+      expect(restored.value.presentationTheme, AppPresentationTheme.newTheme);
     },
   );
 
@@ -292,6 +294,7 @@ void main() {
       CommandCenterMidRearDensity.low,
     );
     expect(controller.value.reducedMotion, ReducedMotionPreference.system);
+    expect(controller.value.presentationTheme, AppPresentationTheme.standard);
     for (final sound in DeviceFeedbackSound.values) {
       expect(controller.value.soundVolumeMultiplierFor(sound), 1);
     }

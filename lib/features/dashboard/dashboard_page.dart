@@ -76,6 +76,11 @@ import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
 import 'widgets/dashboard_ambient_wildlife_stage.dart';
 import '../system/pages/ambient_wildlife_v2.dart';
+import '../themes/new/widgets/base_camp_map.dart';
+
+/// A presentation-only switch. Dashboard state, data loading, navigation, and
+/// all operation behavior remain shared between the two theme entrypoints.
+enum DashboardQuickAccessPresentation { standard, baseCamp }
 
 /// Dashboard-specific page-space circuitry. The normalised coordinates are
 /// intentionally composed for the broad Dashboard viewport rather than the
@@ -852,7 +857,12 @@ class _DashboardNeonLogoState extends State<DashboardNeonLogo> {
 }
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+  const DashboardPage({
+    super.key,
+    this.quickAccessPresentation = DashboardQuickAccessPresentation.standard,
+  });
+
+  final DashboardQuickAccessPresentation quickAccessPresentation;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -919,6 +929,45 @@ class _DashboardPageState extends State<DashboardPage> {
     );
     _refreshPlanInformation();
   }
+
+  void _openBaseCampFacility(BaseCampFacility facility) {
+    final route = switch (facility.id) {
+      'status' => AppRoutes.morning,
+      'food' => AppRoutes.food,
+      'training' => AppRoutes.training,
+      'activity' => AppRoutes.activity,
+      'command-center' => AppRoutes.commandCenter,
+      _ => null,
+    };
+    if (route != null) Navigator.of(context).pushNamed(route);
+  }
+
+  Widget _quickAccess() => ValueListenableBuilder<DeviceSettings>(
+    valueListenable: DeviceSettingsController.instance,
+    builder: (context, settings, _) {
+      final useBaseCamp =
+          widget.quickAccessPresentation ==
+              DashboardQuickAccessPresentation.baseCamp ||
+          settings.presentationTheme == AppPresentationTheme.newTheme;
+      if (useBaseCamp) {
+        return BaseCampMap(onFacilityPressed: _openBaseCampFacility);
+      }
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _MorningButton(),
+          AppSpacing.gapMD,
+          _FoodButton(),
+          AppSpacing.gapMD,
+          _TrainingButton(),
+          AppSpacing.gapMD,
+          _ActivityButton(),
+          AppSpacing.gapMD,
+          _CommandCenterButton(),
+        ],
+      );
+    },
+  );
 
   void _scheduleWildlifeMeasurement() {
     final topBandPinned =
@@ -1122,15 +1171,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 title: 'QUICK ACCESS',
                                               ),
                                               AppSpacing.gapSM,
-                                              const _MorningButton(),
-                                              AppSpacing.gapMD,
-                                              _FoodButton(),
-                                              AppSpacing.gapMD,
-                                              _TrainingButton(),
-                                              AppSpacing.gapMD,
-                                              _ActivityButton(),
-                                              AppSpacing.gapMD,
-                                              _CommandCenterButton(),
+                                              _quickAccess(),
                                               AppSpacing.gapMD,
                                               SizedBox(
                                                 key: _wildlifeNaturalSlotKey,

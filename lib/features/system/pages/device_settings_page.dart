@@ -151,6 +151,20 @@ class DeviceSettingsPage extends StatelessWidget {
           ),
           AppSpacing.gapXL,
           const SectionHeader(
+            icon: Icons.palette_outlined,
+            title: 'PRESENTATION',
+          ),
+          AppSpacing.gapSM,
+          OperationCard(
+            child: _PresentationThemeSelector(
+              value: settings.presentationTheme,
+              onChanged: (value) => _controller.update(
+                settings.copyWith(presentationTheme: value),
+              ),
+            ),
+          ),
+          AppSpacing.gapXL,
+          const SectionHeader(
             icon: Icons.brightness_6_outlined,
             title: 'DISPLAY',
           ),
@@ -237,6 +251,47 @@ class DeviceSettingsPage extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+
+class _PresentationThemeSelector extends StatelessWidget {
+  const _PresentationThemeSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final AppPresentationTheme value;
+  final ValueChanged<AppPresentationTheme> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text('APP THEME'),
+      const SizedBox(height: 2),
+      Text(
+        'STANDARD keeps the released presentation. NEW THEME is an independent visual copy.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      AppSpacing.gapSM,
+      SegmentedButton<AppPresentationTheme>(
+        key: const ValueKey('device-settings-presentation-theme'),
+        segments: const [
+          ButtonSegment(
+            value: AppPresentationTheme.standard,
+            label: Text('STANDARD'),
+          ),
+          ButtonSegment(
+            value: AppPresentationTheme.newTheme,
+            label: Text('NEW THEME'),
+          ),
+        ],
+        selected: {value},
+        onSelectionChanged: (selection) {
+          if (selection.isNotEmpty) onChanged(selection.first);
+        },
+      ).inputFeedback(),
+    ],
   );
 }
 

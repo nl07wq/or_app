@@ -44,6 +44,27 @@ import 'features/system/pages/body_map_svg_preview_page.dart';
 import 'features/weather/weather_settings_page.dart';
 import 'features/reminders/pages/reminders_page.dart';
 import 'features/notifications/services/notification_profile_controller.dart';
+import 'features/themes/new/new_theme_dashboard_page.dart';
+import 'features/themes/new/new_theme_presentation.dart';
+
+Widget _presentationEntry(NewThemeScreen screen, Widget child) {
+  if (DeviceSettingsController.instance.value.presentationTheme !=
+      AppPresentationTheme.newTheme) {
+    return child;
+  }
+  return NewThemeScreenEntry(screen: screen, child: child);
+}
+
+Widget _dashboardPresentationEntry(NewThemeScreen screen) {
+  if (DeviceSettingsController.instance.value.presentationTheme !=
+      AppPresentationTheme.newTheme) {
+    return const DashboardPage();
+  }
+  return NewThemeScreenEntry(
+    screen: screen,
+    child: const NewThemeDashboardPage(),
+  );
+}
 
 class OperationRebootApp extends StatefulWidget {
   final StartupInitializationService? initializationService;
@@ -178,72 +199,151 @@ class _OperationRebootAppState extends State<OperationRebootApp>
       ),
 
       routes: {
-        AppRoutes.dashboard: (_) => const DashboardPage(),
-        AppRoutes.finalizedDashboard: (_) => const DashboardPage(),
+        AppRoutes.dashboard: (_) =>
+            _dashboardPresentationEntry(NewThemeScreen.dashboard),
+        AppRoutes.finalizedDashboard: (_) =>
+            _dashboardPresentationEntry(NewThemeScreen.finalizedDashboard),
         AppRoutes.logConfirmationReview: (context) {
           final page = ModalRoute.of(context)?.settings.arguments;
           return page is LogConfirmationReviewPage
-              ? page
+              ? _presentationEntry(NewThemeScreen.logConfirmationReview, page)
               : const Scaffold(
                   body: Center(child: Text('Review unavailable.')),
                 );
         },
         AppRoutes.logConfirmationDetail: (context) {
           final targetDate = ModalRoute.of(context)?.settings.arguments;
-          return LogConfirmationDetailPage(
-            targetDate: targetDate is DateTime ? targetDate : null,
+          return _presentationEntry(
+            NewThemeScreen.logConfirmationDetail,
+            LogConfirmationDetailPage(
+              targetDate: targetDate is DateTime ? targetDate : null,
+            ),
           );
         },
-        AppRoutes.morning: (_) => const MorningPage(),
-        AppRoutes.food: (_) => const FoodPage(),
-        AppRoutes.activity: (_) => const ActivityPage(),
-        AppRoutes.training: (_) => const TrainingPage(),
-        AppRoutes.commandCenter: (_) => const CommandCenterPage(),
-        AppRoutes.dataCenterHistory: (_) => const DataCenterHistoryPage(),
-        AppRoutes.bodyHistory: (_) => const BodyHistoryPage(),
-        AppRoutes.nutritionHistory: (_) => const NutritionHistoryPage(),
-        AppRoutes.digestiveHistory: (_) => const DigestiveHistoryPage(),
-        AppRoutes.activityHistory: (_) => const ActivityHistoryPage(),
-        AppRoutes.sleepHistory: (_) => const SleepHistoryPage(),
-        AppRoutes.trainingAnalyticsHistory: (_) =>
-            const DataCenterTrainingHistoryPage(),
-        AppRoutes.dailyAggregateRecords: (_) =>
-            const DailyAggregateRecordsPage(),
+        AppRoutes.morning: (_) =>
+            _presentationEntry(NewThemeScreen.morning, const MorningPage()),
+        AppRoutes.food: (_) =>
+            _presentationEntry(NewThemeScreen.food, const FoodPage()),
+        AppRoutes.activity: (_) =>
+            _presentationEntry(NewThemeScreen.activity, const ActivityPage()),
+        AppRoutes.training: (_) =>
+            _presentationEntry(NewThemeScreen.training, const TrainingPage()),
+        AppRoutes.commandCenter: (_) => _presentationEntry(
+          NewThemeScreen.commandCenter,
+          const CommandCenterPage(),
+        ),
+        AppRoutes.dataCenterHistory: (_) => _presentationEntry(
+          NewThemeScreen.dataCenterHistory,
+          const DataCenterHistoryPage(),
+        ),
+        AppRoutes.bodyHistory: (_) => _presentationEntry(
+          NewThemeScreen.bodyHistory,
+          const BodyHistoryPage(),
+        ),
+        AppRoutes.nutritionHistory: (_) => _presentationEntry(
+          NewThemeScreen.nutritionHistory,
+          const NutritionHistoryPage(),
+        ),
+        AppRoutes.digestiveHistory: (_) => _presentationEntry(
+          NewThemeScreen.digestiveHistory,
+          const DigestiveHistoryPage(),
+        ),
+        AppRoutes.activityHistory: (_) => _presentationEntry(
+          NewThemeScreen.activityHistory,
+          const ActivityHistoryPage(),
+        ),
+        AppRoutes.sleepHistory: (_) => _presentationEntry(
+          NewThemeScreen.sleepHistory,
+          const SleepHistoryPage(),
+        ),
+        AppRoutes.trainingAnalyticsHistory: (_) => _presentationEntry(
+          NewThemeScreen.trainingAnalyticsHistory,
+          const DataCenterTrainingHistoryPage(),
+        ),
+        AppRoutes.dailyAggregateRecords: (_) => _presentationEntry(
+          NewThemeScreen.dailyAggregateRecords,
+          const DailyAggregateRecordsPage(),
+        ),
         AppRoutes.dailyAggregateDetail: (context) {
           final operationDate = ModalRoute.of(context)?.settings.arguments;
           return operationDate is String
-              ? DailyAggregateDetailPage(operationDate: operationDate)
+              ? _presentationEntry(
+                  NewThemeScreen.dailyAggregateDetail,
+                  DailyAggregateDetailPage(operationDate: operationDate),
+                )
               : const Scaffold(
                   body: Center(child: Text('Daily Aggregate unavailable.')),
                 );
         },
-        AppRoutes.backupRestore: (_) => const BackupRestorePage(),
-        AppRoutes.orloSync: (_) => OrloSyncPage(),
-        AppRoutes.profile: (_) => const ProfilePage(),
-        AppRoutes.weatherSettings: (_) => const WeatherSettingsPage(),
-        AppRoutes.reminders: (_) => const RemindersPage(),
-        AppRoutes.about: (_) => const AboutPage(),
-        AppRoutes.system: (_) => const SystemPage(),
-        AppRoutes.deviceSettings: (_) => const DeviceSettingsPage(),
-        AppRoutes.animationsSandbox: (_) => const AnimationsSandboxPage(),
-        AppRoutes.bodyMapSvgPreview: (_) => const BodyMapSvgPreviewPage(),
-        AppRoutes.bootSequencePreview: (_) => const BootSequencePreviewPage(),
-        AppRoutes.bootSequenceCalibration: (_) =>
-            const BootSequenceCalibrationPage(),
-        AppRoutes.deviceTransfer: (_) => const DeviceTransferPage(),
-        AppRoutes.systemMonitoring: (_) => const SystemMonitoringPage(),
-        AppRoutes.startupDiagnostic: (_) => const StartupDiagnosticPage(),
+        AppRoutes.backupRestore: (_) => _presentationEntry(
+          NewThemeScreen.backupRestore,
+          const BackupRestorePage(),
+        ),
+        AppRoutes.orloSync: (_) =>
+            _presentationEntry(NewThemeScreen.orloSync, OrloSyncPage()),
+        AppRoutes.profile: (_) =>
+            _presentationEntry(NewThemeScreen.profile, const ProfilePage()),
+        AppRoutes.weatherSettings: (_) => _presentationEntry(
+          NewThemeScreen.weatherSettings,
+          const WeatherSettingsPage(),
+        ),
+        AppRoutes.reminders: (_) =>
+            _presentationEntry(NewThemeScreen.reminders, const RemindersPage()),
+        AppRoutes.about: (_) =>
+            _presentationEntry(NewThemeScreen.about, const AboutPage()),
+        AppRoutes.system: (_) =>
+            _presentationEntry(NewThemeScreen.system, const SystemPage()),
+        AppRoutes.deviceSettings: (_) => _presentationEntry(
+          NewThemeScreen.deviceSettings,
+          const DeviceSettingsPage(),
+        ),
+        AppRoutes.animationsSandbox: (_) => _presentationEntry(
+          NewThemeScreen.animationsSandbox,
+          const AnimationsSandboxPage(),
+        ),
+        AppRoutes.bodyMapSvgPreview: (_) => _presentationEntry(
+          NewThemeScreen.bodyMapSvgPreview,
+          const BodyMapSvgPreviewPage(),
+        ),
+        AppRoutes.bootSequencePreview: (_) => _presentationEntry(
+          NewThemeScreen.bootSequencePreview,
+          const BootSequencePreviewPage(),
+        ),
+        AppRoutes.bootSequenceCalibration: (_) => _presentationEntry(
+          NewThemeScreen.bootSequenceCalibration,
+          const BootSequenceCalibrationPage(),
+        ),
+        AppRoutes.deviceTransfer: (_) => _presentationEntry(
+          NewThemeScreen.deviceTransfer,
+          const DeviceTransferPage(),
+        ),
+        AppRoutes.systemMonitoring: (_) => _presentationEntry(
+          NewThemeScreen.systemMonitoring,
+          const SystemMonitoringPage(),
+        ),
+        AppRoutes.startupDiagnostic: (_) => _presentationEntry(
+          NewThemeScreen.startupDiagnostic,
+          const StartupDiagnosticPage(),
+        ),
         AppRoutes.operationSync: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
-          return OperationSyncPage(
-            stageController: arguments is DeviceTransferStageController
-                ? arguments
-                : null,
+          return _presentationEntry(
+            NewThemeScreen.operationSync,
+            OperationSyncPage(
+              stageController: arguments is DeviceTransferStageController
+                  ? arguments
+                  : null,
+            ),
           );
         },
-        AppRoutes.historicalTrainingImport: (_) =>
-            const HistoricalTrainingImportPage(),
-        AppRoutes.historicalDnsImport: (_) => const HistoricalDnsImportPage(),
+        AppRoutes.historicalTrainingImport: (_) => _presentationEntry(
+          NewThemeScreen.historicalTrainingImport,
+          const HistoricalTrainingImportPage(),
+        ),
+        AppRoutes.historicalDnsImport: (_) => _presentationEntry(
+          NewThemeScreen.historicalDnsImport,
+          const HistoricalDnsImportPage(),
+        ),
       },
     );
   }

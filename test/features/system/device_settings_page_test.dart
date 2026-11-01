@@ -43,6 +43,25 @@ void main() {
     });
   }
 
+  testWidgets('presentation theme selection updates the persisted controller', (
+    tester,
+  ) async {
+    final controller = DeviceSettingsController();
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: DeviceSettingsPage(controller: controller)),
+    );
+
+    final selector = find.byKey(
+      const ValueKey('device-settings-presentation-theme'),
+    );
+    await tester.scrollUntilVisible(selector, 200);
+    await tester.tap(find.text('NEW THEME').last);
+    await tester.pump();
+
+    expect(controller.value.presentationTheme, AppPresentationTheme.newTheme);
+  });
+
   testWidgets('muted previews are silent and sliders preview only at release', (
     tester,
   ) async {
