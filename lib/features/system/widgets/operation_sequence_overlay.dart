@@ -19,6 +19,7 @@ class OperationSequenceOverlay extends StatefulWidget {
     required this.motion,
     required this.operationState,
     this.onMotionChanged,
+    this.onMotionCompleted,
     this.onDismiss,
   });
 
@@ -26,6 +27,7 @@ class OperationSequenceOverlay extends StatefulWidget {
   final OperationSequenceMotion motion;
   final OperationSequenceState operationState;
   final ValueChanged<OperationSequenceMotion>? onMotionChanged;
+  final VoidCallback? onMotionCompleted;
   final VoidCallback? onDismiss;
 
   /// Inserts a blocking presentation layer while [task] is running. It does
@@ -42,6 +44,16 @@ class OperationSequenceOverlay extends StatefulWidget {
     final overlay = Overlay.of(context, rootOverlay: true);
     final state = ValueNotifier(OperationSequenceState.running);
     final motion = ValueNotifier(initialMotion);
+    final motionFinished = ValueNotifier(false);
+    final motionEpoch = ValueNotifier(0);
+    var completion = Completer<void>();
+    void restartMotion(OperationSequenceMotion value) {
+      motionEpoch.value++;
+      motionFinished.value = false;
+      completion = Completer<void>();
+      motion.value = value;
+    }
+
     late final OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => ValueListenableBuilder<OperationSequenceState>(
@@ -49,34 +61,61 @@ class OperationSequenceOverlay extends StatefulWidget {
         builder: (_, operationState, _) =>
             ValueListenableBuilder<OperationSequenceMotion>(
               valueListenable: motion,
-              builder: (_, selectedMotion, _) => OperationSequenceOverlay(
-                operationMode: operationMode,
-                motion: selectedMotion,
-                operationState: operationState,
-                onMotionChanged:
-                    operationState == OperationSequenceState.running
-                    ? (value) => motion.value = value
-                    : null,
+              builder: (_, selectedMotion, _) => ValueListenableBuilder<int>(
+                valueListenable: motionEpoch,
+                builder: (_, epoch, _) => OperationSequenceOverlay(
+                  operationMode: operationMode,
+                  motion: selectedMotion,
+                  operationState: operationState,
+                  onMotionChanged:
+                      operationState == OperationSequenceState.running
+                      ? restartMotion
+                      : null,
+                  onMotionCompleted: () {
+                    if (epoch != motionEpoch.value ||
+                        motionFinished.value ||
+                        completion.isCompleted) {
+                      return;
+                    }
+                    motionFinished.value = true;
+                    completion.complete();
+                  },
+                ),
               ),
             ),
       ),
     );
     overlay.insert(entry);
+    T? result;
+    Object? taskError;
+    StackTrace? taskStackTrace;
+    var succeeded = false;
     try {
-      final result = await task();
-      state.value = (isSuccess?.call(result) ?? true)
-          ? OperationSequenceState.success
-          : OperationSequenceState.failure;
-      await Future<void>.delayed(const Duration(milliseconds: 180));
-      return result;
-    } catch (_) {
-      state.value = OperationSequenceState.failure;
-      await Future<void>.delayed(const Duration(milliseconds: 180));
-      rethrow;
+      final value = await task();
+      result = value;
+      succeeded = isSuccess?.call(value) ?? true;
+    } catch (error, stackTrace) {
+      taskError = error;
+      taskStackTrace = stackTrace;
+    }
+    // A visual sequence never decides the actual operation result. It waits
+    // independently, then presents the already-established result once.
+    await completion.future;
+    state.value = taskError == null && succeeded
+        ? OperationSequenceState.success
+        : OperationSequenceState.failure;
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    try {
+      if (taskError != null) {
+        Error.throwWithStackTrace(taskError, taskStackTrace!);
+      }
+      return result as T;
     } finally {
       entry.remove();
       state.dispose();
       motion.dispose();
+      motionFinished.dispose();
+      motionEpoch.dispose();
     }
   }
 
@@ -129,6 +168,7 @@ class _OperationSequenceOverlayState extends State<OperationSequenceOverlay> {
                   child: OperationSequenceAnimation(
                     operationMode: widget.operationMode,
                     motion: widget.motion,
+                    onCompleted: widget.onMotionCompleted,
                   ),
                 ),
                 const SizedBox(height: 12),

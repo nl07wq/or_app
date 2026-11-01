@@ -157,6 +157,31 @@ void main() {
     expect(cubes.map((cube) => cube.target).toSet(), hasLength(cubes.length));
   });
 
+  test('message cube activation is causal, persistent, and irreversible', () {
+    final cubes = sandboxMessageCubes('BRIEF');
+    final activationEdges = sandboxMessageActivationNetworkEdges('BRIEF');
+    expect(activationEdges, hasLength(cubes.length - 1));
+    for (final cube in cubes) {
+      final start = sandboxMessageCubeActivationStartMs('BRIEF', cube.id);
+      expect(
+        sandboxMessageCubeStateAt('BRIEF', cube.id, start - 1),
+        SandboxMessageCubeState.inactive,
+      );
+      expect(
+        sandboxMessageCubeActivationProgress('BRIEF', cube.id, start + 180),
+        closeTo(1, .001),
+      );
+      expect(
+        sandboxMessageCubeStateAt('BRIEF', cube.id, 3600),
+        isNot(SandboxMessageCubeState.inactive),
+      );
+    }
+    expect(
+      sandboxMessageCubeActivationStartMs('BRIEF', 0),
+      lessThan(sandboxMessageCubeActivationStartMs('BRIEF', 1)),
+    );
+  });
+
   test(
     'message assembly network is bounded, deterministic, and wave ordered',
     () {

@@ -25,6 +25,9 @@ enum OperationSequenceMode { brief, debrief, backup }
 
 enum OperationSequenceMotion { messageAssembly, voxelWalkIn }
 
+/// One irreversible material state for every persistent MESSAGE cube.
+enum SandboxMessageCubeState { inactive, activated, converging, integrated }
+
 /// Appearance-only choice for the Pixel Builder character. Both variants use
 /// the identical construction timeline and data hand-off.
 enum SandboxRobotAppearance { original, ark }
@@ -99,10 +102,12 @@ class OperationSequenceAnimation extends StatefulWidget {
     super.key,
     required this.operationMode,
     required this.motion,
+    this.onCompleted,
   });
 
   final OperationSequenceMode operationMode;
   final OperationSequenceMotion motion;
+  final VoidCallback? onCompleted;
 
   @override
   State<OperationSequenceAnimation> createState() =>
@@ -114,6 +119,7 @@ class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
   late final AnimationController _construction;
   late final AnimationController _completion;
   var _completionStarted = false;
+  var _completionReported = false;
 
   Duration get _duration => widget.motion == OperationSequenceMotion.voxelWalkIn
       ? sandboxPixelVoxelCycle(SandboxPixelBuilderFinale.walkIn)
@@ -129,7 +135,10 @@ class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
     _construction = AnimationController(vsync: this, duration: _duration)
       ..addListener(_startCompletion)
       ..addStatusListener((status) {
-        if (status == AnimationStatus.completed) _startCompletion();
+        if (status == AnimationStatus.completed) {
+          _startCompletion();
+          _reportCompletion();
+        }
       })
       ..forward();
   }
@@ -139,6 +148,7 @@ class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.motion == widget.motion) return;
     _completionStarted = false;
+    _completionReported = false;
     _completion
       ..stop()
       ..value = 0;
@@ -155,6 +165,14 @@ class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
     }
     _completionStarted = true;
     _completion.forward(from: 0);
+  }
+
+  /// Only reports the construction boundary. Voxel hover continues after it,
+  /// while a production overlay holds this completed frame for its Future.
+  void _reportCompletion() {
+    if (_completionReported) return;
+    _completionReported = true;
+    widget.onCompleted?.call();
   }
 
   @override
@@ -690,6 +708,52 @@ List<SandboxMessageNetworkEdge> sandboxMessageSelectedNetworkEdges(
   return List<SandboxMessageNetworkEdge>.unmodifiable(selected);
 });
 
+/// The complete activation backbone is intentionally wider than the visible
+/// beam budget. Every cube has an actual parent in this immutable graph, so a
+/// cube cannot begin convergence before light has reached it.
+List<SandboxMessageNetworkEdge> sandboxMessageActivationNetworkEdges(
+  String mode,
+) => List<SandboxMessageNetworkEdge>.unmodifiable([
+  for (var id = 1; id < sandboxMessageCubes(mode).length; id++)
+    SandboxMessageNetworkEdge((id - 1) ~/ 2, id, math.min(2, id.bitLength - 1)),
+]);
+
+double sandboxMessageCubeActivationStartMs(String mode, int id) {
+  if (id == 0) return 850;
+  final depth = id.bitLength - 1;
+  final branch = id - (1 << depth);
+  return 1050 + depth * 178 + (branch % 4) * 24.0;
+}
+
+double sandboxMessageCubeActivationProgress(
+  String mode,
+  int id,
+  double elapsedMs,
+) => _ease(
+  _phase(
+    elapsedMs,
+    sandboxMessageCubeActivationStartMs(mode, id),
+    sandboxMessageCubeActivationStartMs(mode, id) + 180,
+  ),
+);
+
+SandboxMessageCubeState sandboxMessageCubeStateAt(
+  String mode,
+  int id,
+  double elapsedMs,
+) {
+  final activation = sandboxMessageCubeActivationProgress(mode, id, elapsedMs);
+  if (activation < 1) {
+    return activation <= 0
+        ? SandboxMessageCubeState.inactive
+        : SandboxMessageCubeState.activated;
+  }
+  final convergence = _phase(elapsedMs, 2800, 5000);
+  return convergence < 1
+      ? SandboxMessageCubeState.converging
+      : SandboxMessageCubeState.integrated;
+}
+
 /// Smooth local-surface reveal used by the one coherent MESSAGE word object.
 /// It deliberately describes material coverage, not camera framing.
 double sandboxMessageSurfaceReveal(double elapsedMs) {
@@ -727,20 +791,6 @@ class SandboxMessageParticle {
   final double delay;
   final double size;
   final double depth;
-}
-
-class _MessageWordLayout {
-  const _MessageWordLayout({
-    required this.text,
-    required this.width,
-    required this.height,
-    required this.finalScale,
-  });
-
-  final String text;
-  final double width;
-  final double height;
-  final double finalScale;
 }
 
 final _messageParticleCache = <String, List<SandboxMessageParticle>>{};
@@ -1319,8 +1369,13 @@ class _SendSequencePainter extends CustomPainter {
       Rect.fromCenter(center: scene.center, width: 238, height: 82),
       _fill(const Color(0xff23331b).withValues(alpha: .16)),
     );
+    final activation = [
+      for (final cube in cubes)
+        sandboxMessageCubeActivationProgress(modeName, cube.id, elapsed),
+    ];
     final transforms = [
-      for (final cube in cubes) _messageCubeTransform(cube, elapsed),
+      for (var index = 0; index < cubes.length; index++)
+        _messageCubeTransform(cubes[index], elapsed, activation[index]),
     ];
     final projected = [
       for (final transform in transforms) _messageProject(transform, elapsed),
@@ -1415,19 +1470,33 @@ class _SendSequencePainter extends CustomPainter {
     for (var index = 0; index < cubes.length; index++) {
       final cube = cubes[index];
       final transform = transforms[index];
-      final materialTransfer = _messageMaterialTransfer(elapsed, cube);
+      final materialTransfer = _messageMaterialTransfer(
+        elapsed,
+        cube,
+        activation[index],
+      );
       // The intact solid recedes only after its own local stream is visible.
       // It never turns into a one-cube bitmap text pixel.
       final renderSize = cube.size * (1 - materialTransfer * .62);
       final illumination = math.max(
-        nodeIllumination[index],
+        math.max(nodeIllumination[index], activation[index] * .72),
         index == 0 ? impact : 0,
       );
-      final base = switch (index % 4) {
-        0 => const Color(0xffb5f3ff),
-        1 => const Color(0xff7ea8ff),
-        _ => const Color(0xff63d8ff),
-      }.withValues(alpha: (.72 + illumination * .23) * (1 - materialTransfer));
+      // Activation is material state, not a transient beam effect. The lime
+      // phosphorescence survives after the propagating edge has expired.
+      final phosphor = Color.lerp(
+        const Color(0xff293845),
+        const Color(0xffa7d84c),
+        activation[index],
+      )!;
+      final base =
+          Color.lerp(
+            phosphor,
+            const Color(0xffdfff8a),
+            illumination * .52,
+          )!.withValues(
+            alpha: (.70 + activation[index] * .20) * (1 - materialTransfer),
+          );
       final angle =
           (cube.spin + elapsed / 1000 * (.42 + (index % 3) * .12)) *
           (1 - materialTransfer * .72);
@@ -1454,11 +1523,17 @@ class _SendSequencePainter extends CustomPainter {
           );
         }
       }
-      if (illumination > .2) {
+      if (activation[index] > 0) {
         canvas.drawCircle(
           projected[index].offset,
-          4 + renderSize * .20,
-          _glow(base.withValues(alpha: illumination * .25), 4, 3),
+          4 + renderSize * .22,
+          _glow(
+            const Color(0xffb8ff43).withValues(
+              alpha: (.10 + illumination * .18) * (1 - materialTransfer),
+            ),
+            4,
+            3,
+          ),
         );
       }
     }
@@ -1468,9 +1543,22 @@ class _SendSequencePainter extends CustomPainter {
       faces,
       border: _ice.withValues(alpha: .68),
     );
-    _paintMessageParticles(canvas, particles, cubes, transforms, elapsed);
+    _paintMessageParticles(
+      canvas,
+      particles,
+      cubes,
+      transforms,
+      activation,
+      elapsed,
+    );
     if (elapsed >= 3500) {
-      _paintMessageWordSurface(canvas, modeName, elapsed);
+      _paintIntegratedMessageSurface(
+        canvas,
+        cubes,
+        transforms,
+        activation,
+        elapsed,
+      );
     }
     // Keep a compact foreground specular flash at the actual struck node.
     // The radial bloom above is correctly behind the opaque cube faces; this
@@ -1513,7 +1601,11 @@ class _SendSequencePainter extends CustomPainter {
     canvas.restore();
   }
 
-  SandboxVec3 _messageCubeTransform(SandboxMessageCube cube, double elapsed) {
+  SandboxVec3 _messageCubeTransform(
+    SandboxMessageCube cube,
+    double elapsed,
+    double activation,
+  ) {
     final drift = SandboxVec3(
       math.sin(elapsed / 430 + cube.spin) * 3,
       math.cos(elapsed / 510 + cube.spin) * 2,
@@ -1521,11 +1613,13 @@ class _SendSequencePainter extends CustomPainter {
     );
     // Common rotation and contraction keep the cloud visibly connected. Each
     // cube then receives a staggered attraction to its permanent glyph slot.
-    final rotation = _ease(_phase(elapsed, 2800, 4000));
-    final contraction = _ease(_phase(elapsed, 2900, 4600));
-    final attraction = _ease(
-      _phase(elapsed, 3000 + cube.delay * .25, 5200 + cube.delay * .1),
-    );
+    final rotation = _ease(_phase(elapsed, 2800, 4000)) * activation;
+    final contraction = _ease(_phase(elapsed, 2900, 4600)) * activation;
+    final attraction =
+        _ease(
+          _phase(elapsed, 3000 + cube.delay * .25, 5200 + cube.delay * .1),
+        ) *
+        activation;
     final cloud = (cube.start + drift)
         .rotateY(rotation * 85 * math.pi / 180)
         .rotateX(-rotation * 15 * math.pi / 180);
@@ -1533,8 +1627,13 @@ class _SendSequencePainter extends CustomPainter {
     return SandboxVec3.lerp(contracted, cube.target, attraction);
   }
 
-  double _messageMaterialTransfer(double elapsed, SandboxMessageCube cube) =>
-      _ease(_phase(elapsed, 3000 + cube.delay * .28, 5000 + cube.delay * .22));
+  double _messageMaterialTransfer(
+    double elapsed,
+    SandboxMessageCube cube,
+    double activation,
+  ) =>
+      _ease(_phase(elapsed, 3000 + cube.delay * .28, 5000 + cube.delay * .22)) *
+      activation;
 
   double _messageParticleFlow(
     double elapsed,
@@ -1562,13 +1661,18 @@ class _SendSequencePainter extends CustomPainter {
     List<SandboxMessageParticle> particles,
     List<SandboxMessageCube> cubes,
     List<SandboxVec3> transforms,
+    List<double> activation,
     double elapsed,
   ) {
     // Immutable descriptors keep this material field deterministic without
     // reconstructing any scene topology in the paint loop.
     for (final particle in particles) {
       final cube = cubes[particle.sourceId];
-      final transfer = _messageMaterialTransfer(elapsed, cube);
+      final transfer = _messageMaterialTransfer(
+        elapsed,
+        cube,
+        activation[particle.sourceId],
+      );
       if (transfer <= 0) continue;
       final flow = _messageParticleFlow(elapsed, particle);
       final sourceCenter = _messageProject(
@@ -1600,12 +1704,11 @@ class _SendSequencePainter extends CustomPainter {
         target,
         flow,
       );
-      final color = switch ((cube.id + particle.index) % 4) {
-        0 => const Color(0xffb5f3ff),
-        1 => const Color(0xff85ffe1),
-        2 => const Color(0xff7ea8ff),
-        _ => const Color(0xff63d8ff),
-      };
+      final color = Color.lerp(
+        const Color(0xffa7d84c),
+        const Color(0xfff1ffba),
+        ((cube.id + particle.index) % 4) / 3,
+      )!;
       final visible = _ease(_phase(transfer, 0, .35));
       // The travelling field dissipates once it has reached the local word
       // surface. The final phrase is therefore smooth material, never a
@@ -1635,136 +1738,42 @@ class _SendSequencePainter extends CustomPainter {
     }
   }
 
-  _MessageWordLayout _messageWordLayout(String modeName) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: sandboxMessageAssemblyMessage(modeName),
-        style: const TextStyle(
-          color: Color(0xffffffff),
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          letterSpacing: .9,
-          fontFamily: 'MPlus1Code',
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    return _MessageWordLayout(
-      text: sandboxMessageAssemblyMessage(modeName),
-      width: painter.width,
-      height: painter.height,
-      finalScale: math.min(1, 286 / painter.width),
-    );
-  }
-
-  void _paintMessageWordSurface(
+  /// The smooth word surface is derived only from integrated cube occupancy.
+  /// No independent TextPainter word is painted over the moving material.
+  void _paintIntegratedMessageSurface(
     Canvas canvas,
-    String modeName,
+    List<SandboxMessageCube> cubes,
+    List<SandboxVec3> transforms,
+    List<double> activation,
     double elapsed,
   ) {
-    final word = _messageWordLayout(modeName);
-    final pullBack = _ease(_phase(elapsed, 3450, 5650));
-    final reveal = sandboxMessageSurfaceReveal(elapsed);
-    final zoom = sandboxMessageCameraZoom(elapsed);
-    final roll = sandboxMessageScreenRoll(elapsed) * math.pi / 180;
-    final yaw = (58 * (1 - pullBack)) * math.pi / 180;
-    final focusX = word.width * (.10 + .40 * pullBack);
-    final surfaceAlpha = _ease(_phase(elapsed, 3500, 5600));
     final emission = 1 - _ease(_phase(elapsed, 5200, 6100));
-    final visibleWidth = word.width * reveal;
-
-    canvas.save();
-    canvas.translate(180, 140);
-    canvas.rotate(roll);
-    // The compressed horizontal axis and stepped side layers supply an
-    // oblique, shallow-extruded word volume until it faces the camera.
-    canvas.scale(
-      zoom * word.finalScale * math.cos(yaw),
-      zoom * word.finalScale,
-    );
-    canvas.translate(-focusX, -word.height / 2);
-    canvas.clipRect(Rect.fromLTWH(0, 0, visibleWidth, word.height));
-
-    final sideCount = 3;
-    for (var layer = sideCount; layer > 0; layer--) {
-      final fraction = layer / sideCount;
-      _paintMessageWordText(
-        canvas,
-        word.text,
-        Offset(fraction * 3.2, fraction * 2.6),
-        Color.lerp(
-          const Color(0xff134b55),
-          const Color(0xff67bdab),
-          fraction,
-        )!.withValues(alpha: surfaceAlpha * (.10 + emission * .42)),
+    for (var index = 0; index < cubes.length; index++) {
+      final integration = _messageMaterialTransfer(
+        elapsed,
+        cubes[index],
+        activation[index],
       );
-    }
-    _paintMessageWordText(
-      canvas,
-      word.text,
-      Offset.zero,
-      Color.lerp(
-        const Color(0xff76e6d9),
+      if (integration <= .55) continue;
+      final surface = _ease(_phase(integration, .55, .95));
+      final point = _messageProject(transforms[index], elapsed).offset;
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: point, width: 4.05, height: 4.05),
+        const Radius.circular(.65),
+      );
+      final color = Color.lerp(
+        const Color(0xffa7d84c),
         const Color(0xffd8fbff),
-        1 - emission * .38,
-      )!.withValues(alpha: surfaceAlpha),
-    );
-
-    // Fine deterministic glints adhere to the very same local word space.
-    // They create the material-forming illusion while the smooth surface is
-    // progressively uncovered beneath them.
-    final particleAlpha = surfaceAlpha * (.22 + emission * .55);
-    final particleCount = 180;
-    for (var index = 0; index < particleCount; index++) {
-      final unitX = _particleUnit(443, index, 1);
-      final unitY = _particleUnit(443, index, 2);
-      if (unitX > reveal) continue;
-      final flow = _ease(_phase(elapsed, 3500 + (index % 19) * 24, 5300));
-      final x = unitX * word.width;
-      final y = unitY * word.height;
-      final offset = Offset(
-        math.sin(index * 1.71 + elapsed / 190) * (1 - flow) * 7,
-        math.cos(index * 1.13 + elapsed / 230) * (1 - flow) * 5,
-      );
-      final point = Offset(x, y) + offset;
-      final radius = .55 + (index % 4) * .19;
-      final color = index.isEven ? _ice : const Color(0xff92f5df);
-      if (index % 9 == 0) {
-        canvas.drawCircle(
-          point,
-          radius * 3,
-          _glow(color.withValues(alpha: particleAlpha * .38), 2.8, 1.6),
+        1 - emission,
+      )!;
+      canvas.drawRRect(rect, _fill(color.withValues(alpha: surface)));
+      if (surface > .45) {
+        canvas.drawRRect(
+          rect,
+          _line(const Color(0xfff1ffba).withValues(alpha: surface * .42), .3),
         );
       }
-      canvas.drawCircle(
-        point,
-        radius,
-        _fill(color.withValues(alpha: particleAlpha)),
-      );
     }
-    canvas.restore();
-  }
-
-  void _paintMessageWordText(
-    Canvas canvas,
-    String text,
-    Offset offset,
-    Color color,
-  ) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          letterSpacing: .9,
-          fontFamily: 'MPlus1Code',
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    painter.paint(canvas, offset);
   }
 
   SandboxProjectedPoint _messageProject(SandboxVec3 point, double elapsed) =>
