@@ -95,6 +95,8 @@ flutter:
     - assets/images/themes/new/base_camp_map.png
     - assets/images/themes/new/base_camp_walker_down_right.gif
     - assets/images/themes/new/base_camp_walker_up_left.gif
+    - assets/images/themes/new/base_camp_walker_down_right/
+    - assets/images/themes/new/base_camp_walker_up_left/
     - assets/data/
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4

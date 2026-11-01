@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -15,6 +13,36 @@ const baseCampWalkerUpLeftAsset =
     'assets/images/themes/new/base_camp_walker_up_left.gif';
 const baseCampWalkerDownRightAsset =
     'assets/images/themes/new/base_camp_walker_down_right.gif';
+
+/// Fully composited RGBA frames extracted directly from the approved GIFs.
+/// They avoid Flutter Web's inconsistent GIF disposal/transparent-palette
+/// composition while preserving every source pixel and the 140ms cadence.
+const baseCampWalkerDownRightFrames = <String>[
+  'assets/images/themes/new/base_camp_walker_down_right/frame_00.png',
+  'assets/images/themes/new/base_camp_walker_down_right/frame_01.png',
+  'assets/images/themes/new/base_camp_walker_down_right/frame_02.png',
+  'assets/images/themes/new/base_camp_walker_down_right/frame_03.png',
+  'assets/images/themes/new/base_camp_walker_down_right/frame_04.png',
+  'assets/images/themes/new/base_camp_walker_down_right/frame_05.png',
+  'assets/images/themes/new/base_camp_walker_down_right/frame_06.png',
+];
+
+const baseCampWalkerUpLeftFrames = <String>[
+  'assets/images/themes/new/base_camp_walker_up_left/frame_00.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_01.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_02.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_03.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_04.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_05.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_06.png',
+  'assets/images/themes/new/base_camp_walker_up_left/frame_07.png',
+];
+
+List<String> baseCampWalkerFrameAssets(String gifAsset) => switch (gifAsset) {
+  baseCampWalkerDownRightAsset => baseCampWalkerDownRightFrames,
+  baseCampWalkerUpLeftAsset => baseCampWalkerUpLeftFrames,
+  _ => throw ArgumentError.value(gifAsset, 'gifAsset', 'Unknown walker asset'),
+};
 
 /// The source dimensions of both the approved map and the white-line route
 /// reference. Keeping route points in this coordinate system makes their
@@ -838,48 +866,65 @@ class _BaseCampGifWalker extends StatefulWidget {
   State<_BaseCampGifWalker> createState() => _BaseCampGifWalkerState();
 }
 
-class _BaseCampGifWalkerState extends State<_BaseCampGifWalker> {
-  ui.Image? _firstFrame;
-  String? _loadedAsset;
+class _BaseCampGifWalkerState extends State<_BaseCampGifWalker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _frames;
+
+  Duration get _cycleDuration => Duration(
+    milliseconds: baseCampWalkerFrameAssets(widget.assetPath).length * 140,
+  );
 
   @override
   void initState() {
     super.initState();
-    _loadFirstFrame();
+    _frames = AnimationController(vsync: this, duration: _cycleDuration);
+    _syncAnimation();
   }
 
   @override
   void didUpdateWidget(_BaseCampGifWalker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.assetPath != widget.assetPath) _loadFirstFrame();
+    if (oldWidget.assetPath != widget.assetPath) {
+      _frames
+        ..duration = _cycleDuration
+        ..value = 0;
+    }
+    _syncAnimation();
   }
 
-  Future<void> _loadFirstFrame() async {
-    final assetPath = widget.assetPath;
-    final bytes = await rootBundle.load(assetPath);
-    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
-    final frame = await codec.getNextFrame();
-    codec.dispose();
-    if (!mounted || assetPath != widget.assetPath) return;
-    setState(() {
-      _firstFrame = frame.image;
-      _loadedAsset = assetPath;
-    });
+  void _syncAnimation() {
+    if (widget.walking && !widget.reducedMotion) {
+      if (!_frames.isAnimating) _frames.repeat();
+    } else {
+      _frames
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _frames.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final showAnimation = widget.walking && !widget.reducedMotion;
-    if (!showAnimation &&
-        _loadedAsset == widget.assetPath &&
-        _firstFrame != null) {
-      return RawImage(image: _firstFrame, fit: BoxFit.contain);
-    }
-    return Image.asset(
-      widget.assetPath,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.none,
-      gaplessPlayback: true,
+    final frames = baseCampWalkerFrameAssets(widget.assetPath);
+    return AnimatedBuilder(
+      animation: _frames,
+      builder: (_, _) {
+        final index = widget.walking && !widget.reducedMotion
+            ? (_frames.value * frames.length).floor() % frames.length
+            : 0;
+        return Image.asset(
+          frames[index],
+          key: ValueKey('${widget.assetPath}:$index'),
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.none,
+          gaplessPlayback: true,
+        );
+      },
     );
   }
 }

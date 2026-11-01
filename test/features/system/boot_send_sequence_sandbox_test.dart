@@ -130,7 +130,7 @@ void main() {
     },
   );
 
-  test('message assembly uses deterministic occupied bitmap targets', () {
+  test('message assembly uses deterministic transient particle targets', () {
     for (final mode in ['BRIEF', 'DEBRIEF', 'BACKUP']) {
       final targets = sandboxMessageAssemblyTargets(mode);
       expect(targets, isNotEmpty);
@@ -145,6 +145,13 @@ void main() {
     expect(sandboxMessageAssemblyMessage('BRIEF'), 'BRIEF RECIVED');
     expect(sandboxMessageAssemblyMessage('DEBRIEF'), 'DEBRIEF RECEIVED');
     expect(sandboxMessageAssemblyMessage('BACKUP'), 'BACKUP COMPLETE');
+  });
+
+  test('message assembly comet begins inside the cinematic viewport', () {
+    final start = sandboxMessageAssemblyCometStart();
+    expect(sandboxMessageAssemblyScene.contains(start), isTrue);
+    expect(start.dx, lessThan(sandboxMessageAssemblyScene.right));
+    expect(start.dy, greaterThan(sandboxMessageAssemblyScene.top));
   });
 
   test('message assembly keeps deterministic 3D cube material identities', () {

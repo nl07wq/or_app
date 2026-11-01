@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -194,7 +196,10 @@ void main() {
       closeTo(.850, .001),
     );
     for (final route in baseCampWalkerRoutes) {
-      expect(route.pausePatternSeconds, everyElement(inInclusiveRange(2.0, 4.0)));
+      expect(
+        route.pausePatternSeconds,
+        everyElement(inInclusiveRange(2.0, 4.0)),
+      );
     }
   });
 
@@ -221,8 +226,10 @@ void main() {
       isTrue,
     );
     expect(
-      baseCampWalkerPose('route-b', const Duration(seconds: 10))
-          .usesDownRightAsset,
+      baseCampWalkerPose(
+        'route-b',
+        const Duration(seconds: 10),
+      ).usesDownRightAsset,
       isFalse,
     );
   });
@@ -235,15 +242,42 @@ void main() {
     expect(baseCampWalkerUpLeftAsset, endsWith('base_camp_walker_up_left.gif'));
   });
 
-  test('approved walker GIF assets are registered and non-empty', () async {
-    for (final asset in [
-      baseCampWalkerDownRightAsset,
-      baseCampWalkerUpLeftAsset,
-    ]) {
-      final data = await rootBundle.load(asset);
-      expect(data.lengthInBytes, greaterThan(100000));
-    }
-  });
+  test(
+    'approved walker frames are full RGBA assets with transparent backgrounds',
+    () async {
+      for (final frames in [
+        baseCampWalkerDownRightFrames,
+        baseCampWalkerUpLeftFrames,
+      ]) {
+        expect(frames, isNotEmpty);
+        for (final asset in frames) {
+          final data = await rootBundle.load(asset);
+          final codec = await ui.instantiateImageCodec(
+            data.buffer.asUint8List(),
+          );
+          final frame = await codec.getNextFrame();
+          final bytes = await frame.image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          expect(frame.image.width, 360, reason: asset);
+          expect(frame.image.height, 600, reason: asset);
+          final pixels = bytes!.buffer.asUint8List();
+          final transparent = <int>[];
+          for (var index = 3; index < pixels.length; index += 4) {
+            transparent.add(pixels[index]);
+          }
+          expect(transparent.any((alpha) => alpha == 0), isTrue, reason: asset);
+          expect(
+            transparent.any((alpha) => alpha == 255),
+            isTrue,
+            reason: asset,
+          );
+          frame.image.dispose();
+          codec.dispose();
+        }
+      }
+    },
+  );
 
   testWidgets('two GIF walkers remain present with reduced motion', (
     tester,

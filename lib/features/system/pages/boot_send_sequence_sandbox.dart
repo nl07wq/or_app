@@ -57,6 +57,15 @@ const _pixelBuilderFinalActStartMs =
     _pixelBuilderCycleMs * 9 +
     _pixelBuilderHesitationMs;
 const _messageAssemblyCycle = Duration(milliseconds: 6500);
+const sandboxMessageAssemblyScene = Rect.fromLTWH(14, 72, 332, 128);
+
+/// The comet deliberately starts inside the visible cinematic viewport.
+/// Keeping this derived from the shared scene rect prevents narrow devices
+/// from clipping its first visible core or glow.
+Offset sandboxMessageAssemblyCometStart() => Offset(
+  sandboxMessageAssemblyScene.right - 15,
+  sandboxMessageAssemblyScene.top + 18,
+);
 const _completionTimeline = Duration(hours: 1);
 const _completionTimelineSeconds = 3600.0;
 
@@ -491,8 +500,9 @@ const _messageGlyphs = <String, List<String>>{
   'V': ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
 };
 
-/// One square is created for every occupied 5x7 glyph pixel. Target spacing
-/// is uniform for the full string so DEBRIEF remains inside the chamber.
+/// Deterministic target anchors for the transient particle field. They are
+/// never used to render the completed message: the final typography is a
+/// single high-resolution [TextPainter] surface below.
 List<Offset> sandboxMessageAssemblyTargets(String mode) {
   final text = sandboxMessageAssemblyMessage(mode);
   final columns = text.length * 6 - 1;
@@ -849,8 +859,10 @@ List<SandboxMessageParticle> sandboxMessageParticles(String mode) =>
                   (cube.id * 7 + particle * 29 + particle ~/ 2) %
                   targets.length;
               final base = targets[targetIndex];
-              final offsetX = ((particle * 17 + cube.id * 3) % 7 - 3) * .34;
-              final offsetY = ((particle * 11 + cube.id * 5) % 7 - 3) * .34;
+              // Spread material around each temporary anchor. The particles
+              // read as a flowing field, never a persistent square-cell font.
+              final offsetX = ((particle * 17 + cube.id * 3) % 7 - 3) * .58;
+              final offsetY = ((particle * 11 + cube.id * 5) % 7 - 3) * .58;
               return SandboxMessageParticle(
                 sourceId: cube.id,
                 index: particle,
@@ -1413,7 +1425,7 @@ class _SendSequencePainter extends CustomPainter {
     final cubes = sandboxMessageCubes(modeName);
     final edges = sandboxMessageSelectedNetworkEdges(modeName);
     final particles = sandboxMessageParticles(modeName);
-    const scene = Rect.fromLTWH(14, 72, 332, 128);
+    const scene = sandboxMessageAssemblyScene;
     canvas.save();
     canvas.clipRect(scene);
     canvas.drawRect(scene, _fill(const Color(0xff050704)));
@@ -1440,9 +1452,11 @@ class _SendSequencePainter extends CustomPainter {
     final nodeIllumination = List<double>.filled(cubes.length, 0)..[0] = impact;
 
     // The comet is intentionally the first major event, and targets cube 0.
+    // Start inside the clipped cinematic viewport so its core and glow are
+    // visible on every aspect ratio rather than materialising off-screen.
     if (elapsed >= 300 && elapsed <= 900) {
       final comet = Offset.lerp(
-        const Offset(380, 78),
+        sandboxMessageAssemblyCometStart(),
         projected.first.offset,
         _ease(_phase(elapsed, 300, 700)),
       )!;
@@ -1603,6 +1617,7 @@ class _SendSequencePainter extends CustomPainter {
       activation,
       elapsed,
     );
+    _paintMessageWordSurface(canvas, modeName, scene, elapsed);
     // Keep a compact foreground specular flash at the actual struck node.
     // The radial bloom above is correctly behind the opaque cube faces; this
     // small overlay keeps the impact legible at native phone scale.
@@ -1747,10 +1762,12 @@ class _SendSequencePainter extends CustomPainter {
         ((cube.id + particle.index) % 4) / 3,
       )!;
       final visible = _ease(_phase(transfer, 0, .35));
-      // The same emitted particles remain as the final phosphorescent word;
-      // no independent text/surface layer appears over them.
+      // Particles are the visible assembly material. They recede only after
+      // their targets have had time to settle, making room for the continuous
+      // high-resolution letter surface without a block/voxel hold frame.
       final holdPulse = .88 + math.sin((elapsed + cube.id * 37) / 480) * .12;
-      final alpha = (.38 + flow * .50) * visible * holdPulse;
+      final materialFade = 1 - _ease(_phase(elapsed, 5050, 5900));
+      final alpha = (.38 + flow * .50) * visible * holdPulse * materialFade;
       final size = particle.size * (.8 + particle.depth * .32);
       // Only a representative sixth receives blur; the majority remain
       // inexpensive square/point material rather than a full-screen glow.
@@ -1761,15 +1778,74 @@ class _SendSequencePainter extends CustomPainter {
           _glow(color.withValues(alpha: alpha * .34), 3.2, 2.4),
         );
       }
-      canvas.drawRect(
-        Rect.fromCenter(
-          center: position,
-          width: size * 1.7,
-          height: size * 1.7,
-        ),
-        _fill(color.withValues(alpha: alpha)),
-      );
+      canvas.drawCircle(position, size, _fill(color.withValues(alpha: alpha)));
     }
+  }
+
+  /// The final state is intentionally typography, not the 5x7 construction
+  /// anchors used by the transient particle field. Its alpha is delayed until
+  /// the moving material has converged, so this is a continuous condensation
+  /// rather than a time-only word replacement.
+  void _paintMessageWordSurface(
+    Canvas canvas,
+    String modeName,
+    Rect scene,
+    double elapsed,
+  ) {
+    final settle = _ease(_phase(elapsed, 4750, 6000));
+    if (settle <= 0) return;
+    final text = sandboxMessageAssemblyMessage(modeName);
+    const baseStyle = TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      letterSpacing: .55,
+      height: 1,
+    );
+    final measure = TextPainter(
+      text: const TextSpan(text: 'MMMMMMMMMMMMMMMM', style: baseStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final scale = math.min(1.0, (scene.width - 22) / measure.width);
+    final color = Color.lerp(
+      const Color(0xffdfffbe),
+      const Color(0xffdff7ff),
+      _ease(_phase(elapsed, 5400, 6200)),
+    )!;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: baseStyle.copyWith(color: color.withValues(alpha: settle)),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final offset = Offset(
+      scene.center.dx - painter.width * scale / 2,
+      scene.center.dy - painter.height * scale / 2,
+    );
+    canvas.save();
+    canvas.translate(offset.dx, offset.dy);
+    canvas.scale(scale);
+    // A small, layered glow preserves the phosphorescent material read while
+    // keeping letter edges smooth and legible at native phone size.
+    for (final glow in <(Offset, double)>[
+      (const Offset(-.9, 0), .10),
+      (const Offset(.9, 0), .10),
+      (const Offset(0, -.9), .10),
+      (const Offset(0, .9), .10),
+    ]) {
+      final halo = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: baseStyle.copyWith(
+            color: color.withValues(alpha: settle * glow.$2),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      halo.paint(canvas, glow.$1);
+    }
+    painter.paint(canvas, Offset.zero);
+    canvas.restore();
   }
 
   SandboxProjectedPoint _messageProject(SandboxVec3 point, double elapsed) =>
