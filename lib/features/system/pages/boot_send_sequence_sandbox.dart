@@ -103,11 +103,16 @@ class OperationSequenceAnimation extends StatefulWidget {
     required this.operationMode,
     required this.motion,
     this.onCompleted,
+    this.productionVisualOnly = false,
   });
 
   final OperationSequenceMode operationMode;
   final OperationSequenceMotion motion;
   final VoidCallback? onCompleted;
+
+  /// Production overlays share the verified renderer but omit every Sandbox
+  /// monitor/chrome element.
+  final bool productionVisualOnly;
 
   @override
   State<OperationSequenceAnimation> createState() =>
@@ -207,6 +212,7 @@ class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
             ? 0
             : _completion.value * _completionTimelineSeconds,
         reducedMotion: reducedMotion,
+        showSandboxChrome: !widget.productionVisualOnly,
       ),
     );
   }
@@ -989,6 +995,7 @@ class _SendSequenceMonitor extends StatelessWidget {
     required this.progress,
     required this.completionElapsedSeconds,
     required this.reducedMotion,
+    this.showSandboxChrome = true,
   });
 
   final BootSendSequenceConcept concept;
@@ -999,6 +1006,7 @@ class _SendSequenceMonitor extends StatelessWidget {
   final double progress;
   final double completionElapsedSeconds;
   final bool reducedMotion;
+  final bool showSandboxChrome;
 
   @override
   Widget build(BuildContext context) => AspectRatio(
@@ -1015,6 +1023,7 @@ class _SendSequenceMonitor extends StatelessWidget {
           progress: progress,
           completionElapsedSeconds: completionElapsedSeconds,
           reducedMotion: reducedMotion,
+          showSandboxChrome: showSandboxChrome,
         ),
       ),
     ),
@@ -1031,6 +1040,7 @@ class _SendSequencePainter extends CustomPainter {
     required this.progress,
     required this.completionElapsedSeconds,
     required this.reducedMotion,
+    required this.showSandboxChrome,
   });
 
   final BootSendSequenceConcept concept;
@@ -1041,6 +1051,7 @@ class _SendSequencePainter extends CustomPainter {
   final double progress;
   final double completionElapsedSeconds;
   final bool reducedMotion;
+  final bool showSandboxChrome;
 
   bool _monitorConstructionComplete(double progress) =>
       concept == BootSendSequenceConcept.voxelIntegration
@@ -1071,9 +1082,11 @@ class _SendSequencePainter extends CustomPainter {
     );
     canvas.scale(scale);
     final t = progress.clamp(0, 1).toDouble();
-    _housing(canvas);
-    _grid(canvas);
-    _header(canvas, t);
+    if (showSandboxChrome) {
+      _housing(canvas);
+      _grid(canvas);
+      _header(canvas, t);
+    }
     final particleField = _monitorConstructionComplete(t)
         ? _completedParticleField(completionElapsedSeconds)
         : null;
@@ -1101,8 +1114,10 @@ class _SendSequencePainter extends CustomPainter {
         reducedMotion: reducedMotion,
       );
     }
-    _footer(canvas, t);
-    _bezel(canvas);
+    if (showSandboxChrome) {
+      _footer(canvas, t);
+      _bezel(canvas);
+    }
     canvas.restore();
   }
 

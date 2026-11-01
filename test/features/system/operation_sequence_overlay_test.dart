@@ -5,113 +5,108 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/system/widgets/operation_sequence_overlay.dart';
 
 void main() {
-  testWidgets('fast success waits for the complete message motion', (
+  testWidgets('fast operation exposes skip and never shows Sandbox controls', (
     tester,
   ) async {
     final task = Completer<void>();
+    var returned = false;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => FilledButton(
-            onPressed: () {
-              unawaited(
-                OperationSequenceOverlay.run<void>(
-                  context,
-                  operationMode: OperationSequenceMode.brief,
-                  task: () => task.future,
-                ),
-              );
-            },
-            child: const Text('START'),
-          ),
-        ),
-      ),
+      _host((context) async {
+        await OperationSequenceOverlay.run<void>(
+          context,
+          operationMode: OperationSequenceMode.brief,
+          task: () => task.future,
+        );
+        returned = true;
+      }),
     );
 
     await tester.tap(find.text('START'));
     await tester.pump();
     expect(find.text('PROCESSING'), findsOneWidget);
-    expect(find.text('MESSAGE ASSEMBLY'), findsOneWidget);
-    expect(find.text('VOXEL WALK-IN'), findsOneWidget);
+    expect(find.text('MESSAGE ASSEMBLY'), findsNothing);
+    expect(find.text('VOXEL WALK-IN'), findsNothing);
+    expect(find.text('TAP TO SKIP'), findsNothing);
 
     task.complete();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 6499));
-    expect(find.text('PROCESSING'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('TAP TO SKIP'), findsNWidgets(2));
+    await tester.tap(find.widgetWithText(TextButton, 'TAP TO SKIP'));
     await tester.pump();
-    expect(find.text('COMPLETE'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 200));
+    expect(returned, isTrue);
     expect(find.text('PROCESSING'), findsNothing);
   });
 
-  testWidgets('failure is visual only and the task error still propagates', (
+  testWidgets('completed motion holds PROCESSING until operation settles', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: OperationSequenceOverlay(
+          operationMode: OperationSequenceMode.debrief,
+          motion: OperationSequenceMotion.voxelWalkIn,
+          operationState: OperationSequenceState.running,
+          operationFinished: false,
+          motionFinished: true,
+        ),
+      ),
+    );
+    expect(find.text('PROCESSING'), findsOneWidget);
+    expect(find.text('CLOSE'), findsNothing);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: OperationSequenceOverlay(
+          operationMode: OperationSequenceMode.debrief,
+          motion: OperationSequenceMotion.voxelWalkIn,
+          operationState: OperationSequenceState.success,
+          operationFinished: true,
+          motionFinished: true,
+        ),
+      ),
+    );
+    expect(find.text('CLOSE'), findsNWidgets(2));
+  });
+
+  testWidgets('failure is returned only after an explicit skip', (
     tester,
   ) async {
     final failure = Completer<void>();
     Object? caught;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => FilledButton(
-            onPressed: () async {
-              try {
-                await OperationSequenceOverlay.run<void>(
-                  context,
-                  operationMode: OperationSequenceMode.backup,
-                  task: () => failure.future,
-                );
-              } catch (error) {
-                caught = error;
-              }
-            },
-            child: const Text('START'),
-          ),
-        ),
-      ),
+      _host((context) async {
+        try {
+          await OperationSequenceOverlay.run<void>(
+            context,
+            operationMode: OperationSequenceMode.backup,
+            task: () => failure.future,
+          );
+        } catch (error) {
+          caught = error;
+        }
+      }),
     );
 
     await tester.tap(find.text('START'));
     await tester.pump();
     failure.completeError(StateError('failed'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 6600));
+    expect(caught, isNull);
+    await tester.tap(find.widgetWithText(TextButton, 'TAP TO SKIP'));
     await tester.pump();
-    expect(find.text('RETURNING TO RESULT'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 200));
     expect(caught, isA<StateError>());
   });
+}
 
-  testWidgets('switching motion restarts its completion boundary', (
-    tester,
-  ) async {
-    final task = Completer<void>();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => FilledButton(
-            onPressed: () {
-              unawaited(
-                OperationSequenceOverlay.run<void>(
-                  context,
-                  operationMode: OperationSequenceMode.debrief,
-                  task: () => task.future,
-                ),
-              );
-            },
-            child: const Text('START'),
-          ),
+Widget _host(FutureOr<void> Function(BuildContext context) onStart) =>
+    MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () {
+            final value = onStart(context);
+            if (value is Future<void>) unawaited(value);
+          },
+          child: const Text('START'),
         ),
       ),
     );
-
-    await tester.tap(find.text('START'));
-    await tester.pump();
-    task.complete();
-    await tester.pump();
-    await tester.tap(find.text('VOXEL WALK-IN'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 6500));
-    expect(find.text('PROCESSING'), findsOneWidget);
-  });
-}

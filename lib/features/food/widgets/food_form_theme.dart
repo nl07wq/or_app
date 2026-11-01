@@ -22,6 +22,11 @@ abstract final class FoodFormMetrics {
   );
   static const labelTextStyle = TextStyle(fontSize: 12);
   static const valueFontSize = 14.0;
+  // These are kept separate so the CALORIES/PFC exchange remains explicit at
+  // the two nutrition-form call sites. The accepted current form typography
+  // resolves both to the same existing 14sp value.
+  static const caloriesNumericFontSize = valueFontSize;
+  static const pfcNumericFontSize = valueFontSize;
   static const gap = SizedBox(height: AppSpacing.sm);
   static const horizontalGap = SizedBox(width: AppSpacing.sm);
   static const barcodeButtonSize = Size(84, 44);
@@ -62,6 +67,14 @@ abstract final class FoodFormMetrics {
       ),
     );
   }
+
+  static ThemeData numericValueTheme(ThemeData theme, double fontSize) =>
+      theme.copyWith(
+        textTheme: theme.textTheme.copyWith(
+          bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: fontSize),
+          bodyMedium: theme.textTheme.bodyMedium?.copyWith(fontSize: fontSize),
+        ),
+      );
 }
 
 /// Keeps form presentation isolated to the current route subtree. It never

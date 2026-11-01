@@ -18,17 +18,19 @@ class OperationSequenceOverlay extends StatefulWidget {
     required this.operationMode,
     required this.motion,
     required this.operationState,
-    this.onMotionChanged,
     this.onMotionCompleted,
     this.onDismiss,
+    required this.operationFinished,
+    required this.motionFinished,
   });
 
   final OperationSequenceMode operationMode;
   final OperationSequenceMotion motion;
   final OperationSequenceState operationState;
-  final ValueChanged<OperationSequenceMotion>? onMotionChanged;
   final VoidCallback? onMotionCompleted;
   final VoidCallback? onDismiss;
+  final bool operationFinished;
+  final bool motionFinished;
 
   /// Inserts a blocking presentation layer while [task] is running. It does
   /// not reinterpret task success; [isSuccess] merely controls the visual
@@ -37,85 +39,79 @@ class OperationSequenceOverlay extends StatefulWidget {
     BuildContext context, {
     required OperationSequenceMode operationMode,
     required Future<T> Function() task,
-    OperationSequenceMotion initialMotion =
-        OperationSequenceMotion.messageAssembly,
     bool Function(T result)? isSuccess,
   }) async {
     final overlay = Overlay.of(context, rootOverlay: true);
+    // Production always uses the accepted Voxel WALK-IN. MESSAGE ASSEMBLY is
+    // intentionally retained for the Animation Sandbox only.
     final state = ValueNotifier(OperationSequenceState.running);
-    final motion = ValueNotifier(initialMotion);
+    final operationFinished = ValueNotifier(false);
     final motionFinished = ValueNotifier(false);
-    final motionEpoch = ValueNotifier(0);
-    var completion = Completer<void>();
-    void restartMotion(OperationSequenceMotion value) {
-      motionEpoch.value++;
-      motionFinished.value = false;
-      completion = Completer<void>();
-      motion.value = value;
+    final dismissRequested = Completer<void>();
+    var dismissed = false;
+    void requestDismiss() {
+      if (dismissed || !operationFinished.value) return;
+      dismissed = true;
+      dismissRequested.complete();
     }
 
     late final OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => ValueListenableBuilder<OperationSequenceState>(
         valueListenable: state,
-        builder: (_, operationState, _) =>
-            ValueListenableBuilder<OperationSequenceMotion>(
-              valueListenable: motion,
-              builder: (_, selectedMotion, _) => ValueListenableBuilder<int>(
-                valueListenable: motionEpoch,
-                builder: (_, epoch, _) => OperationSequenceOverlay(
-                  operationMode: operationMode,
-                  motion: selectedMotion,
-                  operationState: operationState,
-                  onMotionChanged:
-                      operationState == OperationSequenceState.running
-                      ? restartMotion
-                      : null,
-                  onMotionCompleted: () {
-                    if (epoch != motionEpoch.value ||
-                        motionFinished.value ||
-                        completion.isCompleted) {
-                      return;
-                    }
-                    motionFinished.value = true;
-                    completion.complete();
-                  },
-                ),
-              ),
+        builder: (_, operationState, _) => ValueListenableBuilder<bool>(
+          valueListenable: operationFinished,
+          builder: (_, isOperationFinished, _) => ValueListenableBuilder<bool>(
+            valueListenable: motionFinished,
+            builder: (_, isMotionFinished, _) => OperationSequenceOverlay(
+              operationMode: operationMode,
+              motion: OperationSequenceMotion.voxelWalkIn,
+              operationState: operationState,
+              operationFinished: isOperationFinished,
+              motionFinished: isMotionFinished,
+              onMotionCompleted: () {
+                if (motionFinished.value) return;
+                motionFinished.value = true;
+              },
+              onDismiss: requestDismiss,
             ),
+          ),
+        ),
       ),
     );
     overlay.insert(entry);
     T? result;
     Object? taskError;
     StackTrace? taskStackTrace;
-    var succeeded = false;
-    try {
-      final value = await task();
-      result = value;
-      succeeded = isSuccess?.call(value) ?? true;
-    } catch (error, stackTrace) {
-      taskError = error;
-      taskStackTrace = stackTrace;
-    }
-    // A visual sequence never decides the actual operation result. It waits
-    // independently, then presents the already-established result once.
-    await completion.future;
-    state.value = taskError == null && succeeded
-        ? OperationSequenceState.success
-        : OperationSequenceState.failure;
-    await Future<void>.delayed(const Duration(milliseconds: 180));
+    unawaited(() async {
+      try {
+        final value = await task();
+        result = value;
+        state.value = (isSuccess?.call(value) ?? true)
+            ? OperationSequenceState.success
+            : OperationSequenceState.failure;
+      } catch (error, stackTrace) {
+        taskError = error;
+        taskStackTrace = stackTrace;
+        state.value = OperationSequenceState.failure;
+      } finally {
+        operationFinished.value = true;
+      }
+    }());
+    // A visual sequence never decides the actual operation result. Once the
+    // operation has settled, the user may skip its remaining motion or close
+    // the held completed frame. There is deliberately no timed auto-dismiss.
+    await dismissRequested.future;
     try {
       if (taskError != null) {
-        Error.throwWithStackTrace(taskError, taskStackTrace!);
+        Error.throwWithStackTrace(taskError!, taskStackTrace!);
       }
       return result as T;
     } finally {
       entry.remove();
       state.dispose();
-      motion.dispose();
+      operationFinished.dispose();
       motionFinished.dispose();
-      motionEpoch.dispose();
     }
   }
 
@@ -143,40 +139,21 @@ class _OperationSequenceOverlayState extends State<OperationSequenceOverlay> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.operationState == OperationSequenceState.running)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SegmentedButton<OperationSequenceMotion>(
-                      segments: const [
-                        ButtonSegment(
-                          value: OperationSequenceMotion.messageAssembly,
-                          label: Text('MESSAGE ASSEMBLY'),
-                        ),
-                        ButtonSegment(
-                          value: OperationSequenceMotion.voxelWalkIn,
-                          label: Text('VOXEL WALK-IN'),
-                        ),
-                      ],
-                      selected: {widget.motion},
-                      onSelectionChanged: widget.onMotionChanged == null
-                          ? null
-                          : (value) => widget.onMotionChanged!(value.first),
-                    ),
-                  ),
                 AspectRatio(
                   aspectRatio: 360 / 280,
                   child: OperationSequenceAnimation(
                     operationMode: widget.operationMode,
-                    motion: widget.motion,
+                    motion: OperationSequenceMotion.voxelWalkIn,
                     onCompleted: widget.onMotionCompleted,
+                    productionVisualOnly: true,
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   switch (widget.operationState) {
-                    OperationSequenceState.running => 'PROCESSING',
-                    OperationSequenceState.success => 'COMPLETE',
-                    OperationSequenceState.failure => 'RETURNING TO RESULT',
+                    _ when !widget.operationFinished => 'PROCESSING',
+                    _ when !widget.motionFinished => 'TAP TO SKIP',
+                    _ => 'CLOSE',
                   },
                   style: const TextStyle(
                     color: Color(0xffd8fbff),
@@ -185,6 +162,18 @@ class _OperationSequenceOverlayState extends State<OperationSequenceOverlay> {
                     letterSpacing: 1.2,
                   ),
                 ),
+                const SizedBox(height: 8),
+                if (widget.operationFinished)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: TextButton(
+                      onPressed: widget.onDismiss,
+                      child: Text(
+                        widget.motionFinished ? 'CLOSE' : 'TAP TO SKIP',
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

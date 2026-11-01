@@ -1666,15 +1666,23 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         Row(
           children: [
             Expanded(
-              child: _CatalogNutritionFocusField(
-                focusNode: _caloriesFocusNode,
-                nextFocusNode: _proteinFocusNode,
-                child: OperationTextField(
-                  controller: _calories,
-                  label: 'CALORIES',
-                  keyboardType: TextInputType.number,
+              child: Theme(
+                // CALORIES uses the existing PFC numeric size after the
+                // requested typography exchange.
+                data: FoodFormMetrics.numericValueTheme(
+                  Theme.of(context),
+                  FoodFormMetrics.pfcNumericFontSize,
+                ),
+                child: _CatalogNutritionFocusField(
                   focusNode: _caloriesFocusNode,
-                  onChanged: (_) => setState(() => _rawCalories = null),
+                  nextFocusNode: _proteinFocusNode,
+                  child: OperationTextField(
+                    controller: _calories,
+                    label: 'CALORIES',
+                    keyboardType: TextInputType.number,
+                    focusNode: _caloriesFocusNode,
+                    onChanged: (_) => setState(() => _rawCalories = null),
+                  ),
                 ),
               ),
             ),
@@ -1759,7 +1767,11 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     FocusNode? previousFocusNode,
     FocusNode? nextFocusNode,
   }) {
-    final theme = Theme.of(context);
+    final theme = FoodFormMetrics.numericValueTheme(
+      Theme.of(context),
+      // PFC uses the existing CALORIES numeric size after the exchange.
+      FoodFormMetrics.caloriesNumericFontSize,
+    );
     return Theme(
       data: theme.copyWith(
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(

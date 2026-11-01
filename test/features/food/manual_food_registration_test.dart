@@ -11,6 +11,15 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 void main() {
+  test('manual and catalog nutrition exchange keeps the existing value sizes', () {
+    expect(FoodFormMetrics.caloriesNumericFontSize, 14);
+    expect(FoodFormMetrics.pfcNumericFontSize, 14);
+    expect(
+      FoodFormMetrics.caloriesNumericFontSize,
+      FoodFormMetrics.pfcNumericFontSize,
+    );
+  });
+
   testWidgets('invalid ADD FOOD uses one failed HUD instead of inline error', (
     tester,
   ) async {

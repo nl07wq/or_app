@@ -572,15 +572,22 @@ class _FoodNutritionPanel extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _NutritionFocusField(
-                focusNode: calorieFocusNode,
-                nextFocusNode: proteinFocusNode,
-                child: OperationTextField(
-                  controller: calorieController,
-                  label: 'CALORIES',
-                  keyboardType: TextInputType.number,
+              child: Theme(
+                // CALORIES deliberately uses the pre-existing PFC value size.
+                data: FoodFormMetrics.numericValueTheme(
+                  Theme.of(context),
+                  FoodFormMetrics.pfcNumericFontSize,
+                ),
+                child: _NutritionFocusField(
                   focusNode: calorieFocusNode,
-                  onChanged: onCaloriesChanged,
+                  nextFocusNode: proteinFocusNode,
+                  child: OperationTextField(
+                    controller: calorieController,
+                    label: 'CALORIES',
+                    keyboardType: TextInputType.number,
+                    focusNode: calorieFocusNode,
+                    onChanged: onCaloriesChanged,
+                  ),
                 ),
               ),
             ),
@@ -673,7 +680,11 @@ class _FoodNutritionPanel extends StatelessWidget {
     FocusNode? previousFocusNode,
     FocusNode? nextFocusNode,
   }) {
-    final theme = Theme.of(context);
+    final theme = FoodFormMetrics.numericValueTheme(
+      Theme.of(context),
+      // PFC deliberately uses the pre-existing CALORIES value size.
+      FoodFormMetrics.caloriesNumericFontSize,
+    );
     return Theme(
       data: theme.copyWith(
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
