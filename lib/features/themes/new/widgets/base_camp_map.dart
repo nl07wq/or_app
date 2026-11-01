@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
+import 'base_camp_military_walker_preview.dart';
+
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
 /// always receive the same [InteractiveViewer] transform.
@@ -169,6 +171,11 @@ class _BaseCampMapState extends State<BaseCampMap>
     });
   }
 
+  Future<void> _openWalkingPreview() => showDialog<void>(
+    context: context,
+    builder: (_) => const BaseCampMilitaryWalkerPreview(),
+  );
+
   void _openFacility(BaseCampFacility facility) {
     if (_isTransforming) return;
     setState(() => _selectedFacility = facility);
@@ -284,11 +291,21 @@ class _BaseCampMapState extends State<BaseCampMap>
                 right: 8,
                 child: Tooltip(
                   message: 'Reset map framing',
-                  child: IconButton.filledTonal(
-                    key: const ValueKey('new-theme-base-camp-reset'),
-                    onPressed: _reset,
-                    icon: const Icon(Icons.refresh),
-                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                  child: Material(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      key: const ValueKey('new-theme-base-camp-reset'),
+                      customBorder: const CircleBorder(),
+                      onTap: _reset,
+                      onLongPress: _openWalkingPreview,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(Icons.refresh),
+                      ),
+                    ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                  ),
                 ),
               ),
               if (selectedFacility != null)
@@ -486,8 +503,7 @@ class _FacilitySelectionFramePainter extends CustomPainter {
         )
         .toList(growable: false);
     final path = Path()..addPolygon(corners, true);
-    final intensity =
-        .55 + .45 * ((1 + math.sin(pulse * math.pi * 2)) / 2);
+    final intensity = .55 + .45 * ((1 + math.sin(pulse * math.pi * 2)) / 2);
     canvas.drawPath(
       path,
       Paint()
@@ -499,9 +515,9 @@ class _FacilitySelectionFramePainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFF68E8F2).withValues(
-          alpha: .75 + .25 * intensity,
-        )
+        ..color = const Color(
+          0xFF68E8F2,
+        ).withValues(alpha: .75 + .25 * intensity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
