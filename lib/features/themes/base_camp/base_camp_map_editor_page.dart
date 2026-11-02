@@ -63,7 +63,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     });
   }
 
-  void _updatePoint(Offset point) {
+  void _updatePoint(Offset point, {bool recordUndo = true}) {
     final normalized = _section == _BaseCampEditorSection.buildings;
     final safe = Offset(
       point.dx
@@ -76,23 +76,36 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     if (normalized) {
       final points = List<Offset>.of(_working.facilityOutlines[_facilityId]!);
       points[_pointIndex.clamp(0, points.length - 1)] = safe;
-      _mutate(
-        _working.copyWith(
-          facilityOutlines: <String, List<Offset>>{
-            ..._working.facilityOutlines,
-            _facilityId: points,
-          },
-        ),
+      final next = _working.copyWith(
+        facilityOutlines: <String, List<Offset>>{
+          ..._working.facilityOutlines,
+          _facilityId: points,
+        },
       );
+      if (recordUndo) {
+        _mutate(next);
+      } else {
+        setState(() => _working = next);
+      }
     } else {
       final points = List<Offset>.of(_working.routes[_routeId]!);
       points[_pointIndex.clamp(0, points.length - 1)] = safe;
-      _mutate(
-        _working.copyWith(
-          routes: <String, List<Offset>>{..._working.routes, _routeId: points},
-        ),
+      final next = _working.copyWith(
+        routes: <String, List<Offset>>{..._working.routes, _routeId: points},
       );
+      if (recordUndo) {
+        _mutate(next);
+      } else {
+        setState(() => _working = next);
+      }
     }
+  }
+
+  void _beginDrag(int index) {
+    setState(() {
+      _pointIndex = index;
+      _undo.add(_clone(_working));
+    });
   }
 
   List<Offset> get _selectedPoints =>
@@ -358,7 +371,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   selectedFacilityId: _facilityId,
                   selectedPoint: _pointIndex,
                   onPointSelected: _selectPoint,
-                  onPointMoved: _updatePoint,
+                  onDragStarted: _beginDrag,
+                  onPointDragged: (point) =>
+                      _updatePoint(point, recordUndo: false),
                 ),
               ),
               _editorControls(),
@@ -552,14 +567,16 @@ class _BaseCampEditorCanvas extends StatelessWidget {
     required this.selectedFacilityId,
     required this.selectedPoint,
     required this.onPointSelected,
-    required this.onPointMoved,
+    required this.onDragStarted,
+    required this.onPointDragged,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
   final String selectedRouteId, selectedFacilityId;
   final int selectedPoint;
   final ValueChanged<int> onPointSelected;
-  final ValueChanged<Offset> onPointMoved;
+  final ValueChanged<int> onDragStarted;
+  final ValueChanged<Offset> onPointDragged;
 
   @override
   Widget build(BuildContext context) => AspectRatio(
@@ -618,8 +635,8 @@ class _BaseCampEditorCanvas extends StatelessWidget {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => onPointSelected(i),
-                      onPanStart: (_) => onPointSelected(i),
-                      onPanUpdate: (details) => onPointMoved(
+                      onPanStart: (_) => onDragStarted(i),
+                      onPanUpdate: (details) => onPointDragged(
                         sourcePoint(displayPoint(points[i]) + details.delta),
                       ),
                       child: DecoratedBox(
