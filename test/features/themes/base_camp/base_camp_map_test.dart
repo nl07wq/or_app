@@ -234,8 +234,54 @@ void main() {
     final restored = BaseCampMapConfigurationController();
     await restored.load();
     expect(restored.value.soldierScale, closeTo(2 / 3, .0001));
-    expect(restored.value.routes['route-b'], controller.value.routes['route-b']);
-    expect(restored.value.routes['route-c'], controller.value.routes['route-c']);
+    expect(
+      restored.value.routes['route-b'],
+      controller.value.routes['route-b'],
+    );
+    expect(
+      restored.value.routes['route-c'],
+      controller.value.routes['route-c'],
+    );
+  });
+
+  test(
+    'obsolete 2/1 multiplier migrates to 1/1 without losing map edits',
+    () async {
+      final edited = BaseCampMapConfiguration.defaults().copyWith(
+        routes: <String, List<Offset>>{
+          ...BaseCampMapConfiguration.defaults().routes,
+          'route-b': const <Offset>[Offset(901, 300), Offset(1010, 360)],
+        },
+        soldierScale: 2,
+      );
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        BaseCampMapConfigurationController.storageKey: edited.encode(),
+      });
+      final controller = BaseCampMapConfigurationController();
+      await controller.load();
+      expect(controller.value.soldierScale, 1);
+      expect(controller.value.routes['route-b'], edited.routes['route-b']);
+      expect(
+        (await SharedPreferences.getInstance()).getString(
+          BaseCampMapConfigurationController.storageKey,
+        ),
+        contains('"soldierScale":1.0'),
+      );
+    },
+  );
+
+  test('shared source geometry round-trips for cover and editor fit', () {
+    const source = Offset(808, 604);
+    for (final geometry in [
+      BaseCampMapGeometry.cover(const Size(390, 220)),
+      BaseCampMapGeometry.contain(const Size(390, 600)),
+    ]) {
+      final roundTrip = geometry.viewportToSource(
+        geometry.sourceToViewport(source),
+      );
+      expect(roundTrip.dx, closeTo(source.dx, .001));
+      expect(roundTrip.dy, closeTo(source.dy, .001));
+    }
   });
 
   testWidgets('long press on framing RESET opens the Base Camp map editor', (
@@ -249,6 +295,18 @@ void main() {
     await tester.longPress(find.byKey(const ValueKey('base-camp-reset')));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('BASE CAMP MAP EDITOR'), findsOneWidget);
+    expect(find.text('1/1'), findsNothing);
+    await tester.tap(find.text('SOLDIER SIZE'));
+    await tester.pump();
+    expect(find.text('1/1'), findsOneWidget);
+    expect(find.text('2/3'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text('2/1'), findsNothing);
+    expect(find.byKey(const ValueKey('base-camp-editor-map')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('base-camp-editor-reset-view')),
+      findsOneWidget,
+    );
   });
 
   test('walkers use continuous, periodic path sampling and endpoint stops', () {

@@ -51,6 +51,56 @@ List<String> baseCampWalkerFrameAssets(String gifAsset) => switch (gifAsset) {
 /// alignment independent of the dashboard's displayed size and map zoom.
 const baseCampMapSourceSize = Size(1280, 719);
 
+/// Maps durable 1280×719 source coordinates to the actual painted image
+/// rectangle. Both the normal dashboard (cover) and editor (contain) use the
+/// same conversion so walker feet, route points and facility paths cannot
+/// drift when a viewport crops, pans or changes aspect ratio.
+@immutable
+class BaseCampMapGeometry {
+  const BaseCampMapGeometry._({
+    required this.viewport,
+    required this.imageRect,
+  });
+
+  factory BaseCampMapGeometry.cover(Size viewport) => BaseCampMapGeometry._(
+    viewport: viewport,
+    imageRect: _fittedRect(viewport, BoxFit.cover),
+  );
+
+  factory BaseCampMapGeometry.contain(Size viewport) => BaseCampMapGeometry._(
+    viewport: viewport,
+    imageRect: _fittedRect(viewport, BoxFit.contain),
+  );
+
+  final Size viewport;
+  final Rect imageRect;
+
+  double get scale => imageRect.width / baseCampMapSourceSize.width;
+
+  Offset sourceToViewport(Offset point) => Offset(
+    imageRect.left + point.dx * scale,
+    imageRect.top + point.dy * scale,
+  );
+
+  Offset viewportToSource(Offset point) => Offset(
+    (point.dx - imageRect.left) / scale,
+    (point.dy - imageRect.top) / scale,
+  );
+
+  Offset normalizedToViewport(Offset point) => sourceToViewport(
+    Offset(
+      point.dx * baseCampMapSourceSize.width,
+      point.dy * baseCampMapSourceSize.height,
+    ),
+  );
+
+  static Rect _fittedRect(Size viewport, BoxFit fit) {
+    final fitted = applyBoxFit(fit, baseCampMapSourceSize, viewport);
+    final size = fitted.destination;
+    return Alignment.center.inscribe(size, Offset.zero & viewport);
+  }
+}
+
 /// Tunable walking presentation values in map-source pixels/seconds.
 abstract final class BaseCampWalkingSettings {
   static const spriteHeight = 66.0;
@@ -399,6 +449,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final size = constraints.biggest;
+                    final geometry = BaseCampMapGeometry.cover(size);
                     return Stack(
                       fit: StackFit.expand,
                       children: [
@@ -425,6 +476,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                                           ),
                                     reducedMotion: reducedMotion,
                                     configuration: configuration,
+                                    geometry: geometry,
                                   ),
                             ),
                           ),
@@ -445,6 +497,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                                             .facilityOutlines[selectedFacility
                                             .id] ??
                                         selectedFacility.outline(),
+                                    geometry: geometry,
                                     pulse: reducedMotion
                                         ? 0
                                         : _selectionPulse.value,
@@ -460,7 +513,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                             outline:
                                 configuration.facilityOutlines[facility.id] ??
                                 facility.outline(),
-                            mapSize: size,
+                            geometry: geometry,
                             onPressed: () => _openFacility(facility),
                           ),
                       ],
@@ -502,29 +555,37 @@ class _BaseCampFacilityTarget extends StatelessWidget {
   const _BaseCampFacilityTarget({
     required this.facility,
     required this.outline,
-    required this.mapSize,
+    required this.geometry,
     required this.onPressed,
   });
 
   final BaseCampFacility facility;
   final List<Offset> outline;
-  final Size mapSize;
+  final BaseCampMapGeometry geometry;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final leftRatio = outline.map((point) => point.dx).reduce(math.min);
-    final rightRatio = outline.map((point) => point.dx).reduce(math.max);
-    final topRatio = outline.map((point) => point.dy).reduce(math.min);
-    final bottomRatio = outline.map((point) => point.dy).reduce(math.max);
-    final width = mapSize.width * (rightRatio - leftRatio);
-    final height = mapSize.height * (bottomRatio - topRatio);
+    final sourcePoints = outline
+        .map(
+          (point) => Offset(
+            point.dx * baseCampMapSourceSize.width,
+            point.dy * baseCampMapSourceSize.height,
+          ),
+        )
+        .toList(growable: false);
+    final left = sourcePoints.map((point) => point.dx).reduce(math.min);
+    final right = sourcePoints.map((point) => point.dx).reduce(math.max);
+    final top = sourcePoints.map((point) => point.dy).reduce(math.min);
+    final bottom = sourcePoints.map((point) => point.dy).reduce(math.max);
+    final topLeft = geometry.sourceToViewport(Offset(left, top));
+    final bottomRight = geometry.sourceToViewport(Offset(right, bottom));
     return Positioned(
       key: ValueKey('base-camp-facility-${facility.id}'),
-      left: mapSize.width * leftRatio,
-      top: mapSize.height * topRatio,
-      width: width,
-      height: height,
+      left: topLeft.dx,
+      top: topLeft.dy,
+      width: bottomRight.dx - topLeft.dx,
+      height: bottomRight.dy - topLeft.dy,
       child: Semantics(
         button: true,
         label: '${facility.label} facility',
@@ -670,17 +731,19 @@ class _FacilitySelectionFramePainter extends CustomPainter {
   const _FacilitySelectionFramePainter({
     required this.facility,
     required this.outline,
+    required this.geometry,
     required this.pulse,
   });
 
   final BaseCampFacility facility;
   final List<Offset> outline;
+  final BaseCampMapGeometry geometry;
   final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
     final points = outline
-        .map((point) => Offset(point.dx * size.width, point.dy * size.height))
+        .map((point) => geometry.normalizedToViewport(point))
         .toList(growable: false);
     final path = Path()..addPolygon(points, true);
     // The reference calls for a hand-drawn perimeter around the facility, not
@@ -719,6 +782,7 @@ class _FacilitySelectionFramePainter extends CustomPainter {
   bool shouldRepaint(_FacilitySelectionFramePainter oldDelegate) =>
       oldDelegate.facility != facility ||
       oldDelegate.outline != outline ||
+      oldDelegate.geometry != geometry ||
       oldDelegate.pulse != pulse;
 }
 
@@ -860,21 +924,20 @@ class BaseCampWalkerPreviewLayer extends StatelessWidget {
     required this.elapsed,
     required this.reducedMotion,
     required this.configuration,
+    required this.geometry,
   });
 
   final Duration elapsed;
   final bool reducedMotion;
   final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mapSize = constraints.biggest;
         final spriteHeight =
-            mapSize.width /
-            baseCampMapSourceSize.width *
-            BaseCampWalkingSettings.spriteHeight;
+            geometry.scale * BaseCampWalkingSettings.spriteHeight;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -886,7 +949,7 @@ class BaseCampWalkerPreviewLayer extends StatelessWidget {
                     defaultRoute.withSourcePoints(points),
                     elapsed,
                   ),
-                  mapSize: mapSize,
+                  geometry: geometry,
                   spriteHeight: spriteHeight * configuration.soldierScale,
                   reducedMotion: reducedMotion,
                 )
@@ -894,7 +957,7 @@ class BaseCampWalkerPreviewLayer extends StatelessWidget {
                 _BaseCampGifWalkerPositioned(
                   route: defaultRoute,
                   pose: baseCampWalkerPose(defaultRoute.id, elapsed),
-                  mapSize: mapSize,
+                  geometry: geometry,
                   spriteHeight: spriteHeight * configuration.soldierScale,
                   reducedMotion: reducedMotion,
                 ),
@@ -909,24 +972,21 @@ class _BaseCampGifWalkerPositioned extends StatelessWidget {
   const _BaseCampGifWalkerPositioned({
     required this.route,
     required this.pose,
-    required this.mapSize,
+    required this.geometry,
     required this.spriteHeight,
     required this.reducedMotion,
   });
 
   final BaseCampWalkerRoute route;
   final BaseCampWalkerPose pose;
-  final Size mapSize;
+  final BaseCampMapGeometry geometry;
   final double spriteHeight;
   final bool reducedMotion;
 
   @override
   Widget build(BuildContext context) {
     final width = spriteHeight * .6;
-    final position = Offset(
-      pose.sourcePosition.dx / baseCampMapSourceSize.width * mapSize.width,
-      pose.sourcePosition.dy / baseCampMapSourceSize.height * mapSize.height,
-    );
+    final position = geometry.sourceToViewport(pose.sourcePosition);
     return Positioned(
       key: ValueKey('base-camp-walker-${route.id}'),
       left: position.dx - width / 2,

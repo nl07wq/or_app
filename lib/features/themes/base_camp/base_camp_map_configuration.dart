@@ -23,6 +23,10 @@ class BaseCampMapConfiguration {
   final Map<String, List<Offset>> facilityOutlines;
   final double soldierScale;
 
+  static const soldierScaleFull = 1.0;
+  static const soldierScaleTwoThirds = 2 / 3;
+  static const soldierScaleHalf = .5;
+
   factory BaseCampMapConfiguration.defaults() => BaseCampMapConfiguration(
     routes: <String, List<Offset>>{
       'route-a': const <Offset>[
@@ -87,17 +91,15 @@ class BaseCampMapConfiguration {
       minimumPoints: 3,
     );
     final scale = _finite(raw['soldierScale']);
-    if (routes == null ||
-        outlines == null ||
-        scale == null ||
-        scale < .4 ||
-        scale > 3) {
+    if (routes == null || outlines == null || scale == null || scale <= 0) {
       return null;
     }
     return BaseCampMapConfiguration(
       routes: routes,
       facilityOutlines: outlines,
-      soldierScale: scale,
+      // V1 exposed the accidental 2/1 control. Keep every valid route and
+      // building edit, but migrate only that obsolete multiplier to 1/1.
+      soldierScale: _normaliseSoldierScale(scale),
     );
   }
 
@@ -146,6 +148,15 @@ class BaseCampMapConfiguration {
 
   static double? _finite(Object? value) =>
       value is num && value.isFinite ? value.toDouble() : null;
+
+  static double _normaliseSoldierScale(double value) {
+    if ((value - 2).abs() < .0001) return soldierScaleFull;
+    if ((value - soldierScaleHalf).abs() < .0001) return soldierScaleHalf;
+    if ((value - soldierScaleTwoThirds).abs() < .0001) {
+      return soldierScaleTwoThirds;
+    }
+    return soldierScaleFull;
+  }
 }
 
 class BaseCampMapConfigurationController
@@ -166,24 +177,37 @@ class BaseCampMapConfigurationController
     if (raw == null) return;
     try {
       final restored = BaseCampMapConfiguration.tryParse(jsonDecode(raw));
-      if (restored != null) value = restored;
+      if (restored != null) {
+        value = restored;
+        // Persist the V1 2/1 -> 1/1 migration immediately, without changing
+        // any route or facility-outline payload.
+        if (restored.encode() != raw) {
+          await (await _preferencesLoader()).setString(
+            storageKey,
+            restored.encode(),
+          );
+        }
+      }
     } on FormatException {
       // Invalid local calibration intentionally falls back to the audited defaults.
     }
   }
 
   Future<void> save(BaseCampMapConfiguration configuration) async {
-    if (BaseCampMapConfiguration.tryParse(configuration.toJson()) == null) {
+    final normalised = BaseCampMapConfiguration.tryParse(
+      configuration.toJson(),
+    );
+    if (normalised == null) {
       throw ArgumentError.value(
         configuration,
         'configuration',
         'Invalid Base Camp map configuration',
       );
     }
-    value = configuration;
+    value = normalised;
     await (await _preferencesLoader()).setString(
       storageKey,
-      configuration.encode(),
+      normalised.encode(),
     );
   }
 
