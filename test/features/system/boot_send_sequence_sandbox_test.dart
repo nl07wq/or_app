@@ -149,9 +149,13 @@ void main() {
 
   test('message assembly comet begins inside the cinematic viewport', () {
     final start = sandboxMessageAssemblyCometStart();
-    expect(sandboxMessageAssemblyScene.contains(start), isTrue);
-    expect(start.dx, lessThan(sandboxMessageAssemblyScene.right));
-    expect(start.dy, greaterThan(sandboxMessageAssemblyScene.top));
+    final safe = sandboxMessageAssemblyCometSafeRect;
+    expect(safe.contains(start), isTrue);
+    final impact = sandboxMessageAssemblyCometImpact(const Offset(-500, 900));
+    expect(safe.contains(impact), isTrue);
+    for (final progress in [0.0, .25, .5, .75, 1.0]) {
+      expect(safe.contains(Offset.lerp(start, impact, progress)!), isTrue);
+    }
   });
 
   test('message assembly keeps deterministic 3D cube material identities', () {

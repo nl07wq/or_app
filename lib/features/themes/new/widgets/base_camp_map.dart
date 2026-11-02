@@ -89,25 +89,28 @@ class BaseCampWalkerRoute {
       .toList(growable: false);
 }
 
-/// The two approved walker routes, digitised from the white-line map.
+/// The visual reference is 1672 x 940. These are the independently digitised
+/// centre-lines in the registered 1280 x 719 map coordinate system:
 ///
-/// Route B: (770,275) -> (1128,416), forward direction is right/down.
-/// Route C: (533,503) -> (785,611), forward direction is right/down.
-/// The reverse leg uses the separately supplied up/left GIF without rotating
-/// or transforming either asset.
+/// * A (reference only): (247,348) ... (514,229)
+/// * B: (882,275) ... (1112,404)
+/// * C: (616,474) ... (808,604)
+///
+/// Route A intentionally remains a reference-only route. Neither approved
+/// walker sprite faces its requested direction, so no unapproved rotation or
+/// additional walker is introduced for it. The reverse legs use the supplied
+/// up/left frames without transforming either approved asset.
 const baseCampWalkerRoutes = <BaseCampWalkerRoute>[
   BaseCampWalkerRoute(
     id: 'route-b',
     sourcePoints: <Offset>[
-      Offset(770, 275),
-      Offset(806, 292),
-      Offset(850, 309),
-      Offset(899, 319),
-      Offset(945, 330),
-      Offset(989, 350),
-      Offset(1030, 375),
-      Offset(1070, 399),
-      Offset(1128, 416),
+      Offset(882, 275),
+      Offset(914, 295),
+      Offset(957, 317),
+      Offset(998, 337),
+      Offset(1040, 361),
+      Offset(1080, 386),
+      Offset(1112, 404),
     ],
     speed: BaseCampWalkingSettings.routeBSpeed,
     pausePatternSeconds: <double>[3.2, 2.5, 3.8, 2.3],
@@ -116,14 +119,12 @@ const baseCampWalkerRoutes = <BaseCampWalkerRoute>[
   BaseCampWalkerRoute(
     id: 'route-c',
     sourcePoints: <Offset>[
-      Offset(533, 503),
-      Offset(566, 520),
-      Offset(606, 537),
-      Offset(649, 553),
-      Offset(691, 568),
-      Offset(730, 588),
-      Offset(758, 603),
-      Offset(785, 611),
+      Offset(616, 474),
+      Offset(650, 497),
+      Offset(695, 521),
+      Offset(739, 546),
+      Offset(781, 573),
+      Offset(808, 604),
     ],
     speed: BaseCampWalkingSettings.routeCSpeed,
     pausePatternSeconds: <double>[3.7, 2.8, 2.4, 3.3],
@@ -138,7 +139,7 @@ class BaseCampFacility {
     required this.label,
     required this.center,
     required this.size,
-    this.frameCorners,
+    this.outlinePoints,
   });
 
   final String id;
@@ -146,14 +147,14 @@ class BaseCampFacility {
   final Offset center;
   final Size size;
 
-  /// Normalised, clockwise corners for the 2.5D selection frame.  Hit
-  /// testing intentionally continues to use [center]/[size], keeping the
+  /// Normalised, irregular closed perimeter around the actual building.
+  /// Hit testing intentionally continues to use [center]/[size], keeping the
   /// existing generous facility targets unchanged.
-  final List<Offset>? frameCorners;
+  final List<Offset>? outlinePoints;
 
-  List<Offset> corners() {
-    final customCorners = frameCorners;
-    if (customCorners != null) return customCorners;
+  List<Offset> outline() {
+    final customOutline = outlinePoints;
+    if (customOutline != null) return customOutline;
     final halfWidth = size.width / 2;
     final halfHeight = size.height / 2;
     return <Offset>[
@@ -171,11 +172,17 @@ const baseCampFacilities = <BaseCampFacility>[
     label: 'STATUS',
     center: Offset(.235, .355),
     size: Size(.24, .22),
-    frameCorners: <Offset>[
-      Offset(.125, .275),
-      Offset(.345, .288),
-      Offset(.335, .432),
-      Offset(.12, .418),
+    outlinePoints: <Offset>[
+      Offset(.092, .350),
+      Offset(.122, .294),
+      Offset(.191, .265),
+      Offset(.278, .271),
+      Offset(.342, .310),
+      Offset(.349, .374),
+      Offset(.311, .432),
+      Offset(.228, .449),
+      Offset(.137, .429),
+      Offset(.086, .391),
     ],
   ),
   BaseCampFacility(
@@ -183,11 +190,17 @@ const baseCampFacilities = <BaseCampFacility>[
     label: 'FOOD',
     center: Offset(.500, .270),
     size: Size(.25, .20),
-    frameCorners: <Offset>[
-      Offset(.38, .195),
-      Offset(.62, .204),
-      Offset(.61, .335),
-      Offset(.385, .325),
+    outlinePoints: <Offset>[
+      Offset(.333, .278),
+      Offset(.353, .208),
+      Offset(.419, .164),
+      Offset(.543, .154),
+      Offset(.612, .192),
+      Offset(.624, .268),
+      Offset(.590, .339),
+      Offset(.505, .363),
+      Offset(.402, .346),
+      Offset(.344, .318),
     ],
   ),
   BaseCampFacility(
@@ -195,11 +208,17 @@ const baseCampFacilities = <BaseCampFacility>[
     label: 'TRAINING',
     center: Offset(.785, .345),
     size: Size(.24, .24),
-    frameCorners: <Offset>[
-      Offset(.67, .255),
-      Offset(.90, .275),
-      Offset(.89, .43),
-      Offset(.675, .413),
+    outlinePoints: <Offset>[
+      Offset(.649, .327),
+      Offset(.684, .255),
+      Offset(.754, .211),
+      Offset(.865, .223),
+      Offset(.911, .281),
+      Offset(.904, .362),
+      Offset(.861, .436),
+      Offset(.765, .453),
+      Offset(.687, .421),
+      Offset(.651, .375),
     ],
   ),
   BaseCampFacility(
@@ -207,11 +226,17 @@ const baseCampFacilities = <BaseCampFacility>[
     label: 'ACTIVITY',
     center: Offset(.285, .630),
     size: Size(.25, .22),
-    frameCorners: <Offset>[
-      Offset(.17, .55),
-      Offset(.41, .565),
-      Offset(.40, .71),
-      Offset(.175, .70),
+    outlinePoints: <Offset>[
+      Offset(.115, .642),
+      Offset(.144, .574),
+      Offset(.218, .526),
+      Offset(.340, .519),
+      Offset(.410, .563),
+      Offset(.426, .636),
+      Offset(.392, .705),
+      Offset(.307, .731),
+      Offset(.194, .712),
+      Offset(.132, .680),
     ],
   ),
   BaseCampFacility(
@@ -219,11 +244,18 @@ const baseCampFacilities = <BaseCampFacility>[
     label: 'COMMAND CENTER',
     center: Offset(.705, .640),
     size: Size(.28, .25),
-    frameCorners: <Offset>[
-      Offset(.57, .54),
-      Offset(.84, .56),
-      Offset(.83, .715),
-      Offset(.575, .70),
+    outlinePoints: <Offset>[
+      Offset(.486, .632),
+      Offset(.527, .563),
+      Offset(.610, .522),
+      Offset(.751, .526),
+      Offset(.843, .580),
+      Offset(.854, .657),
+      Offset(.817, .734),
+      Offset(.727, .769),
+      Offset(.607, .757),
+      Offset(.523, .708),
+      Offset(.482, .665),
     ],
   ),
 ];
@@ -601,46 +633,41 @@ class _FacilitySelectionFramePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final corners = facility
-        .corners()
-        .map(
-          (corner) => Offset(corner.dx * size.width, corner.dy * size.height),
-        )
+    final points = facility
+        .outline()
+        .map((point) => Offset(point.dx * size.width, point.dy * size.height))
         .toList(growable: false);
-    final path = Path()..addPolygon(corners, true);
-    final intensity = .55 + .45 * ((1 + math.sin(pulse * math.pi * 2)) / 2);
+    final path = Path()..addPolygon(points, true);
+    // The reference calls for a hand-drawn perimeter around the facility, not
+    // a generic cyan HUD rectangle. A restrained alpha pulse keeps selection
+    // legible without changing the outline's white material.
+    final intensity = .78 + .22 * ((1 + math.sin(pulse * math.pi * 2)) / 2);
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFF68E8F2).withValues(alpha: .18 * intensity)
+        ..color = Colors.white.withValues(alpha: .16 * intensity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 7
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        ..strokeWidth = 4
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
     );
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(
-          0xFF68E8F2,
-        ).withValues(alpha: .75 + .25 * intensity)
+        ..color = Colors.white.withValues(alpha: .76 + .20 * intensity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
     );
-    final cornerAccent = Paint()
-      ..color = const Color(0xFFE0FCFF)
-      ..strokeWidth = 2.6
-      ..strokeCap = StrokeCap.square;
-    for (var index = 0; index < corners.length; index++) {
-      final current = corners[index];
-      final next = corners[(index + 1) % corners.length];
-      final previous = corners[(index - 1 + corners.length) % corners.length];
-      canvas.drawLine(current, Offset.lerp(current, next, .13)!, cornerAccent);
-      canvas.drawLine(
-        current,
-        Offset.lerp(current, previous, .13)!,
-        cornerAccent,
-      );
-    }
+    // A thin displaced pass gives the outline its slightly organic, traced
+    // character while remaining tied to the same transformed facility path.
+    canvas.drawPath(
+      path.shift(const Offset(.55, -.35)),
+      Paint()
+        ..color = Colors.white.withValues(alpha: .22 * intensity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .65,
+    );
   }
 
   @override

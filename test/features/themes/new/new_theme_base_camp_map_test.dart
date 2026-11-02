@@ -168,7 +168,7 @@ void main() {
     expect(selected, isNull);
   });
 
-  test('two approved routes preserve their digitised source coordinates', () {
+  test('two approved walkers use the white-line digitised B/C routes', () {
     expect(baseCampWalkerRoutes.map((route) => route.id), [
       'route-b',
       'route-c',
@@ -176,30 +176,40 @@ void main() {
     expect(baseCampWalkerRoutes, hasLength(2));
     expect(
       baseCampWalkerRoutes.first.sourcePoints.first,
-      const Offset(770, 275),
+      const Offset(882, 275),
     );
     expect(
       baseCampWalkerRoutes.first.sourcePoints.last,
-      const Offset(1128, 416),
+      const Offset(1112, 404),
     );
     expect(
       baseCampWalkerRoutes.last.sourcePoints.first,
-      const Offset(533, 503),
+      const Offset(616, 474),
     );
-    expect(baseCampWalkerRoutes.last.sourcePoints.last, const Offset(785, 611));
+    expect(baseCampWalkerRoutes.last.sourcePoints.last, const Offset(808, 604));
     expect(
       baseCampWalkerRoutes.first.normalizedPoints.first.dx,
-      closeTo(.602, .001),
+      closeTo(.689, .001),
     );
     expect(
       baseCampWalkerRoutes.last.normalizedPoints.last.dy,
-      closeTo(.850, .001),
+      closeTo(.840, .001),
     );
     for (final route in baseCampWalkerRoutes) {
       expect(
         route.pausePatternSeconds,
         everyElement(inInclusiveRange(2.0, 4.0)),
       );
+    }
+  });
+
+  test('facility outlines are independent irregular perimeters', () {
+    expect(baseCampFacilities, hasLength(5));
+    for (final facility in baseCampFacilities) {
+      final outline = facility.outline();
+      expect(outline.length, greaterThan(4));
+      expect(outline.every((point) => point.dx >= 0 && point.dx <= 1), isTrue);
+      expect(outline.every((point) => point.dy >= 0 && point.dy <= 1), isTrue);
     }
   });
 
