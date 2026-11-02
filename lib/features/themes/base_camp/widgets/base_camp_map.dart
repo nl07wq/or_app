@@ -8,34 +8,34 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
 /// always receive the same [InteractiveViewer] transform.
-const baseCampMapAsset = 'assets/images/themes/new/base_camp_map.png';
+const baseCampMapAsset = 'assets/images/themes/base_camp/base_camp_map.png';
 const baseCampWalkerUpLeftAsset =
-    'assets/images/themes/new/base_camp_walker_up_left.gif';
+    'assets/images/themes/base_camp/base_camp_walker_up_left.gif';
 const baseCampWalkerDownRightAsset =
-    'assets/images/themes/new/base_camp_walker_down_right.gif';
+    'assets/images/themes/base_camp/base_camp_walker_down_right.gif';
 
 /// Fully composited RGBA frames extracted directly from the approved GIFs.
 /// They avoid Flutter Web's inconsistent GIF disposal/transparent-palette
 /// composition while preserving every source pixel and the 140ms cadence.
 const baseCampWalkerDownRightFrames = <String>[
-  'assets/images/themes/new/base_camp_walker_down_right/frame_00.png',
-  'assets/images/themes/new/base_camp_walker_down_right/frame_01.png',
-  'assets/images/themes/new/base_camp_walker_down_right/frame_02.png',
-  'assets/images/themes/new/base_camp_walker_down_right/frame_03.png',
-  'assets/images/themes/new/base_camp_walker_down_right/frame_04.png',
-  'assets/images/themes/new/base_camp_walker_down_right/frame_05.png',
-  'assets/images/themes/new/base_camp_walker_down_right/frame_06.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_00.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_01.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_02.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_03.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_04.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_05.png',
+  'assets/images/themes/base_camp/base_camp_walker_down_right/frame_06.png',
 ];
 
 const baseCampWalkerUpLeftFrames = <String>[
-  'assets/images/themes/new/base_camp_walker_up_left/frame_00.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_01.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_02.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_03.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_04.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_05.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_06.png',
-  'assets/images/themes/new/base_camp_walker_up_left/frame_07.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_00.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_01.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_02.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_03.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_04.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_05.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_06.png',
+  'assets/images/themes/base_camp/base_camp_walker_up_left/frame_07.png',
 ];
 
 List<String> baseCampWalkerFrameAssets(String gifAsset) => switch (gifAsset) {
@@ -360,7 +360,7 @@ class _BaseCampMapState extends State<BaseCampMap>
             fit: StackFit.expand,
             children: [
               InteractiveViewer(
-                key: const ValueKey('new-theme-base-camp-map'),
+                key: const ValueKey('base-camp-map'),
                 transformationController: _transform,
                 minScale: 1,
                 maxScale: 2.4,
@@ -386,9 +386,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                             child: AnimatedBuilder(
                               animation: _walkerTimeline,
                               builder: (context, _) => _BaseCampWalkerLayer(
-                                key: const ValueKey(
-                                  'new-theme-base-camp-walkers',
-                                ),
+                                key: const ValueKey('base-camp-walkers'),
                                 elapsed: reducedMotion
                                     ? Duration.zero
                                     : Duration(
@@ -409,7 +407,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                                 animation: _selectionPulse,
                                 builder: (context, _) => CustomPaint(
                                   key: const ValueKey(
-                                    'new-theme-base-camp-selection-frame',
+                                    'base-camp-selection-frame',
                                   ),
                                   painter: _FacilitySelectionFramePainter(
                                     facility: selectedFacility,
@@ -439,7 +437,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                 child: Tooltip(
                   message: 'Reset map framing',
                   child: IconButton.filledTonal(
-                    key: const ValueKey('new-theme-base-camp-reset'),
+                    key: const ValueKey('base-camp-reset'),
                     onPressed: _reset,
                     icon: const Icon(Icons.refresh),
                   ).actionableFeedback(role: ActionableFeedbackRole.cursor),
@@ -476,7 +474,7 @@ class _BaseCampFacilityTarget extends StatelessWidget {
     final width = mapSize.width * facility.size.width;
     final height = mapSize.height * facility.size.height;
     return Positioned(
-      key: ValueKey('new-theme-base-camp-facility-${facility.id}'),
+      key: ValueKey('base-camp-facility-${facility.id}'),
       left: mapSize.width * facility.center.dx - width / 2,
       top: mapSize.height * facility.center.dy - height / 2,
       width: width,
@@ -566,13 +564,13 @@ class _FacilityConfirmation extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _ConfirmationButton(
-                  key: const ValueKey('new-theme-base-camp-confirm-no'),
+                  key: const ValueKey('base-camp-confirm-no'),
                   label: 'NO',
                   onPressed: enabled ? onNo : null,
                 ),
                 const SizedBox(width: 6),
                 _ConfirmationButton(
-                  key: const ValueKey('new-theme-base-camp-confirm-yes'),
+                  key: const ValueKey('base-camp-confirm-yes'),
                   label: 'YES',
                   highlighted: true,
                   onPressed: enabled ? onYes : null,
@@ -860,7 +858,7 @@ class _BaseCampGifWalkerPositioned extends StatelessWidget {
       pose.sourcePosition.dy / baseCampMapSourceSize.height * mapSize.height,
     );
     return Positioned(
-      key: ValueKey('new-theme-base-camp-walker-${route.id}'),
+      key: ValueKey('base-camp-walker-${route.id}'),
       left: position.dx - width / 2,
       top: position.dy - spriteHeight,
       width: width,

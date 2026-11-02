@@ -56,10 +56,10 @@ void main() {
       const ValueKey('device-settings-presentation-theme'),
     );
     await tester.scrollUntilVisible(selector, 200);
-    await tester.tap(find.text('NEW THEME').last);
+    await tester.tap(find.text('BASE CAMP').last);
     await tester.pump();
 
-    expect(controller.value.presentationTheme, AppPresentationTheme.newTheme);
+    expect(controller.value.presentationTheme, AppPresentationTheme.baseCamp);
   });
 
   testWidgets('muted previews are silent and sliders preview only at release', (

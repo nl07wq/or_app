@@ -133,7 +133,7 @@ class _OperationSequenceOverlayState extends State<OperationSequenceOverlay> {
     child: SafeArea(
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+          constraints: const BoxConstraints(maxWidth: 620),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -148,22 +148,18 @@ class _OperationSequenceOverlayState extends State<OperationSequenceOverlay> {
                     productionVisualOnly: true,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  switch (widget.operationState) {
-                    _ when !widget.operationFinished => 'PROCESSING',
-                    _ when !widget.motionFinished => 'TAP TO SKIP',
-                    _ => 'CLOSE',
-                  },
-                  style: const TextStyle(
-                    color: Color(0xffd8fbff),
-                    fontFamily: 'ShareTechMono',
-                    fontSize: 12,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (widget.operationFinished)
+                const SizedBox(height: 16),
+                if (!widget.operationFinished)
+                  const Text(
+                    'PROCESSING',
+                    style: TextStyle(
+                      color: Color(0xffd8fbff),
+                      fontFamily: 'ShareTechMono',
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  )
+                else
                   SizedBox(
                     width: double.infinity,
                     height: 48,

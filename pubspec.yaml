@@ -92,11 +92,11 @@ flutter:
     - assets/images/food_category/
     - assets/images/training/kinetic_engine_v9_background_q90.webp
     - assets/images/textures/commander_report_paper.jpg
-    - assets/images/themes/new/base_camp_map.png
-    - assets/images/themes/new/base_camp_walker_down_right.gif
-    - assets/images/themes/new/base_camp_walker_up_left.gif
-    - assets/images/themes/new/base_camp_walker_down_right/
-    - assets/images/themes/new/base_camp_walker_up_left/
+    - assets/images/themes/base_camp/base_camp_map.png
+    - assets/images/themes/base_camp/base_camp_walker_down_right.gif
+    - assets/images/themes/base_camp/base_camp_walker_up_left.gif
+    - assets/images/themes/base_camp/base_camp_walker_down_right/
+    - assets/images/themes/base_camp/base_camp_walker_up_left/
     - assets/data/
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4

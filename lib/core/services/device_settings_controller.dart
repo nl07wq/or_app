@@ -15,7 +15,7 @@ enum ReducedMotionPreference { system, on, off }
 ///
 /// [standard] is deliberately the backwards-compatible default so existing
 /// installations do not acquire a new visual presentation unexpectedly.
-enum AppPresentationTheme { standard, newTheme }
+enum AppPresentationTheme { standard, baseCamp }
 
 /// MID-REAR is the only user-adjustable Command Center Data Rain layer.
 /// The exact 390px allocations are deliberately part of the preference
@@ -281,6 +281,11 @@ class DeviceSettings {
     }
     final presentationThemeName = json['presentationTheme'];
     AppPresentationTheme? presentationTheme;
+    // `newTheme` was the V1 persisted identifier.  It maps to the single
+    // canonical Base Camp presentation on read; new writes use `baseCamp`.
+    if (presentationThemeName == 'newTheme') {
+      presentationTheme = AppPresentationTheme.baseCamp;
+    }
     for (final candidate in AppPresentationTheme.values) {
       if (candidate.name == presentationThemeName) {
         presentationTheme = candidate;

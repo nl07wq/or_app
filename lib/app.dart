@@ -44,25 +44,25 @@ import 'features/system/pages/body_map_svg_preview_page.dart';
 import 'features/weather/weather_settings_page.dart';
 import 'features/reminders/pages/reminders_page.dart';
 import 'features/notifications/services/notification_profile_controller.dart';
-import 'features/themes/new/new_theme_dashboard_page.dart';
-import 'features/themes/new/new_theme_presentation.dart';
+import 'features/themes/base_camp/base_camp_dashboard_page.dart';
+import 'features/themes/base_camp/base_camp_presentation.dart';
 
-Widget _presentationEntry(NewThemeScreen screen, Widget child) {
+Widget _presentationEntry(BaseCampScreen screen, Widget child) {
   if (DeviceSettingsController.instance.value.presentationTheme !=
-      AppPresentationTheme.newTheme) {
+      AppPresentationTheme.baseCamp) {
     return child;
   }
-  return NewThemeScreenEntry(screen: screen, child: child);
+  return BaseCampScreenEntry(screen: screen, child: child);
 }
 
-Widget _dashboardPresentationEntry(NewThemeScreen screen) {
+Widget _dashboardPresentationEntry(BaseCampScreen screen) {
   if (DeviceSettingsController.instance.value.presentationTheme !=
-      AppPresentationTheme.newTheme) {
+      AppPresentationTheme.baseCamp) {
     return const DashboardPage();
   }
-  return NewThemeScreenEntry(
+  return BaseCampScreenEntry(
     screen: screen,
-    child: const NewThemeDashboardPage(),
+    child: const BaseCampDashboardPage(),
   );
 }
 
@@ -200,13 +200,13 @@ class _OperationRebootAppState extends State<OperationRebootApp>
 
       routes: {
         AppRoutes.dashboard: (_) =>
-            _dashboardPresentationEntry(NewThemeScreen.dashboard),
+            _dashboardPresentationEntry(BaseCampScreen.dashboard),
         AppRoutes.finalizedDashboard: (_) =>
-            _dashboardPresentationEntry(NewThemeScreen.finalizedDashboard),
+            _dashboardPresentationEntry(BaseCampScreen.finalizedDashboard),
         AppRoutes.logConfirmationReview: (context) {
           final page = ModalRoute.of(context)?.settings.arguments;
           return page is LogConfirmationReviewPage
-              ? _presentationEntry(NewThemeScreen.logConfirmationReview, page)
+              ? _presentationEntry(BaseCampScreen.logConfirmationReview, page)
               : const Scaffold(
                   body: Center(child: Text('Review unavailable.')),
                 );
@@ -214,61 +214,61 @@ class _OperationRebootAppState extends State<OperationRebootApp>
         AppRoutes.logConfirmationDetail: (context) {
           final targetDate = ModalRoute.of(context)?.settings.arguments;
           return _presentationEntry(
-            NewThemeScreen.logConfirmationDetail,
+            BaseCampScreen.logConfirmationDetail,
             LogConfirmationDetailPage(
               targetDate: targetDate is DateTime ? targetDate : null,
             ),
           );
         },
         AppRoutes.morning: (_) =>
-            _presentationEntry(NewThemeScreen.morning, const MorningPage()),
+            _presentationEntry(BaseCampScreen.morning, const MorningPage()),
         AppRoutes.food: (_) =>
-            _presentationEntry(NewThemeScreen.food, const FoodPage()),
+            _presentationEntry(BaseCampScreen.food, const FoodPage()),
         AppRoutes.activity: (_) =>
-            _presentationEntry(NewThemeScreen.activity, const ActivityPage()),
+            _presentationEntry(BaseCampScreen.activity, const ActivityPage()),
         AppRoutes.training: (_) =>
-            _presentationEntry(NewThemeScreen.training, const TrainingPage()),
+            _presentationEntry(BaseCampScreen.training, const TrainingPage()),
         AppRoutes.commandCenter: (_) => _presentationEntry(
-          NewThemeScreen.commandCenter,
+          BaseCampScreen.commandCenter,
           const CommandCenterPage(),
         ),
         AppRoutes.dataCenterHistory: (_) => _presentationEntry(
-          NewThemeScreen.dataCenterHistory,
+          BaseCampScreen.dataCenterHistory,
           const DataCenterHistoryPage(),
         ),
         AppRoutes.bodyHistory: (_) => _presentationEntry(
-          NewThemeScreen.bodyHistory,
+          BaseCampScreen.bodyHistory,
           const BodyHistoryPage(),
         ),
         AppRoutes.nutritionHistory: (_) => _presentationEntry(
-          NewThemeScreen.nutritionHistory,
+          BaseCampScreen.nutritionHistory,
           const NutritionHistoryPage(),
         ),
         AppRoutes.digestiveHistory: (_) => _presentationEntry(
-          NewThemeScreen.digestiveHistory,
+          BaseCampScreen.digestiveHistory,
           const DigestiveHistoryPage(),
         ),
         AppRoutes.activityHistory: (_) => _presentationEntry(
-          NewThemeScreen.activityHistory,
+          BaseCampScreen.activityHistory,
           const ActivityHistoryPage(),
         ),
         AppRoutes.sleepHistory: (_) => _presentationEntry(
-          NewThemeScreen.sleepHistory,
+          BaseCampScreen.sleepHistory,
           const SleepHistoryPage(),
         ),
         AppRoutes.trainingAnalyticsHistory: (_) => _presentationEntry(
-          NewThemeScreen.trainingAnalyticsHistory,
+          BaseCampScreen.trainingAnalyticsHistory,
           const DataCenterTrainingHistoryPage(),
         ),
         AppRoutes.dailyAggregateRecords: (_) => _presentationEntry(
-          NewThemeScreen.dailyAggregateRecords,
+          BaseCampScreen.dailyAggregateRecords,
           const DailyAggregateRecordsPage(),
         ),
         AppRoutes.dailyAggregateDetail: (context) {
           final operationDate = ModalRoute.of(context)?.settings.arguments;
           return operationDate is String
               ? _presentationEntry(
-                  NewThemeScreen.dailyAggregateDetail,
+                  BaseCampScreen.dailyAggregateDetail,
                   DailyAggregateDetailPage(operationDate: operationDate),
                 )
               : const Scaffold(
@@ -276,59 +276,59 @@ class _OperationRebootAppState extends State<OperationRebootApp>
                 );
         },
         AppRoutes.backupRestore: (_) => _presentationEntry(
-          NewThemeScreen.backupRestore,
+          BaseCampScreen.backupRestore,
           const BackupRestorePage(),
         ),
         AppRoutes.orloSync: (_) =>
-            _presentationEntry(NewThemeScreen.orloSync, OrloSyncPage()),
+            _presentationEntry(BaseCampScreen.orloSync, OrloSyncPage()),
         AppRoutes.profile: (_) =>
-            _presentationEntry(NewThemeScreen.profile, const ProfilePage()),
+            _presentationEntry(BaseCampScreen.profile, const ProfilePage()),
         AppRoutes.weatherSettings: (_) => _presentationEntry(
-          NewThemeScreen.weatherSettings,
+          BaseCampScreen.weatherSettings,
           const WeatherSettingsPage(),
         ),
         AppRoutes.reminders: (_) =>
-            _presentationEntry(NewThemeScreen.reminders, const RemindersPage()),
+            _presentationEntry(BaseCampScreen.reminders, const RemindersPage()),
         AppRoutes.about: (_) =>
-            _presentationEntry(NewThemeScreen.about, const AboutPage()),
+            _presentationEntry(BaseCampScreen.about, const AboutPage()),
         AppRoutes.system: (_) =>
-            _presentationEntry(NewThemeScreen.system, const SystemPage()),
+            _presentationEntry(BaseCampScreen.system, const SystemPage()),
         AppRoutes.deviceSettings: (_) => _presentationEntry(
-          NewThemeScreen.deviceSettings,
+          BaseCampScreen.deviceSettings,
           const DeviceSettingsPage(),
         ),
         AppRoutes.animationsSandbox: (_) => _presentationEntry(
-          NewThemeScreen.animationsSandbox,
+          BaseCampScreen.animationsSandbox,
           const AnimationsSandboxPage(),
         ),
         AppRoutes.bodyMapSvgPreview: (_) => _presentationEntry(
-          NewThemeScreen.bodyMapSvgPreview,
+          BaseCampScreen.bodyMapSvgPreview,
           const BodyMapSvgPreviewPage(),
         ),
         AppRoutes.bootSequencePreview: (_) => _presentationEntry(
-          NewThemeScreen.bootSequencePreview,
+          BaseCampScreen.bootSequencePreview,
           const BootSequencePreviewPage(),
         ),
         AppRoutes.bootSequenceCalibration: (_) => _presentationEntry(
-          NewThemeScreen.bootSequenceCalibration,
+          BaseCampScreen.bootSequenceCalibration,
           const BootSequenceCalibrationPage(),
         ),
         AppRoutes.deviceTransfer: (_) => _presentationEntry(
-          NewThemeScreen.deviceTransfer,
+          BaseCampScreen.deviceTransfer,
           const DeviceTransferPage(),
         ),
         AppRoutes.systemMonitoring: (_) => _presentationEntry(
-          NewThemeScreen.systemMonitoring,
+          BaseCampScreen.systemMonitoring,
           const SystemMonitoringPage(),
         ),
         AppRoutes.startupDiagnostic: (_) => _presentationEntry(
-          NewThemeScreen.startupDiagnostic,
+          BaseCampScreen.startupDiagnostic,
           const StartupDiagnosticPage(),
         ),
         AppRoutes.operationSync: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
           return _presentationEntry(
-            NewThemeScreen.operationSync,
+            BaseCampScreen.operationSync,
             OperationSyncPage(
               stageController: arguments is DeviceTransferStageController
                   ? arguments
@@ -337,11 +337,11 @@ class _OperationRebootAppState extends State<OperationRebootApp>
           );
         },
         AppRoutes.historicalTrainingImport: (_) => _presentationEntry(
-          NewThemeScreen.historicalTrainingImport,
+          BaseCampScreen.historicalTrainingImport,
           const HistoricalTrainingImportPage(),
         ),
         AppRoutes.historicalDnsImport: (_) => _presentationEntry(
-          NewThemeScreen.historicalDnsImport,
+          BaseCampScreen.historicalDnsImport,
           const HistoricalDnsImportPage(),
         ),
       },

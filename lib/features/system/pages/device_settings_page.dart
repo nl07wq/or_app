@@ -270,7 +270,7 @@ class _PresentationThemeSelector extends StatelessWidget {
       const Text('APP THEME'),
       const SizedBox(height: 2),
       Text(
-        'STANDARD keeps the released presentation. NEW THEME is an independent visual copy.',
+        'STANDARD keeps the released presentation. BASE CAMP is an independent visual copy.',
         style: Theme.of(context).textTheme.bodySmall,
       ),
       AppSpacing.gapSM,
@@ -282,8 +282,8 @@ class _PresentationThemeSelector extends StatelessWidget {
             label: Text('STANDARD'),
           ),
           ButtonSegment(
-            value: AppPresentationTheme.newTheme,
-            label: Text('NEW THEME'),
+            value: AppPresentationTheme.baseCamp,
+            label: Text('BASE CAMP'),
           ),
         ],
         selected: {value},

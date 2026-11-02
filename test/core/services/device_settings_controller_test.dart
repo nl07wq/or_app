@@ -269,7 +269,7 @@ void main() {
       expect(restored.value.ambientKineticFieldEnabled, isFalse);
       expect(restored.value.ambientWildlifeEnabled, isFalse);
       expect(restored.value.reducedMotion, ReducedMotionPreference.on);
-      expect(restored.value.presentationTheme, AppPresentationTheme.newTheme);
+      expect(restored.value.presentationTheme, AppPresentationTheme.baseCamp);
     },
   );
 

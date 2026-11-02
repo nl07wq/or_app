@@ -265,7 +265,7 @@ void main() {
       containsAll(List<int>.generate(12, (index) => index)),
     );
     expect(particles, sandboxMessageParticles('BRIEF'));
-    expect(particles, hasLength(cubes.length * 8));
+    expect(particles, hasLength(cubes.length * 64));
     expect(
       particles.every((particle) => particle.sourceId < cubes.length),
       isTrue,

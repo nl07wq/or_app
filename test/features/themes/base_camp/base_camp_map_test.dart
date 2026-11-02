@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
-import 'package:or_app/features/themes/new/widgets/base_camp_map.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 
 void main() {
   test('presentation theme defaults and restores as STANDARD safely', () {
@@ -20,7 +20,7 @@ void main() {
       DeviceSettings.fromJson({
         'presentationTheme': 'newTheme',
       }).presentationTheme,
-      AppPresentationTheme.newTheme,
+      AppPresentationTheme.baseCamp,
     );
   });
 
@@ -45,17 +45,15 @@ void main() {
       for (var index = 0; index < baseCampFacilities.length; index++) {
         final facility = baseCampFacilities[index];
         await tester.tap(
-          find.byKey(ValueKey('new-theme-base-camp-facility-${facility.id}')),
+          find.byKey(ValueKey('base-camp-facility-${facility.id}')),
         );
         await tester.pump();
         expect(selected, hasLength(index));
         expect(
-          find.byKey(const ValueKey('new-theme-base-camp-selection-frame')),
+          find.byKey(const ValueKey('base-camp-selection-frame')),
           findsOneWidget,
         );
-        await tester.tap(
-          find.byKey(const ValueKey('new-theme-base-camp-confirm-yes')),
-        );
+        await tester.tap(find.byKey(const ValueKey('base-camp-confirm-yes')));
         await tester.pump();
       }
 
@@ -84,20 +82,18 @@ void main() {
     );
 
     await tester.drag(
-      find.byKey(const ValueKey('new-theme-base-camp-map')),
+      find.byKey(const ValueKey('base-camp-map')),
       const Offset(40, 0),
     );
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('new-theme-base-camp-reset')));
+    await tester.tap(find.byKey(const ValueKey('base-camp-reset')));
     await tester.pump();
     await tester.tap(
-      find.byKey(const ValueKey('new-theme-base-camp-facility-command-center')),
+      find.byKey(const ValueKey('base-camp-facility-command-center')),
     );
     await tester.pump();
     expect(selected, isNull);
-    await tester.tap(
-      find.byKey(const ValueKey('new-theme-base-camp-confirm-yes')),
-    );
+    await tester.tap(find.byKey(const ValueKey('base-camp-confirm-yes')));
     await tester.pump();
 
     expect(selected, 'command-center');
@@ -120,23 +116,17 @@ void main() {
       ),
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('new-theme-base-camp-facility-status')),
-    );
+    await tester.tap(find.byKey(const ValueKey('base-camp-facility-status')));
     await tester.pump();
     expect(find.text('STATUS'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const ValueKey('new-theme-base-camp-facility-food')),
-    );
+    await tester.tap(find.byKey(const ValueKey('base-camp-facility-food')));
     await tester.pump();
     expect(find.text('FOOD'), findsOneWidget);
     expect(selected, isEmpty);
-    await tester.tap(
-      find.byKey(const ValueKey('new-theme-base-camp-confirm-no')),
-    );
+    await tester.tap(find.byKey(const ValueKey('base-camp-confirm-no')));
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('new-theme-base-camp-selection-frame')),
+      find.byKey(const ValueKey('base-camp-selection-frame')),
       findsNothing,
     );
     expect(selected, isEmpty);
@@ -157,9 +147,7 @@ void main() {
       ),
     );
 
-    final status = find.byKey(
-      const ValueKey('new-theme-base-camp-facility-status'),
-    );
+    final status = find.byKey(const ValueKey('base-camp-facility-status'));
     final gesture = await tester.startGesture(tester.getCenter(status));
     await gesture.moveBy(const Offset(56, 8));
     await gesture.up();
@@ -302,22 +290,16 @@ void main() {
         ),
       ),
     );
+    expect(find.byKey(const ValueKey('base-camp-walkers')), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('new-theme-base-camp-walkers')),
+      find.byKey(const ValueKey('base-camp-walker-route-b')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('new-theme-base-camp-walker-route-b')),
+      find.byKey(const ValueKey('base-camp-walker-route-c')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('new-theme-base-camp-walker-route-c')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('new-theme-base-camp-personnel')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('base-camp-personnel')), findsNothing);
   });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {

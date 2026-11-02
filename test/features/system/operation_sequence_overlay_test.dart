@@ -30,7 +30,7 @@ void main() {
 
     task.complete();
     await tester.pump();
-    expect(find.text('TAP TO SKIP'), findsNWidgets(2));
+    expect(find.text('TAP TO SKIP'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'TAP TO SKIP'));
     await tester.pump();
     expect(returned, isTrue);
@@ -65,7 +65,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('CLOSE'), findsNWidgets(2));
+    expect(find.text('CLOSE'), findsOneWidget);
   });
 
   testWidgets('failure is returned only after an explicit skip', (

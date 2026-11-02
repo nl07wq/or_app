@@ -225,21 +225,68 @@ class _OperationSequenceAnimationState extends State<OperationSequenceAnimation>
         : BootSendSequenceConcept.messageAssembly;
     return AnimatedBuilder(
       animation: Listenable.merge([_construction, _completion]),
-      builder: (_, _) => _SendSequenceMonitor(
-        concept: concept,
-        mode: mode,
-        operation: TransferOperation.save,
-        robotAppearance: SandboxRobotAppearance.original,
-        pixelBuilderFinale: SandboxPixelBuilderFinale.walkIn,
-        progress: reducedMotion ? 1 : _construction.value,
-        completionElapsedSeconds: reducedMotion
-            ? 0
-            : _completion.value * _completionTimelineSeconds,
-        reducedMotion: reducedMotion,
-        showSandboxChrome: !widget.productionVisualOnly,
-      ),
+      builder: (_, _) {
+        final progress = reducedMotion ? 1.0 : _construction.value;
+        final completionElapsedSeconds = reducedMotion
+            ? 0.0
+            : _completion.value * _completionTimelineSeconds;
+        if (widget.productionVisualOnly) {
+          return OperationVoxelIntegrationVisual(
+            operationMode: widget.operationMode,
+            progress: progress,
+            completionElapsedSeconds: completionElapsedSeconds,
+            reducedMotion: reducedMotion,
+          );
+        }
+        return _SendSequenceMonitor(
+          concept: concept,
+          mode: mode,
+          operation: TransferOperation.save,
+          robotAppearance: SandboxRobotAppearance.original,
+          pixelBuilderFinale: SandboxPixelBuilderFinale.walkIn,
+          progress: progress,
+          completionElapsedSeconds: completionElapsedSeconds,
+          reducedMotion: reducedMotion,
+        );
+      },
     );
   }
+}
+
+/// The shared production Voxel Integration visual.  It deliberately exposes
+/// only the accepted WALK-IN renderer, leaving Sandbox controls and monitor
+/// chrome in [BootSendSequenceSandbox].
+class OperationVoxelIntegrationVisual extends StatelessWidget {
+  const OperationVoxelIntegrationVisual({
+    super.key,
+    required this.operationMode,
+    required this.progress,
+    required this.completionElapsedSeconds,
+    required this.reducedMotion,
+  });
+
+  final OperationSequenceMode operationMode;
+  final double progress;
+  final double completionElapsedSeconds;
+  final bool reducedMotion;
+
+  @override
+  Widget build(BuildContext context) => _SendSequenceMonitor(
+    concept: BootSendSequenceConcept.voxelIntegration,
+    mode: switch (operationMode) {
+      OperationSequenceMode.brief => _OperationMode.brief,
+      OperationSequenceMode.debrief => _OperationMode.debrief,
+      OperationSequenceMode.backup => _OperationMode.backup,
+    },
+    operation: TransferOperation.save,
+    robotAppearance: SandboxRobotAppearance.original,
+    pixelBuilderFinale: SandboxPixelBuilderFinale.walkIn,
+    progress: progress,
+    completionElapsedSeconds: completionElapsedSeconds,
+    reducedMotion: reducedMotion,
+    showSandboxChrome: false,
+    productionViewport: true,
+  );
 }
 
 class _BootSendSequenceSandboxState extends State<BootSendSequenceSandbox>
@@ -852,9 +899,10 @@ List<SandboxMessageParticle> sandboxMessageParticles(String mode) =>
       final cubes = sandboxMessageCubes(mode);
       return List<SandboxMessageParticle>.unmodifiable([
         for (final cube in cubes)
-          // Eight fine particles per persistent source keep the final word
-          // granular and phosphorescent without turning cubes into glyph tiles.
-          for (var particle = 0; particle < 8; particle++)
+          // Sixty-four fine particles per persistent source provide enough
+          // round material points for an anti-aliased, continuous-looking
+          // glyph without returning to a cube or dot-matrix font.
+          for (var particle = 0; particle < 64; particle++)
             () {
               final targetIndex =
                   (cube.id * 7 + particle * 29 + particle ~/ 2) %
@@ -1009,6 +1057,7 @@ class _SendSequenceMonitor extends StatelessWidget {
     required this.completionElapsedSeconds,
     required this.reducedMotion,
     this.showSandboxChrome = true,
+    this.productionViewport = false,
   });
 
   final BootSendSequenceConcept concept;
@@ -1020,6 +1069,7 @@ class _SendSequenceMonitor extends StatelessWidget {
   final double completionElapsedSeconds;
   final bool reducedMotion;
   final bool showSandboxChrome;
+  final bool productionViewport;
 
   @override
   Widget build(BuildContext context) => AspectRatio(
@@ -1037,6 +1087,7 @@ class _SendSequenceMonitor extends StatelessWidget {
           completionElapsedSeconds: completionElapsedSeconds,
           reducedMotion: reducedMotion,
           showSandboxChrome: showSandboxChrome,
+          productionViewport: productionViewport,
         ),
       ),
     ),
@@ -1054,6 +1105,7 @@ class _SendSequencePainter extends CustomPainter {
     required this.completionElapsedSeconds,
     required this.reducedMotion,
     required this.showSandboxChrome,
+    required this.productionViewport,
   });
 
   final BootSendSequenceConcept concept;
@@ -1065,6 +1117,7 @@ class _SendSequencePainter extends CustomPainter {
   final double completionElapsedSeconds;
   final bool reducedMotion;
   final bool showSandboxChrome;
+  final bool productionViewport;
 
   bool _monitorConstructionComplete(double progress) =>
       concept == BootSendSequenceConcept.voxelIntegration
@@ -1107,7 +1160,13 @@ class _SendSequencePainter extends CustomPainter {
       _paintParticles(canvas, particleField, reducedMotion: reducedMotion);
     }
     canvas.save();
-    canvas.clipRect(const Rect.fromLTWH(20, 72, 320, 137));
+    // Production owns a full, aspect-preserving scene rather than inheriting
+    // the Sandbox monitor aperture.  The same Voxel renderer remains shared.
+    canvas.clipRect(
+      productionViewport
+          ? const Rect.fromLTWH(0, 0, 360, 280)
+          : const Rect.fromLTWH(20, 72, 320, 137),
+    );
     switch (concept) {
       case BootSendSequenceConcept.assemblyMatrix:
         _assemblyMatrix(canvas, t, completionElapsedSeconds);
@@ -1387,7 +1446,11 @@ class _SendSequencePainter extends CustomPainter {
             SandboxParticleDepthLayer.side,
           ];
     canvas.save();
-    canvas.clipRect(const Rect.fromLTWH(20, 72, 320, 137));
+    canvas.clipRect(
+      productionViewport
+          ? const Rect.fromLTWH(0, 0, 360, 280)
+          : const Rect.fromLTWH(20, 72, 320, 137),
+    );
     for (final layer in layers) {
       for (final particle in sandboxParticleVisuals(
         field.copyWith(depthLayer: layer),
@@ -1636,7 +1699,6 @@ class _SendSequencePainter extends CustomPainter {
       _paintMessageWordMask(canvas, modeName, scene);
       canvas.restore();
     }
-    _paintMessageWordSurface(canvas, modeName, scene, elapsed, maskAssembly);
     // Keep a compact foreground specular flash at the actual struck node.
     // The radial bloom above is correctly behind the opaque cube faces; this
     // small overlay keeps the impact legible at native phone scale.
@@ -1786,13 +1848,15 @@ class _SendSequencePainter extends CustomPainter {
       // their targets have had time to settle, making room for the continuous
       // high-resolution letter surface without a block/voxel hold frame.
       final holdPulse = .88 + math.sin((elapsed + cube.id * 37) / 480) * .12;
-      final materialFade = 1 - _ease(_phase(elapsed, 5050, 5900));
+      // The mask-constrained particles remain the final material.  Do not
+      // fade them out for an independent TextPainter surface.
+      const materialFade = 1.0;
       final alpha =
           (.38 + flow * .50) * visible * holdPulse * materialFade * opacity;
       final size = particle.size * (.8 + particle.depth * .32);
-      // Only a representative sixth receives blur; the majority remain
+      // Only a representative twelfth receives blur; the majority remain
       // inexpensive square/point material rather than a full-screen glow.
-      if ((cube.id + particle.index) % 6 == 0) {
+      if ((cube.id + particle.index) % 12 == 0) {
         canvas.drawCircle(
           position,
           size * 2.6,
@@ -1851,60 +1915,6 @@ class _SendSequencePainter extends CustomPainter {
     canvas.save();
     canvas.translate(layout.offset.dx, layout.offset.dy);
     canvas.scale(layout.scale);
-    painter.paint(canvas, Offset.zero);
-    canvas.restore();
-  }
-
-  /// The final state is an anti-aliased continuous surface in the identical
-  /// mask and coordinate system that has just received the particle material.
-  /// Its opacity is coupled to mask-constrained convergence, preventing the
-  /// old independent completed-text swap.
-  void _paintMessageWordSurface(
-    Canvas canvas,
-    String modeName,
-    Rect scene,
-    double elapsed,
-    double maskAssembly,
-  ) {
-    final settle = maskAssembly * _ease(_phase(elapsed, 4750, 6000));
-    if (settle <= 0) return;
-    final layout = _messageTextLayout(modeName, scene);
-    final color = Color.lerp(
-      const Color(0xffdfffbe),
-      const Color(0xffdff7ff),
-      _ease(_phase(elapsed, 5400, 6200)),
-    )!;
-    final painter = TextPainter(
-      text: TextSpan(
-        text: layout.text,
-        style: layout.baseStyle.copyWith(
-          color: color.withValues(alpha: settle),
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    canvas.save();
-    canvas.translate(layout.offset.dx, layout.offset.dy);
-    canvas.scale(layout.scale);
-    // A small, layered glow preserves the phosphorescent material read while
-    // keeping letter edges smooth and legible at native phone size.
-    for (final glow in <(Offset, double)>[
-      (const Offset(-.9, 0), .10),
-      (const Offset(.9, 0), .10),
-      (const Offset(0, -.9), .10),
-      (const Offset(0, .9), .10),
-    ]) {
-      final halo = TextPainter(
-        text: TextSpan(
-          text: layout.text,
-          style: layout.baseStyle.copyWith(
-            color: color.withValues(alpha: settle * glow.$2),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      halo.paint(canvas, glow.$1);
-    }
     painter.paint(canvas, Offset.zero);
     canvas.restore();
   }

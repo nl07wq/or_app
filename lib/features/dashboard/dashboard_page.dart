@@ -76,7 +76,7 @@ import 'services/dynamic_daily_target_service.dart';
 import 'widgets/operation_ambient_animation.dart';
 import 'widgets/dashboard_ambient_wildlife_stage.dart';
 import '../system/pages/ambient_wildlife_v2.dart';
-import '../themes/new/widgets/base_camp_map.dart';
+import '../themes/base_camp/widgets/base_camp_map.dart';
 
 /// A presentation-only switch. Dashboard state, data loading, navigation, and
 /// all operation behavior remain shared between the two theme entrypoints.
@@ -948,7 +948,7 @@ class _DashboardPageState extends State<DashboardPage> {
       final useBaseCamp =
           widget.quickAccessPresentation ==
               DashboardQuickAccessPresentation.baseCamp ||
-          settings.presentationTheme == AppPresentationTheme.newTheme;
+          settings.presentationTheme == AppPresentationTheme.baseCamp;
       if (useBaseCamp) {
         return BaseCampMap(onFacilityPressed: _openBaseCampFacility);
       }
@@ -970,6 +970,10 @@ class _DashboardPageState extends State<DashboardPage> {
   );
 
   void _scheduleWildlifeMeasurement() {
+    if (widget.quickAccessPresentation ==
+        DashboardQuickAccessPresentation.baseCamp) {
+      return;
+    }
     final topBandPinned =
         _scrollController.hasClients && _scrollController.offset > 0;
     if (_topBandPinned != topBandPinned) {
@@ -997,6 +1001,9 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final isReadOnly = appInitializationController.value.isReadOnly;
+    final isBaseCamp =
+        widget.quickAccessPresentation ==
+        DashboardQuickAccessPresentation.baseCamp;
     return Builder(
       builder: (context) {
         return ValueListenableBuilder<MorningFact?>(
@@ -1034,25 +1041,31 @@ class _DashboardPageState extends State<DashboardPage> {
                             shadowColor: Colors.transparent,
                             scrolledUnderElevation: 0,
                             leadingWidth: 56,
-                            leading: ValueListenableBuilder<DeviceSettings>(
-                              valueListenable:
-                                  DeviceSettingsController.instance,
-                              builder: (context, settings, _) =>
-                                  _DashboardAmbientManualTrigger(
-                                    onPressed: settings.ambientWildlifeEnabled
-                                        ? () => _ambientStageKey.currentState
-                                              ?.triggerManualSequence()
-                                        : null,
+                            leading: isBaseCamp
+                                ? null
+                                : ValueListenableBuilder<DeviceSettings>(
+                                    valueListenable:
+                                        DeviceSettingsController.instance,
+                                    builder: (context, settings, _) =>
+                                        _DashboardAmbientManualTrigger(
+                                          onPressed:
+                                              settings.ambientWildlifeEnabled
+                                              ? () => _ambientStageKey
+                                                    .currentState
+                                                    ?.triggerManualSequence()
+                                              : null,
+                                        ),
                                   ),
-                            ),
-                            title: const _DashboardNeonBrandMark(),
+                            title: isBaseCamp
+                                ? null
+                                : const _DashboardNeonBrandMark(),
                             actions: const [SystemMenuButton()],
                           ),
                           body: LayoutBuilder(
                             builder: (context, dashboardConstraints) {
                               final useLargeLayout =
                                   dashboardConstraints.maxWidth >= 900;
-                              _scheduleWildlifeMeasurement();
+                              if (!isBaseCamp) _scheduleWildlifeMeasurement();
                               final fallbackStageRect = Rect.fromLTWH(
                                 AppSpacing.lg,
                                 dashboardConstraints.maxHeight -
@@ -1172,13 +1185,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                               ),
                                               AppSpacing.gapSM,
                                               _quickAccess(),
-                                              AppSpacing.gapMD,
-                                              SizedBox(
-                                                key: _wildlifeNaturalSlotKey,
-                                                height:
-                                                    DashboardAmbientWildlifeStage
-                                                        .height,
-                                              ),
+                                              if (!isBaseCamp) ...[
+                                                AppSpacing.gapMD,
+                                                SizedBox(
+                                                  key: _wildlifeNaturalSlotKey,
+                                                  height:
+                                                      DashboardAmbientWildlifeStage
+                                                          .height,
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ),
@@ -1199,22 +1214,24 @@ class _DashboardPageState extends State<DashboardPage> {
                                       child:
                                           const _DashboardPinnedTopBandGlass(),
                                     ),
-                                  ValueListenableBuilder<DeviceSettings>(
-                                    valueListenable:
-                                        DeviceSettingsController.instance,
-                                    builder: (context, settings, _) =>
-                                        Positioned.fromRect(
-                                          rect:
-                                              _wildlifeStageRect ??
-                                              fallbackStageRect,
-                                          child: DashboardAmbientWildlifeStage(
-                                            enabled:
-                                                settings.ambientWildlifeEnabled,
-                                            productionStageKey:
-                                                _ambientStageKey,
+                                  if (!isBaseCamp)
+                                    ValueListenableBuilder<DeviceSettings>(
+                                      valueListenable:
+                                          DeviceSettingsController.instance,
+                                      builder: (context, settings, _) =>
+                                          Positioned.fromRect(
+                                            rect:
+                                                _wildlifeStageRect ??
+                                                fallbackStageRect,
+                                            child:
+                                                DashboardAmbientWildlifeStage(
+                                                  enabled: settings
+                                                      .ambientWildlifeEnabled,
+                                                  productionStageKey:
+                                                      _ambientStageKey,
+                                                ),
                                           ),
-                                        ),
-                                  ),
+                                    ),
                                 ],
                               );
                             },
@@ -2868,13 +2885,12 @@ class _ProgressCardState extends State<_ProgressCard> {
     final date = state.operationDate.value;
     final brief = await container.morningBriefs.readByLocalDate(date);
     final debrief = await container.dailyDebriefs.readByLocalDate(date);
-    final activeDebrief =
-        debrief != null &&
-        await container.dailyDebriefSources.projectLifecycle(debrief) ==
-            DailyDebriefLifecycleStatus.active;
     return _BriefDebriefProgress(
       briefRecorded: brief != null,
-      debriefRecorded: activeDebrief,
+      // This card is a durable record indicator.  It deliberately asks the
+      // formal debrief repository whether the record exists rather than
+      // projecting temporary lifecycle or animation state into the dashboard.
+      debriefRecorded: debrief != null,
     );
   }
 
@@ -3269,7 +3285,11 @@ class _BriefDebriefProgress {
 
   bool get isComplete => briefRecorded && debriefRecorded;
 
-  String get displayState => isComplete ? 'COMPLETE' : 'NOT RECORDED';
+  String get displayState => isComplete
+      ? 'COMPLETE'
+      : briefRecorded
+      ? '1/2'
+      : 'NOT RECORDED';
 
   BriefDebriefTab get destinationTab => !briefRecorded
       ? BriefDebriefTab.dailyBrief

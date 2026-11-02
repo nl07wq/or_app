@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Stable identifiers for the NEW THEME route-level presentation entrypoints.
+/// Stable identifiers for the BASE CAMP route-level presentation entrypoints.
 /// The feature pages beneath them intentionally continue to use the same
 /// repositories, records, and operation services as STANDARD.
-enum NewThemeScreen {
+enum BaseCampScreen {
   dashboard,
   finalizedDashboard,
   morning,
@@ -42,44 +42,44 @@ enum NewThemeScreen {
   logConfirmationDetail,
 }
 
-/// An isolated visual scope for the NEW THEME copy. This intentionally owns
+/// An isolated visual scope for the BASE CAMP copy. This intentionally owns
 /// presentation identity without cloning any formal data or business logic.
-class NewThemePresentation extends InheritedWidget {
-  const NewThemePresentation({
+class BaseCampPresentation extends InheritedWidget {
+  const BaseCampPresentation({
     super.key,
     required this.screen,
     required super.child,
   });
 
-  final NewThemeScreen screen;
+  final BaseCampScreen screen;
 
-  static NewThemePresentation? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<NewThemePresentation>();
+  static BaseCampPresentation? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BaseCampPresentation>();
 
   @override
-  bool updateShouldNotify(NewThemePresentation oldWidget) =>
+  bool updateShouldNotify(BaseCampPresentation oldWidget) =>
       oldWidget.screen != screen;
 }
 
 /// The separate route-level entrypoint for every current STANDARD screen.
 /// V1 intentionally preserves the STANDARD snapshot inside this scope; future
-/// NEW THEME visual implementations can branch by [screen] without affecting
+/// BASE CAMP visual implementations can branch by [screen] without affecting
 /// STANDARD routes or feature data.
-class NewThemeScreenEntry extends StatelessWidget {
-  const NewThemeScreenEntry({
+class BaseCampScreenEntry extends StatelessWidget {
+  const BaseCampScreenEntry({
     super.key,
     required this.screen,
     required this.child,
   });
 
-  final NewThemeScreen screen;
+  final BaseCampScreen screen;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => NewThemePresentation(
+  Widget build(BuildContext context) => BaseCampPresentation(
     screen: screen,
     child: KeyedSubtree(
-      key: ValueKey('new-theme-screen-${screen.name}'),
+      key: ValueKey('base-camp-screen-${screen.name}'),
       child: child,
     ),
   );
