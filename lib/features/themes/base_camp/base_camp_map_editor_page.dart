@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'base_camp_map_configuration.dart';
+import 'base_camp_asset_import.dart';
+import 'base_camp_asset_store.dart';
 import 'base_camp_map_export.dart';
 import 'widgets/base_camp_map.dart';
 
@@ -390,9 +392,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onDragStarted: _beginDrag,
                   onPointDragged: (point) =>
                       _updatePoint(point, recordUndo: false),
+                  onObjectDragStarted: () {
+                    setState(() => _undo.add(_clone(_working)));
+                  },
                   onObjectDragged: (point) {
                     final object = _working.objects[_objectId]!;
-                    _replaceObject(object.copyWith(position: point));
+                    _replaceObject(
+                      object.copyWith(position: point),
+                      recordUndo: false,
+                    );
                   },
                 ),
               ),
@@ -466,10 +474,53 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   ),
                   icon: const Icon(Icons.layers),
                 ),
+                IconButton(
+                  tooltip: 'MOVE LAYER DOWN',
+                  onPressed: () => _replaceObject(
+                    object.copyWith(zIndex: object.zIndex - 1),
+                  ),
+                  icon: const Icon(Icons.layers_clear),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('ANCHOR'),
+                const SizedBox(width: 8),
+                for (final item in const [
+                  (label: 'TOP', value: Offset(.5, 0)),
+                  (label: 'CENTER', value: Offset(.5, .5)),
+                  (label: 'FEET', value: Offset(.5, 1)),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          _replaceObject(object.copyWith(anchor: item.value)),
+                      child: Text(item.label),
+                    ),
+                  ),
+              ],
+            ),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('base-camp-editor-import-object'),
+                  onPressed: _importObjectAsset,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('IMPORT'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  key: const ValueKey('base-camp-editor-delete-object'),
+                  onPressed: _deleteSelectedObjectAsset,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('DELETE'),
+                ),
               ],
             ),
             const Text(
-              'Drag the selected object on the map. Bundled assets are preserved; imported files are stored separately from JSON.',
+              'Drag the selected object on the map. JSON includes asset references only; imported image bytes remain device-local.',
             ),
             OutlinedButton.icon(
               key: const ValueKey('base-camp-editor-reset'),
@@ -652,15 +703,75 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     );
   }
 
-  void _replaceObject(BaseCampMapObject object) {
-    _mutate(
-      _working.copyWith(
-        objects: <String, BaseCampMapObject>{
-          ..._working.objects,
-          object.id: object,
-        },
-      ),
+  void _replaceObject(BaseCampMapObject object, {bool recordUndo = true}) {
+    final next = _working.copyWith(
+      objects: <String, BaseCampMapObject>{
+        ..._working.objects,
+        object.id: object,
+      },
     );
+    if (recordUndo) {
+      _mutate(next);
+    } else {
+      setState(() => _working = next);
+    }
+  }
+
+  Future<void> _importObjectAsset() async {
+    try {
+      final imported = await pickBaseCampAssetFile();
+      if (imported == null) return;
+      final assetId =
+          'base-camp-asset-${DateTime.now().microsecondsSinceEpoch}';
+      await BaseCampAssetStore().save(
+        BaseCampStoredAsset(
+          id: assetId,
+          mimeType: imported.mimeType,
+          bytes: imported.bytes,
+        ),
+      );
+      if (!mounted) return;
+      final object = _working.objects[_objectId]!;
+      _replaceObject(object.copyWith(assetId: assetId, visible: true));
+    } on BaseCampAssetStorageException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'invalid_asset' => 'Use a PNG, GIF, or JPEG image under 8 MB.',
+        _ => 'Image storage failed. Check available browser storage.',
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } on UnsupportedError {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image import is available in the web app.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSelectedObjectAsset() async {
+    final object = _working.objects[_objectId]!;
+    final bundled = baseCampObjectAssets.containsKey(object.assetId);
+    if (!bundled) {
+      try {
+        await BaseCampAssetStore().delete(object.assetId);
+      } on BaseCampAssetStorageException {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Image storage could not be updated.'),
+            ),
+          );
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
+    _replaceObject(object.copyWith(visible: false));
   }
 }
 
@@ -678,6 +789,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onPointSelected,
     required this.onDragStarted,
     required this.onPointDragged,
+    required this.onObjectDragStarted,
     required this.onObjectDragged,
   });
   final BaseCampMapConfiguration configuration;
@@ -687,6 +799,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final ValueChanged<int> onPointSelected;
   final ValueChanged<int> onDragStarted;
   final ValueChanged<Offset> onPointDragged;
+  final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectDragged;
 
   @override
@@ -764,6 +877,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
               onPointSelected: widget.onPointSelected,
               onDragStarted: widget.onDragStarted,
               onPointGlobalDragged: _dragPointAtGlobalPosition,
+              onObjectDragStarted: widget.onObjectDragStarted,
               onObjectGlobalDragged: (globalPosition) {
                 final renderBox =
                     _sourceKey.currentContext?.findRenderObject() as RenderBox?;
@@ -793,6 +907,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onPointSelected,
     required this.onDragStarted,
     required this.onPointGlobalDragged,
+    required this.onObjectDragStarted,
     required this.onObjectGlobalDragged,
   });
   final BaseCampMapConfiguration configuration;
@@ -802,6 +917,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final ValueChanged<int> onPointSelected;
   final ValueChanged<int> onDragStarted;
   final ValueChanged<Offset> onPointGlobalDragged;
+  final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectGlobalDragged;
 
   @override
@@ -874,6 +990,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
+              onPanStart: (_) => onObjectDragStarted(),
               onPanUpdate: (details) =>
                   onObjectGlobalDragged(details.globalPosition),
               child: const SizedBox.expand(),

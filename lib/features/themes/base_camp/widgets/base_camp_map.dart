@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_asset_store.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 
@@ -218,8 +219,8 @@ class BaseCampFacility {
   final Size size;
 
   /// Normalised, irregular closed perimeter around the actual building.
-  /// Hit testing intentionally continues to use [center]/[size], keeping the
-  /// existing generous facility targets unchanged.
+  /// It is the hit mask for opaque facility JPEGs, so a transparent or white
+  /// pixel outside this contour never becomes a rectangular tap target.
   final List<Offset>? outlinePoints;
 
   List<Offset> outline() {
@@ -330,6 +331,49 @@ const baseCampFacilities = <BaseCampFacility>[
   ),
 ];
 
+/// Applies a facility object's edit transform to its irregular source-map
+/// perimeter. The transformed path is shared by selection glow and hit tests.
+List<Offset> baseCampFacilityOutlineForConfiguration(
+  BaseCampFacility facility,
+  BaseCampMapConfiguration configuration,
+) {
+  final fallback = baseCampDefaultObjects.singleWhere(
+    (object) => object.id == facility.id,
+  );
+  final object = configuration.objects[facility.id] ?? fallback;
+  final center = fallback.position;
+  final cosine = math.cos(object.rotation);
+  final sine = math.sin(object.rotation);
+  return (configuration.facilityOutlines[facility.id] ?? facility.outline())
+      .map((normalized) {
+        final source = Offset(
+          normalized.dx * baseCampMapSourceSize.width,
+          normalized.dy * baseCampMapSourceSize.height,
+        );
+        final relative = (source - center) * object.scale;
+        final rotated = Offset(
+          relative.dx * cosine - relative.dy * sine,
+          relative.dx * sine + relative.dy * cosine,
+        );
+        final transformed = object.position + rotated;
+        return Offset(
+          transformed.dx / baseCampMapSourceSize.width,
+          transformed.dy / baseCampMapSourceSize.height,
+        );
+      })
+      .toList(growable: false);
+}
+
+/// Returns whether a normalised source-map position is inside the curated
+/// facility contour. This is the alpha-equivalent hit mask for the supplied
+/// opaque JPEG facilities: their white/checkerboard pixels are image content,
+/// not transparency, so the real building footprint is intentionally defined
+/// by this path rather than by the image rectangle.
+bool baseCampFacilityOutlineContains(
+  List<Offset> normalizedOutline,
+  Offset normalizedPosition,
+) => (Path()..addPolygon(normalizedOutline, true)).contains(normalizedPosition);
+
 class BaseCampMap extends StatefulWidget {
   const BaseCampMap({super.key, required this.onFacilityPressed});
 
@@ -347,7 +391,9 @@ class _BaseCampMapState extends State<BaseCampMap>
   bool _isTransforming = false;
   bool _isNavigating = false;
   BaseCampFacility? _selectedFacility;
+  BaseCampFacility? _glowingFacility;
   late final AnimationController _selectionPulse;
+  late final AnimationController _selectionVisibility;
   late final AnimationController _walkerTimeline;
 
   @override
@@ -357,6 +403,16 @@ class _BaseCampMapState extends State<BaseCampMap>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat();
+    _selectionVisibility =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 150),
+          reverseDuration: const Duration(milliseconds: 250),
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.dismissed && mounted) {
+            setState(() => _glowingFacility = null);
+          }
+        });
     _walkerTimeline = AnimationController(
       vsync: this,
       // The sampler is time based. A long controller avoids a visible reset
@@ -375,6 +431,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   void dispose() {
     _interactionRelease?.cancel();
     _selectionPulse.dispose();
+    _selectionVisibility.dispose();
     _walkerTimeline.dispose();
     baseCampMapConfigurationController.removeListener(_configurationChanged);
     _transform.dispose();
@@ -410,12 +467,17 @@ class _BaseCampMapState extends State<BaseCampMap>
 
   void _openFacility(BaseCampFacility facility) {
     if (_isTransforming) return;
-    setState(() => _selectedFacility = facility);
+    setState(() {
+      _selectedFacility = facility;
+      _glowingFacility = facility;
+    });
+    _selectionVisibility.forward(from: 0);
   }
 
   void _clearSelection() {
     if (_isNavigating) return;
     setState(() => _selectedFacility = null);
+    _selectionVisibility.reverse();
   }
 
   void _confirmSelection() {
@@ -426,6 +488,8 @@ class _BaseCampMapState extends State<BaseCampMap>
     if (mounted) {
       setState(() {
         _selectedFacility = null;
+        _glowingFacility = null;
+        _selectionVisibility.value = 0;
         _isNavigating = false;
       });
     }
@@ -435,6 +499,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   Widget build(BuildContext context) {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     final selectedFacility = _selectedFacility;
+    final glowingFacility = _glowingFacility;
     final configuration = baseCampMapConfigurationController.value;
     return RepaintBoundary(
       child: AspectRatio(
@@ -496,26 +561,32 @@ class _BaseCampMapState extends State<BaseCampMap>
                             ),
                           ),
                         ),
-                        if (selectedFacility != null)
+                        if (glowingFacility != null)
                           IgnorePointer(
                             child: RepaintBoundary(
                               child: AnimatedBuilder(
-                                animation: _selectionPulse,
+                                animation: Listenable.merge(<Listenable>[
+                                  _selectionPulse,
+                                  _selectionVisibility,
+                                ]),
                                 builder: (context, _) => CustomPaint(
                                   key: const ValueKey(
                                     'base-camp-selection-frame',
                                   ),
                                   painter: _FacilitySelectionFramePainter(
-                                    facility: selectedFacility,
+                                    facility: glowingFacility,
                                     outline:
-                                        configuration
-                                            .facilityOutlines[selectedFacility
-                                            .id] ??
-                                        selectedFacility.outline(),
+                                        baseCampFacilityOutlineForConfiguration(
+                                          glowingFacility,
+                                          configuration,
+                                        ),
                                     geometry: geometry,
                                     pulse: reducedMotion
                                         ? 0
                                         : _selectionPulse.value,
+                                    opacity: reducedMotion
+                                        ? 1
+                                        : _selectionVisibility.value,
                                   ),
                                   child: const SizedBox.expand(),
                                 ),
@@ -525,9 +596,10 @@ class _BaseCampMapState extends State<BaseCampMap>
                         for (final facility in baseCampFacilities)
                           _BaseCampFacilityTarget(
                             facility: facility,
-                            outline:
-                                configuration.facilityOutlines[facility.id] ??
-                                facility.outline(),
+                            outline: baseCampFacilityOutlineForConfiguration(
+                              facility,
+                              configuration,
+                            ),
                             geometry: geometry,
                             onPressed: () => _openFacility(facility),
                           ),
@@ -607,8 +679,22 @@ class _BaseCampFacilityTarget extends StatelessWidget {
         child: ActionableFeedbackRegion(
           role: ActionableFeedbackRole.command,
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onPressed,
+            behavior: HitTestBehavior.translucent,
+            onTapUp: (details) {
+              final sourcePosition = geometry.viewportToSource(
+                topLeft + details.localPosition,
+              );
+              final normalizedPosition = Offset(
+                sourcePosition.dx / baseCampMapSourceSize.width,
+                sourcePosition.dy / baseCampMapSourceSize.height,
+              );
+              if (baseCampFacilityOutlineContains(
+                outline,
+                normalizedPosition,
+              )) {
+                onPressed();
+              }
+            },
             child: const SizedBox.expand(),
           ),
         ),
@@ -748,12 +834,14 @@ class _FacilitySelectionFramePainter extends CustomPainter {
     required this.outline,
     required this.geometry,
     required this.pulse,
+    required this.opacity,
   });
 
   final BaseCampFacility facility;
   final List<Offset> outline;
   final BaseCampMapGeometry geometry;
   final double pulse;
+  final double opacity;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -762,13 +850,15 @@ class _FacilitySelectionFramePainter extends CustomPainter {
         .toList(growable: false);
     final path = Path()..addPolygon(points, true);
     // The reference calls for a hand-drawn perimeter around the facility, not
-    // a generic cyan HUD rectangle. A restrained alpha pulse keeps selection
-    // legible without changing the outline's white material.
+    // a generic cyan HUD rectangle. A restrained cyan alpha pulse keeps the
+    // selection legible while preserving the facility's transformed contour.
     final intensity = .78 + .22 * ((1 + math.sin(pulse * math.pi * 2)) / 2);
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.white.withValues(alpha: .16 * intensity)
+        ..color = const Color(
+          0xFF68E8F2,
+        ).withValues(alpha: .16 * intensity * opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
@@ -776,7 +866,9 @@ class _FacilitySelectionFramePainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.white.withValues(alpha: .76 + .20 * intensity)
+        ..color = const Color(
+          0xFF68E8F2,
+        ).withValues(alpha: (.76 + .20 * intensity) * opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.8
         ..strokeCap = StrokeCap.round
@@ -787,7 +879,9 @@ class _FacilitySelectionFramePainter extends CustomPainter {
     canvas.drawPath(
       path.shift(const Offset(.55, -.35)),
       Paint()
-        ..color = Colors.white.withValues(alpha: .22 * intensity)
+        ..color = const Color(
+          0xFFB9F7FF,
+        ).withValues(alpha: .22 * intensity * opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .65,
     );
@@ -798,7 +892,8 @@ class _FacilitySelectionFramePainter extends CustomPainter {
       oldDelegate.facility != facility ||
       oldDelegate.outline != outline ||
       oldDelegate.geometry != geometry ||
-      oldDelegate.pulse != pulse;
+      oldDelegate.pulse != pulse ||
+      oldDelegate.opacity != opacity;
 }
 
 @immutable
@@ -972,7 +1067,6 @@ class _BaseCampMapObjectPositioned extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final asset = baseCampObjectAssets[object.assetId];
-    if (asset == null) return const SizedBox.shrink();
     final position = geometry.sourceToViewport(object.position);
     const nominalWidth = 250.0;
     const nominalHeight = 180.0;
@@ -990,8 +1084,99 @@ class _BaseCampMapObjectPositioned extends StatelessWidget {
           object.anchor.dx * 2 - 1,
           object.anchor.dy * 2 - 1,
         ),
-        child: Image.asset(asset, fit: BoxFit.contain, gaplessPlayback: true),
+        child: BaseCampMapObjectImage(
+          assetId: object.assetId,
+          bundledAsset: asset,
+        ),
       ),
+    );
+  }
+}
+
+/// Resolves bundled art synchronously and user-imported art from IndexedDB.
+/// A missing local binary remains explicit instead of silently substituting a
+/// different facility image or modifying persisted object metadata.
+class BaseCampMapObjectImage extends StatefulWidget {
+  const BaseCampMapObjectImage({
+    super.key,
+    required this.assetId,
+    this.bundledAsset,
+  });
+
+  final String assetId;
+  final String? bundledAsset;
+
+  @override
+  State<BaseCampMapObjectImage> createState() => _BaseCampMapObjectImageState();
+}
+
+class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
+  late Future<BaseCampStoredAsset?> _asset;
+
+  @override
+  void initState() {
+    super.initState();
+    _asset = _load();
+  }
+
+  @override
+  void didUpdateWidget(BaseCampMapObjectImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetId != widget.assetId ||
+        oldWidget.bundledAsset != widget.bundledAsset) {
+      _asset = _load();
+    }
+  }
+
+  Future<BaseCampStoredAsset?> _load() => widget.bundledAsset == null
+      ? BaseCampAssetStore().read(widget.assetId)
+      : Future<BaseCampStoredAsset?>.value(null);
+
+  @override
+  Widget build(BuildContext context) {
+    final bundled = widget.bundledAsset;
+    if (bundled != null) {
+      return Image.asset(
+        bundled,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.high,
+      );
+    }
+    return FutureBuilder<BaseCampStoredAsset?>(
+      future: _asset,
+      builder: (context, snapshot) {
+        final asset = snapshot.data;
+        if (asset != null) {
+          return Image.memory(
+            asset.bytes,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.high,
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.expand();
+        }
+        return Semantics(
+          label: 'Missing Base Camp asset',
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.fromBorderSide(
+                BorderSide(color: Color(0xFF68E8F2), width: 1),
+              ),
+              color: Color(0x66101316),
+            ),
+            child: Center(
+              child: Text(
+                'MISSING\nASSET',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFFB8F8FF), fontSize: 8),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

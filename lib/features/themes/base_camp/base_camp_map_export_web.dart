@@ -6,7 +6,7 @@ void exportBaseCampMapJson(String json) {
   final blob = html.Blob(<Object>[json], 'application/json');
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.AnchorElement(href: url)
-    ..download = 'base-camp-map-v1.json'
+    ..download = 'base-camp-map-v2.json'
     ..click();
   html.Url.revokeObjectUrl(url);
 }

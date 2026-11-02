@@ -203,6 +203,24 @@ void main() {
     }
   });
 
+  test('facility contours exclude opaque-image rectangle corners', () {
+    final status = baseCampFacilities.firstWhere(
+      (facility) => facility.id == 'status',
+    );
+    final outline = baseCampFacilityOutlineForConfiguration(
+      status,
+      BaseCampMapConfiguration.defaults(),
+    );
+
+    expect(baseCampFacilityOutlineContains(outline, status.center), isTrue);
+    // This position lies inside the old facility bounding rectangle but
+    // outside STATUS' actual traced building footprint.
+    expect(
+      baseCampFacilityOutlineContains(outline, const Offset(.09, .27)),
+      isFalse,
+    );
+  });
+
   test(
     'map editor configuration validates the shared routes, outlines and scale',
     () {

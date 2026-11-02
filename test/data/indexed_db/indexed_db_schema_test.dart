@@ -3,9 +3,9 @@ import 'package:or_app/data/indexed_db/indexed_db_schema.dart';
 import 'package:or_app/data/indexed_db/indexed_db_store_names.dart';
 
 void main() {
-  test('defines IndexedDB v18 canonical, draft, and compatibility stores', () {
+  test('defines IndexedDB v19 canonical, draft, and compatibility stores', () {
     expect(IndexedDbSchema.databaseName, 'operation_reboot_db');
-    expect(IndexedDbSchema.databaseVersion, 18);
+    expect(IndexedDbSchema.databaseVersion, 19);
     expect(IndexedDbSchema.keyPath, 'id');
     expect(
       IndexedDbStoreNames.canonical,
@@ -49,6 +49,7 @@ void main() {
     expect(IndexedDbStoreNames.drafts, [
       IndexedDbStoreNames.activityDrafts,
       IndexedDbStoreNames.activeTrainingDrafts,
+      IndexedDbStoreNames.baseCampAssets,
     ]);
   });
 
@@ -536,5 +537,24 @@ void main() {
     );
     expect(store.keyPath, 'mealMasterId');
     expect(store.indexes, isEmpty);
+  });
+
+  test('v18 to v19 adds only the local Base Camp asset store', () {
+    final v18Stores = IndexedDbStoreNames.all
+        .where((name) => name != IndexedDbStoreNames.baseCampAssets)
+        .toSet();
+    final added = IndexedDbSchema.storeDefinitions
+        .where((definition) => !v18Stores.contains(definition.name))
+        .toList();
+
+    expect(added.map((definition) => definition.name), [
+      IndexedDbStoreNames.baseCampAssets,
+    ]);
+    expect(added.single.keyPath, IndexedDbSchema.keyPath);
+    expect(added.single.indexes, isEmpty);
+    expect(
+      IndexedDbStoreNames.canonical,
+      isNot(contains(IndexedDbStoreNames.baseCampAssets)),
+    );
   });
 }

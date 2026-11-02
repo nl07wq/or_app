@@ -32,6 +32,9 @@ abstract final class IndexedDbStoreNames {
   static const scheduleRecords = 'schedule_records';
   static const reminderDefinitions = 'reminder_definitions';
   static const reminderOccurrenceStates = 'reminder_occurrence_states';
+  // Presentation-only binary assets. These are deliberately excluded from
+  // canonical backup sections and daily records.
+  static const baseCampAssets = 'base_camp_assets';
 
   static const legacy = [morningFacts, trainings];
 
@@ -63,7 +66,7 @@ abstract final class IndexedDbStoreNames {
     reminderOccurrenceStates,
   ];
 
-  static const drafts = [activityDrafts, activeTrainingDrafts];
+  static const drafts = [activityDrafts, activeTrainingDrafts, baseCampAssets];
 
   static const all = [...legacy, ...canonical, ...drafts];
 }
