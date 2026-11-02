@@ -26,6 +26,7 @@ import '../../legacy_archive/models/dns_archive_models.dart';
 import '../../system/models/profile_model.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
+import 'backup_schema_diagnostics.dart';
 
 abstract final class BackupStoreRegistry {
   static const stores = <String, String>{
@@ -124,7 +125,17 @@ abstract final class BackupStoreRegistry {
     final normalizedNames = <String>{};
     for (final source in records) {
       final record = _deepCopyMap(source);
-      validateRecord(section, record);
+      try {
+        validateRecord(section, record);
+      } catch (_) {
+        throw BackupRecordValidationException(
+          BackupSchemaDiagnostics.forRecord(
+            section: section,
+            record: record,
+            validationStage: 'record_schema_validation',
+          ),
+        );
+      }
       final id = recordId(section, record);
       if (!ids.add(id)) {
         throw BackupException(

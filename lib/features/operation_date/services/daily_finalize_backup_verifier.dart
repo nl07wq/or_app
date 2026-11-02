@@ -1,6 +1,7 @@
 import '../../import_export/models/backup_package.dart';
 import '../../import_export/services/backup_export_service.dart';
 import '../../import_export/services/backup_package_codec.dart';
+import '../../import_export/services/backup_schema_diagnostics.dart';
 import '../models/daily_finalize_result.dart';
 
 class VerifiedFinalizeBackup {
@@ -30,6 +31,7 @@ class DailyFinalizeBackupVerifier {
       throw DailyFinalizeException(
         DailyFinalizeFailureCode.backupGenerationFailed,
         error,
+        diagnostics: _diagnosticsFor(error, 'backup_snapshot_validation'),
       );
     }
 
@@ -40,6 +42,7 @@ class DailyFinalizeBackupVerifier {
       throw DailyFinalizeException(
         DailyFinalizeFailureCode.backupValidationFailed,
         error,
+        diagnostics: _diagnosticsFor(error, 'backup_package_validation'),
       );
     }
     if (decoded.digests.package != generated.digests.package) {
@@ -53,4 +56,9 @@ class DailyFinalizeBackupVerifier {
       generatedAt: decoded.exportedAt.toUtc(),
     );
   }
+
+  BackupSchemaDiagnostics _diagnosticsFor(Object error, String stage) =>
+      error is BackupRecordValidationException
+      ? error.diagnostics
+      : BackupSchemaDiagnostics.unavailable(validationStage: stage);
 }
