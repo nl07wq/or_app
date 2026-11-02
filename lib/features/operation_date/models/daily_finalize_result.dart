@@ -1,4 +1,5 @@
 import 'operation_local_date.dart';
+import '../../import_export/services/backup_schema_diagnostics.dart';
 
 enum DailyFinalizeFailureCode {
   validationFailed,
@@ -44,8 +45,9 @@ class DailyFinalizeResult {
 class DailyFinalizeException implements Exception {
   final DailyFinalizeFailureCode code;
   final Object cause;
+  final BackupSchemaDiagnostics? diagnostics;
 
-  const DailyFinalizeException(this.code, this.cause);
+  const DailyFinalizeException(this.code, this.cause, {this.diagnostics});
 
   @override
   String toString() => '${code.name}: $cause';

@@ -11,6 +11,7 @@ import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
 import 'backup_store_registry.dart';
 import 'backup_operation_state_integrity.dart';
+import 'backup_schema_diagnostics.dart';
 
 class BackupPackageCodec {
   static const maxFileBytes = 50 * 1024 * 1024;
@@ -109,62 +110,83 @@ class BackupPackageCodec {
     final counts = <String, int>{};
     final sectionDigests = <String, String>{};
     for (final section in BackupSections.forSchema(schemaVersion)) {
-      final rawRecords = dataJson[section];
-      if (rawRecords is! List) {
-        throw BackupException(
-          'missing_section',
-          'Backup section $section is required.',
+      try {
+        final rawRecords = dataJson[section];
+        if (rawRecords is! List) {
+          throw BackupException(
+            'missing_section',
+            'Backup section $section is required.',
+          );
+        }
+        final records = BackupStoreRegistry.validateAndSort(
+          section,
+          rawRecords.map((value) {
+            if (value is! Map) {
+              throw BackupException(
+                'invalid_record',
+                '$section contains a non-object record.',
+              );
+            }
+            final record = Map<String, Object?>.from(value);
+            if (schemaVersion <= BackupPackage.legacyFullSchemaVersion &&
+                (record.containsKey('archivedRevisions') ||
+                    (section == BackupSections.reportSyncHistory &&
+                        record['recordVersion'] == 4))) {
+              throw const BackupException(
+                'invalid_legacy_revision_contract',
+                'Legacy Backup requires complete historical bodies.',
+              );
+            }
+            if (section == BackupSections.confirmations &&
+                schemaVersion < 10 &&
+                record['recordVersion'] !=
+                    PersistedDailyLogConfirmationRecord.legacyRecordVersion) {
+              throw const BackupException(
+                'invalid_record',
+                'Backup schemas 2 through 9 require Confirmation v1 records.',
+              );
+            }
+            return record;
+          }),
+        );
+        final expectedCount = countJson[section];
+        if (expectedCount is! int || expectedCount != records.length) {
+          throw BackupException(
+            'record_count_mismatch',
+            '$section record count does not match.',
+          );
+        }
+        final expectedDigest = digestJson[section];
+        final actualDigest = BackupCanonicalCodec.digest(records);
+        if (expectedDigest is! String || expectedDigest != actualDigest) {
+          throw BackupException(
+            'section_digest_mismatch',
+            '$section digest does not match.',
+          );
+        }
+        data[section] = records;
+        counts[section] = records.length;
+        sectionDigests[section] = actualDigest;
+      } on BackupValidationDiagnosticsException {
+        rethrow;
+      } catch (error) {
+        throw BackupValidationDiagnosticsException(
+          BackupSchemaDiagnostics.unavailable(
+            validationStage: 'backup_package_validation',
+            validationSubstage: 'package_section_contract',
+            failureCategory: switch (error) {
+              FormatException _ => 'format_exception',
+              TypeError _ => 'type_error',
+              BackupException _ => 'backup_contract',
+              _ => 'unexpected_exception',
+            },
+            unavailableReason:
+                'package_section_validator_did_not_identify_a_record',
+            store: BackupStoreRegistry.stores[section],
+            recordType: section,
+          ),
         );
       }
-      final records = BackupStoreRegistry.validateAndSort(
-        section,
-        rawRecords.map((value) {
-          if (value is! Map) {
-            throw BackupException(
-              'invalid_record',
-              '$section contains a non-object record.',
-            );
-          }
-          final record = Map<String, Object?>.from(value);
-          if (schemaVersion <= BackupPackage.legacyFullSchemaVersion &&
-              (record.containsKey('archivedRevisions') ||
-                  (section == BackupSections.reportSyncHistory &&
-                      record['recordVersion'] == 4))) {
-            throw const BackupException(
-              'invalid_legacy_revision_contract',
-              'Legacy Backup requires complete historical bodies.',
-            );
-          }
-          if (section == BackupSections.confirmations &&
-              schemaVersion < 10 &&
-              record['recordVersion'] !=
-                  PersistedDailyLogConfirmationRecord.legacyRecordVersion) {
-            throw const BackupException(
-              'invalid_record',
-              'Backup schemas 2 through 9 require Confirmation v1 records.',
-            );
-          }
-          return record;
-        }),
-      );
-      final expectedCount = countJson[section];
-      if (expectedCount is! int || expectedCount != records.length) {
-        throw BackupException(
-          'record_count_mismatch',
-          '$section record count does not match.',
-        );
-      }
-      final expectedDigest = digestJson[section];
-      final actualDigest = BackupCanonicalCodec.digest(records);
-      if (expectedDigest is! String || expectedDigest != actualDigest) {
-        throw BackupException(
-          'section_digest_mismatch',
-          '$section digest does not match.',
-        );
-      }
-      data[section] = records;
-      counts[section] = records.length;
-      sectionDigests[section] = actualDigest;
     }
     final packageDigest = digestJson['package'];
     if (packageDigest is! String) {

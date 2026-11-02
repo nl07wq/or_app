@@ -12,6 +12,7 @@ import 'backup_canonical_codec.dart';
 import 'backup_id_generator.dart';
 import 'backup_store_registry.dart';
 import 'backup_operation_state_integrity.dart';
+import 'backup_schema_diagnostics.dart';
 import '../../system/models/profile_model.dart';
 import 'backup_v14_transform.dart';
 
@@ -73,25 +74,37 @@ class BackupExportService {
     String? origin,
   }) async {
     final snapshot = await _snapshot();
-    final split = BackupV14Transform.split(
-      snapshot,
-      schemaVersion: schemaVersion,
-    );
+    final split = _splitSnapshot(snapshot, schemaVersion);
     final exportedAt = _clock().toUtc();
     final exportId = _idGenerator.generate();
     final archiveId = _idGenerator.generate();
     final source = BackupSource(platform: 'web', origin: origin);
     final deviceSettings = DeviceSettingsController.instance.snapshot();
-    final normal = buildPackage(
-      exportId: exportId,
-      exportedAt: exportedAt,
-      appVersion: appVersion,
-      source: source,
-      data: split.normal,
-      schemaVersion: schemaVersion,
-      auditArchiveId: archiveId,
-      deviceSettings: deviceSettings,
-    );
+    final BackupPackage normal;
+    try {
+      normal = buildPackage(
+        exportId: exportId,
+        exportedAt: exportedAt,
+        appVersion: appVersion,
+        source: source,
+        data: split.normal,
+        schemaVersion: schemaVersion,
+        auditArchiveId: archiveId,
+        deviceSettings: deviceSettings,
+      );
+    } on BackupValidationDiagnosticsException {
+      rethrow;
+    } catch (error) {
+      throw BackupValidationDiagnosticsException(
+        _diagnosticsForFailure(
+          error: error,
+          section: null,
+          record: null,
+          validationStage: 'backup_package_validation',
+          validationSubstage: 'normal_package_build',
+        ),
+      );
+    }
     final sectionDigests = {
       for (final entry in split.audit.entries)
         entry.key: BackupCanonicalCodec.digest(entry.value),
@@ -124,6 +137,32 @@ class BackupExportService {
     return BackupV14Bundle(normal: normal, audit: audit);
   }
 
+  static ({
+    Map<String, List<Map<String, Object?>>> normal,
+    Map<String, List<Map<String, Object?>>> audit,
+    bool archiveComplete,
+  })
+  _splitSnapshot(
+    Map<String, List<Map<String, Object?>>> snapshot,
+    int schemaVersion,
+  ) {
+    try {
+      return BackupV14Transform.split(snapshot, schemaVersion: schemaVersion);
+    } on BackupValidationDiagnosticsException {
+      rethrow;
+    } catch (error) {
+      throw BackupValidationDiagnosticsException(
+        _diagnosticsForFailure(
+          error: error,
+          section: null,
+          record: null,
+          validationStage: 'backup_package_validation',
+          validationSubstage: 'v14_transform_split',
+        ),
+      );
+    }
+  }
+
   Future<Map<String, List<Map<String, Object?>>>> _snapshot() async {
     if (_controller.value.mode != PersistenceMode.indexedDbReadWrite &&
         _controller.value.mode != PersistenceMode.legacyReadOnly) {
@@ -132,39 +171,109 @@ class BackupExportService {
         'Backup export requires readable IndexedDB data.',
       );
     }
-    final data = await _database.runTransaction(
-      storeNames: BackupStoreRegistry.stores.values,
-      mode: IndexedDbTransactionMode.readOnly,
-      action: (transaction) async {
-        final snapshot = <String, List<Map<String, Object?>>>{};
-        for (final section in BackupSections.allCurrent) {
-          final records = await transaction.findAll(
-            BackupStoreRegistry.stores[section]!,
-          );
-          if (section == BackupSections.profile) {
-            if (records.length > 1) {
-              throw const BackupException(
-                'invalid_record',
-                'Profile store must contain at most one record.',
-              );
+    String? activeSection;
+    Map<String, Object?>? activeRecord;
+    final Map<String, List<Map<String, Object?>>> data;
+    try {
+      data = await _database.runTransaction(
+        storeNames: BackupStoreRegistry.stores.values,
+        mode: IndexedDbTransactionMode.readOnly,
+        action: (transaction) async {
+          final snapshot = <String, List<Map<String, Object?>>>{};
+          for (final section in BackupSections.allCurrent) {
+            activeSection = section;
+            activeRecord = null;
+            final records = await transaction.findAll(
+              BackupStoreRegistry.stores[section]!,
+            );
+            if (records.length == 1) activeRecord = records.single;
+            if (section == BackupSections.profile) {
+              if (records.length > 1) {
+                throw const BackupException(
+                  'invalid_record',
+                  'Profile store must contain at most one record.',
+                );
+              }
+              snapshot[section] = [
+                records.isEmpty
+                    ? const ProfileModel().toBackupRecord()
+                    : ProfileModel.fromRecord(records.single).toBackupRecord(),
+              ];
+              continue;
             }
-            snapshot[section] = [
-              records.isEmpty
-                  ? const ProfileModel().toBackupRecord()
-                  : ProfileModel.fromRecord(records.single).toBackupRecord(),
-            ];
-            continue;
+            snapshot[section] = BackupStoreRegistry.validateAndSort(
+              section,
+              records,
+            );
           }
-          snapshot[section] = BackupStoreRegistry.validateAndSort(
-            section,
-            records,
-          );
-        }
-        return snapshot;
-      },
-    );
-    BackupOperationStateIntegrity.validate(data);
+          return snapshot;
+        },
+      );
+    } on BackupValidationDiagnosticsException {
+      rethrow;
+    } catch (error) {
+      throw BackupValidationDiagnosticsException(
+        _diagnosticsForFailure(
+          error: error,
+          section: activeSection,
+          record: activeRecord,
+          validationStage: 'backup_snapshot_validation',
+          validationSubstage: 'store_read_or_record_normalization',
+        ),
+      );
+    }
+    try {
+      BackupOperationStateIntegrity.validate(data);
+    } on BackupValidationDiagnosticsException {
+      rethrow;
+    } catch (error) {
+      final stateRecords = data[BackupSections.operationState];
+      throw BackupValidationDiagnosticsException(
+        _diagnosticsForFailure(
+          error: error,
+          section: BackupSections.operationState,
+          record: stateRecords?.length == 1 ? stateRecords!.single : null,
+          validationStage: 'backup_snapshot_validation',
+          validationSubstage: 'operation_state_integrity',
+        ),
+      );
+    }
     return data;
+  }
+
+  static BackupSchemaDiagnostics _diagnosticsForFailure({
+    required Object error,
+    required String? section,
+    required Map<String, Object?>? record,
+    required String validationStage,
+    required String validationSubstage,
+  }) {
+    final failureCategory = switch (error) {
+      FormatException _ => 'format_exception',
+      TypeError _ => 'type_error',
+      BackupException _ => 'backup_contract',
+      _ => 'unexpected_exception',
+    };
+    if (section != null && record != null) {
+      return BackupSchemaDiagnostics.forRecord(
+        section: section,
+        store: BackupStoreRegistry.stores[section],
+        record: record,
+        validationStage: validationStage,
+        validationSubstage: validationSubstage,
+        failureCategory: failureCategory,
+      );
+    }
+    return BackupSchemaDiagnostics.unavailable(
+      validationStage: validationStage,
+      validationSubstage: validationSubstage,
+      failureCategory: failureCategory,
+      unavailableReason: section == null
+          ? 'validation_failed_before_store_context'
+          : 'validation_failed_without_a_unique_record_context',
+      store: section == null ? null : BackupStoreRegistry.stores[section],
+      recordType: section,
+    );
   }
 
   static BackupPackage buildPackage({

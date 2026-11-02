@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -17,6 +18,7 @@ import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_export_service.dart';
 import '../../morning/models/morning_fact.dart';
 import '../../operation_date/models/operation_state.dart';
+import '../../operation_date/models/daily_finalize_result.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../periodic_report/models/periodic_report.dart';
@@ -294,9 +296,28 @@ class _DailyLogSectionState extends State<DailyLogSection> {
         return;
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('FINALIZE DAYに失敗しました: $error')));
+      final diagnostics = error is DailyFinalizeException
+          ? error.diagnostics
+          : null;
+      final diagnosticsNotice = diagnostics != null &&
+              !diagnostics.detailedFieldComparisonAvailable
+          ? '\nDIAGNOSTICS UNAVAILABLE: ${diagnostics.validationStage}'
+          : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'FINALIZE DAYに失敗しました: $error$diagnosticsNotice',
+          ),
+          action: diagnostics == null
+              ? null
+              : SnackBarAction(
+                  label: 'COPY DIAGNOSTICS',
+                  onPressed: () => Clipboard.setData(
+                    ClipboardData(text: diagnostics.toCopyText()),
+                  ),
+                ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isFinalizing = false);
     }

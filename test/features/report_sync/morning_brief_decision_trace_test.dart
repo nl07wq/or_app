@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/import_export/models/backup_package.dart';
+import 'package:or_app/features/import_export/services/backup_store_registry.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_decision_trace.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/services/daily_brief_traced_observation_review_service.dart';
@@ -27,6 +29,24 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'V3 writer and parser preserve traced records with archived revisions',
+    () {
+      final record = _revisionedRecordWithTraceAndArchive();
+
+      final restored = MorningBriefRecord.fromRecord(record.toRecord());
+      final exported = BackupStoreRegistry.validateAndSort(
+        BackupSections.morningBriefRecords,
+        [record.toRecord()],
+      );
+
+      expect(restored.toRecord(), record.toRecord());
+      expect(exported.single, record.toRecord());
+      expect(restored.decisionTrace, isNotNull);
+      expect(restored.archivedRevisions, hasLength(1));
+    },
+  );
 
   test('trace final status must match the stored production status', () {
     final invalid = MorningBriefDecisionTrace.fromJson({
@@ -143,3 +163,45 @@ MorningBriefDecisionTrace _trace() => MorningBriefDecisionTrace(
     reasonCodes: ['PLANTAR_WATCH'],
   ),
 );
+
+MorningBriefRecord _revisionedRecordWithTraceAndArchive() {
+  const localDate = '2026-09-25';
+  return MorningBriefRecord.revisioned(
+    localDate: localDate,
+    sourceType: 'status',
+    sourceOperationDate: localDate,
+    sourceRecordId: 'status:$localDate',
+    sourceDigest: 'a' * 64,
+    evaluationVersion: 'plantar-risk-v2',
+    decisionTrace: _trace(),
+    responseDigest: 'b' * 64,
+    exchangeId: 'exchange-1',
+    generatedAt: DateTime.utc(2026, 9, 25),
+    importedAt: DateTime.utc(2026, 9, 25),
+    situationAnalysisV2: const MorningBriefSituationAnalysis(
+      body: 'body',
+      recovery: 'recovery',
+      condition: 'condition',
+      work: 'work',
+      carryover: 'carryover',
+      overall: 'overall',
+    ),
+    operatingPolicy: 'policy',
+    strategicResourceDecisionV2: const MorningBriefStrategicResourceDecision(
+      decision: 'decision',
+      targetResource: null,
+      rationale: 'rationale',
+      execution: null,
+    ),
+    operationStatus: MorningBriefOperationStatus.yellow,
+    commanderIntent: 'intent',
+    actions: const [],
+    createdAt: DateTime.utc(2026, 9, 25),
+    updatedAt: DateTime.utc(2026, 9, 25),
+    revision: 2,
+    previousRevisions: const [],
+    archivedRevisions: const [
+      {'revision': 1, 'bodyDigest': 'deadbeef'},
+    ],
+  );
+}

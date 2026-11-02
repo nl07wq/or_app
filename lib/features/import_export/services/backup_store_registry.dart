@@ -26,6 +26,7 @@ import '../../legacy_archive/models/dns_archive_models.dart';
 import '../../system/models/profile_model.dart';
 import '../models/backup_package.dart';
 import 'backup_canonical_codec.dart';
+import 'backup_schema_diagnostics.dart';
 
 abstract final class BackupStoreRegistry {
   static const stores = <String, String>{
@@ -124,7 +125,20 @@ abstract final class BackupStoreRegistry {
     final normalizedNames = <String>{};
     for (final source in records) {
       final record = _deepCopyMap(source);
-      validateRecord(section, record);
+      try {
+        validateRecord(section, record);
+      } catch (error) {
+        throw BackupRecordValidationException(
+          BackupSchemaDiagnostics.forRecord(
+            section: section,
+            store: stores[section],
+            record: record,
+            validationStage: 'record_schema_validation',
+            validationSubstage: 'record_parser',
+            failureCategory: _failureCategory(error),
+          ),
+        );
+      }
       final id = recordId(section, record);
       if (!ids.add(id)) {
         throw BackupException(
@@ -266,6 +280,13 @@ abstract final class BackupStoreRegistry {
   static Map<String, Object?> _deepCopyMap(Map source) => {
     for (final entry in source.entries)
       entry.key.toString(): _deepCopyValue(entry.value),
+  };
+
+  static String _failureCategory(Object error) => switch (error) {
+    FormatException _ => 'format_exception',
+    TypeError _ => 'type_error',
+    BackupException _ => 'backup_contract',
+    _ => 'validator_exception',
   };
 
   /// Applies the current local notification contract only at restore time.

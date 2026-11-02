@@ -327,9 +327,17 @@ class MorningBriefRecord {
     'decisionTrace',
   };
   static const archivedCurrentFields = {...currentFields, 'archivedRevisions'};
+  static const tracedArchivedCurrentFields = {
+    ...archivedCurrentFields,
+    'decisionTrace',
+  };
   static const provenancedArchivedCurrentFields = {
     ...provenancedCurrentFields,
     'archivedRevisions',
+  };
+  static const provenancedTracedArchivedCurrentFields = {
+    ...provenancedArchivedCurrentFields,
+    'decisionTrace',
   };
 
   final String localDate;
@@ -672,9 +680,13 @@ class MorningBriefRecord {
     ReportSyncRecordUtils.exactFields(
       json,
       json.containsKey('archivedRevisions')
-          ? (json.containsKey('evaluationVersion')
-                ? provenancedArchivedCurrentFields
-                : archivedCurrentFields)
+          ? (json.containsKey('decisionTrace')
+                ? (json.containsKey('evaluationVersion')
+                      ? provenancedTracedArchivedCurrentFields
+                      : tracedArchivedCurrentFields)
+                : (json.containsKey('evaluationVersion')
+                      ? provenancedArchivedCurrentFields
+                      : archivedCurrentFields))
           : (json.containsKey('decisionTrace')
                 ? (json.containsKey('evaluationVersion')
                       ? provenancedTracedCurrentFields
