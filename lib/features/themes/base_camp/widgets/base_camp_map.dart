@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
@@ -78,6 +80,15 @@ class BaseCampWalkerRoute {
   /// the routes replayable while avoiding a visually mechanical fixed pause.
   final List<double> pausePatternSeconds;
   final double initialPhaseSeconds;
+
+  BaseCampWalkerRoute withSourcePoints(List<Offset> points) =>
+      BaseCampWalkerRoute(
+        id: id,
+        sourcePoints: points,
+        speed: speed,
+        pausePatternSeconds: pausePatternSeconds,
+        initialPhaseSeconds: initialPhaseSeconds,
+      );
 
   List<Offset> get normalizedPoints => sourcePoints
       .map(
@@ -293,6 +304,12 @@ class _BaseCampMapState extends State<BaseCampMap>
       // while keeping its ticker scoped to the dashboard's TickerMode.
       duration: const Duration(hours: 24),
     )..repeat();
+    baseCampMapConfigurationController.load();
+    baseCampMapConfigurationController.addListener(_configurationChanged);
+  }
+
+  void _configurationChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -300,6 +317,7 @@ class _BaseCampMapState extends State<BaseCampMap>
     _interactionRelease?.cancel();
     _selectionPulse.dispose();
     _walkerTimeline.dispose();
+    baseCampMapConfigurationController.removeListener(_configurationChanged);
     _transform.dispose();
     super.dispose();
   }
@@ -322,6 +340,13 @@ class _BaseCampMapState extends State<BaseCampMap>
       _isTransforming = false;
       _transform.value = Matrix4.identity();
     });
+  }
+
+  Future<void> _openEditor() async {
+    _interactionRelease?.cancel();
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const BaseCampMapEditorPage()),
+    );
   }
 
   void _openFacility(BaseCampFacility facility) {
@@ -351,6 +376,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   Widget build(BuildContext context) {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     final selectedFacility = _selectedFacility;
+    final configuration = baseCampMapConfigurationController.value;
     return RepaintBoundary(
       child: AspectRatio(
         aspectRatio: 16 / 9,
@@ -385,18 +411,21 @@ class _BaseCampMapState extends State<BaseCampMap>
                           child: RepaintBoundary(
                             child: AnimatedBuilder(
                               animation: _walkerTimeline,
-                              builder: (context, _) => _BaseCampWalkerLayer(
-                                key: const ValueKey('base-camp-walkers'),
-                                elapsed: reducedMotion
-                                    ? Duration.zero
-                                    : Duration(
-                                        microseconds:
-                                            (_walkerTimeline.value *
-                                                    Duration.microsecondsPerDay)
-                                                .round(),
-                                      ),
-                                reducedMotion: reducedMotion,
-                              ),
+                              builder: (context, _) =>
+                                  BaseCampWalkerPreviewLayer(
+                                    key: const ValueKey('base-camp-walkers'),
+                                    elapsed: reducedMotion
+                                        ? Duration.zero
+                                        : Duration(
+                                            microseconds:
+                                                (_walkerTimeline.value *
+                                                        Duration
+                                                            .microsecondsPerDay)
+                                                    .round(),
+                                          ),
+                                    reducedMotion: reducedMotion,
+                                    configuration: configuration,
+                                  ),
                             ),
                           ),
                         ),
@@ -411,6 +440,11 @@ class _BaseCampMapState extends State<BaseCampMap>
                                   ),
                                   painter: _FacilitySelectionFramePainter(
                                     facility: selectedFacility,
+                                    outline:
+                                        configuration
+                                            .facilityOutlines[selectedFacility
+                                            .id] ??
+                                        selectedFacility.outline(),
                                     pulse: reducedMotion
                                         ? 0
                                         : _selectionPulse.value,
@@ -423,6 +457,9 @@ class _BaseCampMapState extends State<BaseCampMap>
                         for (final facility in baseCampFacilities)
                           _BaseCampFacilityTarget(
                             facility: facility,
+                            outline:
+                                configuration.facilityOutlines[facility.id] ??
+                                facility.outline(),
                             mapSize: size,
                             onPressed: () => _openFacility(facility),
                           ),
@@ -436,11 +473,14 @@ class _BaseCampMapState extends State<BaseCampMap>
                 right: 8,
                 child: Tooltip(
                   message: 'Reset map framing',
-                  child: IconButton.filledTonal(
-                    key: const ValueKey('base-camp-reset'),
-                    onPressed: _reset,
-                    icon: const Icon(Icons.refresh),
-                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                  child: GestureDetector(
+                    onLongPress: _openEditor,
+                    child: IconButton.filledTonal(
+                      key: const ValueKey('base-camp-reset'),
+                      onPressed: _reset,
+                      icon: const Icon(Icons.refresh),
+                    ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                  ),
                 ),
               ),
               if (selectedFacility != null)
@@ -461,22 +501,28 @@ class _BaseCampMapState extends State<BaseCampMap>
 class _BaseCampFacilityTarget extends StatelessWidget {
   const _BaseCampFacilityTarget({
     required this.facility,
+    required this.outline,
     required this.mapSize,
     required this.onPressed,
   });
 
   final BaseCampFacility facility;
+  final List<Offset> outline;
   final Size mapSize;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final width = mapSize.width * facility.size.width;
-    final height = mapSize.height * facility.size.height;
+    final leftRatio = outline.map((point) => point.dx).reduce(math.min);
+    final rightRatio = outline.map((point) => point.dx).reduce(math.max);
+    final topRatio = outline.map((point) => point.dy).reduce(math.min);
+    final bottomRatio = outline.map((point) => point.dy).reduce(math.max);
+    final width = mapSize.width * (rightRatio - leftRatio);
+    final height = mapSize.height * (bottomRatio - topRatio);
     return Positioned(
       key: ValueKey('base-camp-facility-${facility.id}'),
-      left: mapSize.width * facility.center.dx - width / 2,
-      top: mapSize.height * facility.center.dy - height / 2,
+      left: mapSize.width * leftRatio,
+      top: mapSize.height * topRatio,
       width: width,
       height: height,
       child: Semantics(
@@ -623,16 +669,17 @@ class _ConfirmationButton extends StatelessWidget {
 class _FacilitySelectionFramePainter extends CustomPainter {
   const _FacilitySelectionFramePainter({
     required this.facility,
+    required this.outline,
     required this.pulse,
   });
 
   final BaseCampFacility facility;
+  final List<Offset> outline;
   final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final points = facility
-        .outline()
+    final points = outline
         .map((point) => Offset(point.dx * size.width, point.dy * size.height))
         .toList(growable: false);
     final path = Path()..addPolygon(points, true);
@@ -670,7 +717,9 @@ class _FacilitySelectionFramePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FacilitySelectionFramePainter oldDelegate) =>
-      oldDelegate.facility != facility || oldDelegate.pulse != pulse;
+      oldDelegate.facility != facility ||
+      oldDelegate.outline != outline ||
+      oldDelegate.pulse != pulse;
 }
 
 @immutable
@@ -692,6 +741,13 @@ class BaseCampWalkerPose {
 /// a walker exactly on its digitised source-image polyline in either direction.
 BaseCampWalkerPose baseCampWalkerPose(String id, Duration elapsed) {
   final route = baseCampWalkerRoutes.singleWhere((route) => route.id == id);
+  return baseCampWalkerPoseForRoute(route, elapsed);
+}
+
+BaseCampWalkerPose baseCampWalkerPoseForRoute(
+  BaseCampWalkerRoute route,
+  Duration elapsed,
+) {
   final metrics = _BaseCampRouteMetrics(route);
   final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
   final local = (seconds + route.initialPhaseSeconds) % metrics.cycleSeconds;
@@ -798,15 +854,17 @@ class _BaseCampRouteSegment {
   double get length => delta.distance;
 }
 
-class _BaseCampWalkerLayer extends StatelessWidget {
-  const _BaseCampWalkerLayer({
+class BaseCampWalkerPreviewLayer extends StatelessWidget {
+  const BaseCampWalkerPreviewLayer({
     super.key,
     required this.elapsed,
     required this.reducedMotion,
+    required this.configuration,
   });
 
   final Duration elapsed;
   final bool reducedMotion;
+  final BaseCampMapConfiguration configuration;
 
   @override
   Widget build(BuildContext context) {
@@ -820,14 +878,26 @@ class _BaseCampWalkerLayer extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            for (final route in baseCampWalkerRoutes)
-              _BaseCampGifWalkerPositioned(
-                route: route,
-                pose: baseCampWalkerPose(route.id, elapsed),
-                mapSize: mapSize,
-                spriteHeight: spriteHeight,
-                reducedMotion: reducedMotion,
-              ),
+            for (final defaultRoute in baseCampWalkerRoutes)
+              if (configuration.routes[defaultRoute.id] case final points?)
+                _BaseCampGifWalkerPositioned(
+                  route: defaultRoute.withSourcePoints(points),
+                  pose: baseCampWalkerPoseForRoute(
+                    defaultRoute.withSourcePoints(points),
+                    elapsed,
+                  ),
+                  mapSize: mapSize,
+                  spriteHeight: spriteHeight * configuration.soldierScale,
+                  reducedMotion: reducedMotion,
+                )
+              else
+                _BaseCampGifWalkerPositioned(
+                  route: defaultRoute,
+                  pose: baseCampWalkerPose(defaultRoute.id, elapsed),
+                  mapSize: mapSize,
+                  spriteHeight: spriteHeight * configuration.soldierScale,
+                  reducedMotion: reducedMotion,
+                ),
           ],
         );
       },

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('presentation theme defaults and restores as STANDARD safely', () {
@@ -199,6 +201,54 @@ void main() {
       expect(outline.every((point) => point.dx >= 0 && point.dx <= 1), isTrue);
       expect(outline.every((point) => point.dy >= 0 && point.dy <= 1), isTrue);
     }
+  });
+
+  test(
+    'map editor configuration validates the shared routes, outlines and scale',
+    () {
+      final defaults = BaseCampMapConfiguration.defaults();
+      final restored = BaseCampMapConfiguration.tryParse(defaults.toJson());
+      expect(restored, isNotNull);
+      expect(
+        restored!.routes.keys,
+        containsAll(<String>['route-a', 'route-b', 'route-c']),
+      );
+      expect(restored.facilityOutlines.keys, hasLength(5));
+      expect(restored.soldierScale, 1);
+      expect(
+        BaseCampMapConfiguration.tryParse(<String, Object?>{
+          ...defaults.toJson(),
+          'soldierScale': double.nan,
+        }),
+        isNull,
+      );
+    },
+  );
+
+  test('map editor persists the common soldier multiplier', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final controller = BaseCampMapConfigurationController();
+    await controller.load();
+    await controller.save(controller.value.copyWith(soldierScale: 2 / 3));
+
+    final restored = BaseCampMapConfigurationController();
+    await restored.load();
+    expect(restored.value.soldierScale, closeTo(2 / 3, .0001));
+    expect(restored.value.routes['route-b'], controller.value.routes['route-b']);
+    expect(restored.value.routes['route-c'], controller.value.routes['route-c']);
+  });
+
+  testWidgets('long press on framing RESET opens the Base Camp map editor', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: BaseCampMap(onFacilityPressed: _ignoreFacility)),
+      ),
+    );
+    await tester.longPress(find.byKey(const ValueKey('base-camp-reset')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('BASE CAMP MAP EDITOR'), findsOneWidget);
   });
 
   test('walkers use continuous, periodic path sampling and endpoint stops', () {
