@@ -1,4 +1,3 @@
-import '../../../data/indexed_db/indexed_db_store_names.dart';
 import '../models/backup_package.dart';
 
 /// A safe, field-shape-only description of a backup record validation failure.
@@ -8,6 +7,9 @@ import '../models/backup_package.dart';
 /// a FINALIZE failure presentation, not telemetry or automatic reporting.
 class BackupSchemaDiagnostics {
   final String validationStage;
+  final String validationSubstage;
+  final String failureCategory;
+  final String? unavailableReason;
   final String? store;
   final String? recordType;
   final int backupSchemaVersion;
@@ -21,6 +23,9 @@ class BackupSchemaDiagnostics {
 
   const BackupSchemaDiagnostics({
     required this.validationStage,
+    required this.validationSubstage,
+    required this.failureCategory,
+    required this.unavailableReason,
     required this.store,
     required this.recordType,
     required this.backupSchemaVersion,
@@ -35,23 +40,28 @@ class BackupSchemaDiagnostics {
 
   factory BackupSchemaDiagnostics.forRecord({
     required String section,
+    required String? store,
     required Map<String, Object?> record,
     required String validationStage,
+    required String validationSubstage,
+    required String failureCategory,
   }) {
     final specification = _specifications[section];
     final actualFields = record.keys.where(_isSafeFieldName).toSet();
     final expectedTypes = specification?.expectedTypes ?? const {};
     final allowedFields = specification?.allowedFields ?? const <String>{};
-    final missing =
-        specification == null
-              ? const <String>[]
-              : specification.requiredFields.difference(actualFields).toList()
-          ..sort();
-    final unexpected =
-        specification == null
-              ? const <String>[]
-              : actualFields.difference(allowedFields).toList()
-          ..sort();
+    final missing = specification == null
+        ? <String>[]
+        : specification.requiredFields.difference(actualFields).toList();
+    missing.sort();
+    final unexpected = specification == null
+        ? <String>[]
+        : actualFields.difference(allowedFields).toList();
+    unexpected.sort();
+    final expectedFields = specification == null
+        ? <String>[]
+        : specification.allowedFields.toList();
+    expectedFields.sort();
     final mismatches = <BackupSchemaTypeMismatch>[];
     for (final entry in expectedTypes.entries) {
       final value = record[entry.key];
@@ -72,16 +82,18 @@ class BackupSchemaDiagnostics {
     final recordVersion = record['recordVersion'];
     return BackupSchemaDiagnostics(
       validationStage: validationStage,
-      store: BackupStoreRegistryNames.storeFor(section),
+      validationSubstage: validationSubstage,
+      failureCategory: failureCategory,
+      unavailableReason: specification == null
+          ? 'record_field_contract_not_registered'
+          : null,
+      store: store,
       recordType: section,
       backupSchemaVersion: BackupPackage.currentSchemaVersion,
       recordSchemaVersion: recordVersion is int
           ? recordVersion.toString()
           : 'unavailable (${_valueType(recordVersion)})',
-      expectedFields: List.unmodifiable(
-        specification == null ? const [] : allowedFields.toList()
-          ..sort(),
-      ),
+      expectedFields: List.unmodifiable(expectedFields),
       actualFields: List.unmodifiable(
         actualFields
             .map(
@@ -102,10 +114,18 @@ class BackupSchemaDiagnostics {
 
   factory BackupSchemaDiagnostics.unavailable({
     required String validationStage,
+    required String validationSubstage,
+    required String failureCategory,
+    required String unavailableReason,
+    String? store,
+    String? recordType,
   }) => BackupSchemaDiagnostics(
     validationStage: validationStage,
-    store: null,
-    recordType: null,
+    validationSubstage: validationSubstage,
+    failureCategory: failureCategory,
+    unavailableReason: unavailableReason,
+    store: store,
+    recordType: recordType,
     backupSchemaVersion: BackupPackage.currentSchemaVersion,
     recordSchemaVersion: 'unavailable',
     expectedFields: const [],
@@ -121,6 +141,9 @@ class BackupSchemaDiagnostics {
     final lines = <String>[
       'FINALIZE_SCHEMA_DIAGNOSTICS_V1',
       'validationStage=$validationStage',
+      'validationSubstage=$validationSubstage',
+      'failureCategory=$failureCategory',
+      'unavailableReason=${unavailableReason ?? 'none'}',
       'backupSchemaVersion=$backupSchemaVersion',
       'store=${store ?? 'unavailable'}',
       'recordType=${recordType ?? 'unavailable'}',
@@ -173,32 +196,20 @@ class BackupSchemaTypeMismatch {
   String toCopyText() => '$field:$expectedType->$actualType';
 }
 
-class BackupRecordValidationException implements Exception {
+class BackupValidationDiagnosticsException extends BackupException {
   final BackupSchemaDiagnostics diagnostics;
 
-  const BackupRecordValidationException(this.diagnostics);
+  const BackupValidationDiagnosticsException(this.diagnostics)
+    : super('backup_validation_diagnostic', 'Backup validation failed.');
 
   @override
   String toString() =>
       'backup_schema_validation_failed at ${diagnostics.validationStage}';
 }
 
-/// Kept here to avoid exposing validation diagnostics through data models.
-abstract final class BackupStoreRegistryNames {
-  static String? storeFor(String section) => switch (section) {
-    BackupSections.status => IndexedDbStoreNames.statusRecords,
-    BackupSections.activity => IndexedDbStoreNames.activityRecords,
-    BackupSections.food => IndexedDbStoreNames.foodRecords,
-    BackupSections.training => IndexedDbStoreNames.trainingRecords,
-    BackupSections.confirmations => IndexedDbStoreNames.dailyLogConfirmations,
-    BackupSections.dailyAggregateRecords =>
-      IndexedDbStoreNames.dailyAggregateRecords,
-    BackupSections.morningBriefRecords =>
-      IndexedDbStoreNames.morningBriefRecords,
-    BackupSections.dailyDebriefRecords =>
-      IndexedDbStoreNames.dailyDebriefRecords,
-    _ => null,
-  };
+class BackupRecordValidationException
+    extends BackupValidationDiagnosticsException {
+  const BackupRecordValidationException(super.diagnostics);
 }
 
 class _RecordSpecification {

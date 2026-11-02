@@ -127,12 +127,15 @@ abstract final class BackupStoreRegistry {
       final record = _deepCopyMap(source);
       try {
         validateRecord(section, record);
-      } catch (_) {
+      } catch (error) {
         throw BackupRecordValidationException(
           BackupSchemaDiagnostics.forRecord(
             section: section,
+            store: stores[section],
             record: record,
             validationStage: 'record_schema_validation',
+            validationSubstage: 'record_parser',
+            failureCategory: _failureCategory(error),
           ),
         );
       }
@@ -277,6 +280,13 @@ abstract final class BackupStoreRegistry {
   static Map<String, Object?> _deepCopyMap(Map source) => {
     for (final entry in source.entries)
       entry.key.toString(): _deepCopyValue(entry.value),
+  };
+
+  static String _failureCategory(Object error) => switch (error) {
+    FormatException _ => 'format_exception',
+    TypeError _ => 'type_error',
+    BackupException _ => 'backup_contract',
+    _ => 'validator_exception',
   };
 
   /// Applies the current local notification contract only at restore time.
