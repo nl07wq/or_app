@@ -183,7 +183,7 @@ void main() {
     );
     expect(
       baseCampWalkerRoutes.last.normalizedPoints.last.dy,
-      closeTo(.840, .001),
+      closeTo(.839, .001),
     );
     for (final route in baseCampWalkerRoutes) {
       expect(

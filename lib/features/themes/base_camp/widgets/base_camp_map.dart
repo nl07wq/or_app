@@ -10,11 +10,20 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart'
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
 /// always receive the same [InteractiveViewer] transform.
-const baseCampMapAsset = 'assets/images/themes/base_camp/base_camp_map.png';
+const baseCampMapAsset = 'assets/images/themes/base_camp/base_camp_map_v2.jpg';
 const baseCampWalkerUpLeftAsset =
     'assets/images/themes/base_camp/base_camp_walker_up_left.gif';
 const baseCampWalkerDownRightAsset =
     'assets/images/themes/base_camp/base_camp_walker_down_right.gif';
+
+const baseCampObjectAssets = <String, String>{
+  'status': 'assets/images/themes/base_camp/objects/status.gif',
+  'food': 'assets/images/themes/base_camp/objects/food.png',
+  'training': 'assets/images/themes/base_camp/objects/training.gif',
+  'activity': 'assets/images/themes/base_camp/objects/activity.gif',
+  'command-center': 'assets/images/themes/base_camp/objects/command_center.png',
+  'flag': 'assets/images/themes/base_camp/objects/flag.gif',
+};
 
 /// Fully composited RGBA frames extracted directly from the approved GIFs.
 /// They avoid Flutter Web's inconsistent GIF disposal/transparent-palette
@@ -49,7 +58,7 @@ List<String> baseCampWalkerFrameAssets(String gifAsset) => switch (gifAsset) {
 /// The source dimensions of both the approved map and the white-line route
 /// reference. Keeping route points in this coordinate system makes their
 /// alignment independent of the dashboard's displayed size and map zoom.
-const baseCampMapSourceSize = Size(1280, 719);
+const baseCampMapSourceSize = Size(1280, 720);
 
 /// Maps durable 1280×719 source coordinates to the actual painted image
 /// rectangle. Both the normal dashboard (cover) and editor (contain) use the
@@ -457,6 +466,12 @@ class _BaseCampMapState extends State<BaseCampMap>
                           image: AssetImage(baseCampMapAsset),
                           fit: BoxFit.cover,
                           filterQuality: FilterQuality.high,
+                        ),
+                        IgnorePointer(
+                          child: BaseCampObjectLayer(
+                            configuration: configuration,
+                            geometry: geometry,
+                          ),
                         ),
                         IgnorePointer(
                           child: RepaintBoundary(
@@ -916,6 +931,69 @@ class _BaseCampRouteSegment {
 
   Offset get delta => end - start;
   double get length => delta.distance;
+}
+
+/// Renders facility art in the same source space as the map. The object
+/// records contain only asset references; imported binary records remain out
+/// of exported JSON and can be resolved by the persistence layer.
+class BaseCampObjectLayer extends StatelessWidget {
+  const BaseCampObjectLayer({
+    super.key,
+    required this.configuration,
+    required this.geometry,
+  });
+
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+
+  @override
+  Widget build(BuildContext context) {
+    final objects =
+        configuration.objects.values.where((item) => item.visible).toList()
+          ..sort((a, b) => a.zIndex.compareTo(b.zIndex));
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (final object in objects)
+          _BaseCampMapObjectPositioned(object: object, geometry: geometry),
+      ],
+    );
+  }
+}
+
+class _BaseCampMapObjectPositioned extends StatelessWidget {
+  const _BaseCampMapObjectPositioned({
+    required this.object,
+    required this.geometry,
+  });
+  final BaseCampMapObject object;
+  final BaseCampMapGeometry geometry;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = baseCampObjectAssets[object.assetId];
+    if (asset == null) return const SizedBox.shrink();
+    final position = geometry.sourceToViewport(object.position);
+    const nominalWidth = 250.0;
+    const nominalHeight = 180.0;
+    final width = nominalWidth * geometry.scale * object.scale;
+    final height = nominalHeight * geometry.scale * object.scale;
+    return Positioned(
+      key: ValueKey('base-camp-object-${object.id}'),
+      left: position.dx - width * object.anchor.dx,
+      top: position.dy - height * object.anchor.dy,
+      width: width,
+      height: height,
+      child: Transform.rotate(
+        angle: object.rotation,
+        alignment: Alignment(
+          object.anchor.dx * 2 - 1,
+          object.anchor.dy * 2 - 1,
+        ),
+        child: Image.asset(asset, fit: BoxFit.contain, gaplessPlayback: true),
+      ),
+    );
+  }
 }
 
 class BaseCampWalkerPreviewLayer extends StatelessWidget {

@@ -13,14 +13,16 @@ class BaseCampMapConfiguration {
   const BaseCampMapConfiguration({
     required this.routes,
     required this.facilityOutlines,
+    required this.objects,
     this.soldierScale = 1,
   });
 
-  static const schemaVersion = 1;
-  static const mapId = 'base-camp-map-v1';
+  static const schemaVersion = 2;
+  static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
   final Map<String, List<Offset>> facilityOutlines;
+  final Map<String, BaseCampMapObject> objects;
   final double soldierScale;
 
   static const soldierScaleFull = 1.0;
@@ -43,15 +45,20 @@ class BaseCampMapConfiguration {
       for (final facility in baseCampFacilities)
         facility.id: List<Offset>.of(facility.outline()),
     },
+    objects: <String, BaseCampMapObject>{
+      for (final object in baseCampDefaultObjects) object.id: object,
+    },
   );
 
   BaseCampMapConfiguration copyWith({
     Map<String, List<Offset>>? routes,
     Map<String, List<Offset>>? facilityOutlines,
+    Map<String, BaseCampMapObject>? objects,
     double? soldierScale,
   }) => BaseCampMapConfiguration(
     routes: routes ?? this.routes,
     facilityOutlines: facilityOutlines ?? this.facilityOutlines,
+    objects: objects ?? this.objects,
     soldierScale: soldierScale ?? this.soldierScale,
   );
 
@@ -62,6 +69,7 @@ class BaseCampMapConfiguration {
     'imageHeight': baseCampMapSourceSize.height,
     'routes': _encodePointGroups(routes),
     'facilityOutlines': _encodePointGroups(facilityOutlines),
+    'objects': objects.map((id, object) => MapEntry(id, object.toJson())),
     'soldierScale': soldierScale,
   };
 
@@ -69,6 +77,9 @@ class BaseCampMapConfiguration {
 
   static BaseCampMapConfiguration? tryParse(Object? raw) {
     if (raw is! Map) return null;
+    if (raw['schemaVersion'] == 1 && raw['mapId'] == 'base-camp-map-v1') {
+      return _migrateV1(raw);
+    }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
     }
@@ -91,14 +102,58 @@ class BaseCampMapConfiguration {
       minimumPoints: 3,
     );
     final scale = _finite(raw['soldierScale']);
-    if (routes == null || outlines == null || scale == null || scale <= 0) {
+    final objects = BaseCampMapObject.decodeAll(raw['objects']);
+    if (routes == null ||
+        outlines == null ||
+        objects == null ||
+        scale == null ||
+        scale <= 0) {
       return null;
     }
     return BaseCampMapConfiguration(
       routes: routes,
       facilityOutlines: outlines,
+      objects: objects,
       // V1 exposed the accidental 2/1 control. Keep every valid route and
       // building edit, but migrate only that obsolete multiplier to 1/1.
+      soldierScale: _normaliseSoldierScale(scale),
+    );
+  }
+
+  static BaseCampMapConfiguration? _migrateV1(Map raw) {
+    final legacyRoutes = _decodePointGroups(
+      raw['routes'],
+      const <String>['route-a', 'route-b', 'route-c'],
+      normalized: false,
+      minimumPoints: 2,
+    );
+    final outlines = _decodePointGroups(
+      raw['facilityOutlines'],
+      baseCampFacilities.map((facility) => facility.id).toList(growable: false),
+      normalized: true,
+      minimumPoints: 3,
+    );
+    final scale = _finite(raw['soldierScale']);
+    if (legacyRoutes == null ||
+        outlines == null ||
+        scale == null ||
+        scale <= 0) {
+      return null;
+    }
+    // Preserve every editable source point rather than discarding calibration.
+    // The one-pixel source-height difference is converted through normalized Y.
+    final routes = legacyRoutes.map(
+      (id, points) => MapEntry(
+        id,
+        points.map((point) => Offset(point.dx, point.dy / 719 * 720)).toList(),
+      ),
+    );
+    return BaseCampMapConfiguration(
+      routes: routes,
+      facilityOutlines: outlines,
+      objects: <String, BaseCampMapObject>{
+        for (final object in baseCampDefaultObjects) object.id: object,
+      },
       soldierScale: _normaliseSoldierScale(scale),
     );
   }
@@ -158,6 +213,169 @@ class BaseCampMapConfiguration {
     return soldierScaleFull;
   }
 }
+
+@immutable
+class BaseCampMapObject {
+  const BaseCampMapObject({
+    required this.id,
+    required this.assetId,
+    required this.position,
+    this.scale = 1,
+    this.rotation = 0,
+    this.anchor = const Offset(.5, 1),
+    this.zIndex = 0,
+    this.visible = true,
+    this.animationRate = 1,
+  });
+
+  final String id, assetId;
+  final Offset position, anchor;
+  final double scale, rotation, animationRate;
+  final int zIndex;
+  final bool visible;
+
+  BaseCampMapObject copyWith({
+    String? assetId,
+    Offset? position,
+    double? scale,
+    double? rotation,
+    Offset? anchor,
+    int? zIndex,
+    bool? visible,
+    double? animationRate,
+  }) => BaseCampMapObject(
+    id: id,
+    assetId: assetId ?? this.assetId,
+    position: position ?? this.position,
+    scale: scale ?? this.scale,
+    rotation: rotation ?? this.rotation,
+    anchor: anchor ?? this.anchor,
+    zIndex: zIndex ?? this.zIndex,
+    visible: visible ?? this.visible,
+    animationRate: animationRate ?? this.animationRate,
+  );
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'id': id,
+    'assetId': assetId,
+    'x': position.dx,
+    'y': position.dy,
+    'scale': scale,
+    'rotation': rotation,
+    'anchorX': anchor.dx,
+    'anchorY': anchor.dy,
+    'zIndex': zIndex,
+    'visible': visible,
+    'animationRate': animationRate,
+  };
+
+  static Map<String, BaseCampMapObject>? decodeAll(Object? raw) {
+    if (raw is! Map || raw.length != baseCampDefaultObjects.length) return null;
+    final result = <String, BaseCampMapObject>{};
+    for (final fallback in baseCampDefaultObjects) {
+      final json = raw[fallback.id];
+      if (json is! Map ||
+          json['id'] != fallback.id ||
+          json['assetId'] is! String) {
+        return null;
+      }
+      double? finite(String key) =>
+          json[key] is num && (json[key] as num).isFinite
+          ? (json[key] as num).toDouble()
+          : null;
+      final x = finite('x');
+      final y = finite('y');
+      final scale = finite('scale');
+      final rotation = finite('rotation');
+      final ax = finite('anchorX');
+      final ay = finite('anchorY');
+      final rate = finite('animationRate');
+      final z = json['zIndex'];
+      final visible = json['visible'];
+      if (x == null ||
+          y == null ||
+          scale == null ||
+          rotation == null ||
+          ax == null ||
+          ay == null ||
+          rate == null ||
+          z is! int ||
+          visible is! bool ||
+          x < 0 ||
+          x > 1280 ||
+          y < 0 ||
+          y > 720 ||
+          scale < .1 ||
+          scale > 4 ||
+          ax < 0 ||
+          ax > 1 ||
+          ay < 0 ||
+          ay > 1 ||
+          rate <= 0 ||
+          rate > 2) {
+        return null;
+      }
+      result[fallback.id] = BaseCampMapObject(
+        id: fallback.id,
+        assetId: json['assetId'] as String,
+        position: Offset(x, y),
+        scale: scale,
+        rotation: rotation,
+        anchor: Offset(ax, ay),
+        zIndex: z,
+        visible: visible,
+        animationRate: rate,
+      );
+    }
+    return result;
+  }
+}
+
+const baseCampDefaultObjects = <BaseCampMapObject>[
+  BaseCampMapObject(
+    id: 'status',
+    assetId: 'status',
+    position: Offset(300, 300),
+    scale: .75,
+    zIndex: 1,
+    animationRate: .5,
+  ),
+  BaseCampMapObject(
+    id: 'food',
+    assetId: 'food',
+    position: Offset(625, 280),
+    scale: .35,
+    zIndex: 2,
+  ),
+  BaseCampMapObject(
+    id: 'training',
+    assetId: 'training',
+    position: Offset(1030, 305),
+    scale: .75,
+    zIndex: 3,
+  ),
+  BaseCampMapObject(
+    id: 'activity',
+    assetId: 'activity',
+    position: Offset(300, 560),
+    scale: .8,
+    zIndex: 4,
+  ),
+  BaseCampMapObject(
+    id: 'command-center',
+    assetId: 'command-center',
+    position: Offset(930, 585),
+    scale: .35,
+    zIndex: 5,
+  ),
+  BaseCampMapObject(
+    id: 'flag',
+    assetId: 'flag',
+    position: Offset(1170, 600),
+    scale: .22,
+    zIndex: 6,
+  ),
+];
 
 class BaseCampMapConfigurationController
     extends ValueNotifier<BaseCampMapConfiguration> {

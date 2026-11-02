@@ -7,7 +7,7 @@ import 'base_camp_map_configuration.dart';
 import 'base_camp_map_export.dart';
 import 'widgets/base_camp_map.dart';
 
-enum _BaseCampEditorSection { routes, buildings, soldierSize }
+enum _BaseCampEditorSection { routes, buildings, objects, soldierSize }
 
 /// Developer-only calibration surface opened by a long press on the existing
 /// map framing reset button. It edits a working copy until SAVE is chosen.
@@ -26,6 +26,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   _BaseCampEditorSection _section = _BaseCampEditorSection.routes;
   String _routeId = 'route-a';
   String _facilityId = 'status';
+  String _objectId = 'status';
   int _pointIndex = 0;
   bool _loading = true;
 
@@ -52,6 +53,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         facilityOutlines: source.facilityOutlines.map(
           (id, points) => MapEntry(id, List<Offset>.of(points)),
         ),
+        objects: Map<String, BaseCampMapObject>.of(source.objects),
         soldierScale: source.soldierScale,
       );
 
@@ -360,6 +362,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       label: Text('BUILDING EDITOR'),
                     ),
                     ButtonSegment(
+                      value: _BaseCampEditorSection.objects,
+                      label: Text('OBJECT EDITOR'),
+                    ),
+                    ButtonSegment(
                       value: _BaseCampEditorSection.soldierSize,
                       label: Text('SOLDIER SIZE'),
                     ),
@@ -378,11 +384,16 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   section: _section,
                   selectedRouteId: _routeId,
                   selectedFacilityId: _facilityId,
+                  selectedObjectId: _objectId,
                   selectedPoint: _pointIndex,
                   onPointSelected: _selectPoint,
                   onDragStarted: _beginDrag,
                   onPointDragged: (point) =>
                       _updatePoint(point, recordUndo: false),
+                  onObjectDragged: (point) {
+                    final object = _working.objects[_objectId]!;
+                    _replaceObject(object.copyWith(position: point));
+                  },
                 ),
               ),
               _editorControls(),
@@ -394,6 +405,82 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   }
 
   Widget _editorControls() {
+    if (_section == _BaseCampEditorSection.objects) {
+      final object = _working.objects[_objectId]!;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _objectId,
+              items: _working.objects.keys
+                  .map(
+                    (id) => DropdownMenuItem(
+                      value: id,
+                      child: Text(id.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _objectId = value!),
+            ),
+            Row(
+              children: [
+                const Text('SCALE'),
+                Expanded(
+                  child: Slider(
+                    value: object.scale,
+                    min: .1,
+                    max: 2,
+                    onChanged: (value) =>
+                        _replaceObject(object.copyWith(scale: value)),
+                  ),
+                ),
+                Text(object.scale.toStringAsFixed(2)),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('ROTATION'),
+                Expanded(
+                  child: Slider(
+                    value: object.rotation.clamp(-3.14159, 3.14159),
+                    min: -3.14159,
+                    max: 3.14159,
+                    onChanged: (value) =>
+                        _replaceObject(object.copyWith(rotation: value)),
+                  ),
+                ),
+                IconButton(
+                  tooltip: object.visible ? 'HIDE' : 'SHOW',
+                  onPressed: () =>
+                      _replaceObject(object.copyWith(visible: !object.visible)),
+                  icon: Icon(
+                    object.visible ? Icons.visibility : Icons.visibility_off,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'MOVE LAYER UP',
+                  onPressed: () => _replaceObject(
+                    object.copyWith(zIndex: object.zIndex + 1),
+                  ),
+                  icon: const Icon(Icons.layers),
+                ),
+              ],
+            ),
+            const Text(
+              'Drag the selected object on the map. Bundled assets are preserved; imported files are stored separately from JSON.',
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('base-camp-editor-reset'),
+              onPressed: _resetToDefaults,
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('RESET TO DEFAULT'),
+            ),
+          ],
+        ),
+      );
+    }
     if (_section == _BaseCampEditorSection.soldierSize) {
       return Padding(
         padding: const EdgeInsets.all(16),
@@ -564,6 +651,17 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
   }
+
+  void _replaceObject(BaseCampMapObject object) {
+    _mutate(
+      _working.copyWith(
+        objects: <String, BaseCampMapObject>{
+          ..._working.objects,
+          object.id: object,
+        },
+      ),
+    );
+  }
 }
 
 enum _ExitChoice { save, discard, cancel }
@@ -575,18 +673,21 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.section,
     required this.selectedRouteId,
     required this.selectedFacilityId,
+    required this.selectedObjectId,
     required this.selectedPoint,
     required this.onPointSelected,
     required this.onDragStarted,
     required this.onPointDragged,
+    required this.onObjectDragged,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
-  final String selectedRouteId, selectedFacilityId;
+  final String selectedRouteId, selectedFacilityId, selectedObjectId;
   final int selectedPoint;
   final ValueChanged<int> onPointSelected;
   final ValueChanged<int> onDragStarted;
   final ValueChanged<Offset> onPointDragged;
+  final ValueChanged<Offset> onObjectDragged;
 
   @override
   State<_BaseCampEditorCanvas> createState() => _BaseCampEditorCanvasState();
@@ -658,10 +759,20 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
               section: widget.section,
               selectedRouteId: widget.selectedRouteId,
               selectedFacilityId: widget.selectedFacilityId,
+              selectedObjectId: widget.selectedObjectId,
               selectedPoint: widget.selectedPoint,
               onPointSelected: widget.onPointSelected,
               onDragStarted: widget.onDragStarted,
               onPointGlobalDragged: _dragPointAtGlobalPosition,
+              onObjectGlobalDragged: (globalPosition) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onObjectDragged(
+                    renderBox.globalToLocal(globalPosition),
+                  );
+                }
+              },
             ),
           ),
         ),
@@ -677,24 +788,29 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.section,
     required this.selectedRouteId,
     required this.selectedFacilityId,
+    required this.selectedObjectId,
     required this.selectedPoint,
     required this.onPointSelected,
     required this.onDragStarted,
     required this.onPointGlobalDragged,
+    required this.onObjectGlobalDragged,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
-  final String selectedRouteId, selectedFacilityId;
+  final String selectedRouteId, selectedFacilityId, selectedObjectId;
   final int selectedPoint;
   final ValueChanged<int> onPointSelected;
   final ValueChanged<int> onDragStarted;
   final ValueChanged<Offset> onPointGlobalDragged;
+  final ValueChanged<Offset> onObjectGlobalDragged;
 
   @override
   Widget build(BuildContext context) {
     final points = section == _BaseCampEditorSection.buildings
         ? configuration.facilityOutlines[selectedFacilityId]!
-        : configuration.routes[selectedRouteId]!;
+        : section == _BaseCampEditorSection.routes
+        ? configuration.routes[selectedRouteId]!
+        : const <Offset>[];
     Offset sourcePoint(Offset point) =>
         section == _BaseCampEditorSection.buildings
         ? Offset(
@@ -706,6 +822,12 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         const Image(image: AssetImage(baseCampMapAsset), fit: BoxFit.fill),
+        IgnorePointer(
+          child: BaseCampObjectLayer(
+            configuration: configuration,
+            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+          ),
+        ),
         IgnorePointer(
           child: BaseCampWalkerPreviewLayer(
             elapsed: const Duration(seconds: 2),
@@ -723,7 +845,8 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 : selectedRouteId,
           ),
         ),
-        if (section != _BaseCampEditorSection.soldierSize)
+        if (section == _BaseCampEditorSection.routes ||
+            section == _BaseCampEditorSection.buildings)
           for (var i = 0; i < points.length; i++)
             Positioned(
               left: sourcePoint(points[i]).dx - 24,
@@ -747,6 +870,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 ),
               ),
             ),
+        if (section == _BaseCampEditorSection.objects)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanUpdate: (details) =>
+                  onObjectGlobalDragged(details.globalPosition),
+              child: const SizedBox.expand(),
+            ),
+          ),
       ],
     );
   }
@@ -763,7 +895,10 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
   final String selectedId;
   @override
   void paint(Canvas canvas, Size size) {
-    if (section == _BaseCampEditorSection.soldierSize) return;
+    if (section == _BaseCampEditorSection.soldierSize ||
+        section == _BaseCampEditorSection.objects) {
+      return;
+    }
     final normalized = section == _BaseCampEditorSection.buildings;
     final points = normalized
         ? configuration.facilityOutlines[selectedId]!
