@@ -17,7 +17,7 @@ class BaseCampMapConfiguration {
     this.soldierScale = 1,
   });
 
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
   static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
@@ -79,6 +79,9 @@ class BaseCampMapConfiguration {
     if (raw is! Map) return null;
     if (raw['schemaVersion'] == 1 && raw['mapId'] == 'base-camp-map-v1') {
       return _migrateV1(raw);
+    }
+    if (raw['schemaVersion'] == 2 && raw['mapId'] == mapId) {
+      return _migrateV2(raw);
     }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
@@ -156,6 +159,44 @@ class BaseCampMapConfiguration {
       },
       soldierScale: _normaliseSoldierScale(scale),
     );
+  }
+
+  /// Corrects the historical FOOD/COMMAND CENTER identity registration once.
+  /// The object transforms and image asset IDs remain exactly where users put
+  /// them; only the facility identity bound to those placements is exchanged.
+  static BaseCampMapConfiguration? _migrateV2(Map raw) {
+    final v3 = Map<String, Object?>.from(raw)..['schemaVersion'] = 3;
+    final objects = raw['objects'];
+    final outlines = raw['facilityOutlines'];
+    if (objects is! Map || outlines is! Map) return null;
+    final correctedObjects = Map<Object?, Object?>.from(objects);
+    final food = correctedObjects['food'];
+    final commandCenter = correctedObjects['command-center'];
+    if (food is! Map || commandCenter is! Map) return null;
+    correctedObjects['food'] = <Object?, Object?>{
+      ...Map<Object?, Object?>.from(commandCenter),
+      'id': 'food',
+    };
+    correctedObjects['command-center'] = <Object?, Object?>{
+      ...Map<Object?, Object?>.from(food),
+      'id': 'command-center',
+    };
+    final status = correctedObjects['status'];
+    if (status is! Map) return null;
+    // The approved transparent STATUS animation supersedes only the bundled
+    // STATUS reference.  Its calibrated transform remains untouched, and no
+    // other imported asset reference is changed.
+    correctedObjects['status'] = <Object?, Object?>{
+      ...Map<Object?, Object?>.from(status),
+      'id': 'status',
+      'assetId': 'status',
+    };
+    final correctedOutlines = Map<Object?, Object?>.from(outlines);
+    correctedOutlines['food'] = outlines['command-center'];
+    correctedOutlines['command-center'] = outlines['food'];
+    v3['objects'] = correctedObjects;
+    v3['facilityOutlines'] = correctedOutlines;
+    return tryParse(v3);
   }
 
   static Map<String, Object?> _encodePointGroups(
@@ -335,44 +376,48 @@ const baseCampDefaultObjects = <BaseCampMapObject>[
   BaseCampMapObject(
     id: 'status',
     assetId: 'status',
-    position: Offset(300, 300),
-    scale: .75,
+    position: Offset(293.9966913479477, 397.1475629664179),
+    scale: 1.3947747332466733,
+    rotation: -0.016356174941200674,
     zIndex: 1,
     animationRate: .5,
   ),
   BaseCampMapObject(
     id: 'food',
-    assetId: 'food',
-    position: Offset(625, 280),
-    scale: .35,
+    // Preserve the image reference that was already placed in this slot.
+    assetId: 'command-center',
+    position: Offset(673.9635319496268, 280.3980099502487),
+    scale: 1.5335217986344545,
     zIndex: 2,
   ),
   BaseCampMapObject(
     id: 'training',
     assetId: 'training',
-    position: Offset(1030, 305),
-    scale: .75,
+    position: Offset(1094.2619908271142, 450.21562111318417),
+    scale: 1.8612519490597221,
     zIndex: 3,
   ),
   BaseCampMapObject(
     id: 'activity',
     assetId: 'activity',
-    position: Offset(300, 560),
-    scale: .8,
+    position: Offset(395.8872386116293, 631.7081584266168),
+    scale: 1.5574437857572583,
     zIndex: 4,
   ),
   BaseCampMapObject(
     id: 'command-center',
-    assetId: 'command-center',
-    position: Offset(930, 585),
-    scale: .35,
+    // Preserve the image reference that was already placed in this slot.
+    assetId: 'food',
+    position: Offset(938.2420903296019, 640.1990049751244),
+    scale: 1.7464267612889284,
+    rotation: 0.049093242219480526,
     zIndex: 5,
   ),
   BaseCampMapObject(
     id: 'flag',
     assetId: 'flag',
-    position: Offset(1170, 600),
-    scale: .22,
+    position: Offset(1195.0912430037313, 563.7810945273632),
+    scale: .8397862526839035,
     zIndex: 6,
   ),
 ];

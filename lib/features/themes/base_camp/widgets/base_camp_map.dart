@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_store.dart';
@@ -18,7 +20,8 @@ const baseCampWalkerDownRightAsset =
     'assets/images/themes/base_camp/base_camp_walker_down_right.gif';
 
 const baseCampObjectAssets = <String, String>{
-  'status': 'assets/images/themes/base_camp/objects/status.gif',
+  'status':
+      'assets/images/themes/base_camp/objects/status_parabola_transparent_fixed.gif',
   'food': 'assets/images/themes/base_camp/objects/food.png',
   'training': 'assets/images/themes/base_camp/objects/training.gif',
   'activity': 'assets/images/themes/base_camp/objects/activity.gif',
@@ -385,10 +388,7 @@ class BaseCampMap extends StatefulWidget {
 
 class _BaseCampMapState extends State<BaseCampMap>
     with TickerProviderStateMixin {
-  static const _interactionReleaseDelay = Duration(milliseconds: 140);
   final TransformationController _transform = TransformationController();
-  Timer? _interactionRelease;
-  bool _isTransforming = false;
   bool _isNavigating = false;
   BaseCampFacility? _selectedFacility;
   BaseCampFacility? _glowingFacility;
@@ -429,7 +429,6 @@ class _BaseCampMapState extends State<BaseCampMap>
 
   @override
   void dispose() {
-    _interactionRelease?.cancel();
     _selectionPulse.dispose();
     _selectionVisibility.dispose();
     _walkerTimeline.dispose();
@@ -438,35 +437,17 @@ class _BaseCampMapState extends State<BaseCampMap>
     super.dispose();
   }
 
-  void _beginInteraction(ScaleStartDetails _) {
-    _interactionRelease?.cancel();
-    _isTransforming = true;
-  }
-
-  void _endInteraction(ScaleEndDetails _) {
-    _interactionRelease?.cancel();
-    _interactionRelease = Timer(_interactionReleaseDelay, () {
-      if (mounted) setState(() => _isTransforming = false);
-    });
-  }
-
   void _reset() {
-    _interactionRelease?.cancel();
-    setState(() {
-      _isTransforming = false;
-      _transform.value = Matrix4.identity();
-    });
+    setState(() => _transform.value = Matrix4.identity());
   }
 
   Future<void> _openEditor() async {
-    _interactionRelease?.cancel();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(builder: (_) => const BaseCampMapEditorPage()),
     );
   }
 
   void _openFacility(BaseCampFacility facility) {
-    if (_isTransforming) return;
     setState(() {
       _selectedFacility = facility;
       _glowingFacility = facility;
@@ -518,8 +499,6 @@ class _BaseCampMapState extends State<BaseCampMap>
                 constrained: true,
                 panEnabled: true,
                 scaleEnabled: true,
-                onInteractionStart: _beginInteraction,
-                onInteractionEnd: _endInteraction,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final size = constraints.biggest;
@@ -533,9 +512,31 @@ class _BaseCampMapState extends State<BaseCampMap>
                           filterQuality: FilterQuality.high,
                         ),
                         IgnorePointer(
-                          child: BaseCampObjectLayer(
-                            configuration: configuration,
-                            geometry: geometry,
+                          child: AnimatedBuilder(
+                            animation: Listenable.merge(<Listenable>[
+                              _selectionPulse,
+                              _selectionVisibility,
+                            ]),
+                            builder: (context, _) {
+                              final pulse = reducedMotion
+                                  ? 1.0
+                                  : .84 +
+                                        .16 *
+                                            ((1 +
+                                                    math.sin(
+                                                      _selectionPulse.value *
+                                                          math.pi *
+                                                          2,
+                                                    )) /
+                                                2);
+                              return BaseCampObjectLayer(
+                                configuration: configuration,
+                                geometry: geometry,
+                                highlightedObjectId: glowingFacility?.id,
+                                highlightOpacity:
+                                    _selectionVisibility.value * pulse,
+                              );
+                            },
                           ),
                         ),
                         IgnorePointer(
@@ -561,49 +562,37 @@ class _BaseCampMapState extends State<BaseCampMap>
                             ),
                           ),
                         ),
-                        if (glowingFacility != null)
-                          IgnorePointer(
-                            child: RepaintBoundary(
-                              child: AnimatedBuilder(
-                                animation: Listenable.merge(<Listenable>[
-                                  _selectionPulse,
-                                  _selectionVisibility,
-                                ]),
-                                builder: (context, _) => CustomPaint(
-                                  key: const ValueKey(
-                                    'base-camp-selection-frame',
-                                  ),
-                                  painter: _FacilitySelectionFramePainter(
-                                    facility: glowingFacility,
-                                    outline:
-                                        baseCampFacilityOutlineForConfiguration(
-                                          glowingFacility,
-                                          configuration,
-                                        ),
-                                    geometry: geometry,
-                                    pulse: reducedMotion
-                                        ? 0
-                                        : _selectionPulse.value,
-                                    opacity: reducedMotion
-                                        ? 1
-                                        : _selectionVisibility.value,
-                                  ),
-                                  child: const SizedBox.expand(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        for (final facility in baseCampFacilities)
-                          _BaseCampFacilityTarget(
-                            facility: facility,
-                            outline: baseCampFacilityOutlineForConfiguration(
-                              facility,
-                              configuration,
-                            ),
-                            geometry: geometry,
-                            onPressed: () => _openFacility(facility),
-                          ),
                       ],
+                    );
+                  },
+                ),
+              ),
+              // InteractiveViewer owns pan/pinch gestures.  Place alpha hit
+              // surfaces above it and mirror its matrix so facility taps stay
+              // aligned without competing with its full-screen recognizer.
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final geometry = BaseCampMapGeometry.cover(
+                      constraints.biggest,
+                    );
+                    return Transform(
+                      alignment: Alignment.topLeft,
+                      transform: _transform.value,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          for (final facility in baseCampFacilities)
+                            if (configuration.objects[facility.id]
+                                case final object?)
+                              _BaseCampAlphaFacilityTarget(
+                                facility: facility,
+                                object: object,
+                                geometry: geometry,
+                                onPressed: () => _openFacility(facility),
+                              ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -631,71 +620,6 @@ class _BaseCampMapState extends State<BaseCampMap>
                   enabled: !_isNavigating,
                 ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BaseCampFacilityTarget extends StatelessWidget {
-  const _BaseCampFacilityTarget({
-    required this.facility,
-    required this.outline,
-    required this.geometry,
-    required this.onPressed,
-  });
-
-  final BaseCampFacility facility;
-  final List<Offset> outline;
-  final BaseCampMapGeometry geometry;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final sourcePoints = outline
-        .map(
-          (point) => Offset(
-            point.dx * baseCampMapSourceSize.width,
-            point.dy * baseCampMapSourceSize.height,
-          ),
-        )
-        .toList(growable: false);
-    final left = sourcePoints.map((point) => point.dx).reduce(math.min);
-    final right = sourcePoints.map((point) => point.dx).reduce(math.max);
-    final top = sourcePoints.map((point) => point.dy).reduce(math.min);
-    final bottom = sourcePoints.map((point) => point.dy).reduce(math.max);
-    final topLeft = geometry.sourceToViewport(Offset(left, top));
-    final bottomRight = geometry.sourceToViewport(Offset(right, bottom));
-    return Positioned(
-      key: ValueKey('base-camp-facility-${facility.id}'),
-      left: topLeft.dx,
-      top: topLeft.dy,
-      width: bottomRight.dx - topLeft.dx,
-      height: bottomRight.dy - topLeft.dy,
-      child: Semantics(
-        button: true,
-        label: '${facility.label} facility',
-        child: ActionableFeedbackRegion(
-          role: ActionableFeedbackRole.command,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTapUp: (details) {
-              final sourcePosition = geometry.viewportToSource(
-                topLeft + details.localPosition,
-              );
-              final normalizedPosition = Offset(
-                sourcePosition.dx / baseCampMapSourceSize.width,
-                sourcePosition.dy / baseCampMapSourceSize.height,
-              );
-              if (baseCampFacilityOutlineContains(
-                outline,
-                normalizedPosition,
-              )) {
-                onPressed();
-              }
-            },
-            child: const SizedBox.expand(),
           ),
         ),
       ),
@@ -826,74 +750,6 @@ class _ConfirmationButton extends StatelessWidget {
       child: Text(label),
     ).actionableFeedback(role: ActionableFeedbackRole.cursor),
   );
-}
-
-class _FacilitySelectionFramePainter extends CustomPainter {
-  const _FacilitySelectionFramePainter({
-    required this.facility,
-    required this.outline,
-    required this.geometry,
-    required this.pulse,
-    required this.opacity,
-  });
-
-  final BaseCampFacility facility;
-  final List<Offset> outline;
-  final BaseCampMapGeometry geometry;
-  final double pulse;
-  final double opacity;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final points = outline
-        .map((point) => geometry.normalizedToViewport(point))
-        .toList(growable: false);
-    final path = Path()..addPolygon(points, true);
-    // The reference calls for a hand-drawn perimeter around the facility, not
-    // a generic cyan HUD rectangle. A restrained cyan alpha pulse keeps the
-    // selection legible while preserving the facility's transformed contour.
-    final intensity = .78 + .22 * ((1 + math.sin(pulse * math.pi * 2)) / 2);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(
-          0xFF68E8F2,
-        ).withValues(alpha: .16 * intensity * opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(
-          0xFF68E8F2,
-        ).withValues(alpha: (.76 + .20 * intensity) * opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-    // A thin displaced pass gives the outline its slightly organic, traced
-    // character while remaining tied to the same transformed facility path.
-    canvas.drawPath(
-      path.shift(const Offset(.55, -.35)),
-      Paint()
-        ..color = const Color(
-          0xFFB9F7FF,
-        ).withValues(alpha: .22 * intensity * opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .65,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_FacilitySelectionFramePainter oldDelegate) =>
-      oldDelegate.facility != facility ||
-      oldDelegate.outline != outline ||
-      oldDelegate.geometry != geometry ||
-      oldDelegate.pulse != pulse ||
-      oldDelegate.opacity != opacity;
 }
 
 @immutable
@@ -1036,10 +892,14 @@ class BaseCampObjectLayer extends StatelessWidget {
     super.key,
     required this.configuration,
     required this.geometry,
+    this.highlightedObjectId,
+    this.highlightOpacity = 0,
   });
 
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
+  final String? highlightedObjectId;
+  final double highlightOpacity;
 
   @override
   Widget build(BuildContext context) {
@@ -1050,7 +910,13 @@ class BaseCampObjectLayer extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         for (final object in objects)
-          _BaseCampMapObjectPositioned(object: object, geometry: geometry),
+          _BaseCampMapObjectPositioned(
+            object: object,
+            geometry: geometry,
+            highlightOpacity: object.id == highlightedObjectId
+                ? highlightOpacity
+                : 0,
+          ),
       ],
     );
   }
@@ -1060,9 +926,11 @@ class _BaseCampMapObjectPositioned extends StatelessWidget {
   const _BaseCampMapObjectPositioned({
     required this.object,
     required this.geometry,
+    this.highlightOpacity = 0,
   });
   final BaseCampMapObject object;
   final BaseCampMapGeometry geometry;
+  final double highlightOpacity;
 
   @override
   Widget build(BuildContext context) {
@@ -1087,6 +955,118 @@ class _BaseCampMapObjectPositioned extends StatelessWidget {
         child: BaseCampMapObjectImage(
           assetId: object.assetId,
           bundledAsset: asset,
+          highlightOpacity: highlightOpacity,
+        ),
+      ),
+    );
+  }
+}
+
+/// A transparent, alpha-aware hit surface over the facility art.  It shares
+/// the exact source transform, anchor, scale and rotation used by the image,
+/// but never paints a rectangular affordance of its own.
+class _BaseCampAlphaFacilityTarget extends StatefulWidget {
+  const _BaseCampAlphaFacilityTarget({
+    required this.facility,
+    required this.object,
+    required this.geometry,
+    required this.onPressed,
+  });
+
+  final BaseCampFacility facility;
+  final BaseCampMapObject object;
+  final BaseCampMapGeometry geometry;
+  final VoidCallback onPressed;
+
+  @override
+  State<_BaseCampAlphaFacilityTarget> createState() =>
+      _BaseCampAlphaFacilityTargetState();
+}
+
+class _BaseCampAlphaFacilityTargetState
+    extends State<_BaseCampAlphaFacilityTarget> {
+  late final DateTime _animationStartedAt;
+  late Future<_BaseCampAlphaMaskSequence?> _mask;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationStartedAt = DateTime.now();
+    _mask = _loadMask();
+  }
+
+  @override
+  void didUpdateWidget(_BaseCampAlphaFacilityTarget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.object.assetId != widget.object.assetId) {
+      _mask = _loadMask();
+    }
+  }
+
+  Future<_BaseCampAlphaMaskSequence?> _loadMask() async {
+    try {
+      final bundled = baseCampObjectAssets[widget.object.assetId];
+      if (bundled != null) {
+        final data = await rootBundle.load(bundled);
+        return await _BaseCampAlphaMaskSequence.decode(
+          data.buffer.asUint8List(),
+        );
+      }
+      final stored = await BaseCampAssetStore().read(widget.object.assetId);
+      return stored == null
+          ? null
+          : await _BaseCampAlphaMaskSequence.decode(stored.bytes);
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final object = widget.object;
+    final position = widget.geometry.sourceToViewport(object.position);
+    const nominalWidth = 250.0;
+    const nominalHeight = 180.0;
+    final width = nominalWidth * widget.geometry.scale * object.scale;
+    final height = nominalHeight * widget.geometry.scale * object.scale;
+    return Positioned(
+      key: ValueKey('base-camp-facility-${widget.facility.id}'),
+      left: position.dx - width * object.anchor.dx,
+      top: position.dy - height * object.anchor.dy,
+      width: width,
+      height: height,
+      child: Transform.rotate(
+        angle: object.rotation,
+        alignment: Alignment(
+          object.anchor.dx * 2 - 1,
+          object.anchor.dy * 2 - 1,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) =>
+              FutureBuilder<_BaseCampAlphaMaskSequence?>(
+                future: _mask,
+                builder: (context, snapshot) {
+                  final mask = snapshot.data;
+                  if (mask == null) return const SizedBox.expand();
+                  return Semantics(
+                    button: true,
+                    label: '${widget.facility.label} facility',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTapUp: (details) {
+                        if (mask.contains(
+                          details.localPosition,
+                          constraints.biggest,
+                          DateTime.now().difference(_animationStartedAt),
+                        )) {
+                          widget.onPressed();
+                        }
+                      },
+                      child: const SizedBox.expand(),
+                    ),
+                  );
+                },
+              ),
         ),
       ),
     );
@@ -1101,10 +1081,12 @@ class BaseCampMapObjectImage extends StatefulWidget {
     super.key,
     required this.assetId,
     this.bundledAsset,
+    this.highlightOpacity = 0,
   });
 
   final String assetId;
   final String? bundledAsset;
+  final double highlightOpacity;
 
   @override
   State<BaseCampMapObjectImage> createState() => _BaseCampMapObjectImageState();
@@ -1136,23 +1118,20 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
   Widget build(BuildContext context) {
     final bundled = widget.bundledAsset;
     if (bundled != null) {
-      return Image.asset(
-        bundled,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        filterQuality: FilterQuality.high,
-      );
+      return _withSelectionGlow(() => _bundledImage(bundled));
     }
     return FutureBuilder<BaseCampStoredAsset?>(
       future: _asset,
       builder: (context, snapshot) {
         final asset = snapshot.data;
         if (asset != null) {
-          return Image.memory(
-            asset.bytes,
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            filterQuality: FilterQuality.high,
+          return _withSelectionGlow(
+            () => Image.memory(
+              asset.bytes,
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.high,
+            ),
           );
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1178,6 +1157,141 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
         );
       },
     );
+  }
+
+  Widget _bundledImage(String asset) => Image.asset(
+    asset,
+    fit: BoxFit.contain,
+    gaplessPlayback: true,
+    filterQuality: FilterQuality.high,
+  );
+
+  Widget _withSelectionGlow(Widget Function() createImage) {
+    final opacity = widget.highlightOpacity;
+    if (opacity <= 0) return createImage();
+    // Each layer uses the image alpha itself, not its rectangular layout box.
+    // Animated GIF frames are repainted by Image, so the glow follows their
+    // current transparent frame without a separate facility polygon.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              const Color(0xFF63E8FF).withValues(alpha: .70 * opacity),
+              BlendMode.srcIn,
+            ),
+            child: createImage(),
+          ),
+        ),
+        createImage(),
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            const Color(0xFF63E8FF).withValues(alpha: .22 * opacity),
+            BlendMode.srcATop,
+          ),
+          child: createImage(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Decodes every frame so an animated facility's hit mask follows its current
+/// visible alpha rather than its rectangular image bounds.
+@immutable
+class _BaseCampAlphaMaskSequence {
+  const _BaseCampAlphaMaskSequence(this.frames, this.durations);
+
+  final List<_BaseCampAlphaMask> frames;
+  final List<Duration> durations;
+
+  static Future<_BaseCampAlphaMaskSequence?> decode(Uint8List encoded) async {
+    final codec = await ui.instantiateImageCodec(encoded);
+    try {
+      final frames = <_BaseCampAlphaMask>[];
+      final durations = <Duration>[];
+      for (var index = 0; index < codec.frameCount; index++) {
+        final frame = await codec.getNextFrame();
+        try {
+          final mask = await _BaseCampAlphaMask.fromImage(frame.image);
+          if (mask == null) return null;
+          frames.add(mask);
+          durations.add(frame.duration);
+        } finally {
+          frame.image.dispose();
+        }
+      }
+      return frames.isEmpty
+          ? null
+          : _BaseCampAlphaMaskSequence(frames, durations);
+    } finally {
+      codec.dispose();
+    }
+  }
+
+  bool contains(Offset position, Size outputSize, Duration elapsed) {
+    final total = durations.fold<Duration>(
+      Duration.zero,
+      (sum, duration) => sum + duration,
+    );
+    if (total <= Duration.zero) {
+      return frames.first.contains(position, outputSize);
+    }
+    var remaining = elapsed.inMicroseconds % total.inMicroseconds;
+    for (var index = 0; index < frames.length; index++) {
+      final duration = durations[index].inMicroseconds;
+      if (remaining < duration || index == frames.length - 1) {
+        return frames[index].contains(position, outputSize);
+      }
+      remaining -= duration;
+    }
+    return false;
+  }
+}
+
+/// A decoded RGBA alpha frame for image-space hit testing.
+@immutable
+class _BaseCampAlphaMask {
+  const _BaseCampAlphaMask(this.width, this.height, this.alpha);
+
+  final int width;
+  final int height;
+  final Uint8List alpha;
+
+  static Future<_BaseCampAlphaMask?> fromImage(ui.Image image) async {
+    final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (rgba == null) return null;
+    final pixels = rgba.buffer.asUint8List();
+    final alpha = Uint8List(image.width * image.height);
+    for (var index = 0; index < alpha.length; index++) {
+      alpha[index] = pixels[index * 4 + 3];
+    }
+    return _BaseCampAlphaMask(image.width, image.height, alpha);
+  }
+
+  bool contains(Offset localPosition, Size outputSize) {
+    if (outputSize.isEmpty) return false;
+    final fitted = applyBoxFit(
+      BoxFit.contain,
+      Size(width.toDouble(), height.toDouble()),
+      outputSize,
+    );
+    final destination = Alignment.center.inscribe(
+      fitted.destination,
+      Offset.zero & outputSize,
+    );
+    if (!destination.contains(localPosition)) return false;
+    final x =
+        ((localPosition.dx - destination.left) / destination.width * width)
+            .floor()
+            .clamp(0, width - 1);
+    final y =
+        ((localPosition.dy - destination.top) / destination.height * height)
+            .floor()
+            .clamp(0, height - 1);
+    return alpha[y * width + x] > 12;
   }
 }
 

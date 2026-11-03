@@ -9,6 +9,10 @@ import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   test('presentation theme defaults and restores as STANDARD safely', () {
     expect(
       const DeviceSettings().presentationTheme,
@@ -44,17 +48,17 @@ void main() {
       );
 
       expect(baseCampFacilities, hasLength(5));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+      expect(find.bySemanticsLabel('STATUS facility'), findsOneWidget);
       for (var index = 0; index < baseCampFacilities.length; index++) {
         final facility = baseCampFacilities[index];
-        await tester.tap(
-          find.byKey(ValueKey('base-camp-facility-${facility.id}')),
-        );
-        await tester.pump();
+        await _tapOpaqueFacility(tester, facility.id);
         expect(selected, hasLength(index));
-        expect(
-          find.byKey(const ValueKey('base-camp-selection-frame')),
-          findsOneWidget,
-        );
+        expect(find.text('BASE CAMP / FACILITY SELECT'), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('base-camp-confirm-yes')));
         await tester.pump();
       }
@@ -82,6 +86,11 @@ void main() {
         ),
       ),
     );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
 
     await tester.drag(
       find.byKey(const ValueKey('base-camp-map')),
@@ -90,10 +99,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('base-camp-reset')));
     await tester.pump();
-    await tester.tap(
-      find.byKey(const ValueKey('base-camp-facility-command-center')),
-    );
-    await tester.pump();
+    await _tapOpaqueFacility(tester, 'command-center');
     expect(selected, isNull);
     await tester.tap(find.byKey(const ValueKey('base-camp-confirm-yes')));
     await tester.pump();
@@ -117,20 +123,20 @@ void main() {
         ),
       ),
     );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('base-camp-facility-status')));
-    await tester.pump();
+    await _tapOpaqueFacility(tester, 'status');
     expect(find.text('STATUS'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('base-camp-facility-food')));
-    await tester.pump();
+    await _tapOpaqueFacility(tester, 'food');
     expect(find.text('FOOD'), findsOneWidget);
     expect(selected, isEmpty);
     await tester.tap(find.byKey(const ValueKey('base-camp-confirm-no')));
     await tester.pump();
-    expect(
-      find.byKey(const ValueKey('base-camp-selection-frame')),
-      findsNothing,
-    );
+    expect(find.text('BASE CAMP / FACILITY SELECT'), findsNothing);
     expect(selected, isEmpty);
   });
 
@@ -156,6 +162,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 180));
 
     expect(selected, isNull);
+  });
+
+  testWidgets('transparent image pixels do not select a facility', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: BaseCampMap(onFacilityPressed: _ignoreFacility)),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+    final status = find.byKey(const ValueKey('base-camp-facility-status'));
+    final rect = tester.getRect(status);
+    await tester.tapAt(rect.topLeft + const Offset(2, 2));
+    await tester.pump();
+    expect(find.text('BASE CAMP / FACILITY SELECT'), findsNothing);
+    await _tapOpaqueFacility(tester, 'status');
+    expect(find.text('STATUS'), findsOneWidget);
   });
 
   test('two approved walkers use the white-line digitised B/C routes', () {
@@ -203,23 +231,66 @@ void main() {
     }
   });
 
-  test('facility contours exclude opaque-image rectangle corners', () {
-    final status = baseCampFacilities.firstWhere(
-      (facility) => facility.id == 'status',
-    );
-    final outline = baseCampFacilityOutlineForConfiguration(
-      status,
-      BaseCampMapConfiguration.defaults(),
-    );
-
-    expect(baseCampFacilityOutlineContains(outline, status.center), isTrue);
-    // This position lies inside the old facility bounding rectangle but
-    // outside STATUS' actual traced building footprint.
+  test('approved v2 object defaults retain the frozen placements', () {
+    final objects = BaseCampMapConfiguration.defaults().objects;
     expect(
-      baseCampFacilityOutlineContains(outline, const Offset(.09, .27)),
-      isFalse,
+      objects['status']!.position,
+      const Offset(293.9966913479477, 397.1475629664179),
+    );
+    expect(objects['status']!.animationRate, .5);
+    expect(
+      objects['food']!.position,
+      const Offset(673.9635319496268, 280.3980099502487),
+    );
+    expect(objects['food']!.assetId, 'command-center');
+    expect(
+      objects['command-center']!.position,
+      const Offset(938.2420903296019, 640.1990049751244),
+    );
+    expect(objects['command-center']!.assetId, 'food');
+    expect(
+      objects['flag']!.position,
+      const Offset(1195.0912430037313, 563.7810945273632),
     );
   });
+
+  test(
+    'v2 facility identity migration is idempotent and preserves art slots',
+    () {
+      final current = BaseCampMapConfiguration.defaults();
+      final oldObjects = <String, Object?>{
+        for (final entry in current.objects.entries)
+          entry.key: entry.value.toJson(),
+      };
+      // Reconstruct the pre-correction identity payload: food held the lower
+      // food art and command-center held the upper command-center art.
+      oldObjects['food'] = <String, Object?>{
+        ...current.objects['command-center']!.toJson(),
+        'id': 'food',
+      };
+      oldObjects['command-center'] = <String, Object?>{
+        ...current.objects['food']!.toJson(),
+        'id': 'command-center',
+      };
+      oldObjects['status'] = <String, Object?>{
+        ...current.objects['status']!.toJson(),
+        'assetId': 'legacy-status-import',
+      };
+      final v2 = <String, Object?>{
+        ...current.toJson(),
+        'schemaVersion': 2,
+        'objects': oldObjects,
+      };
+      final migrated = BaseCampMapConfiguration.tryParse(v2)!;
+      expect(migrated.objects['food']!.assetId, 'command-center');
+      expect(migrated.objects['command-center']!.assetId, 'food');
+      expect(migrated.objects['status']!.assetId, 'status');
+      expect(
+        BaseCampMapConfiguration.tryParse(migrated.toJson())!.toJson(),
+        migrated.toJson(),
+      );
+    },
+  );
 
   test(
     'map editor configuration validates the shared routes, outlines and scale',
@@ -403,6 +474,29 @@ void main() {
     },
   );
 
+  test('approved STATUS GIF is a transparent six-frame animation', () async {
+    final data = await rootBundle.load(baseCampObjectAssets['status']!);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    expect(codec.frameCount, 6);
+    for (var index = 0; index < codec.frameCount; index++) {
+      final frame = await codec.getNextFrame();
+      final rgba = await frame.image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      final pixels = rgba!.buffer.asUint8List();
+      expect(frame.image.width, 281);
+      expect(frame.image.height, 133);
+      expect(frame.duration, const Duration(milliseconds: 700));
+      final alphas = <int>[
+        for (var pixel = 3; pixel < pixels.length; pixel += 4) pixels[pixel],
+      ];
+      expect(alphas, contains(0));
+      expect(alphas, contains(255));
+      frame.image.dispose();
+    }
+    codec.dispose();
+  });
+
   testWidgets('two GIF walkers remain present with reduced motion', (
     tester,
   ) async {
@@ -449,3 +543,28 @@ void main() {
 }
 
 void _ignoreFacility(BaseCampFacility _) {}
+
+Future<void> _tapOpaqueFacility(WidgetTester tester, String facilityId) async {
+  final finder = find.byKey(ValueKey('base-camp-facility-$facilityId'));
+  final rect = tester.getRect(finder);
+  // Facility images intentionally have transparent margins.  Search a compact
+  // interior grid rather than treating the image's rectangular layout box as
+  // an interactive region.
+  for (var iy = 1; iy < 20; iy++) {
+    final y = iy / 20;
+    for (var ix = 1; ix < 20; ix++) {
+      final x = ix / 20;
+      await tester.tapAt(
+        Offset(rect.left + rect.width * x, rect.top + rect.height * y),
+      );
+      await tester.pump();
+      final label = baseCampFacilities
+          .firstWhere((facility) => facility.id == facilityId)
+          .label;
+      if (find.text(label).evaluate().isNotEmpty) {
+        return;
+      }
+    }
+  }
+  fail('No opaque pixel was selectable for $facilityId in $rect');
+}
