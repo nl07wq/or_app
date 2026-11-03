@@ -512,6 +512,25 @@ class _BaseCampMapState extends State<BaseCampMap>
                           filterQuality: FilterQuality.high,
                         ),
                         IgnorePointer(
+                          child: RepaintBoundary(
+                            child: AnimatedBuilder(
+                              animation: _walkerTimeline,
+                              builder: (context, _) => BaseCampFoodSmokeLayer(
+                                configuration: configuration,
+                                geometry: geometry,
+                                elapsed: reducedMotion
+                                    ? const Duration(seconds: 2)
+                                    : Duration(
+                                        microseconds:
+                                            (_walkerTimeline.value *
+                                                    Duration.microsecondsPerDay)
+                                                .round(),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        IgnorePointer(
                           child: AnimatedBuilder(
                             animation: Listenable.merge(<Listenable>[
                               _selectionPulse,
@@ -884,6 +903,137 @@ class _BaseCampRouteSegment {
   double get length => delta.distance;
 }
 
+const baseCampObjectNominalSize = Size(250, 180);
+
+/// Converts a normalized local object coordinate into the durable map-source
+/// coordinate system, applying its anchor, scale and rotation exactly once.
+Offset baseCampObjectLocalToSource(BaseCampMapObject object, Offset local) {
+  final relative = Offset(
+    (local.dx - object.anchor.dx) *
+        baseCampObjectNominalSize.width *
+        object.scale,
+    (local.dy - object.anchor.dy) *
+        baseCampObjectNominalSize.height *
+        object.scale,
+  );
+  final cosine = math.cos(object.rotation);
+  final sine = math.sin(object.rotation);
+  return object.position +
+      Offset(
+        relative.dx * cosine - relative.dy * sine,
+        relative.dx * sine + relative.dy * cosine,
+      );
+}
+
+/// Inverse of [baseCampObjectLocalToSource], used by the editor to keep the
+/// smoke point stored in FOOD-local coordinates while dragging in map space.
+Offset baseCampSourceToObjectLocal(BaseCampMapObject object, Offset source) {
+  final relative = source - object.position;
+  final cosine = math.cos(object.rotation);
+  final sine = math.sin(object.rotation);
+  final unrotated = Offset(
+    relative.dx * cosine + relative.dy * sine,
+    -relative.dx * sine + relative.dy * cosine,
+  );
+  return Offset(
+    unrotated.dx / (baseCampObjectNominalSize.width * object.scale) +
+        object.anchor.dx,
+    unrotated.dy / (baseCampObjectNominalSize.height * object.scale) +
+        object.anchor.dy,
+  );
+}
+
+/// A bounded, deterministic smoke layer. Particles live in map-source space,
+/// so map zoom/pan and FOOD object transforms never detach the chimney trail.
+class BaseCampFoodSmokeLayer extends StatelessWidget {
+  const BaseCampFoodSmokeLayer({
+    super.key,
+    required this.configuration,
+    required this.geometry,
+    required this.elapsed,
+  });
+
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+  final Duration elapsed;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    key: const ValueKey('base-camp-food-smoke'),
+    painter: _BaseCampFoodSmokePainter(
+      food: configuration.objects['food']!,
+      localOrigin: configuration.foodSmokeOrigin,
+      geometry: geometry,
+      elapsed: elapsed,
+    ),
+    child: const SizedBox.expand(),
+  );
+}
+
+class _BaseCampFoodSmokePainter extends CustomPainter {
+  const _BaseCampFoodSmokePainter({
+    required this.food,
+    required this.localOrigin,
+    required this.geometry,
+    required this.elapsed,
+  });
+
+  final BaseCampMapObject food;
+  final Offset localOrigin;
+  final BaseCampMapGeometry geometry;
+  final Duration elapsed;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final origin = baseCampObjectLocalToSource(food, localOrigin);
+    final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final newestGeneration = (seconds * 3).floor();
+    for (var ageIndex = 0; ageIndex < 13; ageIndex++) {
+      final generation = newestGeneration - ageIndex;
+      final bornAt = generation / 3;
+      final age = seconds - bornAt;
+      final life = 2.8 + (generation.abs() % 5) * .3;
+      if (age < 0 || age > life) continue;
+      final progress = age / life;
+      final seed = math.sin(generation * 12.9898) * 43758.5453;
+      final unit = seed - seed.floor();
+      final drift = (unit * 24 - 12) * Curves.easeOut.transform(progress);
+      final rise =
+          (45 + ((unit * 30).round())) * Curves.easeOut.transform(progress);
+      final sourcePosition = origin + Offset(drift, -rise);
+      final position = geometry.sourceToViewport(sourcePosition);
+      final radius =
+          (2 + (generation.abs() % 3)) * (1 + progress) * geometry.scale;
+      final alpha =
+          (.24 *
+                  (age / .35).clamp(0, 1) *
+                  (1 - Curves.easeIn.transform(progress)))
+              .clamp(0, .24)
+              .toDouble();
+      if (alpha <= 0) continue;
+      canvas.drawCircle(
+        position,
+        radius * 1.45,
+        Paint()
+          ..color = const Color(0xFFD7D9D6).withValues(alpha: alpha * .36)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * .9),
+      );
+      canvas.drawCircle(
+        position,
+        radius,
+        Paint()..color = const Color(0xFFD7D9D6).withValues(alpha: alpha),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BaseCampFoodSmokePainter oldDelegate) =>
+      oldDelegate.food != food ||
+      oldDelegate.localOrigin != localOrigin ||
+      oldDelegate.geometry != geometry ||
+      oldDelegate.elapsed != elapsed;
+}
+
 /// Renders facility art in the same source space as the map. The object
 /// records contain only asset references; imported binary records remain out
 /// of exported JSON and can be resolved by the persistence layer.
@@ -936,10 +1086,10 @@ class _BaseCampMapObjectPositioned extends StatelessWidget {
   Widget build(BuildContext context) {
     final asset = baseCampObjectAssets[object.assetId];
     final position = geometry.sourceToViewport(object.position);
-    const nominalWidth = 250.0;
-    const nominalHeight = 180.0;
-    final width = nominalWidth * geometry.scale * object.scale;
-    final height = nominalHeight * geometry.scale * object.scale;
+    final width =
+        baseCampObjectNominalSize.width * geometry.scale * object.scale;
+    final height =
+        baseCampObjectNominalSize.height * geometry.scale * object.scale;
     return Positioned(
       key: ValueKey('base-camp-object-${object.id}'),
       left: position.dx - width * object.anchor.dx,
@@ -1025,10 +1175,10 @@ class _BaseCampAlphaFacilityTargetState
   Widget build(BuildContext context) {
     final object = widget.object;
     final position = widget.geometry.sourceToViewport(object.position);
-    const nominalWidth = 250.0;
-    const nominalHeight = 180.0;
-    final width = nominalWidth * widget.geometry.scale * object.scale;
-    final height = nominalHeight * widget.geometry.scale * object.scale;
+    final width =
+        baseCampObjectNominalSize.width * widget.geometry.scale * object.scale;
+    final height =
+        baseCampObjectNominalSize.height * widget.geometry.scale * object.scale;
     return Positioned(
       key: ValueKey('base-camp-facility-${widget.facility.id}'),
       left: position.dx - width * object.anchor.dx,
@@ -1175,11 +1325,23 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        // The broad layer is deliberately painted first: it expands only the
+        // image alpha, never the object's rectangular layout bounds.
         ImageFiltered(
-          imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          imageFilter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: ColorFiltered(
             colorFilter: ColorFilter.mode(
-              const Color(0xFF63E8FF).withValues(alpha: .70 * opacity),
+              const Color(0xFF63E8FF).withValues(alpha: .42 * opacity),
+              BlendMode.srcIn,
+            ),
+            child: createImage(),
+          ),
+        ),
+        ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+          child: ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              const Color(0xFF63E8FF).withValues(alpha: .85 * opacity),
               BlendMode.srcIn,
             ),
             child: createImage(),
@@ -1188,7 +1350,7 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
         createImage(),
         ColorFiltered(
           colorFilter: ColorFilter.mode(
-            const Color(0xFF63E8FF).withValues(alpha: .22 * opacity),
+            const Color(0xFF63E8FF).withValues(alpha: .32 * opacity),
             BlendMode.srcATop,
           ),
           child: createImage(),

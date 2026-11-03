@@ -3285,11 +3285,12 @@ class _BriefDebriefProgress {
 
   bool get isComplete => briefRecorded && debriefRecorded;
 
-  String get displayState => isComplete
-      ? 'COMPLETE'
-      : briefRecorded
-      ? '1/2'
-      : 'NOT RECORDED';
+  int get recordedCount => (briefRecorded ? 1 : 0) + (debriefRecorded ? 1 : 0);
+
+  String get displayState => _OperationProgressRecordRatio(
+    recordedCount,
+    requiredCount: 2,
+  ).displayState;
 
   BriefDebriefTab get destinationTab => !briefRecorded
       ? BriefDebriefTab.dailyBrief
@@ -3326,8 +3327,10 @@ class _OperationProgressFoodRegistration {
 
   double get progress => displayedCount / requiredCount;
 
-  String get displayRatio =>
-      isComplete ? 'COMPLETE' : '$displayedCount / $requiredCount';
+  String get displayRatio => _OperationProgressRecordRatio(
+    displayedCount,
+    requiredCount: requiredCount,
+  ).displayState;
 
   DailyCommandCompletionItem get completion => DailyCommandCompletionItem(
     label: 'FOOD',
@@ -3338,6 +3341,27 @@ class _OperationProgressFoodRegistration {
         : DailyCommandModuleState.invalid,
     missingRequirements: isComplete ? const [] : const ['FOOD'],
   );
+}
+
+/// Shared count formatting keeps the visible FOOD and BRIEF / DEBRIEF
+/// contracts identical while their independent repositories and progress bars
+/// remain untouched.
+class _OperationProgressRecordRatio {
+  const _OperationProgressRecordRatio(
+    this.recordedCount, {
+    required this.requiredCount,
+  });
+
+  final int recordedCount;
+  final int requiredCount;
+
+  bool get isComplete => recordedCount >= requiredCount;
+
+  String get displayState {
+    if (isComplete) return 'COMPLETE';
+    if (recordedCount <= 0) return 'NOT RECORDED';
+    return '$recordedCount / $requiredCount';
+  }
 }
 
 class _OperationProgressWaterRegistration {

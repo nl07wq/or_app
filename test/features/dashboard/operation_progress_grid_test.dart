@@ -689,11 +689,7 @@ void main() {
             ValueKey('operation-progress-status-$label'),
           );
           final text = tester.widget<Text>(status);
-          expect(
-            text.data,
-            label == 'FOOD' ? '0 / 3' : 'NOT RECORDED',
-            reason: '$label at $width',
-          );
+          expect(text.data, 'NOT RECORDED', reason: '$label at $width');
           expect(text.maxLines, 1, reason: '$label at $width');
           expect(text.softWrap, isFalse, reason: '$label at $width');
           expect(text.style, isNotNull, reason: '$label at $width');
@@ -932,7 +928,7 @@ void main() {
     await _settleDashboard(tester);
 
     _expectTileText('STATUS', 'COMPLETE');
-    _expectTileText('FOOD', '3 / 3');
+    _expectTileText('FOOD', 'COMPLETE');
     _expectTileText('TRAINING', 'COMPLETE');
     for (final label in _labels) {
       expect(
@@ -1859,7 +1855,7 @@ void main() {
       }
 
       await applySummary(foodRecords: 0, waterRecorded: false, hydrationMl: 0);
-      _expectTileText('FOOD', '0 / 3');
+      _expectTileText('FOOD', 'NOT RECORDED');
       expect(_progress(tester, 'FOOD'), 0);
       expect(
         tester
@@ -1876,7 +1872,7 @@ void main() {
 
       // A WATER record fulfills WATER without creating a FOOD record.
       await applySummary(foodRecords: 0, waterRecorded: true, hydrationMl: 0);
-      _expectTileText('FOOD', '0 / 3');
+      _expectTileText('FOOD', 'NOT RECORDED');
       expect(_progress(tester, 'FOOD'), 0);
       expect(
         find.byKey(const ValueKey('operation-progress-completion-WATER')),
@@ -2890,7 +2886,7 @@ void main() {
     await _settleDashboard(tester);
 
     _expectTileText('STATUS', '未完了');
-    _expectTileText('FOOD', '0 / 3');
+    _expectTileText('FOOD', 'NOT RECORDED');
     _expectTileText('TRAINING', 'NOT RECORDED');
     _expectTileText('ACTIVITY', 'NOT RECORDED');
     expect(

@@ -304,6 +304,7 @@ void main() {
       );
       expect(restored.facilityOutlines.keys, hasLength(5));
       expect(restored.soldierScale, 1);
+      expect(restored.foodSmokeOrigin, const Offset(.29, .26));
       expect(
         BaseCampMapConfiguration.tryParse(<String, Object?>{
           ...defaults.toJson(),
@@ -314,15 +315,47 @@ void main() {
     },
   );
 
+  test('v3 map configuration adds the FOOD-local smoke origin losslessly', () {
+    final current = BaseCampMapConfiguration.defaults();
+    final v3 = <String, Object?>{...current.toJson(), 'schemaVersion': 3}
+      ..remove('foodSmokeOrigin');
+    final migrated = BaseCampMapConfiguration.tryParse(v3);
+    expect(migrated, isNotNull);
+    expect(migrated!.routes, current.routes);
+    expect(
+      migrated.objects.map((id, object) => MapEntry(id, object.toJson())),
+      current.objects.map((id, object) => MapEntry(id, object.toJson())),
+    );
+    expect(migrated.foodSmokeOrigin, const Offset(.29, .26));
+  });
+
+  test(
+    'FOOD-local smoke point follows the same object transform as its art',
+    () {
+      final food = BaseCampMapConfiguration.defaults().objects['food']!;
+      const local = Offset(.29, .26);
+      final source = baseCampObjectLocalToSource(food, local);
+      final restored = baseCampSourceToObjectLocal(food, source);
+      expect(restored.dx, closeTo(local.dx, .0001));
+      expect(restored.dy, closeTo(local.dy, .0001));
+    },
+  );
+
   test('map editor persists the common soldier multiplier', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final controller = BaseCampMapConfigurationController();
     await controller.load();
-    await controller.save(controller.value.copyWith(soldierScale: 2 / 3));
+    await controller.save(
+      controller.value.copyWith(
+        soldierScale: 2 / 3,
+        foodSmokeOrigin: const Offset(.31, .22),
+      ),
+    );
 
     final restored = BaseCampMapConfigurationController();
     await restored.load();
     expect(restored.value.soldierScale, closeTo(2 / 3, .0001));
+    expect(restored.value.foodSmokeOrigin, const Offset(.31, .22));
     expect(
       restored.value.routes['route-b'],
       controller.value.routes['route-b'],
@@ -385,6 +418,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('BASE CAMP MAP EDITOR'), findsOneWidget);
     expect(find.text('1/1'), findsNothing);
+    await tester.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(-520, 0),
+    );
+    await tester.pump();
     await tester.tap(find.text('SOLDIER SIZE'));
     await tester.pump();
     expect(find.text('1/1'), findsOneWidget);
@@ -396,6 +434,13 @@ void main() {
       find.byKey(const ValueKey('base-camp-editor-reset-view')),
       findsOneWidget,
     );
+    await tester.tap(find.text('SMOKE ORIGIN'));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('base-camp-editor-smoke-origin')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('FOOD chimney tip'), findsOneWidget);
   });
 
   test('walkers use continuous, periodic path sampling and endpoint stops', () {
@@ -511,6 +556,7 @@ void main() {
       ),
     );
     expect(find.byKey(const ValueKey('base-camp-walkers')), findsOneWidget);
+    expect(find.byKey(const ValueKey('base-camp-food-smoke')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('base-camp-walker-route-b')),
       findsOneWidget,

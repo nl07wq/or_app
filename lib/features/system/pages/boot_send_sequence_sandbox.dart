@@ -2139,13 +2139,15 @@ class _SendSequencePainter extends CustomPainter {
         : crystallize > 0
         ? .22 + crystallize * .2
         : .22;
-    _text(
-      canvas,
-      'VOXEL CHAMBER / 3x3x3',
-      const Offset(108, 75),
-      8,
-      const Color(0xffb0e6ff),
-    );
+    if (showSandboxChrome) {
+      _text(
+        canvas,
+        'VOXEL CHAMBER / 3x3x3',
+        const Offset(108, 75),
+        8,
+        const Color(0xffb0e6ff),
+      );
+    }
     final faces = <_RenderFace>[];
     for (var index = 0; index < centers.length; index++) {
       final travelStart = 1100 / 6000 + index * (45 / 6000);
@@ -2210,13 +2212,15 @@ class _SendSequencePainter extends CustomPainter {
       elapsedMs.round(),
       finale: pixelBuilderFinale,
     );
-    _center(
-      canvas,
-      'PIXEL BUILDER',
-      const Offset(180, 100),
-      10,
-      _ice.withValues(alpha: visible),
-    );
+    if (showSandboxChrome) {
+      _center(
+        canvas,
+        'PIXEL BUILDER',
+        const Offset(180, 100),
+        10,
+        _ice.withValues(alpha: visible),
+      );
+    }
     for (var index = 0; index < 10; index++) {
       final rect = sandboxPixelBuilderSegmentRect(index);
       final local = _pixelBuilderLocalMs(elapsedMs, index);

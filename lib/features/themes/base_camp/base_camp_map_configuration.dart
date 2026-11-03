@@ -15,15 +15,20 @@ class BaseCampMapConfiguration {
     required this.facilityOutlines,
     required this.objects,
     this.soldierScale = 1,
+    this.foodSmokeOrigin = const Offset(.29, .26),
   });
 
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
   static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
   final Map<String, List<Offset>> facilityOutlines;
   final Map<String, BaseCampMapObject> objects;
   final double soldierScale;
+
+  /// Normalized within the transformed FOOD object bounds. The initial value
+  /// follows the supplied acceptance reference and remains editor-adjustable.
+  final Offset foodSmokeOrigin;
 
   static const soldierScaleFull = 1.0;
   static const soldierScaleTwoThirds = 2 / 3;
@@ -55,11 +60,13 @@ class BaseCampMapConfiguration {
     Map<String, List<Offset>>? facilityOutlines,
     Map<String, BaseCampMapObject>? objects,
     double? soldierScale,
+    Offset? foodSmokeOrigin,
   }) => BaseCampMapConfiguration(
     routes: routes ?? this.routes,
     facilityOutlines: facilityOutlines ?? this.facilityOutlines,
     objects: objects ?? this.objects,
     soldierScale: soldierScale ?? this.soldierScale,
+    foodSmokeOrigin: foodSmokeOrigin ?? this.foodSmokeOrigin,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -71,6 +78,10 @@ class BaseCampMapConfiguration {
     'facilityOutlines': _encodePointGroups(facilityOutlines),
     'objects': objects.map((id, object) => MapEntry(id, object.toJson())),
     'soldierScale': soldierScale,
+    'foodSmokeOrigin': <String, double>{
+      'x': foodSmokeOrigin.dx,
+      'y': foodSmokeOrigin.dy,
+    },
   };
 
   String encode() => jsonEncode(toJson());
@@ -82,6 +93,9 @@ class BaseCampMapConfiguration {
     }
     if (raw['schemaVersion'] == 2 && raw['mapId'] == mapId) {
       return _migrateV2(raw);
+    }
+    if (raw['schemaVersion'] == 3 && raw['mapId'] == mapId) {
+      return _migrateV3(raw);
     }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
@@ -105,11 +119,13 @@ class BaseCampMapConfiguration {
       minimumPoints: 3,
     );
     final scale = _finite(raw['soldierScale']);
+    final smokeOrigin = _decodeNormalizedPoint(raw['foodSmokeOrigin']);
     final objects = BaseCampMapObject.decodeAll(raw['objects']);
     if (routes == null ||
         outlines == null ||
         objects == null ||
         scale == null ||
+        smokeOrigin == null ||
         scale <= 0) {
       return null;
     }
@@ -120,6 +136,7 @@ class BaseCampMapConfiguration {
       // V1 exposed the accidental 2/1 control. Keep every valid route and
       // building edit, but migrate only that obsolete multiplier to 1/1.
       soldierScale: _normaliseSoldierScale(scale),
+      foodSmokeOrigin: smokeOrigin,
     );
   }
 
@@ -197,6 +214,23 @@ class BaseCampMapConfiguration {
     v3['objects'] = correctedObjects;
     v3['facilityOutlines'] = correctedOutlines;
     return tryParse(v3);
+  }
+
+  static BaseCampMapConfiguration? _migrateV3(Map raw) {
+    final v4 = Map<String, Object?>.from(raw)
+      ..['schemaVersion'] = schemaVersion
+      ..['foodSmokeOrigin'] = const <String, double>{'x': .29, 'y': .26};
+    return tryParse(v4);
+  }
+
+  static Offset? _decodeNormalizedPoint(Object? raw) {
+    if (raw is! Map) return null;
+    final x = _finite(raw['x']);
+    final y = _finite(raw['y']);
+    if (x == null || y == null || x < 0 || x > 1 || y < 0 || y > 1) {
+      return null;
+    }
+    return Offset(x, y);
   }
 
   static Map<String, Object?> _encodePointGroups(
@@ -442,8 +476,8 @@ class BaseCampMapConfigurationController
       final restored = BaseCampMapConfiguration.tryParse(jsonDecode(raw));
       if (restored != null) {
         value = restored;
-        // Persist the V1 2/1 -> 1/1 migration immediately, without changing
-        // any route or facility-outline payload.
+        // Persist compatible schema and obsolete 2/1 multiplier migrations
+        // immediately, without changing any route or facility-outline payload.
         if (restored.encode() != raw) {
           await (await _preferencesLoader()).setString(
             storageKey,

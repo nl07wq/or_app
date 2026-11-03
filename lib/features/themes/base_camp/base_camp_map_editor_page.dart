@@ -9,7 +9,13 @@ import 'base_camp_asset_store.dart';
 import 'base_camp_map_export.dart';
 import 'widgets/base_camp_map.dart';
 
-enum _BaseCampEditorSection { routes, buildings, objects, soldierSize }
+enum _BaseCampEditorSection {
+  routes,
+  buildings,
+  objects,
+  smokeOrigin,
+  soldierSize,
+}
 
 /// Developer-only calibration surface opened by a long press on the existing
 /// map framing reset button. It edits a working copy until SAVE is chosen.
@@ -57,6 +63,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         ),
         objects: Map<String, BaseCampMapObject>.of(source.objects),
         soldierScale: source.soldierScale,
+        foodSmokeOrigin: source.foodSmokeOrigin,
       );
 
   bool get _dirty =>
@@ -112,6 +119,26 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _pointIndex = index;
       _undo.add(_clone(_working));
     });
+  }
+
+  void _beginSmokeOriginDrag() {
+    setState(() => _undo.add(_clone(_working)));
+  }
+
+  void _updateSmokeOrigin(Offset sourcePoint, {bool recordUndo = true}) {
+    final food = _working.objects['food'];
+    if (food == null) return;
+    final local = baseCampSourceToObjectLocal(food, sourcePoint);
+    final safe = Offset(
+      local.dx.clamp(0.0, 1.0).toDouble(),
+      local.dy.clamp(0.0, 1.0).toDouble(),
+    );
+    final next = _working.copyWith(foodSmokeOrigin: safe);
+    if (recordUndo) {
+      _mutate(next);
+    } else {
+      setState(() => _working = next);
+    }
   }
 
   List<Offset> get _selectedPoints =>
@@ -353,30 +380,37 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: SegmentedButton<_BaseCampEditorSection>(
-                  segments: const [
-                    ButtonSegment(
-                      value: _BaseCampEditorSection.routes,
-                      label: Text('ROUTE EDITOR'),
-                    ),
-                    ButtonSegment(
-                      value: _BaseCampEditorSection.buildings,
-                      label: Text('BUILDING EDITOR'),
-                    ),
-                    ButtonSegment(
-                      value: _BaseCampEditorSection.objects,
-                      label: Text('OBJECT EDITOR'),
-                    ),
-                    ButtonSegment(
-                      value: _BaseCampEditorSection.soldierSize,
-                      label: Text('SOLDIER SIZE'),
-                    ),
-                  ],
-                  selected: <_BaseCampEditorSection>{_section},
-                  onSelectionChanged: (value) => setState(() {
-                    _section = value.first;
-                    _pointIndex = 0;
-                  }),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedButton<_BaseCampEditorSection>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _BaseCampEditorSection.routes,
+                        label: Text('ROUTE EDITOR'),
+                      ),
+                      ButtonSegment(
+                        value: _BaseCampEditorSection.buildings,
+                        label: Text('BUILDING EDITOR'),
+                      ),
+                      ButtonSegment(
+                        value: _BaseCampEditorSection.objects,
+                        label: Text('OBJECT EDITOR'),
+                      ),
+                      ButtonSegment(
+                        value: _BaseCampEditorSection.smokeOrigin,
+                        label: Text('SMOKE ORIGIN'),
+                      ),
+                      ButtonSegment(
+                        value: _BaseCampEditorSection.soldierSize,
+                        label: Text('SOLDIER SIZE'),
+                      ),
+                    ],
+                    selected: <_BaseCampEditorSection>{_section},
+                    onSelectionChanged: (value) => setState(() {
+                      _section = value.first;
+                      _pointIndex = 0;
+                    }),
+                  ),
                 ),
               ),
               Expanded(
@@ -392,6 +426,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onDragStarted: _beginDrag,
                   onPointDragged: (point) =>
                       _updatePoint(point, recordUndo: false),
+                  onSmokeOriginDragStarted: _beginSmokeOriginDrag,
+                  onSmokeOriginDragged: (point) =>
+                      _updateSmokeOrigin(point, recordUndo: false),
                   onObjectDragStarted: () {
                     setState(() => _undo.add(_clone(_working)));
                   },
@@ -560,6 +597,37 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               onPressed: _resetToDefaults,
               icon: const Icon(Icons.restart_alt),
               label: const Text('RESET TO DEFAULT'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_section == _BaseCampEditorSection.smokeOrigin) {
+      final origin = _working.foodSmokeOrigin;
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Drag the marker to the FOOD chimney tip. The point is stored in FOOD-local coordinates and follows object transforms.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'LOCAL: ${origin.dx.toStringAsFixed(3)}, ${origin.dy.toStringAsFixed(3)}',
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('base-camp-editor-smoke-reset'),
+              onPressed: () => _mutate(
+                _working.copyWith(
+                  foodSmokeOrigin:
+                      BaseCampMapConfiguration.defaults().foodSmokeOrigin,
+                ),
+              ),
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('RESET SMOKE ORIGIN'),
             ),
           ],
         ),
@@ -789,6 +857,8 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onPointSelected,
     required this.onDragStarted,
     required this.onPointDragged,
+    required this.onSmokeOriginDragStarted,
+    required this.onSmokeOriginDragged,
     required this.onObjectDragStarted,
     required this.onObjectDragged,
   });
@@ -799,6 +869,8 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final ValueChanged<int> onPointSelected;
   final ValueChanged<int> onDragStarted;
   final ValueChanged<Offset> onPointDragged;
+  final VoidCallback onSmokeOriginDragStarted;
+  final ValueChanged<Offset> onSmokeOriginDragged;
   final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectDragged;
 
@@ -847,7 +919,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
             sourcePoint.dy / baseCampMapSourceSize.height,
           )
         : sourcePoint;
-    widget.onPointDragged(modelPoint);
+    if (widget.section == _BaseCampEditorSection.smokeOrigin) {
+      widget.onSmokeOriginDragged(sourcePoint);
+    } else {
+      widget.onPointDragged(modelPoint);
+    }
   }
 
   @override
@@ -876,6 +952,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
               selectedPoint: widget.selectedPoint,
               onPointSelected: widget.onPointSelected,
               onDragStarted: widget.onDragStarted,
+              onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
               onPointGlobalDragged: _dragPointAtGlobalPosition,
               onObjectDragStarted: widget.onObjectDragStarted,
               onObjectGlobalDragged: (globalPosition) {
@@ -906,6 +983,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.selectedPoint,
     required this.onPointSelected,
     required this.onDragStarted,
+    required this.onSmokeOriginDragStarted,
     required this.onPointGlobalDragged,
     required this.onObjectDragStarted,
     required this.onObjectGlobalDragged,
@@ -916,6 +994,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final int selectedPoint;
   final ValueChanged<int> onPointSelected;
   final ValueChanged<int> onDragStarted;
+  final VoidCallback onSmokeOriginDragStarted;
   final ValueChanged<Offset> onPointGlobalDragged;
   final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectGlobalDragged;
@@ -934,6 +1013,10 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             point.dy * baseCampMapSourceSize.height,
           )
         : point;
+    final food = configuration.objects['food'];
+    final smokeSource = food == null
+        ? Offset.zero
+        : baseCampObjectLocalToSource(food, configuration.foodSmokeOrigin);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -942,6 +1025,13 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           child: BaseCampObjectLayer(
             configuration: configuration,
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+          ),
+        ),
+        IgnorePointer(
+          child: BaseCampFoodSmokeLayer(
+            configuration: configuration,
+            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            elapsed: const Duration(seconds: 2),
           ),
         ),
         IgnorePointer(
@@ -986,6 +1076,28 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 ),
               ),
             ),
+        if (section == _BaseCampEditorSection.smokeOrigin && food != null)
+          Positioned(
+            left: smokeSource.dx - 24,
+            top: smokeSource.dy - 24,
+            width: 48,
+            height: 48,
+            child: GestureDetector(
+              key: const ValueKey('base-camp-editor-smoke-origin'),
+              behavior: HitTestBehavior.opaque,
+              onPanStart: (_) => onSmokeOriginDragStarted(),
+              onPanUpdate: (details) =>
+                  onPointGlobalDragged(details.globalPosition),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xCC101A1D),
+                  border: Border.all(color: const Color(0xFFD7D9D6), width: 2),
+                ),
+                child: const Icon(Icons.cloud_outlined, color: Colors.white),
+              ),
+            ),
+          ),
         if (section == _BaseCampEditorSection.objects)
           Positioned.fill(
             child: GestureDetector(
@@ -1013,7 +1125,8 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (section == _BaseCampEditorSection.soldierSize ||
-        section == _BaseCampEditorSection.objects) {
+        section == _BaseCampEditorSection.objects ||
+        section == _BaseCampEditorSection.smokeOrigin) {
       return;
     }
     final normalized = section == _BaseCampEditorSection.buildings;
