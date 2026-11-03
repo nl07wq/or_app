@@ -16,9 +16,13 @@ class BaseCampMapConfiguration {
     required this.objects,
     this.soldierScale = 1,
     this.foodSmokeOrigin = const Offset(.29, .26),
+    this.smokeFx = const BaseCampSmokeFx(),
+    required this.labels,
+    required this.waterFx,
+    this.staticSoldiers = const <BaseCampStaticSoldier>[],
   });
 
-  static const schemaVersion = 4;
+  static const schemaVersion = 5;
   static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
@@ -29,6 +33,10 @@ class BaseCampMapConfiguration {
   /// Normalized within the transformed FOOD object bounds. The initial value
   /// follows the supplied acceptance reference and remains editor-adjustable.
   final Offset foodSmokeOrigin;
+  final BaseCampSmokeFx smokeFx;
+  final Map<String, BaseCampFacilityLabel> labels;
+  final Map<String, BaseCampWaterFx> waterFx;
+  final List<BaseCampStaticSoldier> staticSoldiers;
 
   static const soldierScaleFull = 1.0;
   static const soldierScaleTwoThirds = 2 / 3;
@@ -53,6 +61,11 @@ class BaseCampMapConfiguration {
     objects: <String, BaseCampMapObject>{
       for (final object in baseCampDefaultObjects) object.id: object,
     },
+    labels: <String, BaseCampFacilityLabel>{
+      for (final facility in baseCampFacilities)
+        facility.id: BaseCampFacilityLabel.defaultsFor(facility.id),
+    },
+    waterFx: BaseCampWaterFx.defaults(),
   );
 
   BaseCampMapConfiguration copyWith({
@@ -61,12 +74,20 @@ class BaseCampMapConfiguration {
     Map<String, BaseCampMapObject>? objects,
     double? soldierScale,
     Offset? foodSmokeOrigin,
+    BaseCampSmokeFx? smokeFx,
+    Map<String, BaseCampFacilityLabel>? labels,
+    Map<String, BaseCampWaterFx>? waterFx,
+    List<BaseCampStaticSoldier>? staticSoldiers,
   }) => BaseCampMapConfiguration(
     routes: routes ?? this.routes,
     facilityOutlines: facilityOutlines ?? this.facilityOutlines,
     objects: objects ?? this.objects,
     soldierScale: soldierScale ?? this.soldierScale,
     foodSmokeOrigin: foodSmokeOrigin ?? this.foodSmokeOrigin,
+    smokeFx: smokeFx ?? this.smokeFx,
+    labels: labels ?? this.labels,
+    waterFx: waterFx ?? this.waterFx,
+    staticSoldiers: staticSoldiers ?? this.staticSoldiers,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -82,6 +103,10 @@ class BaseCampMapConfiguration {
       'x': foodSmokeOrigin.dx,
       'y': foodSmokeOrigin.dy,
     },
+    'smokeFx': smokeFx.toJson(),
+    'labels': labels.map((id, label) => MapEntry(id, label.toJson())),
+    'waterFx': waterFx.map((id, effect) => MapEntry(id, effect.toJson())),
+    'staticSoldiers': staticSoldiers.map((item) => item.toJson()).toList(),
   };
 
   String encode() => jsonEncode(toJson());
@@ -96,6 +121,9 @@ class BaseCampMapConfiguration {
     }
     if (raw['schemaVersion'] == 3 && raw['mapId'] == mapId) {
       return _migrateV3(raw);
+    }
+    if (raw['schemaVersion'] == 4 && raw['mapId'] == mapId) {
+      return _migrateV4(raw);
     }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
@@ -121,11 +149,21 @@ class BaseCampMapConfiguration {
     final scale = _finite(raw['soldierScale']);
     final smokeOrigin = _decodeNormalizedPoint(raw['foodSmokeOrigin']);
     final objects = BaseCampMapObject.decodeAll(raw['objects']);
+    final smokeFx = BaseCampSmokeFx.tryParse(raw['smokeFx']);
+    final labels = BaseCampFacilityLabel.decodeAll(raw['labels']);
+    final waterFx = BaseCampWaterFx.decodeAll(raw['waterFx']);
+    final staticSoldiers = BaseCampStaticSoldier.decodeAll(
+      raw['staticSoldiers'],
+    );
     if (routes == null ||
         outlines == null ||
         objects == null ||
         scale == null ||
         smokeOrigin == null ||
+        smokeFx == null ||
+        labels == null ||
+        waterFx == null ||
+        staticSoldiers == null ||
         scale <= 0) {
       return null;
     }
@@ -137,6 +175,10 @@ class BaseCampMapConfiguration {
       // building edit, but migrate only that obsolete multiplier to 1/1.
       soldierScale: _normaliseSoldierScale(scale),
       foodSmokeOrigin: smokeOrigin,
+      smokeFx: smokeFx,
+      labels: labels,
+      waterFx: waterFx,
+      staticSoldiers: staticSoldiers,
     );
   }
 
@@ -175,6 +217,11 @@ class BaseCampMapConfiguration {
         for (final object in baseCampDefaultObjects) object.id: object,
       },
       soldierScale: _normaliseSoldierScale(scale),
+      labels: <String, BaseCampFacilityLabel>{
+        for (final facility in baseCampFacilities)
+          facility.id: BaseCampFacilityLabel.defaultsFor(facility.id),
+      },
+      waterFx: BaseCampWaterFx.defaults(),
     );
   }
 
@@ -221,6 +268,21 @@ class BaseCampMapConfiguration {
       ..['schemaVersion'] = schemaVersion
       ..['foodSmokeOrigin'] = const <String, double>{'x': .29, 'y': .26};
     return tryParse(v4);
+  }
+
+  static BaseCampMapConfiguration? _migrateV4(Map raw) {
+    final defaults = BaseCampMapConfiguration.defaults();
+    final v5 = Map<String, Object?>.from(raw)
+      ..['schemaVersion'] = schemaVersion
+      ..['smokeFx'] = defaults.smokeFx.toJson()
+      ..['labels'] = defaults.labels.map(
+        (id, label) => MapEntry(id, label.toJson()),
+      )
+      ..['waterFx'] = defaults.waterFx.map(
+        (id, effect) => MapEntry(id, effect.toJson()),
+      )
+      ..['staticSoldiers'] = const <Object?>[];
+    return tryParse(v5);
   }
 
   static Offset? _decodeNormalizedPoint(Object? raw) {
@@ -287,6 +349,410 @@ class BaseCampMapConfiguration {
     }
     return soldierScaleFull;
   }
+}
+
+@immutable
+class BaseCampSmokeFx {
+  const BaseCampSmokeFx({
+    this.density = 3,
+    this.opacity = .52,
+    this.particleSize = 1,
+    this.spread = 1,
+    this.riseHeight = 1,
+    this.lifetime = 1,
+    this.drift = 1,
+    this.softness = 1,
+    this.turbulence = 1,
+    this.contrast = 1,
+    this.expansion = 1,
+    this.visible = true,
+  });
+  final double density, opacity, particleSize, spread, riseHeight, lifetime;
+  final double drift, softness, turbulence, contrast, expansion;
+  final bool visible;
+  BaseCampSmokeFx copyWith({
+    double? density,
+    double? opacity,
+    double? particleSize,
+    double? spread,
+    double? riseHeight,
+    double? lifetime,
+    double? drift,
+    double? softness,
+    double? turbulence,
+    double? contrast,
+    double? expansion,
+    bool? visible,
+  }) => BaseCampSmokeFx(
+    density: density ?? this.density,
+    opacity: opacity ?? this.opacity,
+    particleSize: particleSize ?? this.particleSize,
+    spread: spread ?? this.spread,
+    riseHeight: riseHeight ?? this.riseHeight,
+    lifetime: lifetime ?? this.lifetime,
+    drift: drift ?? this.drift,
+    softness: softness ?? this.softness,
+    turbulence: turbulence ?? this.turbulence,
+    contrast: contrast ?? this.contrast,
+    expansion: expansion ?? this.expansion,
+    visible: visible ?? this.visible,
+  );
+  Map<String, Object?> toJson() => <String, Object?>{
+    'density': density,
+    'opacity': opacity,
+    'particleSize': particleSize,
+    'spread': spread,
+    'riseHeight': riseHeight,
+    'lifetime': lifetime,
+    'drift': drift,
+    'softness': softness,
+    'turbulence': turbulence,
+    'contrast': contrast,
+    'expansion': expansion,
+    'visible': visible,
+  };
+  static BaseCampSmokeFx? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    double? value(String key) => raw[key] is num && (raw[key] as num).isFinite
+        ? (raw[key] as num).toDouble()
+        : null;
+    final values = <double?>[
+      for (final key in const [
+        'density',
+        'opacity',
+        'particleSize',
+        'spread',
+        'riseHeight',
+        'lifetime',
+        'drift',
+        'softness',
+        'turbulence',
+        'contrast',
+        'expansion',
+      ])
+        value(key),
+    ];
+    if (values.any((item) => item == null || item! < 0 || item > 4) ||
+        raw['visible'] is! bool)
+      return null;
+    return BaseCampSmokeFx(
+      density: values[0]!,
+      opacity: values[1]!,
+      particleSize: values[2]!,
+      spread: values[3]!,
+      riseHeight: values[4]!,
+      lifetime: values[5]!,
+      drift: values[6]!,
+      softness: values[7]!,
+      turbulence: values[8]!,
+      contrast: values[9]!,
+      expansion: values[10]!,
+      visible: raw['visible'] as bool,
+    );
+  }
+}
+
+@immutable
+class BaseCampFacilityLabel {
+  const BaseCampFacilityLabel({
+    required this.position,
+    required this.connectorEnd,
+    this.scale = 1,
+    this.visible = true,
+    this.elbow = .5,
+  });
+  final Offset position, connectorEnd;
+  final double scale, elbow;
+  final bool visible;
+  static BaseCampFacilityLabel defaultsFor(String id) => switch (id) {
+    'status' => const BaseCampFacilityLabel(
+      position: Offset(160, 140),
+      connectorEnd: Offset(295, 310),
+    ),
+    'food' => const BaseCampFacilityLabel(
+      position: Offset(580, 68),
+      connectorEnd: Offset(594, 215),
+    ),
+    'training' => const BaseCampFacilityLabel(
+      position: Offset(1015, 135),
+      connectorEnd: Offset(1010, 260),
+    ),
+    'activity' => const BaseCampFacilityLabel(
+      position: Offset(190, 400),
+      connectorEnd: Offset(360, 510),
+    ),
+    _ => const BaseCampFacilityLabel(
+      position: Offset(760, 415),
+      connectorEnd: Offset(900, 530),
+    ),
+  };
+  BaseCampFacilityLabel copyWith({
+    Offset? position,
+    Offset? connectorEnd,
+    double? scale,
+    bool? visible,
+    double? elbow,
+  }) => BaseCampFacilityLabel(
+    position: position ?? this.position,
+    connectorEnd: connectorEnd ?? this.connectorEnd,
+    scale: scale ?? this.scale,
+    visible: visible ?? this.visible,
+    elbow: elbow ?? this.elbow,
+  );
+  Map<String, Object?> toJson() => {
+    'x': position.dx,
+    'y': position.dy,
+    'endX': connectorEnd.dx,
+    'endY': connectorEnd.dy,
+    'scale': scale,
+    'visible': visible,
+    'elbow': elbow,
+  };
+  static Map<String, BaseCampFacilityLabel>? decodeAll(Object? raw) {
+    if (raw is! Map || raw.length != baseCampFacilities.length) return null;
+    final result = <String, BaseCampFacilityLabel>{};
+    for (final facility in baseCampFacilities) {
+      final item = raw[facility.id];
+      if (item is! Map || item['visible'] is! bool) return null;
+      double? n(String k) => item[k] is num && (item[k] as num).isFinite
+          ? (item[k] as num).toDouble()
+          : null;
+      final x = n('x'),
+          y = n('y'),
+          ex = n('endX'),
+          ey = n('endY'),
+          s = n('scale'),
+          e = n('elbow');
+      if ([x, y, ex, ey, s, e].any((v) => v == null) ||
+          x! < 0 ||
+          x > 1280 ||
+          y! < 0 ||
+          y > 720 ||
+          ex! < 0 ||
+          ex > 1280 ||
+          ey! < 0 ||
+          ey > 720 ||
+          s! <= 0 ||
+          s > 3 ||
+          e! < 0 ||
+          e > 1)
+        return null;
+      result[facility.id] = BaseCampFacilityLabel(
+        position: Offset(x, y),
+        connectorEnd: Offset(ex, ey),
+        scale: s,
+        visible: item['visible'] as bool,
+        elbow: e,
+      );
+    }
+    return result;
+  }
+}
+
+@immutable
+class BaseCampWaterFx {
+  const BaseCampWaterFx({
+    required this.shoreline,
+    required this.mask,
+    this.intensity = 1,
+    this.speed = 1,
+    this.foam = 1,
+    this.opacity = .38,
+    this.spread = 1,
+    this.frequency = 1,
+    this.visible = true,
+  });
+  final List<Offset> shoreline, mask;
+  final double intensity, speed, foam, opacity, spread, frequency;
+  final bool visible;
+  static Map<String, BaseCampWaterFx> defaults() => <String, BaseCampWaterFx>{
+    'rock-foam': const BaseCampWaterFx(
+      shoreline: [
+        Offset(20, 570),
+        Offset(55, 610),
+        Offset(110, 655),
+        Offset(175, 690),
+      ],
+      mask: [
+        Offset(0, 515),
+        Offset(195, 570),
+        Offset(225, 720),
+        Offset(0, 720),
+      ],
+      intensity: 1.25,
+      foam: 1.3,
+    ),
+    'coast-ripple': const BaseCampWaterFx(
+      shoreline: [
+        Offset(0, 115),
+        Offset(34, 150),
+        Offset(70, 185),
+        Offset(112, 225),
+      ],
+      mask: [Offset(0, 65), Offset(135, 120), Offset(150, 260), Offset(0, 270)],
+      intensity: .55,
+      foam: .3,
+      opacity: .24,
+    ),
+  };
+  BaseCampWaterFx copyWith({
+    List<Offset>? shoreline,
+    List<Offset>? mask,
+    double? intensity,
+    double? speed,
+    double? foam,
+    double? opacity,
+    double? spread,
+    double? frequency,
+    bool? visible,
+  }) => BaseCampWaterFx(
+    shoreline: shoreline ?? this.shoreline,
+    mask: mask ?? this.mask,
+    intensity: intensity ?? this.intensity,
+    speed: speed ?? this.speed,
+    foam: foam ?? this.foam,
+    opacity: opacity ?? this.opacity,
+    spread: spread ?? this.spread,
+    frequency: frequency ?? this.frequency,
+    visible: visible ?? this.visible,
+  );
+  Map<String, Object?> toJson() => {
+    'shoreline': _pointsJson(shoreline),
+    'mask': _pointsJson(mask),
+    'intensity': intensity,
+    'speed': speed,
+    'foam': foam,
+    'opacity': opacity,
+    'spread': spread,
+    'frequency': frequency,
+    'visible': visible,
+  };
+  static Map<String, BaseCampWaterFx>? decodeAll(Object? raw) {
+    if (raw is! Map || raw.length != 2) return null;
+    final result = <String, BaseCampWaterFx>{};
+    for (final id in const ['rock-foam', 'coast-ripple']) {
+      final i = raw[id];
+      if (i is! Map || i['visible'] is! bool) return null;
+      final shore = _points(i['shoreline'], 2), mask = _points(i['mask'], 3);
+      double? n(String k) => i[k] is num && (i[k] as num).isFinite
+          ? (i[k] as num).toDouble()
+          : null;
+      final a = n('intensity'),
+          b = n('speed'),
+          c = n('foam'),
+          d = n('opacity'),
+          e = n('spread'),
+          f = n('frequency');
+      if (shore == null ||
+          mask == null ||
+          [a, b, c, d, e, f].any((v) => v == null || v! < 0 || v > 4))
+        return null;
+      result[id] = BaseCampWaterFx(
+        shoreline: shore,
+        mask: mask,
+        intensity: a!,
+        speed: b!,
+        foam: c!,
+        opacity: d!,
+        spread: e!,
+        frequency: f!,
+        visible: i['visible'] as bool,
+      );
+    }
+    return result;
+  }
+}
+
+@immutable
+class BaseCampStaticSoldier {
+  const BaseCampStaticSoldier({
+    required this.id,
+    required this.position,
+    this.direction = 'front',
+    this.scale = 1,
+    this.breathing = true,
+    this.breathingIntensity = 1,
+    this.breathingPeriod = 3.2,
+    this.visible = true,
+  });
+  final String id, direction;
+  final Offset position;
+  final double scale, breathingIntensity, breathingPeriod;
+  final bool breathing, visible;
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'x': position.dx,
+    'y': position.dy,
+    'direction': direction,
+    'scale': scale,
+    'breathing': breathing,
+    'breathingIntensity': breathingIntensity,
+    'breathingPeriod': breathingPeriod,
+    'visible': visible,
+  };
+  static List<BaseCampStaticSoldier>? decodeAll(Object? raw) {
+    if (raw is! List) return null;
+    final ids = <String>{};
+    final result = <BaseCampStaticSoldier>[];
+    for (final i in raw) {
+      if (i is! Map ||
+          i['id'] is! String ||
+          !ids.add(i['id'] as String) ||
+          i['direction'] is! String ||
+          i['breathing'] is! bool ||
+          i['visible'] is! bool)
+        return null;
+      double? n(String k) => i[k] is num && (i[k] as num).isFinite
+          ? (i[k] as num).toDouble()
+          : null;
+      final x = n('x'),
+          y = n('y'),
+          s = n('scale'),
+          bi = n('breathingIntensity'),
+          bp = n('breathingPeriod');
+      if ([x, y, s, bi, bp].any((v) => v == null) ||
+          x! < 0 ||
+          x > 1280 ||
+          y! < 0 ||
+          y > 720 ||
+          s! <= 0 ||
+          s > 3 ||
+          bi! < 0 ||
+          bi > 2 ||
+          bp! < 1 ||
+          bp > 10 ||
+          !const ['front', 'back', 'right', 'left'].contains(i['direction']))
+        return null;
+      result.add(
+        BaseCampStaticSoldier(
+          id: i['id'] as String,
+          position: Offset(x, y),
+          direction: i['direction'] as String,
+          scale: s,
+          breathing: i['breathing'] as bool,
+          breathingIntensity: bi,
+          breathingPeriod: bp,
+          visible: i['visible'] as bool,
+        ),
+      );
+    }
+    return result;
+  }
+}
+
+List<Map<String, double>> _pointsJson(List<Offset> points) =>
+    points.map((p) => {'x': p.dx, 'y': p.dy}).toList();
+List<Offset>? _points(Object? raw, int min) {
+  if (raw is! List || raw.length < min) return null;
+  final r = <Offset>[];
+  for (final p in raw) {
+    if (p is! Map || p['x'] is! num || p['y'] is! num) return null;
+    final x = (p['x'] as num).toDouble(), y = (p['y'] as num).toDouble();
+    if (!x.isFinite || !y.isFinite || x < 0 || x > 1280 || y < 0 || y > 720)
+      return null;
+    r.add(Offset(x, y));
+  }
+  return r;
 }
 
 @immutable

@@ -42,6 +42,11 @@ const baseCampWalkerDownRightFrames = <String>[
   'assets/images/themes/base_camp/base_camp_walker_down_right/frame_06.png',
 ];
 
+const baseCampWalkerRearUpperRightAsset =
+    'assets/images/themes/base_camp/base_camp_walker_rear_upper_right.gif';
+const baseCampWalkerFrontAsset =
+    'assets/images/themes/base_camp/base_camp_walker_front.gif';
+
 const baseCampWalkerUpLeftFrames = <String>[
   'assets/images/themes/base_camp/base_camp_walker_up_left/frame_00.png',
   'assets/images/themes/base_camp/base_camp_walker_up_left/frame_01.png',
@@ -56,6 +61,10 @@ const baseCampWalkerUpLeftFrames = <String>[
 List<String> baseCampWalkerFrameAssets(String gifAsset) => switch (gifAsset) {
   baseCampWalkerDownRightAsset => baseCampWalkerDownRightFrames,
   baseCampWalkerUpLeftAsset => baseCampWalkerUpLeftFrames,
+  baseCampWalkerRearUpperRightAsset => <String>[
+    baseCampWalkerRearUpperRightAsset,
+  ],
+  baseCampWalkerFrontAsset => <String>[baseCampWalkerFrontAsset],
   _ => throw ArgumentError.value(gifAsset, 'gifAsset', 'Unknown walker asset'),
 };
 
@@ -205,6 +214,20 @@ const baseCampWalkerRoutes = <BaseCampWalkerRoute>[
     initialPhaseSeconds: 7.1,
   ),
 ];
+
+const baseCampRouteA = BaseCampWalkerRoute(
+  id: 'route-a',
+  sourcePoints: <Offset>[
+    Offset(247, 348),
+    Offset(316, 319),
+    Offset(397, 289),
+    Offset(462, 255),
+    Offset(514, 229),
+  ],
+  speed: 50,
+  pausePatternSeconds: <double>[3.1, 2.8, 3.4, 2.6],
+  initialPhaseSeconds: 4.2,
+);
 
 @immutable
 class BaseCampFacility {
@@ -510,6 +533,21 @@ class _BaseCampMapState extends State<BaseCampMap>
                           image: AssetImage(baseCampMapAsset),
                           fit: BoxFit.cover,
                           filterQuality: FilterQuality.high,
+                        ),
+                        IgnorePointer(
+                          child: AnimatedBuilder(
+                            animation: _walkerTimeline,
+                            builder: (_, _) => BaseCampWaterFxLayer(
+                              configuration: configuration,
+                              geometry: geometry,
+                              elapsed: Duration(
+                                microseconds:
+                                    (_walkerTimeline.value *
+                                            Duration.microsecondsPerDay)
+                                        .round(),
+                              ),
+                            ),
+                          ),
                         ),
                         IgnorePointer(
                           child: RepaintBoundary(
@@ -943,6 +981,95 @@ Offset baseCampSourceToObjectLocal(BaseCampMapObject object, Offset source) {
   );
 }
 
+class BaseCampWaterFxLayer extends StatelessWidget {
+  const BaseCampWaterFxLayer({
+    super.key,
+    required this.configuration,
+    required this.geometry,
+    required this.elapsed,
+  });
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+  final Duration elapsed;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    key: const ValueKey('base-camp-water-fx'),
+    painter: _BaseCampWaterFxPainter(configuration, geometry, elapsed),
+    child: const SizedBox.expand(),
+  );
+}
+
+class _BaseCampWaterFxPainter extends CustomPainter {
+  const _BaseCampWaterFxPainter(
+    this.configuration,
+    this.geometry,
+    this.elapsed,
+  );
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+  final Duration elapsed;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final time = elapsed.inMilliseconds / 1000;
+    for (final entry in configuration.waterFx.entries) {
+      final fx = entry.value;
+      if (!fx.visible) continue;
+      final mask = Path()
+        ..addPolygon(
+          entry.value.mask.map(geometry.sourceToViewport).toList(),
+          true,
+        );
+      canvas.save();
+      canvas.clipPath(mask);
+      final shore = fx.shoreline.map(geometry.sourceToViewport).toList();
+      for (var wave = 0; wave < 3; wave++) {
+        final phase = (time * fx.speed * 1.2 + wave * .33) % 1;
+        final path = Path();
+        for (var i = 0; i < shore.length; i++) {
+          final p = shore[i];
+          final offset =
+              math.sin((i + phase * 5) * 1.7) * 3 * geometry.scale * fx.spread;
+          final point = Offset(
+            p.dx + offset,
+            p.dy + phase * 18 * geometry.scale,
+          );
+          if (i == 0) {
+            path.moveTo(point.dx, point.dy);
+          } else {
+            path.lineTo(point.dx, point.dy);
+          }
+        }
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFFEAF1EA).withValues(
+              alpha:
+                  fx.opacity *
+                  (entry.key == 'rock-foam' ? fx.foam : .38) *
+                  (1 - phase),
+            )
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = math.max(
+              .7,
+              (entry.key == 'rock-foam' ? 2.2 : 1) * geometry.scale,
+            )
+            ..maskFilter = MaskFilter.blur(
+              BlurStyle.normal,
+              2 * geometry.scale,
+            ),
+        );
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BaseCampWaterFxPainter old) =>
+      old.configuration != configuration ||
+      old.geometry != geometry ||
+      old.elapsed != elapsed;
+}
+
 /// A bounded, deterministic smoke layer. Particles live in map-source space,
 /// so map zoom/pan and FOOD object transforms never detach the chimney trail.
 class BaseCampFoodSmokeLayer extends StatelessWidget {
@@ -963,6 +1090,7 @@ class BaseCampFoodSmokeLayer extends StatelessWidget {
     painter: _BaseCampFoodSmokePainter(
       food: configuration.objects['food']!,
       localOrigin: configuration.foodSmokeOrigin,
+      effect: configuration.smokeFx,
       geometry: geometry,
       elapsed: elapsed,
     ),
@@ -974,54 +1102,79 @@ class _BaseCampFoodSmokePainter extends CustomPainter {
   const _BaseCampFoodSmokePainter({
     required this.food,
     required this.localOrigin,
+    required this.effect,
     required this.geometry,
     required this.elapsed,
   });
 
   final BaseCampMapObject food;
   final Offset localOrigin;
+  final BaseCampSmokeFx effect;
   final BaseCampMapGeometry geometry;
   final Duration elapsed;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (!effect.visible) return;
     final origin = baseCampObjectLocalToSource(food, localOrigin);
     final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
-    final newestGeneration = (seconds * 3).floor();
-    for (var ageIndex = 0; ageIndex < 13; ageIndex++) {
+    final rate = 3 * effect.density;
+    final newestGeneration = (seconds * rate).floor();
+    for (var ageIndex = 0; ageIndex < 18; ageIndex++) {
       final generation = newestGeneration - ageIndex;
-      final bornAt = generation / 3;
+      final bornAt = generation / rate;
       final age = seconds - bornAt;
-      final life = 2.8 + (generation.abs() % 5) * .3;
+      final life = (2.8 + (generation.abs() % 5) * .3) * effect.lifetime;
       if (age < 0 || age > life) continue;
       final progress = age / life;
       final seed = math.sin(generation * 12.9898) * 43758.5453;
       final unit = seed - seed.floor();
-      final drift = (unit * 24 - 12) * Curves.easeOut.transform(progress);
+      final swirl =
+          math.sin(progress * math.pi * 2 + generation) * 7 * effect.turbulence;
+      final drift =
+          ((unit * 24 - 12) * effect.spread + swirl * effect.drift) *
+          Curves.easeOut.transform(progress);
       final rise =
-          (45 + ((unit * 30).round())) * Curves.easeOut.transform(progress);
+          (45 + ((unit * 30).round())) *
+          effect.riseHeight *
+          Curves.easeOut.transform(progress);
       final sourcePosition = origin + Offset(drift, -rise);
       final position = geometry.sourceToViewport(sourcePosition);
       final radius =
-          (2 + (generation.abs() % 3)) * (1 + progress) * geometry.scale;
+          (2 + (generation.abs() % 3)) *
+          effect.particleSize *
+          (1 + progress * effect.expansion) *
+          geometry.scale;
       final alpha =
           (.24 *
+                  effect.opacity *
                   (age / .35).clamp(0, 1) *
                   (1 - Curves.easeIn.transform(progress)))
-              .clamp(0, .24)
+              .clamp(0, .75)
               .toDouble();
       if (alpha <= 0) continue;
       canvas.drawCircle(
         position,
-        radius * 1.45,
+        radius * (1.45 + effect.softness * .35),
         Paint()
-          ..color = const Color(0xFFD7D9D6).withValues(alpha: alpha * .36)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * .9),
+          ..color = const Color(0xFFD7D9D6).withValues(alpha: alpha * .42)
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            radius * (.9 + effect.softness),
+          ),
       );
       canvas.drawCircle(
         position,
         radius,
         Paint()..color = const Color(0xFFD7D9D6).withValues(alpha: alpha),
+      );
+      canvas.drawCircle(
+        position + Offset(radius * .16, -radius * .12),
+        radius * .52,
+        Paint()
+          ..color = const Color(
+            0xFF9CA09B,
+          ).withValues(alpha: alpha * .38 * effect.contrast),
       );
     }
   }
@@ -1030,6 +1183,7 @@ class _BaseCampFoodSmokePainter extends CustomPainter {
   bool shouldRepaint(_BaseCampFoodSmokePainter oldDelegate) =>
       oldDelegate.food != food ||
       oldDelegate.localOrigin != localOrigin ||
+      oldDelegate.effect != effect ||
       oldDelegate.geometry != geometry ||
       oldDelegate.elapsed != elapsed;
 }
@@ -1070,6 +1224,157 @@ class BaseCampObjectLayer extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Source-space facility plates remain interactive while their connector and
+/// target marker travel with the map's image transform.
+class BaseCampFacilityLabelLayer extends StatelessWidget {
+  const BaseCampFacilityLabelLayer({
+    super.key,
+    required this.configuration,
+    required this.geometry,
+    required this.onFacilityPressed,
+  });
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+  final ValueChanged<BaseCampFacility> onFacilityPressed;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      IgnorePointer(
+        child: CustomPaint(
+          painter: _BaseCampLabelConnectorPainter(configuration, geometry),
+        ),
+      ),
+      for (final facility in baseCampFacilities)
+        if (configuration.labels[facility.id]?.visible ?? false)
+          _BaseCampFacilityPlate(
+            facility: facility,
+            label: configuration.labels[facility.id]!,
+            geometry: geometry,
+            onPressed: () => onFacilityPressed(facility),
+          ),
+    ],
+  );
+}
+
+class _BaseCampFacilityPlate extends StatelessWidget {
+  const _BaseCampFacilityPlate({
+    required this.facility,
+    required this.label,
+    required this.geometry,
+    required this.onPressed,
+  });
+  final BaseCampFacility facility;
+  final BaseCampFacilityLabel label;
+  final BaseCampMapGeometry geometry;
+  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) {
+    final point = geometry.sourceToViewport(label.position);
+    final width = 138 * label.scale * geometry.scale;
+    final height = 37 * label.scale * geometry.scale;
+    return Positioned(
+      left: point.dx - width / 2,
+      top: point.dy - height / 2,
+      width: width,
+      height: height,
+      child: Semantics(
+        button: true,
+        label: '${facility.label} label',
+        child: GestureDetector(
+          onTap: onPressed,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFF343622),
+              border: Border.all(
+                color: const Color(0xFFA9A083),
+                width: math.max(.7, geometry.scale),
+              ),
+              borderRadius: BorderRadius.circular(height / 2),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: width * .16,
+                  child: Icon(
+                    _facilityIcon(facility.id),
+                    color: const Color(0xFFF0E8D4),
+                    size: height * .48,
+                  ),
+                ),
+                Container(
+                  width: math.max(1, geometry.scale),
+                  color: const Color(0xFFA9A083),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      facility.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      style: TextStyle(
+                        color: const Color(0xFFF0E8D4),
+                        fontFamily: 'ShareTechMono',
+                        fontSize: height * .36,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+IconData _facilityIcon(String id) => switch (id) {
+  'status' => Icons.play_arrow,
+  'food' => Icons.restaurant,
+  'training' => Icons.fitness_center,
+  'activity' => Icons.directions_run,
+  _ => Icons.flag,
+};
+
+class _BaseCampLabelConnectorPainter extends CustomPainter {
+  const _BaseCampLabelConnectorPainter(this.configuration, this.geometry);
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final facility in baseCampFacilities) {
+      final label = configuration.labels[facility.id];
+      if (label == null || !label.visible) continue;
+      final start = geometry.sourceToViewport(label.position);
+      final end = geometry.sourceToViewport(label.connectorEnd);
+      final elbow = Offset.lerp(start, Offset(end.dx, start.dy), label.elbow)!;
+      final path = Path()
+        ..moveTo(start.dx, start.dy)
+        ..lineTo(elbow.dx, elbow.dy)
+        ..lineTo(end.dx, end.dy);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFFE5DFCF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(.7, geometry.scale),
+      );
+      canvas.drawCircle(
+        end,
+        math.max(2, geometry.scale * 3),
+        Paint()..color = const Color(0xFFE5DFCF),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BaseCampLabelConnectorPainter old) =>
+      old.configuration != configuration || old.geometry != geometry;
 }
 
 class _BaseCampMapObjectPositioned extends StatelessWidget {
@@ -1480,7 +1785,10 @@ class BaseCampWalkerPreviewLayer extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            for (final defaultRoute in baseCampWalkerRoutes)
+            for (final defaultRoute in <BaseCampWalkerRoute>[
+              baseCampRouteA,
+              ...baseCampWalkerRoutes,
+            ])
               if (configuration.routes[defaultRoute.id] case final points?)
                 _BaseCampGifWalkerPositioned(
                   route: defaultRoute.withSourcePoints(points),
@@ -1491,6 +1799,11 @@ class BaseCampWalkerPreviewLayer extends StatelessWidget {
                   geometry: geometry,
                   spriteHeight: spriteHeight * configuration.soldierScale,
                   reducedMotion: reducedMotion,
+                  assetForPose: defaultRoute.id == 'route-a'
+                      ? (pose) => pose.direction.dx >= 0
+                            ? baseCampWalkerRearUpperRightAsset
+                            : baseCampWalkerFrontAsset
+                      : null,
                 )
               else
                 _BaseCampGifWalkerPositioned(
@@ -1499,10 +1812,73 @@ class BaseCampWalkerPreviewLayer extends StatelessWidget {
                   geometry: geometry,
                   spriteHeight: spriteHeight * configuration.soldierScale,
                   reducedMotion: reducedMotion,
+                  assetForPose: defaultRoute.id == 'route-a'
+                      ? (pose) => pose.direction.dx >= 0
+                            ? baseCampWalkerRearUpperRightAsset
+                            : baseCampWalkerFrontAsset
+                      : null,
+                ),
+            for (final soldier in configuration.staticSoldiers)
+              if (soldier.visible)
+                _BaseCampStaticSoldierPositioned(
+                  soldier: soldier,
+                  geometry: geometry,
+                  elapsed: elapsed,
+                  spriteHeight:
+                      spriteHeight * configuration.soldierScale * soldier.scale,
+                  reducedMotion: reducedMotion,
                 ),
           ],
         );
       },
+    );
+  }
+}
+
+class _BaseCampStaticSoldierPositioned extends StatelessWidget {
+  const _BaseCampStaticSoldierPositioned({
+    required this.soldier,
+    required this.geometry,
+    required this.elapsed,
+    required this.spriteHeight,
+    required this.reducedMotion,
+  });
+  final BaseCampStaticSoldier soldier;
+  final BaseCampMapGeometry geometry;
+  final Duration elapsed;
+  final double spriteHeight;
+  final bool reducedMotion;
+  @override
+  Widget build(BuildContext context) {
+    final point = geometry.sourceToViewport(soldier.position);
+    final width = spriteHeight * .6;
+    final phase =
+        elapsed.inMilliseconds / 1000 / soldier.breathingPeriod * math.pi * 2 +
+        soldier.id.hashCode;
+    final breath = (!reducedMotion && soldier.breathing)
+        ? math.sin(phase) * .006 * soldier.breathingIntensity
+        : 0.0;
+    final asset = switch (soldier.direction) {
+      'back' => baseCampWalkerRearUpperRightAsset,
+      'right' => baseCampWalkerDownRightAsset,
+      'left' => baseCampWalkerUpLeftAsset,
+      _ => baseCampWalkerFrontAsset,
+    };
+    return Positioned(
+      key: ValueKey('base-camp-static-soldier-${soldier.id}'),
+      left: point.dx - width / 2,
+      top: point.dy - spriteHeight,
+      width: width,
+      height: spriteHeight,
+      child: Transform.scale(
+        alignment: Alignment.bottomCenter,
+        scaleY: 1 + breath,
+        child: _BaseCampGifWalker(
+          assetPath: asset,
+          walking: false,
+          reducedMotion: reducedMotion,
+        ),
+      ),
     );
   }
 }
@@ -1514,6 +1890,7 @@ class _BaseCampGifWalkerPositioned extends StatelessWidget {
     required this.geometry,
     required this.spriteHeight,
     required this.reducedMotion,
+    this.assetForPose,
   });
 
   final BaseCampWalkerRoute route;
@@ -1521,6 +1898,7 @@ class _BaseCampGifWalkerPositioned extends StatelessWidget {
   final BaseCampMapGeometry geometry;
   final double spriteHeight;
   final bool reducedMotion;
+  final String Function(BaseCampWalkerPose pose)? assetForPose;
 
   @override
   Widget build(BuildContext context) {
@@ -1533,9 +1911,11 @@ class _BaseCampGifWalkerPositioned extends StatelessWidget {
       width: width,
       height: spriteHeight,
       child: _BaseCampGifWalker(
-        assetPath: pose.usesDownRightAsset
-            ? baseCampWalkerDownRightAsset
-            : baseCampWalkerUpLeftAsset,
+        assetPath:
+            assetForPose?.call(pose) ??
+            (pose.usesDownRightAsset
+                ? baseCampWalkerDownRightAsset
+                : baseCampWalkerUpLeftAsset),
         walking: pose.isWalking,
         reducedMotion: reducedMotion,
       ),

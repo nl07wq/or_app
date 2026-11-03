@@ -64,6 +64,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         objects: Map<String, BaseCampMapObject>.of(source.objects),
         soldierScale: source.soldierScale,
         foodSmokeOrigin: source.foodSmokeOrigin,
+        smokeFx: source.smokeFx,
+        labels: Map<String, BaseCampFacilityLabel>.of(source.labels),
+        waterFx: Map<String, BaseCampWaterFx>.of(source.waterFx),
+        staticSoldiers: List<BaseCampStaticSoldier>.of(source.staticSoldiers),
       );
 
   bool get _dirty =>
@@ -139,6 +143,24 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     } else {
       setState(() => _working = next);
     }
+  }
+
+  void _updateSmokeFx(String field, double value) {
+    final fx = _working.smokeFx;
+    final next = switch (field) {
+      'DENSITY' => fx.copyWith(density: value),
+      'OPACITY' => fx.copyWith(opacity: value),
+      'PARTICLE SIZE' => fx.copyWith(particleSize: value),
+      'SPREAD' => fx.copyWith(spread: value),
+      'RISE HEIGHT' => fx.copyWith(riseHeight: value),
+      'LIFETIME' => fx.copyWith(lifetime: value),
+      'DRIFT' => fx.copyWith(drift: value),
+      'SOFTNESS' => fx.copyWith(softness: value),
+      'TURBULENCE' => fx.copyWith(turbulence: value),
+      'CONTRAST' => fx.copyWith(contrast: value),
+      _ => fx.copyWith(expansion: value),
+    };
+    _mutate(_working.copyWith(smokeFx: next));
   }
 
   List<Offset> get _selectedPoints =>
@@ -441,7 +463,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   },
                 ),
               ),
-              _editorControls(),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 170),
+                child: SingleChildScrollView(child: _editorControls()),
+              ),
             ],
           ),
         ),
@@ -617,6 +642,36 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             Text(
               'LOCAL: ${origin.dx.toStringAsFixed(3)}, ${origin.dy.toStringAsFixed(3)}',
             ),
+            for (final entry in <(String, double)>[
+              ('DENSITY', _working.smokeFx.density),
+              ('OPACITY', _working.smokeFx.opacity),
+              ('PARTICLE SIZE', _working.smokeFx.particleSize),
+              ('SPREAD', _working.smokeFx.spread),
+              ('RISE HEIGHT', _working.smokeFx.riseHeight),
+              ('LIFETIME', _working.smokeFx.lifetime),
+              ('DRIFT', _working.smokeFx.drift),
+              ('SOFTNESS', _working.smokeFx.softness),
+              ('TURBULENCE', _working.smokeFx.turbulence),
+              ('CONTRAST', _working.smokeFx.contrast),
+              ('EXPANSION', _working.smokeFx.expansion),
+            ])
+              Row(
+                children: [
+                  SizedBox(
+                    width: 104,
+                    child: Text(entry.$1, style: const TextStyle(fontSize: 10)),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: entry.$2,
+                      min: 0,
+                      max: 4,
+                      onChanged: (value) => _updateSmokeFx(entry.$1, value),
+                    ),
+                  ),
+                  Text(entry.$2.toStringAsFixed(1)),
+                ],
+              ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               key: const ValueKey('base-camp-editor-smoke-reset'),
@@ -628,6 +683,13 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               ),
               icon: const Icon(Icons.restart_alt),
               label: const Text('RESET SMOKE ORIGIN'),
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('base-camp-editor-smoke-preset-reset'),
+              onPressed: () =>
+                  _mutate(_working.copyWith(smokeFx: const BaseCampSmokeFx())),
+              icon: const Icon(Icons.water_drop_outlined),
+              label: const Text('ORIGINAL SMOKE'),
             ),
           ],
         ),
