@@ -432,9 +432,10 @@ class BaseCampSmokeFx {
       ])
         value(key),
     ];
-    if (values.any((item) => item == null || item! < 0 || item > 4) ||
-        raw['visible'] is! bool)
+    if (values.any((item) => item == null || item < 0 || item > 4) ||
+        raw['visible'] is! bool) {
       return null;
+    }
     return BaseCampSmokeFx(
       density: values[0]!,
       opacity: values[1]!,
@@ -466,7 +467,7 @@ class BaseCampFacilityLabel {
   final bool visible;
   static BaseCampFacilityLabel defaultsFor(String id) => switch (id) {
     'status' => const BaseCampFacilityLabel(
-      position: Offset(160, 140),
+      position: Offset(160, 82),
       connectorEnd: Offset(295, 310),
     ),
     'food' => const BaseCampFacilityLabel(
@@ -513,7 +514,9 @@ class BaseCampFacilityLabel {
     final result = <String, BaseCampFacilityLabel>{};
     for (final facility in baseCampFacilities) {
       final item = raw[facility.id];
-      if (item is! Map || item['visible'] is! bool) return null;
+      if (item is! Map || item['visible'] is! bool) {
+        return null;
+      }
       double? n(String k) => item[k] is num && (item[k] as num).isFinite
           ? (item[k] as num).toDouble()
           : null;
@@ -535,8 +538,9 @@ class BaseCampFacilityLabel {
           s! <= 0 ||
           s > 3 ||
           e! < 0 ||
-          e > 1)
+          e > 1) {
         return null;
+      }
       result[facility.id] = BaseCampFacilityLabel(
         position: Offset(x, y),
         connectorEnd: Offset(ex, ey),
@@ -645,8 +649,9 @@ class BaseCampWaterFx {
           f = n('frequency');
       if (shore == null ||
           mask == null ||
-          [a, b, c, d, e, f].any((v) => v == null || v! < 0 || v > 4))
+          [a, b, c, d, e, f].any((v) => v == null || v < 0 || v > 4)) {
         return null;
+      }
       result[id] = BaseCampWaterFx(
         shoreline: shore,
         mask: mask,
@@ -679,6 +684,24 @@ class BaseCampStaticSoldier {
   final Offset position;
   final double scale, breathingIntensity, breathingPeriod;
   final bool breathing, visible;
+  BaseCampStaticSoldier copyWith({
+    Offset? position,
+    String? direction,
+    double? scale,
+    bool? breathing,
+    double? breathingIntensity,
+    double? breathingPeriod,
+    bool? visible,
+  }) => BaseCampStaticSoldier(
+    id: id,
+    position: position ?? this.position,
+    direction: direction ?? this.direction,
+    scale: scale ?? this.scale,
+    breathing: breathing ?? this.breathing,
+    breathingIntensity: breathingIntensity ?? this.breathingIntensity,
+    breathingPeriod: breathingPeriod ?? this.breathingPeriod,
+    visible: visible ?? this.visible,
+  );
   Map<String, Object?> toJson() => {
     'id': id,
     'x': position.dx,
@@ -700,8 +723,9 @@ class BaseCampStaticSoldier {
           !ids.add(i['id'] as String) ||
           i['direction'] is! String ||
           i['breathing'] is! bool ||
-          i['visible'] is! bool)
+          i['visible'] is! bool) {
         return null;
+      }
       double? n(String k) => i[k] is num && (i[k] as num).isFinite
           ? (i[k] as num).toDouble()
           : null;
@@ -721,8 +745,9 @@ class BaseCampStaticSoldier {
           bi > 2 ||
           bp! < 1 ||
           bp > 10 ||
-          !const ['front', 'back', 'right', 'left'].contains(i['direction']))
+          !const ['front', 'back', 'right', 'left'].contains(i['direction'])) {
         return null;
+      }
       result.add(
         BaseCampStaticSoldier(
           id: i['id'] as String,
@@ -743,13 +768,18 @@ class BaseCampStaticSoldier {
 List<Map<String, double>> _pointsJson(List<Offset> points) =>
     points.map((p) => {'x': p.dx, 'y': p.dy}).toList();
 List<Offset>? _points(Object? raw, int min) {
-  if (raw is! List || raw.length < min) return null;
+  if (raw is! List || raw.length < min) {
+    return null;
+  }
   final r = <Offset>[];
   for (final p in raw) {
-    if (p is! Map || p['x'] is! num || p['y'] is! num) return null;
-    final x = (p['x'] as num).toDouble(), y = (p['y'] as num).toDouble();
-    if (!x.isFinite || !y.isFinite || x < 0 || x > 1280 || y < 0 || y > 720)
+    if (p is! Map || p['x'] is! num || p['y'] is! num) {
       return null;
+    }
+    final x = (p['x'] as num).toDouble(), y = (p['y'] as num).toDouble();
+    if (!x.isFinite || !y.isFinite || x < 0 || x > 1280 || y < 0 || y > 720) {
+      return null;
+    }
     r.add(Offset(x, y));
   }
   return r;

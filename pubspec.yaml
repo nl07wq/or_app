@@ -101,6 +101,8 @@ flutter:
     - assets/images/themes/base_camp/base_camp_walker_front.gif
     - assets/images/themes/base_camp/base_camp_walker_down_right/
     - assets/images/themes/base_camp/base_camp_walker_up_left/
+    - assets/images/themes/base_camp/rear_upper_right/
+    - assets/images/themes/base_camp/front/
     - assets/data/
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4

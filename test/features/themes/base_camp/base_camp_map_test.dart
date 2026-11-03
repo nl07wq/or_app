@@ -140,6 +140,38 @@ void main() {
     expect(selected, isEmpty);
   });
 
+  testWidgets('facility label taps use the same confirmation flow', (
+    tester,
+  ) async {
+    final selected = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(
+              onFacilityPressed: (facility) => selected.add(facility.id),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    for (final facility in baseCampFacilities) {
+      final target = find
+          .byKey(ValueKey('base-camp-label-target-${facility.id}'))
+          .first;
+      expect(target, findsOneWidget);
+      await tester.tap(target);
+      await tester.pump();
+      expect(find.text('BASE CAMP / FACILITY SELECT'), findsOneWidget);
+      expect(find.text(facility.label), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('base-camp-confirm-yes')));
+      await tester.pump();
+    }
+    expect(selected, baseCampFacilities.map((facility) => facility.id));
+  });
+
   testWidgets('map drags do not trigger facility navigation', (tester) async {
     String? selected;
     await tester.pumpWidget(
@@ -219,6 +251,53 @@ void main() {
         everyElement(inInclusiveRange(2.0, 4.0)),
       );
     }
+  });
+
+  test('Route A uses five approved 160ms forward and return frames', () {
+    expect(baseCampRouteA.sourcePoints, hasLength(greaterThanOrEqualTo(2)));
+    expect(
+      baseCampWalkerFrameAssets(baseCampWalkerRearUpperRightAsset),
+      hasLength(5),
+    );
+    expect(baseCampWalkerFrameAssets(baseCampWalkerFrontAsset), hasLength(5));
+    expect(
+      baseCampWalkerFrameDuration(baseCampWalkerRearUpperRightAsset),
+      const Duration(milliseconds: 160),
+    );
+    expect(
+      baseCampWalkerFrameDuration(baseCampWalkerFrontAsset),
+      const Duration(milliseconds: 160),
+    );
+  });
+
+  test('v5 FX, labels, water and static soldiers round-trip losslessly', () {
+    final defaults = BaseCampMapConfiguration.defaults().copyWith(
+      staticSoldiers: const [
+        BaseCampStaticSoldier(
+          id: 'guard-1',
+          position: Offset(421, 315),
+          direction: 'left',
+          scale: .8,
+          breathingIntensity: .5,
+          breathingPeriod: 4,
+        ),
+      ],
+    );
+    final restored = BaseCampMapConfiguration.tryParse(defaults.toJson());
+    expect(restored, isNotNull);
+    expect(restored!.smokeFx.toJson(), defaults.smokeFx.toJson());
+    expect(
+      restored.labels['food']!.toJson(),
+      defaults.labels['food']!.toJson(),
+    );
+    expect(
+      restored.waterFx['rock-foam']!.toJson(),
+      defaults.waterFx['rock-foam']!.toJson(),
+    );
+    expect(
+      restored.staticSoldiers.single.toJson(),
+      defaults.staticSoldiers.single.toJson(),
+    );
   });
 
   test('facility outlines are independent irregular perimeters', () {

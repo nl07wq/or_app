@@ -14,6 +14,9 @@ enum _BaseCampEditorSection {
   buildings,
   objects,
   smokeOrigin,
+  labels,
+  waterFx,
+  staticSoldiers,
   soldierSize,
 }
 
@@ -35,6 +38,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   String _routeId = 'route-a';
   String _facilityId = 'status';
   String _objectId = 'status';
+  String _waterFxId = 'rock-foam';
+  String? _staticSoldierId;
   int _pointIndex = 0;
   bool _loading = true;
 
@@ -72,6 +77,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   bool get _dirty =>
       _working.encode() != baseCampMapConfigurationController.value.encode();
+
+  BaseCampStaticSoldier? get _selectedStaticSoldier {
+    final id = _staticSoldierId;
+    if (id == null) return null;
+    for (final soldier in _working.staticSoldiers) {
+      if (soldier.id == id) return soldier;
+    }
+    return null;
+  }
 
   void _mutate(BaseCampMapConfiguration next) {
     setState(() {
@@ -161,6 +175,122 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _ => fx.copyWith(expansion: value),
     };
     _mutate(_working.copyWith(smokeFx: next));
+  }
+
+  void _replaceLabel(String id, BaseCampFacilityLabel label) => _mutate(
+    _working.copyWith(
+      labels: <String, BaseCampFacilityLabel>{..._working.labels, id: label},
+    ),
+  );
+
+  void _updateLabelPosition(
+    String id,
+    Offset position, {
+    required bool endpoint,
+  }) {
+    final label = _working.labels[id]!;
+    final safe = Offset(
+      position.dx.clamp(0, baseCampMapSourceSize.width).toDouble(),
+      position.dy.clamp(0, baseCampMapSourceSize.height).toDouble(),
+    );
+    setState(() {
+      _working = _working.copyWith(
+        labels: <String, BaseCampFacilityLabel>{
+          ..._working.labels,
+          id: endpoint
+              ? label.copyWith(connectorEnd: safe)
+              : label.copyWith(position: safe),
+        },
+      );
+    });
+  }
+
+  void _replaceWaterFx(String id, BaseCampWaterFx effect) => _mutate(
+    _working.copyWith(
+      waterFx: <String, BaseCampWaterFx>{..._working.waterFx, id: effect},
+    ),
+  );
+
+  void _updateWaterPoint(
+    String id,
+    int index,
+    Offset point, {
+    required bool mask,
+  }) {
+    final effect = _working.waterFx[id]!;
+    final values = List<Offset>.of(mask ? effect.mask : effect.shoreline);
+    values[index] = Offset(
+      point.dx.clamp(0, baseCampMapSourceSize.width).toDouble(),
+      point.dy.clamp(0, baseCampMapSourceSize.height).toDouble(),
+    );
+    setState(() {
+      _working = _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          id: mask
+              ? effect.copyWith(mask: values)
+              : effect.copyWith(shoreline: values),
+        },
+      );
+    });
+  }
+
+  void _replaceStaticSoldier(BaseCampStaticSoldier soldier) => _mutate(
+    _working.copyWith(
+      staticSoldiers: _working.staticSoldiers
+          .map((item) => item.id == soldier.id ? soldier : item)
+          .toList(growable: false),
+    ),
+  );
+
+  void _updateStaticSoldierPosition(String id, Offset position) {
+    final soldier = _working.staticSoldiers.firstWhere((item) => item.id == id);
+    setState(() {
+      _working = _working.copyWith(
+        staticSoldiers: _working.staticSoldiers
+            .map(
+              (item) => item.id == id
+                  ? soldier.copyWith(
+                      position: Offset(
+                        position.dx
+                            .clamp(0, baseCampMapSourceSize.width)
+                            .toDouble(),
+                        position.dy
+                            .clamp(0, baseCampMapSourceSize.height)
+                            .toDouble(),
+                      ),
+                    )
+                  : item,
+            )
+            .toList(growable: false),
+      );
+    });
+  }
+
+  void _addStaticSoldier() {
+    final id = 'static-${DateTime.now().microsecondsSinceEpoch}';
+    _mutate(
+      _working.copyWith(
+        staticSoldiers: <BaseCampStaticSoldier>[
+          ..._working.staticSoldiers,
+          BaseCampStaticSoldier(id: id, position: const Offset(640, 430)),
+        ],
+      ),
+    );
+    setState(() => _staticSoldierId = id);
+  }
+
+  void _deleteStaticSoldier() {
+    final id = _staticSoldierId;
+    if (id == null) return;
+    _mutate(
+      _working.copyWith(
+        staticSoldiers: _working.staticSoldiers
+            .where((item) => item.id != id)
+            .toList(growable: false),
+      ),
+    );
+    setState(() => _staticSoldierId = null);
   }
 
   List<Offset> get _selectedPoints =>
@@ -362,6 +492,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
           ),
           actions: [
             IconButton(
+              tooltip: 'Cancel unsaved changes',
+              onPressed: () => setState(() {
+                _working = _clone(baseCampMapConfigurationController.value);
+                _undo.clear();
+              }),
+              icon: const Icon(Icons.cancel_outlined),
+            ),
+            IconButton(
               key: const ValueKey('base-camp-editor-undo'),
               onPressed: _undo.isEmpty ? null : _undoLast,
               icon: const Icon(Icons.undo),
@@ -402,37 +540,29 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<_BaseCampEditorSection>(
-                    segments: const [
-                      ButtonSegment(
-                        value: _BaseCampEditorSection.routes,
-                        label: Text('ROUTE EDITOR'),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final item in const <(_BaseCampEditorSection, String)>[
+                      (_BaseCampEditorSection.routes, 'ROUTE EDITOR'),
+                      (_BaseCampEditorSection.buildings, 'BUILDING EDITOR'),
+                      (_BaseCampEditorSection.objects, 'OBJECT EDITOR'),
+                      (_BaseCampEditorSection.smokeOrigin, 'SMOKE ORIGIN'),
+                      (_BaseCampEditorSection.labels, 'FACILITY LABEL'),
+                      (_BaseCampEditorSection.waterFx, 'WATER FX'),
+                      (_BaseCampEditorSection.staticSoldiers, 'STATIC SOLDIER'),
+                      (_BaseCampEditorSection.soldierSize, 'SOLDIER SIZE'),
+                    ])
+                      ChoiceChip(
+                        label: Text(item.$2),
+                        selected: _section == item.$1,
+                        onSelected: (_) => setState(() {
+                          _section = item.$1;
+                          _pointIndex = 0;
+                        }),
                       ),
-                      ButtonSegment(
-                        value: _BaseCampEditorSection.buildings,
-                        label: Text('BUILDING EDITOR'),
-                      ),
-                      ButtonSegment(
-                        value: _BaseCampEditorSection.objects,
-                        label: Text('OBJECT EDITOR'),
-                      ),
-                      ButtonSegment(
-                        value: _BaseCampEditorSection.smokeOrigin,
-                        label: Text('SMOKE ORIGIN'),
-                      ),
-                      ButtonSegment(
-                        value: _BaseCampEditorSection.soldierSize,
-                        label: Text('SOLDIER SIZE'),
-                      ),
-                    ],
-                    selected: <_BaseCampEditorSection>{_section},
-                    onSelectionChanged: (value) => setState(() {
-                      _section = value.first;
-                      _pointIndex = 0;
-                    }),
-                  ),
+                  ],
                 ),
               ),
               Expanded(
@@ -460,6 +590,30 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       object.copyWith(position: point),
                       recordUndo: false,
                     );
+                  },
+                  onLabelDragStarted: () =>
+                      setState(() => _undo.add(_clone(_working))),
+                  onLabelDragged: (position, endpoint) => _updateLabelPosition(
+                    _facilityId,
+                    position,
+                    endpoint: endpoint,
+                  ),
+                  selectedWaterFxId: _waterFxId,
+                  onWaterDragStarted: () =>
+                      setState(() => _undo.add(_clone(_working))),
+                  onWaterPointDragged: (index, position, mask) =>
+                      _updateWaterPoint(
+                        _waterFxId,
+                        index,
+                        position,
+                        mask: mask,
+                      ),
+                  selectedStaticSoldierId: _staticSoldierId,
+                  onStaticSoldierDragStarted: () =>
+                      setState(() => _undo.add(_clone(_working))),
+                  onStaticSoldierDragged: (id, position) {
+                    _staticSoldierId = id;
+                    _updateStaticSoldierPosition(id, position);
                   },
                 ),
               ),
@@ -623,6 +777,197 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               icon: const Icon(Icons.restart_alt),
               label: const Text('RESET TO DEFAULT'),
             ),
+          ],
+        ),
+      );
+    }
+    if (_section == _BaseCampEditorSection.labels) {
+      final label = _working.labels[_facilityId]!;
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _facilityId,
+              items: baseCampFacilities
+                  .map(
+                    (facility) => DropdownMenuItem(
+                      value: facility.id,
+                      child: Text(facility.label),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _facilityId = value!),
+            ),
+            _editorSlider(
+              'SCALE',
+              label.scale,
+              0.4,
+              2.5,
+              (value) =>
+                  _replaceLabel(_facilityId, label.copyWith(scale: value)),
+            ),
+            _editorSlider(
+              'CONNECTOR ROUTING',
+              label.elbow,
+              0,
+              1,
+              (value) =>
+                  _replaceLabel(_facilityId, label.copyWith(elbow: value)),
+            ),
+            SwitchListTile(
+              title: const Text('VISIBLE'),
+              value: label.visible,
+              onChanged: (value) =>
+                  _replaceLabel(_facilityId, label.copyWith(visible: value)),
+            ),
+            const Text('Drag the plate and connector endpoint on the map.'),
+            OutlinedButton.icon(
+              onPressed: () => _replaceLabel(
+                _facilityId,
+                BaseCampFacilityLabel.defaultsFor(_facilityId),
+              ),
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('PRESET RESET'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_section == _BaseCampEditorSection.waterFx) {
+      final effect = _working.waterFx[_waterFxId]!;
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _waterFxId,
+              items: const [
+                DropdownMenuItem(value: 'rock-foam', child: Text('ROCK FOAM')),
+                DropdownMenuItem(
+                  value: 'coast-ripple',
+                  child: Text('COAST RIPPLE'),
+                ),
+              ],
+              onChanged: (value) => setState(() => _waterFxId = value!),
+            ),
+            for (final entry in <(String, double)>[
+              ('INTENSITY', effect.intensity),
+              ('SPEED', effect.speed),
+              ('FOAM', effect.foam),
+              ('OPACITY', effect.opacity),
+              ('SPREAD', effect.spread),
+              ('FREQUENCY', effect.frequency),
+            ])
+              _editorSlider(entry.$1, entry.$2, 0, 4, (value) {
+                final next = switch (entry.$1) {
+                  'INTENSITY' => effect.copyWith(intensity: value),
+                  'SPEED' => effect.copyWith(speed: value),
+                  'FOAM' => effect.copyWith(foam: value),
+                  'OPACITY' => effect.copyWith(opacity: value),
+                  'SPREAD' => effect.copyWith(spread: value),
+                  _ => effect.copyWith(frequency: value),
+                };
+                _replaceWaterFx(_waterFxId, next);
+              }),
+            SwitchListTile(
+              title: const Text('VISIBLE'),
+              value: effect.visible,
+              onChanged: (value) =>
+                  _replaceWaterFx(_waterFxId, effect.copyWith(visible: value)),
+            ),
+            const Text(
+              'Shoreline and water mask retain their map coordinates.',
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _replaceWaterFx(
+                _waterFxId,
+                BaseCampWaterFx.defaults()[_waterFxId]!,
+              ),
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('PRESET RESET'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_section == _BaseCampEditorSection.staticSoldiers) {
+      final soldier = _selectedStaticSoldier;
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _addStaticSoldier,
+                  icon: const Icon(Icons.add),
+                  label: const Text('ADD'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: soldier == null ? null : _deleteStaticSoldier,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('DELETE'),
+                ),
+              ],
+            ),
+            if (soldier != null) ...[
+              DropdownButtonFormField<String>(
+                initialValue: soldier.direction,
+                items: const ['front', 'back', 'right', 'left']
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(value.toUpperCase()),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    _replaceStaticSoldier(soldier.copyWith(direction: value)),
+              ),
+              _editorSlider(
+                'SCALE',
+                soldier.scale,
+                .3,
+                2,
+                (value) =>
+                    _replaceStaticSoldier(soldier.copyWith(scale: value)),
+              ),
+              _editorSlider(
+                'BREATHING INTENSITY',
+                soldier.breathingIntensity,
+                0,
+                2,
+                (value) => _replaceStaticSoldier(
+                  soldier.copyWith(breathingIntensity: value),
+                ),
+              ),
+              _editorSlider(
+                'BREATHING PERIOD',
+                soldier.breathingPeriod,
+                1,
+                8,
+                (value) => _replaceStaticSoldier(
+                  soldier.copyWith(breathingPeriod: value),
+                ),
+              ),
+              SwitchListTile(
+                title: const Text('BREATHING'),
+                value: soldier.breathing,
+                onChanged: (value) =>
+                    _replaceStaticSoldier(soldier.copyWith(breathing: value)),
+              ),
+              SwitchListTile(
+                title: const Text('VISIBLE'),
+                value: soldier.visible,
+                onChanged: (value) =>
+                    _replaceStaticSoldier(soldier.copyWith(visible: value)),
+              ),
+            ],
           ],
         ),
       );
@@ -833,6 +1178,30 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     );
   }
 
+  Widget _editorSlider(
+    String title,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged,
+  ) => Row(
+    children: [
+      SizedBox(
+        width: 118,
+        child: Text(title, style: const TextStyle(fontSize: 10)),
+      ),
+      Expanded(
+        child: Slider(
+          value: value.clamp(min, max),
+          min: min,
+          max: max,
+          onChanged: onChanged,
+        ),
+      ),
+      SizedBox(width: 32, child: Text(value.toStringAsFixed(1))),
+    ],
+  );
+
   void _replaceObject(BaseCampMapObject object, {bool recordUndo = true}) {
     final next = _working.copyWith(
       objects: <String, BaseCampMapObject>{
@@ -923,6 +1292,14 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onSmokeOriginDragged,
     required this.onObjectDragStarted,
     required this.onObjectDragged,
+    required this.onLabelDragStarted,
+    required this.onLabelDragged,
+    required this.selectedWaterFxId,
+    required this.onWaterDragStarted,
+    required this.onWaterPointDragged,
+    required this.selectedStaticSoldierId,
+    required this.onStaticSoldierDragStarted,
+    required this.onStaticSoldierDragged,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
@@ -935,6 +1312,15 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final ValueChanged<Offset> onSmokeOriginDragged;
   final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectDragged;
+  final VoidCallback onLabelDragStarted;
+  final void Function(Offset position, bool endpoint) onLabelDragged;
+  final String selectedWaterFxId;
+  final VoidCallback onWaterDragStarted;
+  final void Function(int index, Offset position, bool mask)
+  onWaterPointDragged;
+  final String? selectedStaticSoldierId;
+  final VoidCallback onStaticSoldierDragStarted;
+  final void Function(String id, Offset position) onStaticSoldierDragged;
 
   @override
   State<_BaseCampEditorCanvas> createState() => _BaseCampEditorCanvasState();
@@ -1026,6 +1412,42 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
                   );
                 }
               },
+              onLabelDragStarted: widget.onLabelDragStarted,
+              onLabelGlobalDragged: (globalPosition, endpoint) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onLabelDragged(
+                    renderBox.globalToLocal(globalPosition),
+                    endpoint,
+                  );
+                }
+              },
+              selectedWaterFxId: widget.selectedWaterFxId,
+              onWaterDragStarted: widget.onWaterDragStarted,
+              onWaterGlobalDragged: (index, globalPosition, mask) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onWaterPointDragged(
+                    index,
+                    renderBox.globalToLocal(globalPosition),
+                    mask,
+                  );
+                }
+              },
+              selectedStaticSoldierId: widget.selectedStaticSoldierId,
+              onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
+              onStaticSoldierGlobalDragged: (id, globalPosition) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onStaticSoldierDragged(
+                    id,
+                    renderBox.globalToLocal(globalPosition),
+                  );
+                }
+              },
             ),
           ),
         ),
@@ -1049,6 +1471,14 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onPointGlobalDragged,
     required this.onObjectDragStarted,
     required this.onObjectGlobalDragged,
+    required this.onLabelDragStarted,
+    required this.onLabelGlobalDragged,
+    required this.selectedWaterFxId,
+    required this.onWaterDragStarted,
+    required this.onWaterGlobalDragged,
+    required this.selectedStaticSoldierId,
+    required this.onStaticSoldierDragStarted,
+    required this.onStaticSoldierGlobalDragged,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
@@ -1060,6 +1490,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final ValueChanged<Offset> onPointGlobalDragged;
   final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectGlobalDragged;
+  final VoidCallback onLabelDragStarted;
+  final void Function(Offset position, bool endpoint) onLabelGlobalDragged;
+  final String selectedWaterFxId;
+  final VoidCallback onWaterDragStarted;
+  final void Function(int index, Offset position, bool mask)
+  onWaterGlobalDragged;
+  final String? selectedStaticSoldierId;
+  final VoidCallback onStaticSoldierDragStarted;
+  final void Function(String id, Offset position) onStaticSoldierGlobalDragged;
 
   @override
   Widget build(BuildContext context) {
@@ -1079,10 +1518,25 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     final smokeSource = food == null
         ? Offset.zero
         : baseCampObjectLocalToSource(food, configuration.foodSmokeOrigin);
+    final label = configuration.labels[selectedFacilityId];
+    final water = configuration.waterFx[selectedWaterFxId];
     return Stack(
       fit: StackFit.expand,
       children: [
         const Image(image: AssetImage(baseCampMapAsset), fit: BoxFit.fill),
+        IgnorePointer(
+          child: BaseCampWaterFxLayer(
+            configuration: configuration,
+            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            elapsed: const Duration(seconds: 2),
+          ),
+        ),
+        IgnorePointer(
+          child: BaseCampFacilityLabelLayer(
+            configuration: configuration,
+            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+          ),
+        ),
         IgnorePointer(
           child: BaseCampObjectLayer(
             configuration: configuration,
@@ -1160,6 +1614,58 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
               ),
             ),
           ),
+        if (section == _BaseCampEditorSection.labels && label != null) ...[
+          _EditorDragHandle(
+            point: label.position,
+            icon: Icons.label_outline,
+            color: const Color(0xFF68E8F2),
+            onStart: onLabelDragStarted,
+            onUpdate: (details) =>
+                onLabelGlobalDragged(details.globalPosition, false),
+          ),
+          _EditorDragHandle(
+            point: label.connectorEnd,
+            icon: Icons.radio_button_checked,
+            color: const Color(0xFFE5DFCF),
+            onStart: onLabelDragStarted,
+            onUpdate: (details) =>
+                onLabelGlobalDragged(details.globalPosition, true),
+          ),
+        ],
+        if (section == _BaseCampEditorSection.waterFx && water != null) ...[
+          for (var i = 0; i < water.shoreline.length; i++)
+            _EditorDragHandle(
+              point: water.shoreline[i],
+              icon: Icons.waves,
+              color: const Color(0xFFEAF1EA),
+              onStart: onWaterDragStarted,
+              onUpdate: (details) =>
+                  onWaterGlobalDragged(i, details.globalPosition, false),
+            ),
+          for (var i = 0; i < water.mask.length; i++)
+            _EditorDragHandle(
+              point: water.mask[i],
+              icon: Icons.crop_square,
+              color: const Color(0xFF68E8F2),
+              onStart: onWaterDragStarted,
+              onUpdate: (details) =>
+                  onWaterGlobalDragged(i, details.globalPosition, true),
+            ),
+        ],
+        if (section == _BaseCampEditorSection.staticSoldiers)
+          for (final soldier in configuration.staticSoldiers)
+            _EditorDragHandle(
+              point: soldier.position,
+              icon: Icons.person_pin_circle,
+              color: soldier.id == selectedStaticSoldierId
+                  ? const Color(0xFF68E8F2)
+                  : const Color(0xFFD7D9D6),
+              onStart: onStaticSoldierDragStarted,
+              onUpdate: (details) => onStaticSoldierGlobalDragged(
+                soldier.id,
+                details.globalPosition,
+              ),
+            ),
         if (section == _BaseCampEditorSection.objects)
           Positioned.fill(
             child: GestureDetector(
@@ -1175,6 +1681,42 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   }
 }
 
+class _EditorDragHandle extends StatelessWidget {
+  const _EditorDragHandle({
+    required this.point,
+    required this.icon,
+    required this.color,
+    required this.onStart,
+    required this.onUpdate,
+  });
+  final Offset point;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onStart;
+  final GestureDragUpdateCallback onUpdate;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: point.dx - 20,
+    top: point.dy - 20,
+    width: 40,
+    height: 40,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanStart: (_) => onStart(),
+      onPanUpdate: onUpdate,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xCC101A1D),
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 2),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+    ),
+  );
+}
+
 class _BaseCampEditorGuidePainter extends CustomPainter {
   const _BaseCampEditorGuidePainter({
     required this.configuration,
@@ -1188,7 +1730,10 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (section == _BaseCampEditorSection.soldierSize ||
         section == _BaseCampEditorSection.objects ||
-        section == _BaseCampEditorSection.smokeOrigin) {
+        section == _BaseCampEditorSection.smokeOrigin ||
+        section == _BaseCampEditorSection.labels ||
+        section == _BaseCampEditorSection.waterFx ||
+        section == _BaseCampEditorSection.staticSoldiers) {
       return;
     }
     final normalized = section == _BaseCampEditorSection.buildings;

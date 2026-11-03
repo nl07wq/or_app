@@ -62,11 +62,27 @@ List<String> baseCampWalkerFrameAssets(String gifAsset) => switch (gifAsset) {
   baseCampWalkerDownRightAsset => baseCampWalkerDownRightFrames,
   baseCampWalkerUpLeftAsset => baseCampWalkerUpLeftFrames,
   baseCampWalkerRearUpperRightAsset => <String>[
-    baseCampWalkerRearUpperRightAsset,
+    'assets/images/themes/base_camp/rear_upper_right/frame_00.png',
+    'assets/images/themes/base_camp/rear_upper_right/frame_01.png',
+    'assets/images/themes/base_camp/rear_upper_right/frame_02.png',
+    'assets/images/themes/base_camp/rear_upper_right/frame_03.png',
+    'assets/images/themes/base_camp/rear_upper_right/frame_04.png',
   ],
-  baseCampWalkerFrontAsset => <String>[baseCampWalkerFrontAsset],
+  baseCampWalkerFrontAsset => <String>[
+    'assets/images/themes/base_camp/front/frame_00.png',
+    'assets/images/themes/base_camp/front/frame_01.png',
+    'assets/images/themes/base_camp/front/frame_02.png',
+    'assets/images/themes/base_camp/front/frame_03.png',
+    'assets/images/themes/base_camp/front/frame_04.png',
+  ],
   _ => throw ArgumentError.value(gifAsset, 'gifAsset', 'Unknown walker asset'),
 };
+
+Duration baseCampWalkerFrameDuration(String asset) =>
+    asset == baseCampWalkerRearUpperRightAsset ||
+        asset == baseCampWalkerFrontAsset
+    ? const Duration(milliseconds: 160)
+    : const Duration(milliseconds: 140);
 
 /// The source dimensions of both the approved map and the white-line route
 /// reference. Keeping route points in this coordinate system makes their
@@ -535,6 +551,12 @@ class _BaseCampMapState extends State<BaseCampMap>
                           filterQuality: FilterQuality.high,
                         ),
                         IgnorePointer(
+                          child: BaseCampFacilityLabelLayer(
+                            configuration: configuration,
+                            geometry: geometry,
+                          ),
+                        ),
+                        IgnorePointer(
                           child: AnimatedBuilder(
                             animation: _walkerTimeline,
                             builder: (_, _) => BaseCampWaterFxLayer(
@@ -639,6 +661,26 @@ class _BaseCampMapState extends State<BaseCampMap>
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
+                          for (final facility in baseCampFacilities)
+                            if (configuration.labels[facility.id]
+                                case final label? when label.visible)
+                              for (final rect in baseCampLabelTapRects(
+                                label,
+                                geometry,
+                                configuration.objects.values
+                                    .map(
+                                      (object) => baseCampObjectViewportRect(
+                                        object,
+                                        geometry,
+                                      ),
+                                    )
+                                    .toList(growable: false),
+                              ))
+                                _BaseCampFacilityLabelTarget(
+                                  facility: facility,
+                                  rect: rect,
+                                  onPressed: () => _openFacility(facility),
+                                ),
                           for (final facility in baseCampFacilities)
                             if (configuration.objects[facility.id]
                                 case final object?)
@@ -943,6 +985,22 @@ class _BaseCampRouteSegment {
 
 const baseCampObjectNominalSize = Size(250, 180);
 
+Rect baseCampObjectViewportRect(
+  BaseCampMapObject object,
+  BaseCampMapGeometry geometry,
+) {
+  final position = geometry.sourceToViewport(object.position);
+  final width = baseCampObjectNominalSize.width * geometry.scale * object.scale;
+  final height =
+      baseCampObjectNominalSize.height * geometry.scale * object.scale;
+  return Rect.fromLTWH(
+    position.dx - width * object.anchor.dx,
+    position.dy - height * object.anchor.dy,
+    width,
+    height,
+  );
+}
+
 /// Converts a normalized local object coordinate into the durable map-source
 /// coordinate system, applying its anchor, scale and rotation exactly once.
 Offset baseCampObjectLocalToSource(BaseCampMapObject object, Offset local) {
@@ -1233,116 +1291,71 @@ class BaseCampFacilityLabelLayer extends StatelessWidget {
     super.key,
     required this.configuration,
     required this.geometry,
-    required this.onFacilityPressed,
   });
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
-  final ValueChanged<BaseCampFacility> onFacilityPressed;
 
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: [
-      IgnorePointer(
-        child: CustomPaint(
-          painter: _BaseCampLabelConnectorPainter(configuration, geometry),
-        ),
-      ),
-      for (final facility in baseCampFacilities)
-        if (configuration.labels[facility.id]?.visible ?? false)
-          _BaseCampFacilityPlate(
-            facility: facility,
-            label: configuration.labels[facility.id]!,
-            geometry: geometry,
-            onPressed: () => onFacilityPressed(facility),
-          ),
-    ],
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _BaseCampFacilityLabelPainter(configuration, geometry),
   );
 }
 
-class _BaseCampFacilityPlate extends StatelessWidget {
-  const _BaseCampFacilityPlate({
+Rect baseCampFacilityLabelRect(
+  BaseCampFacilityLabel label,
+  BaseCampMapGeometry geometry,
+) {
+  final point = geometry.sourceToViewport(label.position);
+  final width = 138 * label.scale * geometry.scale;
+  final height = 37 * label.scale * geometry.scale;
+  return Rect.fromCenter(center: point, width: width, height: height);
+}
+
+/// Returns bounded, plate-only input rectangles. Facility object layout boxes
+/// are subtracted first so transparent facility margins remain transparent to
+/// interaction and alpha hit testing stays the source of truth.
+List<Rect> baseCampLabelTapRects(
+  BaseCampFacilityLabel label,
+  BaseCampMapGeometry geometry,
+  List<Rect> objectRects,
+) {
+  // Facility alpha targets are painted above this bounded target and win any
+  // overlap. Keeping this list API allows a future rotated-object clip while
+  // retaining the shared plate geometry today.
+  return <Rect>[baseCampFacilityLabelRect(label, geometry)];
+}
+
+class _BaseCampFacilityLabelTarget extends StatelessWidget {
+  const _BaseCampFacilityLabelTarget({
     required this.facility,
-    required this.label,
-    required this.geometry,
+    required this.rect,
     required this.onPressed,
   });
   final BaseCampFacility facility;
-  final BaseCampFacilityLabel label;
-  final BaseCampMapGeometry geometry;
+  final Rect rect;
   final VoidCallback onPressed;
+
   @override
-  Widget build(BuildContext context) {
-    final point = geometry.sourceToViewport(label.position);
-    final width = 138 * label.scale * geometry.scale;
-    final height = 37 * label.scale * geometry.scale;
-    return Positioned(
-      left: point.dx - width / 2,
-      top: point.dy - height / 2,
-      width: width,
-      height: height,
-      child: Semantics(
-        button: true,
-        label: '${facility.label} label',
-        child: GestureDetector(
-          onTap: onPressed,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: const Color(0xFF343622),
-              border: Border.all(
-                color: const Color(0xFFA9A083),
-                width: math.max(.7, geometry.scale),
-              ),
-              borderRadius: BorderRadius.circular(height / 2),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: width * .16,
-                  child: Icon(
-                    _facilityIcon(facility.id),
-                    color: const Color(0xFFF0E8D4),
-                    size: height * .48,
-                  ),
-                ),
-                Container(
-                  width: math.max(1, geometry.scale),
-                  color: const Color(0xFFA9A083),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      facility.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.fade,
-                      style: TextStyle(
-                        color: const Color(0xFFF0E8D4),
-                        fontFamily: 'ShareTechMono',
-                        fontSize: height * .36,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+  Widget build(BuildContext context) => Positioned(
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    child: Semantics(
+      button: true,
+      label: '${facility.label} label',
+      child: GestureDetector(
+        key: ValueKey('base-camp-label-target-${facility.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: const SizedBox.expand(),
       ),
-    );
-  }
+    ),
+  );
 }
 
-IconData _facilityIcon(String id) => switch (id) {
-  'status' => Icons.play_arrow,
-  'food' => Icons.restaurant,
-  'training' => Icons.fitness_center,
-  'activity' => Icons.directions_run,
-  _ => Icons.flag,
-};
-
-class _BaseCampLabelConnectorPainter extends CustomPainter {
-  const _BaseCampLabelConnectorPainter(this.configuration, this.geometry);
+class _BaseCampFacilityLabelPainter extends CustomPainter {
+  const _BaseCampFacilityLabelPainter(this.configuration, this.geometry);
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
   @override
@@ -1369,12 +1382,77 @@ class _BaseCampLabelConnectorPainter extends CustomPainter {
         math.max(2, geometry.scale * 3),
         Paint()..color = const Color(0xFFE5DFCF),
       );
+      final rect = baseCampFacilityLabelRect(label, geometry);
+      final radius = Radius.circular(rect.height / 2);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, radius),
+        Paint()..color = const Color(0xFF343622),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, radius),
+        Paint()
+          ..color = const Color(0xFFA9A083)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(.7, geometry.scale),
+      );
+      final dividerX = rect.left + rect.width * .16;
+      canvas.drawLine(
+        Offset(dividerX, rect.top + rect.height * .18),
+        Offset(dividerX, rect.bottom - rect.height * .18),
+        Paint()
+          ..color = const Color(0xFFA9A083)
+          ..strokeWidth = math.max(.7, geometry.scale),
+      );
+      _paintLabelText(
+        canvas,
+        _facilityIconGlyph(facility.id),
+        Rect.fromLTWH(rect.left, rect.top, rect.width * .16, rect.height),
+        rect.height * .42,
+      );
+      _paintLabelText(
+        canvas,
+        facility.label,
+        Rect.fromLTWH(dividerX, rect.top, rect.right - dividerX, rect.height),
+        rect.height * .36,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(_BaseCampLabelConnectorPainter old) =>
+  bool shouldRepaint(_BaseCampFacilityLabelPainter old) =>
       old.configuration != configuration || old.geometry != geometry;
+}
+
+String _facilityIconGlyph(String id) => switch (id) {
+  'status' => '›',
+  'food' => '†',
+  'training' => '↔',
+  'activity' => '⌁',
+  _ => '⚑',
+};
+
+void _paintLabelText(Canvas canvas, String text, Rect rect, double fontSize) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: TextStyle(
+        color: const Color(0xFFF0E8D4),
+        fontFamily: 'ShareTechMono',
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    maxLines: 1,
+    textDirection: TextDirection.ltr,
+    textAlign: TextAlign.center,
+  )..layout(maxWidth: rect.width);
+  painter.paint(
+    canvas,
+    Offset(
+      rect.center.dx - painter.width / 2,
+      rect.center.dy - painter.height / 2,
+    ),
+  );
 }
 
 class _BaseCampMapObjectPositioned extends StatelessWidget {
@@ -1945,7 +2023,9 @@ class _BaseCampGifWalkerState extends State<_BaseCampGifWalker>
   late final AnimationController _frames;
 
   Duration get _cycleDuration => Duration(
-    milliseconds: baseCampWalkerFrameAssets(widget.assetPath).length * 140,
+    milliseconds:
+        baseCampWalkerFrameAssets(widget.assetPath).length *
+        baseCampWalkerFrameDuration(widget.assetPath).inMilliseconds,
   );
 
   @override
