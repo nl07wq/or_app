@@ -300,6 +300,53 @@ void main() {
     );
   });
 
+  test('existing v5 label and water settings migrate new FX fields safely', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    final payload = Map<String, Object?>.from(defaults.toJson());
+    final labels = <String, Object?>{
+      for (final entry in (payload['labels'] as Map).entries)
+        entry.key as String: Map<String, Object?>.from(entry.value as Map)
+          ..remove('startX')
+          ..remove('startY'),
+    };
+    final waterFx = <String, Object?>{
+      for (final entry in (payload['waterFx'] as Map).entries)
+        entry.key as String: Map<String, Object?>.from(entry.value as Map)
+          ..remove('shimmerDensity')
+          ..remove('shimmerBrightness')
+          ..remove('shimmerSpeed')
+          ..remove('flowDistortion')
+          ..remove('foamIntensity'),
+    };
+    payload['labels'] = labels;
+    payload['waterFx'] = waterFx;
+
+    final restored = BaseCampMapConfiguration.tryParse(payload);
+
+    expect(restored, isNotNull);
+    expect(restored!.labels['food']!.connectorStart, const Offset(500, 155));
+    expect(restored.waterFx['rock-foam']!.shimmerDensity, 1);
+    expect(restored.waterFx['rock-foam']!.flowDistortion, 1);
+    expect(restored.waterFx['coast-ripple']!.foamIntensity, 1);
+  });
+
+  test(
+    'default water masks are constrained to the visible left water edge',
+    () {
+      for (final fx in BaseCampWaterFx.defaults().values) {
+        expect(fx.mask, hasLength(greaterThanOrEqualTo(3)));
+        expect(
+          fx.mask.every((point) => point.dx >= 0 && point.dx <= 86),
+          isTrue,
+        );
+        expect(
+          fx.mask.every((point) => point.dy >= 0 && point.dy <= 720),
+          isTrue,
+        );
+      }
+    },
+  );
+
   test('facility outlines are independent irregular perimeters', () {
     expect(baseCampFacilities, hasLength(5));
     for (final facility in baseCampFacilities) {

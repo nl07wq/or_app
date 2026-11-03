@@ -457,44 +457,52 @@ class BaseCampSmokeFx {
 class BaseCampFacilityLabel {
   const BaseCampFacilityLabel({
     required this.position,
+    Offset? connectorStart,
     required this.connectorEnd,
     this.scale = 1,
     this.visible = true,
     this.elbow = .5,
-  });
-  final Offset position, connectorEnd;
+  }) : connectorStart = connectorStart ?? position;
+  final Offset position, connectorStart, connectorEnd;
   final double scale, elbow;
   final bool visible;
   static BaseCampFacilityLabel defaultsFor(String id) => switch (id) {
     'status' => const BaseCampFacilityLabel(
-      position: Offset(160, 82),
+      position: Offset(150, 190),
+      connectorStart: Offset(214, 190),
       connectorEnd: Offset(295, 310),
     ),
     'food' => const BaseCampFacilityLabel(
-      position: Offset(580, 68),
-      connectorEnd: Offset(594, 215),
+      position: Offset(500, 155),
+      connectorStart: Offset(565, 155),
+      connectorEnd: Offset(624, 231),
     ),
     'training' => const BaseCampFacilityLabel(
       position: Offset(1015, 135),
+      connectorStart: Offset(1015, 155),
       connectorEnd: Offset(1010, 260),
     ),
     'activity' => const BaseCampFacilityLabel(
       position: Offset(190, 400),
+      connectorStart: Offset(255, 400),
       connectorEnd: Offset(360, 510),
     ),
     _ => const BaseCampFacilityLabel(
       position: Offset(760, 415),
+      connectorStart: Offset(825, 415),
       connectorEnd: Offset(900, 530),
     ),
   };
   BaseCampFacilityLabel copyWith({
     Offset? position,
+    Offset? connectorStart,
     Offset? connectorEnd,
     double? scale,
     bool? visible,
     double? elbow,
   }) => BaseCampFacilityLabel(
     position: position ?? this.position,
+    connectorStart: connectorStart ?? this.connectorStart,
     connectorEnd: connectorEnd ?? this.connectorEnd,
     scale: scale ?? this.scale,
     visible: visible ?? this.visible,
@@ -503,6 +511,8 @@ class BaseCampFacilityLabel {
   Map<String, Object?> toJson() => {
     'x': position.dx,
     'y': position.dy,
+    'startX': connectorStart.dx,
+    'startY': connectorStart.dy,
     'endX': connectorEnd.dx,
     'endY': connectorEnd.dy,
     'scale': scale,
@@ -522,15 +532,21 @@ class BaseCampFacilityLabel {
           : null;
       final x = n('x'),
           y = n('y'),
+          sx = n('startX') ?? n('x'),
+          sy = n('startY') ?? n('y'),
           ex = n('endX'),
           ey = n('endY'),
           s = n('scale'),
           e = n('elbow');
-      if ([x, y, ex, ey, s, e].any((v) => v == null) ||
+      if ([x, y, sx, sy, ex, ey, s, e].any((v) => v == null) ||
           x! < 0 ||
           x > 1280 ||
           y! < 0 ||
           y > 720 ||
+          sx! < 0 ||
+          sx > 1280 ||
+          sy! < 0 ||
+          sy > 720 ||
           ex! < 0 ||
           ex > 1280 ||
           ey! < 0 ||
@@ -543,6 +559,7 @@ class BaseCampFacilityLabel {
       }
       result[facility.id] = BaseCampFacilityLabel(
         position: Offset(x, y),
+        connectorStart: Offset(sx, sy),
         connectorEnd: Offset(ex, ey),
         scale: s,
         visible: item['visible'] as bool,
@@ -564,23 +581,31 @@ class BaseCampWaterFx {
     this.opacity = .38,
     this.spread = 1,
     this.frequency = 1,
+    this.shimmerDensity = 1,
+    this.shimmerBrightness = 1,
+    this.shimmerSpeed = 1,
+    this.flowDistortion = 1,
+    this.foamIntensity = 1,
     this.visible = true,
   });
   final List<Offset> shoreline, mask;
   final double intensity, speed, foam, opacity, spread, frequency;
+  final double shimmerDensity, shimmerBrightness, shimmerSpeed;
+  final double flowDistortion, foamIntensity;
   final bool visible;
   static Map<String, BaseCampWaterFx> defaults() => <String, BaseCampWaterFx>{
     'rock-foam': const BaseCampWaterFx(
       shoreline: [
-        Offset(20, 570),
-        Offset(55, 610),
-        Offset(110, 655),
-        Offset(175, 690),
+        Offset(10, 535),
+        Offset(48, 564),
+        Offset(78, 615),
+        Offset(66, 682),
       ],
       mask: [
-        Offset(0, 515),
-        Offset(195, 570),
-        Offset(225, 720),
+        Offset(0, 498),
+        Offset(44, 523),
+        Offset(86, 593),
+        Offset(76, 690),
         Offset(0, 720),
       ],
       intensity: 1.25,
@@ -588,12 +613,18 @@ class BaseCampWaterFx {
     ),
     'coast-ripple': const BaseCampWaterFx(
       shoreline: [
-        Offset(0, 115),
-        Offset(34, 150),
-        Offset(70, 185),
-        Offset(112, 225),
+        Offset(5, 82),
+        Offset(58, 106),
+        Offset(60, 168),
+        Offset(42, 238),
       ],
-      mask: [Offset(0, 65), Offset(135, 120), Offset(150, 260), Offset(0, 270)],
+      mask: [
+        Offset(0, 58),
+        Offset(62, 86),
+        Offset(68, 165),
+        Offset(46, 248),
+        Offset(0, 278),
+      ],
       intensity: .55,
       foam: .3,
       opacity: .24,
@@ -608,6 +639,11 @@ class BaseCampWaterFx {
     double? opacity,
     double? spread,
     double? frequency,
+    double? shimmerDensity,
+    double? shimmerBrightness,
+    double? shimmerSpeed,
+    double? flowDistortion,
+    double? foamIntensity,
     bool? visible,
   }) => BaseCampWaterFx(
     shoreline: shoreline ?? this.shoreline,
@@ -618,6 +654,11 @@ class BaseCampWaterFx {
     opacity: opacity ?? this.opacity,
     spread: spread ?? this.spread,
     frequency: frequency ?? this.frequency,
+    shimmerDensity: shimmerDensity ?? this.shimmerDensity,
+    shimmerBrightness: shimmerBrightness ?? this.shimmerBrightness,
+    shimmerSpeed: shimmerSpeed ?? this.shimmerSpeed,
+    flowDistortion: flowDistortion ?? this.flowDistortion,
+    foamIntensity: foamIntensity ?? this.foamIntensity,
     visible: visible ?? this.visible,
   );
   Map<String, Object?> toJson() => {
@@ -629,6 +670,11 @@ class BaseCampWaterFx {
     'opacity': opacity,
     'spread': spread,
     'frequency': frequency,
+    'shimmerDensity': shimmerDensity,
+    'shimmerBrightness': shimmerBrightness,
+    'shimmerSpeed': shimmerSpeed,
+    'flowDistortion': flowDistortion,
+    'foamIntensity': foamIntensity,
     'visible': visible,
   };
   static Map<String, BaseCampWaterFx>? decodeAll(Object? raw) {
@@ -647,9 +693,28 @@ class BaseCampWaterFx {
           d = n('opacity'),
           e = n('spread'),
           f = n('frequency');
+      final defaults = BaseCampWaterFx.defaults()[id]!;
+      final shimmerDensity = n('shimmerDensity') ?? defaults.shimmerDensity;
+      final shimmerBrightness =
+          n('shimmerBrightness') ?? defaults.shimmerBrightness;
+      final shimmerSpeed = n('shimmerSpeed') ?? defaults.shimmerSpeed;
+      final flowDistortion = n('flowDistortion') ?? defaults.flowDistortion;
+      final foamIntensity = n('foamIntensity') ?? defaults.foamIntensity;
       if (shore == null ||
           mask == null ||
-          [a, b, c, d, e, f].any((v) => v == null || v < 0 || v > 4)) {
+          [
+            a,
+            b,
+            c,
+            d,
+            e,
+            f,
+            shimmerDensity,
+            shimmerBrightness,
+            shimmerSpeed,
+            flowDistortion,
+            foamIntensity,
+          ].any((v) => v == null || v < 0 || v > 4)) {
         return null;
       }
       result[id] = BaseCampWaterFx(
@@ -661,6 +726,11 @@ class BaseCampWaterFx {
         opacity: d!,
         spread: e!,
         frequency: f!,
+        shimmerDensity: shimmerDensity,
+        shimmerBrightness: shimmerBrightness,
+        shimmerSpeed: shimmerSpeed,
+        flowDistortion: flowDistortion,
+        foamIntensity: foamIntensity,
         visible: i['visible'] as bool,
       );
     }

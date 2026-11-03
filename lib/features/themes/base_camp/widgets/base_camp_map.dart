@@ -551,12 +551,6 @@ class _BaseCampMapState extends State<BaseCampMap>
                           filterQuality: FilterQuality.high,
                         ),
                         IgnorePointer(
-                          child: BaseCampFacilityLabelLayer(
-                            configuration: configuration,
-                            geometry: geometry,
-                          ),
-                        ),
-                        IgnorePointer(
                           child: AnimatedBuilder(
                             animation: _walkerTimeline,
                             builder: (_, _) => BaseCampWaterFxLayer(
@@ -588,6 +582,15 @@ class _BaseCampMapState extends State<BaseCampMap>
                                       ),
                               ),
                             ),
+                          ),
+                        ),
+                        // Labels deliberately sit above facility art, smoke
+                        // and patrols; their independent targets remain in
+                        // the transparent input layer below.
+                        IgnorePointer(
+                          child: BaseCampFacilityLabelLayer(
+                            configuration: configuration,
+                            geometry: geometry,
                           ),
                         ),
                         IgnorePointer(
@@ -1073,48 +1076,95 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       final fx = entry.value;
       if (!fx.visible) continue;
       final mask = Path()
-        ..addPolygon(
-          entry.value.mask.map(geometry.sourceToViewport).toList(),
-          true,
-        );
+        ..addPolygon(fx.mask.map(geometry.sourceToViewport).toList(), true);
       canvas.save();
       canvas.clipPath(mask);
       final shore = fx.shoreline.map(geometry.sourceToViewport).toList();
-      for (var wave = 0; wave < 3; wave++) {
-        final phase = (time * fx.speed * 1.2 + wave * .33) % 1;
+      final bounds = mask.getBounds();
+      // Layer B: overlapping blue/teal flow bands, always clipped to water.
+      for (var band = 0; band < 7; band++) {
+        final phase = time * fx.speed * .42 + band * 1.71;
+        final y = bounds.top + ((math.sin(phase * .7) + 1) / 2) * bounds.height;
         final path = Path();
-        for (var i = 0; i < shore.length; i++) {
-          final p = shore[i];
-          final offset =
-              math.sin((i + phase * 5) * 1.7) * 3 * geometry.scale * fx.spread;
-          final point = Offset(
-            p.dx + offset,
-            p.dy + phase * 18 * geometry.scale,
-          );
-          if (i == 0) {
-            path.moveTo(point.dx, point.dy);
+        for (var step = 0; step <= 8; step++) {
+          final x = bounds.left + bounds.width * step / 8;
+          final wobble =
+              math.sin(phase + step * 1.43) *
+              5 *
+              geometry.scale *
+              fx.flowDistortion;
+          if (step == 0) {
+            path.moveTo(x, y + wobble);
           } else {
-            path.lineTo(point.dx, point.dy);
+            path.lineTo(x, y + wobble);
           }
         }
         canvas.drawPath(
           path,
           Paint()
-            ..color = const Color(0xFFEAF1EA).withValues(
-              alpha:
-                  fx.opacity *
-                  (entry.key == 'rock-foam' ? fx.foam : .38) *
-                  (1 - phase),
-            )
+            ..color =
+                (band.isEven
+                        ? const Color(0xFF79B9C5)
+                        : const Color(0xFF245D71))
+                    .withValues(alpha: fx.opacity * .18 * fx.intensity)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = math.max(
-              .7,
-              (entry.key == 'rock-foam' ? 2.2 : 1) * geometry.scale,
-            )
+            ..strokeWidth = math.max(.6, 2.4 * geometry.scale * fx.spread)
             ..maskFilter = MaskFilter.blur(
               BlurStyle.normal,
               2 * geometry.scale,
             ),
+        );
+      }
+      // Layer A: deterministic independent shimmer points/short reflections.
+      final shimmerCount = (18 + fx.shimmerDensity * 18).round();
+      for (var index = 0; index < shimmerCount; index++) {
+        final seed = math.sin(index * 91.713 + entry.key.hashCode) * 43758.5453;
+        final unit = seed - seed.floor();
+        final seed2 = math.sin((index + 31) * 47.113) * 19341.721;
+        final unit2 = seed2 - seed2.floor();
+        final twinkle =
+            (math.sin(
+                  time * (1.2 + unit * 1.8) * fx.shimmerSpeed + index * 2.17,
+                ) +
+                1) /
+            2;
+        final x = bounds.left + unit * bounds.width;
+        final y = bounds.top + unit2 * bounds.height;
+        final length = (2 + unit * 7) * geometry.scale;
+        canvas.drawLine(
+          Offset(x - length / 2, y),
+          Offset(x + length / 2, y + math.sin(time + index) * geometry.scale),
+          Paint()
+            ..color = const Color(0xFFD9F4FF).withValues(
+              alpha: fx.opacity * .36 * fx.shimmerBrightness * twinkle,
+            )
+            ..strokeWidth = math.max(.45, geometry.scale)
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+      // Layer C: foam is deliberately confined to the shoreline, with the
+      // upper coast much quieter than the lower rocky shore.
+      final foamStrength = entry.key == 'rock-foam' ? 1.0 : .22;
+      for (var cluster = 0; cluster < shore.length * 2; cluster++) {
+        final segment = cluster % math.max(1, shore.length - 1).toInt();
+        final phase = (time * fx.frequency * .35 + cluster * .271) % 1;
+        final start = shore[segment];
+        final end = shore[math.min(segment + 1, shore.length - 1)];
+        final point = Offset.lerp(start, end, phase)!;
+        final radius = (1.1 + (cluster % 3) * .7) * geometry.scale * fx.spread;
+        canvas.drawOval(
+          Rect.fromCenter(center: point, width: radius * 3.2, height: radius),
+          Paint()
+            ..color = const Color(0xFFF3F7EF).withValues(
+              alpha:
+                  fx.opacity *
+                  .42 *
+                  fx.foam *
+                  fx.foamIntensity *
+                  foamStrength *
+                  (1 - phase),
+            )
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.2),
         );
       }
       canvas.restore();
@@ -1363,7 +1413,7 @@ class _BaseCampFacilityLabelPainter extends CustomPainter {
     for (final facility in baseCampFacilities) {
       final label = configuration.labels[facility.id];
       if (label == null || !label.visible) continue;
-      final start = geometry.sourceToViewport(label.position);
+      final start = geometry.sourceToViewport(label.connectorStart);
       final end = geometry.sourceToViewport(label.connectorEnd);
       final elbow = Offset.lerp(start, Offset(end.dx, start.dy), label.elbow)!;
       final path = Path()
@@ -1403,9 +1453,9 @@ class _BaseCampFacilityLabelPainter extends CustomPainter {
           ..color = const Color(0xFFA9A083)
           ..strokeWidth = math.max(.7, geometry.scale),
       );
-      _paintLabelText(
+      _paintLabelIcon(
         canvas,
-        _facilityIconGlyph(facility.id),
+        _facilityIcon(facility.id),
         Rect.fromLTWH(rect.left, rect.top, rect.width * .16, rect.height),
         rect.height * .42,
       );
@@ -1423,13 +1473,35 @@ class _BaseCampFacilityLabelPainter extends CustomPainter {
       old.configuration != configuration || old.geometry != geometry;
 }
 
-String _facilityIconGlyph(String id) => switch (id) {
-  'status' => '›',
-  'food' => '†',
-  'training' => '↔',
-  'activity' => '⌁',
-  _ => '⚑',
+IconData _facilityIcon(String id) => switch (id) {
+  'status' => Icons.monitor_heart,
+  'food' => Icons.restaurant,
+  'training' => Icons.fitness_center,
+  'activity' => Icons.directions_walk,
+  _ => Icons.flag,
 };
+
+void _paintLabelIcon(Canvas canvas, IconData icon, Rect rect, double fontSize) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        color: const Color(0xFFF0E8D4),
+        fontFamily: icon.fontFamily,
+        package: icon.fontPackage,
+        fontSize: fontSize,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  painter.paint(
+    canvas,
+    Offset(
+      rect.center.dx - painter.width / 2,
+      rect.center.dy - painter.height / 2,
+    ),
+  );
+}
 
 void _paintLabelText(Canvas canvas, String text, Rect rect, double fontSize) {
   final painter = TextPainter(

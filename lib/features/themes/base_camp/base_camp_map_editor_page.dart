@@ -183,11 +183,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     ),
   );
 
-  void _updateLabelPosition(
-    String id,
-    Offset position, {
-    required bool endpoint,
-  }) {
+  void _updateLabelPosition(String id, Offset position, {required int part}) {
     final label = _working.labels[id]!;
     final safe = Offset(
       position.dx.clamp(0, baseCampMapSourceSize.width).toDouble(),
@@ -197,9 +193,11 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working = _working.copyWith(
         labels: <String, BaseCampFacilityLabel>{
           ..._working.labels,
-          id: endpoint
-              ? label.copyWith(connectorEnd: safe)
-              : label.copyWith(position: safe),
+          id: switch (part) {
+            1 => label.copyWith(connectorStart: safe),
+            2 => label.copyWith(connectorEnd: safe),
+            _ => label.copyWith(position: safe),
+          },
         },
       );
     });
@@ -593,11 +591,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   },
                   onLabelDragStarted: () =>
                       setState(() => _undo.add(_clone(_working))),
-                  onLabelDragged: (position, endpoint) => _updateLabelPosition(
-                    _facilityId,
-                    position,
-                    endpoint: endpoint,
-                  ),
+                  onLabelDragged: (position, part) =>
+                      _updateLabelPosition(_facilityId, position, part: part),
                   selectedWaterFxId: _waterFxId,
                   onWaterDragStarted: () =>
                       setState(() => _undo.add(_clone(_working))),
@@ -822,7 +817,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               onChanged: (value) =>
                   _replaceLabel(_facilityId, label.copyWith(visible: value)),
             ),
-            const Text('Drag the plate and connector endpoint on the map.'),
+            const Text(
+              'Drag the cyan plate handle, beige connector start, and terminal dot on the map.',
+            ),
             OutlinedButton.icon(
               onPressed: () => _replaceLabel(
                 _facilityId,
@@ -860,6 +857,11 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               ('OPACITY', effect.opacity),
               ('SPREAD', effect.spread),
               ('FREQUENCY', effect.frequency),
+              ('SHIMMER DENSITY', effect.shimmerDensity),
+              ('SHIMMER BRIGHTNESS', effect.shimmerBrightness),
+              ('SHIMMER SPEED', effect.shimmerSpeed),
+              ('FLOW DISTORTION', effect.flowDistortion),
+              ('FOAM INTENSITY', effect.foamIntensity),
             ])
               _editorSlider(entry.$1, entry.$2, 0, 4, (value) {
                 final next = switch (entry.$1) {
@@ -868,7 +870,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   'FOAM' => effect.copyWith(foam: value),
                   'OPACITY' => effect.copyWith(opacity: value),
                   'SPREAD' => effect.copyWith(spread: value),
-                  _ => effect.copyWith(frequency: value),
+                  'FREQUENCY' => effect.copyWith(frequency: value),
+                  'SHIMMER DENSITY' => effect.copyWith(shimmerDensity: value),
+                  'SHIMMER BRIGHTNESS' => effect.copyWith(
+                    shimmerBrightness: value,
+                  ),
+                  'SHIMMER SPEED' => effect.copyWith(shimmerSpeed: value),
+                  'FLOW DISTORTION' => effect.copyWith(flowDistortion: value),
+                  _ => effect.copyWith(foamIntensity: value),
                 };
                 _replaceWaterFx(_waterFxId, next);
               }),
@@ -879,7 +888,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   _replaceWaterFx(_waterFxId, effect.copyWith(visible: value)),
             ),
             const Text(
-              'Shoreline and water mask retain their map coordinates.',
+              'Waves handles edit shoreline; square handles edit WATER MASK.',
             ),
             OutlinedButton.icon(
               onPressed: () => _replaceWaterFx(
@@ -1313,7 +1322,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectDragged;
   final VoidCallback onLabelDragStarted;
-  final void Function(Offset position, bool endpoint) onLabelDragged;
+  final void Function(Offset position, int part) onLabelDragged;
   final String selectedWaterFxId;
   final VoidCallback onWaterDragStarted;
   final void Function(int index, Offset position, bool mask)
@@ -1413,13 +1422,13 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
                 }
               },
               onLabelDragStarted: widget.onLabelDragStarted,
-              onLabelGlobalDragged: (globalPosition, endpoint) {
+              onLabelGlobalDragged: (globalPosition, part) {
                 final renderBox =
                     _sourceKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
                   widget.onLabelDragged(
                     renderBox.globalToLocal(globalPosition),
-                    endpoint,
+                    part,
                   );
                 }
               },
@@ -1491,7 +1500,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final VoidCallback onObjectDragStarted;
   final ValueChanged<Offset> onObjectGlobalDragged;
   final VoidCallback onLabelDragStarted;
-  final void Function(Offset position, bool endpoint) onLabelGlobalDragged;
+  final void Function(Offset position, int part) onLabelGlobalDragged;
   final String selectedWaterFxId;
   final VoidCallback onWaterDragStarted;
   final void Function(int index, Offset position, bool mask)
@@ -1532,12 +1541,6 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           ),
         ),
         IgnorePointer(
-          child: BaseCampFacilityLabelLayer(
-            configuration: configuration,
-            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
-          ),
-        ),
-        IgnorePointer(
           child: BaseCampObjectLayer(
             configuration: configuration,
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
@@ -1554,6 +1557,14 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           child: BaseCampWalkerPreviewLayer(
             elapsed: const Duration(seconds: 2),
             reducedMotion: false,
+            configuration: configuration,
+            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+          ),
+        ),
+        // Keep the editor preview's paint order identical to the normal map:
+        // labels must remain readable above facilities, smoke and patrols.
+        IgnorePointer(
+          child: BaseCampFacilityLabelLayer(
             configuration: configuration,
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
           ),
@@ -1621,7 +1632,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             color: const Color(0xFF68E8F2),
             onStart: onLabelDragStarted,
             onUpdate: (details) =>
-                onLabelGlobalDragged(details.globalPosition, false),
+                onLabelGlobalDragged(details.globalPosition, 0),
+          ),
+          _EditorDragHandle(
+            point: label.connectorStart,
+            icon: Icons.call_made,
+            color: const Color(0xFFE5DFCF),
+            onStart: onLabelDragStarted,
+            onUpdate: (details) =>
+                onLabelGlobalDragged(details.globalPosition, 1),
           ),
           _EditorDragHandle(
             point: label.connectorEnd,
@@ -1629,7 +1648,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             color: const Color(0xFFE5DFCF),
             onStart: onLabelDragStarted,
             onUpdate: (details) =>
-                onLabelGlobalDragged(details.globalPosition, true),
+                onLabelGlobalDragged(details.globalPosition, 2),
           ),
         ],
         if (section == _BaseCampEditorSection.waterFx && water != null) ...[
