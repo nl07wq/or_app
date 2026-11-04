@@ -584,15 +584,6 @@ class _BaseCampMapState extends State<BaseCampMap>
                             ),
                           ),
                         ),
-                        // Labels deliberately sit above facility art, smoke
-                        // and patrols; their independent targets remain in
-                        // the transparent input layer below.
-                        IgnorePointer(
-                          child: BaseCampFacilityLabelLayer(
-                            configuration: configuration,
-                            geometry: geometry,
-                          ),
-                        ),
                         IgnorePointer(
                           child: AnimatedBuilder(
                             animation: Listenable.merge(<Listenable>[
@@ -619,6 +610,16 @@ class _BaseCampMapState extends State<BaseCampMap>
                                     _selectionVisibility.value * pulse,
                               );
                             },
+                          ),
+                        ),
+                        // This must be the final visual MAP layer. Labels
+                        // remain input-transparent; the bounded plate targets
+                        // and alpha facility targets live in the separate
+                        // transformed input stack below.
+                        IgnorePointer(
+                          child: BaseCampFacilityLabelLayer(
+                            configuration: configuration,
+                            geometry: geometry,
                           ),
                         ),
                         IgnorePointer(
@@ -1081,42 +1082,39 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       canvas.clipPath(mask);
       final shore = fx.shoreline.map(geometry.sourceToViewport).toList();
       final bounds = mask.getBounds();
-      // Layer B: overlapping blue/teal flow bands, always clipped to water.
-      for (var band = 0; band < 7; band++) {
-        final phase = time * fx.speed * .42 + band * 1.71;
-        final y = bounds.top + ((math.sin(phase * .7) + 1) / 2) * bounds.height;
-        final path = Path();
-        for (var step = 0; step <= 8; step++) {
-          final x = bounds.left + bounds.width * step / 8;
-          final wobble =
-              math.sin(phase + step * 1.43) *
-              5 *
-              geometry.scale *
-              fx.flowDistortion;
-          if (step == 0) {
-            path.moveTo(x, y + wobble);
-          } else {
-            path.lineTo(x, y + wobble);
-          }
-        }
-        canvas.drawPath(
-          path,
+      // Layer B: moving translucent flow cells create a changing water mass,
+      // rather than a static collection of thin wave lines. The clipped cells
+      // retain the underlying map texture while adding depth at thumbnail size.
+      for (var cell = 0; cell < 11; cell++) {
+        final seed = _waterUnit(entry.key.hashCode + cell * 43.19);
+        final seed2 = _waterUnit(entry.key.hashCode + cell * 79.31 + 7);
+        final phase = time * fx.speed * (.24 + seed * .22) + cell * 1.19;
+        final x = bounds.left + (seed + math.sin(phase) * .18) * bounds.width;
+        final y =
+            bounds.top + (seed2 + math.cos(phase * 1.21) * .13) * bounds.height;
+        final width =
+            (18 + seed * 34) * geometry.scale * fx.spread * fx.flowDistortion;
+        final height =
+            (7 + seed2 * 16) * geometry.scale * fx.spread * fx.flowDistortion;
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset(x, y), width: width, height: height),
           Paint()
             ..color =
-                (band.isEven
-                        ? const Color(0xFF79B9C5)
-                        : const Color(0xFF245D71))
-                    .withValues(alpha: fx.opacity * .18 * fx.intensity)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = math.max(.6, 2.4 * geometry.scale * fx.spread)
+                (cell.isEven
+                        ? const Color(0xFF7FC9DA)
+                        : const Color(0xFF164F69))
+                    .withValues(
+                      alpha: fx.opacity * (.16 + seed * .10) * fx.intensity,
+                    )
             ..maskFilter = MaskFilter.blur(
               BlurStyle.normal,
-              2 * geometry.scale,
+              math.max(1.2, 4 * geometry.scale * fx.flowDistortion),
             ),
         );
       }
       // Layer A: deterministic independent shimmer points/short reflections.
-      final shimmerCount = (18 + fx.shimmerDensity * 18).round();
+      // Their per-item phase means the whole coast never flashes in unison.
+      final shimmerCount = (34 + fx.shimmerDensity * 42).round();
       for (var index = 0; index < shimmerCount; index++) {
         final seed = math.sin(index * 91.713 + entry.key.hashCode) * 43758.5453;
         final unit = seed - seed.floor();
@@ -1130,17 +1128,28 @@ class _BaseCampWaterFxPainter extends CustomPainter {
             2;
         final x = bounds.left + unit * bounds.width;
         final y = bounds.top + unit2 * bounds.height;
-        final length = (2 + unit * 7) * geometry.scale;
+        final length = (5 + unit * 12) * geometry.scale;
+        final alpha = fx.opacity * (.20 + .45 * twinkle) * fx.shimmerBrightness;
         canvas.drawLine(
           Offset(x - length / 2, y),
           Offset(x + length / 2, y + math.sin(time + index) * geometry.scale),
           Paint()
-            ..color = const Color(0xFFD9F4FF).withValues(
-              alpha: fx.opacity * .36 * fx.shimmerBrightness * twinkle,
-            )
-            ..strokeWidth = math.max(.45, geometry.scale)
+            ..color = const Color(0xFFD9F4FF).withValues(alpha: alpha)
+            ..strokeWidth = math.max(.8, 1.35 * geometry.scale)
             ..strokeCap = StrokeCap.round,
         );
+        if (twinkle > .58) {
+          canvas.drawCircle(
+            Offset(x, y),
+            math.max(.8, (1.2 + unit * 1.6) * geometry.scale),
+            Paint()
+              ..color = const Color(0xFFE6FAFF).withValues(alpha: alpha * .7)
+              ..maskFilter = MaskFilter.blur(
+                BlurStyle.normal,
+                math.max(1, 1.5 * geometry.scale),
+              ),
+          );
+        }
       }
       // Layer C: foam is deliberately confined to the shoreline, with the
       // upper coast much quieter than the lower rocky shore.
@@ -1151,14 +1160,14 @@ class _BaseCampWaterFxPainter extends CustomPainter {
         final start = shore[segment];
         final end = shore[math.min(segment + 1, shore.length - 1)];
         final point = Offset.lerp(start, end, phase)!;
-        final radius = (1.1 + (cluster % 3) * .7) * geometry.scale * fx.spread;
+        final radius = (2.6 + (cluster % 3) * 1.2) * geometry.scale * fx.spread;
         canvas.drawOval(
           Rect.fromCenter(center: point, width: radius * 3.2, height: radius),
           Paint()
             ..color = const Color(0xFFF3F7EF).withValues(
               alpha:
                   fx.opacity *
-                  .42 *
+                  .58 *
                   fx.foam *
                   fx.foamIntensity *
                   foamStrength *
@@ -1176,6 +1185,11 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       old.configuration != configuration ||
       old.geometry != geometry ||
       old.elapsed != elapsed;
+}
+
+double _waterUnit(num seed) {
+  final value = math.sin(seed) * 43758.5453123;
+  return value - value.floor();
 }
 
 /// A bounded, deterministic smoke layer. Particles live in map-source space,

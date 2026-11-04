@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,6 +21,34 @@ enum _BaseCampEditorSection {
   soldierSize,
 }
 
+/// Computes a temporary editor-only transform that centres a selected water
+/// mask. It never changes source coordinates or durable map framing.
+Matrix4 baseCampWaterFocusTransform({
+  required BaseCampWaterFx effect,
+  required Size viewport,
+}) {
+  final bounds = Rect.fromPoints(
+    effect.mask.reduce(
+      (a, b) => Offset(math.min(a.dx, b.dx), math.min(a.dy, b.dy)),
+    ),
+    effect.mask.reduce(
+      (a, b) => Offset(math.max(a.dx, b.dx), math.max(a.dy, b.dy)),
+    ),
+  );
+  final scale = math
+      .min(
+        viewport.width * .78 / math.max(1, bounds.width),
+        viewport.height * .70 / math.max(1, bounds.height),
+      )
+      .clamp(.2, 3.2)
+      .toDouble();
+  final translation =
+      Offset(viewport.width / 2, viewport.height / 2) - bounds.center * scale;
+  return Matrix4.identity()
+    ..translateByDouble(translation.dx, translation.dy, 0, 1)
+    ..scaleByDouble(scale, scale, 1, 1);
+}
+
 /// Developer-only calibration surface opened by a long press on the existing
 /// map framing reset button. It edits a working copy until SAVE is chosen.
 class BaseCampMapEditorPage extends StatefulWidget {
@@ -39,6 +68,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   String _facilityId = 'status';
   String _objectId = 'status';
   String _waterFxId = 'rock-foam';
+  int _waterPointIndex = 0;
+  bool _waterMaskSelected = false;
   String? _staticSoldierId;
   int _pointIndex = 0;
   bool _loading = true;
@@ -527,7 +558,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             ),
             IconButton(
               key: const ValueKey('base-camp-editor-reset-view'),
-              tooltip: 'FIT MAP',
+              tooltip: 'RESET VIEW',
               onPressed: () => _canvasKey.currentState?.resetView(),
               icon: const Icon(Icons.fit_screen),
             ),
@@ -558,6 +589,11 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                         onSelected: (_) => setState(() {
                           _section = item.$1;
                           _pointIndex = 0;
+                          if (item.$1 == _BaseCampEditorSection.waterFx) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _canvasKey.currentState?.focusWaterFx(_waterFxId);
+                            });
+                          }
                         }),
                       ),
                   ],
@@ -594,6 +630,12 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onLabelDragged: (position, part) =>
                       _updateLabelPosition(_facilityId, position, part: part),
                   selectedWaterFxId: _waterFxId,
+                  selectedWaterPoint: _waterPointIndex,
+                  selectedWaterMask: _waterMaskSelected,
+                  onWaterPointSelected: (index, mask) => setState(() {
+                    _waterPointIndex = index;
+                    _waterMaskSelected = mask;
+                  }),
                   onWaterDragStarted: () =>
                       setState(() => _undo.add(_clone(_working))),
                   onWaterPointDragged: (index, position, mask) =>
@@ -848,7 +890,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   child: Text('COAST RIPPLE'),
                 ),
               ],
-              onChanged: (value) => setState(() => _waterFxId = value!),
+              onChanged: (value) => setState(() {
+                _waterFxId = value!;
+                _waterPointIndex = 0;
+                _waterMaskSelected = false;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _canvasKey.currentState?.focusWaterFx(_waterFxId);
+                });
+              }),
             ),
             for (final entry in <(String, double)>[
               ('INTENSITY', effect.intensity),
@@ -889,6 +938,22 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             ),
             const Text(
               'Waves handles edit shoreline; square handles edit WATER MASK.',
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _canvasKey.currentState?.focusWaterFx(_waterFxId),
+                  icon: const Icon(Icons.center_focus_strong),
+                  label: const Text('FOCUS AREA'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _canvasKey.currentState?.exitWaterFocus(),
+                  icon: const Icon(Icons.fullscreen_exit),
+                  label: const Text('EXIT FOCUS'),
+                ),
+              ],
             ),
             OutlinedButton.icon(
               onPressed: () => _replaceWaterFx(
@@ -1304,6 +1369,9 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onLabelDragStarted,
     required this.onLabelDragged,
     required this.selectedWaterFxId,
+    required this.selectedWaterPoint,
+    required this.selectedWaterMask,
+    required this.onWaterPointSelected,
     required this.onWaterDragStarted,
     required this.onWaterPointDragged,
     required this.selectedStaticSoldierId,
@@ -1324,6 +1392,9 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelDragged;
   final String selectedWaterFxId;
+  final int selectedWaterPoint;
+  final bool selectedWaterMask;
+  final void Function(int index, bool mask) onWaterPointSelected;
   final VoidCallback onWaterDragStarted;
   final void Function(int index, Offset position, bool mask)
   onWaterPointDragged;
@@ -1339,6 +1410,8 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   final TransformationController _transform = TransformationController();
   final GlobalKey _sourceKey = GlobalKey();
   Size? _viewport;
+  Matrix4? _transformBeforeWaterFocus;
+  String? _focusedWaterFxId;
 
   @override
   void dispose() {
@@ -1349,12 +1422,40 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   /// Fits the whole 1280×719 image; it is intentionally independent from
   /// route data, so RESET VIEW can never alter durable source coordinates.
   void resetView() {
+    final focusedId = _focusedWaterFxId;
+    if (focusedId != null) {
+      _applyWaterFocus(focusedId);
+      return;
+    }
     final viewport = _viewport;
     if (viewport == null || viewport.isEmpty) return;
     final geometry = BaseCampMapGeometry.contain(viewport);
     _transform.value = Matrix4.identity()
       ..translateByDouble(geometry.imageRect.left, geometry.imageRect.top, 0, 1)
       ..scaleByDouble(geometry.scale, geometry.scale, 1, 1);
+  }
+
+  void focusWaterFx(String id) {
+    _transformBeforeWaterFocus ??= Matrix4.copy(_transform.value);
+    _focusedWaterFxId = id;
+    _applyWaterFocus(id);
+  }
+
+  void exitWaterFocus() {
+    final previous = _transformBeforeWaterFocus;
+    _focusedWaterFxId = null;
+    _transformBeforeWaterFocus = null;
+    if (previous != null) _transform.value = previous;
+  }
+
+  void _applyWaterFocus(String id) {
+    final viewport = _viewport;
+    final effect = widget.configuration.waterFx[id];
+    if (viewport == null || viewport.isEmpty || effect == null) return;
+    _transform.value = baseCampWaterFocusTransform(
+      effect: effect,
+      viewport: viewport,
+    );
   }
 
   void _setInitialFit(Size viewport) {
@@ -1433,6 +1534,9 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
                 }
               },
               selectedWaterFxId: widget.selectedWaterFxId,
+              selectedWaterPoint: widget.selectedWaterPoint,
+              selectedWaterMask: widget.selectedWaterMask,
+              onWaterPointSelected: widget.onWaterPointSelected,
               onWaterDragStarted: widget.onWaterDragStarted,
               onWaterGlobalDragged: (index, globalPosition, mask) {
                 final renderBox =
@@ -1483,6 +1587,9 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onLabelDragStarted,
     required this.onLabelGlobalDragged,
     required this.selectedWaterFxId,
+    required this.selectedWaterPoint,
+    required this.selectedWaterMask,
+    required this.onWaterPointSelected,
     required this.onWaterDragStarted,
     required this.onWaterGlobalDragged,
     required this.selectedStaticSoldierId,
@@ -1502,6 +1609,9 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelGlobalDragged;
   final String selectedWaterFxId;
+  final int selectedWaterPoint;
+  final bool selectedWaterMask;
+  final void Function(int index, bool mask) onWaterPointSelected;
   final VoidCallback onWaterDragStarted;
   final void Function(int index, Offset position, bool mask)
   onWaterGlobalDragged;
@@ -1656,8 +1766,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             _EditorDragHandle(
               point: water.shoreline[i],
               icon: Icons.waves,
-              color: const Color(0xFFEAF1EA),
-              onStart: onWaterDragStarted,
+              color: selectedWaterPoint == i && !selectedWaterMask
+                  ? const Color(0xFF68E8F2)
+                  : const Color(0xFFEAF1EA),
+              selected: selectedWaterPoint == i && !selectedWaterMask,
+              onTap: () => onWaterPointSelected(i, false),
+              onStart: () {
+                onWaterPointSelected(i, false);
+                onWaterDragStarted();
+              },
               onUpdate: (details) =>
                   onWaterGlobalDragged(i, details.globalPosition, false),
             ),
@@ -1665,8 +1782,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             _EditorDragHandle(
               point: water.mask[i],
               icon: Icons.crop_square,
-              color: const Color(0xFF68E8F2),
-              onStart: onWaterDragStarted,
+              color: selectedWaterPoint == i && selectedWaterMask
+                  ? const Color(0xFFF0E8D4)
+                  : const Color(0xFF68E8F2),
+              selected: selectedWaterPoint == i && selectedWaterMask,
+              onTap: () => onWaterPointSelected(i, true),
+              onStart: () {
+                onWaterPointSelected(i, true);
+                onWaterDragStarted();
+              },
               onUpdate: (details) =>
                   onWaterGlobalDragged(i, details.globalPosition, true),
             ),
@@ -1705,30 +1829,40 @@ class _EditorDragHandle extends StatelessWidget {
     required this.point,
     required this.icon,
     required this.color,
+    this.selected = false,
+    this.onTap,
     required this.onStart,
     required this.onUpdate,
   });
   final Offset point;
   final IconData icon;
   final Color color;
+  final bool selected;
+  final VoidCallback? onTap;
   final VoidCallback onStart;
   final GestureDragUpdateCallback onUpdate;
 
   @override
   Widget build(BuildContext context) => Positioned(
-    left: point.dx - 20,
-    top: point.dy - 20,
-    width: 40,
-    height: 40,
+    left: point.dx - 24,
+    top: point.dy - 24,
+    width: 48,
+    height: 48,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       onPanStart: (_) => onStart(),
       onPanUpdate: onUpdate,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: const Color(0xCC101A1D),
           shape: BoxShape.circle,
-          border: Border.all(color: color, width: 2),
+          border: Border.all(color: color, width: selected ? 4 : 2),
+          boxShadow: selected
+              ? <BoxShadow>[
+                  BoxShadow(color: color.withValues(alpha: .7), blurRadius: 10),
+                ]
+              : null,
         ),
         child: Icon(icon, color: color, size: 20),
       ),

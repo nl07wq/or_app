@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -346,6 +347,34 @@ void main() {
       }
     },
   );
+
+  test('water focus transforms centre both editable water masks', () {
+    const viewport = Size(390, 420);
+    for (final effect in BaseCampWaterFx.defaults().values) {
+      final transform = baseCampWaterFocusTransform(
+        effect: effect,
+        viewport: viewport,
+      );
+      final bounds = Rect.fromPoints(
+        effect.mask.reduce(
+          (a, b) =>
+              Offset(a.dx < b.dx ? a.dx : b.dx, a.dy < b.dy ? a.dy : b.dy),
+        ),
+        effect.mask.reduce(
+          (a, b) =>
+              Offset(a.dx > b.dx ? a.dx : b.dx, a.dy > b.dy ? a.dy : b.dy),
+        ),
+      );
+      final storage = transform.storage;
+      final focusedCenter = Offset(
+        bounds.center.dx * storage[0] + storage[12],
+        bounds.center.dy * storage[5] + storage[13],
+      );
+
+      expect(focusedCenter.dx, closeTo(viewport.width / 2, .01));
+      expect(focusedCenter.dy, closeTo(viewport.height / 2, .01));
+    }
+  });
 
   test('facility outlines are independent irregular perimeters', () {
     expect(baseCampFacilities, hasLength(5));
