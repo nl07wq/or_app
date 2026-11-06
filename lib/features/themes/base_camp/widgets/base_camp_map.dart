@@ -612,16 +612,6 @@ class _BaseCampMapState extends State<BaseCampMap>
                             },
                           ),
                         ),
-                        // This must be the final visual MAP layer. Labels
-                        // remain input-transparent; the bounded plate targets
-                        // and alpha facility targets live in the separate
-                        // transformed input stack below.
-                        IgnorePointer(
-                          child: BaseCampFacilityLabelLayer(
-                            configuration: configuration,
-                            geometry: geometry,
-                          ),
-                        ),
                         IgnorePointer(
                           child: RepaintBoundary(
                             child: AnimatedBuilder(
@@ -643,6 +633,16 @@ class _BaseCampMapState extends State<BaseCampMap>
                                     geometry: geometry,
                                   ),
                             ),
+                          ),
+                        ),
+                        // This must be the final visual MAP layer. Labels
+                        // remain input-transparent; the bounded plate targets
+                        // and alpha facility targets live in the separate
+                        // transformed input stack below.
+                        IgnorePointer(
+                          child: BaseCampFacilityLabelLayer(
+                            configuration: configuration,
+                            geometry: geometry,
                           ),
                         ),
                       ],
@@ -1061,6 +1061,22 @@ class BaseCampWaterFxLayer extends StatelessWidget {
   );
 }
 
+/// The draw region is the editable water polygon minus all structure/land
+/// exclusions. Both the production map and editor preview use this function.
+Path baseCampEffectiveWaterPath(
+  BaseCampWaterFx effect,
+  BaseCampMapGeometry geometry,
+) {
+  var result = Path()
+    ..addPolygon(effect.mask.map(geometry.sourceToViewport).toList(), true);
+  for (final exclusion in effect.exclusionMasks) {
+    final exclusionPath = Path()
+      ..addPolygon(exclusion.map(geometry.sourceToViewport).toList(), true);
+    result = Path.combine(PathOperation.difference, result, exclusionPath);
+  }
+  return result;
+}
+
 class _BaseCampWaterFxPainter extends CustomPainter {
   const _BaseCampWaterFxPainter(
     this.configuration,
@@ -1076,105 +1092,120 @@ class _BaseCampWaterFxPainter extends CustomPainter {
     for (final entry in configuration.waterFx.entries) {
       final fx = entry.value;
       if (!fx.visible) continue;
-      final mask = Path()
-        ..addPolygon(fx.mask.map(geometry.sourceToViewport).toList(), true);
+      final mask = baseCampEffectiveWaterPath(fx, geometry);
       canvas.save();
       canvas.clipPath(mask);
       final shore = fx.shoreline.map(geometry.sourceToViewport).toList();
       final bounds = mask.getBounds();
-      // Layer B: moving translucent flow cells create a changing water mass,
+      // RIPPLE: moving translucent flow cells create a changing water mass,
       // rather than a static collection of thin wave lines. The clipped cells
       // retain the underlying map texture while adding depth at thumbnail size.
-      for (var cell = 0; cell < 11; cell++) {
-        final seed = _waterUnit(entry.key.hashCode + cell * 43.19);
-        final seed2 = _waterUnit(entry.key.hashCode + cell * 79.31 + 7);
-        final phase = time * fx.speed * (.24 + seed * .22) + cell * 1.19;
-        final x = bounds.left + (seed + math.sin(phase) * .18) * bounds.width;
-        final y =
-            bounds.top + (seed2 + math.cos(phase * 1.21) * .13) * bounds.height;
-        final width =
-            (18 + seed * 34) * geometry.scale * fx.spread * fx.flowDistortion;
-        final height =
-            (7 + seed2 * 16) * geometry.scale * fx.spread * fx.flowDistortion;
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(x, y), width: width, height: height),
-          Paint()
-            ..color =
-                (cell.isEven
-                        ? const Color(0xFF7FC9DA)
-                        : const Color(0xFF164F69))
-                    .withValues(
-                      alpha: fx.opacity * (.16 + seed * .10) * fx.intensity,
-                    )
-            ..maskFilter = MaskFilter.blur(
-              BlurStyle.normal,
-              math.max(1.2, 4 * geometry.scale * fx.flowDistortion),
-            ),
-        );
-      }
-      // Layer A: deterministic independent shimmer points/short reflections.
-      // Their per-item phase means the whole coast never flashes in unison.
-      final shimmerCount = (34 + fx.shimmerDensity * 42).round();
-      for (var index = 0; index < shimmerCount; index++) {
-        final seed = math.sin(index * 91.713 + entry.key.hashCode) * 43758.5453;
-        final unit = seed - seed.floor();
-        final seed2 = math.sin((index + 31) * 47.113) * 19341.721;
-        final unit2 = seed2 - seed2.floor();
-        final twinkle =
-            (math.sin(
-                  time * (1.2 + unit * 1.8) * fx.shimmerSpeed + index * 2.17,
-                ) +
-                1) /
-            2;
-        final x = bounds.left + unit * bounds.width;
-        final y = bounds.top + unit2 * bounds.height;
-        final length = (5 + unit * 12) * geometry.scale;
-        final alpha = fx.opacity * (.20 + .45 * twinkle) * fx.shimmerBrightness;
-        canvas.drawLine(
-          Offset(x - length / 2, y),
-          Offset(x + length / 2, y + math.sin(time + index) * geometry.scale),
-          Paint()
-            ..color = const Color(0xFFD9F4FF).withValues(alpha: alpha)
-            ..strokeWidth = math.max(.8, 1.35 * geometry.scale)
-            ..strokeCap = StrokeCap.round,
-        );
-        if (twinkle > .58) {
-          canvas.drawCircle(
-            Offset(x, y),
-            math.max(.8, (1.2 + unit * 1.6) * geometry.scale),
+      if (fx.rippleEnabled) {
+        for (var cell = 0; cell < 11; cell++) {
+          final seed = _waterUnit(entry.key.hashCode + cell * 43.19);
+          final seed2 = _waterUnit(entry.key.hashCode + cell * 79.31 + 7);
+          final phase = time * fx.speed * (.24 + seed * .22) + cell * 1.19;
+          final x = bounds.left + (seed + math.sin(phase) * .18) * bounds.width;
+          final y =
+              bounds.top +
+              (seed2 + math.cos(phase * 1.21) * .13) * bounds.height;
+          final width =
+              (18 + seed * 34) * geometry.scale * fx.spread * fx.flowDistortion;
+          final height =
+              (7 + seed2 * 16) * geometry.scale * fx.spread * fx.flowDistortion;
+          canvas.drawOval(
+            Rect.fromCenter(center: Offset(x, y), width: width, height: height),
             Paint()
-              ..color = const Color(0xFFE6FAFF).withValues(alpha: alpha * .7)
+              ..color =
+                  (cell.isEven
+                          ? const Color(0xFF7FC9DA)
+                          : const Color(0xFF164F69))
+                      .withValues(
+                        alpha: fx.opacity * (.16 + seed * .10) * fx.intensity,
+                      )
               ..maskFilter = MaskFilter.blur(
                 BlurStyle.normal,
-                math.max(1, 1.5 * geometry.scale),
+                math.max(1.2, 4 * geometry.scale * fx.flowDistortion),
               ),
           );
         }
       }
-      // Layer C: foam is deliberately confined to the shoreline, with the
+      // SHIMMER: small soft reflection patches, never line-like travelling
+      // particles. Each patch has its own phase so the water does not flash
+      // as a single synchronized surface.
+      final shimmerCount = (24 + fx.shimmerDensity * 34).round();
+      if (fx.shimmerEnabled) {
+        for (var index = 0; index < shimmerCount; index++) {
+          final seed =
+              math.sin(index * 91.713 + entry.key.hashCode) * 43758.5453;
+          final unit = seed - seed.floor();
+          final seed2 = math.sin((index + 31) * 47.113) * 19341.721;
+          final unit2 = seed2 - seed2.floor();
+          final twinkle =
+              (math.sin(
+                    time * (1.2 + unit * 1.8) * fx.shimmerSpeed + index * 2.17,
+                  ) +
+                  1) /
+              2;
+          final x = bounds.left + unit * bounds.width;
+          final y = bounds.top + unit2 * bounds.height;
+          final width = (7 + unit * 15) * geometry.scale;
+          final height = (2 + unit2 * 4) * geometry.scale;
+          final alpha =
+              fx.opacity * (.20 + .45 * twinkle) * fx.shimmerBrightness;
+          canvas.drawOval(
+            Rect.fromCenter(center: Offset(x, y), width: width, height: height),
+            Paint()
+              ..color = const Color(0xFFD9F4FF).withValues(alpha: alpha * .78)
+              ..maskFilter = MaskFilter.blur(
+                BlurStyle.normal,
+                math.max(1, 1.2 * geometry.scale),
+              ),
+          );
+          if (twinkle > .58) {
+            canvas.drawCircle(
+              Offset(x, y),
+              math.max(.8, (1.2 + unit * 1.6) * geometry.scale),
+              Paint()
+                ..color = const Color(0xFFE6FAFF).withValues(alpha: alpha * .7)
+                ..maskFilter = MaskFilter.blur(
+                  BlurStyle.normal,
+                  math.max(1, 1.5 * geometry.scale),
+                ),
+            );
+          }
+        }
+      }
+      // FOAM: it is deliberately confined to the shoreline, with the
       // upper coast much quieter than the lower rocky shore.
       final foamStrength = entry.key == 'rock-foam' ? 1.0 : .22;
-      for (var cluster = 0; cluster < shore.length * 2; cluster++) {
-        final segment = cluster % math.max(1, shore.length - 1).toInt();
-        final phase = (time * fx.frequency * .35 + cluster * .271) % 1;
-        final start = shore[segment];
-        final end = shore[math.min(segment + 1, shore.length - 1)];
-        final point = Offset.lerp(start, end, phase)!;
-        final radius = (2.6 + (cluster % 3) * 1.2) * geometry.scale * fx.spread;
-        canvas.drawOval(
-          Rect.fromCenter(center: point, width: radius * 3.2, height: radius),
-          Paint()
-            ..color = const Color(0xFFF3F7EF).withValues(
-              alpha:
-                  fx.opacity *
-                  .58 *
-                  fx.foam *
-                  fx.foamIntensity *
-                  foamStrength *
-                  (1 - phase),
-            )
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.2),
-        );
+      if (fx.foamEnabled) {
+        for (var cluster = 0; cluster < shore.length * 3; cluster++) {
+          final segment = cluster % math.max(1, shore.length - 1).toInt();
+          final phase =
+              (time * fx.frequency * .35 / math.max(.1, fx.foamLifetime) +
+                  cluster * .271) %
+              1;
+          final start = shore[segment];
+          final end = shore[math.min(segment + 1, shore.length - 1)];
+          final point = Offset.lerp(start, end, phase)!;
+          final radius =
+              (2.2 + (cluster % 3) * 1.3) * geometry.scale * fx.spread;
+          canvas.drawOval(
+            Rect.fromCenter(center: point, width: radius * 3.2, height: radius),
+            Paint()
+              ..color = const Color(0xFFF3F7EF).withValues(
+                alpha:
+                    fx.opacity *
+                    .58 *
+                    fx.foam *
+                    fx.foamIntensity *
+                    foamStrength *
+                    (1 - phase),
+              )
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.2),
+          );
+        }
       }
       canvas.restore();
     }

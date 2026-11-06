@@ -575,6 +575,7 @@ class BaseCampWaterFx {
   const BaseCampWaterFx({
     required this.shoreline,
     required this.mask,
+    this.exclusionMasks = const <List<Offset>>[],
     this.intensity = 1,
     this.speed = 1,
     this.foam = 1,
@@ -586,13 +587,18 @@ class BaseCampWaterFx {
     this.shimmerSpeed = 1,
     this.flowDistortion = 1,
     this.foamIntensity = 1,
+    this.foamLifetime = 1,
+    this.shimmerEnabled = true,
+    this.rippleEnabled = true,
+    this.foamEnabled = true,
     this.visible = true,
   });
   final List<Offset> shoreline, mask;
+  final List<List<Offset>> exclusionMasks;
   final double intensity, speed, foam, opacity, spread, frequency;
   final double shimmerDensity, shimmerBrightness, shimmerSpeed;
-  final double flowDistortion, foamIntensity;
-  final bool visible;
+  final double flowDistortion, foamIntensity, foamLifetime;
+  final bool shimmerEnabled, rippleEnabled, foamEnabled, visible;
   static Map<String, BaseCampWaterFx> defaults() => <String, BaseCampWaterFx>{
     'rock-foam': const BaseCampWaterFx(
       shoreline: [
@@ -618,6 +624,16 @@ class BaseCampWaterFx {
         Offset(60, 168),
         Offset(42, 238),
       ],
+      exclusionMasks: [
+        [
+          Offset(31, 104),
+          Offset(57, 89),
+          Offset(72, 118),
+          Offset(68, 166),
+          Offset(49, 193),
+          Offset(29, 164),
+        ],
+      ],
       mask: [
         Offset(0, 58),
         Offset(62, 86),
@@ -633,6 +649,7 @@ class BaseCampWaterFx {
   BaseCampWaterFx copyWith({
     List<Offset>? shoreline,
     List<Offset>? mask,
+    List<List<Offset>>? exclusionMasks,
     double? intensity,
     double? speed,
     double? foam,
@@ -644,10 +661,15 @@ class BaseCampWaterFx {
     double? shimmerSpeed,
     double? flowDistortion,
     double? foamIntensity,
+    double? foamLifetime,
+    bool? shimmerEnabled,
+    bool? rippleEnabled,
+    bool? foamEnabled,
     bool? visible,
   }) => BaseCampWaterFx(
     shoreline: shoreline ?? this.shoreline,
     mask: mask ?? this.mask,
+    exclusionMasks: exclusionMasks ?? this.exclusionMasks,
     intensity: intensity ?? this.intensity,
     speed: speed ?? this.speed,
     foam: foam ?? this.foam,
@@ -659,11 +681,16 @@ class BaseCampWaterFx {
     shimmerSpeed: shimmerSpeed ?? this.shimmerSpeed,
     flowDistortion: flowDistortion ?? this.flowDistortion,
     foamIntensity: foamIntensity ?? this.foamIntensity,
+    foamLifetime: foamLifetime ?? this.foamLifetime,
+    shimmerEnabled: shimmerEnabled ?? this.shimmerEnabled,
+    rippleEnabled: rippleEnabled ?? this.rippleEnabled,
+    foamEnabled: foamEnabled ?? this.foamEnabled,
     visible: visible ?? this.visible,
   );
   Map<String, Object?> toJson() => {
     'shoreline': _pointsJson(shoreline),
     'mask': _pointsJson(mask),
+    'exclusionMasks': exclusionMasks.map(_pointsJson).toList(growable: false),
     'intensity': intensity,
     'speed': speed,
     'foam': foam,
@@ -675,6 +702,10 @@ class BaseCampWaterFx {
     'shimmerSpeed': shimmerSpeed,
     'flowDistortion': flowDistortion,
     'foamIntensity': foamIntensity,
+    'foamLifetime': foamLifetime,
+    'shimmerEnabled': shimmerEnabled,
+    'rippleEnabled': rippleEnabled,
+    'foamEnabled': foamEnabled,
     'visible': visible,
   };
   static Map<String, BaseCampWaterFx>? decodeAll(Object? raw) {
@@ -694,14 +725,17 @@ class BaseCampWaterFx {
           e = n('spread'),
           f = n('frequency');
       final defaults = BaseCampWaterFx.defaults()[id]!;
+      final exclusions = _decodeExclusionMasks(i['exclusionMasks']);
       final shimmerDensity = n('shimmerDensity') ?? defaults.shimmerDensity;
       final shimmerBrightness =
           n('shimmerBrightness') ?? defaults.shimmerBrightness;
       final shimmerSpeed = n('shimmerSpeed') ?? defaults.shimmerSpeed;
       final flowDistortion = n('flowDistortion') ?? defaults.flowDistortion;
       final foamIntensity = n('foamIntensity') ?? defaults.foamIntensity;
+      final foamLifetime = n('foamLifetime') ?? defaults.foamLifetime;
       if (shore == null ||
           mask == null ||
+          exclusions == null ||
           [
             a,
             b,
@@ -714,12 +748,14 @@ class BaseCampWaterFx {
             shimmerSpeed,
             flowDistortion,
             foamIntensity,
+            foamLifetime,
           ].any((v) => v == null || v < 0 || v > 4)) {
         return null;
       }
       result[id] = BaseCampWaterFx(
         shoreline: shore,
         mask: mask,
+        exclusionMasks: exclusions,
         intensity: a!,
         speed: b!,
         foam: c!,
@@ -731,6 +767,16 @@ class BaseCampWaterFx {
         shimmerSpeed: shimmerSpeed,
         flowDistortion: flowDistortion,
         foamIntensity: foamIntensity,
+        foamLifetime: foamLifetime,
+        shimmerEnabled: i['shimmerEnabled'] is bool
+            ? i['shimmerEnabled'] as bool
+            : defaults.shimmerEnabled,
+        rippleEnabled: i['rippleEnabled'] is bool
+            ? i['rippleEnabled'] as bool
+            : defaults.rippleEnabled,
+        foamEnabled: i['foamEnabled'] is bool
+            ? i['foamEnabled'] as bool
+            : defaults.foamEnabled,
         visible: i['visible'] as bool,
       );
     }
@@ -853,6 +899,18 @@ List<Offset>? _points(Object? raw, int min) {
     r.add(Offset(x, y));
   }
   return r;
+}
+
+List<List<Offset>>? _decodeExclusionMasks(Object? raw) {
+  if (raw == null) return const <List<Offset>>[];
+  if (raw is! List || raw.length > 8) return null;
+  final masks = <List<Offset>>[];
+  for (final item in raw) {
+    final points = _points(item, 3);
+    if (points == null) return null;
+    masks.add(points);
+  }
+  return masks;
 }
 
 @immutable

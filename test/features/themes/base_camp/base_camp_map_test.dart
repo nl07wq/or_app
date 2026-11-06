@@ -317,7 +317,12 @@ void main() {
           ..remove('shimmerBrightness')
           ..remove('shimmerSpeed')
           ..remove('flowDistortion')
-          ..remove('foamIntensity'),
+          ..remove('foamIntensity')
+          ..remove('foamLifetime')
+          ..remove('shimmerEnabled')
+          ..remove('rippleEnabled')
+          ..remove('foamEnabled')
+          ..remove('exclusionMasks'),
     };
     payload['labels'] = labels;
     payload['waterFx'] = waterFx;
@@ -329,6 +334,50 @@ void main() {
     expect(restored.waterFx['rock-foam']!.shimmerDensity, 1);
     expect(restored.waterFx['rock-foam']!.flowDistortion, 1);
     expect(restored.waterFx['coast-ripple']!.foamIntensity, 1);
+    expect(restored.waterFx['coast-ripple']!.exclusionMasks, isEmpty);
+  });
+
+  test('water FX preserves individual layers and exclusion polygons', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    final coast = defaults.waterFx['coast-ripple']!.copyWith(
+      shimmerEnabled: false,
+      rippleEnabled: true,
+      foamEnabled: false,
+      exclusionMasks: const [
+        [Offset(20, 100), Offset(45, 94), Offset(49, 136), Offset(24, 149)],
+      ],
+    );
+    final restored = BaseCampMapConfiguration.tryParse(
+      defaults
+          .copyWith(
+            waterFx: <String, BaseCampWaterFx>{
+              ...defaults.waterFx,
+              'coast-ripple': coast,
+            },
+          )
+          .toJson(),
+    );
+
+    expect(restored, isNotNull);
+    expect(restored!.waterFx['coast-ripple']!.shimmerEnabled, isFalse);
+    expect(restored.waterFx['coast-ripple']!.rippleEnabled, isTrue);
+    expect(restored.waterFx['coast-ripple']!.foamEnabled, isFalse);
+    expect(
+      restored.waterFx['coast-ripple']!.exclusionMasks.single,
+      coast.exclusionMasks.single,
+    );
+  });
+
+  test('effective water path removes the coastal structure exclusion', () {
+    final effect = BaseCampWaterFx.defaults()['coast-ripple']!;
+    final path = baseCampEffectiveWaterPath(
+      effect,
+      BaseCampMapGeometry.contain(const Size(1280, 720)),
+    );
+
+    expect(path.contains(const Offset(10, 80)), isTrue);
+    expect(path.contains(const Offset(50, 135)), isFalse);
+    expect(path.contains(const Offset(300, 135)), isFalse);
   });
 
   test(

@@ -17,9 +17,14 @@ enum _BaseCampEditorSection {
   smokeOrigin,
   labels,
   waterFx,
+  waterMask,
+  shoreline,
+  exclusionMask,
   staticSoldiers,
   soldierSize,
 }
+
+enum _BaseCampWaterLayer { shimmer, ripple, foam }
 
 /// Computes a temporary editor-only transform that centres a selected water
 /// mask. It never changes source coordinates or durable map framing.
@@ -68,6 +73,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   String _facilityId = 'status';
   String _objectId = 'status';
   String _waterFxId = 'rock-foam';
+  int _exclusionMaskIndex = 0;
+  _BaseCampWaterLayer _waterLayer = _BaseCampWaterLayer.shimmer;
   int _waterPointIndex = 0;
   bool _waterMaskSelected = false;
   String? _staticSoldierId;
@@ -262,6 +269,138 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         },
       );
     });
+  }
+
+  void _addWaterPoint({required bool mask}) {
+    final effect = _working.waterFx[_waterFxId]!;
+    final points = List<Offset>.of(mask ? effect.mask : effect.shoreline);
+    final a = points[points.length - 1];
+    final b = points.first;
+    final insert = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+    points.add(insert);
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          _waterFxId: mask
+              ? effect.copyWith(mask: points)
+              : effect.copyWith(shoreline: points),
+        },
+      ),
+    );
+    setState(() {
+      _waterPointIndex = points.length - 1;
+      _waterMaskSelected = mask;
+    });
+  }
+
+  void _deleteWaterPoint({required bool mask}) {
+    final effect = _working.waterFx[_waterFxId]!;
+    final points = List<Offset>.of(mask ? effect.mask : effect.shoreline);
+    final minimum = mask ? 3 : 2;
+    if (points.length <= minimum) return;
+    points.removeAt(_waterPointIndex.clamp(0, points.length - 1));
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          _waterFxId: mask
+              ? effect.copyWith(mask: points)
+              : effect.copyWith(shoreline: points),
+        },
+      ),
+    );
+    setState(() => _waterPointIndex = 0);
+  }
+
+  void _addExclusionMask() {
+    final effect = _working.waterFx[_waterFxId]!;
+    final center =
+        effect.mask.reduce((a, b) => a + b) / effect.mask.length.toDouble();
+    final polygon = <Offset>[
+      center + const Offset(-12, -10),
+      center + const Offset(15, -8),
+      center + const Offset(14, 14),
+      center + const Offset(-10, 16),
+    ];
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          _waterFxId: effect.copyWith(
+            exclusionMasks: <List<Offset>>[...effect.exclusionMasks, polygon],
+          ),
+        },
+      ),
+    );
+    setState(() {
+      _exclusionMaskIndex = effect.exclusionMasks.length;
+      _waterPointIndex = 0;
+    });
+  }
+
+  void _deleteExclusionMask() {
+    final effect = _working.waterFx[_waterFxId]!;
+    if (effect.exclusionMasks.isEmpty) return;
+    final masks = List<List<Offset>>.of(
+      effect.exclusionMasks,
+    )..removeAt(_exclusionMaskIndex.clamp(0, effect.exclusionMasks.length - 1));
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          _waterFxId: effect.copyWith(exclusionMasks: masks),
+        },
+      ),
+    );
+    setState(() => _exclusionMaskIndex = 0);
+  }
+
+  void _addExclusionPoint() {
+    final effect = _working.waterFx[_waterFxId]!;
+    if (effect.exclusionMasks.isEmpty) return;
+    final polygonIndex = _exclusionMaskIndex.clamp(
+      0,
+      effect.exclusionMasks.length - 1,
+    );
+    final masks = effect.exclusionMasks
+        .map((item) => List<Offset>.of(item))
+        .toList(growable: false);
+    final polygon = masks[polygonIndex];
+    polygon.add((polygon.last + polygon.first) / 2);
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          _waterFxId: effect.copyWith(exclusionMasks: masks),
+        },
+      ),
+    );
+    setState(() => _waterPointIndex = polygon.length - 1);
+  }
+
+  void _deleteExclusionPoint() {
+    final effect = _working.waterFx[_waterFxId]!;
+    if (effect.exclusionMasks.isEmpty) return;
+    final polygonIndex = _exclusionMaskIndex.clamp(
+      0,
+      effect.exclusionMasks.length - 1,
+    );
+    final masks = effect.exclusionMasks
+        .map((item) => List<Offset>.of(item))
+        .toList(growable: false);
+    final polygon = masks[polygonIndex];
+    if (polygon.length <= 3) return;
+    polygon.removeAt(_waterPointIndex.clamp(0, polygon.length - 1));
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ..._working.waterFx,
+          _waterFxId: effect.copyWith(exclusionMasks: masks),
+        },
+      ),
+    );
+    setState(() => _waterPointIndex = 0);
   }
 
   void _replaceStaticSoldier(BaseCampStaticSoldier soldier) => _mutate(
@@ -579,7 +718,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       (_BaseCampEditorSection.objects, 'OBJECT EDITOR'),
                       (_BaseCampEditorSection.smokeOrigin, 'SMOKE ORIGIN'),
                       (_BaseCampEditorSection.labels, 'FACILITY LABEL'),
-                      (_BaseCampEditorSection.waterFx, 'WATER FX'),
+                      (_BaseCampEditorSection.waterFx, 'FX PARAMETERS'),
+                      (_BaseCampEditorSection.waterMask, 'WATER MASK'),
+                      (_BaseCampEditorSection.shoreline, 'SHORELINE'),
+                      (_BaseCampEditorSection.exclusionMask, 'EXCLUSION MASK'),
                       (_BaseCampEditorSection.staticSoldiers, 'STATIC SOLDIER'),
                       (_BaseCampEditorSection.soldierSize, 'SOLDIER SIZE'),
                     ])
@@ -589,7 +731,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                         onSelected: (_) => setState(() {
                           _section = item.$1;
                           _pointIndex = 0;
-                          if (item.$1 == _BaseCampEditorSection.waterFx) {
+                          if (item.$1 == _BaseCampEditorSection.waterFx ||
+                              item.$1 == _BaseCampEditorSection.waterMask ||
+                              item.$1 == _BaseCampEditorSection.shoreline ||
+                              item.$1 == _BaseCampEditorSection.exclusionMask) {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               _canvasKey.currentState?.focusWaterFx(_waterFxId);
                             });
@@ -632,9 +777,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   selectedWaterFxId: _waterFxId,
                   selectedWaterPoint: _waterPointIndex,
                   selectedWaterMask: _waterMaskSelected,
+                  selectedExclusionMask: _exclusionMaskIndex,
                   onWaterPointSelected: (index, mask) => setState(() {
                     _waterPointIndex = index;
                     _waterMaskSelected = mask;
+                  }),
+                  onExclusionSelected: (polygon, point) => setState(() {
+                    _exclusionMaskIndex = polygon;
+                    _waterPointIndex = point;
+                    _waterMaskSelected = false;
                   }),
                   onWaterDragStarted: () =>
                       setState(() => _undo.add(_clone(_working))),
@@ -645,6 +796,32 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                         position,
                         mask: mask,
                       ),
+                  onExclusionPointDragged: (polygon, index, position) {
+                    final effect = _working.waterFx[_waterFxId]!;
+                    if (polygon < 0 ||
+                        polygon >= effect.exclusionMasks.length) {
+                      return;
+                    }
+                    final masks = effect.exclusionMasks
+                        .map((item) => List<Offset>.of(item))
+                        .toList(growable: false);
+                    masks[polygon][index] = Offset(
+                      position.dx
+                          .clamp(0, baseCampMapSourceSize.width)
+                          .toDouble(),
+                      position.dy
+                          .clamp(0, baseCampMapSourceSize.height)
+                          .toDouble(),
+                    );
+                    setState(
+                      () => _working = _working.copyWith(
+                        waterFx: <String, BaseCampWaterFx>{
+                          ..._working.waterFx,
+                          _waterFxId: effect.copyWith(exclusionMasks: masks),
+                        },
+                      ),
+                    );
+                  },
                   selectedStaticSoldierId: _staticSoldierId,
                   onStaticSoldierDragStarted: () =>
                       setState(() => _undo.add(_clone(_working))),
@@ -899,34 +1076,68 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                 });
               }),
             ),
-            for (final entry in <(String, double)>[
-              ('INTENSITY', effect.intensity),
-              ('SPEED', effect.speed),
-              ('FOAM', effect.foam),
-              ('OPACITY', effect.opacity),
-              ('SPREAD', effect.spread),
-              ('FREQUENCY', effect.frequency),
-              ('SHIMMER DENSITY', effect.shimmerDensity),
-              ('SHIMMER BRIGHTNESS', effect.shimmerBrightness),
-              ('SHIMMER SPEED', effect.shimmerSpeed),
-              ('FLOW DISTORTION', effect.flowDistortion),
-              ('FOAM INTENSITY', effect.foamIntensity),
-            ])
+            const Text('FX PARAMETERS: 水面の光・うねり・泡を個別に調整します。'),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final layer in _BaseCampWaterLayer.values)
+                  ChoiceChip(
+                    label: Text(layer.name.toUpperCase()),
+                    selected: _waterLayer == layer,
+                    onSelected: (_) => setState(() => _waterLayer = layer),
+                  ),
+              ],
+            ),
+            SwitchListTile(
+              title: Text('${_waterLayer.name.toUpperCase()} ON'),
+              value: switch (_waterLayer) {
+                _BaseCampWaterLayer.shimmer => effect.shimmerEnabled,
+                _BaseCampWaterLayer.ripple => effect.rippleEnabled,
+                _BaseCampWaterLayer.foam => effect.foamEnabled,
+              },
+              onChanged: (value) =>
+                  _replaceWaterFx(_waterFxId, switch (_waterLayer) {
+                    _BaseCampWaterLayer.shimmer => effect.copyWith(
+                      shimmerEnabled: value,
+                    ),
+                    _BaseCampWaterLayer.ripple => effect.copyWith(
+                      rippleEnabled: value,
+                    ),
+                    _BaseCampWaterLayer.foam => effect.copyWith(
+                      foamEnabled: value,
+                    ),
+                  }),
+            ),
+            for (final entry in switch (_waterLayer) {
+              _BaseCampWaterLayer.shimmer => <(String, double)>[
+                ('DENSITY', effect.shimmerDensity),
+                ('BRIGHTNESS', effect.shimmerBrightness),
+                ('CHANGE SPEED', effect.shimmerSpeed),
+              ],
+              _BaseCampWaterLayer.ripple => <(String, double)>[
+                ('STRENGTH', effect.intensity),
+                ('FLOW SPEED', effect.speed),
+                ('SPREAD', effect.flowDistortion),
+              ],
+              _BaseCampWaterLayer.foam => <(String, double)>[
+                ('AMOUNT', effect.foamIntensity),
+                ('SPREAD', effect.spread),
+                ('LIFETIME', effect.foamLifetime),
+              ],
+            })
               _editorSlider(entry.$1, entry.$2, 0, 4, (value) {
                 final next = switch (entry.$1) {
-                  'INTENSITY' => effect.copyWith(intensity: value),
-                  'SPEED' => effect.copyWith(speed: value),
-                  'FOAM' => effect.copyWith(foam: value),
-                  'OPACITY' => effect.copyWith(opacity: value),
-                  'SPREAD' => effect.copyWith(spread: value),
-                  'FREQUENCY' => effect.copyWith(frequency: value),
-                  'SHIMMER DENSITY' => effect.copyWith(shimmerDensity: value),
-                  'SHIMMER BRIGHTNESS' => effect.copyWith(
-                    shimmerBrightness: value,
-                  ),
-                  'SHIMMER SPEED' => effect.copyWith(shimmerSpeed: value),
-                  'FLOW DISTORTION' => effect.copyWith(flowDistortion: value),
-                  _ => effect.copyWith(foamIntensity: value),
+                  'DENSITY' => effect.copyWith(shimmerDensity: value),
+                  'BRIGHTNESS' => effect.copyWith(shimmerBrightness: value),
+                  'CHANGE SPEED' => effect.copyWith(shimmerSpeed: value),
+                  'STRENGTH' => effect.copyWith(intensity: value),
+                  'FLOW SPEED' => effect.copyWith(speed: value),
+                  'AMOUNT' => effect.copyWith(foamIntensity: value),
+                  'LIFETIME' => effect.copyWith(foamLifetime: value),
+                  _ =>
+                    _waterLayer == _BaseCampWaterLayer.ripple
+                        ? effect.copyWith(flowDistortion: value)
+                        : effect.copyWith(spread: value),
                 };
                 _replaceWaterFx(_waterFxId, next);
               }),
@@ -936,9 +1147,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               onChanged: (value) =>
                   _replaceWaterFx(_waterFxId, effect.copyWith(visible: value)),
             ),
-            const Text(
-              'Waves handles edit shoreline; square handles edit WATER MASK.',
-            ),
+            const Text('上部のMAPは実際のBASE CAMP背景と同じLIVE PREVIEWです。'),
             Wrap(
               spacing: 8,
               children: [
@@ -962,6 +1171,91 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               ),
               icon: const Icon(Icons.restart_alt),
               label: const Text('PRESET RESET'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_section == _BaseCampEditorSection.waterMask ||
+        _section == _BaseCampEditorSection.shoreline) {
+      final isMask = _section == _BaseCampEditorSection.waterMask;
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('水域を選択してから、頂点をドラッグして形状を調整します。'),
+            Text(
+              isMask
+                  ? 'WATER MASK: FXを描画してよい水面範囲です。'
+                  : 'SHORELINE: FOAMが発生する水際の基準線です。',
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _addWaterPoint(mask: isMask),
+                  icon: const Icon(Icons.add),
+                  label: const Text('ADD POINT'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _deleteWaterPoint(mask: isMask),
+                  icon: const Icon(Icons.remove),
+                  label: const Text('DELETE POINT'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _canvasKey.currentState?.focusWaterFx(_waterFxId),
+                  icon: const Icon(Icons.center_focus_strong),
+                  label: const Text('FOCUS AREA'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    if (_section == _BaseCampEditorSection.exclusionMask) {
+      final effect = _working.waterFx[_waterFxId]!;
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('EXCLUSION MASK: 見張り台・岩・陸地を水面FXから除外します。'),
+            Text(
+              '選択中: ${effect.exclusionMasks.isEmpty ? 'なし' : _exclusionMaskIndex + 1}',
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _addExclusionMask,
+                  icon: const Icon(Icons.add),
+                  label: const Text('ADD AREA'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _deleteExclusionMask,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('DELETE AREA'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _addExclusionPoint,
+                  icon: const Icon(Icons.add_location_alt_outlined),
+                  label: const Text('ADD POINT'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _deleteExclusionPoint,
+                  icon: const Icon(Icons.remove_circle_outline),
+                  label: const Text('DELETE POINT'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _canvasKey.currentState?.focusWaterFx(_waterFxId),
+                  icon: const Icon(Icons.center_focus_strong),
+                  label: const Text('FOCUS AREA'),
+                ),
+              ],
             ),
           ],
         ),
@@ -1371,9 +1665,12 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.selectedWaterFxId,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
+    required this.selectedExclusionMask,
     required this.onWaterPointSelected,
+    required this.onExclusionSelected,
     required this.onWaterDragStarted,
     required this.onWaterPointDragged,
+    required this.onExclusionPointDragged,
     required this.selectedStaticSoldierId,
     required this.onStaticSoldierDragStarted,
     required this.onStaticSoldierDragged,
@@ -1394,10 +1691,14 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final String selectedWaterFxId;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
+  final int selectedExclusionMask;
   final void Function(int index, bool mask) onWaterPointSelected;
+  final void Function(int polygon, int point) onExclusionSelected;
   final VoidCallback onWaterDragStarted;
   final void Function(int index, Offset position, bool mask)
   onWaterPointDragged;
+  final void Function(int polygon, int index, Offset position)
+  onExclusionPointDragged;
   final String? selectedStaticSoldierId;
   final VoidCallback onStaticSoldierDragStarted;
   final void Function(String id, Offset position) onStaticSoldierDragged;
@@ -1406,15 +1707,27 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   State<_BaseCampEditorCanvas> createState() => _BaseCampEditorCanvasState();
 }
 
-class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
+class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
+    with TickerProviderStateMixin {
   final TransformationController _transform = TransformationController();
   final GlobalKey _sourceKey = GlobalKey();
   Size? _viewport;
   Matrix4? _transformBeforeWaterFocus;
   String? _focusedWaterFxId;
+  late final AnimationController _previewTimeline;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewTimeline = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 30),
+    )..repeat();
+  }
 
   @override
   void dispose() {
+    _previewTimeline.dispose();
     _transform.dispose();
     super.dispose();
   }
@@ -1485,87 +1798,111 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final viewport = constraints.biggest;
-      _setInitialFit(viewport);
-      return ClipRect(
-        child: InteractiveViewer(
-          key: const ValueKey('base-camp-editor-map'),
-          transformationController: _transform,
-          constrained: false,
-          minScale: .2,
-          maxScale: 3.2,
-          boundaryMargin: const EdgeInsets.all(160),
-          child: SizedBox(
-            width: baseCampMapSourceSize.width,
-            height: baseCampMapSourceSize.height,
-            child: _BaseCampEditorSourceMap(
-              key: _sourceKey,
-              configuration: widget.configuration,
-              section: widget.section,
-              selectedRouteId: widget.selectedRouteId,
-              selectedFacilityId: widget.selectedFacilityId,
-              selectedObjectId: widget.selectedObjectId,
-              selectedPoint: widget.selectedPoint,
-              onPointSelected: widget.onPointSelected,
-              onDragStarted: widget.onDragStarted,
-              onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
-              onPointGlobalDragged: _dragPointAtGlobalPosition,
-              onObjectDragStarted: widget.onObjectDragStarted,
-              onObjectGlobalDragged: (globalPosition) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onObjectDragged(
-                    renderBox.globalToLocal(globalPosition),
-                  );
-                }
-              },
-              onLabelDragStarted: widget.onLabelDragStarted,
-              onLabelGlobalDragged: (globalPosition, part) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onLabelDragged(
-                    renderBox.globalToLocal(globalPosition),
-                    part,
-                  );
-                }
-              },
-              selectedWaterFxId: widget.selectedWaterFxId,
-              selectedWaterPoint: widget.selectedWaterPoint,
-              selectedWaterMask: widget.selectedWaterMask,
-              onWaterPointSelected: widget.onWaterPointSelected,
-              onWaterDragStarted: widget.onWaterDragStarted,
-              onWaterGlobalDragged: (index, globalPosition, mask) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onWaterPointDragged(
-                    index,
-                    renderBox.globalToLocal(globalPosition),
-                    mask,
-                  );
-                }
-              },
-              selectedStaticSoldierId: widget.selectedStaticSoldierId,
-              onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
-              onStaticSoldierGlobalDragged: (id, globalPosition) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onStaticSoldierDragged(
-                    id,
-                    renderBox.globalToLocal(globalPosition),
-                  );
-                }
-              },
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _previewTimeline,
+    builder: (context, _) => LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = constraints.biggest;
+        _setInitialFit(viewport);
+        return ClipRect(
+          child: InteractiveViewer(
+            key: const ValueKey('base-camp-editor-map'),
+            transformationController: _transform,
+            constrained: false,
+            minScale: .2,
+            maxScale: 3.2,
+            boundaryMargin: const EdgeInsets.all(160),
+            child: SizedBox(
+              width: baseCampMapSourceSize.width,
+              height: baseCampMapSourceSize.height,
+              child: _BaseCampEditorSourceMap(
+                key: _sourceKey,
+                configuration: widget.configuration,
+                section: widget.section,
+                selectedRouteId: widget.selectedRouteId,
+                selectedFacilityId: widget.selectedFacilityId,
+                selectedObjectId: widget.selectedObjectId,
+                selectedPoint: widget.selectedPoint,
+                onPointSelected: widget.onPointSelected,
+                onDragStarted: widget.onDragStarted,
+                onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
+                onPointGlobalDragged: _dragPointAtGlobalPosition,
+                onObjectDragStarted: widget.onObjectDragStarted,
+                onObjectGlobalDragged: (globalPosition) {
+                  final renderBox =
+                      _sourceKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (renderBox != null) {
+                    widget.onObjectDragged(
+                      renderBox.globalToLocal(globalPosition),
+                    );
+                  }
+                },
+                onLabelDragStarted: widget.onLabelDragStarted,
+                onLabelGlobalDragged: (globalPosition, part) {
+                  final renderBox =
+                      _sourceKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (renderBox != null) {
+                    widget.onLabelDragged(
+                      renderBox.globalToLocal(globalPosition),
+                      part,
+                    );
+                  }
+                },
+                selectedWaterFxId: widget.selectedWaterFxId,
+                elapsed: Duration(
+                  milliseconds: (_previewTimeline.value * 30000).round(),
+                ),
+                selectedWaterPoint: widget.selectedWaterPoint,
+                selectedWaterMask: widget.selectedWaterMask,
+                selectedExclusionMask: widget.selectedExclusionMask,
+                onWaterPointSelected: widget.onWaterPointSelected,
+                onExclusionSelected: widget.onExclusionSelected,
+                onWaterDragStarted: widget.onWaterDragStarted,
+                onWaterGlobalDragged: (index, globalPosition, mask) {
+                  final renderBox =
+                      _sourceKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (renderBox != null) {
+                    widget.onWaterPointDragged(
+                      index,
+                      renderBox.globalToLocal(globalPosition),
+                      mask,
+                    );
+                  }
+                },
+                onExclusionGlobalDragged: (polygon, index, globalPosition) {
+                  final renderBox =
+                      _sourceKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (renderBox != null) {
+                    widget.onExclusionPointDragged(
+                      polygon,
+                      index,
+                      renderBox.globalToLocal(globalPosition),
+                    );
+                  }
+                },
+                selectedStaticSoldierId: widget.selectedStaticSoldierId,
+                onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
+                onStaticSoldierGlobalDragged: (id, globalPosition) {
+                  final renderBox =
+                      _sourceKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (renderBox != null) {
+                    widget.onStaticSoldierDragged(
+                      id,
+                      renderBox.globalToLocal(globalPosition),
+                    );
+                  }
+                },
+              ),
             ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }
 
@@ -1587,11 +1924,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onLabelDragStarted,
     required this.onLabelGlobalDragged,
     required this.selectedWaterFxId,
+    required this.elapsed,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
+    required this.selectedExclusionMask,
     required this.onWaterPointSelected,
+    required this.onExclusionSelected,
     required this.onWaterDragStarted,
     required this.onWaterGlobalDragged,
+    required this.onExclusionGlobalDragged,
     required this.selectedStaticSoldierId,
     required this.onStaticSoldierDragStarted,
     required this.onStaticSoldierGlobalDragged,
@@ -1609,12 +1950,17 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelGlobalDragged;
   final String selectedWaterFxId;
+  final Duration elapsed;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
+  final int selectedExclusionMask;
   final void Function(int index, bool mask) onWaterPointSelected;
+  final void Function(int polygon, int point) onExclusionSelected;
   final VoidCallback onWaterDragStarted;
   final void Function(int index, Offset position, bool mask)
   onWaterGlobalDragged;
+  final void Function(int polygon, int index, Offset position)
+  onExclusionGlobalDragged;
   final String? selectedStaticSoldierId;
   final VoidCallback onStaticSoldierDragStarted;
   final void Function(String id, Offset position) onStaticSoldierGlobalDragged;
@@ -1647,7 +1993,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           child: BaseCampWaterFxLayer(
             configuration: configuration,
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
-            elapsed: const Duration(seconds: 2),
+            elapsed: elapsed,
           ),
         ),
         IgnorePointer(
@@ -1660,12 +2006,12 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           child: BaseCampFoodSmokeLayer(
             configuration: configuration,
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
-            elapsed: const Duration(seconds: 2),
+            elapsed: elapsed,
           ),
         ),
         IgnorePointer(
           child: BaseCampWalkerPreviewLayer(
-            elapsed: const Duration(seconds: 2),
+            elapsed: elapsed,
             reducedMotion: false,
             configuration: configuration,
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
@@ -1679,6 +2025,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
           ),
         ),
+        if ((section == _BaseCampEditorSection.waterMask ||
+                section == _BaseCampEditorSection.shoreline ||
+                section == _BaseCampEditorSection.exclusionMask) &&
+            water != null)
+          IgnorePointer(
+            child: CustomPaint(
+              painter: _BaseCampWaterEditOverlayPainter(water, section),
+            ),
+          ),
         CustomPaint(
           painter: _BaseCampEditorGuidePainter(
             configuration: configuration,
@@ -1761,7 +2116,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 onLabelGlobalDragged(details.globalPosition, 2),
           ),
         ],
-        if (section == _BaseCampEditorSection.waterFx && water != null) ...[
+        if (section == _BaseCampEditorSection.shoreline && water != null) ...[
           for (var i = 0; i < water.shoreline.length; i++)
             _EditorDragHandle(
               point: water.shoreline[i],
@@ -1778,6 +2133,8 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
               onUpdate: (details) =>
                   onWaterGlobalDragged(i, details.globalPosition, false),
             ),
+        ],
+        if (section == _BaseCampEditorSection.waterMask && water != null) ...[
           for (var i = 0; i < water.mask.length; i++)
             _EditorDragHandle(
               point: water.mask[i],
@@ -1795,6 +2152,37 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                   onWaterGlobalDragged(i, details.globalPosition, true),
             ),
         ],
+        if (section == _BaseCampEditorSection.exclusionMask && water != null)
+          for (
+            var polygon = 0;
+            polygon < water.exclusionMasks.length;
+            polygon++
+          )
+            for (
+              var point = 0;
+              point < water.exclusionMasks[polygon].length;
+              point++
+            )
+              _EditorDragHandle(
+                point: water.exclusionMasks[polygon][point],
+                icon: Icons.block,
+                color: polygon == selectedExclusionMask
+                    ? const Color(0xFFFF9C7A)
+                    : const Color(0xFF85564A),
+                selected:
+                    polygon == selectedExclusionMask &&
+                    point == selectedWaterPoint,
+                onTap: () => onExclusionSelected(polygon, point),
+                onStart: () {
+                  onExclusionSelected(polygon, point);
+                  onWaterDragStarted();
+                },
+                onUpdate: (details) => onExclusionGlobalDragged(
+                  polygon,
+                  point,
+                  details.globalPosition,
+                ),
+              ),
         if (section == _BaseCampEditorSection.staticSoldiers)
           for (final soldier in configuration.staticSoldiers)
             _EditorDragHandle(
@@ -1822,6 +2210,64 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
       ],
     );
   }
+}
+
+class _BaseCampWaterEditOverlayPainter extends CustomPainter {
+  const _BaseCampWaterEditOverlayPainter(this.effect, this.section);
+
+  final BaseCampWaterFx effect;
+  final _BaseCampEditorSection section;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final water = Path()..addPolygon(effect.mask, true);
+    canvas.drawPath(
+      water,
+      Paint()
+        ..color = const Color(0x3347C9E8)
+        ..style = PaintingStyle.fill,
+    );
+    if (section == _BaseCampEditorSection.waterMask) {
+      canvas.drawPath(
+        water,
+        Paint()
+          ..color = const Color(0xFF68E8F2)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+    if (section == _BaseCampEditorSection.shoreline) {
+      canvas.drawPath(
+        Path()..addPolygon(effect.shoreline, false),
+        Paint()
+          ..color = const Color(0xFFEAF1EA)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+    }
+    if (section == _BaseCampEditorSection.exclusionMask) {
+      for (final exclusion in effect.exclusionMasks) {
+        final path = Path()..addPolygon(exclusion, true);
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0x55FF9C7A)
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFFFF9C7A)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BaseCampWaterEditOverlayPainter oldDelegate) =>
+      oldDelegate.effect != effect || oldDelegate.section != section;
 }
 
 class _EditorDragHandle extends StatelessWidget {
@@ -1886,6 +2332,9 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
         section == _BaseCampEditorSection.smokeOrigin ||
         section == _BaseCampEditorSection.labels ||
         section == _BaseCampEditorSection.waterFx ||
+        section == _BaseCampEditorSection.waterMask ||
+        section == _BaseCampEditorSection.shoreline ||
+        section == _BaseCampEditorSection.exclusionMask ||
         section == _BaseCampEditorSection.staticSoldiers) {
       return;
     }
