@@ -50,6 +50,32 @@ jobs:
           --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}"
           --dart-define="OR_APP_RELEASE_TITLE=${{ steps.release_metadata.outputs.title }}"
 
+      - name: Version the Flutter application shell
+        env:
+          OR_APP_RELEASE: ${{ steps.release_metadata.outputs.commit }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          release = os.environ['OR_APP_RELEASE']
+          index = Path('build/web/index.html')
+          bootstrap = Path('build/web/flutter_bootstrap.js')
+          index.write_text(
+              index.read_text().replace('__OR_APP_RELEASE__', release),
+              encoding='utf-8',
+          )
+          # Flutter's generated bootstrap owns the main entrypoint request.
+          # Version only that request so new HTML and JavaScript are always a
+          # matched release on GitHub Pages' short-lived static cache.
+          bootstrap.write_text(
+              bootstrap.read_text().replace(
+                  'main.dart.js', f'main.dart.js?or_app_release={release}'
+              ),
+              encoding='utf-8',
+          )
+          PY
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web

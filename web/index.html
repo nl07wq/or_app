@@ -128,6 +128,57 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Flutter web builds from before the current non-PWA deployment could
+    // leave a scoped Flutter service worker alive.  That worker may return an
+    // old application shell together with a newer bundle after a deployment.
+    // Retire only workers scoped to this application; do not touch IndexedDB,
+    // localStorage, Cache Storage, or any application data.
+    window.__orAppStartupRecovery = (async function () {
+      if (!('serviceWorker' in navigator)) return;
+      const basePath = new URL(document.baseURI).pathname;
+      const reloadKey = 'or_app.legacy_service_worker_retired.v1';
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        const appRegistrations = registrations.filter(function (registration) {
+          try {
+            return new URL(registration.scope).pathname.indexOf(basePath) === 0;
+          } catch (_) {
+            return false;
+          }
+        });
+        const hadController = !!navigator.serviceWorker.controller;
+        const results = await Promise.all(appRegistrations.map(function (registration) {
+          return registration.unregister();
+        }));
+        const retired = results.some(Boolean);
+        const attempts = Number(sessionStorage.getItem(reloadKey) || '0');
+        // A reload detaches this document from the now-unregistered legacy
+        // worker.  Bound it to two attempts so a browser implementation that
+        // retains a controller cannot create a reload loop.
+        if ((retired || hadController) && attempts < 2) {
+          sessionStorage.setItem(reloadKey, String(attempts + 1));
+          window.location.replace(window.location.href);
+          return new Promise(function () {});
+        }
+        sessionStorage.removeItem(reloadKey);
+      } catch (_) {
+        // Service worker migration is best effort.  Bootstrap still proceeds
+        // if browser storage is disabled or unavailable.
+      }
+    })();
+  </script>
+  <script>
+    // The release token is substituted in the Pages workflow.  It prevents a
+    // newly fetched HTML shell from pairing with a max-age cached bootstrap.
+    // The bootstrap itself is patched by the workflow to request the matching
+    // main.dart.js release token as well.
+    window.__orAppStartupRecovery.finally(function () {
+      const bootstrap = document.createElement('script');
+      bootstrap.async = true;
+      bootstrap.src = 'flutter_bootstrap.js?or_app_release=__OR_APP_RELEASE__';
+      document.body.appendChild(bootstrap);
+    });
+  </script>
 </body>
 </html>

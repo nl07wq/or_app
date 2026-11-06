@@ -31,6 +31,23 @@ void main() {
     );
   });
 
+  test(
+    'Base Camp restore failure preserves defaults without escaping boot',
+    () async {
+      final controller = BaseCampMapConfigurationController(
+        preferencesLoader: () => throw StateError('storage unavailable'),
+      );
+
+      await controller.load();
+
+      expect(
+        controller.value.encode(),
+        BaseCampMapConfiguration.defaults().encode(),
+      );
+      expect(controller.lastLoadFailureStage, 'storage_or_restore_StateError');
+    },
+  );
+
   testWidgets(
     'facility selection waits for YES before navigating by callback',
     (tester) async {

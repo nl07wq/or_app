@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/services/startup_diagnostic.dart';
 import 'widgets/base_camp_map.dart';
 
 /// The single persisted source for BASE CAMP map calibration.  Normal map
@@ -1090,28 +1091,47 @@ class BaseCampMapConfigurationController
   static const storageKey = 'base_camp_map_editor_v1';
   final Future<SharedPreferences> Function() _preferencesLoader;
   bool _loaded = false;
+  String? _lastLoadFailureStage;
+
+  /// A safe, value-free classification of the last optional calibration
+  /// restore failure.  The map deliberately stays on its audited defaults
+  /// when this is non-null; it never clears or rewrites the saved payload.
+  String? get lastLoadFailureStage => _lastLoadFailureStage;
 
   Future<void> load() async {
     if (_loaded) return;
     _loaded = true;
-    final raw = (await _preferencesLoader()).getString(storageKey);
-    if (raw == null) return;
     try {
+      final preferences = await _preferencesLoader();
+      final raw = preferences.getString(storageKey);
+      if (raw == null) return;
       final restored = BaseCampMapConfiguration.tryParse(jsonDecode(raw));
       if (restored != null) {
         value = restored;
         // Persist compatible schema and obsolete 2/1 multiplier migrations
         // immediately, without changing any route or facility-outline payload.
         if (restored.encode() != raw) {
-          await (await _preferencesLoader()).setString(
-            storageKey,
-            restored.encode(),
-          );
+          await preferences.setString(storageKey, restored.encode());
         }
       }
     } on FormatException {
-      // Invalid local calibration intentionally falls back to the audited defaults.
+      _recordLoadFailure('configuration_format');
+    } catch (error) {
+      // Local map calibration is optional presentation data.  A Safari
+      // storage/security failure must not escape an unawaited map load and
+      // prevent the dashboard from rendering.  Keep the original payload
+      // untouched for later recovery and record only its error category.
+      _recordLoadFailure('storage_or_restore_${error.runtimeType}');
     }
+  }
+
+  void _recordLoadFailure(String stage) {
+    _lastLoadFailureStage = stage;
+    StartupDiagnostic.instance.record(
+      'BASE_CAMP',
+      'MAP_CONFIGURATION_RESTORE_FAILED',
+      fields: <String, Object?>{'stage': stage},
+    );
   }
 
   Future<void> save(BaseCampMapConfiguration configuration) async {
@@ -1137,6 +1157,7 @@ class BaseCampMapConfigurationController
   @visibleForTesting
   void resetForTesting(BaseCampMapConfiguration configuration) {
     _loaded = true;
+    _lastLoadFailureStage = null;
     value = configuration;
   }
 }
