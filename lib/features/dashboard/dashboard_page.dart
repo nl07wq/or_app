@@ -1286,14 +1286,19 @@ class _DashboardPageState extends State<DashboardPage> {
     await completer.future;
   }
 
-  void _showQuickWaterInput(BuildContext context) {
-    GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _QuickWaterSheet(dashboardContext: context),
-    );
-  }
+  void _showQuickWaterInput(BuildContext context) =>
+      showDashboardQuickWaterInput(context);
+}
+
+/// Opens the shared quick-water flow without duplicating its mutation and
+/// validation contract in theme-specific Dashboard presentations.
+void showDashboardQuickWaterInput(BuildContext context) {
+  GlobalTouchRipple.previewFeedback(TouchFeedbackSound.cursor);
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => _QuickWaterSheet(dashboardContext: context),
+  );
 }
 
 class _OperationDateCard extends StatelessWidget {
