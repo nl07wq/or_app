@@ -92,3 +92,8 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # GitHub Pages occasionally needs longer than the action's 10-minute
+          # default to activate a valid artifact. Keep the deployment alive
+          # long enough without changing the artifact or Pages permissions.
+          timeout: '1200000'
