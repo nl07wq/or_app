@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -257,22 +258,43 @@ void main() {
     },
   );
 
-  test('tactical grid uses one wall plane and a bounded perspective floor', () {
-    const panel = Size(128, 100);
-    expect(baseCampSoldierGroundY(panel), 78);
-    expect(baseCampSoldierWallLinePositions(panel.width), [0, 32, 64, 96]);
-    expect(baseCampSoldierWallLinePositions(78), [0, 32, 64]);
-    expect(baseCampSoldierFloorLinePositions(panel), [92]);
-    expect(baseCampSoldierPerspectiveEndpoints(panel), [
-      -32,
-      0,
-      32,
-      64,
-      96,
-      128,
-      160,
-    ]);
-  });
+  test(
+    'tactical grid shares wall origins with the bounded perspective floor',
+    () {
+      const panel = Size(128, 100);
+      expect(baseCampSoldierGroundY(panel), 78);
+      expect(baseCampSoldierWallLinePositions(panel.width), [0, 32, 64, 96]);
+      expect(baseCampSoldierWallLinePositions(78), [0, 32, 64]);
+      expect(baseCampSoldierFloorLinePositions(panel), [83.5, 90.1, 96.7]);
+      for (final expectation in <(double, double)>[
+        (-51.2, 0),
+        (6.4, 32),
+        (64, 64),
+        (121.6, 96),
+      ]) {
+        final endpoint = baseCampSoldierPerspectiveEndpoint(
+          panel,
+          expectation.$2,
+        );
+        expect(endpoint.dx, closeTo(expectation.$1, .001));
+        expect(endpoint.dy, 100);
+      }
+    },
+  );
+
+  test(
+    'rifle frame transform has one stable standing size and foot anchor',
+    () {
+      final layout = baseCampRifleRegripLayout(const Size(122, 90));
+      expect(layout.normalFootY, closeTo(layout.specialFootY, .001));
+      expect(
+        layout.normalFootY - layout.normalHeadY,
+        closeTo(layout.specialFootY - layout.specialHeadY, .15),
+      );
+      expect(layout.specialHeadY, greaterThanOrEqualTo(0));
+      expect(layout.specialFootY, lessThanOrEqualTo(90));
+    },
+  );
 
   test('rifle regrip timeline uses every approved frame once in order', () {
     expect(baseCampRifleRegripPreIdleMs, 1000);
@@ -304,18 +326,48 @@ void main() {
     expect(baseCampRifleRegripIntervalMs((_) => 60000), 120000);
   });
 
-  test('all six rifle regrip frames are transparent RGBA assets', () async {
-    expect(baseCampRifleRegripAssets, hasLength(6));
-    for (final asset in baseCampRifleRegripAssets) {
-      final data = await rootBundle.load(asset);
-      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-      final frame = await codec.getNextFrame();
-      expect(frame.image.width, 512);
-      expect(frame.image.height, 512);
-      frame.image.dispose();
-      codec.dispose();
-    }
-  });
+  test(
+    'all corrected rifle frames are transparent, normalized RGBA assets',
+    () async {
+      expect(baseCampRifleRegripAssets, hasLength(6));
+      final normalMaterial = await _opaqueRgbaMean(
+        baseCampBreathingSoldierUpperAsset,
+      );
+      for (final asset in baseCampRifleRegripAssets) {
+        final data = await rootBundle.load(asset);
+        final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+        final frame = await codec.getNextFrame();
+        expect(frame.image.width, 512);
+        expect(frame.image.height, 512);
+        final rgba = await frame.image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        expect(rgba, isNotNull);
+        var top = frame.image.height;
+        var bottom = -1;
+        final material = await _opaqueRgbaMean(asset);
+        for (var y = 0; y < frame.image.height; y++) {
+          for (var x = 0; x < frame.image.width; x++) {
+            final offset = (y * frame.image.width + x) * 4;
+            final alpha = rgba!.getUint8(offset + 3);
+            if (alpha == 0) continue;
+            top = math.min(top, y);
+            bottom = math.max(bottom, y);
+          }
+        }
+        expect(top, 32);
+        expect(bottom, 511);
+        expect(bottom - top + 1, 480);
+        // PNG channel rounding and Flutter's decoder differ by at most 1.5
+        // channel values (under 0.6% of the full range).
+        expect(material.red, closeTo(normalMaterial.red, 1.5));
+        expect(material.green, closeTo(normalMaterial.green, 1.5));
+        expect(material.blue, closeTo(normalMaterial.blue, 1.5));
+        frame.image.dispose();
+        codec.dispose();
+      }
+    },
+  );
 
   testWidgets('STATUS DATA and SUSTAINMENT retain five nested instruments', (
     tester,
@@ -467,4 +519,27 @@ void main() {
       findsOneWidget,
     );
   });
+}
+
+Future<({double red, double green, double blue})> _opaqueRgbaMean(
+  String asset,
+) async {
+  final data = await rootBundle.load(asset);
+  final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+  final frame = await codec.getNextFrame();
+  final rgba = await frame.image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  var red = 0;
+  var green = 0;
+  var blue = 0;
+  var count = 0;
+  for (var offset = 0; offset < rgba!.lengthInBytes; offset += 4) {
+    if (rgba.getUint8(offset + 3) < 16) continue;
+    red += rgba.getUint8(offset);
+    green += rgba.getUint8(offset + 1);
+    blue += rgba.getUint8(offset + 2);
+    count++;
+  }
+  frame.image.dispose();
+  codec.dispose();
+  return (red: red / count, green: green / count, blue: blue / count);
 }

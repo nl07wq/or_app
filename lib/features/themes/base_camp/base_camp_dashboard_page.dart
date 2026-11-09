@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/engine/activity_summary.dart';
@@ -535,6 +536,8 @@ class _BreathingSoldierCompartmentState
   final math.Random _random = math.Random();
   Timer? _specialTimer;
   bool _active = true;
+  bool _rifleFramesReady = false;
+  bool _rifleFramePrecacheStarted = false;
 
   @override
   void initState() {
@@ -549,6 +552,37 @@ class _BreathingSoldierCompartmentState
       duration: const Duration(milliseconds: baseCampRifleRegripEventMs),
     )..addStatusListener(_onSpecialStatus);
     _scheduleSpecialEvent();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_rifleFramePrecacheStarted) return;
+    _rifleFramePrecacheStarted = true;
+    _precacheRifleFrames();
+  }
+
+  Future<void> _precacheRifleFrames() async {
+    var allFramesLoaded = true;
+    for (final asset in baseCampRifleRegripAssets) {
+      try {
+        await precacheImage(AssetImage(asset), context);
+      } catch (error, stackTrace) {
+        allFramesLoaded = false;
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'base_camp',
+            context: ErrorDescription('while preloading rifle regrip frame'),
+            informationCollector: () => [
+              DiagnosticsProperty<String>('asset', asset),
+            ],
+          ),
+        );
+      }
+    }
+    if (mounted) setState(() => _rifleFramesReady = allFramesLoaded);
   }
 
   void _onSpecialStatus(AnimationStatus status) {
@@ -629,41 +663,57 @@ class _BreathingSoldierCompartmentState
                 clipBehavior: Clip.hardEdge,
                 children: [
                   const Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(painter: _SoldierPanelGridPainter()),
+                    child: Padding(
+                      padding: EdgeInsets.all(_soldierViewportPadding),
+                      child: IgnorePointer(
+                        child: CustomPaint(painter: _SoldierPanelGridPainter()),
+                      ),
                     ),
                   ),
-                  AnimatedBuilder(
-                    animation: Listenable.merge([
-                      _breathingController,
-                      _specialController,
-                    ]),
-                    builder: (context, _) {
-                      final elapsed =
-                          (_specialController.value *
-                                  baseCampRifleRegripEventMs)
-                              .floor();
-                      final phase = _specialController.isAnimating
-                          ? baseCampRifleRegripPhase(elapsed)
-                          : BaseCampRifleRegripPhase.breathing;
-                      if (phase == BaseCampRifleRegripPhase.rifleRegrip ||
-                          phase == BaseCampRifleRegripPhase.postIdle) {
-                        final frame = phase == BaseCampRifleRegripPhase.postIdle
-                            ? baseCampRifleRegripAssets.length - 1
-                            : baseCampRifleRegripFrameIndex(elapsed);
-                        return _RifleRegripFrame(
-                          asset: baseCampRifleRegripAssets[frame],
-                          key: ValueKey('base-camp-rifle-regrip-frame-$frame'),
-                        );
-                      }
-                      final dy =
-                          phase == BaseCampRifleRegripPhase.preIdle || reduced
-                          ? 0.0
-                          : baseCampBreathingOffset(
-                              _breathingController.value * _breathingCycleMs,
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.all(_soldierViewportPadding),
+                      child: AnimatedBuilder(
+                        animation: Listenable.merge([
+                          _breathingController,
+                          _specialController,
+                        ]),
+                        builder: (context, _) {
+                          final elapsed =
+                              (_specialController.value *
+                                      baseCampRifleRegripEventMs)
+                                  .floor();
+                          final phase = _specialController.isAnimating
+                              ? baseCampRifleRegripPhase(elapsed)
+                              : BaseCampRifleRegripPhase.breathing;
+                          final showRifleFrame =
+                              _rifleFramesReady &&
+                              (phase == BaseCampRifleRegripPhase.rifleRegrip ||
+                                  phase == BaseCampRifleRegripPhase.postIdle);
+                          if (showRifleFrame) {
+                            final frame =
+                                phase == BaseCampRifleRegripPhase.postIdle
+                                ? baseCampRifleRegripAssets.length - 1
+                                : baseCampRifleRegripFrameIndex(elapsed);
+                            return _RifleRegripFrame(
+                              asset: baseCampRifleRegripAssets[frame],
+                              key: ValueKey(
+                                'base-camp-rifle-regrip-frame-$frame',
+                              ),
                             );
-                      return _NormalSoldierComposite(dy: dy);
-                    },
+                          }
+                          final dy =
+                              phase == BaseCampRifleRegripPhase.preIdle ||
+                                  reduced
+                              ? 0.0
+                              : baseCampBreathingOffset(
+                                  _breathingController.value *
+                                      _breathingCycleMs,
+                                );
+                          return _NormalSoldierComposite(dy: dy);
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -679,16 +729,17 @@ const breathingSoldierReferenceAsset =
     'assets/images/themes/base_camp/breathing_soldier/ChatGPT Image 2026年8月16日 21_03_48.png';
 const _breathingSoldierLowerAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_lowerboady.png';
-const _breathingSoldierUpperAsset =
+const baseCampBreathingSoldierUpperAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_upperboady.png';
+const _soldierViewportPadding = 4.0;
 
 const baseCampRifleRegripAssets = [
-  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F0.png',
-  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F1.png',
-  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F2.png',
-  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F3.png',
-  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F4.png',
-  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F5.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F0.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F1.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F2.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F3.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F4.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F5.png',
 ];
 
 class _NormalSoldierComposite extends StatelessWidget {
@@ -709,7 +760,7 @@ class _NormalSoldierComposite extends StatelessWidget {
       Transform.translate(
         offset: Offset(0, dy),
         child: Image.asset(
-          _breathingSoldierUpperAsset,
+          baseCampBreathingSoldierUpperAsset,
           key: const ValueKey('base-camp-soldier-upper'),
           fit: BoxFit.contain,
           filterQuality: FilterQuality.none,
@@ -719,44 +770,91 @@ class _NormalSoldierComposite extends StatelessWidget {
   );
 }
 
+/// Geometry shared by all corrected rifle frames.  The special sequence is
+/// calibrated against the normal two-layer composite's measured opaque bounds
+/// rather than against a screenshot or an individual animation frame.
+@immutable
+class BaseCampRifleRegripLayout {
+  const BaseCampRifleRegripLayout({
+    required this.normalFootY,
+    required this.normalHeadY,
+    required this.specialFootY,
+    required this.specialHeadY,
+    required this.specialLeft,
+    required this.specialTop,
+    required this.specialDimension,
+  });
+
+  final double normalFootY;
+  final double normalHeadY;
+  final double specialFootY;
+  final double specialHeadY;
+  final double specialLeft;
+  final double specialTop;
+  final double specialDimension;
+}
+
+const _normalSoldierCanvas = Size(1312, 1199);
+const _normalSoldierVisibleLeft = 81.0;
+const _normalSoldierVisibleRight = 1263.0;
+const _normalSoldierVisibleTop = 0.0;
+const _normalSoldierVisibleHeight = 1183.0;
+const _normalSoldierVisibleBottom = 1182.0;
+const _rifleFrameCanvas = 512.0;
+const _rifleFrameVisibleTop = 32.0;
+const _rifleFrameVisibleHeight = 480.0;
+const _rifleFrameVisibleBottom = 511.0;
+
+BaseCampRifleRegripLayout baseCampRifleRegripLayout(Size viewport) {
+  final normalScale = math.min(
+    viewport.width / _normalSoldierCanvas.width,
+    viewport.height / _normalSoldierCanvas.height,
+  );
+  final frameScale =
+      normalScale * _normalSoldierVisibleHeight / _rifleFrameVisibleHeight;
+  final normalLeft =
+      (viewport.width - _normalSoldierCanvas.width * normalScale) / 2;
+  final normalTop =
+      (viewport.height - _normalSoldierCanvas.height * normalScale) / 2;
+  final normalFoot = normalTop + _normalSoldierVisibleBottom * normalScale;
+  final normalHead = normalTop + _normalSoldierVisibleTop * normalScale;
+  final normalCenter =
+      normalLeft +
+      (_normalSoldierVisibleLeft + _normalSoldierVisibleRight) /
+          2 *
+          normalScale;
+  final specialLeft = normalCenter - _rifleFrameCanvas / 2 * frameScale;
+  final specialTop = normalFoot - _rifleFrameVisibleBottom * frameScale;
+  return BaseCampRifleRegripLayout(
+    normalFootY: normalFoot,
+    normalHeadY: normalHead,
+    specialFootY: specialTop + _rifleFrameVisibleBottom * frameScale,
+    specialHeadY: specialTop + _rifleFrameVisibleTop * frameScale,
+    specialLeft: specialLeft,
+    specialTop: specialTop,
+    specialDimension: _rifleFrameCanvas * frameScale,
+  );
+}
+
 /// The approved special sequence uses a square canvas while the normal
-/// composite is 1312×1199.  Calibrating from their transparent bounds keeps
-/// the visible soldier's feet and height continuous at the transition without
-/// stretching either source image.
+/// composite is 1312×1199.  Corrected rifle assets share a 480px-tall,
+/// foot-aligned opaque region, so every frame can use this one transform.
 class _RifleRegripFrame extends StatelessWidget {
   const _RifleRegripFrame({super.key, required this.asset});
   final String asset;
 
-  static const _normalCanvas = Size(1312, 1199);
-  static const _normalVisibleHeight = 1111.0;
-  static const _normalVisibleBottom = 1136.0;
-  static const _frameCanvas = 512.0;
-  static const _frameVisibleHeight = 418.0;
-  static const _frameVisibleBottom = 447.0;
-
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final normalScale = math.min(
-        constraints.maxWidth / _normalCanvas.width,
-        constraints.maxHeight / _normalCanvas.height,
-      );
-      final frameScale =
-          normalScale * _normalVisibleHeight / _frameVisibleHeight;
-      final dimension = _frameCanvas * frameScale;
-      // Negative bottom puts the transparent canvas below the viewport
-      // just enough to align opaque boot pixels with the normal sprite.
-      final bottom =
-          -(_frameVisibleBottom * frameScale -
-              _normalVisibleBottom * normalScale);
+      final layout = baseCampRifleRegripLayout(constraints.biggest);
       return Stack(
         clipBehavior: Clip.hardEdge,
         children: [
           Positioned(
-            left: (constraints.maxWidth - dimension) / 2,
-            bottom: bottom,
-            width: dimension,
-            height: dimension,
+            left: layout.specialLeft,
+            top: layout.specialTop,
+            width: layout.specialDimension,
+            height: layout.specialDimension,
             child: Image.asset(
               asset,
               fit: BoxFit.fill,
@@ -830,7 +928,6 @@ class _SoldierPanelGridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final groundY = baseCampSoldierGroundY(size);
-    final centerX = size.width * .50;
     final wallLine = Paint()
       ..color = const Color(0xff718268).withValues(alpha: .20)
       ..strokeWidth = .7;
@@ -863,11 +960,15 @@ class _SoldierPanelGridPainter extends CustomPainter {
     for (final y in baseCampSoldierFloorLinePositions(size)) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), floorLine);
     }
-    // Extra endpoints outside the panel ensure clipped perspective rays
-    // cover the whole bottom edge even when the panel width is not a 32dp
-    // multiple.
-    for (final x in baseCampSoldierPerspectiveEndpoints(size)) {
-      canvas.drawLine(Offset(centerX, groundY), Offset(x, size.height), ray);
+    // Each floor ray begins at the corresponding wall-grid vertical.  This
+    // keeps one shared coordinate origin and avoids a false fan converging at
+    // the horizon centre.
+    for (final x in baseCampSoldierWallLinePositions(size.width)) {
+      canvas.drawLine(
+        Offset(x, groundY),
+        baseCampSoldierPerspectiveEndpoint(size, x),
+        ray,
+      );
     }
     canvas.restore();
     canvas.restore();
@@ -878,7 +979,7 @@ class _SoldierPanelGridPainter extends CustomPainter {
 }
 
 const baseCampSoldierWallGridSpacing = 32.0;
-const baseCampSoldierGroundLineOffsets = <double>[14, 32, 54, 78];
+const baseCampSoldierGroundLineRatios = <double>[.25, .55, .85];
 
 /// The perspective floor starts below the standing soldier.  It intentionally
 /// uses a ratio of the drawable panel, not a screenshot-specific pixel value.
@@ -898,22 +999,16 @@ List<double> baseCampSoldierWallLinePositions(double extent) {
 
 List<double> baseCampSoldierFloorLinePositions(Size size) {
   final groundY = baseCampSoldierGroundY(size);
-  return baseCampSoldierGroundLineOffsets
-      .map((offset) => groundY + offset)
-      .where((y) => y <= size.height)
+  final floorDepth = size.height - groundY;
+  return baseCampSoldierGroundLineRatios
+      .map((ratio) => groundY + floorDepth * ratio)
+      .where((y) => y < size.height)
       .toList(growable: false);
 }
 
-List<double> baseCampSoldierPerspectiveEndpoints(Size size) {
-  final endpoints = <double>[];
-  for (
-    var x = -baseCampSoldierWallGridSpacing;
-    x <= size.width + baseCampSoldierWallGridSpacing;
-    x += baseCampSoldierWallGridSpacing
-  ) {
-    endpoints.add(x);
-  }
-  return endpoints;
+Offset baseCampSoldierPerspectiveEndpoint(Size size, double wallX) {
+  final centerX = size.width * .5;
+  return Offset(centerX + (wallX - centerX) * 1.8, size.height);
 }
 
 class _StatusCompartment extends StatelessWidget {
