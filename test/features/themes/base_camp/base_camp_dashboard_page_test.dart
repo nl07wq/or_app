@@ -246,6 +246,35 @@ void main() {
     },
   );
 
+  test('rifle regrip timeline uses every approved frame once in order', () {
+    expect(baseCampRifleRegripPreIdleMs, 1000);
+    expect(baseCampRifleRegripAnimationMs, 1850);
+    expect(baseCampRifleRegripPostIdleMs, 1000);
+    expect(baseCampRifleRegripEventMs, 3850);
+    expect(baseCampRifleRegripFrameDurations, [400, 350, 200, 350, 150, 400]);
+
+    expect(baseCampRifleRegripPhase(0), BaseCampRifleRegripPhase.preIdle);
+    expect(baseCampRifleRegripPhase(999), BaseCampRifleRegripPhase.preIdle);
+    expect(
+      baseCampRifleRegripPhase(1000),
+      BaseCampRifleRegripPhase.rifleRegrip,
+    );
+    expect(baseCampRifleRegripFrameIndex(1000), 0);
+    expect(baseCampRifleRegripFrameIndex(1400), 1);
+    expect(baseCampRifleRegripFrameIndex(1750), 2);
+    expect(baseCampRifleRegripFrameIndex(2300), 4);
+    expect(baseCampRifleRegripFrameIndex(2450), 5);
+    expect(baseCampRifleRegripPhase(2850), BaseCampRifleRegripPhase.postIdle);
+    expect(baseCampRifleRegripPhase(3849), BaseCampRifleRegripPhase.postIdle);
+    expect(baseCampRifleRegripPhase(3850), BaseCampRifleRegripPhase.breathing);
+  });
+
+  test('rifle regrip random interval is always between 60 and 120 seconds', () {
+    expect(baseCampRifleRegripIntervalMs((_) => 0), 60000);
+    expect(baseCampRifleRegripIntervalMs((_) => 1), 60001);
+    expect(baseCampRifleRegripIntervalMs((_) => 60000), 120000);
+  });
+
   testWidgets('STATUS DATA and SUSTAINMENT retain five nested instruments', (
     tester,
   ) async {

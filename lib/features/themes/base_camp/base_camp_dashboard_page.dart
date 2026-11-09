@@ -522,42 +522,94 @@ class _BreathingSoldierCompartment extends StatefulWidget {
 
 class _BreathingSoldierCompartmentState
     extends State<_BreathingSoldierCompartment>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _breathingController;
+  late final AnimationController _specialController;
+  final math.Random _random = math.Random();
+  Timer? _specialTimer;
   bool _active = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _controller = AnimationController(
+    _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..repeat();
+    _specialController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: baseCampRifleRegripEventMs),
+    )..addStatusListener(_onSpecialStatus);
+    _scheduleSpecialEvent();
+  }
+
+  void _onSpecialStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) return;
+    _breathingController
+      ..value = 0
+      ..repeat();
+    _scheduleSpecialEvent();
+  }
+
+  void _scheduleSpecialEvent() {
+    _specialTimer?.cancel();
+    if (!_active || !mounted) return;
+    _specialTimer = Timer(
+      Duration(milliseconds: baseCampRifleRegripIntervalMs(_random.nextInt)),
+      _startSpecialEvent,
+    );
+  }
+
+  void _startSpecialEvent() {
+    if (!mounted || !_active || _specialController.isAnimating) return;
+    _specialTimer?.cancel();
+    _breathingController
+      ..stop()
+      ..value = 0;
+    _specialController.forward(from: 0);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _active = state == AppLifecycleState.resumed;
     if (_active) {
-      _controller.repeat();
+      if (!_specialController.isAnimating) {
+        _breathingController
+          ..value = 0
+          ..repeat();
+      }
+      _scheduleSpecialEvent();
     } else {
-      _controller.stop();
+      _specialTimer?.cancel();
+      _breathingController.stop();
+      _specialController
+        ..stop()
+        ..value = 0;
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    _specialTimer?.cancel();
+    _breathingController.dispose();
+    _specialController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (reduced && _controller.isAnimating) _controller.stop();
-    if (!reduced && _active && !_controller.isAnimating) _controller.repeat();
+    if (reduced && _breathingController.isAnimating) {
+      _breathingController.stop();
+    }
+    if (!reduced &&
+        _active &&
+        !_breathingController.isAnimating &&
+        !_specialController.isAnimating) {
+      _breathingController.repeat();
+    }
     return _TerminalPanel(
       child: RepaintBoundary(
         child: LayoutBuilder(
@@ -575,34 +627,37 @@ class _BreathingSoldierCompartmentState
                     ),
                   ),
                   AnimatedBuilder(
-                    animation: _controller,
+                    animation: Listenable.merge([
+                      _breathingController,
+                      _specialController,
+                    ]),
                     builder: (context, _) {
-                      final dy = reduced
+                      final elapsed =
+                          (_specialController.value *
+                                  baseCampRifleRegripEventMs)
+                              .floor();
+                      final phase = _specialController.isAnimating
+                          ? baseCampRifleRegripPhase(elapsed)
+                          : BaseCampRifleRegripPhase.breathing;
+                      if (phase == BaseCampRifleRegripPhase.rifleRegrip ||
+                          phase == BaseCampRifleRegripPhase.postIdle) {
+                        final frame = phase == BaseCampRifleRegripPhase.postIdle
+                            ? _rifleRegripAssets.length - 1
+                            : baseCampRifleRegripFrameIndex(elapsed);
+                        return Image.asset(
+                          _rifleRegripAssets[frame],
+                          key: ValueKey('base-camp-rifle-regrip-frame-$frame'),
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.none,
+                        );
+                      }
+                      final dy =
+                          phase == BaseCampRifleRegripPhase.preIdle || reduced
                           ? 0.0
                           : baseCampBreathingOffset(
-                              _controller.value * _breathingCycleMs,
+                              _breathingController.value * _breathingCycleMs,
                             );
-                      return Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          Image.asset(
-                            _breathingSoldierLowerAsset,
-                            key: const ValueKey('base-camp-soldier-lower'),
-                            fit: BoxFit.contain,
-                            filterQuality: FilterQuality.none,
-                          ),
-                          Transform.translate(
-                            offset: Offset(0, dy),
-                            child: Image.asset(
-                              _breathingSoldierUpperAsset,
-                              key: const ValueKey('base-camp-soldier-upper'),
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.none,
-                            ),
-                          ),
-                        ],
-                      );
+                      return _NormalSoldierComposite(dy: dy);
                     },
                   ),
                 ],
@@ -621,6 +676,85 @@ const _breathingSoldierLowerAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_lowerboady.png';
 const _breathingSoldierUpperAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_upperboady.png';
+
+const _rifleRegripAssets = [
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F0.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F1.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F2.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F3.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F4.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F5.png',
+];
+
+class _NormalSoldierComposite extends StatelessWidget {
+  const _NormalSoldierComposite({required this.dy});
+  final double dy;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    alignment: Alignment.center,
+    clipBehavior: Clip.none,
+    children: [
+      Image.asset(
+        _breathingSoldierLowerAsset,
+        key: const ValueKey('base-camp-soldier-lower'),
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.none,
+      ),
+      Transform.translate(
+        offset: Offset(0, dy),
+        child: Image.asset(
+          _breathingSoldierUpperAsset,
+          key: const ValueKey('base-camp-soldier-upper'),
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.none,
+        ),
+      ),
+    ],
+  );
+}
+
+enum BaseCampRifleRegripPhase { breathing, preIdle, rifleRegrip, postIdle }
+
+const baseCampRifleRegripPreIdleMs = 1000;
+const baseCampRifleRegripAnimationMs = 1850;
+const baseCampRifleRegripPostIdleMs = 1000;
+const baseCampRifleRegripEventMs =
+    baseCampRifleRegripPreIdleMs +
+    baseCampRifleRegripAnimationMs +
+    baseCampRifleRegripPostIdleMs;
+const baseCampRifleRegripFrameDurations = [400, 350, 200, 350, 150, 400];
+
+BaseCampRifleRegripPhase baseCampRifleRegripPhase(int elapsedMs) {
+  if (elapsedMs < baseCampRifleRegripPreIdleMs) {
+    return BaseCampRifleRegripPhase.preIdle;
+  }
+  if (elapsedMs <
+      baseCampRifleRegripPreIdleMs + baseCampRifleRegripAnimationMs) {
+    return BaseCampRifleRegripPhase.rifleRegrip;
+  }
+  if (elapsedMs < baseCampRifleRegripEventMs) {
+    return BaseCampRifleRegripPhase.postIdle;
+  }
+  return BaseCampRifleRegripPhase.breathing;
+}
+
+int baseCampRifleRegripFrameIndex(int eventElapsedMs) {
+  var frameElapsed = eventElapsedMs - baseCampRifleRegripPreIdleMs;
+  for (
+    var index = 0;
+    index < baseCampRifleRegripFrameDurations.length;
+    index++
+  ) {
+    final duration = baseCampRifleRegripFrameDurations[index];
+    if (frameElapsed < duration) return index;
+    frameElapsed -= duration;
+  }
+  return baseCampRifleRegripFrameDurations.length - 1;
+}
+
+int baseCampRifleRegripIntervalMs(int Function(int max) nextInt) =>
+    60000 + nextInt(60001);
 
 const _breathingCycleMs = 2400.0;
 
