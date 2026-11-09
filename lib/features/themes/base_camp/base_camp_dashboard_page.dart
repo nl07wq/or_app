@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -305,7 +306,7 @@ class _MapChassis extends StatelessWidget {
 }
 
 class _TacticalTerminal extends StatelessWidget {
-  static const height = 365.0;
+  static const height = 350.0;
   const _TacticalTerminal({
     required this.snapshot,
     required this.morning,
@@ -345,10 +346,13 @@ class _TacticalTerminal extends StatelessWidget {
             const _TerminalHeading(),
             const SizedBox(height: 8),
             SizedBox(
-              height: 106,
+              height: 100,
               child: Row(
                 children: [
-                  const Expanded(flex: 4, child: _SoldierPendingCompartment()),
+                  const Expanded(
+                    flex: 4,
+                    child: _BreathingSoldierCompartment(),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 6,
@@ -359,7 +363,7 @@ class _TacticalTerminal extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 190,
+              height: 182,
               child: PageView(
                 key: const ValueKey('base-camp-terminal-pages'),
                 controller: pages,
@@ -506,34 +510,102 @@ class _LcdPolaritySwitch extends StatelessWidget {
   );
 }
 
-class _SoldierPendingCompartment extends StatelessWidget {
-  const _SoldierPendingCompartment();
+class _BreathingSoldierCompartment extends StatefulWidget {
+  const _BreathingSoldierCompartment();
+
   @override
-  Widget build(BuildContext context) => _TerminalPanel(
-    child: const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.person_search_outlined,
-            color: Color(0xffa9a083),
-            size: 31,
-          ),
-          SizedBox(height: 4),
-          Text('SOLDIER', style: _labelStyle),
-          Text(
-            'ASSET PENDING',
-            style: TextStyle(
-              color: Color(0xffd7d1ba),
-              fontSize: 9,
-              letterSpacing: .7,
+  State<_BreathingSoldierCompartment> createState() =>
+      _BreathingSoldierCompartmentState();
+}
+
+class _BreathingSoldierCompartmentState
+    extends State<_BreathingSoldierCompartment>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _controller;
+  bool _active = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3500),
+    )..repeat();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _active = state == AppLifecycleState.resumed;
+    if (_active) {
+      _controller.repeat();
+    } else {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduced && _controller.isAnimating) _controller.stop();
+    if (!reduced && _active && !_controller.isAnimating) _controller.repeat();
+    return _TerminalPanel(
+      child: RepaintBoundary(
+        child: LayoutBuilder(
+          builder: (context, constraints) => Center(
+            child: SizedBox(
+              width: constraints.maxWidth - 8,
+              height: constraints.maxHeight - 8,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final dy = reduced
+                      ? 0.0
+                      : -1.5 * math.sin(_controller.value * math.pi * 2);
+                  return Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Image.asset(
+                        _breathingSoldierLowerAsset,
+                        key: const ValueKey('base-camp-soldier-lower'),
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.none,
+                      ),
+                      Transform.translate(
+                        offset: Offset(0, dy),
+                        child: Image.asset(
+                          _breathingSoldierUpperAsset,
+                          key: const ValueKey('base-camp-soldier-upper'),
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.none,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
+
+const breathingSoldierReferenceAsset =
+    'assets/images/themes/base_camp/breathing_soldier/ChatGPT Image 2026年8月16日 21_03_48.png';
+const _breathingSoldierLowerAsset =
+    'assets/images/themes/base_camp/breathing_soldier/gasmask_lowerboady.png';
+const _breathingSoldierUpperAsset =
+    'assets/images/themes/base_camp/breathing_soldier/gasmask_upperboady.png';
 
 class _StatusCompartment extends StatelessWidget {
   const _StatusCompartment({required this.snapshot});
@@ -811,7 +883,6 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
       painter: _DotMatrixClockPainter(
         text: baseCampClockText(_now),
         changedDigits: _changedDigits,
-        negative: _BaseCampLcdMode.of(context),
       ),
     ),
   );
@@ -835,11 +906,9 @@ class _DotMatrixClockPainter extends CustomPainter {
   const _DotMatrixClockPainter({
     required this.text,
     required this.changedDigits,
-    required this.negative,
   });
   final String text;
   final Set<int> changedDigits;
-  final bool negative;
 
   static const _glyphs = <String, List<String>>{
     '0': ['111', '101', '101', '101', '111'],
@@ -857,6 +926,11 @@ class _DotMatrixClockPainter extends CustomPainter {
     '(': ['01', '10', '10', '10', '01'],
     ')': ['10', '01', '01', '01', '10'],
     'M': ['101', '111', '111', '101', '101'],
+    'O': ['111', '101', '101', '101', '111'],
+    'A': ['010', '101', '111', '101', '101'],
+    'N': ['101', '111', '111', '111', '101'],
+    'R': ['110', '101', '110', '101', '101'],
+    'I': ['111', '010', '010', '010', '111'],
     'T': ['111', '010', '010', '010', '010'],
     'W': ['101', '101', '111', '111', '101'],
     'H': ['101', '101', '111', '101', '101'],
@@ -882,12 +956,11 @@ class _DotMatrixClockPainter extends CustomPainter {
     for (var index = 0; index < text.length; index++) {
       final rows = _glyphs[text[index]] ?? _glyphs[' ']!;
       final paint = Paint()
-        ..color = (negative ? _LcdPalette.light : _LcdPalette.darkest)
-            .withValues(alpha: changedDigits.contains(index) ? .58 : .94);
+        ..color = const Color(
+          0xffc7d6a0,
+        ).withValues(alpha: changedDigits.contains(index) ? .58 : 1);
       final dim = Paint()
-        ..color = (negative ? _LcdPalette.mid : _LcdPalette.dark).withValues(
-          alpha: .20,
-        );
+        ..color = const Color(0xff485c3f).withValues(alpha: .25);
       for (var row = 0; row < rows.length; row++) {
         for (var column = 0; column < rows[row].length; column++) {
           canvas.drawCircle(
@@ -903,9 +976,7 @@ class _DotMatrixClockPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DotMatrixClockPainter oldDelegate) =>
-      oldDelegate.text != text ||
-      oldDelegate.changedDigits != changedDigits ||
-      oldDelegate.negative != negative;
+      oldDelegate.text != text || oldDelegate.changedDigits != changedDigits;
 }
 
 class _IndustrialLcdPanel extends StatelessWidget {
@@ -1180,7 +1251,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
     final intent =
         widget.snapshot.command?.commanderIntent ??
         'COMMANDER INTENT UNAVAILABLE';
-    final visible = _expanded ? ordered : ordered.take(2).toList();
+    final visible = _expanded ? ordered : ordered.take(3).toList();
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         child: ConstrainedBox(
@@ -1192,11 +1263,11 @@ class _CommandPreviewState extends State<_CommandPreview> {
               const SizedBox(height: 3),
               Text(
                 intent,
-                maxLines: _expanded ? null : 3,
+                maxLines: _expanded ? null : 2,
                 overflow: _expanded
                     ? TextOverflow.visible
                     : TextOverflow.ellipsis,
-                style: const TextStyle(color: _LcdPalette.light, fontSize: 12),
+                style: const TextStyle(color: _LcdPalette.light, fontSize: 11),
               ),
               if (intent.length > 100) _expandButton(),
               const SizedBox(height: 8),
@@ -1221,7 +1292,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
                     ),
                   ),
               if (ordered.length > visible.length) _expandButton(),
-              if (_expanded && ordered.length > 2)
+              if (_expanded && ordered.length > 3)
                 TextButton(
                   onPressed: () => setState(() => _expanded = false),
                   child: const Text('COLLAPSE'),
@@ -1258,7 +1329,7 @@ class _TacticalScheduleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = _LcdColors.ink(context);
     return Container(
-      height: 20,
+      height: 21,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: _LcdColors.field(context),
@@ -1279,7 +1350,10 @@ class _TacticalScheduleRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          Text(number.toString().padLeft(2, '0'), style: _lcdLabelStyle),
+          Text(
+            number.toString().padLeft(2, '0'),
+            style: _lcdLabelStyle.copyWith(fontSize: 10),
+          ),
           const SizedBox(width: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
@@ -1290,7 +1364,7 @@ class _TacticalScheduleRow extends StatelessWidget {
               time,
               style: TextStyle(
                 color: ink,
-                fontSize: 8,
+                fontSize: 9,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1303,7 +1377,7 @@ class _TacticalScheduleRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: ink,
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1373,49 +1447,83 @@ class _LcdProgressCard extends StatelessWidget {
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
-        decoration: BoxDecoration(
-          color: _LcdColors.field(context),
-          border: Border.all(color: _LcdPalette.mid),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _lcdLabelStyle.copyWith(fontSize: compact ? 7 : 8),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 1),
             Text(
-              value,
+              label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: _LcdColors.ink(context),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
+              style: _lcdLabelStyle.copyWith(fontSize: compact ? 7 : 8),
             ),
-            const Spacer(),
-            ClipRect(
-              child: LinearProgressIndicator(
-                value: progress.clamp(0, 1),
-                minHeight: 3,
-                color: _LcdColors.ink(context),
-                backgroundColor: _LcdColors.panel(context),
+            const SizedBox(height: 2),
+            Expanded(
+              child: Row(
+                children: [
+                  _InstrumentPilotLamp(
+                    active: progress >= 1,
+                    partial: progress > 0 && progress < 1,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: _LcdColors.field(context),
+                        border: Border.all(color: _LcdPalette.mid),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          value,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: _LcdColors.ink(context),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class _InstrumentPilotLamp extends StatelessWidget {
+  const _InstrumentPilotLamp({required this.active, required this.partial});
+  final bool active;
+  final bool partial;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 13,
+    height: 13,
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: const Color(0xff485c3f),
+      shape: BoxShape.circle,
+      border: Border.all(color: _LcdPalette.mid, width: .8),
+      boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 1)],
+    ),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: active
+            ? const Color(0xffa7d84c)
+            : partial
+            ? _LcdPalette.mid
+            : const Color(0xff273326),
+        shape: BoxShape.circle,
       ),
     ),
   );
@@ -1834,8 +1942,6 @@ class _BaseCampLcdMode extends InheritedWidget {
 
 abstract final class _LcdColors {
   static bool _negative(BuildContext context) => _BaseCampLcdMode.of(context);
-  static Color panel(BuildContext context) =>
-      _negative(context) ? _LcdPalette.darkest : _LcdPalette.light;
   static Color field(BuildContext context) =>
       _negative(context) ? _LcdPalette.dark : _LcdPalette.mid;
   static Color ink(BuildContext context) =>

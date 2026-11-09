@@ -29,7 +29,14 @@ void main() {
       find.byKey(const ValueKey('base-camp-tactical-terminal')),
       findsOneWidget,
     );
-    expect(find.text('ASSET PENDING'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('base-camp-soldier-lower')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-soldier-upper')),
+      findsOneWidget,
+    );
     expect(find.text('OPERATION PROGRESS'), findsOneWidget);
     expect(find.byType(OperationAmbientAnimation), findsOneWidget);
     final waveform = tester.widget<OperationAmbientAnimation>(
@@ -135,6 +142,26 @@ void main() {
         prefix.length + 7,
       },
     );
+  });
+
+  test('clock formats every weekday with its required three-letter value', () {
+    expect(baseCampClockText(DateTime(2026, 11, 9)), contains('(MON)'));
+    expect(baseCampClockText(DateTime(2026, 11, 10)), contains('(TUE)'));
+    expect(baseCampClockText(DateTime(2026, 11, 11)), contains('(WED)'));
+    expect(baseCampClockText(DateTime(2026, 11, 12)), contains('(THU)'));
+    expect(baseCampClockText(DateTime(2026, 11, 13)), contains('(FRI)'));
+    expect(baseCampClockText(DateTime(2026, 11, 14)), contains('(SAT)'));
+    expect(baseCampClockText(DateTime(2026, 11, 15)), contains('(SUN)'));
+  });
+
+  testWidgets('progress uses instrument cells instead of progress bars', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('terminal polarity updates the LCD immediately', (tester) async {
