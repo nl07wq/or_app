@@ -110,6 +110,43 @@ void main() {
     expect(find.text('DANGER'), findsOneWidget);
   });
 
+  test('dot matrix clock dims every changed character at second rollovers', () {
+    const prefix = '11/09 (MON) ';
+    expect(
+      dotMatrixClockChangedIndexes('${prefix}12:34:08', '${prefix}12:34:09'),
+      {prefix.length + 7},
+    );
+    expect(
+      dotMatrixClockChangedIndexes('${prefix}12:34:09', '${prefix}12:34:10'),
+      {prefix.length + 6, prefix.length + 7},
+    );
+    expect(
+      dotMatrixClockChangedIndexes('${prefix}12:34:59', '${prefix}12:35:00'),
+      {prefix.length + 4, prefix.length + 6, prefix.length + 7},
+    );
+    expect(
+      dotMatrixClockChangedIndexes('${prefix}23:59:59', '${prefix}00:00:00'),
+      {
+        prefix.length,
+        prefix.length + 1,
+        prefix.length + 3,
+        prefix.length + 4,
+        prefix.length + 6,
+        prefix.length + 7,
+      },
+    );
+  });
+
+  testWidgets('terminal polarity updates the LCD immediately', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(
+      find.byKey(const ValueKey('base-camp-lcd-polarity-switch')),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ambient waveform preserves the STANDARD label by default', (
     tester,
   ) async {

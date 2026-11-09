@@ -7,6 +7,7 @@ import 'package:or_app/core/engine/food_summary.dart';
 import 'package:or_app/core/engine/operation_status.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/command_center/services/daily_command_read_model_builder.dart';
@@ -223,24 +224,34 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    _TacticalTerminal(
-                                      snapshot: snapshot,
-                                      morning: morning,
-                                      food: food,
-                                      training: training,
-                                      activity: activity,
-                                      pages: _pages,
-                                      page: _page,
-                                      onPageChanged: (value) =>
-                                          setState(() => _page = value),
-                                      onOpenDetail: (page) => _openDetail(
-                                        page,
-                                        snapshot,
-                                        morning,
-                                        food,
-                                        training,
-                                        activity,
-                                      ),
+                                    ValueListenableBuilder<DeviceSettings>(
+                                      valueListenable:
+                                          DeviceSettingsController.instance,
+                                      builder: (context, settings, _) =>
+                                          _BaseCampLcdMode(
+                                            negative:
+                                                settings.baseCampLcdNegative,
+                                            child: _TacticalTerminal(
+                                              snapshot: snapshot,
+                                              morning: morning,
+                                              food: food,
+                                              training: training,
+                                              activity: activity,
+                                              pages: _pages,
+                                              page: _page,
+                                              onPageChanged: (value) =>
+                                                  setState(() => _page = value),
+                                              onOpenDetail: (page) =>
+                                                  _openDetail(
+                                                    page,
+                                                    snapshot,
+                                                    morning,
+                                                    food,
+                                                    training,
+                                                    activity,
+                                                  ),
+                                            ),
+                                          ),
                                     ),
                                     const SizedBox(height: 12),
                                     _MapChassis(
@@ -368,7 +379,7 @@ class _TacticalTerminal extends StatelessWidget {
                   ),
                   _TerminalInformationPage(
                     page: _TerminalPage.morning,
-                    title: 'MORNING DATA',
+                    title: 'STATUS DATA',
                     subtitle: 'CURRENT OPERATION INPUT',
                     onTap: () => onOpenDetail(_TerminalPage.morning),
                     child: _MorningPreview(
@@ -430,6 +441,8 @@ class _TerminalHeading extends StatelessWidget {
         ),
       ),
       const _CornerStatus(),
+      const SizedBox(width: 5),
+      _LcdPolaritySwitch(negative: _BaseCampLcdMode.of(context)),
     ],
   );
 }
@@ -450,6 +463,44 @@ class _CornerStatus extends StatelessWidget {
         fontSize: 10,
         letterSpacing: .8,
         fontWeight: FontWeight.bold,
+      ),
+    ),
+  );
+}
+
+class _LcdPolaritySwitch extends StatelessWidget {
+  const _LcdPolaritySwitch({required this.negative});
+  final bool negative;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: negative
+        ? 'LCD negative mode. Switch to positive.'
+        : 'LCD positive mode. Switch to negative.',
+    child: InkWell(
+      key: const ValueKey('base-camp-lcd-polarity-switch'),
+      onTap: () {
+        final settings = DeviceSettingsController.instance.value;
+        DeviceSettingsController.instance.update(
+          settings.copyWith(baseCampLcdNegative: !settings.baseCampLcdNegative),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        decoration: BoxDecoration(
+          color: negative ? _LcdPalette.darkest : _LcdPalette.light,
+          border: Border.all(color: _LcdPalette.mid),
+        ),
+        child: Text(
+          'INV',
+          style: TextStyle(
+            color: negative ? _LcdPalette.light : _LcdPalette.darkest,
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .5,
+          ),
+        ),
       ),
     ),
   );
@@ -537,7 +588,7 @@ class _StatusCompartment extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             SizedBox(
-              height: 25,
+              height: 30,
               width: double.infinity,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -615,12 +666,28 @@ class _StatusLamp extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       Container(
-        width: 6,
-        height: 6,
+        width: 10,
+        height: 10,
+        padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: active ? color : const Color(0xff182319),
+          color: const Color(0xff485c3f),
           shape: BoxShape.circle,
-          border: Border.all(color: color.withValues(alpha: active ? .9 : .32)),
+          border: Border.all(color: const Color(0xffaeb894), width: .7),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 1)],
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: active ? color : const Color(0xff273326),
+            shape: BoxShape.circle,
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: .65),
+                      blurRadius: 3,
+                    ),
+                  ]
+                : null,
+          ),
         ),
       ),
       const SizedBox(width: 3),
@@ -696,7 +763,13 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _active = state == AppLifecycleState.resumed;
-    _active ? _start() : _timer?.cancel();
+    if (_active) {
+      _start();
+    } else {
+      _timer?.cancel();
+      _dimResetTimer?.cancel();
+      if (mounted) setState(() => _changedDigits = const <int>{});
+    }
   }
 
   void _start() {
@@ -704,13 +777,10 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
     if (!_active) return;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       final next = DateTime.now();
-      final previous = _clockText(_now);
-      final current = _clockText(next);
+      final previous = baseCampClockText(_now);
+      final current = baseCampClockText(next);
       if (!mounted) return;
-      final changed = <int>{
-        for (var index = 0; index < current.length; index++)
-          if (current[index] != previous[index]) index,
-      };
+      final changed = dotMatrixClockChangedIndexes(previous, current);
       _dimResetTimer?.cancel();
       setState(() {
         _changedDigits = changed;
@@ -739,26 +809,37 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
     width: double.infinity,
     child: CustomPaint(
       painter: _DotMatrixClockPainter(
-        text: _clockText(_now),
+        text: baseCampClockText(_now),
         changedDigits: _changedDigits,
+        negative: _BaseCampLcdMode.of(context),
       ),
     ),
   );
 }
 
-String _clockText(DateTime value) {
+String baseCampClockText(DateTime value) {
   const weekday = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   String pair(int number) => number.toString().padLeft(2, '0');
   return '${pair(value.month)}/${pair(value.day)} (${weekday[value.weekday - 1]}) ${pair(value.hour)}:${pair(value.minute)}:${pair(value.second)}';
 }
 
+/// The transition set is deliberately derived from every character, rather
+/// than only the seconds digit, so minute/day rollovers cannot leave a dim
+/// character behind.
+Set<int> dotMatrixClockChangedIndexes(String previous, String current) => {
+  for (var index = 0; index < current.length; index++)
+    if (index >= previous.length || current[index] != previous[index]) index,
+};
+
 class _DotMatrixClockPainter extends CustomPainter {
   const _DotMatrixClockPainter({
     required this.text,
     required this.changedDigits,
+    required this.negative,
   });
   final String text;
   final Set<int> changedDigits;
+  final bool negative;
 
   static const _glyphs = <String, List<String>>{
     '0': ['111', '101', '101', '101', '111'],
@@ -801,10 +882,12 @@ class _DotMatrixClockPainter extends CustomPainter {
     for (var index = 0; index < text.length; index++) {
       final rows = _glyphs[text[index]] ?? _glyphs[' ']!;
       final paint = Paint()
-        ..color = _LcdPalette.light.withValues(
-          alpha: changedDigits.contains(index) ? .58 : .94,
+        ..color = (negative ? _LcdPalette.light : _LcdPalette.darkest)
+            .withValues(alpha: changedDigits.contains(index) ? .58 : .94);
+      final dim = Paint()
+        ..color = (negative ? _LcdPalette.mid : _LcdPalette.dark).withValues(
+          alpha: .20,
         );
-      final dim = Paint()..color = _LcdPalette.mid.withValues(alpha: .16);
       for (var row = 0; row < rows.length; row++) {
         for (var column = 0; column < rows[row].length; column++) {
           canvas.drawCircle(
@@ -820,7 +903,9 @@ class _DotMatrixClockPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DotMatrixClockPainter oldDelegate) =>
-      oldDelegate.text != text || oldDelegate.changedDigits != changedDigits;
+      oldDelegate.text != text ||
+      oldDelegate.changedDigits != changedDigits ||
+      oldDelegate.negative != negative;
 }
 
 class _IndustrialLcdPanel extends StatelessWidget {
@@ -829,15 +914,18 @@ class _IndustrialLcdPanel extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    key: const ValueKey('base-camp-industrial-lcd'),
-    decoration: BoxDecoration(
-      color: _LcdPalette.darkest,
-      border: Border.all(color: _LcdPalette.mid),
-      borderRadius: BorderRadius.circular(7),
-    ),
-    child: child,
-  );
+  Widget build(BuildContext context) {
+    final negative = _BaseCampLcdMode.of(context);
+    return DecoratedBox(
+      key: const ValueKey('base-camp-industrial-lcd'),
+      decoration: BoxDecoration(
+        color: negative ? _LcdPalette.darkest : _LcdPalette.light,
+        border: Border.all(color: _LcdPalette.mid),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: child,
+    );
+  }
 }
 
 class _TerminalInformationPage extends StatelessWidget {
@@ -874,25 +962,25 @@ class _TerminalInformationPage extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
-                          color: _LcdPalette.light,
+                        style: TextStyle(
+                          color: _LcdColors.ink(context),
                           fontSize: 13,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .9,
                         ),
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.open_in_full,
                       size: 15,
-                      color: _LcdPalette.mid,
+                      color: _LcdColors.ink(context),
                     ),
                   ],
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: _LcdPalette.mid,
+                  style: TextStyle(
+                    color: _LcdColors.auxiliary(context),
                     fontSize: 8,
                     letterSpacing: .65,
                   ),
@@ -1011,22 +1099,52 @@ class _SustainmentPreview extends StatelessWidget {
   final ActivitySummary activity;
   final DynamicDailyTargetResult? targets;
   @override
-  Widget build(BuildContext context) => _LcdGrid(
+  Widget build(BuildContext context) => _SustainmentGrid(
+    calories: _rangeText(food?.calories, targets?.calories),
+    protein: _rangeText(food?.protein, targets?.protein, suffix: ' g'),
+    water: _waterText(food, targets),
+    training: training?.completed == true ? 'COMPLETE' : 'NOT RECORDED',
+    activity: activity.isRecorded ? '${activity.steps} steps' : 'NOT RECORDED',
+  );
+}
+
+class _SustainmentGrid extends StatelessWidget {
+  const _SustainmentGrid({
+    required this.calories,
+    required this.protein,
+    required this.water,
+    required this.training,
+    required this.activity,
+  });
+  final String calories;
+  final String protein;
+  final String water;
+  final String training;
+  final String activity;
+
+  @override
+  Widget build(BuildContext context) => Column(
     children: [
-      _Metric('MEALS', '${food?.mealCount ?? 0} / 3'),
-      _Metric('CALORIES', _rangeText(food?.calories, targets?.calories)),
-      _Metric(
-        'PROTEIN',
-        _rangeText(food?.protein, targets?.protein, suffix: ' g'),
+      Expanded(
+        child: Row(
+          children: [
+            Expanded(flex: 2, child: _Metric('CALORIES', calories)),
+            const SizedBox(width: 6),
+            Expanded(child: _Metric('PROTEIN', protein)),
+          ],
+        ),
       ),
-      _Metric('WATER', _waterText(food, targets)),
-      _Metric(
-        'TRAINING',
-        training?.completed == true ? 'COMPLETE' : 'NOT RECORDED',
-      ),
-      _Metric(
-        'ACTIVITY',
-        activity.isRecorded ? '${activity.steps} steps' : 'NOT RECORDED',
+      const SizedBox(height: 6),
+      Expanded(
+        child: Row(
+          children: [
+            Expanded(child: _Metric('WATER', water)),
+            const SizedBox(width: 6),
+            Expanded(child: _Metric('TRAINING', training)),
+            const SizedBox(width: 6),
+            Expanded(child: _Metric('ACTIVITY', activity)),
+          ],
+        ),
       ),
     ],
   );
@@ -1048,10 +1166,21 @@ class _CommandPreviewState extends State<_CommandPreview> {
     final entries =
         widget.snapshot.plan?.entries ??
         const <DashboardPlanInformationEntry>[];
+    final ordered = [...entries]
+      ..sort(
+        (left, right) =>
+            _scheduleTimeLabel(left).compareTo(_scheduleTimeLabel(right)),
+      );
+    final now = TimeOfDay.now();
+    final nowMinutes = now.hour * 60 + now.minute;
+    final nextTimedIndex = ordered.indexWhere((entry) {
+      final minutes = _scheduleMinutes(entry);
+      return minutes != null && minutes >= nowMinutes;
+    });
     final intent =
         widget.snapshot.command?.commanderIntent ??
         'COMMANDER INTENT UNAVAILABLE';
-    final visible = _expanded ? entries : entries.take(2).toList();
+    final visible = _expanded ? ordered : ordered.take(2).toList();
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         child: ConstrainedBox(
@@ -1075,7 +1204,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
               const SizedBox(height: 6),
               const Text('SCHEDULE', style: _lcdLabelStyle),
               const SizedBox(height: 3),
-              if (entries.isEmpty)
+              if (ordered.isEmpty)
                 const Text(
                   'NO SCHEDULED ITEMS',
                   style: TextStyle(color: _LcdPalette.mid, fontSize: 10),
@@ -1084,20 +1213,15 @@ class _CommandPreviewState extends State<_CommandPreview> {
                 for (final entry in visible)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
-                    child: Text(
-                      '${entry.isTimed ? entry.record.startTime : 'ALL DAY'}  ${entry.record.title}',
-                      maxLines: _expanded ? null : 1,
-                      overflow: _expanded
-                          ? TextOverflow.visible
-                          : TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _LcdPalette.light,
-                        fontSize: 10,
-                      ),
+                    child: _TacticalScheduleRow(
+                      number: ordered.indexOf(entry) + 1,
+                      time: _scheduleTimeLabel(entry),
+                      title: entry.record.title,
+                      active: ordered.indexOf(entry) == nextTimedIndex,
                     ),
                   ),
-              if (entries.length > visible.length) _expandButton(),
-              if (_expanded && entries.length > 2)
+              if (ordered.length > visible.length) _expandButton(),
+              if (_expanded && ordered.length > 2)
                 TextButton(
                   onPressed: () => setState(() => _expanded = false),
                   child: const Text('COLLAPSE'),
@@ -1113,9 +1237,97 @@ class _CommandPreviewState extends State<_CommandPreview> {
     alignment: Alignment.centerRight,
     child: TextButton(
       onPressed: () => setState(() => _expanded = true),
-      child: const Text('EXPAND'),
+      child: const Text('+ MORE'),
     ),
   );
+}
+
+class _TacticalScheduleRow extends StatelessWidget {
+  const _TacticalScheduleRow({
+    required this.number,
+    required this.time,
+    required this.title,
+    required this.active,
+  });
+  final int number;
+  final String time;
+  final String title;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = _LcdColors.ink(context);
+    return Container(
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: _LcdColors.field(context),
+        border: Border.all(color: _LcdPalette.mid),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: active ? const Color(0xffa7d84c) : _LcdPalette.darkest,
+              shape: BoxShape.circle,
+              border: Border.all(color: _LcdPalette.mid),
+              boxShadow: active
+                  ? const [BoxShadow(color: Color(0x88a7d84c), blurRadius: 2)]
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(number.toString().padLeft(2, '0'), style: _lcdLabelStyle),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+            color: _BaseCampLcdMode.of(context)
+                ? _LcdPalette.darkest
+                : _LcdPalette.mid,
+            child: Text(
+              time,
+              style: TextStyle(
+                color: ink,
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: ink,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _scheduleTimeLabel(DashboardPlanInformationEntry entry) {
+  if (!entry.isTimed || entry.record.startTime == null) return 'ALL';
+  final raw = entry.record.startTime!;
+  final parsed = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw);
+  if (parsed == null) return raw;
+  return '${parsed.group(1)!.padLeft(2, '0')}:${parsed.group(2)!}';
+}
+
+int? _scheduleMinutes(DashboardPlanInformationEntry entry) {
+  final match = RegExp(
+    r'^(\d{1,2}):(\d{2})',
+  ).firstMatch(_scheduleTimeLabel(entry));
+  if (match == null) return null;
+  return int.parse(match.group(1)!) * 60 + int.parse(match.group(2)!);
 }
 
 class _LcdGrid extends StatelessWidget {
@@ -1147,7 +1359,6 @@ class _LcdProgressCard extends StatelessWidget {
     this.value, {
     required this.progress,
     this.onTap,
-    this.trailing,
     this.compact = false,
   });
 
@@ -1155,7 +1366,6 @@ class _LcdProgressCard extends StatelessWidget {
   final String value;
   final double progress;
   final VoidCallback? onTap;
-  final Widget? trailing;
   final bool compact;
 
   @override
@@ -1166,7 +1376,7 @@ class _LcdProgressCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
         decoration: BoxDecoration(
-          color: _LcdPalette.dark,
+          color: _LcdColors.field(context),
           border: Border.all(color: _LcdPalette.mid),
         ),
         child: Column(
@@ -1182,7 +1392,6 @@ class _LcdProgressCard extends StatelessWidget {
                     style: _lcdLabelStyle.copyWith(fontSize: compact ? 7 : 8),
                   ),
                 ),
-                if (trailing != null) ...[trailing!],
               ],
             ),
             const SizedBox(height: 1),
@@ -1190,8 +1399,8 @@ class _LcdProgressCard extends StatelessWidget {
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _LcdPalette.light,
+              style: TextStyle(
+                color: _LcdColors.ink(context),
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
@@ -1201,8 +1410,8 @@ class _LcdProgressCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress.clamp(0, 1),
                 minHeight: 3,
-                color: _LcdPalette.light,
-                backgroundColor: _LcdPalette.darkest,
+                color: _LcdColors.ink(context),
+                backgroundColor: _LcdColors.panel(context),
               ),
             ),
           ],
@@ -1217,19 +1426,33 @@ class _Metric extends StatelessWidget {
   final String label;
   final String value;
   @override
-  Widget build(BuildContext context) => SizedBox(
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(5, 3, 5, 3),
+    decoration: BoxDecoration(
+      color: _LcdColors.field(context),
+      border: Border.all(color: _LcdPalette.mid),
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: _lcdLabelStyle),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: _LcdPalette.light,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
+        Text(label, style: _lcdLabelStyle.copyWith(fontSize: 7)),
+        const SizedBox(height: 1),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: TextStyle(
+                  color: _LcdColors.ink(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -1252,7 +1475,7 @@ class _PageIndicator extends StatelessWidget {
         height: 4,
         width: index == item ? 21 : 7,
         decoration: BoxDecoration(
-          color: index == item ? _LcdPalette.light : _LcdPalette.mid,
+          color: index == item ? _LcdColors.ink(context) : _LcdPalette.mid,
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -1594,6 +1817,33 @@ const _lcdLabelStyle = TextStyle(
   letterSpacing: .7,
 );
 
+class _BaseCampLcdMode extends InheritedWidget {
+  const _BaseCampLcdMode({required this.negative, required super.child});
+  final bool negative;
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_BaseCampLcdMode>()
+          ?.negative ??
+      false;
+
+  @override
+  bool updateShouldNotify(_BaseCampLcdMode oldWidget) =>
+      oldWidget.negative != negative;
+}
+
+abstract final class _LcdColors {
+  static bool _negative(BuildContext context) => _BaseCampLcdMode.of(context);
+  static Color panel(BuildContext context) =>
+      _negative(context) ? _LcdPalette.darkest : _LcdPalette.light;
+  static Color field(BuildContext context) =>
+      _negative(context) ? _LcdPalette.dark : _LcdPalette.mid;
+  static Color ink(BuildContext context) =>
+      _negative(context) ? _LcdPalette.light : _LcdPalette.darkest;
+  static Color auxiliary(BuildContext context) =>
+      _negative(context) ? _LcdPalette.mid : _LcdPalette.dark;
+}
+
 abstract final class _LcdPalette {
   static const darkest = Color(0xff273326);
   static const dark = Color(0xff485c3f);
@@ -1641,38 +1891,9 @@ String _waterText(FoodSummary? food, DynamicDailyTargetResult? targets) {
       : '${food!.hydrationMl.toStringAsFixed(0)} / $target ml';
 }
 
-String _progressRange(
-  double? current,
-  DynamicRangeTarget? target, {
-  String unit = 'kcal',
-}) {
-  if (current == null) return 'NOT RECORDED';
-  final targetValue = unit == 'kcal'
-      ? DynamicDailyTargetPresentation.caloriesTargetKcal(target)
-      : DynamicDailyTargetPresentation.proteinTargetG(target);
-  final shown = current.toStringAsFixed(
-    current == current.roundToDouble() ? 0 : 1,
-  );
-  return targetValue == null ? '$shown $unit' : '$shown / $targetValue $unit';
-}
-
-double _rangeProgress(DynamicRangeTarget? target) {
-  final current = target?.current;
-  final low = target?.low;
-  if (current == null || low == null || low <= 0) return 0;
-  return (current / low).clamp(0, 1).toDouble();
-}
-
-double _waterProgress(DynamicWaterTarget? target) {
-  final current = target?.current;
-  final goal = target?.finalTargetMl;
-  if (current == null || goal == null || goal <= 0) return 0;
-  return (current / goal).clamp(0, 1).toDouble();
-}
-
 String _detailTitle(_TerminalPage page) => switch (page) {
   _TerminalPage.progress => 'OPERATION PROGRESS',
-  _TerminalPage.morning => 'MORNING DATA',
+  _TerminalPage.morning => 'STATUS DATA',
   _TerminalPage.sustainment => 'SUSTAINMENT',
   _TerminalPage.command => 'COMMAND / SCHEDULE',
 };

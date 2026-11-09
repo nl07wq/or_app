@@ -75,6 +75,7 @@ class DeviceSettings {
     this.reducedMotion = ReducedMotionPreference.system,
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
     this.presentationTheme = AppPresentationTheme.standard,
+    this.baseCampLcdNegative = false,
   });
 
   static const minimumBrightness = .35;
@@ -102,6 +103,10 @@ class DeviceSettings {
   final ReducedMotionPreference reducedMotion;
   final NotificationPrivacyMode notificationPrivacyMode;
   final AppPresentationTheme presentationTheme;
+
+  /// Local BASE CAMP terminal preference. It deliberately remains separate
+  /// from the application presentation theme.
+  final bool baseCampLcdNegative;
 
   double volumeMultiplierFor(DeviceFeedbackChannel channel) {
     if (muted) return 0;
@@ -167,6 +172,7 @@ class DeviceSettings {
     ReducedMotionPreference? reducedMotion,
     NotificationPrivacyMode? notificationPrivacyMode,
     AppPresentationTheme? presentationTheme,
+    bool? baseCampLcdNegative,
   }) => DeviceSettings(
     masterVolume: masterVolume ?? this.masterVolume,
     muted: muted ?? this.muted,
@@ -196,6 +202,7 @@ class DeviceSettings {
     notificationPrivacyMode:
         notificationPrivacyMode ?? this.notificationPrivacyMode,
     presentationTheme: presentationTheme ?? this.presentationTheme,
+    baseCampLcdNegative: baseCampLcdNegative ?? this.baseCampLcdNegative,
   ).normalized();
 
   DeviceSettings normalized() => DeviceSettings(
@@ -222,6 +229,7 @@ class DeviceSettings {
     reducedMotion: reducedMotion,
     notificationPrivacyMode: notificationPrivacyMode,
     presentationTheme: presentationTheme,
+    baseCampLcdNegative: baseCampLcdNegative,
   );
 
   Map<String, Object?> toJson() => {
@@ -248,6 +256,7 @@ class DeviceSettings {
     'reducedMotion': reducedMotion.name,
     'notificationPrivacyMode': notificationPrivacyMode.name,
     'presentationTheme': presentationTheme.name,
+    'baseCampLcdNegative': baseCampLcdNegative,
   };
 
   factory DeviceSettings.fromJson(Object? raw) {
@@ -326,6 +335,7 @@ class DeviceSettings {
       notificationPrivacyMode:
           notificationPrivacyMode ?? NotificationPrivacyMode.contentHidden,
       presentationTheme: presentationTheme ?? AppPresentationTheme.standard,
+      baseCampLcdNegative: flag('baseCampLcdNegative', false),
     ).normalized();
   }
 

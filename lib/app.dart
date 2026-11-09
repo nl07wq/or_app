@@ -47,12 +47,26 @@ import 'features/notifications/services/notification_profile_controller.dart';
 import 'features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'features/themes/base_camp/base_camp_presentation.dart';
 
-Widget _presentationEntry(BaseCampScreen screen, Widget child) {
-  if (DeviceSettingsController.instance.value.presentationTheme !=
-      AppPresentationTheme.baseCamp) {
-    return child;
-  }
-  return BaseCampScreenEntry(screen: screen, child: child);
+Widget _presentationEntry(BaseCampScreen screen, Widget child) =>
+    _PresentationEntry(screen: screen, child: child);
+
+/// Non-dashboard routes are also retained by Navigator, so they must listen
+/// to the persisted setting instead of evaluating it only at route creation.
+class _PresentationEntry extends StatelessWidget {
+  const _PresentationEntry({required this.screen, required this.child});
+  final BaseCampScreen screen;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<DeviceSettings>(
+    valueListenable: DeviceSettingsController.instance,
+    builder: (context, settings, _) => KeyedSubtree(
+      key: ValueKey(settings.presentationTheme),
+      child: settings.presentationTheme == AppPresentationTheme.baseCamp
+          ? BaseCampScreenEntry(screen: screen, child: child)
+          : child,
+    ),
+  );
 }
 
 Widget _dashboardPresentationEntry(BaseCampScreen screen) {

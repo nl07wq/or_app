@@ -240,6 +240,7 @@ void main() {
         'ambientWildlifeEnabled': false,
         'reducedMotion': 'on',
         'presentationTheme': 'newTheme',
+        'baseCampLcdNegative': true,
       });
 
       final restored = DeviceSettingsController();
@@ -258,6 +259,7 @@ void main() {
       expect(restored.value.pageFlipSoundVolume, .55);
       expect(restored.value.cursorSoundVolume, .66);
       expect(restored.value.enterSoundVolume, .77);
+      expect(restored.value.baseCampLcdNegative, isTrue);
       expect(restored.value.brightness, .6);
       expect(restored.value.rippleEnabled, isFalse);
       expect(restored.value.ambientCircuitEnabled, isFalse);
