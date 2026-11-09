@@ -682,7 +682,8 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
     with WidgetsBindingObserver {
   Timer? _timer;
   DateTime _now = DateTime.now();
-  int _changedDigit = -1;
+  Set<int> _changedDigits = const <int>{};
+  Timer? _dimResetTimer;
   bool _active = true;
 
   @override
@@ -706,17 +707,18 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
       final previous = _clockText(_now);
       final current = _clockText(next);
       if (!mounted) return;
+      final changed = <int>{
+        for (var index = 0; index < current.length; index++)
+          if (current[index] != previous[index]) index,
+      };
+      _dimResetTimer?.cancel();
       setState(() {
-        _changedDigit = List<int>.generate(current.length, (index) => index)
-            .firstWhere(
-              (index) => current[index] != previous[index],
-              orElse: () => -1,
-            );
+        _changedDigits = changed;
         _now = next;
       });
-      if (_changedDigit >= 0) {
-        Timer(const Duration(milliseconds: 100), () {
-          if (mounted) setState(() => _changedDigit = -1);
+      if (changed.isNotEmpty) {
+        _dimResetTimer = Timer(const Duration(milliseconds: 100), () {
+          if (mounted) setState(() => _changedDigits = const <int>{});
         });
       }
     });
@@ -726,6 +728,7 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _dimResetTimer?.cancel();
     super.dispose();
   }
 
@@ -737,7 +740,7 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
     child: CustomPaint(
       painter: _DotMatrixClockPainter(
         text: _clockText(_now),
-        changedDigit: _changedDigit,
+        changedDigits: _changedDigits,
       ),
     ),
   );
@@ -752,10 +755,10 @@ String _clockText(DateTime value) {
 class _DotMatrixClockPainter extends CustomPainter {
   const _DotMatrixClockPainter({
     required this.text,
-    required this.changedDigit,
+    required this.changedDigits,
   });
   final String text;
-  final int changedDigit;
+  final Set<int> changedDigits;
 
   static const _glyphs = <String, List<String>>{
     '0': ['111', '101', '101', '101', '111'],
@@ -799,7 +802,7 @@ class _DotMatrixClockPainter extends CustomPainter {
       final rows = _glyphs[text[index]] ?? _glyphs[' ']!;
       final paint = Paint()
         ..color = _LcdPalette.light.withValues(
-          alpha: index == changedDigit ? .58 : .94,
+          alpha: changedDigits.contains(index) ? .58 : .94,
         );
       final dim = Paint()..color = _LcdPalette.mid.withValues(alpha: .16);
       for (var row = 0; row < rows.length; row++) {
@@ -817,7 +820,7 @@ class _DotMatrixClockPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DotMatrixClockPainter oldDelegate) =>
-      oldDelegate.text != text || oldDelegate.changedDigit != changedDigit;
+      oldDelegate.text != text || oldDelegate.changedDigits != changedDigits;
 }
 
 class _IndustrialLcdPanel extends StatelessWidget {

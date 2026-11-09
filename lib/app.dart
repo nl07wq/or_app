@@ -56,13 +56,28 @@ Widget _presentationEntry(BaseCampScreen screen, Widget child) {
 }
 
 Widget _dashboardPresentationEntry(BaseCampScreen screen) {
-  if (DeviceSettingsController.instance.value.presentationTheme !=
-      AppPresentationTheme.baseCamp) {
-    return const DashboardPage();
-  }
-  return BaseCampScreenEntry(
-    screen: screen,
-    child: const BaseCampDashboardPage(),
+  return _DashboardPresentationEntry(screen: screen);
+}
+
+/// Routes are created once by Navigator.  Listening here makes an in-place
+/// SYSTEM theme selection rebuild the active HOME instead of waiting for a
+/// route recreation or an application restart.
+class _DashboardPresentationEntry extends StatelessWidget {
+  const _DashboardPresentationEntry({required this.screen});
+  final BaseCampScreen screen;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<DeviceSettings>(
+    valueListenable: DeviceSettingsController.instance,
+    builder: (context, settings, _) => KeyedSubtree(
+      key: ValueKey(settings.presentationTheme),
+      child: settings.presentationTheme == AppPresentationTheme.baseCamp
+          ? BaseCampScreenEntry(
+              screen: screen,
+              child: const BaseCampDashboardPage(),
+            )
+          : const DashboardPage(),
+    ),
   );
 }
 
