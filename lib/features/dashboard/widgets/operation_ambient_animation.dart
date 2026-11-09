@@ -35,6 +35,7 @@ class OperationAmbientAnimation extends StatefulWidget {
     super.key,
     required this.status,
     this.preset = OperationAmbientPreset.statusPulse,
+    this.showStatusLabel = true,
   });
 
   /// The lane adds two pixels below the established trace coordinate system,
@@ -45,6 +46,10 @@ class OperationAmbientAnimation extends StatefulWidget {
   static const loopDuration = drawDuration;
   final OperationStatus? status;
   final OperationAmbientPreset preset;
+
+  /// BASE CAMP embeds only the established waveform in a smaller LCD lane.
+  /// STANDARD retains its existing status label through the default value.
+  final bool showStatusLabel;
   @override
   State<OperationAmbientAnimation> createState() =>
       _OperationAmbientAnimationState();
@@ -161,7 +166,8 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
     final staticFrame = !_motionAllowed;
     final geometry = OperationAmbientPulseGeometry.forPreset(preset);
     final textScaler = MediaQuery.textScalerOf(context);
-    final noWaveInset = geometry.statusLabel == null
+    final statusLabel = widget.showStatusLabel ? geometry.statusLabel : null;
+    final noWaveInset = statusLabel == null
         ? 0.0
         : OperationAmbientStatusLabel.noWaveZoneWidth(textScaler);
     return IgnorePointer(
@@ -192,7 +198,7 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                     willChange: !staticFrame,
                   ),
                 ),
-                if (geometry.statusLabel case final label?)
+                if (statusLabel != null)
                   Positioned(
                     key: const ValueKey('operation-ambient-status-label'),
                     left: 0,
@@ -201,7 +207,7 @@ class _OperationAmbientAnimationState extends State<OperationAmbientAnimation>
                     child: Align(
                       alignment: Alignment.bottomCenter,
                       child: Text(
-                        label,
+                        statusLabel,
                         style: OperationAmbientStatusLabel.textStyle.copyWith(
                           color: geometry.color,
                           height: 1,

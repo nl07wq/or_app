@@ -13,6 +13,7 @@ import 'package:or_app/features/dashboard/dashboard_page.dart'
 import 'package:or_app/features/dashboard/models/dynamic_daily_target.dart';
 import 'package:or_app/features/dashboard/services/dashboard_plan_information_service.dart';
 import 'package:or_app/features/dashboard/services/dynamic_daily_target_service.dart';
+import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
@@ -32,37 +33,15 @@ class BaseCampDashboardPage extends StatefulWidget {
   State<BaseCampDashboardPage> createState() => _BaseCampDashboardPageState();
 }
 
-class _BaseCampDashboardPageState extends State<BaseCampDashboardPage>
-    with SingleTickerProviderStateMixin {
+class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
   final _pages = PageController();
-  late final AnimationController _signal;
   Future<_TerminalSnapshot>? _snapshot;
   int? _sourceSignature;
   int _page = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _signal = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2100),
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _signal.stop();
-    } else if (!_signal.isAnimating) {
-      _signal.repeat();
-    }
-  }
-
-  @override
   void dispose() {
     _pages.dispose();
-    _signal.dispose();
     super.dispose();
   }
 
@@ -215,44 +194,65 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage>
                     builder: (context, async) {
                       final snapshot =
                           async.data ?? const _TerminalSnapshot.unavailable();
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 940),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _TacticalTerminal(
-                                  snapshot: snapshot,
-                                  morning: morning,
-                                  food: food,
-                                  training: training,
-                                  activity: activity,
-                                  pages: _pages,
-                                  page: _page,
-                                  signal: _signal,
-                                  onPageChanged: (value) =>
-                                      setState(() => _page = value),
-                                  onOpenDetail: (page) => _openDetail(
-                                    page,
-                                    snapshot,
-                                    morning,
-                                    food,
-                                    training,
-                                    activity,
-                                  ),
+                      return LayoutBuilder(
+                        builder: (context, viewport) {
+                          final width = (viewport.maxWidth - 24).clamp(
+                            0.0,
+                            940.0,
+                          );
+                          final naturalMapHeight = width * 9 / 16 + 14;
+                          final availableMapHeight =
+                              viewport.maxHeight -
+                              _TacticalTerminal.height -
+                              12 -
+                              32;
+                          final mapViewportHeight =
+                              naturalMapHeight > availableMapHeight
+                              ? naturalMapHeight
+                              : availableMapHeight;
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 940,
                                 ),
-                                const SizedBox(height: 12),
-                                _MapChassis(
-                                  child: BaseCampMap(
-                                    onFacilityPressed: _openFacility,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _TacticalTerminal(
+                                      snapshot: snapshot,
+                                      morning: morning,
+                                      food: food,
+                                      training: training,
+                                      activity: activity,
+                                      pages: _pages,
+                                      page: _page,
+                                      onPageChanged: (value) =>
+                                          setState(() => _page = value),
+                                      onOpenDetail: (page) => _openDetail(
+                                        page,
+                                        snapshot,
+                                        morning,
+                                        food,
+                                        training,
+                                        activity,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MapChassis(
+                                      viewportHeight: mapViewportHeight,
+                                      child: BaseCampMap(
+                                        onFacilityPressed: _openFacility,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -265,7 +265,8 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage>
 }
 
 class _MapChassis extends StatelessWidget {
-  const _MapChassis({required this.child});
+  const _MapChassis({required this.viewportHeight, required this.child});
+  final double viewportHeight;
   final Widget child;
 
   @override
@@ -278,12 +279,20 @@ class _MapChassis extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
     ),
-    // The map remains one proportional 16:9 scene; the chassis owns surplus.
-    child: AspectRatio(aspectRatio: 16 / 9, child: child),
+    child: SizedBox(
+      key: const ValueKey('base-camp-home-map-viewport'),
+      height: viewportHeight - 14,
+      child: Center(
+        // The map remains one proportional 16:9 scene; the chassis owns
+        // surplus height rather than scaling or cropping image/overlays.
+        child: AspectRatio(aspectRatio: 16 / 9, child: child),
+      ),
+    ),
   );
 }
 
 class _TacticalTerminal extends StatelessWidget {
+  static const height = 365.0;
   const _TacticalTerminal({
     required this.snapshot,
     required this.morning,
@@ -292,7 +301,6 @@ class _TacticalTerminal extends StatelessWidget {
     required this.activity,
     required this.pages,
     required this.page,
-    required this.signal,
     required this.onPageChanged,
     required this.onOpenDetail,
   });
@@ -303,7 +311,6 @@ class _TacticalTerminal extends StatelessWidget {
   final ActivitySummary activity;
   final PageController pages;
   final int page;
-  final Animation<double> signal;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<_TerminalPage> onOpenDetail;
 
@@ -332,10 +339,7 @@ class _TacticalTerminal extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 6,
-                    child: _StatusCompartment(
-                      snapshot: snapshot,
-                      signal: signal,
-                    ),
+                    child: _StatusCompartment(snapshot: snapshot),
                   ),
                 ],
               ),
@@ -474,16 +478,15 @@ class _SoldierPendingCompartment extends StatelessWidget {
 }
 
 class _StatusCompartment extends StatelessWidget {
-  const _StatusCompartment({required this.snapshot, required this.signal});
+  const _StatusCompartment({required this.snapshot});
   final _TerminalSnapshot snapshot;
-  final Animation<double> signal;
   @override
   Widget build(BuildContext context) {
     final status = snapshot.command?.operationStatus;
     final color = _statusColor(status);
     return _TerminalPanel(
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -513,17 +516,13 @@ class _StatusCompartment extends StatelessWidget {
             ),
             const Spacer(),
             SizedBox(
-              height: 27,
+              key: const ValueKey('base-camp-operation-ambient-waveform'),
+              height: OperationAmbientAnimation.height,
               width: double.infinity,
               child: RepaintBoundary(
-                child: AnimatedBuilder(
-                  animation: signal,
-                  builder: (_, _) => CustomPaint(
-                    painter: _TacticalSignalPainter(
-                      phase: signal.value,
-                      color: color.withValues(alpha: .88),
-                    ),
-                  ),
+                child: OperationAmbientAnimation(
+                  status: status,
+                  showStatusLabel: false,
                 ),
               ),
             ),
@@ -536,6 +535,23 @@ class _StatusCompartment extends StatelessWidget {
       ),
     );
   }
+}
+
+class _IndustrialLcdPanel extends StatelessWidget {
+  const _IndustrialLcdPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    key: const ValueKey('base-camp-industrial-lcd'),
+    decoration: BoxDecoration(
+      color: _LcdPalette.darkest,
+      border: Border.all(color: _LcdPalette.mid),
+      borderRadius: BorderRadius.circular(7),
+    ),
+    child: child,
+  );
 }
 
 class _TerminalInformationPage extends StatelessWidget {
@@ -561,7 +577,7 @@ class _TerminalInformationPage extends StatelessWidget {
         key: ValueKey('base-camp-terminal-page-${page.name}'),
         onTap: onTap,
         borderRadius: BorderRadius.circular(7),
-        child: _TerminalPanel(
+        child: _IndustrialLcdPanel(
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
@@ -573,7 +589,7 @@ class _TerminalInformationPage extends StatelessWidget {
                       child: Text(
                         title,
                         style: const TextStyle(
-                          color: Color(0xfff0ead2),
+                          color: _LcdPalette.light,
                           fontSize: 13,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .9,
@@ -583,14 +599,14 @@ class _TerminalInformationPage extends StatelessWidget {
                     const Icon(
                       Icons.open_in_full,
                       size: 15,
-                      color: Color(0xffc5bfa1),
+                      color: _LcdPalette.mid,
                     ),
                   ],
                 ),
                 Text(
                   subtitle,
                   style: const TextStyle(
-                    color: Color(0xffaaa487),
+                    color: _LcdPalette.mid,
                     fontSize: 8,
                     letterSpacing: .65,
                   ),
@@ -612,9 +628,8 @@ class _ProgressPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final model = snapshot.command;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+    return _LcdGrid(
+      key: const ValueKey('base-camp-progress-grid'),
       children: [
         _MiniReadout(
           'STATUS',
@@ -655,9 +670,7 @@ class _MorningPreview extends StatelessWidget {
   final DynamicDailyTargetResult? targets;
   final TrainingSummary? training;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 10,
-    runSpacing: 7,
+  Widget build(BuildContext context) => _LcdGrid(
     children: [
       _Metric('WEIGHT', _weightText(morning)),
       _Metric('SLEEP', _sleepText(morning)),
@@ -680,9 +693,7 @@ class _SustainmentPreview extends StatelessWidget {
   final ActivitySummary activity;
   final DynamicDailyTargetResult? targets;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 10,
-    runSpacing: 7,
+  Widget build(BuildContext context) => _LcdGrid(
     children: [
       _Metric('MEALS', '${food?.mealCount ?? 0} / 3'),
       _Metric('CALORIES', _rangeText(food?.calories, targets?.calories)),
@@ -717,7 +728,7 @@ class _CommandPreview extends StatelessWidget {
           snapshot.command?.commanderIntent ?? 'COMMANDER INTENT UNAVAILABLE',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xffe7e0c8), fontSize: 12),
+          style: const TextStyle(color: _LcdPalette.light, fontSize: 12),
         ),
         const Spacer(),
         Text(
@@ -725,7 +736,7 @@ class _CommandPreview extends StatelessWidget {
               ? 'NO SCHEDULED ITEMS'
               : '${entries.length} SCHEDULED ITEM${entries.length == 1 ? '' : 'S'}',
           style: const TextStyle(
-            color: Color(0xffa7d84c),
+            color: _LcdPalette.mid,
             fontSize: 10,
             letterSpacing: .7,
           ),
@@ -735,27 +746,42 @@ class _CommandPreview extends StatelessWidget {
   }
 }
 
+class _LcdGrid extends StatelessWidget {
+  const _LcdGrid({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => GridView.count(
+    crossAxisCount: 3,
+    mainAxisSpacing: 6,
+    crossAxisSpacing: 6,
+    childAspectRatio: 1.62,
+    physics: const NeverScrollableScrollPhysics(),
+    children: children,
+  );
+}
+
 class _MiniReadout extends StatelessWidget {
   const _MiniReadout(this.label, this.value);
   final String label;
   final String value;
   @override
   Widget build(BuildContext context) => Container(
-    width: 92,
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
     decoration: BoxDecoration(
-      color: const Color(0xff151a12),
-      border: Border.all(color: const Color(0xff555943)),
+      color: _LcdPalette.dark,
+      border: Border.all(color: _LcdPalette.mid),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: _labelStyle),
+        Text(label, style: _lcdLabelStyle),
         Text(
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xffe8e2c9), fontSize: 9),
+          style: const TextStyle(color: _LcdPalette.light, fontSize: 9),
         ),
       ],
     ),
@@ -768,17 +794,16 @@ class _Metric extends StatelessWidget {
   final String value;
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 96,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: _labelStyle),
+        Text(label, style: _lcdLabelStyle),
         Text(
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            color: Color(0xffdce8bd),
+            color: _LcdPalette.light,
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),
@@ -803,9 +828,7 @@ class _PageIndicator extends StatelessWidget {
         height: 4,
         width: index == item ? 21 : 7,
         decoration: BoxDecoration(
-          color: index == item
-              ? const Color(0xffa7d84c)
-              : const Color(0xff676d55),
+          color: index == item ? _LcdPalette.light : _LcdPalette.mid,
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -1107,52 +1130,6 @@ class _TerminalChassisPainter extends CustomPainter {
   bool shouldRepaint(covariant _TerminalChassisPainter oldDelegate) => false;
 }
 
-class _TacticalSignalPainter extends CustomPainter {
-  const _TacticalSignalPainter({required this.phase, required this.color});
-  final double phase;
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final grid = Paint()
-      ..color = color.withValues(alpha: .16)
-      ..strokeWidth = 1;
-    for (var x = 0.0; x < size.width; x += 18) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
-    }
-    final path = Path()..moveTo(0, size.height * .58);
-    const marks = <Offset>[
-      Offset(.12, .58),
-      Offset(.20, .58),
-      Offset(.26, .30),
-      Offset(.32, .83),
-      Offset(.39, .48),
-      Offset(.52, .58),
-      Offset(.72, .58),
-      Offset(.80, .38),
-      Offset(.86, .70),
-      Offset(1, .58),
-    ];
-    for (final mark in marks) {
-      path.lineTo(((mark.dx + phase) % 1) * size.width, mark.dy * size.height);
-    }
-    final glow = Paint()
-      ..color = color.withValues(alpha: .20)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    final line = Paint()
-      ..color = color
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke;
-    canvas.drawPath(path, glow);
-    canvas.drawPath(path, line);
-  }
-
-  @override
-  bool shouldRepaint(covariant _TacticalSignalPainter oldDelegate) =>
-      oldDelegate.phase != phase || oldDelegate.color != color;
-}
-
 class _TerminalSnapshot {
   const _TerminalSnapshot({
     required this.date,
@@ -1185,6 +1162,20 @@ const _labelStyle = TextStyle(
   fontWeight: FontWeight.w700,
   letterSpacing: .7,
 );
+
+const _lcdLabelStyle = TextStyle(
+  color: _LcdPalette.mid,
+  fontSize: 9,
+  fontWeight: FontWeight.w700,
+  letterSpacing: .7,
+);
+
+abstract final class _LcdPalette {
+  static const darkest = Color(0xff182319);
+  static const dark = Color(0xff35432c);
+  static const mid = Color(0xff74845a);
+  static const light = Color(0xffb5bf88);
+}
 
 Color _statusColor(OperationStatus? status) => switch (status) {
   OperationStatus.green => const Color(0xffa7d84c),
