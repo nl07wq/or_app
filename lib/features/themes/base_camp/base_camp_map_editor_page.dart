@@ -32,13 +32,18 @@ Matrix4 baseCampWaterFocusTransform({
   required BaseCampWaterFx effect,
   required Size viewport,
 }) {
-  final bounds = Rect.fromPoints(
+  final sourceBounds = Rect.fromPoints(
     effect.mask.reduce(
       (a, b) => Offset(math.min(a.dx, b.dx), math.min(a.dy, b.dy)),
     ),
     effect.mask.reduce(
       (a, b) => Offset(math.max(a.dx, b.dx), math.max(a.dy, b.dy)),
     ),
+  );
+  final artworkGeometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
+  final bounds = Rect.fromPoints(
+    artworkGeometry.sourceToViewport(sourceBounds.topLeft),
+    artworkGeometry.sourceToViewport(sourceBounds.bottomRight),
   );
   final scale = math
       .min(
@@ -1732,7 +1737,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
     super.dispose();
   }
 
-  /// Fits the whole 1280×719 image; it is intentionally independent from
+  /// Fits the whole square artwork; it is intentionally independent from
   /// route data, so RESET VIEW can never alter durable source coordinates.
   void resetView() {
     final focusedId = _focusedWaterFxId;
@@ -1745,7 +1750,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
     final geometry = BaseCampMapGeometry.contain(viewport);
     _transform.value = Matrix4.identity()
       ..translateByDouble(geometry.imageRect.left, geometry.imageRect.top, 0, 1)
-      ..scaleByDouble(geometry.scale, geometry.scale, 1, 1);
+      ..scaleByDouble(geometry.artworkScale, geometry.artworkScale, 1, 1);
   }
 
   void focusWaterFx(String id) {
@@ -1783,7 +1788,9 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
     final renderBox =
         _sourceKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
-    final sourcePoint = renderBox.globalToLocal(globalPosition);
+    final sourcePoint = BaseCampMapGeometry.contain(
+      baseCampMapArtworkSize,
+    ).artworkToSource(renderBox.globalToLocal(globalPosition));
     final modelPoint = widget.section == _BaseCampEditorSection.buildings
         ? Offset(
             sourcePoint.dx / baseCampMapSourceSize.width,
@@ -1813,8 +1820,8 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
             maxScale: 3.2,
             boundaryMargin: const EdgeInsets.all(160),
             child: SizedBox(
-              width: baseCampMapSourceSize.width,
-              height: baseCampMapSourceSize.height,
+              width: baseCampMapArtworkSize.width,
+              height: baseCampMapArtworkSize.height,
               child: _BaseCampEditorSourceMap(
                 key: _sourceKey,
                 configuration: widget.configuration,
@@ -1834,7 +1841,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                           as RenderBox?;
                   if (renderBox != null) {
                     widget.onObjectDragged(
-                      renderBox.globalToLocal(globalPosition),
+                      BaseCampMapGeometry.contain(
+                        baseCampMapArtworkSize,
+                      ).artworkToSource(
+                        renderBox.globalToLocal(globalPosition),
+                      ),
                     );
                   }
                 },
@@ -1845,7 +1856,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                           as RenderBox?;
                   if (renderBox != null) {
                     widget.onLabelDragged(
-                      renderBox.globalToLocal(globalPosition),
+                      BaseCampMapGeometry.contain(
+                        baseCampMapArtworkSize,
+                      ).artworkToSource(
+                        renderBox.globalToLocal(globalPosition),
+                      ),
                       part,
                     );
                   }
@@ -1867,7 +1882,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                   if (renderBox != null) {
                     widget.onWaterPointDragged(
                       index,
-                      renderBox.globalToLocal(globalPosition),
+                      BaseCampMapGeometry.contain(
+                        baseCampMapArtworkSize,
+                      ).artworkToSource(
+                        renderBox.globalToLocal(globalPosition),
+                      ),
                       mask,
                     );
                   }
@@ -1880,7 +1899,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                     widget.onExclusionPointDragged(
                       polygon,
                       index,
-                      renderBox.globalToLocal(globalPosition),
+                      BaseCampMapGeometry.contain(
+                        baseCampMapArtworkSize,
+                      ).artworkToSource(
+                        renderBox.globalToLocal(globalPosition),
+                      ),
                     );
                   }
                 },
@@ -1893,7 +1916,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                   if (renderBox != null) {
                     widget.onStaticSoldierDragged(
                       id,
-                      renderBox.globalToLocal(globalPosition),
+                      BaseCampMapGeometry.contain(
+                        baseCampMapArtworkSize,
+                      ).artworkToSource(
+                        renderBox.globalToLocal(globalPosition),
+                      ),
                     );
                   }
                 },
@@ -1967,45 +1994,49 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final geometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
     final points = section == _BaseCampEditorSection.buildings
         ? configuration.facilityOutlines[selectedFacilityId]!
         : section == _BaseCampEditorSection.routes
         ? configuration.routes[selectedRouteId]!
         : const <Offset>[];
-    Offset sourcePoint(Offset point) =>
-        section == _BaseCampEditorSection.buildings
-        ? Offset(
-            point.dx * baseCampMapSourceSize.width,
-            point.dy * baseCampMapSourceSize.height,
-          )
-        : point;
+    Offset sourcePoint(Offset point) => geometry.sourceToViewport(
+      section == _BaseCampEditorSection.buildings
+          ? Offset(
+              point.dx * baseCampMapSourceSize.width,
+              point.dy * baseCampMapSourceSize.height,
+            )
+          : point,
+    );
     final food = configuration.objects['food'];
     final smokeSource = food == null
         ? Offset.zero
-        : baseCampObjectLocalToSource(food, configuration.foodSmokeOrigin);
+        : geometry.sourceToViewport(
+            baseCampObjectLocalToSource(food, configuration.foodSmokeOrigin),
+          );
     final label = configuration.labels[selectedFacilityId];
     final water = configuration.waterFx[selectedWaterFxId];
     return Stack(
       fit: StackFit.expand,
       children: [
-        const Image(image: AssetImage(baseCampMapAsset), fit: BoxFit.fill),
+        const Image(image: AssetImage(baseCampMapAsset), fit: BoxFit.contain),
         IgnorePointer(
           child: BaseCampWaterFxLayer(
             configuration: configuration,
-            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            geometry: geometry,
             elapsed: elapsed,
           ),
         ),
         IgnorePointer(
           child: BaseCampObjectLayer(
             configuration: configuration,
-            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            geometry: geometry,
           ),
         ),
         IgnorePointer(
           child: BaseCampFoodSmokeLayer(
             configuration: configuration,
-            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            geometry: geometry,
             elapsed: elapsed,
           ),
         ),
@@ -2014,7 +2045,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             elapsed: elapsed,
             reducedMotion: false,
             configuration: configuration,
-            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            geometry: geometry,
           ),
         ),
         // Keep the editor preview's paint order identical to the normal map:
@@ -2022,7 +2053,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         IgnorePointer(
           child: BaseCampFacilityLabelLayer(
             configuration: configuration,
-            geometry: BaseCampMapGeometry.contain(baseCampMapSourceSize),
+            geometry: geometry,
           ),
         ),
         if ((section == _BaseCampEditorSection.waterMask ||
@@ -2031,13 +2062,18 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             water != null)
           IgnorePointer(
             child: CustomPaint(
-              painter: _BaseCampWaterEditOverlayPainter(water, section),
+              painter: _BaseCampWaterEditOverlayPainter(
+                water,
+                section,
+                geometry,
+              ),
             ),
           ),
         CustomPaint(
           painter: _BaseCampEditorGuidePainter(
             configuration: configuration,
             section: section,
+            geometry: geometry,
             selectedId: section == _BaseCampEditorSection.buildings
                 ? selectedFacilityId
                 : selectedRouteId,
@@ -2092,7 +2128,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
           ),
         if (section == _BaseCampEditorSection.labels && label != null) ...[
           _EditorDragHandle(
-            point: label.position,
+            point: geometry.sourceToViewport(label.position),
             icon: Icons.label_outline,
             color: const Color(0xFF68E8F2),
             onStart: onLabelDragStarted,
@@ -2100,7 +2136,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 onLabelGlobalDragged(details.globalPosition, 0),
           ),
           _EditorDragHandle(
-            point: label.connectorStart,
+            point: geometry.sourceToViewport(label.connectorStart),
             icon: Icons.call_made,
             color: const Color(0xFFE5DFCF),
             onStart: onLabelDragStarted,
@@ -2108,7 +2144,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 onLabelGlobalDragged(details.globalPosition, 1),
           ),
           _EditorDragHandle(
-            point: label.connectorEnd,
+            point: geometry.sourceToViewport(label.connectorEnd),
             icon: Icons.radio_button_checked,
             color: const Color(0xFFE5DFCF),
             onStart: onLabelDragStarted,
@@ -2119,7 +2155,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.shoreline && water != null) ...[
           for (var i = 0; i < water.shoreline.length; i++)
             _EditorDragHandle(
-              point: water.shoreline[i],
+              point: geometry.sourceToViewport(water.shoreline[i]),
               icon: Icons.waves,
               color: selectedWaterPoint == i && !selectedWaterMask
                   ? const Color(0xFF68E8F2)
@@ -2137,7 +2173,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.waterMask && water != null) ...[
           for (var i = 0; i < water.mask.length; i++)
             _EditorDragHandle(
-              point: water.mask[i],
+              point: geometry.sourceToViewport(water.mask[i]),
               icon: Icons.crop_square,
               color: selectedWaterPoint == i && selectedWaterMask
                   ? const Color(0xFFF0E8D4)
@@ -2164,7 +2200,9 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
               point++
             )
               _EditorDragHandle(
-                point: water.exclusionMasks[polygon][point],
+                point: geometry.sourceToViewport(
+                  water.exclusionMasks[polygon][point],
+                ),
                 icon: Icons.block,
                 color: polygon == selectedExclusionMask
                     ? const Color(0xFFFF9C7A)
@@ -2186,7 +2224,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.staticSoldiers)
           for (final soldier in configuration.staticSoldiers)
             _EditorDragHandle(
-              point: soldier.position,
+              point: geometry.sourceToViewport(soldier.position),
               icon: Icons.person_pin_circle,
               color: soldier.id == selectedStaticSoldierId
                   ? const Color(0xFF68E8F2)
@@ -2213,14 +2251,22 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
 }
 
 class _BaseCampWaterEditOverlayPainter extends CustomPainter {
-  const _BaseCampWaterEditOverlayPainter(this.effect, this.section);
+  const _BaseCampWaterEditOverlayPainter(
+    this.effect,
+    this.section,
+    this.geometry,
+  );
 
   final BaseCampWaterFx effect;
   final _BaseCampEditorSection section;
+  final BaseCampMapGeometry geometry;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final water = Path()..addPolygon(effect.mask, true);
+    Path pathFor(List<Offset> points, {bool close = true}) =>
+        Path()
+          ..addPolygon(points.map(geometry.sourceToViewport).toList(), close);
+    final water = pathFor(effect.mask);
     canvas.drawPath(
       water,
       Paint()
@@ -2238,7 +2284,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
     }
     if (section == _BaseCampEditorSection.shoreline) {
       canvas.drawPath(
-        Path()..addPolygon(effect.shoreline, false),
+        pathFor(effect.shoreline, close: false),
         Paint()
           ..color = const Color(0xFFEAF1EA)
           ..style = PaintingStyle.stroke
@@ -2247,7 +2293,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
     }
     if (section == _BaseCampEditorSection.exclusionMask) {
       for (final exclusion in effect.exclusionMasks) {
-        final path = Path()..addPolygon(exclusion, true);
+        final path = pathFor(exclusion);
         canvas.drawPath(
           path,
           Paint()
@@ -2267,7 +2313,9 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BaseCampWaterEditOverlayPainter oldDelegate) =>
-      oldDelegate.effect != effect || oldDelegate.section != section;
+      oldDelegate.effect != effect ||
+      oldDelegate.section != section ||
+      oldDelegate.geometry != geometry;
 }
 
 class _EditorDragHandle extends StatelessWidget {
@@ -2320,10 +2368,12 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
   const _BaseCampEditorGuidePainter({
     required this.configuration,
     required this.section,
+    required this.geometry,
     required this.selectedId,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
+  final BaseCampMapGeometry geometry;
   final String selectedId;
   @override
   void paint(Canvas canvas, Size size) {
@@ -2344,15 +2394,13 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
         : configuration.routes[selectedId]!;
     final path = Path();
     for (var index = 0; index < points.length; index++) {
-      final point = normalized
+      final source = normalized
           ? Offset(
-              points[index].dx * size.width,
-              points[index].dy * size.height,
+              points[index].dx * baseCampMapSourceSize.width,
+              points[index].dy * baseCampMapSourceSize.height,
             )
-          : Offset(
-              points[index].dx / baseCampMapSourceSize.width * size.width,
-              points[index].dy / baseCampMapSourceSize.height * size.height,
-            );
+          : points[index];
+      final point = geometry.sourceToViewport(source);
       if (index == 0) {
         path.moveTo(point.dx, point.dy);
       } else {
@@ -2373,5 +2421,6 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
   bool shouldRepaint(_BaseCampEditorGuidePainter old) =>
       old.configuration != configuration ||
       old.section != section ||
+      old.geometry != geometry ||
       old.selectedId != selectedId;
 }

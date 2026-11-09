@@ -31,6 +31,16 @@ void main() {
     );
   });
 
+  test('V2.7 square map asset is registered and decodes losslessly', () async {
+    final data = await rootBundle.load(baseCampMapAsset);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    expect(frame.image.width, 1254);
+    expect(frame.image.height, 1254);
+    frame.image.dispose();
+    codec.dispose();
+  });
+
   test(
     'Base Camp restore failure preserves defaults without escaping boot',
     () async {
@@ -387,14 +397,36 @@ void main() {
 
   test('effective water path removes the coastal structure exclusion', () {
     final effect = BaseCampWaterFx.defaults()['coast-ripple']!;
-    final path = baseCampEffectiveWaterPath(
-      effect,
-      BaseCampMapGeometry.contain(const Size(1280, 720)),
-    );
+    final geometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
+    final path = baseCampEffectiveWaterPath(effect, geometry);
 
-    expect(path.contains(const Offset(10, 80)), isTrue);
-    expect(path.contains(const Offset(50, 135)), isFalse);
-    expect(path.contains(const Offset(300, 135)), isFalse);
+    expect(
+      path.contains(geometry.sourceToViewport(const Offset(10, 80))),
+      isTrue,
+    );
+    expect(
+      path.contains(geometry.sourceToViewport(const Offset(50, 135))),
+      isFalse,
+    );
+    expect(
+      path.contains(geometry.sourceToViewport(const Offset(300, 135))),
+      isFalse,
+    );
+  });
+
+  test('square V2.7 artwork preserves legacy coordinates without crop', () {
+    final geometry = BaseCampMapGeometry.contain(const Size(390, 390));
+    expect(baseCampMapArtworkSize, const Size(1254, 1254));
+    expect(geometry.imageRect, const Rect.fromLTWH(0, 0, 390, 390));
+    for (final source in <Offset>[
+      Offset.zero,
+      const Offset(640, 360),
+      const Offset(1280, 720),
+    ]) {
+      final viewport = geometry.sourceToViewport(source);
+      expect(geometry.viewportToSource(viewport).dx, closeTo(source.dx, .001));
+      expect(geometry.viewportToSource(viewport).dy, closeTo(source.dy, .001));
+    }
   });
 
   test(
@@ -421,7 +453,7 @@ void main() {
         effect: effect,
         viewport: viewport,
       );
-      final bounds = Rect.fromPoints(
+      final sourceBounds = Rect.fromPoints(
         effect.mask.reduce(
           (a, b) =>
               Offset(a.dx < b.dx ? a.dx : b.dx, a.dy < b.dy ? a.dy : b.dy),
@@ -430,6 +462,11 @@ void main() {
           (a, b) =>
               Offset(a.dx > b.dx ? a.dx : b.dx, a.dy > b.dy ? a.dy : b.dy),
         ),
+      );
+      final geometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
+      final bounds = Rect.fromPoints(
+        geometry.sourceToViewport(sourceBounds.topLeft),
+        geometry.sourceToViewport(sourceBounds.bottomRight),
       );
       final storage = transform.storage;
       final focusedCenter = Offset(

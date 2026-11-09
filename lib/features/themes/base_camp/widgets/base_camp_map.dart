@@ -13,7 +13,10 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart'
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
 /// always receive the same [InteractiveViewer] transform.
-const baseCampMapAsset = 'assets/images/themes/base_camp/base_camp_map_v2.jpg';
+/// V2.7's approved square BASE CAMP artwork.  Configuration remains in the
+/// historic 1280×720 scene coordinate system, so saved editor settings are
+/// never rewritten simply because the surrounding artwork became taller.
+const baseCampMapAsset = 'assets/images/themes/base_camp/base_camp_map_v3.png';
 const baseCampWalkerUpLeftAsset =
     'assets/images/themes/base_camp/base_camp_walker_up_left.gif';
 const baseCampWalkerDownRightAsset =
@@ -89,6 +92,17 @@ Duration baseCampWalkerFrameDuration(String asset) =>
 /// alignment independent of the dashboard's displayed size and map zoom.
 const baseCampMapSourceSize = Size(1280, 720);
 
+/// Pixel dimensions of the supplied V2.7 artwork.  This is deliberately
+/// distinct from [baseCampMapSourceSize]: the latter is a durable editor/data
+/// coordinate space and must remain stable for existing installations.
+const baseCampMapArtworkSize = Size(1254, 1254);
+
+/// The legacy playable scene calibrated inside the new artwork.  Only this
+/// affine display mapping changes; persisted routes, facilities, object
+/// anchors and FX points all remain expressed in the original coordinate
+/// system.  The square artwork itself is always contained, never cropped.
+const baseCampLegacySceneInArtwork = Rect.fromLTWH(0, 0, 1254, 900);
+
 /// Maps durable 1280×719 source coordinates to the actual painted image
 /// rectangle. Both the normal dashboard (cover) and editor (contain) use the
 /// same conversion so walker feet, route points and facility paths cannot
@@ -113,16 +127,50 @@ class BaseCampMapGeometry {
   final Size viewport;
   final Rect imageRect;
 
-  double get scale => imageRect.width / baseCampMapSourceSize.width;
+  /// Horizontal map-source scale used for raster object dimensions so their
+  /// approved aspect ratio cannot be stretched by the taller background.
+  double get scale =>
+      imageRect.width /
+      baseCampMapArtworkSize.width *
+      baseCampLegacySceneInArtwork.width /
+      baseCampMapSourceSize.width;
+
+  double get _artworkScale => imageRect.width / baseCampMapArtworkSize.width;
+
+  double get artworkScale => _artworkScale;
 
   Offset sourceToViewport(Offset point) => Offset(
-    imageRect.left + point.dx * scale,
-    imageRect.top + point.dy * scale,
+    imageRect.left +
+        (baseCampLegacySceneInArtwork.left +
+                point.dx *
+                    baseCampLegacySceneInArtwork.width /
+                    baseCampMapSourceSize.width) *
+            _artworkScale,
+    imageRect.top +
+        (baseCampLegacySceneInArtwork.top +
+                point.dy *
+                    baseCampLegacySceneInArtwork.height /
+                    baseCampMapSourceSize.height) *
+            _artworkScale,
   );
 
   Offset viewportToSource(Offset point) => Offset(
-    (point.dx - imageRect.left) / scale,
-    (point.dy - imageRect.top) / scale,
+    (((point.dx - imageRect.left) / _artworkScale) -
+            baseCampLegacySceneInArtwork.left) *
+        baseCampMapSourceSize.width /
+        baseCampLegacySceneInArtwork.width,
+    (((point.dy - imageRect.top) / _artworkScale) -
+            baseCampLegacySceneInArtwork.top) *
+        baseCampMapSourceSize.height /
+        baseCampLegacySceneInArtwork.height,
+  );
+
+  /// Converts a point in the square asset canvas to durable source space.
+  Offset artworkToSource(Offset point) => viewportToSource(
+    Offset(
+      imageRect.left + point.dx * _artworkScale,
+      imageRect.top + point.dy * _artworkScale,
+    ),
   );
 
   Offset normalizedToViewport(Offset point) => sourceToViewport(
@@ -133,7 +181,7 @@ class BaseCampMapGeometry {
   );
 
   static Rect _fittedRect(Size viewport, BoxFit fit) {
-    final fitted = applyBoxFit(fit, baseCampMapSourceSize, viewport);
+    final fitted = applyBoxFit(fit, baseCampMapArtworkSize, viewport);
     final size = fitted.destination;
     return Alignment.center.inscribe(size, Offset.zero & viewport);
   }
@@ -523,7 +571,10 @@ class _BaseCampMapState extends State<BaseCampMap>
     final configuration = baseCampMapConfigurationController.value;
     return RepaintBoundary(
       child: AspectRatio(
-        aspectRatio: 16 / 9,
+        // The approved V2.7 asset is square.  Keeping its native ratio and
+        // using contain below prevents destructive crop on every device.
+        aspectRatio:
+            baseCampMapArtworkSize.width / baseCampMapArtworkSize.height,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: Stack(
@@ -541,13 +592,13 @@ class _BaseCampMapState extends State<BaseCampMap>
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final size = constraints.biggest;
-                    final geometry = BaseCampMapGeometry.cover(size);
+                    final geometry = BaseCampMapGeometry.contain(size);
                     return Stack(
                       fit: StackFit.expand,
                       children: [
                         const Image(
                           image: AssetImage(baseCampMapAsset),
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
                         ),
                         IgnorePointer(
@@ -656,7 +707,7 @@ class _BaseCampMapState extends State<BaseCampMap>
               Positioned.fill(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final geometry = BaseCampMapGeometry.cover(
+                    final geometry = BaseCampMapGeometry.contain(
                       constraints.biggest,
                     );
                     return Transform(

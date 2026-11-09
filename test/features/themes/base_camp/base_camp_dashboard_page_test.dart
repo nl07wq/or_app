@@ -1,9 +1,13 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/operation_status.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 
 import '../../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../../operation_date/operation_date_test_fixture.dart';
@@ -17,7 +21,7 @@ void main() {
 
   tearDown(AppRepositoryRegistry.resetForTesting);
 
-  testWidgets('BASE CAMP owns a compact terminal and retains a 16:9 map', (
+  testWidgets('BASE CAMP owns a compact terminal and retains the square map', (
     tester,
   ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -49,7 +53,13 @@ void main() {
     );
     expect(find.byKey(const ValueKey('base-camp-map')), findsOneWidget);
     final mapSize = tester.getSize(find.byKey(const ValueKey('base-camp-map')));
-    expect(mapSize.width / mapSize.height, closeTo(16 / 9, .02));
+    expect(
+      mapSize.width / mapSize.height,
+      closeTo(
+        baseCampMapArtworkSize.width / baseCampMapArtworkSize.height,
+        .02,
+      ),
+    );
     final viewport = tester.getSize(
       find.byKey(const ValueKey('base-camp-home-map-viewport')),
     );
@@ -239,12 +249,29 @@ void main() {
     'breathing offset is periodic, vertical-only and stays within range',
     () {
       expect(baseCampBreathingOffset(0), 0);
-      expect(baseCampBreathingOffset(600), closeTo(-.25, .0001));
-      expect(baseCampBreathingOffset(1200), closeTo(-.5, .0001));
-      expect(baseCampBreathingOffset(1800), closeTo(-.25, .0001));
+      expect(baseCampBreathingOffset(600), closeTo(-.5, .0001));
+      expect(baseCampBreathingOffset(1200), closeTo(-1, .0001));
+      expect(baseCampBreathingOffset(1800), closeTo(-.5, .0001));
       expect(baseCampBreathingOffset(2400), closeTo(0, .0001));
     },
   );
+
+  test('tactical grid uses one wall plane and a bounded perspective floor', () {
+    const panel = Size(128, 100);
+    expect(baseCampSoldierGroundY(panel), 70);
+    expect(baseCampSoldierWallLinePositions(panel.width), [0, 32, 64, 96]);
+    expect(baseCampSoldierWallLinePositions(70), [0, 32, 64]);
+    expect(baseCampSoldierFloorLinePositions(panel), [84]);
+    expect(baseCampSoldierPerspectiveEndpoints(panel), [
+      -32,
+      0,
+      32,
+      64,
+      96,
+      128,
+      160,
+    ]);
+  });
 
   test('rifle regrip timeline uses every approved frame once in order', () {
     expect(baseCampRifleRegripPreIdleMs, 1000);
@@ -262,6 +289,7 @@ void main() {
     expect(baseCampRifleRegripFrameIndex(1000), 0);
     expect(baseCampRifleRegripFrameIndex(1400), 1);
     expect(baseCampRifleRegripFrameIndex(1750), 2);
+    expect(baseCampRifleRegripFrameIndex(1950), 3);
     expect(baseCampRifleRegripFrameIndex(2300), 4);
     expect(baseCampRifleRegripFrameIndex(2450), 5);
     expect(baseCampRifleRegripPhase(2850), BaseCampRifleRegripPhase.postIdle);
@@ -273,6 +301,19 @@ void main() {
     expect(baseCampRifleRegripIntervalMs((_) => 0), 60000);
     expect(baseCampRifleRegripIntervalMs((_) => 1), 60001);
     expect(baseCampRifleRegripIntervalMs((_) => 60000), 120000);
+  });
+
+  test('all six rifle regrip frames are transparent RGBA assets', () async {
+    expect(baseCampRifleRegripAssets, hasLength(6));
+    for (final asset in baseCampRifleRegripAssets) {
+      final data = await rootBundle.load(asset);
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      expect(frame.image.width, 512);
+      expect(frame.image.height, 512);
+      frame.image.dispose();
+      codec.dispose();
+    }
   });
 
   testWidgets('STATUS DATA and SUSTAINMENT retain five nested instruments', (

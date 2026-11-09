@@ -204,7 +204,10 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                             0.0,
                             940.0,
                           );
-                          final naturalMapHeight = width * 9 / 16 + 14;
+                          // V2.7 keeps the supplied square scene intact.
+                          // The chassis may own surplus space, but it never
+                          // crops or non-uniformly scales the map image.
+                          final naturalMapHeight = width + 14;
                           final availableMapHeight =
                               viewport.maxHeight -
                               _TacticalTerminal.height -
@@ -297,9 +300,13 @@ class _MapChassis extends StatelessWidget {
       key: const ValueKey('base-camp-home-map-viewport'),
       height: viewportHeight - 14,
       child: Center(
-        // The map remains one proportional 16:9 scene; the chassis owns
+        // The map remains one proportional square scene; the chassis owns
         // surplus height rather than scaling or cropping image/overlays.
-        child: AspectRatio(aspectRatio: 16 / 9, child: child),
+        child: AspectRatio(
+          aspectRatio:
+              baseCampMapArtworkSize.width / baseCampMapArtworkSize.height,
+          child: child,
+        ),
       ),
     ),
   );
@@ -642,13 +649,11 @@ class _BreathingSoldierCompartmentState
                       if (phase == BaseCampRifleRegripPhase.rifleRegrip ||
                           phase == BaseCampRifleRegripPhase.postIdle) {
                         final frame = phase == BaseCampRifleRegripPhase.postIdle
-                            ? _rifleRegripAssets.length - 1
+                            ? baseCampRifleRegripAssets.length - 1
                             : baseCampRifleRegripFrameIndex(elapsed);
-                        return Image.asset(
-                          _rifleRegripAssets[frame],
+                        return _RifleRegripFrame(
+                          asset: baseCampRifleRegripAssets[frame],
                           key: ValueKey('base-camp-rifle-regrip-frame-$frame'),
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.none,
                         );
                       }
                       final dy =
@@ -677,7 +682,7 @@ const _breathingSoldierLowerAsset =
 const _breathingSoldierUpperAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_upperboady.png';
 
-const _rifleRegripAssets = [
+const baseCampRifleRegripAssets = [
   'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F0.png',
   'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F1.png',
   'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F2.png',
@@ -692,8 +697,8 @@ class _NormalSoldierComposite extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Stack(
-    alignment: Alignment.center,
-    clipBehavior: Clip.none,
+    fit: StackFit.expand,
+    clipBehavior: Clip.hardEdge,
     children: [
       Image.asset(
         _breathingSoldierLowerAsset,
@@ -711,6 +716,56 @@ class _NormalSoldierComposite extends StatelessWidget {
         ),
       ),
     ],
+  );
+}
+
+/// The approved special sequence uses a square canvas while the normal
+/// composite is 1312×1199.  Calibrating from their transparent bounds keeps
+/// the visible soldier's feet and height continuous at the transition without
+/// stretching either source image.
+class _RifleRegripFrame extends StatelessWidget {
+  const _RifleRegripFrame({super.key, required this.asset});
+  final String asset;
+
+  static const _normalCanvas = Size(1312, 1199);
+  static const _normalVisibleHeight = 1111.0;
+  static const _normalVisibleBottom = 1136.0;
+  static const _frameCanvas = 512.0;
+  static const _frameVisibleHeight = 418.0;
+  static const _frameVisibleBottom = 447.0;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final normalScale = math.min(
+        constraints.maxWidth / _normalCanvas.width,
+        constraints.maxHeight / _normalCanvas.height,
+      );
+      final frameScale =
+          normalScale * _normalVisibleHeight / _frameVisibleHeight;
+      final dimension = _frameCanvas * frameScale;
+      // Negative bottom puts the transparent canvas below the viewport
+      // just enough to align opaque boot pixels with the normal sprite.
+      final bottom =
+          -(_frameVisibleBottom * frameScale -
+              _normalVisibleBottom * normalScale);
+      return Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned(
+            left: (constraints.maxWidth - dimension) / 2,
+            bottom: bottom,
+            width: dimension,
+            height: dimension,
+            child: Image.asset(
+              asset,
+              fit: BoxFit.fill,
+              filterQuality: FilterQuality.none,
+            ),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -758,44 +813,105 @@ int baseCampRifleRegripIntervalMs(int Function(int max) nextInt) =>
 
 const _breathingCycleMs = 2400.0;
 
-/// The rigid upper layer moves by at most half a logical pixel. The fixed
-/// lower layer never receives a transform.
+/// The rigid upper layer moves from neutral to one logical pixel upward. The
+/// fixed lower layer never receives a transform.
 double baseCampBreathingOffset(double elapsedMs) {
   final phase = (elapsedMs % _breathingCycleMs) / _breathingCycleMs;
-  return -.25 * (1 - math.cos(2 * math.pi * phase));
+  return -.5 * (1 - math.cos(2 * math.pi * phase));
 }
 
+/// Static two-plane tactical grid for the soldier compartment.  It has no
+/// animation/listenable, so it remains completely stable while the normal or
+/// special soldier animation changes above it.
 class _SoldierPanelGridPainter extends CustomPainter {
   const _SoldierPanelGridPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final line = Paint()
-      ..color = const Color(0xff6e865b).withValues(alpha: .12)
-      ..strokeWidth = .5;
-    for (var x = 0.0; x <= size.width; x += 16) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
+    if (size.isEmpty) return;
+    final groundY = baseCampSoldierGroundY(size);
+    final centerX = size.width * .50;
+    final wallLine = Paint()
+      ..color = const Color(0xff718268).withValues(alpha: .20)
+      ..strokeWidth = .7;
+    final boundary = Paint()
+      ..color = const Color(0xff93a77d).withValues(alpha: .40)
+      ..strokeWidth = 1;
+    final floorLine = Paint()
+      ..color = const Color(0xff718268).withValues(alpha: .25)
+      ..strokeWidth = .7;
+    final ray = Paint()
+      ..color = const Color(0xff718268).withValues(alpha: .30)
+      ..strokeWidth = .8;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    // Background wall: one shared origin and each line exactly once.
+    for (final x in baseCampSoldierWallLinePositions(size.width)) {
+      canvas.drawLine(Offset(x, 0), Offset(x, groundY), wallLine);
     }
-    for (var y = 0.0; y <= size.height; y += 16) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
+    for (final y in baseCampSoldierWallLinePositions(groundY)) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), wallLine);
     }
-    final axis = Paint()
-      ..color = const Color(0xff6e865b).withValues(alpha: .20)
-      ..strokeWidth = .5;
-    canvas.drawLine(
-      Offset(size.width / 2, 0),
-      Offset(size.width / 2, size.height),
-      axis,
+    // The boundary is deliberately not a second wall-grid horizontal line.
+    canvas.drawLine(Offset(0, groundY), Offset(size.width, groundY), boundary);
+
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(0, groundY, size.width, size.height - groundY),
     );
-    canvas.drawLine(
-      Offset(0, size.height / 2),
-      Offset(size.width, size.height / 2),
-      axis,
-    );
+    for (final y in baseCampSoldierFloorLinePositions(size)) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), floorLine);
+    }
+    // Extra endpoints outside the panel ensure clipped perspective rays
+    // cover the whole bottom edge even when the panel width is not a 32dp
+    // multiple.
+    for (final x in baseCampSoldierPerspectiveEndpoints(size)) {
+      canvas.drawLine(Offset(centerX, groundY), Offset(x, size.height), ray);
+    }
+    canvas.restore();
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _SoldierPanelGridPainter oldDelegate) => false;
+}
+
+const baseCampSoldierWallGridSpacing = 32.0;
+const baseCampSoldierGroundLineOffsets = <double>[14, 32, 54, 78];
+
+double baseCampSoldierGroundY(Size size) => size.height * .70;
+
+List<double> baseCampSoldierWallLinePositions(double extent) {
+  final result = <double>[];
+  for (
+    var value = 0.0;
+    value < extent;
+    value += baseCampSoldierWallGridSpacing
+  ) {
+    result.add(value);
+  }
+  return result;
+}
+
+List<double> baseCampSoldierFloorLinePositions(Size size) {
+  final groundY = baseCampSoldierGroundY(size);
+  return baseCampSoldierGroundLineOffsets
+      .map((offset) => groundY + offset)
+      .where((y) => y <= size.height)
+      .toList(growable: false);
+}
+
+List<double> baseCampSoldierPerspectiveEndpoints(Size size) {
+  final endpoints = <double>[];
+  for (
+    var x = -baseCampSoldierWallGridSpacing;
+    x <= size.width + baseCampSoldierWallGridSpacing;
+    x += baseCampSoldierWallGridSpacing
+  ) {
+    endpoints.add(x);
+  }
+  return endpoints;
 }
 
 class _StatusCompartment extends StatelessWidget {

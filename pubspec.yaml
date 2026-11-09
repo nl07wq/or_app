@@ -94,6 +94,7 @@ flutter:
     - assets/images/textures/commander_report_paper.jpg
     - assets/images/themes/base_camp/base_camp_map.png
     - assets/images/themes/base_camp/base_camp_map_v2.jpg
+    - assets/images/themes/base_camp/base_camp_map_v3.png
     - assets/images/themes/base_camp/objects/
     - assets/images/themes/base_camp/base_camp_walker_down_right.gif
     - assets/images/themes/base_camp/base_camp_walker_up_left.gif
