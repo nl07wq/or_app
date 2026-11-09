@@ -880,7 +880,9 @@ class _SoldierPanelGridPainter extends CustomPainter {
 const baseCampSoldierWallGridSpacing = 32.0;
 const baseCampSoldierGroundLineOffsets = <double>[14, 32, 54, 78];
 
-double baseCampSoldierGroundY(Size size) => size.height * .70;
+/// The perspective floor starts below the standing soldier.  It intentionally
+/// uses a ratio of the drawable panel, not a screenshot-specific pixel value.
+double baseCampSoldierGroundY(Size size) => size.height * .78;
 
 List<double> baseCampSoldierWallLinePositions(double extent) {
   final result = <double>[];
@@ -1597,11 +1599,15 @@ class _CommandPreviewState extends State<_CommandPreview> {
               const SizedBox(height: 3),
               Text(
                 intent,
+                key: const ValueKey('base-camp-command-intent'),
                 maxLines: _expanded ? null : 2,
                 overflow: _expanded
                     ? TextOverflow.visible
                     : TextOverflow.ellipsis,
-                style: const TextStyle(color: _LcdPalette.light, fontSize: 11),
+                // COMMAND content participates in LCD polarity exactly like
+                // the other readouts.  No inherited alpha or fixed light
+                // colour is allowed to wash out Japanese or English text.
+                style: TextStyle(color: _LcdColors.ink(context), fontSize: 11),
               ),
               if (intent.length > 100) _expandButton(),
               const SizedBox(height: 8),
@@ -1675,11 +1681,16 @@ class _TacticalScheduleRow extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: active ? const Color(0xffa7d84c) : _LcdPalette.darkest,
+              // These schedule lamps are LCD navigation indicators rather
+              // than an Operation Status semantic colour.  Their full-opacity
+              // treatment must switch with INV.
+              color: active
+                  ? _LcdColors.ink(context)
+                  : _LcdColors.auxiliary(context),
               shape: BoxShape.circle,
               border: Border.all(color: _LcdPalette.mid),
               boxShadow: active
-                  ? const [BoxShadow(color: Color(0x88a7d84c), blurRadius: 2)]
+                  ? [BoxShadow(color: _LcdColors.ink(context), blurRadius: 2)]
                   : null,
             ),
           ),
@@ -1974,19 +1985,23 @@ class _PageIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.center,
-    children: List<Widget>.generate(
-      count,
-      (item) => AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(horizontal: 3),
-        height: 4,
-        width: index == item ? 21 : 7,
-        decoration: BoxDecoration(
-          color: index == item ? _LcdColors.ink(context) : _LcdPalette.mid,
-          borderRadius: BorderRadius.circular(2),
+    children: [
+      for (var item = 0; item < count; item++) ...[
+        if (item > 0) const SizedBox(width: 8),
+        AnimatedContainer(
+          key: ValueKey('base-camp-page-indicator-$item'),
+          duration: const Duration(milliseconds: 180),
+          height: 5,
+          width: index == item ? 20 : 8,
+          decoration: BoxDecoration(
+            color: index == item
+                ? _LcdColors.ink(context)
+                : _LcdColors.auxiliary(context),
+            borderRadius: BorderRadius.circular(2.5),
+          ),
         ),
-      ),
-    ),
+      ],
+    ],
   );
 }
 

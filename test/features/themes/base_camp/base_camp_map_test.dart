@@ -41,6 +41,30 @@ void main() {
     codec.dispose();
   });
 
+  testWidgets('square map starts unpanned with no internal scroll viewport', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(onFacilityPressed: _ignoreFacility),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    final map = tester.widget<InteractiveViewer>(
+      find.byKey(const ValueKey('base-camp-map')),
+    );
+    expect(map.transformationController!.value, Matrix4.identity());
+    expect(find.byType(SingleChildScrollView), findsNothing);
+    final size = tester.getSize(find.byKey(const ValueKey('base-camp-map')));
+    expect(size.width, closeTo(size.height, .01));
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'Base Camp restore failure preserves defaults without escaping boot',
     () async {

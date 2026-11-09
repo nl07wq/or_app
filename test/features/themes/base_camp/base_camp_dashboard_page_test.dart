@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/operation_status.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
@@ -258,10 +259,10 @@ void main() {
 
   test('tactical grid uses one wall plane and a bounded perspective floor', () {
     const panel = Size(128, 100);
-    expect(baseCampSoldierGroundY(panel), 70);
+    expect(baseCampSoldierGroundY(panel), 78);
     expect(baseCampSoldierWallLinePositions(panel.width), [0, 32, 64, 96]);
-    expect(baseCampSoldierWallLinePositions(70), [0, 32, 64]);
-    expect(baseCampSoldierFloorLinePositions(panel), [84]);
+    expect(baseCampSoldierWallLinePositions(78), [0, 32, 64]);
+    expect(baseCampSoldierFloorLinePositions(panel), [92]);
     expect(baseCampSoldierPerspectiveEndpoints(panel), [
       -32,
       0,
@@ -382,6 +383,70 @@ void main() {
       find.byKey(const ValueKey('base-camp-lcd-polarity-switch')),
     );
     await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LCD polarity controls command text and page indicators only', (
+    tester,
+  ) async {
+    DeviceSettingsController.instance.update(
+      DeviceSettingsController.instance.value.copyWith(
+        baseCampLcdNegative: false,
+      ),
+    );
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 160));
+    final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+    final indicators = List<Finder>.generate(
+      4,
+      (index) => find.byKey(ValueKey('base-camp-page-indicator-$index')),
+    );
+    expect(tester.getSize(indicators[0]), const Size(20, 5));
+    expect(tester.getSize(indicators[1]), const Size(8, 5));
+    for (var index = 0; index < 3; index++) {
+      await tester.drag(pages, const Offset(-320, 0));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    final command = tester.widget<Text>(
+      find.byKey(const ValueKey('base-camp-command-intent')),
+    );
+    expect(command.style?.color, const Color(0xff273326));
+    final selectedBefore = indicators.indexWhere(
+      (indicator) =>
+          (tester.widget<AnimatedContainer>(indicator).decoration!
+                  as BoxDecoration)
+              .color ==
+          const Color(0xff273326),
+    );
+    expect(selectedBefore, greaterThan(0));
+    final active = indicators[selectedBefore];
+    final inactive = indicators.firstWhere((indicator) => indicator != active);
+    expect(tester.getSize(inactive), const Size(8, 5));
+
+    await tester.tap(
+      find.byKey(const ValueKey('base-camp-lcd-polarity-switch')),
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('base-camp-command-intent')))
+          .style
+          ?.color,
+      const Color(0xffaeb894),
+    );
+    expect(
+      indicators.indexWhere(
+        (indicator) =>
+            (tester.widget<AnimatedContainer>(indicator).decoration!
+                    as BoxDecoration)
+                .color ==
+            const Color(0xffaeb894),
+      ),
+      selectedBefore,
+    );
     expect(tester.takeException(), isNull);
   });
 
