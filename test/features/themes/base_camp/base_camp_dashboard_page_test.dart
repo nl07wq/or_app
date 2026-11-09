@@ -164,6 +164,145 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  test('FOOD readout preserves formal partial and completion semantics', () {
+    expect(baseCampFoodProgressText(0), 'NOT RECORDED');
+    expect(baseCampFoodProgressText(1), '1 / 3');
+    expect(baseCampFoodProgressText(2), '2 / 3');
+    expect(baseCampFoodProgressText(3), 'COMPLETE');
+  });
+
+  testWidgets(
+    'instrument panels retain exact nested geometry on mobile widths',
+    (tester) async {
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      for (final width in [320.0, 375.0, 430.0]) {
+        await tester.binding.setSurfaceSize(Size(width, 844));
+        await tester.pumpWidget(
+          const MaterialApp(home: BaseCampDashboardPage()),
+        );
+        await tester.pump(const Duration(milliseconds: 120));
+        final progress = find.byKey(
+          const ValueKey('base-camp-terminal-page-progress'),
+        );
+        final panels = find.descendant(
+          of: progress,
+          matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
+        );
+        final readouts = find.descendant(
+          of: progress,
+          matching: find.byKey(const ValueKey('base-camp-lcd-readout')),
+        );
+        expect(panels, findsNWidgets(6));
+        expect(readouts, findsNWidgets(6));
+        for (final panel in panels.evaluate()) {
+          expect(
+            tester
+                .getSize(find.byElementPredicate((element) => element == panel))
+                .height,
+            closeTo(53, .1),
+          );
+        }
+        for (final readout in readouts.evaluate()) {
+          final readoutRect = tester.getRect(
+            find.byElementPredicate((element) => element == readout),
+          );
+          expect(
+            panels
+                .evaluate()
+                .map((panel) {
+                  return tester.getRect(
+                    find.byElementPredicate((element) => element == panel),
+                  );
+                })
+                .any(
+                  (panelRect) =>
+                      panelRect.contains(readoutRect.topLeft) &&
+                      panelRect.contains(readoutRect.bottomRight),
+                ),
+            isTrue,
+          );
+          expect(
+            tester
+                .getSize(
+                  find.byElementPredicate((element) => element == readout),
+                )
+                .height,
+            closeTo(25, .1),
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  test(
+    'breathing offset is periodic, vertical-only and stays within range',
+    () {
+      expect(baseCampBreathingOffset(0), 0);
+      expect(baseCampBreathingOffset(600), closeTo(-.25, .0001));
+      expect(baseCampBreathingOffset(1200), closeTo(-.5, .0001));
+      expect(baseCampBreathingOffset(1800), closeTo(-.25, .0001));
+      expect(baseCampBreathingOffset(2400), closeTo(0, .0001));
+    },
+  );
+
+  testWidgets('STATUS DATA and SUSTAINMENT retain five nested instruments', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 120));
+    final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+    await tester.drag(pages, const Offset(-320, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    for (final pageName in ['morning', 'sustainment']) {
+      final page = find.byKey(ValueKey('base-camp-terminal-page-$pageName'));
+      final panels = find.descendant(
+        of: page,
+        matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
+      );
+      final readouts = find.descendant(
+        of: page,
+        matching: find.byKey(const ValueKey('base-camp-lcd-readout')),
+      );
+      expect(panels, findsNWidgets(5));
+      expect(readouts, findsNWidgets(5));
+      for (final panel in panels.evaluate()) {
+        expect(
+          tester
+              .getRect(find.byElementPredicate((element) => element == panel))
+              .bottom,
+          lessThanOrEqualTo(tester.getRect(page).bottom - 2),
+        );
+      }
+      if (pageName == 'morning') {
+        await tester.drag(pages, const Offset(-320, 0));
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('instrument geometry remains bounded at accessibility scale', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+        child: const MaterialApp(home: BaseCampDashboardPage()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(
+      find.byKey(const ValueKey('base-camp-instrument-panel')),
+      findsNWidgets(6),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('terminal polarity updates the LCD immediately', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
     await tester.pump(const Duration(milliseconds: 100));

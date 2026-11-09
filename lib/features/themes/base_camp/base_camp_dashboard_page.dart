@@ -339,84 +339,86 @@ class _TacticalTerminal extends StatelessWidget {
     ),
     child: CustomPaint(
       painter: const _TerminalChassisPainter(),
-      child: Padding(
-        padding: const EdgeInsets.all(11),
-        child: Column(
-          children: [
-            const _TerminalHeading(),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 100,
-              child: Row(
-                children: [
-                  const Expanded(
-                    flex: 4,
-                    child: _BreathingSoldierCompartment(),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 6,
-                    child: _StatusCompartment(snapshot: snapshot),
-                  ),
-                ],
+      child: MediaQuery.withNoTextScaling(
+        child: Padding(
+          padding: const EdgeInsets.all(11),
+          child: Column(
+            children: [
+              const _TerminalHeading(),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 100,
+                child: Row(
+                  children: [
+                    const Expanded(
+                      flex: 4,
+                      child: _BreathingSoldierCompartment(),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 6,
+                      child: _StatusCompartment(snapshot: snapshot),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 182,
-              child: PageView(
-                key: const ValueKey('base-camp-terminal-pages'),
-                controller: pages,
-                onPageChanged: onPageChanged,
-                children: [
-                  _TerminalInformationPage(
-                    page: _TerminalPage.progress,
-                    title: 'OPERATION PROGRESS',
-                    subtitle: 'FORMAL RECORD STATE',
-                    onTap: () => onOpenDetail(_TerminalPage.progress),
-                    child: _ProgressPreview(
-                      snapshot: snapshot,
-                      food: food,
-                      training: training,
-                      activity: activity,
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 182,
+                child: PageView(
+                  key: const ValueKey('base-camp-terminal-pages'),
+                  controller: pages,
+                  onPageChanged: onPageChanged,
+                  children: [
+                    _TerminalInformationPage(
+                      page: _TerminalPage.progress,
+                      title: 'OPERATION PROGRESS',
+                      subtitle: 'FORMAL RECORD STATE',
+                      onTap: () => onOpenDetail(_TerminalPage.progress),
+                      child: _ProgressPreview(
+                        snapshot: snapshot,
+                        food: food,
+                        training: training,
+                        activity: activity,
+                      ),
                     ),
-                  ),
-                  _TerminalInformationPage(
-                    page: _TerminalPage.morning,
-                    title: 'STATUS DATA',
-                    subtitle: 'CURRENT OPERATION INPUT',
-                    onTap: () => onOpenDetail(_TerminalPage.morning),
-                    child: _MorningPreview(
-                      morning: morning,
-                      targets: snapshot.targets,
-                      training: training,
+                    _TerminalInformationPage(
+                      page: _TerminalPage.morning,
+                      title: 'STATUS DATA',
+                      subtitle: 'CURRENT OPERATION INPUT',
+                      onTap: () => onOpenDetail(_TerminalPage.morning),
+                      child: _MorningPreview(
+                        morning: morning,
+                        targets: snapshot.targets,
+                        training: training,
+                      ),
                     ),
-                  ),
-                  _TerminalInformationPage(
-                    page: _TerminalPage.sustainment,
-                    title: 'SUSTAINMENT',
-                    subtitle: 'NUTRITION · WATER · TRAINING · ACTIVITY',
-                    onTap: () => onOpenDetail(_TerminalPage.sustainment),
-                    child: _SustainmentPreview(
-                      food: food,
-                      training: training,
-                      activity: activity,
-                      targets: snapshot.targets,
+                    _TerminalInformationPage(
+                      page: _TerminalPage.sustainment,
+                      title: 'SUSTAINMENT',
+                      subtitle: 'NUTRITION · WATER · TRAINING · ACTIVITY',
+                      onTap: () => onOpenDetail(_TerminalPage.sustainment),
+                      child: _SustainmentPreview(
+                        food: food,
+                        training: training,
+                        activity: activity,
+                        targets: snapshot.targets,
+                      ),
                     ),
-                  ),
-                  _TerminalInformationPage(
-                    page: _TerminalPage.command,
-                    title: 'COMMAND / SCHEDULE',
-                    subtitle: 'INTENT AND TODAY\'S PLAN',
-                    onTap: () => onOpenDetail(_TerminalPage.command),
-                    child: _CommandPreview(snapshot: snapshot),
-                  ),
-                ],
+                    _TerminalInformationPage(
+                      page: _TerminalPage.command,
+                      title: 'COMMAND / SCHEDULE',
+                      subtitle: 'INTENT AND TODAY\'S PLAN',
+                      onTap: () => onOpenDetail(_TerminalPage.command),
+                      child: _CommandPreview(snapshot: snapshot),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 7),
-            _PageIndicator(index: page, count: 4),
-          ],
+              const SizedBox(height: 7),
+              _PageIndicator(index: page, count: 4),
+            ],
+          ),
         ),
       ),
     ),
@@ -530,7 +532,7 @@ class _BreathingSoldierCompartmentState
     WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3500),
+      duration: const Duration(milliseconds: 2400),
     )..repeat();
   }
 
@@ -563,34 +565,47 @@ class _BreathingSoldierCompartmentState
             child: SizedBox(
               width: constraints.maxWidth - 8,
               height: constraints.maxHeight - 8,
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  final dy = reduced
-                      ? 0.0
-                      : -1.5 * math.sin(_controller.value * math.pi * 2);
-                  return Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Image.asset(
-                        _breathingSoldierLowerAsset,
-                        key: const ValueKey('base-camp-soldier-lower'),
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.none,
-                      ),
-                      Transform.translate(
-                        offset: Offset(0, dy),
-                        child: Image.asset(
-                          _breathingSoldierUpperAsset,
-                          key: const ValueKey('base-camp-soldier-upper'),
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.none,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(painter: _SoldierPanelGridPainter()),
+                    ),
+                  ),
+                  AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, _) {
+                      final dy = reduced
+                          ? 0.0
+                          : baseCampBreathingOffset(
+                              _controller.value * _breathingCycleMs,
+                            );
+                      return Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          Image.asset(
+                            _breathingSoldierLowerAsset,
+                            key: const ValueKey('base-camp-soldier-lower'),
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.none,
+                          ),
+                          Transform.translate(
+                            offset: Offset(0, dy),
+                            child: Image.asset(
+                              _breathingSoldierUpperAsset,
+                              key: const ValueKey('base-camp-soldier-upper'),
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.none,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),
@@ -607,6 +622,48 @@ const _breathingSoldierLowerAsset =
 const _breathingSoldierUpperAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_upperboady.png';
 
+const _breathingCycleMs = 2400.0;
+
+/// The rigid upper layer moves by at most half a logical pixel. The fixed
+/// lower layer never receives a transform.
+double baseCampBreathingOffset(double elapsedMs) {
+  final phase = (elapsedMs % _breathingCycleMs) / _breathingCycleMs;
+  return -.25 * (1 - math.cos(2 * math.pi * phase));
+}
+
+class _SoldierPanelGridPainter extends CustomPainter {
+  const _SoldierPanelGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final line = Paint()
+      ..color = const Color(0xff6e865b).withValues(alpha: .12)
+      ..strokeWidth = .5;
+    for (var x = 0.0; x <= size.width; x += 16) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
+    }
+    for (var y = 0.0; y <= size.height; y += 16) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
+    }
+    final axis = Paint()
+      ..color = const Color(0xff6e865b).withValues(alpha: .20)
+      ..strokeWidth = .5;
+    canvas.drawLine(
+      Offset(size.width / 2, 0),
+      Offset(size.width / 2, size.height),
+      axis,
+    );
+    canvas.drawLine(
+      Offset(0, size.height / 2),
+      Offset(size.width, size.height / 2),
+      axis,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SoldierPanelGridPainter oldDelegate) => false;
+}
+
 class _StatusCompartment extends StatelessWidget {
   const _StatusCompartment({required this.snapshot});
   final _TerminalSnapshot snapshot;
@@ -616,7 +673,7 @@ class _StatusCompartment extends StatelessWidget {
     final color = _statusColor(status);
     return _TerminalPanel(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -660,7 +717,7 @@ class _StatusCompartment extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             SizedBox(
-              height: 30,
+              height: 27,
               width: double.infinity,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -686,7 +743,14 @@ class _StatusCompartment extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            _StatusLamps(status: status),
+            SizedBox(
+              height: 10,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: _StatusLamps(status: status),
+              ),
+            ),
             const Text(
               'TACTICAL SIGNAL // DECORATIVE',
               style: TextStyle(color: Color(0xffa9a083), fontSize: 6),
@@ -705,6 +769,7 @@ class _StatusLamps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
     children: [
       _StatusLamp(
         'FINE',
@@ -1097,7 +1162,7 @@ class _ProgressPreview extends StatelessWidget {
         ),
         _LcdProgressCard(
           'FOOD',
-          foodCount == 0 ? 'NOT RECORDED' : '$foodCount / 3',
+          baseCampFoodProgressText(foodCount),
           progress: foodCount / 3,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.food),
         ),
@@ -1158,6 +1223,15 @@ class _MorningPreview extends StatelessWidget {
   );
 }
 
+/// The terminal preserves the formal FOOD completion semantics while keeping
+/// the display contract in one place for the compact instrument readout.
+String baseCampFoodProgressText(int mealCount) {
+  final count = mealCount.clamp(0, 3).toInt();
+  if (count == 0) return 'NOT RECORDED';
+  if (count == 3) return 'COMPLETE';
+  return '$count / 3';
+}
+
 class _SustainmentPreview extends StatelessWidget {
   const _SustainmentPreview({
     required this.food,
@@ -1194,30 +1268,38 @@ class _SustainmentGrid extends StatelessWidget {
   final String activity;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Expanded(
-        child: Row(
-          children: [
-            Expanded(flex: 2, child: _Metric('CALORIES', calories)),
-            const SizedBox(width: 6),
-            Expanded(child: _Metric('PROTEIN', protein)),
-          ],
-        ),
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: SizedBox(
+      height: _InstrumentGeometry.gridHeight,
+      child: Column(
+        children: [
+          SizedBox(
+            height: _InstrumentGeometry.panelHeight,
+            child: Row(
+              children: [
+                Expanded(flex: 2, child: _Metric('CALORIES', calories)),
+                const SizedBox(width: 6),
+                Expanded(child: _Metric('PROTEIN', protein)),
+              ],
+            ),
+          ),
+          const SizedBox(height: _InstrumentGeometry.gap),
+          SizedBox(
+            height: _InstrumentGeometry.panelHeight,
+            child: Row(
+              children: [
+                Expanded(child: _Metric('WATER', water)),
+                const SizedBox(width: 6),
+                Expanded(child: _Metric('TRAINING', training)),
+                const SizedBox(width: 6),
+                Expanded(child: _Metric('ACTIVITY', activity)),
+              ],
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: 6),
-      Expanded(
-        child: Row(
-          children: [
-            Expanded(child: _Metric('WATER', water)),
-            const SizedBox(width: 6),
-            Expanded(child: _Metric('TRAINING', training)),
-            const SizedBox(width: 6),
-            Expanded(child: _Metric('ACTIVITY', activity)),
-          ],
-        ),
-      ),
-    ],
+    ),
   );
 }
 
@@ -1417,13 +1499,20 @@ class _LcdGrid extends StatelessWidget {
   final double aspectRatio;
 
   @override
-  Widget build(BuildContext context) => GridView.count(
-    crossAxisCount: columns,
-    mainAxisSpacing: 6,
-    crossAxisSpacing: 6,
-    childAspectRatio: aspectRatio,
-    physics: const NeverScrollableScrollPhysics(),
-    children: children,
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: SizedBox(
+      height: _InstrumentGeometry.gridHeight,
+      child: GridView.count(
+        crossAxisCount: columns,
+        mainAxisSpacing: _InstrumentGeometry.gap,
+        crossAxisSpacing: _InstrumentGeometry.gap,
+        childAspectRatio: aspectRatio,
+        mainAxisExtent: _InstrumentGeometry.panelHeight,
+        physics: const NeverScrollableScrollPhysics(),
+        children: children,
+      ),
+    ),
   );
 }
 
@@ -1447,51 +1536,44 @@ class _LcdProgressCard extends StatelessWidget {
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
+      child: Container(
+        key: const ValueKey('base-camp-instrument-panel'),
+        height: _InstrumentGeometry.panelHeight,
+        padding: const EdgeInsets.symmetric(
+          horizontal: _InstrumentGeometry.outerHorizontalPadding,
+          vertical: _InstrumentGeometry.outerVerticalPadding,
+        ),
+        decoration: BoxDecoration(
+          color: _LcdColors.panel(context),
+          border: Border.all(color: _LcdPalette.mid),
+          borderRadius: BorderRadius.circular(2),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _lcdLabelStyle.copyWith(fontSize: compact ? 7 : 8),
-            ),
-            const SizedBox(height: 2),
-            Expanded(
-              child: Row(
-                children: [
-                  _InstrumentPilotLamp(
-                    active: progress >= 1,
-                    partial: progress > 0 && progress < 1,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Container(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: _LcdColors.field(context),
-                        border: Border.all(color: _LcdPalette.mid),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          value,
-                          maxLines: 1,
-                          style: TextStyle(
-                            color: _LcdColors.ink(context),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            SizedBox(
+              height: 12,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _lcdLabelStyle.copyWith(
+                  color: _LcdColors.auxiliary(context),
+                  fontSize: compact ? 9 : _InstrumentGeometry.labelFontSize,
+                  height: 1.2,
+                ),
               ),
+            ),
+            const SizedBox(height: _InstrumentGeometry.labelGap),
+            Row(
+              children: [
+                _InstrumentPilotLamp(
+                  active: progress >= 1,
+                  partial: progress > 0 && progress < 1,
+                ),
+                const SizedBox(width: _InstrumentGeometry.lampGap),
+                Expanded(child: _LcdReadout(value: value)),
+              ],
             ),
           ],
         ),
@@ -1507,9 +1589,9 @@ class _InstrumentPilotLamp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 13,
-    height: 13,
-    padding: const EdgeInsets.all(3),
+    width: _InstrumentGeometry.lampOuterDiameter,
+    height: _InstrumentGeometry.lampOuterDiameter,
+    padding: EdgeInsets.all(2.5),
     decoration: BoxDecoration(
       color: const Color(0xff485c3f),
       shape: BoxShape.circle,
@@ -1535,37 +1617,102 @@ class _Metric extends StatelessWidget {
   final String value;
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(5, 3, 5, 3),
+    key: const ValueKey('base-camp-instrument-panel'),
+    height: _InstrumentGeometry.panelHeight,
+    padding: const EdgeInsets.symmetric(
+      horizontal: _InstrumentGeometry.outerHorizontalPadding,
+      vertical: _InstrumentGeometry.outerVerticalPadding,
+    ),
     decoration: BoxDecoration(
-      color: _LcdColors.field(context),
+      color: _LcdColors.panel(context),
       border: Border.all(color: _LcdPalette.mid),
+      borderRadius: BorderRadius.circular(2),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: _lcdLabelStyle.copyWith(fontSize: 7)),
-        const SizedBox(height: 1),
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                maxLines: 1,
-                style: TextStyle(
-                  color: _LcdColors.ink(context),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+        SizedBox(
+          height: 12,
+          child: Text(
+            label,
+            style: _lcdLabelStyle.copyWith(
+              color: _LcdColors.auxiliary(context),
+              fontSize: _InstrumentGeometry.labelFontSize,
+              height: 1.2,
             ),
           ),
         ),
+        const SizedBox(height: _InstrumentGeometry.labelGap),
+        _LcdReadout(value: value),
       ],
     ),
   );
+}
+
+class _LcdReadout extends StatelessWidget {
+  const _LcdReadout({required this.value});
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('base-camp-lcd-readout'),
+    height: _InstrumentGeometry.lcdHeight,
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(
+      horizontal: _InstrumentGeometry.lcdHorizontalPadding,
+      vertical: _InstrumentGeometry.lcdVerticalPadding,
+    ),
+    decoration: BoxDecoration(
+      color: _LcdColors.field(context),
+      border: Border.all(color: _LcdPalette.mid),
+      borderRadius: BorderRadius.circular(3),
+    ),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        const base = TextStyle(
+          fontSize: 12,
+          height: 1.25,
+          fontWeight: FontWeight.w800,
+        );
+        final painter = TextPainter(
+          text: TextSpan(text: value, style: base),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: double.infinity);
+        // The three-column progress panel is intentionally narrow on a
+        // 320dp device. A measured per-readout scale keeps formal strings
+        // such as NOT RECORDED intact without changing another cell's type.
+        final scale =
+            painter.width <= constraints.maxWidth || painter.width == 0
+            ? 1.0
+            : (constraints.maxWidth / painter.width).clamp(.35, 1.0);
+        return Text(
+          value,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          textScaler: TextScaler.linear(scale),
+          style: base.copyWith(color: _LcdColors.ink(context)),
+        );
+      },
+    ),
+  );
+}
+
+abstract final class _InstrumentGeometry {
+  static const panelHeight = 53.0;
+  static const lcdHeight = 25.0;
+  static const gap = 6.0;
+  static const gridHeight = panelHeight * 2 + gap;
+  static const outerHorizontalPadding = 6.0;
+  static const outerVerticalPadding = 5.0;
+  static const labelFontSize = 10.0;
+  static const labelGap = 4.0;
+  static const lcdHorizontalPadding = 6.0;
+  static const lcdVerticalPadding = 4.0;
+  static const lampOuterDiameter = 14.0;
+  static const lampGap = 5.0;
 }
 
 class _PageIndicator extends StatelessWidget {
@@ -1942,6 +2089,8 @@ class _BaseCampLcdMode extends InheritedWidget {
 
 abstract final class _LcdColors {
   static bool _negative(BuildContext context) => _BaseCampLcdMode.of(context);
+  static Color panel(BuildContext context) =>
+      _negative(context) ? _LcdPalette.darkest : _LcdPalette.light;
   static Color field(BuildContext context) =>
       _negative(context) ? _LcdPalette.dark : _LcdPalette.mid;
   static Color ink(BuildContext context) =>
