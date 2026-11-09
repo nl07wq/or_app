@@ -74,7 +74,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('LCD previews use an equal three-column grid', (tester) async {
+  testWidgets('progress restores an equal two-column, eight-card grid', (
+    tester,
+  ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.binding.setSurfaceSize(const Size(390, 844));
     await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
@@ -88,9 +90,24 @@ void main() {
     );
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 3);
+    expect(delegate.crossAxisCount, 2);
     expect(delegate.crossAxisSpacing, 6);
     expect(delegate.mainAxisSpacing, 6);
+  });
+
+  testWidgets('status compartment contains the clock, monitor and lamps', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.byKey(const ValueKey('base-camp-dot-matrix-clock')),
+      findsOneWidget,
+    );
+    expect(find.text('FINE'), findsOneWidget);
+    expect(find.text('CAUTION'), findsOneWidget);
+    expect(find.text('DANGER'), findsOneWidget);
   });
 
   testWidgets('ambient waveform preserves the STANDARD label by default', (

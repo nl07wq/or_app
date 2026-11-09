@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/engine/activity_summary.dart';
@@ -292,7 +294,9 @@ class _MapChassis extends StatelessWidget {
 }
 
 class _TacticalTerminal extends StatelessWidget {
-  static const height = 365.0;
+  // This is the measured common viewport for the four terminal pages: it
+  // accommodates the restored 2 x 4 progress cards without stretching them.
+  static const height = 436.0;
   const _TacticalTerminal({
     required this.snapshot,
     required this.morning,
@@ -332,7 +336,7 @@ class _TacticalTerminal extends StatelessWidget {
             const _TerminalHeading(),
             const SizedBox(height: 8),
             SizedBox(
-              height: 106,
+              height: 148,
               child: Row(
                 children: [
                   const Expanded(flex: 4, child: _SoldierPendingCompartment()),
@@ -346,7 +350,7 @@ class _TacticalTerminal extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 190,
+              height: 230,
               child: PageView(
                 key: const ValueKey('base-camp-terminal-pages'),
                 controller: pages,
@@ -357,7 +361,12 @@ class _TacticalTerminal extends StatelessWidget {
                     title: 'OPERATION PROGRESS',
                     subtitle: 'FORMAL RECORD STATE',
                     onTap: () => onOpenDetail(_TerminalPage.progress),
-                    child: _ProgressPreview(snapshot: snapshot),
+                    child: _ProgressPreview(
+                      snapshot: snapshot,
+                      food: food,
+                      training: training,
+                      activity: activity,
+                    ),
                   ),
                   _TerminalInformationPage(
                     page: _TerminalPage.morning,
@@ -490,10 +499,18 @@ class _StatusCompartment extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('OPERATION STATUS', style: _labelStyle),
-            const SizedBox(height: 3),
+            const _DotMatrixClock(),
+            const SizedBox(height: 4),
             Row(
               children: [
+                const Expanded(
+                  child: Text(
+                    'OPERATION STATUS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _labelStyle,
+                  ),
+                ),
                 Container(
                   width: 10,
                   height: 10,
@@ -502,39 +519,302 @@ class _StatusCompartment extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  status?.name.toUpperCase() ?? 'STANDBY',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
+                const SizedBox(width: 5),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      status?.name.toUpperCase() ?? 'STANDBY',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 4),
             SizedBox(
-              key: const ValueKey('base-camp-operation-ambient-waveform'),
-              height: OperationAmbientAnimation.height,
+              height: 43,
               width: double.infinity,
-              child: RepaintBoundary(
-                child: OperationAmbientAnimation(
-                  status: status,
-                  showStatusLabel: false,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: color.withValues(alpha: .68)),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CustomPaint(painter: _SignalMonitorGridPainter(color)),
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: RepaintBoundary(
+                          child: OperationAmbientAnimation(
+                            status: status,
+                            showStatusLabel: false,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+            const SizedBox(height: 4),
+            _StatusLamps(status: status),
             const Text(
               'TACTICAL SIGNAL // DECORATIVE',
-              style: TextStyle(color: Color(0xffa9a083), fontSize: 8),
+              style: TextStyle(color: Color(0xffa9a083), fontSize: 7),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _StatusLamps extends StatelessWidget {
+  const _StatusLamps({required this.status});
+
+  final OperationStatus? status;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      _StatusLamp(
+        'FINE',
+        active: status == OperationStatus.green,
+        color: const Color(0xffa7d84c),
+      ),
+      const SizedBox(width: 8),
+      _StatusLamp(
+        'CAUTION',
+        active: status == OperationStatus.yellow,
+        color: const Color(0xffffc857),
+      ),
+      const SizedBox(width: 8),
+      _StatusLamp(
+        'DANGER',
+        active: status == OperationStatus.red,
+        color: const Color(0xffff6b6b),
+      ),
+    ],
+  );
+}
+
+class _StatusLamp extends StatelessWidget {
+  const _StatusLamp(this.label, {required this.active, required this.color});
+  final String label;
+  final bool active;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          color: active ? color : const Color(0xff182319),
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: active ? .9 : .32)),
+        ),
+      ),
+      const SizedBox(width: 3),
+      Text(
+        label,
+        style: const TextStyle(
+          color: _LcdPalette.mid,
+          fontSize: 7,
+          letterSpacing: .4,
+        ),
+      ),
+    ],
+  );
+}
+
+class _SignalMonitorGridPainter extends CustomPainter {
+  const _SignalMonitorGridPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final grid = Paint()
+      ..color = color.withValues(alpha: .16)
+      ..strokeWidth = .5;
+    for (var x = 0.0; x <= size.width; x += 12) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+    }
+    for (var y = 0.0; y <= size.height; y += 9) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+    final axis = Paint()
+      ..color = color.withValues(alpha: .30)
+      ..strokeWidth = .8;
+    canvas.drawLine(
+      Offset(0, size.height / 2),
+      Offset(size.width, size.height / 2),
+      axis,
+    );
+    canvas.drawLine(
+      Offset(size.width / 2, 0),
+      Offset(size.width / 2, size.height),
+      axis,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignalMonitorGridPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _DotMatrixClock extends StatefulWidget {
+  const _DotMatrixClock();
+
+  @override
+  State<_DotMatrixClock> createState() => _DotMatrixClockState();
+}
+
+class _DotMatrixClockState extends State<_DotMatrixClock>
+    with WidgetsBindingObserver {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+  int _changedDigit = -1;
+  bool _active = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _start();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _active = state == AppLifecycleState.resumed;
+    _active ? _start() : _timer?.cancel();
+  }
+
+  void _start() {
+    _timer?.cancel();
+    if (!_active) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final next = DateTime.now();
+      final previous = _clockText(_now);
+      final current = _clockText(next);
+      if (!mounted) return;
+      setState(() {
+        _changedDigit = List<int>.generate(current.length, (index) => index)
+            .firstWhere(
+              (index) => current[index] != previous[index],
+              orElse: () => -1,
+            );
+        _now = next;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    key: const ValueKey('base-camp-dot-matrix-clock'),
+    height: 22,
+    width: double.infinity,
+    child: CustomPaint(
+      painter: _DotMatrixClockPainter(
+        text: _clockText(_now),
+        changedDigit: _changedDigit,
+      ),
+    ),
+  );
+}
+
+String _clockText(DateTime value) {
+  const weekday = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  String pair(int number) => number.toString().padLeft(2, '0');
+  return '${pair(value.month)}/${pair(value.day)} (${weekday[value.weekday - 1]}) ${pair(value.hour)}:${pair(value.minute)}:${pair(value.second)}';
+}
+
+class _DotMatrixClockPainter extends CustomPainter {
+  const _DotMatrixClockPainter({
+    required this.text,
+    required this.changedDigit,
+  });
+  final String text;
+  final int changedDigit;
+
+  static const _glyphs = <String, List<String>>{
+    '0': ['111', '101', '101', '101', '111'],
+    '1': ['010', '110', '010', '010', '111'],
+    '2': ['111', '001', '111', '100', '111'],
+    '3': ['111', '001', '111', '001', '111'],
+    '4': ['101', '101', '111', '001', '001'],
+    '5': ['111', '100', '111', '001', '111'],
+    '6': ['111', '100', '111', '101', '111'],
+    '7': ['111', '001', '010', '010', '010'],
+    '8': ['111', '101', '111', '101', '111'],
+    '9': ['111', '101', '111', '001', '111'],
+    ':': ['0', '1', '0', '1', '0'],
+    '/': ['001', '001', '010', '100', '100'],
+    '(': ['01', '10', '10', '10', '01'],
+    ')': ['10', '01', '01', '01', '10'],
+    'M': ['101', '111', '111', '101', '101'],
+    'T': ['111', '010', '010', '010', '010'],
+    'W': ['101', '101', '111', '111', '101'],
+    'H': ['101', '101', '111', '101', '101'],
+    'F': ['111', '100', '110', '100', '100'],
+    'S': ['111', '100', '111', '001', '111'],
+    'U': ['101', '101', '101', '101', '111'],
+    'E': ['111', '100', '110', '100', '111'],
+    'D': ['110', '101', '101', '101', '110'],
+    ' ': ['0', '0', '0', '0', '0'],
+  };
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final widths = text
+        .split('')
+        .map((character) => (_glyphs[character] ?? _glyphs[' ']!).first.length)
+        .toList();
+    final columns =
+        widths.fold<int>(0, (sum, width) => sum + width) + text.length - 1;
+    final dot = (size.width / (columns * 1.45)).clamp(1.15, 2.35);
+    final totalWidth = columns * dot * 1.45;
+    var x = ((size.width - totalWidth) / 2).clamp(0.0, double.infinity);
+    for (var index = 0; index < text.length; index++) {
+      final rows = _glyphs[text[index]] ?? _glyphs[' ']!;
+      final paint = Paint()
+        ..color = _LcdPalette.light.withValues(
+          alpha: index == changedDigit ? .58 : .94,
+        );
+      final dim = Paint()..color = _LcdPalette.mid.withValues(alpha: .16);
+      for (var row = 0; row < rows.length; row++) {
+        for (var column = 0; column < rows[row].length; column++) {
+          canvas.drawCircle(
+            Offset(x + column * dot * 1.45, 3 + row * dot * 1.45),
+            dot / 2,
+            rows[row][column] == '1' ? paint : dim,
+          );
+        }
+      }
+      x += (rows.first.length + 1) * dot * 1.45;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DotMatrixClockPainter oldDelegate) =>
+      oldDelegate.text != text || oldDelegate.changedDigit != changedDigit;
 }
 
 class _IndustrialLcdPanel extends StatelessWidget {
@@ -623,37 +903,85 @@ class _TerminalInformationPage extends StatelessWidget {
 }
 
 class _ProgressPreview extends StatelessWidget {
-  const _ProgressPreview({required this.snapshot});
+  const _ProgressPreview({
+    required this.snapshot,
+    required this.food,
+    required this.training,
+    required this.activity,
+  });
   final _TerminalSnapshot snapshot;
+  final FoodSummary? food;
+  final TrainingSummary? training;
+  final ActivitySummary activity;
+
   @override
   Widget build(BuildContext context) {
     final model = snapshot.command;
+    final mealCount = food?.mealCount ?? 0;
+    final foodCount = mealCount.clamp(0, 3).toInt();
+    final briefCount =
+        (snapshot.briefRecorded ? 1 : 0) + (snapshot.debriefRecorded ? 1 : 0);
     return _LcdGrid(
       key: const ValueKey('base-camp-progress-grid'),
+      columns: 2,
+      aspectRatio: 2.34,
       children: [
-        _MiniReadout(
+        _LcdProgressCard(
           'STATUS',
           model?.statusCompletion.displayState ?? 'NOT RECORDED',
+          progress: model?.statusCompletion.isComplete == true ? 1 : 0,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.morning),
         ),
-        _MiniReadout(
+        _LcdProgressCard(
           'FOOD',
-          model?.foodCompletion.displayState ?? 'NOT RECORDED',
+          foodCount == 0 ? 'NOT RECORDED' : '$foodCount / 3',
+          progress: foodCount / 3,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.food),
         ),
-        _MiniReadout(
+        _LcdProgressCard(
+          'CALORIES',
+          _progressRange(food?.calories, snapshot.targets?.calories),
+          progress: _rangeProgress(snapshot.targets?.calories),
+        ),
+        _LcdProgressCard(
+          'PROTEIN',
+          _progressRange(food?.protein, snapshot.targets?.protein, unit: 'g'),
+          progress: _rangeProgress(snapshot.targets?.protein),
+        ),
+        _LcdProgressCard(
+          'WATER',
+          _waterText(food, snapshot.targets),
+          progress: _waterProgress(snapshot.targets?.water),
+          trailing: const Icon(
+            Icons.add_circle_outline,
+            size: 15,
+            color: _LcdPalette.light,
+          ),
+          onTap: () => showDashboardQuickWaterInput(context),
+        ),
+        _LcdProgressCard(
           'TRAINING',
-          model?.trainingCompletion.displayState ?? 'NOT RECORDED',
+          training?.completed == true ? 'COMPLETE' : 'NOT RECORDED',
+          progress: training?.completed == true ? 1 : 0,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.training),
         ),
-        _MiniReadout(
+        _LcdProgressCard(
           'ACTIVITY',
-          model?.activityCompletion.displayState ?? 'NOT RECORDED',
+          model?.activityCompletion.displayState ??
+              (activity.isRecorded ? 'COMPLETE' : 'NOT RECORDED'),
+          progress:
+              model?.activityCompletion.isComplete == true ||
+                  activity.isRecorded
+              ? 1
+              : 0,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.activity),
         ),
-        _MiniReadout(
-          'BRIEF',
-          snapshot.briefRecorded ? 'RECORDED' : 'NOT RECORDED',
-        ),
-        _MiniReadout(
-          'DEBRIEF',
-          snapshot.debriefRecorded ? 'RECORDED' : 'NOT RECORDED',
+        _LcdProgressCard(
+          'BRIEF / DEBRIEF',
+          briefCount == 2 ? 'COMPLETE' : '$briefCount / 2',
+          progress: briefCount / 2,
+          compact: true,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.commandCenter),
         ),
       ],
     );
@@ -714,76 +1042,182 @@ class _SustainmentPreview extends StatelessWidget {
   );
 }
 
-class _CommandPreview extends StatelessWidget {
+class _CommandPreview extends StatefulWidget {
   const _CommandPreview({required this.snapshot});
   final _TerminalSnapshot snapshot;
+
+  @override
+  State<_CommandPreview> createState() => _CommandPreviewState();
+}
+
+class _CommandPreviewState extends State<_CommandPreview> {
+  bool _expanded = false;
+
   @override
   Widget build(BuildContext context) {
     final entries =
-        snapshot.plan?.entries ?? const <DashboardPlanInformationEntry>[];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          snapshot.command?.commanderIntent ?? 'COMMANDER INTENT UNAVAILABLE',
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: _LcdPalette.light, fontSize: 12),
-        ),
-        const Spacer(),
-        Text(
-          entries.isEmpty
-              ? 'NO SCHEDULED ITEMS'
-              : '${entries.length} SCHEDULED ITEM${entries.length == 1 ? '' : 'S'}',
-          style: const TextStyle(
-            color: _LcdPalette.mid,
-            fontSize: 10,
-            letterSpacing: .7,
+        widget.snapshot.plan?.entries ??
+        const <DashboardPlanInformationEntry>[];
+    final intent =
+        widget.snapshot.command?.commanderIntent ??
+        'COMMANDER INTENT UNAVAILABLE';
+    final visible = _expanded ? entries : entries.take(2).toList();
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('COMMAND', style: _lcdLabelStyle),
+              const SizedBox(height: 3),
+              Text(
+                intent,
+                maxLines: _expanded ? null : 3,
+                overflow: _expanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
+                style: const TextStyle(color: _LcdPalette.light, fontSize: 12),
+              ),
+              if (intent.length > 100) _expandButton(),
+              const SizedBox(height: 8),
+              const Divider(color: _LcdPalette.mid, height: 1),
+              const SizedBox(height: 6),
+              const Text('SCHEDULE', style: _lcdLabelStyle),
+              const SizedBox(height: 3),
+              if (entries.isEmpty)
+                const Text(
+                  'NO SCHEDULED ITEMS',
+                  style: TextStyle(color: _LcdPalette.mid, fontSize: 10),
+                )
+              else
+                for (final entry in visible)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      '${entry.isTimed ? entry.record.startTime : 'ALL DAY'}  ${entry.record.title}',
+                      maxLines: _expanded ? null : 1,
+                      overflow: _expanded
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _LcdPalette.light,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+              if (entries.length > visible.length) _expandButton(),
+              if (_expanded && entries.length > 2)
+                TextButton(
+                  onPressed: () => setState(() => _expanded = false),
+                  child: const Text('COLLAPSE'),
+                ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
+
+  Widget _expandButton() => Align(
+    alignment: Alignment.centerRight,
+    child: TextButton(
+      onPressed: () => setState(() => _expanded = true),
+      child: const Text('EXPAND'),
+    ),
+  );
 }
 
 class _LcdGrid extends StatelessWidget {
-  const _LcdGrid({super.key, required this.children});
+  const _LcdGrid({
+    super.key,
+    required this.children,
+    this.columns = 3,
+    this.aspectRatio = 1.62,
+  });
 
   final List<Widget> children;
+  final int columns;
+  final double aspectRatio;
 
   @override
   Widget build(BuildContext context) => GridView.count(
-    crossAxisCount: 3,
+    crossAxisCount: columns,
     mainAxisSpacing: 6,
     crossAxisSpacing: 6,
-    childAspectRatio: 1.62,
+    childAspectRatio: aspectRatio,
     physics: const NeverScrollableScrollPhysics(),
     children: children,
   );
 }
 
-class _MiniReadout extends StatelessWidget {
-  const _MiniReadout(this.label, this.value);
+class _LcdProgressCard extends StatelessWidget {
+  const _LcdProgressCard(
+    this.label,
+    this.value, {
+    required this.progress,
+    this.onTap,
+    this.trailing,
+    this.compact = false,
+  });
+
   final String label;
   final String value;
+  final double progress;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+  final bool compact;
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-    decoration: BoxDecoration(
-      color: _LcdPalette.dark,
-      border: Border.all(color: _LcdPalette.mid),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: _lcdLabelStyle),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: _LcdPalette.light, fontSize: 9),
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
+        decoration: BoxDecoration(
+          color: _LcdPalette.dark,
+          border: Border.all(color: _LcdPalette.mid),
         ),
-      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _lcdLabelStyle.copyWith(fontSize: compact ? 7 : 8),
+                  ),
+                ),
+                if (trailing != null) ...[trailing!],
+              ],
+            ),
+            const SizedBox(height: 1),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _LcdPalette.light,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            ClipRect(
+              child: LinearProgressIndicator(
+                value: progress.clamp(0, 1),
+                minHeight: 3,
+                color: _LcdPalette.light,
+                backgroundColor: _LcdPalette.darkest,
+              ),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -1215,6 +1649,35 @@ String _waterText(FoodSummary? food, DynamicDailyTargetResult? targets) {
   return target == null
       ? '${food!.hydrationMl.toStringAsFixed(0)} ml'
       : '${food!.hydrationMl.toStringAsFixed(0)} / $target ml';
+}
+
+String _progressRange(
+  double? current,
+  DynamicRangeTarget? target, {
+  String unit = 'kcal',
+}) {
+  if (current == null) return 'NOT RECORDED';
+  final targetValue = unit == 'kcal'
+      ? DynamicDailyTargetPresentation.caloriesTargetKcal(target)
+      : DynamicDailyTargetPresentation.proteinTargetG(target);
+  final shown = current.toStringAsFixed(
+    current == current.roundToDouble() ? 0 : 1,
+  );
+  return targetValue == null ? '$shown $unit' : '$shown / $targetValue $unit';
+}
+
+double _rangeProgress(DynamicRangeTarget? target) {
+  final current = target?.current;
+  final low = target?.low;
+  if (current == null || low == null || low <= 0) return 0;
+  return (current / low).clamp(0, 1).toDouble();
+}
+
+double _waterProgress(DynamicWaterTarget? target) {
+  final current = target?.current;
+  final goal = target?.finalTargetMl;
+  if (current == null || goal == null || goal <= 0) return 0;
+  return (current / goal).clamp(0, 1).toDouble();
 }
 
 String _detailTitle(_TerminalPage page) => switch (page) {
