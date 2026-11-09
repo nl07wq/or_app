@@ -74,7 +74,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('progress restores an equal two-column, eight-card grid', (
+  testWidgets('progress keeps an equal three-column, six-card grid', (
     tester,
   ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -90,7 +90,7 @@ void main() {
     );
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 2);
+    expect(delegate.crossAxisCount, 3);
     expect(delegate.crossAxisSpacing, 6);
     expect(delegate.mainAxisSpacing, 6);
   });

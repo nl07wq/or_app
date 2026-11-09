@@ -294,9 +294,7 @@ class _MapChassis extends StatelessWidget {
 }
 
 class _TacticalTerminal extends StatelessWidget {
-  // This is the measured common viewport for the four terminal pages: it
-  // accommodates the restored 2 x 4 progress cards without stretching them.
-  static const height = 436.0;
+  static const height = 365.0;
   const _TacticalTerminal({
     required this.snapshot,
     required this.morning,
@@ -336,7 +334,7 @@ class _TacticalTerminal extends StatelessWidget {
             const _TerminalHeading(),
             const SizedBox(height: 8),
             SizedBox(
-              height: 148,
+              height: 106,
               child: Row(
                 children: [
                   const Expanded(flex: 4, child: _SoldierPendingCompartment()),
@@ -350,7 +348,7 @@ class _TacticalTerminal extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 230,
+              height: 190,
               child: PageView(
                 key: const ValueKey('base-camp-terminal-pages'),
                 controller: pages,
@@ -500,7 +498,7 @@ class _StatusCompartment extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _DotMatrixClock(),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Row(
               children: [
                 const Expanded(
@@ -528,7 +526,7 @@ class _StatusCompartment extends StatelessWidget {
                       status?.name.toUpperCase() ?? 'STANDBY',
                       style: TextStyle(
                         color: color,
-                        fontSize: 17,
+                        fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1,
                       ),
@@ -537,9 +535,9 @@ class _StatusCompartment extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             SizedBox(
-              height: 43,
+              height: 25,
               width: double.infinity,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -564,11 +562,11 @@ class _StatusCompartment extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             _StatusLamps(status: status),
             const Text(
               'TACTICAL SIGNAL // DECORATIVE',
-              style: TextStyle(color: Color(0xffa9a083), fontSize: 7),
+              style: TextStyle(color: Color(0xffa9a083), fontSize: 6),
             ),
           ],
         ),
@@ -716,6 +714,11 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
             );
         _now = next;
       });
+      if (_changedDigit >= 0) {
+        Timer(const Duration(milliseconds: 100), () {
+          if (mounted) setState(() => _changedDigit = -1);
+        });
+      }
     });
   }
 
@@ -729,7 +732,7 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
   @override
   Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('base-camp-dot-matrix-clock'),
-    height: 22,
+    height: 14,
     width: double.infinity,
     child: CustomPaint(
       painter: _DotMatrixClockPainter(
@@ -919,12 +922,10 @@ class _ProgressPreview extends StatelessWidget {
     final model = snapshot.command;
     final mealCount = food?.mealCount ?? 0;
     final foodCount = mealCount.clamp(0, 3).toInt();
-    final briefCount =
-        (snapshot.briefRecorded ? 1 : 0) + (snapshot.debriefRecorded ? 1 : 0);
     return _LcdGrid(
       key: const ValueKey('base-camp-progress-grid'),
-      columns: 2,
-      aspectRatio: 2.34,
+      columns: 3,
+      aspectRatio: 1.85,
       children: [
         _LcdProgressCard(
           'STATUS',
@@ -937,27 +938,6 @@ class _ProgressPreview extends StatelessWidget {
           foodCount == 0 ? 'NOT RECORDED' : '$foodCount / 3',
           progress: foodCount / 3,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.food),
-        ),
-        _LcdProgressCard(
-          'CALORIES',
-          _progressRange(food?.calories, snapshot.targets?.calories),
-          progress: _rangeProgress(snapshot.targets?.calories),
-        ),
-        _LcdProgressCard(
-          'PROTEIN',
-          _progressRange(food?.protein, snapshot.targets?.protein, unit: 'g'),
-          progress: _rangeProgress(snapshot.targets?.protein),
-        ),
-        _LcdProgressCard(
-          'WATER',
-          _waterText(food, snapshot.targets),
-          progress: _waterProgress(snapshot.targets?.water),
-          trailing: const Icon(
-            Icons.add_circle_outline,
-            size: 15,
-            color: _LcdPalette.light,
-          ),
-          onTap: () => showDashboardQuickWaterInput(context),
         ),
         _LcdProgressCard(
           'TRAINING',
@@ -977,9 +957,16 @@ class _ProgressPreview extends StatelessWidget {
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.activity),
         ),
         _LcdProgressCard(
-          'BRIEF / DEBRIEF',
-          briefCount == 2 ? 'COMPLETE' : '$briefCount / 2',
-          progress: briefCount / 2,
+          'BRIEF',
+          snapshot.briefRecorded ? 'COMPLETE' : 'NOT RECORDED',
+          progress: snapshot.briefRecorded ? 1 : 0,
+          compact: true,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.commandCenter),
+        ),
+        _LcdProgressCard(
+          'DEBRIEF',
+          snapshot.debriefRecorded ? 'COMPLETE' : 'NOT RECORDED',
+          progress: snapshot.debriefRecorded ? 1 : 0,
           compact: true,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.commandCenter),
         ),
@@ -1605,10 +1592,10 @@ const _lcdLabelStyle = TextStyle(
 );
 
 abstract final class _LcdPalette {
-  static const darkest = Color(0xff182319);
-  static const dark = Color(0xff35432c);
-  static const mid = Color(0xff74845a);
-  static const light = Color(0xffb5bf88);
+  static const darkest = Color(0xff273326);
+  static const dark = Color(0xff485c3f);
+  static const mid = Color(0xff8d9d79);
+  static const light = Color(0xffaeb894);
 }
 
 Color _statusColor(OperationStatus? status) => switch (status) {
