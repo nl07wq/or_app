@@ -1115,6 +1115,8 @@ class _TerminalInformationPage extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: _LcdColors.auxiliary(context),
                     fontSize: 8,

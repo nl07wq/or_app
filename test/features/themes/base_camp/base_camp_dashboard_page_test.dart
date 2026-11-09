@@ -273,7 +273,9 @@ void main() {
           tester
               .getRect(find.byElementPredicate((element) => element == panel))
               .bottom,
-          lessThanOrEqualTo(tester.getRect(page).bottom - 2),
+          // The content viewport ends before the page's 10dp lower padding;
+          // keep the complete panel at least 2dp above that boundary.
+          lessThanOrEqualTo(tester.getRect(page).bottom - 12),
         );
       }
       if (pageName == 'morning') {
