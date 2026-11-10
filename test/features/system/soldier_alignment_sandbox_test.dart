@@ -31,6 +31,8 @@ void main() {
           comparisonFrame: 5,
           useCorrectedAssets: false,
           showBeforeColor: true,
+          transitionPreview: true,
+          transitionLoop: false,
         ),
       ),
     );
@@ -63,12 +65,16 @@ void main() {
           selectedFrame: 5,
           comparisonFrame: 4,
           showGrid: false,
+          transitionPreview: true,
+          transitionLoop: false,
         ),
       );
       final document = SoldierAlignmentData.tryParseDocument(json);
       expect(document, isNotNull);
       expect(document!.settings.selectedFrame, 5);
       expect(document.settings.showGrid, isFalse);
+      expect(document.settings.transitionPreview, isTrue);
+      expect(document.settings.transitionLoop, isFalse);
       expect(document.data.frameScales[4], 1.5);
 
       final legacy = source.toJson(const Size(300, 300))..remove('preview');

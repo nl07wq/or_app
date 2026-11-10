@@ -205,6 +205,8 @@ class SoldierAlignmentPreviewSettings {
     this.showGrid = true,
     this.useCorrectedAssets = true,
     this.showBeforeColor = false,
+    this.transitionPreview = false,
+    this.transitionLoop = true,
   });
 
   final int selectedFrame;
@@ -214,6 +216,8 @@ class SoldierAlignmentPreviewSettings {
   final bool showGrid;
   final bool useCorrectedAssets;
   final bool showBeforeColor;
+  final bool transitionPreview;
+  final bool transitionLoop;
 
   Map<String, Object> toJson() => {
     'selectedFrame': selectedFrame,
@@ -223,6 +227,8 @@ class SoldierAlignmentPreviewSettings {
     'showGrid': showGrid,
     'useCorrectedAssets': useCorrectedAssets,
     'showBeforeColor': showBeforeColor,
+    'transitionPreview': transitionPreview,
+    'transitionLoop': transitionLoop,
   };
 
   static SoldierAlignmentPreviewSettings? tryParse(Object? value) {
@@ -252,11 +258,15 @@ class SoldierAlignmentPreviewSettings {
     final showGrid = readBool('showGrid', true);
     final useCorrectedAssets = readBool('useCorrectedAssets', true);
     final showBeforeColor = readBool('showBeforeColor', false);
+    final transitionPreview = readBool('transitionPreview', false);
+    final transitionLoop = readBool('transitionLoop', true);
     if (showBreathing == null ||
         showRifle == null ||
         showGrid == null ||
         useCorrectedAssets == null ||
-        showBeforeColor == null) {
+        showBeforeColor == null ||
+        transitionPreview == null ||
+        transitionLoop == null) {
       return null;
     }
     return SoldierAlignmentPreviewSettings(
@@ -267,6 +277,8 @@ class SoldierAlignmentPreviewSettings {
       showGrid: showGrid,
       useCorrectedAssets: useCorrectedAssets,
       showBeforeColor: showBeforeColor,
+      transitionPreview: transitionPreview,
+      transitionLoop: transitionLoop,
     );
   }
 }
@@ -378,6 +390,8 @@ class _SoldierAlignmentSandboxSectionState
         showGrid: _showGrid,
         useCorrectedAssets: _showCorrected,
         showBeforeColor: _showBeforeColor,
+        transitionPreview: _transitionPreview,
+        transitionLoop: _transitionLoop,
       );
 
   void _resetMotion() => setState(
@@ -484,6 +498,8 @@ class _SoldierAlignmentSandboxSectionState
       _showGrid = parsed.settings.showGrid;
       _showCorrected = parsed.settings.useCorrectedAssets;
       _showBeforeColor = parsed.settings.showBeforeColor;
+      _transitionPreview = parsed.settings.transitionPreview;
+      _transitionLoop = parsed.settings.transitionLoop;
     });
   }
 
