@@ -419,6 +419,74 @@ void main() {
     );
   });
 
+  test('v6 water payload migrates losslessly to v7 multi-area semantics', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    final v6 = <String, Object?>{...defaults.toJson(), 'schemaVersion': 6};
+
+    final migrated = BaseCampMapConfiguration.tryParse(v6);
+
+    expect(migrated, isNotNull);
+    expect(migrated!.waterFx['rock-foam']!.areas, isEmpty);
+    expect(
+      migrated.waterFx['rock-foam']!.effectiveAreas.single.mask,
+      defaults.waterFx['rock-foam']!.mask,
+    );
+    expect(
+      BaseCampMapConfiguration.tryParse(migrated.toJson())!.toJson(),
+      migrated.toJson(),
+    );
+  });
+
+  test('multiple water areas round-trip and their union remains drawable', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    const first = BaseCampWaterArea(
+      mask: <Offset>[
+        Offset(20, 20),
+        Offset(120, 20),
+        Offset(120, 120),
+        Offset(20, 120),
+      ],
+      shoreline: <Offset>[Offset(20, 90), Offset(120, 90)],
+    );
+    const second = BaseCampWaterArea(
+      mask: <Offset>[
+        Offset(960, 960),
+        Offset(1080, 960),
+        Offset(1080, 1080),
+        Offset(960, 1080),
+      ],
+      shoreline: <Offset>[Offset(960, 1040), Offset(1080, 1040)],
+      exclusionMasks: <List<Offset>>[
+        <Offset>[Offset(990, 990), Offset(1010, 990), Offset(1010, 1010)],
+      ],
+    );
+    final fx = defaults.waterFx['rock-foam']!.copyWith(
+      areas: const <BaseCampWaterArea>[first, second],
+      mask: first.mask,
+      shoreline: first.shoreline,
+    );
+    final restored = BaseCampMapConfiguration.tryParse(
+      defaults
+          .copyWith(
+            waterFx: <String, BaseCampWaterFx>{
+              ...defaults.waterFx,
+              'rock-foam': fx,
+            },
+          )
+          .toJson(),
+    )!;
+    final parsed = restored.waterFx['rock-foam']!;
+    final path = baseCampEffectiveWaterPath(
+      parsed,
+      BaseCampMapGeometry.contain(baseCampMapArtworkSize),
+    );
+
+    expect(parsed.effectiveAreas, hasLength(2));
+    expect(path.contains(const Offset(60, 60)), isTrue);
+    expect(path.contains(const Offset(1020, 1020)), isTrue);
+    expect(path.contains(const Offset(1005, 995)), isFalse);
+  });
+
   test('effective water path removes the coastal structure exclusion', () {
     final effect = BaseCampWaterFx.defaults()['coast-ripple']!;
     final geometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);

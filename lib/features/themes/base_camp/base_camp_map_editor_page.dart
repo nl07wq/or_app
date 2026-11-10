@@ -135,6 +135,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   int _waterPointIndex = 0;
   bool _waterMaskSelected = false;
   int _waterAreaIndex = 0;
+  bool _awaitingNewWaterArea = false;
   bool _awaitingWaterPoint = false;
   bool _awaitingExclusionPoint = false;
   String? _staticSoldierId;
@@ -325,22 +326,33 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   int _safeAreaIndex(BaseCampWaterFx effect) =>
       _waterAreaIndex.clamp(0, _areas(effect).length - 1);
 
-  void _addWaterArea() {
+  void _addWaterAreaAt(Offset center) {
     final effect = _working.waterFx[_waterFxId]!;
     final areas = _areas(effect);
+    final safe = Offset(
+      center.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
+      center.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
+    );
+    Offset point(double x, double y) => Offset(
+      (safe.dx + x).clamp(0, baseCampMapArtworkSize.width).toDouble(),
+      (safe.dy + y).clamp(0, baseCampMapArtworkSize.height).toDouble(),
+    );
     areas.add(
-      const BaseCampWaterArea(
+      BaseCampWaterArea(
         mask: <Offset>[
-          Offset(567, 567),
-          Offset(687, 567),
-          Offset(687, 687),
-          Offset(567, 687),
+          point(-60, -60),
+          point(60, -60),
+          point(60, 60),
+          point(-60, 60),
         ],
-        shoreline: <Offset>[Offset(567, 627), Offset(687, 627)],
+        shoreline: <Offset>[point(-60, 0), point(60, 0)],
       ),
     );
     _replaceWaterFx(_waterFxId, _withAreas(effect, areas));
-    setState(() => _waterAreaIndex = areas.length - 1);
+    setState(() {
+      _waterAreaIndex = areas.length - 1;
+      _awaitingNewWaterArea = false;
+    });
   }
 
   void _deleteWaterArea() {
@@ -393,7 +405,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   void _insertWaterPointAt(Offset point, {required bool mask}) {
     final effect = _working.waterFx[_waterFxId]!;
-    final points = List<Offset>.of(mask ? effect.mask : effect.shoreline);
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
+    final points = List<Offset>.of(mask ? area.mask : area.shoreline);
     final safe = Offset(
       point.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
       point.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
@@ -410,9 +425,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          _waterFxId: mask
-              ? effect.copyWith(mask: points)
-              : effect.copyWith(shoreline: points),
+          _waterFxId: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = mask
+                  ? BaseCampWaterArea(
+                      mask: points,
+                      shoreline: area.shoreline,
+                      exclusionMasks: area.exclusionMasks,
+                    )
+                  : BaseCampWaterArea(
+                      mask: area.mask,
+                      shoreline: points,
+                      exclusionMasks: area.exclusionMasks,
+                    ),
+          ),
         },
       ),
     );
@@ -425,7 +452,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   void _deleteWaterPoint({required bool mask}) {
     final effect = _working.waterFx[_waterFxId]!;
-    final points = List<Offset>.of(mask ? effect.mask : effect.shoreline);
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
+    final points = List<Offset>.of(mask ? area.mask : area.shoreline);
     final minimum = mask ? 3 : 2;
     if (points.length <= minimum) return;
     points.removeAt(_waterPointIndex.clamp(0, points.length - 1));
@@ -433,9 +463,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          _waterFxId: mask
-              ? effect.copyWith(mask: points)
-              : effect.copyWith(shoreline: points),
+          _waterFxId: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = mask
+                  ? BaseCampWaterArea(
+                      mask: points,
+                      shoreline: area.shoreline,
+                      exclusionMasks: area.exclusionMasks,
+                    )
+                  : BaseCampWaterArea(
+                      mask: area.mask,
+                      shoreline: points,
+                      exclusionMasks: area.exclusionMasks,
+                    ),
+          ),
         },
       ),
     );
@@ -444,8 +486,11 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   void _addExclusionMask() {
     final effect = _working.waterFx[_waterFxId]!;
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
     final center =
-        effect.mask.reduce((a, b) => a + b) / effect.mask.length.toDouble();
+        area.mask.reduce((a, b) => a + b) / area.mask.length.toDouble();
     final polygon = <Offset>[
       center + const Offset(-12, -10),
       center + const Offset(15, -8),
@@ -456,29 +501,45 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          _waterFxId: effect.copyWith(
-            exclusionMasks: <List<Offset>>[...effect.exclusionMasks, polygon],
+          _waterFxId: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = BaseCampWaterArea(
+                mask: area.mask,
+                shoreline: area.shoreline,
+                exclusionMasks: <List<Offset>>[...area.exclusionMasks, polygon],
+              ),
           ),
         },
       ),
     );
     setState(() {
-      _exclusionMaskIndex = effect.exclusionMasks.length;
+      _exclusionMaskIndex = area.exclusionMasks.length;
       _waterPointIndex = 0;
     });
   }
 
   void _deleteExclusionMask() {
     final effect = _working.waterFx[_waterFxId]!;
-    if (effect.exclusionMasks.isEmpty) return;
-    final masks = List<List<Offset>>.of(
-      effect.exclusionMasks,
-    )..removeAt(_exclusionMaskIndex.clamp(0, effect.exclusionMasks.length - 1));
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
+    if (area.exclusionMasks.isEmpty) return;
+    final masks = List<List<Offset>>.of(area.exclusionMasks)
+      ..removeAt(_exclusionMaskIndex.clamp(0, area.exclusionMasks.length - 1));
     _mutate(
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          _waterFxId: effect.copyWith(exclusionMasks: masks),
+          _waterFxId: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = BaseCampWaterArea(
+                mask: area.mask,
+                shoreline: area.shoreline,
+                exclusionMasks: masks,
+              ),
+          ),
         },
       ),
     );
@@ -487,12 +548,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   void _insertExclusionPointAt(Offset point) {
     final effect = _working.waterFx[_waterFxId]!;
-    if (effect.exclusionMasks.isEmpty) return;
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
+    if (area.exclusionMasks.isEmpty) return;
     final polygonIndex = _exclusionMaskIndex.clamp(
       0,
-      effect.exclusionMasks.length - 1,
+      area.exclusionMasks.length - 1,
     );
-    final masks = effect.exclusionMasks
+    final masks = area.exclusionMasks
         .map((item) => List<Offset>.of(item))
         .toList(growable: false);
     final polygon = masks[polygonIndex];
@@ -512,7 +576,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          _waterFxId: effect.copyWith(exclusionMasks: masks),
+          _waterFxId: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = BaseCampWaterArea(
+                mask: area.mask,
+                shoreline: area.shoreline,
+                exclusionMasks: masks,
+              ),
+          ),
         },
       ),
     );
@@ -524,12 +596,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   void _deleteExclusionPoint() {
     final effect = _working.waterFx[_waterFxId]!;
-    if (effect.exclusionMasks.isEmpty) return;
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
+    if (area.exclusionMasks.isEmpty) return;
     final polygonIndex = _exclusionMaskIndex.clamp(
       0,
-      effect.exclusionMasks.length - 1,
+      area.exclusionMasks.length - 1,
     );
-    final masks = effect.exclusionMasks
+    final masks = area.exclusionMasks
         .map((item) => List<Offset>.of(item))
         .toList(growable: false);
     final polygon = masks[polygonIndex];
@@ -539,7 +614,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          _waterFxId: effect.copyWith(exclusionMasks: masks),
+          _waterFxId: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = BaseCampWaterArea(
+                mask: area.mask,
+                shoreline: area.shoreline,
+                exclusionMasks: masks,
+              ),
+          ),
         },
       ),
     );
@@ -918,12 +1001,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onLabelDragged: (position, part) =>
                       _updateLabelPosition(_facilityId, position, part: part),
                   selectedWaterFxId: _waterFxId,
+                  selectedWaterArea: _waterAreaIndex,
                   selectedWaterPoint: _waterPointIndex,
                   selectedWaterMask: _waterMaskSelected,
                   selectedExclusionMask: _exclusionMaskIndex,
                   awaitingWaterPoint: _awaitingWaterPoint,
                   onWaterCanvasTap: (position, mask) =>
                       _insertWaterPointAt(position, mask: mask),
+                  awaitingNewWaterArea: _awaitingNewWaterArea,
+                  onNewWaterAreaCanvasTap: _addWaterAreaAt,
                   awaitingExclusionPoint: _awaitingExclusionPoint,
                   onExclusionCanvasTap: _insertExclusionPointAt,
                   onWaterPointSelected: (index, mask) => setState(() {
@@ -946,11 +1032,13 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       ),
                   onExclusionPointDragged: (polygon, index, position) {
                     final effect = _working.waterFx[_waterFxId]!;
-                    if (polygon < 0 ||
-                        polygon >= effect.exclusionMasks.length) {
+                    final areas = _areas(effect);
+                    final areaIndex = _safeAreaIndex(effect);
+                    final area = areas[areaIndex];
+                    if (polygon < 0 || polygon >= area.exclusionMasks.length) {
                       return;
                     }
-                    final masks = effect.exclusionMasks
+                    final masks = area.exclusionMasks
                         .map((item) => List<Offset>.of(item))
                         .toList(growable: false);
                     masks[polygon][index] = Offset(
@@ -965,7 +1053,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       () => _working = _working.copyWith(
                         waterFx: <String, BaseCampWaterFx>{
                           ..._working.waterFx,
-                          _waterFxId: effect.copyWith(exclusionMasks: masks),
+                          _waterFxId: _withAreas(
+                            effect,
+                            areas
+                              ..[areaIndex] = BaseCampWaterArea(
+                                mask: area.mask,
+                                shoreline: area.shoreline,
+                                exclusionMasks: masks,
+                              ),
+                          ),
                         },
                       ),
                     );
@@ -1300,16 +1396,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               spacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: _addWaterArea,
+                  onPressed: () => setState(() => _awaitingNewWaterArea = true),
                   icon: const Icon(Icons.add_box_outlined),
-                  label: const Text('NEW AREA'),
+                  label: const Text('NEW AREA ON MAP'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _areas(_working.waterFx[_waterFxId]!).length > 1
-                      ? _deleteWaterArea
-                      : null,
-                  icon: const Icon(Icons.delete_sweep_outlined),
-                  label: const Text('DELETE AREA'),
+                  onPressed: _deleteWaterArea,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('DELETE SELECTED AREA'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () =>
@@ -1392,6 +1486,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     }
     if (_section == _BaseCampEditorSection.exclusionMask) {
       final effect = _working.waterFx[_waterFxId]!;
+      final area = _areas(effect)[_safeAreaIndex(effect)];
       return Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -1399,7 +1494,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
           children: [
             const Text('EXCLUSION MASK: 見張り台・岩・陸地を水面FXから除外します。'),
             Text(
-              '選択中: ${effect.exclusionMasks.isEmpty ? 'なし' : _exclusionMaskIndex + 1}',
+              '選択中: ${area.exclusionMasks.isEmpty ? 'なし' : _exclusionMaskIndex + 1}',
             ),
             Wrap(
               spacing: 8,
@@ -1415,7 +1510,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   label: const Text('DELETE AREA'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: effect.exclusionMasks.isEmpty
+                  onPressed: area.exclusionMasks.isEmpty
                       ? null
                       : () => setState(() => _awaitingExclusionPoint = true),
                   icon: const Icon(Icons.add_location_alt_outlined),
@@ -1840,11 +1935,14 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onLabelDragStarted,
     required this.onLabelDragged,
     required this.selectedWaterFxId,
+    required this.selectedWaterArea,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
     required this.selectedExclusionMask,
     required this.awaitingWaterPoint,
     required this.onWaterCanvasTap,
+    required this.awaitingNewWaterArea,
+    required this.onNewWaterAreaCanvasTap,
     required this.awaitingExclusionPoint,
     required this.onExclusionCanvasTap,
     required this.onWaterPointSelected,
@@ -1870,11 +1968,14 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelDragged;
   final String selectedWaterFxId;
+  final int selectedWaterArea;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
   final int selectedExclusionMask;
   final bool awaitingWaterPoint;
   final void Function(Offset position, bool mask) onWaterCanvasTap;
+  final bool awaitingNewWaterArea;
+  final ValueChanged<Offset> onNewWaterAreaCanvasTap;
   final bool awaitingExclusionPoint;
   final ValueChanged<Offset> onExclusionCanvasTap;
   final void Function(int index, bool mask) onWaterPointSelected;
@@ -2046,6 +2147,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                   }
                 },
                 selectedWaterFxId: widget.selectedWaterFxId,
+                selectedWaterArea: widget.selectedWaterArea,
                 elapsed: Duration(
                   milliseconds: (_previewTimeline.value * 30000).round(),
                 ),
@@ -2054,6 +2156,8 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                 selectedExclusionMask: widget.selectedExclusionMask,
                 awaitingWaterPoint: widget.awaitingWaterPoint,
                 onWaterCanvasTap: widget.onWaterCanvasTap,
+                awaitingNewWaterArea: widget.awaitingNewWaterArea,
+                onNewWaterAreaCanvasTap: widget.onNewWaterAreaCanvasTap,
                 awaitingExclusionPoint: widget.awaitingExclusionPoint,
                 onExclusionCanvasTap: widget.onExclusionCanvasTap,
                 onWaterPointSelected: widget.onWaterPointSelected,
@@ -2135,12 +2239,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onLabelDragStarted,
     required this.onLabelGlobalDragged,
     required this.selectedWaterFxId,
+    required this.selectedWaterArea,
     required this.elapsed,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
     required this.selectedExclusionMask,
     required this.awaitingWaterPoint,
     required this.onWaterCanvasTap,
+    required this.awaitingNewWaterArea,
+    required this.onNewWaterAreaCanvasTap,
     required this.awaitingExclusionPoint,
     required this.onExclusionCanvasTap,
     required this.onWaterPointSelected,
@@ -2165,12 +2272,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelGlobalDragged;
   final String selectedWaterFxId;
+  final int selectedWaterArea;
   final Duration elapsed;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
   final int selectedExclusionMask;
   final bool awaitingWaterPoint;
   final void Function(Offset position, bool mask) onWaterCanvasTap;
+  final bool awaitingNewWaterArea;
+  final ValueChanged<Offset> onNewWaterAreaCanvasTap;
   final bool awaitingExclusionPoint;
   final ValueChanged<Offset> onExclusionCanvasTap;
   final void Function(int index, bool mask) onWaterPointSelected;
@@ -2207,7 +2317,11 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             baseCampObjectLocalToSource(food, configuration.foodSmokeOrigin),
           );
     final label = configuration.labels[selectedFacilityId];
-    final water = configuration.waterFx[selectedWaterFxId];
+    final effect = configuration.waterFx[selectedWaterFxId];
+    final areas = effect?.effectiveAreas ?? const <BaseCampWaterArea>[];
+    final water = areas.isEmpty
+        ? null
+        : areas[selectedWaterArea.clamp(0, areas.length - 1)];
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -2282,6 +2396,18 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 details.localPosition,
                 section == _BaseCampEditorSection.waterMask,
               ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        if (awaitingNewWaterArea &&
+            (section == _BaseCampEditorSection.waterMask ||
+                section == _BaseCampEditorSection.shoreline))
+          Positioned.fill(
+            child: GestureDetector(
+              key: const ValueKey('base-camp-editor-water-new-area-canvas'),
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) =>
+                  onNewWaterAreaCanvasTap(details.localPosition),
               child: const SizedBox.expand(),
             ),
           ),
@@ -2470,12 +2596,12 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
 
 class _BaseCampWaterEditOverlayPainter extends CustomPainter {
   const _BaseCampWaterEditOverlayPainter(
-    this.effect,
+    this.area,
     this.section,
     this.geometry,
   );
 
-  final BaseCampWaterFx effect;
+  final BaseCampWaterArea area;
   final _BaseCampEditorSection section;
   final BaseCampMapGeometry geometry;
 
@@ -2484,7 +2610,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
     Path pathFor(List<Offset> points, {bool close = true}) =>
         Path()
           ..addPolygon(points.map(geometry.artworkToViewport).toList(), close);
-    final water = pathFor(effect.mask);
+    final water = pathFor(area.mask);
     canvas.drawPath(
       water,
       Paint()
@@ -2502,7 +2628,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
     }
     if (section == _BaseCampEditorSection.shoreline) {
       canvas.drawPath(
-        pathFor(effect.shoreline, close: false),
+        pathFor(area.shoreline, close: false),
         Paint()
           ..color = const Color(0xFFEAF1EA)
           ..style = PaintingStyle.stroke
@@ -2510,7 +2636,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
       );
     }
     if (section == _BaseCampEditorSection.exclusionMask) {
-      for (final exclusion in effect.exclusionMasks) {
+      for (final exclusion in area.exclusionMasks) {
         final path = pathFor(exclusion);
         canvas.drawPath(
           path,
@@ -2531,7 +2657,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BaseCampWaterEditOverlayPainter oldDelegate) =>
-      oldDelegate.effect != effect ||
+      oldDelegate.area != area ||
       oldDelegate.section != section ||
       oldDelegate.geometry != geometry;
 }

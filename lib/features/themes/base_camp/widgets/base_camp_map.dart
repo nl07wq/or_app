@@ -1169,10 +1169,6 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       final mask = baseCampEffectiveWaterPath(fx, geometry);
       canvas.save();
       canvas.clipPath(mask);
-      final shore = fx.effectiveAreas
-          .expand((area) => area.shoreline)
-          .map(geometry.artworkToViewport)
-          .toList();
       final bounds = mask.getBounds();
       // RIPPLE: moving translucent flow cells create a changing water mass,
       // rather than a static collection of thin wave lines. The clipped cells
@@ -1257,30 +1253,38 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       // upper coast much quieter than the lower rocky shore.
       final foamStrength = entry.key == 'rock-foam' ? 1.0 : .22;
       if (fx.foamEnabled) {
-        for (var cluster = 0; cluster < shore.length * 3; cluster++) {
-          final segment = cluster % math.max(1, shore.length - 1).toInt();
-          final phase =
-              (time * fx.frequency * .35 / math.max(.1, fx.foamLifetime) +
-                  cluster * .271) %
-              1;
-          final start = shore[segment];
-          final end = shore[math.min(segment + 1, shore.length - 1)];
-          final point = Offset.lerp(start, end, phase)!;
-          final radius = (2.2 + (cluster % 3) * 1.3) * waterScale * fx.spread;
-          canvas.drawOval(
-            Rect.fromCenter(center: point, width: radius * 3.2, height: radius),
-            Paint()
-              ..color = const Color(0xFFF3F7EF).withValues(
-                alpha:
-                    fx.opacity *
-                    .58 *
-                    fx.foam *
-                    fx.foamIntensity *
-                    foamStrength *
-                    (1 - phase),
-              )
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.2),
-          );
+        for (final area in fx.effectiveAreas) {
+          final shore = area.shoreline.map(geometry.artworkToViewport).toList();
+          if (shore.length < 2) continue;
+          for (var cluster = 0; cluster < shore.length * 3; cluster++) {
+            final segment = cluster % (shore.length - 1);
+            final phase =
+                (time * fx.frequency * .35 / math.max(.1, fx.foamLifetime) +
+                    cluster * .271) %
+                1;
+            final start = shore[segment];
+            final end = shore[segment + 1];
+            final point = Offset.lerp(start, end, phase)!;
+            final radius = (2.2 + (cluster % 3) * 1.3) * waterScale * fx.spread;
+            canvas.drawOval(
+              Rect.fromCenter(
+                center: point,
+                width: radius * 3.2,
+                height: radius,
+              ),
+              Paint()
+                ..color = const Color(0xFFF3F7EF).withValues(
+                  alpha:
+                      fx.opacity *
+                      .58 *
+                      fx.foam *
+                      fx.foamIntensity *
+                      foamStrength *
+                      (1 - phase),
+                )
+                ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.2),
+            );
+          }
         }
       }
       canvas.restore();
