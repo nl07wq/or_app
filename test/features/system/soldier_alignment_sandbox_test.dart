@@ -101,6 +101,48 @@ void main() {
     );
   });
 
+  test('global alignment preserves every frame-local correction', () {
+    const data = SoldierAlignmentData(
+      frameOffsets: [
+        Offset(-13.5, 46.5),
+        Offset(-14, 47),
+        Offset(-30.5, 46),
+        Offset(-13.5, 25.5),
+        Offset(-13, 44.5),
+        Offset(-20, 46),
+      ],
+      frameScales: [1.15, 1.15, 1.15, 1.15, 1.2, 1.2],
+    );
+    final globallyAligned = data.copyWith(
+      offsetXdp: 12.5,
+      offsetYdp: -8,
+      scale: 1.05,
+    );
+    expect(globallyAligned.frameOffsets, data.frameOffsets);
+    expect(globallyAligned.frameScales, data.frameScales);
+    final resetGlobal = globallyAligned.copyWith(
+      offsetXdp: 0,
+      offsetYdp: 0,
+      scale: 1,
+    );
+    expect(resetGlobal.frameOffsets, data.frameOffsets);
+    expect(resetGlobal.frameScales, data.frameScales);
+  });
+
+  test('transition preview timing retains the production event sequence', () {
+    expect(baseCampRifleRegripEventMs, 3850);
+    expect(baseCampRifleRegripPhase(0), BaseCampRifleRegripPhase.preIdle);
+    expect(baseCampRifleRegripPhase(999), BaseCampRifleRegripPhase.preIdle);
+    expect(baseCampRifleRegripFrameIndex(1000), 0);
+    expect(baseCampRifleRegripFrameIndex(1400), 1);
+    expect(baseCampRifleRegripFrameIndex(1750), 2);
+    expect(baseCampRifleRegripFrameIndex(1950), 3);
+    expect(baseCampRifleRegripFrameIndex(2300), 4);
+    expect(baseCampRifleRegripFrameIndex(2450), 5);
+    expect(baseCampRifleRegripPhase(2850), BaseCampRifleRegripPhase.postIdle);
+    expect(baseCampRifleRegripPhase(3850), BaseCampRifleRegripPhase.breathing);
+  });
+
   testWidgets(
     'alignment sandbox exposes independent layer controls and copy/import',
     (tester) async {

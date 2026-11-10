@@ -26,6 +26,58 @@ enum _BaseCampEditorSection {
 
 enum _BaseCampWaterLayer { shimmer, ripple, foam }
 
+int _nearestPolygonSegment(
+  List<Offset> points,
+  Offset point, {
+  required bool closed,
+}) {
+  final count = closed ? points.length : points.length - 1;
+  var best = 0;
+  var bestDistance = double.infinity;
+  for (var index = 0; index < count; index++) {
+    final a = points[index];
+    final b = points[(index + 1) % points.length];
+    final delta = b - a;
+    final length2 = delta.dx * delta.dx + delta.dy * delta.dy;
+    final t = length2 == 0
+        ? 0.0
+        : (((point - a).dx * delta.dx + (point - a).dy * delta.dy) / length2)
+              .clamp(0.0, 1.0);
+    final nearest = a + delta * t;
+    final distance = (point - nearest).distanceSquared;
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+bool _selfIntersects(List<Offset> points) {
+  bool intersects(Offset a, Offset b, Offset c, Offset d) {
+    double cross(Offset p, Offset q, Offset r) =>
+        (q.dx - p.dx) * (r.dy - p.dy) - (q.dy - p.dy) * (r.dx - p.dx);
+    final abC = cross(a, b, c), abD = cross(a, b, d);
+    final cdA = cross(c, d, a), cdB = cross(c, d, b);
+    return (abC > 0) != (abD > 0) && (cdA > 0) != (cdB > 0);
+  }
+
+  for (var i = 0; i < points.length; i++) {
+    final a = points[i], b = points[(i + 1) % points.length];
+    for (var j = i + 1; j < points.length; j++) {
+      if (j == i ||
+          (j + 1) % points.length == i ||
+          (i + 1) % points.length == j) {
+        continue;
+      }
+      if (intersects(a, b, points[j], points[(j + 1) % points.length])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /// Computes a temporary editor-only transform that centres a selected water
 /// mask. It never changes source coordinates or durable map framing.
 Matrix4 baseCampWaterFocusTransform({
@@ -42,8 +94,8 @@ Matrix4 baseCampWaterFocusTransform({
   );
   final artworkGeometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
   final bounds = Rect.fromPoints(
-    artworkGeometry.sourceToViewport(sourceBounds.topLeft),
-    artworkGeometry.sourceToViewport(sourceBounds.bottomRight),
+    artworkGeometry.artworkToViewport(sourceBounds.topLeft),
+    artworkGeometry.artworkToViewport(sourceBounds.bottomRight),
   );
   final scale = math
       .min(
@@ -82,6 +134,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   _BaseCampWaterLayer _waterLayer = _BaseCampWaterLayer.shimmer;
   int _waterPointIndex = 0;
   bool _waterMaskSelected = false;
+  bool _awaitingWaterPoint = false;
+  bool _awaitingExclusionPoint = false;
   String? _staticSoldierId;
   int _pointIndex = 0;
   bool _loading = true;
@@ -261,8 +315,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     final effect = _working.waterFx[id]!;
     final values = List<Offset>.of(mask ? effect.mask : effect.shoreline);
     values[index] = Offset(
-      point.dx.clamp(0, baseCampMapSourceSize.width).toDouble(),
-      point.dy.clamp(0, baseCampMapSourceSize.height).toDouble(),
+      point.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
+      point.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
     );
     setState(() {
       _working = _working.copyWith(
@@ -276,13 +330,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     });
   }
 
-  void _addWaterPoint({required bool mask}) {
+  void _insertWaterPointAt(Offset point, {required bool mask}) {
     final effect = _working.waterFx[_waterFxId]!;
     final points = List<Offset>.of(mask ? effect.mask : effect.shoreline);
-    final a = points[points.length - 1];
-    final b = points.first;
-    final insert = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
-    points.add(insert);
+    final safe = Offset(
+      point.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
+      point.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
+    );
+    final segment = _nearestPolygonSegment(points, safe, closed: mask);
+    points.insert(segment + 1, safe);
+    if (mask && _selfIntersects(points)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SELF-INTERSECTING WATER MASK REJECTED')),
+      );
+      return;
+    }
     _mutate(
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
@@ -294,8 +356,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     setState(() {
-      _waterPointIndex = points.length - 1;
+      _waterPointIndex = segment + 1;
       _waterMaskSelected = mask;
+      _awaitingWaterPoint = false;
     });
   }
 
@@ -361,7 +424,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     setState(() => _exclusionMaskIndex = 0);
   }
 
-  void _addExclusionPoint() {
+  void _insertExclusionPointAt(Offset point) {
     final effect = _working.waterFx[_waterFxId]!;
     if (effect.exclusionMasks.isEmpty) return;
     final polygonIndex = _exclusionMaskIndex.clamp(
@@ -372,7 +435,18 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         .map((item) => List<Offset>.of(item))
         .toList(growable: false);
     final polygon = masks[polygonIndex];
-    polygon.add((polygon.last + polygon.first) / 2);
+    final safe = Offset(
+      point.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
+      point.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
+    );
+    final segment = _nearestPolygonSegment(polygon, safe, closed: true);
+    polygon.insert(segment + 1, safe);
+    if (_selfIntersects(polygon)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SELF-INTERSECTING EXCLUSION REJECTED')),
+      );
+      return;
+    }
     _mutate(
       _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
@@ -381,7 +455,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         },
       ),
     );
-    setState(() => _waterPointIndex = polygon.length - 1);
+    setState(() {
+      _waterPointIndex = segment + 1;
+      _awaitingExclusionPoint = false;
+    });
   }
 
   void _deleteExclusionPoint() {
@@ -783,6 +860,11 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   selectedWaterPoint: _waterPointIndex,
                   selectedWaterMask: _waterMaskSelected,
                   selectedExclusionMask: _exclusionMaskIndex,
+                  awaitingWaterPoint: _awaitingWaterPoint,
+                  onWaterCanvasTap: (position, mask) =>
+                      _insertWaterPointAt(position, mask: mask),
+                  awaitingExclusionPoint: _awaitingExclusionPoint,
+                  onExclusionCanvasTap: _insertExclusionPointAt,
                   onWaterPointSelected: (index, mask) => setState(() {
                     _waterPointIndex = index;
                     _waterMaskSelected = mask;
@@ -812,10 +894,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                         .toList(growable: false);
                     masks[polygon][index] = Offset(
                       position.dx
-                          .clamp(0, baseCampMapSourceSize.width)
+                          .clamp(0, baseCampMapArtworkSize.width)
                           .toDouble(),
                       position.dy
-                          .clamp(0, baseCampMapSourceSize.height)
+                          .clamp(0, baseCampMapArtworkSize.height)
                           .toDouble(),
                     );
                     setState(
@@ -1199,9 +1281,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               spacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () => _addWaterPoint(mask: isMask),
+                  onPressed: () => setState(() => _awaitingWaterPoint = true),
                   icon: const Icon(Icons.add),
-                  label: const Text('ADD POINT'),
+                  label: const Text('ADD POINT ON MAP'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _deleteWaterPoint(mask: isMask),
@@ -1245,9 +1327,11 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   label: const Text('DELETE AREA'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _addExclusionPoint,
+                  onPressed: effect.exclusionMasks.isEmpty
+                      ? null
+                      : () => setState(() => _awaitingExclusionPoint = true),
                   icon: const Icon(Icons.add_location_alt_outlined),
-                  label: const Text('ADD POINT'),
+                  label: const Text('ADD POINT ON MAP'),
                 ),
                 OutlinedButton.icon(
                   onPressed: _deleteExclusionPoint,
@@ -1671,6 +1755,10 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
     required this.selectedExclusionMask,
+    required this.awaitingWaterPoint,
+    required this.onWaterCanvasTap,
+    required this.awaitingExclusionPoint,
+    required this.onExclusionCanvasTap,
     required this.onWaterPointSelected,
     required this.onExclusionSelected,
     required this.onWaterDragStarted,
@@ -1697,6 +1785,10 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final int selectedWaterPoint;
   final bool selectedWaterMask;
   final int selectedExclusionMask;
+  final bool awaitingWaterPoint;
+  final void Function(Offset position, bool mask) onWaterCanvasTap;
+  final bool awaitingExclusionPoint;
+  final ValueChanged<Offset> onExclusionCanvasTap;
   final void Function(int index, bool mask) onWaterPointSelected;
   final void Function(int polygon, int point) onExclusionSelected;
   final VoidCallback onWaterDragStarted;
@@ -1872,6 +1964,10 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                 selectedWaterPoint: widget.selectedWaterPoint,
                 selectedWaterMask: widget.selectedWaterMask,
                 selectedExclusionMask: widget.selectedExclusionMask,
+                awaitingWaterPoint: widget.awaitingWaterPoint,
+                onWaterCanvasTap: widget.onWaterCanvasTap,
+                awaitingExclusionPoint: widget.awaitingExclusionPoint,
+                onExclusionCanvasTap: widget.onExclusionCanvasTap,
                 onWaterPointSelected: widget.onWaterPointSelected,
                 onExclusionSelected: widget.onExclusionSelected,
                 onWaterDragStarted: widget.onWaterDragStarted,
@@ -1884,7 +1980,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                       index,
                       BaseCampMapGeometry.contain(
                         baseCampMapArtworkSize,
-                      ).artworkToSource(
+                      ).viewportToArtwork(
                         renderBox.globalToLocal(globalPosition),
                       ),
                       mask,
@@ -1901,7 +1997,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                       index,
                       BaseCampMapGeometry.contain(
                         baseCampMapArtworkSize,
-                      ).artworkToSource(
+                      ).viewportToArtwork(
                         renderBox.globalToLocal(globalPosition),
                       ),
                     );
@@ -1955,6 +2051,10 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
     required this.selectedExclusionMask,
+    required this.awaitingWaterPoint,
+    required this.onWaterCanvasTap,
+    required this.awaitingExclusionPoint,
+    required this.onExclusionCanvasTap,
     required this.onWaterPointSelected,
     required this.onExclusionSelected,
     required this.onWaterDragStarted,
@@ -1981,6 +2081,10 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final int selectedWaterPoint;
   final bool selectedWaterMask;
   final int selectedExclusionMask;
+  final bool awaitingWaterPoint;
+  final void Function(Offset position, bool mask) onWaterCanvasTap;
+  final bool awaitingExclusionPoint;
+  final ValueChanged<Offset> onExclusionCanvasTap;
   final void Function(int index, bool mask) onWaterPointSelected;
   final void Function(int polygon, int point) onExclusionSelected;
   final VoidCallback onWaterDragStarted;
@@ -2079,6 +2183,32 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
                 : selectedRouteId,
           ),
         ),
+        if (awaitingWaterPoint &&
+            (section == _BaseCampEditorSection.waterMask ||
+                section == _BaseCampEditorSection.shoreline))
+          Positioned.fill(
+            child: GestureDetector(
+              key: const ValueKey('base-camp-editor-water-add-point-canvas'),
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) => onWaterCanvasTap(
+                details.localPosition,
+                section == _BaseCampEditorSection.waterMask,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        if (awaitingExclusionPoint &&
+            section == _BaseCampEditorSection.exclusionMask)
+          Positioned.fill(
+            child: GestureDetector(
+              key: const ValueKey(
+                'base-camp-editor-exclusion-add-point-canvas',
+              ),
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) => onExclusionCanvasTap(details.localPosition),
+              child: const SizedBox.expand(),
+            ),
+          ),
         if (section == _BaseCampEditorSection.routes ||
             section == _BaseCampEditorSection.buildings)
           for (var i = 0; i < points.length; i++)
@@ -2155,7 +2285,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.shoreline && water != null) ...[
           for (var i = 0; i < water.shoreline.length; i++)
             _EditorDragHandle(
-              point: geometry.sourceToViewport(water.shoreline[i]),
+              point: geometry.artworkToViewport(water.shoreline[i]),
               icon: Icons.waves,
               color: selectedWaterPoint == i && !selectedWaterMask
                   ? const Color(0xFF68E8F2)
@@ -2173,7 +2303,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.waterMask && water != null) ...[
           for (var i = 0; i < water.mask.length; i++)
             _EditorDragHandle(
-              point: geometry.sourceToViewport(water.mask[i]),
+              point: geometry.artworkToViewport(water.mask[i]),
               icon: Icons.crop_square,
               color: selectedWaterPoint == i && selectedWaterMask
                   ? const Color(0xFFF0E8D4)
@@ -2200,7 +2330,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
               point++
             )
               _EditorDragHandle(
-                point: geometry.sourceToViewport(
+                point: geometry.artworkToViewport(
                   water.exclusionMasks[polygon][point],
                 ),
                 icon: Icons.block,
@@ -2265,7 +2395,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     Path pathFor(List<Offset> points, {bool close = true}) =>
         Path()
-          ..addPolygon(points.map(geometry.sourceToViewport).toList(), close);
+          ..addPolygon(points.map(geometry.artworkToViewport).toList(), close);
     final water = pathFor(effect.mask);
     canvas.drawPath(
       water,

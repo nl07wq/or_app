@@ -298,6 +298,8 @@ class _SoldierAlignmentSandboxSectionState
   var _showGrid = true;
   var _showCorrected = true;
   var _playing = false;
+  var _transitionPreview = false;
+  var _transitionLoop = true;
   var _showBeforeColor = false;
   Size _previewViewport = const Size(320, 320);
   double _scaleAtGestureStart = 1;
@@ -312,8 +314,21 @@ class _SoldierAlignmentSandboxSectionState
   }
 
   void _advancePlayback() {
-    final elapsed = (_playback.value * baseCampRifleRegripAnimationMs).floor();
-    final frame = _rifleFrameAtElapsed(elapsed);
+    final elapsed =
+        (_playback.value *
+                (_transitionPreview
+                    ? baseCampRifleRegripEventMs
+                    : baseCampRifleRegripAnimationMs))
+            .floor();
+    if (_transitionPreview &&
+        baseCampRifleRegripPhase(elapsed) !=
+            BaseCampRifleRegripPhase.rifleRegrip) {
+      return;
+    }
+    final rifleElapsed = _transitionPreview
+        ? elapsed - baseCampRifleRegripPreIdleMs
+        : elapsed;
+    final frame = _rifleFrameAtElapsed(rifleElapsed);
     if (frame != _selectedFrame && mounted) {
       setState(() => _selectedFrame = frame);
     }
@@ -371,6 +386,62 @@ class _SoldierAlignmentSandboxSectionState
       frameScales: List<double>.filled(6, 1),
     ),
   );
+
+  void _applyApprovedReferencePreset() => setState(
+    () => _data = _data.copyWith(
+      frameOffsets: const [
+        Offset(-13.5, 46.5),
+        Offset(-14, 47),
+        Offset(-30.5, 46),
+        Offset(-13.5, 25.5),
+        Offset(-13, 44.5),
+        Offset(-20, 46),
+      ],
+      frameScales: const [1.15, 1.15, 1.15, 1.15, 1.2, 1.2],
+      offsetXdp: 0,
+      offsetYdp: 0,
+      scale: 1,
+      brightness: 0,
+      contrast: 1,
+      saturation: 1,
+      warmth: 0,
+    ),
+  );
+
+  void _toggleTransitionPreview() {
+    setState(() {
+      _transitionPreview = true;
+      _playing = !_playing;
+      _playback.duration = const Duration(
+        milliseconds: baseCampRifleRegripEventMs,
+      );
+      if (_playing) {
+        _transitionLoop ? _playback.repeat() : _playback.forward(from: 0);
+      } else {
+        _playback.stop();
+      }
+    });
+  }
+
+  void _toggleFramePlayback() {
+    setState(() {
+      _transitionPreview = false;
+      _playback.duration = const Duration(
+        milliseconds: baseCampRifleRegripAnimationMs,
+      );
+      _playing = !_playing;
+      _playing ? _playback.repeat() : _playback.stop();
+    });
+  }
+
+  void _restartTransitionPreview() => setState(() {
+    _transitionPreview = true;
+    _playing = true;
+    _playback.duration = const Duration(
+      milliseconds: baseCampRifleRegripEventMs,
+    );
+    _transitionLoop ? _playback.repeat() : _playback.forward(from: 0);
+  });
 
   Future<void> _copyData() async {
     await Clipboard.setData(
@@ -433,6 +504,8 @@ class _SoldierAlignmentSandboxSectionState
             _phaseOne(),
             const Divider(),
             _phaseTwo(),
+            const Divider(),
+            _transitionControls(),
             const Divider(),
             _phaseThree(),
             const SizedBox(height: 8),
@@ -528,6 +601,17 @@ class _SoldierAlignmentSandboxSectionState
               child: LayoutBuilder(
                 builder: (context, bounds) {
                   final layout = baseCampRifleRegripLayout(bounds.biggest);
+                  final eventMs = (_playback.value * baseCampRifleRegripEventMs)
+                      .floor();
+                  final phase = _transitionPreview
+                      ? baseCampRifleRegripPhase(eventMs)
+                      : BaseCampRifleRegripPhase.rifleRegrip;
+                  final activeFrame =
+                      phase == BaseCampRifleRegripPhase.rifleRegrip
+                      ? (_transitionPreview
+                            ? baseCampRifleRegripFrameIndex(eventMs)
+                            : _selectedFrame)
+                      : null;
                   return Stack(
                     clipBehavior: Clip.hardEdge,
                     children: [
@@ -537,7 +621,7 @@ class _SoldierAlignmentSandboxSectionState
                             painter: BaseCampSoldierGridPainter(),
                           ),
                         ),
-                      if (_showBreathing)
+                      if (_showBreathing && activeFrame == null)
                         Opacity(
                           opacity: _data.breathingOpacity,
                           child: Stack(
@@ -548,22 +632,32 @@ class _SoldierAlignmentSandboxSectionState
                                 fit: BoxFit.contain,
                                 filterQuality: FilterQuality.none,
                               ),
-                              Image.asset(
-                                baseCampBreathingSoldierUpperAsset,
-                                fit: BoxFit.contain,
-                                filterQuality: FilterQuality.none,
+                              Transform.translate(
+                                offset: Offset(
+                                  0,
+                                  _transitionPreview
+                                      ? 0
+                                      : baseCampBreathingOffset(
+                                          _playback.value * 2400,
+                                        ),
+                                ),
+                                child: Image.asset(
+                                  baseCampBreathingSoldierUpperAsset,
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.none,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      if (_showRifle)
+                      if (_showRifle && activeFrame != null)
                         _rifleLayer(
                           layout: layout,
                           frame: _comparisonFrame,
-                          opacity: _comparisonFrame == _selectedFrame ? 0 : .35,
+                          opacity: _comparisonFrame == activeFrame ? 0 : .35,
                         ),
-                      if (_showRifle)
-                        _rifleLayer(layout: layout, frame: _selectedFrame),
+                      if (_showRifle && activeFrame != null)
+                        _rifleLayer(layout: layout, frame: activeFrame),
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(painter: _AlignmentGuidePainter()),
@@ -655,10 +749,7 @@ class _SoldierAlignmentSandboxSectionState
               icon: const Icon(Icons.skip_next),
             ),
             IconButton(
-              onPressed: () => setState(() {
-                _playing = !_playing;
-                _playing ? _playback.repeat() : _playback.stop();
-              }),
+              onPressed: _toggleFramePlayback,
               icon: Icon(_playing ? Icons.stop : Icons.play_arrow),
             ),
           ],
@@ -755,6 +846,10 @@ class _SoldierAlignmentSandboxSectionState
               child: const Text('Y +0.5'),
             ),
             TextButton(onPressed: _resetMotion, child: const Text('RESET')),
+            TextButton(
+              onPressed: _applyApprovedReferencePreset,
+              child: const Text('APPLY REFERENCE PRESET'),
+            ),
           ],
         ),
       ],
@@ -775,6 +870,12 @@ class _SoldierAlignmentSandboxSectionState
         100,
         400,
         (value) => setState(() => _data = _data.copyWith(offsetXdp: value)),
+      ),
+      TextButton(
+        onPressed: () => setState(
+          () => _data = _data.copyWith(offsetXdp: 0, offsetYdp: 0, scale: 1),
+        ),
+        child: const Text('RESET GLOBAL'),
       ),
       _slider(
         'OFFSET Y ${_data.offsetYdp.toStringAsFixed(1)} dp',
@@ -808,7 +909,14 @@ class _SoldierAlignmentSandboxSectionState
         _data.scale,
         .5,
         1.5,
-        200,
+        100,
+        (value) => setState(() => _data = _data.copyWith(scale: value)),
+      ),
+      _numericInput(
+        'GLOBAL SCALE',
+        _data.scale,
+        .5,
+        1.5,
         (value) => setState(() => _data = _data.copyWith(scale: value)),
       ),
       _slider(
@@ -819,6 +927,40 @@ class _SoldierAlignmentSandboxSectionState
         20,
         (value) =>
             setState(() => _data = _data.copyWith(breathingOpacity: value)),
+      ),
+    ],
+  );
+
+  Widget _transitionControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'TRANSITION PREVIEW',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      const Text(
+        'BREATHING → PRE_IDLE → F0–F5 → POST_IDLE → BREATHING',
+        style: TextStyle(fontSize: 11),
+      ),
+      Wrap(
+        spacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _toggleTransitionPreview,
+            icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+            label: Text(_playing ? 'PAUSE' : 'PLAY'),
+          ),
+          OutlinedButton.icon(
+            onPressed: _restartTransitionPreview,
+            icon: const Icon(Icons.restart_alt),
+            label: const Text('RESTART'),
+          ),
+          FilterChip(
+            label: const Text('LOOP'),
+            selected: _transitionLoop,
+            onSelected: (value) => setState(() => _transitionLoop = value),
+          ),
+        ],
       ),
     ],
   );

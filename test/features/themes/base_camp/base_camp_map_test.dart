@@ -322,7 +322,7 @@ void main() {
     );
   });
 
-  test('v5 FX, labels, water and static soldiers round-trip losslessly', () {
+  test('v6 FX, labels, water and static soldiers round-trip losslessly', () {
     final defaults = BaseCampMapConfiguration.defaults().copyWith(
       staticSoldiers: const [
         BaseCampStaticSoldier(
@@ -425,15 +425,15 @@ void main() {
     final path = baseCampEffectiveWaterPath(effect, geometry);
 
     expect(
-      path.contains(geometry.sourceToViewport(const Offset(10, 80))),
+      path.contains(geometry.artworkToViewport(const Offset(10, 120))),
       isTrue,
     );
     expect(
-      path.contains(geometry.sourceToViewport(const Offset(50, 135))),
+      path.contains(geometry.artworkToViewport(const Offset(50, 220))),
       isFalse,
     );
     expect(
-      path.contains(geometry.sourceToViewport(const Offset(300, 135))),
+      path.contains(geometry.artworkToViewport(const Offset(300, 220))),
       isFalse,
     );
   });
@@ -453,22 +453,66 @@ void main() {
     }
   });
 
-  test(
-    'default water masks are constrained to the visible left water edge',
-    () {
-      for (final fx in BaseCampWaterFx.defaults().values) {
-        expect(fx.mask, hasLength(greaterThanOrEqualTo(3)));
-        expect(
-          fx.mask.every((point) => point.dx >= 0 && point.dx <= 86),
-          isTrue,
-        );
-        expect(
-          fx.mask.every((point) => point.dy >= 0 && point.dy <= 720),
-          isTrue,
-        );
+  test('default water masks use the full square artwork coordinate space', () {
+    for (final fx in BaseCampWaterFx.defaults().values) {
+      expect(fx.mask, hasLength(greaterThanOrEqualTo(3)));
+      expect(
+        fx.mask.every(
+          (point) => point.dx >= 0 && point.dx <= baseCampMapArtworkSize.width,
+        ),
+        isTrue,
+      );
+      expect(
+        fx.mask.every(
+          (point) => point.dy >= 0 && point.dy <= baseCampMapArtworkSize.height,
+        ),
+        isTrue,
+      );
+    }
+  });
+
+  test('v5 water coordinates migrate once into square artwork coordinates', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    final legacy = <String, Object?>{...defaults.toJson(), 'schemaVersion': 5};
+    final legacyWater = <String, Object?>{};
+    for (final entry in (legacy['waterFx']! as Map).entries) {
+      final effect = Map<Object?, Object?>.from(entry.value as Map);
+      List<Object?> toLegacy(List<Object?> points) => points.map((raw) {
+        final point = raw as Map;
+        return <String, double>{
+          'x': (point['x']! as num).toDouble() * 1280 / 1254,
+          'y': (point['y']! as num).toDouble() * 720 / 1254,
+        };
+      }).toList();
+      effect['mask'] = toLegacy(List<Object?>.from(effect['mask']! as List));
+      effect['shoreline'] = toLegacy(
+        List<Object?>.from(effect['shoreline']! as List),
+      );
+      effect['exclusionMasks'] = (effect['exclusionMasks']! as List)
+          .map((polygon) => toLegacy(List<Object?>.from(polygon as List)))
+          .toList();
+      legacyWater[entry.key as String] = effect;
+    }
+    legacy['waterFx'] = legacyWater;
+
+    final restored = BaseCampMapConfiguration.tryParse(legacy);
+
+    expect(restored, isNotNull);
+    expect(restored!.routes, defaults.routes);
+    for (final id in defaults.waterFx.keys) {
+      final expected = defaults.waterFx[id]!.mask;
+      final actual = restored.waterFx[id]!.mask;
+      expect(actual, hasLength(expected.length));
+      for (var index = 0; index < expected.length; index++) {
+        expect(actual[index].dx, closeTo(expected[index].dx, .01));
+        expect(actual[index].dy, closeTo(expected[index].dy, .01));
       }
-    },
-  );
+    }
+    expect(
+      restored.toJson()['schemaVersion'],
+      BaseCampMapConfiguration.schemaVersion,
+    );
+  });
 
   test('water focus transforms centre both editable water masks', () {
     const viewport = Size(390, 420);
@@ -477,7 +521,7 @@ void main() {
         effect: effect,
         viewport: viewport,
       );
-      final sourceBounds = Rect.fromPoints(
+      final artworkBounds = Rect.fromPoints(
         effect.mask.reduce(
           (a, b) =>
               Offset(a.dx < b.dx ? a.dx : b.dx, a.dy < b.dy ? a.dy : b.dy),
@@ -489,8 +533,8 @@ void main() {
       );
       final geometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
       final bounds = Rect.fromPoints(
-        geometry.sourceToViewport(sourceBounds.topLeft),
-        geometry.sourceToViewport(sourceBounds.bottomRight),
+        geometry.artworkToViewport(artworkBounds.topLeft),
+        geometry.artworkToViewport(artworkBounds.bottomRight),
       );
       final storage = transform.storage;
       final focusedCenter = Offset(

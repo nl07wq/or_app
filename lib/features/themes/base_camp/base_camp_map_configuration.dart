@@ -23,7 +23,7 @@ class BaseCampMapConfiguration {
     this.staticSoldiers = const <BaseCampStaticSoldier>[],
   });
 
-  static const schemaVersion = 5;
+  static const schemaVersion = 6;
   static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
@@ -125,6 +125,9 @@ class BaseCampMapConfiguration {
     }
     if (raw['schemaVersion'] == 4 && raw['mapId'] == mapId) {
       return _migrateV4(raw);
+    }
+    if (raw['schemaVersion'] == 5 && raw['mapId'] == mapId) {
+      return _migrateV5(raw);
     }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
@@ -284,6 +287,68 @@ class BaseCampMapConfiguration {
       )
       ..['staticSoldiers'] = const <Object?>[];
     return tryParse(v5);
+  }
+
+  /// V5 water points were in the 1280×720 legacy scene. The artwork became
+  /// square, so only water calibration moves to artwork coordinates; routes,
+  /// facilities and objects retain their durable source coordinates.
+  static BaseCampMapConfiguration? _migrateV5(Map raw) {
+    final water = raw['waterFx'];
+    if (water is! Map) return null;
+    Offset convert(Offset point) => Offset(
+      point.dx / 1280 * baseCampMapArtworkSize.width,
+      point.dy / 720 * baseCampMapArtworkSize.height,
+    );
+    final converted = <Object?, Object?>{};
+    for (final entry in water.entries) {
+      if (entry.key is! String || entry.value is! Map) return null;
+      final item = Map<Object?, Object?>.from(entry.value as Map);
+      List<Object?>? transformPoints(Object? value) {
+        if (value is! List) return null;
+        final result = <Object?>[];
+        for (final rawPoint in value) {
+          if (rawPoint is! Map ||
+              rawPoint['x'] is! num ||
+              rawPoint['y'] is! num) {
+            return null;
+          }
+          final x = (rawPoint['x'] as num).toDouble();
+          final y = (rawPoint['y'] as num).toDouble();
+          if (!x.isFinite ||
+              !y.isFinite ||
+              x < 0 ||
+              x > 1280 ||
+              y < 0 ||
+              y > 720) {
+            return null;
+          }
+          final point = Offset(x, y);
+          final next = convert(point);
+          result.add(<String, double>{'x': next.dx, 'y': next.dy});
+        }
+        return result;
+      }
+
+      final shoreline = transformPoints(item['shoreline']);
+      final mask = transformPoints(item['mask']);
+      if (shoreline == null || mask == null) return null;
+      final exclusions = item['exclusionMasks'];
+      if (exclusions is! List) return null;
+      final nextExclusions = <Object?>[];
+      for (final polygon in exclusions) {
+        final next = transformPoints(polygon);
+        if (next == null) return null;
+        nextExclusions.add(next);
+      }
+      item['shoreline'] = shoreline;
+      item['mask'] = mask;
+      item['exclusionMasks'] = nextExclusions;
+      converted[entry.key] = item;
+    }
+    final v6 = Map<String, Object?>.from(raw)
+      ..['schemaVersion'] = schemaVersion
+      ..['waterFx'] = converted;
+    return tryParse(v6);
   }
 
   static Offset? _decodeNormalizedPoint(Object? raw) {
@@ -603,44 +668,44 @@ class BaseCampWaterFx {
   static Map<String, BaseCampWaterFx> defaults() => <String, BaseCampWaterFx>{
     'rock-foam': const BaseCampWaterFx(
       shoreline: [
-        Offset(10, 535),
-        Offset(48, 564),
-        Offset(78, 615),
-        Offset(66, 682),
+        Offset(9.8, 932),
+        Offset(47, 982),
+        Offset(76, 1071),
+        Offset(65, 1187),
       ],
       mask: [
-        Offset(0, 498),
-        Offset(44, 523),
-        Offset(86, 593),
-        Offset(76, 690),
-        Offset(0, 720),
+        Offset(0, 868),
+        Offset(43, 911),
+        Offset(84, 1033),
+        Offset(75, 1201),
+        Offset(0, 1254),
       ],
       intensity: 1.25,
       foam: 1.3,
     ),
     'coast-ripple': const BaseCampWaterFx(
       shoreline: [
-        Offset(5, 82),
-        Offset(58, 106),
-        Offset(60, 168),
-        Offset(42, 238),
+        Offset(5, 143),
+        Offset(57, 185),
+        Offset(59, 293),
+        Offset(41, 414),
       ],
       exclusionMasks: [
         [
-          Offset(31, 104),
-          Offset(57, 89),
-          Offset(72, 118),
-          Offset(68, 166),
-          Offset(49, 193),
-          Offset(29, 164),
+          Offset(30, 181),
+          Offset(56, 155),
+          Offset(71, 205),
+          Offset(67, 289),
+          Offset(48, 336),
+          Offset(28, 286),
         ],
       ],
       mask: [
-        Offset(0, 58),
-        Offset(62, 86),
-        Offset(68, 165),
-        Offset(46, 248),
-        Offset(0, 278),
+        Offset(0, 101),
+        Offset(61, 150),
+        Offset(67, 287),
+        Offset(45, 432),
+        Offset(0, 484),
       ],
       intensity: .55,
       foam: .3,
@@ -894,7 +959,12 @@ List<Offset>? _points(Object? raw, int min) {
       return null;
     }
     final x = (p['x'] as num).toDouble(), y = (p['y'] as num).toDouble();
-    if (!x.isFinite || !y.isFinite || x < 0 || x > 1280 || y < 0 || y > 720) {
+    if (!x.isFinite ||
+        !y.isFinite ||
+        x < 0 ||
+        x > baseCampMapArtworkSize.width ||
+        y < 0 ||
+        y > baseCampMapArtworkSize.height) {
       return null;
     }
     r.add(Offset(x, y));

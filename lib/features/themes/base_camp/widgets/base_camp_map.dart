@@ -173,6 +173,19 @@ class BaseCampMapGeometry {
     ),
   );
 
+  /// Water calibration follows the actual square artwork rather than the
+  /// legacy playable scene. This gives the editor access to every pixel of
+  /// the new 1254×1254 map without moving any route or facility source data.
+  Offset artworkToViewport(Offset point) => Offset(
+    imageRect.left + point.dx * _artworkScale,
+    imageRect.top + point.dy * _artworkScale,
+  );
+
+  Offset viewportToArtwork(Offset point) => Offset(
+    (point.dx - imageRect.left) / _artworkScale,
+    (point.dy - imageRect.top) / _artworkScale,
+  );
+
   Offset normalizedToViewport(Offset point) => sourceToViewport(
     Offset(
       point.dx * baseCampMapSourceSize.width,
@@ -1119,10 +1132,10 @@ Path baseCampEffectiveWaterPath(
   BaseCampMapGeometry geometry,
 ) {
   var result = Path()
-    ..addPolygon(effect.mask.map(geometry.sourceToViewport).toList(), true);
+    ..addPolygon(effect.mask.map(geometry.artworkToViewport).toList(), true);
   for (final exclusion in effect.exclusionMasks) {
     final exclusionPath = Path()
-      ..addPolygon(exclusion.map(geometry.sourceToViewport).toList(), true);
+      ..addPolygon(exclusion.map(geometry.artworkToViewport).toList(), true);
     result = Path.combine(PathOperation.difference, result, exclusionPath);
   }
   return result;
@@ -1140,13 +1153,17 @@ class _BaseCampWaterFxPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final time = elapsed.inMilliseconds / 1000;
+    // Water coordinates live in the square artwork space. Using the artwork
+    // scale keeps the visible FX density independent from legacy 1280x720
+    // facility/route coordinates.
+    final waterScale = geometry.artworkScale;
     for (final entry in configuration.waterFx.entries) {
       final fx = entry.value;
       if (!fx.visible) continue;
       final mask = baseCampEffectiveWaterPath(fx, geometry);
       canvas.save();
       canvas.clipPath(mask);
-      final shore = fx.shoreline.map(geometry.sourceToViewport).toList();
+      final shore = fx.shoreline.map(geometry.artworkToViewport).toList();
       final bounds = mask.getBounds();
       // RIPPLE: moving translucent flow cells create a changing water mass,
       // rather than a static collection of thin wave lines. The clipped cells
@@ -1161,9 +1178,9 @@ class _BaseCampWaterFxPainter extends CustomPainter {
               bounds.top +
               (seed2 + math.cos(phase * 1.21) * .13) * bounds.height;
           final width =
-              (18 + seed * 34) * geometry.scale * fx.spread * fx.flowDistortion;
+              (18 + seed * 34) * waterScale * fx.spread * fx.flowDistortion;
           final height =
-              (7 + seed2 * 16) * geometry.scale * fx.spread * fx.flowDistortion;
+              (7 + seed2 * 16) * waterScale * fx.spread * fx.flowDistortion;
           canvas.drawOval(
             Rect.fromCenter(center: Offset(x, y), width: width, height: height),
             Paint()
@@ -1176,7 +1193,7 @@ class _BaseCampWaterFxPainter extends CustomPainter {
                       )
               ..maskFilter = MaskFilter.blur(
                 BlurStyle.normal,
-                math.max(1.2, 4 * geometry.scale * fx.flowDistortion),
+                math.max(1.2, 4 * waterScale * fx.flowDistortion),
               ),
           );
         }
@@ -1200,8 +1217,8 @@ class _BaseCampWaterFxPainter extends CustomPainter {
               2;
           final x = bounds.left + unit * bounds.width;
           final y = bounds.top + unit2 * bounds.height;
-          final width = (7 + unit * 15) * geometry.scale;
-          final height = (2 + unit2 * 4) * geometry.scale;
+          final width = (7 + unit * 15) * waterScale;
+          final height = (2 + unit2 * 4) * waterScale;
           final alpha =
               fx.opacity * (.20 + .45 * twinkle) * fx.shimmerBrightness;
           canvas.drawOval(
@@ -1210,18 +1227,18 @@ class _BaseCampWaterFxPainter extends CustomPainter {
               ..color = const Color(0xFFD9F4FF).withValues(alpha: alpha * .78)
               ..maskFilter = MaskFilter.blur(
                 BlurStyle.normal,
-                math.max(1, 1.2 * geometry.scale),
+                math.max(1, 1.2 * waterScale),
               ),
           );
           if (twinkle > .58) {
             canvas.drawCircle(
               Offset(x, y),
-              math.max(.8, (1.2 + unit * 1.6) * geometry.scale),
+              math.max(.8, (1.2 + unit * 1.6) * waterScale),
               Paint()
                 ..color = const Color(0xFFE6FAFF).withValues(alpha: alpha * .7)
                 ..maskFilter = MaskFilter.blur(
                   BlurStyle.normal,
-                  math.max(1, 1.5 * geometry.scale),
+                  math.max(1, 1.5 * waterScale),
                 ),
             );
           }
@@ -1240,8 +1257,7 @@ class _BaseCampWaterFxPainter extends CustomPainter {
           final start = shore[segment];
           final end = shore[math.min(segment + 1, shore.length - 1)];
           final point = Offset.lerp(start, end, phase)!;
-          final radius =
-              (2.2 + (cluster % 3) * 1.3) * geometry.scale * fx.spread;
+          final radius = (2.2 + (cluster % 3) * 1.3) * waterScale * fx.spread;
           canvas.drawOval(
             Rect.fromCenter(center: point, width: radius * 3.2, height: radius),
             Paint()
