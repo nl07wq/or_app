@@ -935,52 +935,93 @@ double baseCampBreathingOffset(double elapsedMs) {
 /// Static two-plane tactical grid for the soldier compartment.  It has no
 /// animation/listenable, so it remains completely stable while the normal or
 /// special soldier animation changes above it.
+@immutable
+class BaseCampSoldierGridGeometry {
+  const BaseCampSoldierGridGeometry({
+    required this.logicalSize,
+    required this.scale,
+    required this.offset,
+  });
+
+  final Size logicalSize;
+  final double scale;
+  final Offset offset;
+}
+
+/// A single square logical plane is used in the Dashboard and in the
+/// alignment sandbox.  Each viewport applies one uniform scale then clips;
+/// grid squares can never receive separate horizontal/vertical stretching.
+BaseCampSoldierGridGeometry baseCampSoldierGridGeometryForViewport(Size size) {
+  const logicalSize = Size(360, 360);
+  final scale = math.min(
+    size.width / logicalSize.width,
+    size.height / logicalSize.height,
+  );
+  final fitted = Size(logicalSize.width * scale, logicalSize.height * scale);
+  return BaseCampSoldierGridGeometry(
+    logicalSize: logicalSize,
+    scale: scale,
+    offset: Offset(
+      (size.width - fitted.width) / 2,
+      (size.height - fitted.height) / 2,
+    ),
+  );
+}
+
 class BaseCampSoldierGridPainter extends CustomPainter {
   const BaseCampSoldierGridPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final groundY = baseCampSoldierGroundY(size);
+    final geometry = baseCampSoldierGridGeometryForViewport(size);
+    final logical = geometry.logicalSize;
+    final groundY = baseCampSoldierGroundY(logical);
     final wallLine = Paint()
       ..color = const Color(0xff718268).withValues(alpha: .20)
-      ..strokeWidth = .7;
+      ..strokeWidth = .7 / geometry.scale;
     final boundary = Paint()
       ..color = const Color(0xff93a77d).withValues(alpha: .40)
-      ..strokeWidth = 1;
+      ..strokeWidth = 1 / geometry.scale;
     final floorLine = Paint()
       ..color = const Color(0xff718268).withValues(alpha: .25)
-      ..strokeWidth = .7;
+      ..strokeWidth = .7 / geometry.scale;
     final ray = Paint()
       ..color = const Color(0xff718268).withValues(alpha: .30)
-      ..strokeWidth = .8;
+      ..strokeWidth = .8 / geometry.scale;
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
+    canvas.translate(geometry.offset.dx, geometry.offset.dy);
+    canvas.scale(geometry.scale);
     // Background wall: one shared origin and each line exactly once.
-    for (final x in baseCampSoldierWallLinePositions(size.width)) {
+    for (final x in baseCampSoldierWallLinePositions(logical.width)) {
       canvas.drawLine(Offset(x, 0), Offset(x, groundY), wallLine);
     }
     for (final y in baseCampSoldierWallLinePositions(groundY)) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), wallLine);
+      canvas.drawLine(Offset(0, y), Offset(logical.width, y), wallLine);
     }
     // The boundary is deliberately not a second wall-grid horizontal line.
-    canvas.drawLine(Offset(0, groundY), Offset(size.width, groundY), boundary);
+    canvas.drawLine(
+      Offset(0, groundY),
+      Offset(logical.width, groundY),
+      boundary,
+    );
 
     canvas.save();
     canvas.clipRect(
-      Rect.fromLTWH(0, groundY, size.width, size.height - groundY),
+      Rect.fromLTWH(0, groundY, logical.width, logical.height - groundY),
     );
-    for (final y in baseCampSoldierFloorLinePositions(size)) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), floorLine);
+    for (final y in baseCampSoldierFloorLinePositions(logical)) {
+      canvas.drawLine(Offset(0, y), Offset(logical.width, y), floorLine);
     }
     // Each floor ray begins at the corresponding wall-grid vertical.  This
     // keeps one shared coordinate origin and avoids a false fan converging at
     // the horizon centre.
-    for (final x in baseCampSoldierWallLinePositions(size.width)) {
+    for (final x in baseCampSoldierWallLinePositions(logical.width)) {
       canvas.drawLine(
         Offset(x, groundY),
-        baseCampSoldierPerspectiveEndpoint(size, x),
+        baseCampSoldierPerspectiveEndpoint(logical, x),
         ray,
       );
     }

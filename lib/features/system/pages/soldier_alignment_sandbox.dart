@@ -22,6 +22,7 @@ class SoldierAlignmentData {
       Offset.zero,
       Offset.zero,
     ],
+    this.frameScales = const [1, 1, 1, 1, 1, 1],
     this.offsetXdp = 0,
     this.offsetYdp = 0,
     this.scale = 1,
@@ -33,6 +34,7 @@ class SoldierAlignmentData {
   });
 
   final List<Offset> frameOffsets;
+  final List<double> frameScales;
   final double offsetXdp;
   final double offsetYdp;
   final double scale;
@@ -44,6 +46,7 @@ class SoldierAlignmentData {
 
   SoldierAlignmentData copyWith({
     List<Offset>? frameOffsets,
+    List<double>? frameScales,
     double? offsetXdp,
     double? offsetYdp,
     double? scale,
@@ -54,6 +57,7 @@ class SoldierAlignmentData {
     double? warmth,
   }) => SoldierAlignmentData(
     frameOffsets: frameOffsets ?? this.frameOffsets,
+    frameScales: frameScales ?? this.frameScales,
     offsetXdp: offsetXdp ?? this.offsetXdp,
     offsetYdp: offsetYdp ?? this.offsetYdp,
     scale: scale ?? this.scale,
@@ -64,11 +68,16 @@ class SoldierAlignmentData {
     warmth: warmth ?? this.warmth,
   );
 
-  Map<String, Object> toJson(Size viewport) => {
+  Map<String, Object> toJson(
+    Size viewport, {
+    SoldierAlignmentPreviewSettings settings =
+        const SoldierAlignmentPreviewSettings(),
+  }) => {
     'schema': 'soldier_alignment_v2',
     'reference': 'breathing_soldier',
     'target': 'rifle_regrip',
     'sourceAssetIds': baseCampRifleRegripSourceAssets,
+    'correctedAssetIds': baseCampRifleRegripAssets,
     'sourceCanvasPx': [512, 512],
     'previewViewportDp': {'width': viewport.width, 'height': viewport.height},
     'drawingAnchor': 'normal_visible_foot_center',
@@ -80,6 +89,7 @@ class SoldierAlignmentData {
           'frame': index,
           'x': frameOffsets[index].dx,
           'y': frameOffsets[index].dy,
+          'scale': frameScales[index],
         },
     ],
     'alignment': {
@@ -95,9 +105,13 @@ class SoldierAlignmentData {
       'warmth': warmth,
     },
     'frameDurationsMs': baseCampRifleRegripFrameDurations,
+    'preview': settings.toJson(),
   };
 
-  static SoldierAlignmentData? tryParse(Object? value) {
+  static SoldierAlignmentData? tryParse(Object? value) =>
+      tryParseDocument(value)?.data;
+
+  static SoldierAlignmentDocument? tryParseDocument(Object? value) {
     if (value is! Map || value['schema'] != 'soldier_alignment_v2') return null;
     final offsets = value['frameOffsetsPx'];
     final alignment = value['alignment'];
@@ -114,13 +128,23 @@ class SoldierAlignmentData {
     double? number(Object? input) =>
         input is num && input.isFinite ? input.toDouble() : null;
     final parsedOffsets = <Offset>[];
+    final parsedScales = <double>[];
     for (var index = 0; index < offsets.length; index++) {
       final item = offsets[index];
       if (item is! Map || item['frame'] != index) return null;
       final x = number(item['x']);
       final y = number(item['y']);
-      if (x == null || y == null || x.abs() > 40 || y.abs() > 40) return null;
+      final frameScale = number(item['scale']) ?? 1;
+      if (x == null ||
+          y == null ||
+          x.abs() > 256 ||
+          y.abs() > 256 ||
+          frameScale < .5 ||
+          frameScale > 1.5) {
+        return null;
+      }
       parsedOffsets.add(Offset(x, y));
+      parsedScales.add(frameScale);
     }
     final x = number(alignment['offsetXdp']);
     final y = number(alignment['offsetYdp']);
@@ -151,18 +175,107 @@ class SoldierAlignmentData {
         warmth.abs() > 30) {
       return null;
     }
-    return SoldierAlignmentData(
-      frameOffsets: parsedOffsets,
-      offsetXdp: x,
-      offsetYdp: y,
-      scale: scale,
-      breathingOpacity: breathingOpacity,
-      brightness: brightness,
-      contrast: contrast,
-      saturation: saturation,
-      warmth: warmth,
+    final preview = SoldierAlignmentPreviewSettings.tryParse(value['preview']);
+    if (preview == null) return null;
+    return SoldierAlignmentDocument(
+      data: SoldierAlignmentData(
+        frameOffsets: parsedOffsets,
+        frameScales: parsedScales,
+        offsetXdp: x,
+        offsetYdp: y,
+        scale: scale,
+        breathingOpacity: breathingOpacity,
+        brightness: brightness,
+        contrast: contrast,
+        saturation: saturation,
+        warmth: warmth,
+      ),
+      settings: preview,
     );
   }
+}
+
+@immutable
+class SoldierAlignmentPreviewSettings {
+  const SoldierAlignmentPreviewSettings({
+    this.selectedFrame = 0,
+    this.comparisonFrame = 0,
+    this.showBreathing = true,
+    this.showRifle = true,
+    this.showGrid = true,
+    this.useCorrectedAssets = true,
+    this.showBeforeColor = false,
+  });
+
+  final int selectedFrame;
+  final int comparisonFrame;
+  final bool showBreathing;
+  final bool showRifle;
+  final bool showGrid;
+  final bool useCorrectedAssets;
+  final bool showBeforeColor;
+
+  Map<String, Object> toJson() => {
+    'selectedFrame': selectedFrame,
+    'comparisonFrame': comparisonFrame,
+    'showBreathing': showBreathing,
+    'showRifle': showRifle,
+    'showGrid': showGrid,
+    'useCorrectedAssets': useCorrectedAssets,
+    'showBeforeColor': showBeforeColor,
+  };
+
+  static SoldierAlignmentPreviewSettings? tryParse(Object? value) {
+    if (value == null) return const SoldierAlignmentPreviewSettings();
+    if (value is! Map) return null;
+    final selected = value['selectedFrame'] ?? 0;
+    final comparison = value['comparisonFrame'] ?? 0;
+    bool? readBool(String key, bool fallback) {
+      final item = value[key];
+      return item == null
+          ? fallback
+          : item is bool
+          ? item
+          : null;
+    }
+
+    if (selected is! int ||
+        comparison is! int ||
+        selected < 0 ||
+        selected > 5 ||
+        comparison < 0 ||
+        comparison > 5) {
+      return null;
+    }
+    final showBreathing = readBool('showBreathing', true);
+    final showRifle = readBool('showRifle', true);
+    final showGrid = readBool('showGrid', true);
+    final useCorrectedAssets = readBool('useCorrectedAssets', true);
+    final showBeforeColor = readBool('showBeforeColor', false);
+    if (showBreathing == null ||
+        showRifle == null ||
+        showGrid == null ||
+        useCorrectedAssets == null ||
+        showBeforeColor == null) {
+      return null;
+    }
+    return SoldierAlignmentPreviewSettings(
+      selectedFrame: selected,
+      comparisonFrame: comparison,
+      showBreathing: showBreathing,
+      showRifle: showRifle,
+      showGrid: showGrid,
+      useCorrectedAssets: useCorrectedAssets,
+      showBeforeColor: showBeforeColor,
+    );
+  }
+}
+
+@immutable
+class SoldierAlignmentDocument {
+  const SoldierAlignmentDocument({required this.data, required this.settings});
+  final SoldierAlignmentData data;
+  final SoldierAlignmentPreviewSettings settings;
 }
 
 class SoldierAlignmentSandboxSection extends StatefulWidget {
@@ -228,13 +341,34 @@ class _SoldierAlignmentSandboxSectionState
 
   void _setFrameOffset(int frame, Offset offset) {
     final offsets = [..._data.frameOffsets];
-    offsets[frame] = Offset(offset.dx.clamp(-40, 40), offset.dy.clamp(-40, 40));
+    offsets[frame] = Offset(
+      offset.dx.clamp(-256, 256),
+      offset.dy.clamp(-256, 256),
+    );
     setState(() => _data = _data.copyWith(frameOffsets: offsets));
   }
+
+  void _setFrameScale(int frame, double scale) {
+    final scales = [..._data.frameScales];
+    scales[frame] = scale.clamp(.5, 1.5);
+    setState(() => _data = _data.copyWith(frameScales: scales));
+  }
+
+  SoldierAlignmentPreviewSettings get _settings =>
+      SoldierAlignmentPreviewSettings(
+        selectedFrame: _selectedFrame,
+        comparisonFrame: _comparisonFrame,
+        showBreathing: _showBreathing,
+        showRifle: _showRifle,
+        showGrid: _showGrid,
+        useCorrectedAssets: _showCorrected,
+        showBeforeColor: _showBeforeColor,
+      );
 
   void _resetMotion() => setState(
     () => _data = _data.copyWith(
       frameOffsets: List<Offset>.filled(6, Offset.zero),
+      frameScales: List<double>.filled(6, 1),
     ),
   );
 
@@ -243,7 +377,7 @@ class _SoldierAlignmentSandboxSectionState
       ClipboardData(
         text: const JsonEncoder.withIndent(
           '  ',
-        ).convert(_data.toJson(_previewViewport)),
+        ).convert(_data.toJson(_previewViewport, settings: _settings)),
       ),
     );
     if (mounted) {
@@ -259,7 +393,7 @@ class _SoldierAlignmentSandboxSectionState
     try {
       decoded = text == null ? null : jsonDecode(text);
     } catch (_) {}
-    final parsed = SoldierAlignmentData.tryParse(decoded);
+    final parsed = SoldierAlignmentData.tryParseDocument(decoded);
     if (parsed == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -270,7 +404,16 @@ class _SoldierAlignmentSandboxSectionState
       }
       return;
     }
-    setState(() => _data = parsed);
+    setState(() {
+      _data = parsed.data;
+      _selectedFrame = parsed.settings.selectedFrame;
+      _comparisonFrame = parsed.settings.comparisonFrame;
+      _showBreathing = parsed.settings.showBreathing;
+      _showRifle = parsed.settings.showRifle;
+      _showGrid = parsed.settings.showGrid;
+      _showCorrected = parsed.settings.useCorrectedAssets;
+      _showBeforeColor = parsed.settings.showBeforeColor;
+    });
   }
 
   @override
@@ -342,7 +485,7 @@ class _SoldierAlignmentSandboxSectionState
         () => setState(() => _showGrid = !_showGrid),
       ),
       FilterChip(
-        label: const Text('CORRECTED ASSET'),
+        label: Text(_showCorrected ? 'CORRECTED ASSET' : 'ORIGINAL ASSET'),
         selected: _showCorrected,
         onSelected: (value) => setState(() => _showCorrected = value),
       ),
@@ -443,15 +586,29 @@ class _SoldierAlignmentSandboxSectionState
     double opacity = 1,
   }) {
     final offset = _data.frameOffsets[frame];
-    final sourceScale = layout.specialDimension / 512;
+    final frameScale = _data.frameScales[frame];
+    final dimension = layout.specialDimension * _data.scale * frameScale;
+    final sourceScale = dimension / 512;
     final asset = (_showCorrected
         ? baseCampRifleRegripAssets
         : baseCampRifleRegripSourceAssets)[frame];
     return Positioned(
-      left: layout.specialLeft + _data.offsetXdp + offset.dx * sourceScale,
-      top: layout.specialTop + _data.offsetYdp + offset.dy * sourceScale,
-      width: layout.specialDimension * _data.scale,
-      height: layout.specialDimension * _data.scale,
+      // Scale about the shared visible foot anchor. Frame-local enlargement
+      // never lifts or drops the standing baseline unless its Y offset does.
+      left:
+          layout.specialLeft +
+          layout.specialDimension / 2 -
+          dimension / 2 +
+          _data.offsetXdp +
+          offset.dx * sourceScale,
+      top:
+          layout.specialTop +
+          layout.specialDimension -
+          dimension +
+          _data.offsetYdp +
+          offset.dy * sourceScale,
+      width: dimension,
+      height: dimension,
       child: Opacity(
         opacity: opacity,
         child: ColorFiltered(
@@ -470,6 +627,7 @@ class _SoldierAlignmentSandboxSectionState
 
   Widget _phaseOne() {
     final offset = _data.frameOffsets[_selectedFrame];
+    final frameScale = _data.frameScales[_selectedFrame];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -516,17 +674,17 @@ class _SoldierAlignmentSandboxSectionState
         _slider(
           'FRAME X ${offset.dx.toStringAsFixed(1)} px',
           offset.dx,
-          -40,
-          40,
-          160,
+          -256,
+          256,
+          1024,
           (value) => _setFrameOffset(_selectedFrame, Offset(value, offset.dy)),
         ),
         _slider(
           'FRAME Y ${offset.dy.toStringAsFixed(1)} px',
           offset.dy,
-          -40,
-          40,
-          160,
+          -256,
+          256,
+          1024,
           (value) => _setFrameOffset(_selectedFrame, Offset(offset.dx, value)),
         ),
         Wrap(
@@ -535,20 +693,35 @@ class _SoldierAlignmentSandboxSectionState
             _numericInput(
               'X PX',
               offset.dx,
-              -40,
-              40,
+              -256,
+              256,
               (value) =>
                   _setFrameOffset(_selectedFrame, Offset(value, offset.dy)),
             ),
             _numericInput(
               'Y PX',
               offset.dy,
-              -40,
-              40,
+              -256,
+              256,
               (value) =>
                   _setFrameOffset(_selectedFrame, Offset(offset.dx, value)),
             ),
           ],
+        ),
+        _slider(
+          'FRAME SCALE ${(frameScale * 100).toStringAsFixed(1)}%',
+          frameScale,
+          .5,
+          1.5,
+          200,
+          (value) => _setFrameScale(_selectedFrame, value),
+        ),
+        _numericInput(
+          'FRAME SCALE',
+          frameScale,
+          .5,
+          1.5,
+          (value) => _setFrameScale(_selectedFrame, value),
         ),
         Wrap(
           spacing: 4,
