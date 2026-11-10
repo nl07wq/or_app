@@ -23,7 +23,7 @@ class BaseCampMapConfiguration {
     this.staticSoldiers = const <BaseCampStaticSoldier>[],
   });
 
-  static const schemaVersion = 6;
+  static const schemaVersion = 7;
   static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
@@ -128,6 +128,9 @@ class BaseCampMapConfiguration {
     }
     if (raw['schemaVersion'] == 5 && raw['mapId'] == mapId) {
       return _migrateV5(raw);
+    }
+    if (raw['schemaVersion'] == 6 && raw['mapId'] == mapId) {
+      return _migrateV6(raw);
     }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
@@ -349,6 +352,15 @@ class BaseCampMapConfiguration {
       ..['schemaVersion'] = schemaVersion
       ..['waterFx'] = converted;
     return tryParse(v6);
+  }
+
+  /// V7 adds optional independent water areas. V6's single area remains the
+  /// first effective area, so this migration never reconstructs or discards
+  /// a user-drawn polygon.
+  static BaseCampMapConfiguration? _migrateV6(Map raw) {
+    final v7 = Map<String, Object?>.from(raw)
+      ..['schemaVersion'] = schemaVersion;
+    return tryParse(v7);
   }
 
   static Offset? _decodeNormalizedPoint(Object? raw) {
@@ -637,11 +649,40 @@ class BaseCampFacilityLabel {
 }
 
 @immutable
+class BaseCampWaterArea {
+  const BaseCampWaterArea({
+    required this.mask,
+    required this.shoreline,
+    this.exclusionMasks = const <List<Offset>>[],
+  });
+  final List<Offset> mask, shoreline;
+  final List<List<Offset>> exclusionMasks;
+  Map<String, Object?> toJson() => <String, Object?>{
+    'mask': _pointsJson(mask),
+    'shoreline': _pointsJson(shoreline),
+    'exclusionMasks': exclusionMasks.map(_pointsJson).toList(growable: false),
+  };
+  static BaseCampWaterArea? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    final mask = _points(raw['mask'], 3);
+    final shoreline = _points(raw['shoreline'], 2);
+    final exclusions = _decodeExclusionMasks(raw['exclusionMasks']);
+    if (mask == null || shoreline == null || exclusions == null) return null;
+    return BaseCampWaterArea(
+      mask: mask,
+      shoreline: shoreline,
+      exclusionMasks: exclusions,
+    );
+  }
+}
+
+@immutable
 class BaseCampWaterFx {
   const BaseCampWaterFx({
     required this.shoreline,
     required this.mask,
     this.exclusionMasks = const <List<Offset>>[],
+    this.areas = const <BaseCampWaterArea>[],
     this.intensity = 1,
     this.speed = 1,
     this.foam = 1,
@@ -661,6 +702,19 @@ class BaseCampWaterFx {
   });
   final List<Offset> shoreline, mask;
   final List<List<Offset>> exclusionMasks;
+
+  /// Empty preserves the V6 primary area. Non-empty is the complete set of
+  /// independent editable water regions.
+  final List<BaseCampWaterArea> areas;
+  List<BaseCampWaterArea> get effectiveAreas => areas.isEmpty
+      ? <BaseCampWaterArea>[
+          BaseCampWaterArea(
+            mask: mask,
+            shoreline: shoreline,
+            exclusionMasks: exclusionMasks,
+          ),
+        ]
+      : areas;
   final double intensity, speed, foam, opacity, spread, frequency;
   final double shimmerDensity, shimmerBrightness, shimmerSpeed;
   final double flowDistortion, foamIntensity, foamLifetime;
@@ -716,6 +770,7 @@ class BaseCampWaterFx {
     List<Offset>? shoreline,
     List<Offset>? mask,
     List<List<Offset>>? exclusionMasks,
+    List<BaseCampWaterArea>? areas,
     double? intensity,
     double? speed,
     double? foam,
@@ -736,6 +791,7 @@ class BaseCampWaterFx {
     shoreline: shoreline ?? this.shoreline,
     mask: mask ?? this.mask,
     exclusionMasks: exclusionMasks ?? this.exclusionMasks,
+    areas: areas ?? this.areas,
     intensity: intensity ?? this.intensity,
     speed: speed ?? this.speed,
     foam: foam ?? this.foam,
@@ -757,6 +813,7 @@ class BaseCampWaterFx {
     'shoreline': _pointsJson(shoreline),
     'mask': _pointsJson(mask),
     'exclusionMasks': exclusionMasks.map(_pointsJson).toList(growable: false),
+    if (areas.isNotEmpty) 'areas': areas.map((area) => area.toJson()).toList(),
     'intensity': intensity,
     'speed': speed,
     'foam': foam,
@@ -792,6 +849,15 @@ class BaseCampWaterFx {
           f = n('frequency');
       final defaults = BaseCampWaterFx.defaults()[id]!;
       final exclusions = _decodeExclusionMasks(i['exclusionMasks']);
+      final rawAreas = i['areas'];
+      final areas = rawAreas == null
+          ? const <BaseCampWaterArea>[]
+          : rawAreas is List
+          ? rawAreas
+                .map(BaseCampWaterArea.tryParse)
+                .whereType<BaseCampWaterArea>()
+                .toList()
+          : null;
       final shimmerDensity = n('shimmerDensity') ?? defaults.shimmerDensity;
       final shimmerBrightness =
           n('shimmerBrightness') ?? defaults.shimmerBrightness;
@@ -802,6 +868,8 @@ class BaseCampWaterFx {
       if (shore == null ||
           mask == null ||
           exclusions == null ||
+          areas == null ||
+          (rawAreas is List && areas.length != rawAreas.length) ||
           [
             a,
             b,
@@ -822,6 +890,7 @@ class BaseCampWaterFx {
         shoreline: shore,
         mask: mask,
         exclusionMasks: exclusions,
+        areas: areas,
         intensity: a!,
         speed: b!,
         foam: c!,

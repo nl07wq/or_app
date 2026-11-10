@@ -1131,14 +1131,20 @@ Path baseCampEffectiveWaterPath(
   BaseCampWaterFx effect,
   BaseCampMapGeometry geometry,
 ) {
-  var result = Path()
-    ..addPolygon(effect.mask.map(geometry.artworkToViewport).toList(), true);
-  for (final exclusion in effect.exclusionMasks) {
-    final exclusionPath = Path()
-      ..addPolygon(exclusion.map(geometry.artworkToViewport).toList(), true);
-    result = Path.combine(PathOperation.difference, result, exclusionPath);
+  Path? result;
+  for (final area in effect.effectiveAreas) {
+    var current = Path()
+      ..addPolygon(area.mask.map(geometry.artworkToViewport).toList(), true);
+    for (final exclusion in area.exclusionMasks) {
+      final exclusionPath = Path()
+        ..addPolygon(exclusion.map(geometry.artworkToViewport).toList(), true);
+      current = Path.combine(PathOperation.difference, current, exclusionPath);
+    }
+    result = result == null
+        ? current
+        : Path.combine(PathOperation.union, result, current);
   }
-  return result;
+  return result ?? Path();
 }
 
 class _BaseCampWaterFxPainter extends CustomPainter {
@@ -1163,7 +1169,10 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       final mask = baseCampEffectiveWaterPath(fx, geometry);
       canvas.save();
       canvas.clipPath(mask);
-      final shore = fx.shoreline.map(geometry.artworkToViewport).toList();
+      final shore = fx.effectiveAreas
+          .expand((area) => area.shoreline)
+          .map(geometry.artworkToViewport)
+          .toList();
       final bounds = mask.getBounds();
       // RIPPLE: moving translucent flow cells create a changing water mass,
       // rather than a static collection of thin wave lines. The clipped cells
