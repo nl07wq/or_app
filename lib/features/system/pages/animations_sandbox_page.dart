@@ -22,6 +22,7 @@ import 'fox_rear_leg_geometry_lab.dart';
 import 'fox_pattern_preview.dart';
 import 'pixel_lab_page.dart';
 import 'boot_send_sequence_sandbox.dart';
+import 'soldier_alignment_sandbox.dart';
 
 const _bootSequenceAssets = [
   _BootSequenceAsset(
@@ -137,6 +138,8 @@ class AnimationsSandboxPage extends StatelessWidget {
         const _AmbientWildlifeV1Section(),
         AppSpacing.gapXL,
         const _AnimalSandboxSections(),
+        AppSpacing.gapXL,
+        const SoldierAlignmentSandboxSection(),
       ],
     ),
   );

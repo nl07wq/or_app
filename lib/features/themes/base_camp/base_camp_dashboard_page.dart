@@ -205,29 +205,33 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                             0.0,
                             940.0,
                           );
-                          // V2.7 keeps the supplied square scene intact.
-                          // The chassis may own surplus space, but it never
-                          // crops or non-uniformly scales the map image.
-                          final naturalMapHeight = width + 14;
-                          final availableMapHeight =
+                          // SafeArea has already removed the actual bottom
+                          // inset; use this constrained body height once.
+                          // The square map is allocated only what remains,
+                          // never cropped or placed in an oversized chassis.
+                          const outerVertical = 24.0;
+                          const terminalMapGap = 6.0;
+                          final remainingMapHeight =
                               viewport.maxHeight -
+                              outerVertical -
                               _TacticalTerminal.height -
-                              12 -
-                              32;
-                          final mapViewportHeight =
-                              naturalMapHeight > availableMapHeight
-                              ? naturalMapHeight
-                              : availableMapHeight;
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                              terminalMapGap;
+                          final mapSide = math.min(
+                            width,
+                            remainingMapHeight < 0 ? 0.0 : remainingMapHeight,
+                          );
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                             child: Center(
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   maxWidth: 940,
                                 ),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     ValueListenableBuilder<DeviceSettings>(
                                       valueListenable:
@@ -258,11 +262,13 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                                             ),
                                           ),
                                     ),
-                                    const SizedBox(height: 12),
-                                    _MapChassis(
-                                      viewportHeight: mapViewportHeight,
-                                      child: BaseCampMap(
-                                        onFacilityPressed: _openFacility,
+                                    const SizedBox(height: terminalMapGap),
+                                    SizedBox.square(
+                                      dimension: mapSide,
+                                      child: _MapChassis(
+                                        child: BaseCampMap(
+                                          onFacilityPressed: _openFacility,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -283,8 +289,7 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
 }
 
 class _MapChassis extends StatelessWidget {
-  const _MapChassis({required this.viewportHeight, required this.child});
-  final double viewportHeight;
+  const _MapChassis({required this.child});
   final Widget child;
 
   @override
@@ -297,24 +302,21 @@ class _MapChassis extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
     ),
-    child: SizedBox(
-      key: const ValueKey('base-camp-home-map-viewport'),
-      height: viewportHeight - 14,
-      child: Center(
-        // The map remains one proportional square scene; the chassis owns
-        // surplus height rather than scaling or cropping image/overlays.
-        child: AspectRatio(
-          aspectRatio:
-              baseCampMapArtworkSize.width / baseCampMapArtworkSize.height,
-          child: child,
-        ),
+    child: Center(
+      // The map remains one proportional square scene with no surplus frame
+      // that could create a false scroll region.
+      child: AspectRatio(
+        key: const ValueKey('base-camp-home-map-viewport'),
+        aspectRatio:
+            baseCampMapArtworkSize.width / baseCampMapArtworkSize.height,
+        child: child,
       ),
     ),
   );
 }
 
 class _TacticalTerminal extends StatelessWidget {
-  static const height = 350.0;
+  static const height = 356.0;
   const _TacticalTerminal({
     required this.snapshot,
     required this.morning,
@@ -339,6 +341,7 @@ class _TacticalTerminal extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-tactical-terminal'),
+    height: height,
     decoration: BoxDecoration(
       color: const Color(0xff2a3020),
       borderRadius: BorderRadius.circular(14),
@@ -349,13 +352,13 @@ class _TacticalTerminal extends StatelessWidget {
       painter: const _TerminalChassisPainter(),
       child: MediaQuery.withNoTextScaling(
         child: Padding(
-          padding: const EdgeInsets.all(11),
+          padding: const EdgeInsets.all(8),
           child: Column(
             children: [
               const _TerminalHeading(),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               SizedBox(
-                height: 100,
+                height: 98,
                 child: Row(
                   children: [
                     const Expanded(
@@ -370,9 +373,9 @@ class _TacticalTerminal extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               SizedBox(
-                height: 182,
+                height: 160,
                 child: PageView(
                   key: const ValueKey('base-camp-terminal-pages'),
                   controller: pages,
@@ -423,7 +426,7 @@ class _TacticalTerminal extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 4),
               _PageIndicator(index: page, count: 4),
             ],
           ),
@@ -666,7 +669,9 @@ class _BreathingSoldierCompartmentState
                     child: Padding(
                       padding: EdgeInsets.all(_soldierViewportPadding),
                       child: IgnorePointer(
-                        child: CustomPaint(painter: _SoldierPanelGridPainter()),
+                        child: CustomPaint(
+                          painter: BaseCampSoldierGridPainter(),
+                        ),
                       ),
                     ),
                   ),
@@ -727,11 +732,20 @@ class _BreathingSoldierCompartmentState
 
 const breathingSoldierReferenceAsset =
     'assets/images/themes/base_camp/breathing_soldier/ChatGPT Image 2026年8月16日 21_03_48.png';
-const _breathingSoldierLowerAsset =
+const baseCampBreathingSoldierLowerAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_lowerboady.png';
 const baseCampBreathingSoldierUpperAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_upperboady.png';
 const _soldierViewportPadding = 4.0;
+
+const baseCampRifleRegripSourceAssets = [
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F0.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F1.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F2.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F3.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F4.png',
+  'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_F5.png',
+];
 
 const baseCampRifleRegripAssets = [
   'assets/images/themes/base_camp/breathing_soldier/rifle_regrip/rifle_regrip_corrected_F0.png',
@@ -752,7 +766,7 @@ class _NormalSoldierComposite extends StatelessWidget {
     clipBehavior: Clip.hardEdge,
     children: [
       Image.asset(
-        _breathingSoldierLowerAsset,
+        baseCampBreathingSoldierLowerAsset,
         key: const ValueKey('base-camp-soldier-lower'),
         fit: BoxFit.contain,
         filterQuality: FilterQuality.none,
@@ -921,8 +935,8 @@ double baseCampBreathingOffset(double elapsedMs) {
 /// Static two-plane tactical grid for the soldier compartment.  It has no
 /// animation/listenable, so it remains completely stable while the normal or
 /// special soldier animation changes above it.
-class _SoldierPanelGridPainter extends CustomPainter {
-  const _SoldierPanelGridPainter();
+class BaseCampSoldierGridPainter extends CustomPainter {
+  const BaseCampSoldierGridPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -975,7 +989,7 @@ class _SoldierPanelGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SoldierPanelGridPainter oldDelegate) => false;
+  bool shouldRepaint(covariant BaseCampSoldierGridPainter oldDelegate) => false;
 }
 
 const baseCampSoldierWallGridSpacing = 32.0;
@@ -1436,7 +1450,7 @@ class _TerminalInformationPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         child: _IndustrialLcdPanel(
           child: Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1447,7 +1461,7 @@ class _TerminalInformationPage extends StatelessWidget {
                         title,
                         style: TextStyle(
                           color: _LcdColors.ink(context),
-                          fontSize: 13,
+                          fontSize: 11,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .9,
                         ),
@@ -1455,7 +1469,7 @@ class _TerminalInformationPage extends StatelessWidget {
                     ),
                     Icon(
                       Icons.open_in_full,
-                      size: 15,
+                      size: 12,
                       color: _LcdColors.ink(context),
                     ),
                   ],
@@ -1466,11 +1480,11 @@ class _TerminalInformationPage extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: _LcdColors.auxiliary(context),
-                    fontSize: 8,
+                    fontSize: 7,
                     letterSpacing: .65,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 3),
                 Expanded(child: child),
               ],
             ),
@@ -1690,7 +1704,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('COMMAND', style: _lcdLabelStyle),
+              Text('COMMAND', style: _commandLcdLabelStyle(context)),
               const SizedBox(height: 3),
               Text(
                 intent,
@@ -1708,12 +1722,15 @@ class _CommandPreviewState extends State<_CommandPreview> {
               const SizedBox(height: 8),
               const Divider(color: _LcdPalette.mid, height: 1),
               const SizedBox(height: 6),
-              const Text('SCHEDULE', style: _lcdLabelStyle),
+              Text('SCHEDULE', style: _commandLcdLabelStyle(context)),
               const SizedBox(height: 3),
               if (ordered.isEmpty)
-                const Text(
+                Text(
                   'NO SCHEDULED ITEMS',
-                  style: TextStyle(color: _LcdPalette.mid, fontSize: 10),
+                  style: TextStyle(
+                    color: _LcdColors.ink(context),
+                    fontSize: 10,
+                  ),
                 )
               else
                 for (final entry in visible)
@@ -1792,7 +1809,7 @@ class _TacticalScheduleRow extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             number.toString().padLeft(2, '0'),
-            style: _lcdLabelStyle.copyWith(fontSize: 10),
+            style: _commandLcdLabelStyle(context).copyWith(fontSize: 10),
           ),
           const SizedBox(width: 4),
           Container(
@@ -2090,8 +2107,8 @@ class _PageIndicator extends StatelessWidget {
           width: index == item ? 20 : 8,
           decoration: BoxDecoration(
             color: index == item
-                ? _LcdColors.ink(context)
-                : _LcdColors.auxiliary(context),
+                ? const Color(0xffc7d6a0)
+                : const Color(0xff65705a).withValues(alpha: .65),
             borderRadius: BorderRadius.circular(2.5),
           ),
         ),
@@ -2433,6 +2450,9 @@ const _lcdLabelStyle = TextStyle(
   fontWeight: FontWeight.w700,
   letterSpacing: .7,
 );
+
+TextStyle _commandLcdLabelStyle(BuildContext context) =>
+    _lcdLabelStyle.copyWith(color: _LcdColors.ink(context));
 
 class _BaseCampLcdMode extends InheritedWidget {
   const _BaseCampLcdMode({required this.negative, required super.child});

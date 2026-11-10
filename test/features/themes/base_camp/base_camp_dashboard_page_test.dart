@@ -65,9 +65,38 @@ void main() {
     final viewport = tester.getSize(
       find.byKey(const ValueKey('base-camp-home-map-viewport')),
     );
-    expect(viewport.height, greaterThan(mapSize.height));
+    expect(viewport.height, closeTo(mapSize.height, .1));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'dashboard uses the remaining viewport for a fully visible square map',
+    (tester) async {
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      for (final size in const [
+        Size(390, 844),
+        Size(390, 750),
+        Size(375, 667),
+      ]) {
+        await tester.binding.setSurfaceSize(size);
+        await tester.pumpWidget(
+          const MaterialApp(home: BaseCampDashboardPage()),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+
+        final terminal = tester.getRect(
+          find.byKey(const ValueKey('base-camp-tactical-terminal')),
+        );
+        final mapRegion = tester.getRect(
+          find.byKey(const ValueKey('base-camp-home-map-region')),
+        );
+        expect(terminal.height, 356);
+        expect(mapRegion.width, closeTo(mapRegion.height, .1));
+        expect(mapRegion.bottom, lessThanOrEqualTo(size.height));
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets('terminal pages swipe and open an expanded detail sheet', (
     tester,
@@ -471,7 +500,7 @@ void main() {
           (tester.widget<AnimatedContainer>(indicator).decoration!
                   as BoxDecoration)
               .color ==
-          const Color(0xff273326),
+          const Color(0xffc7d6a0),
     );
     expect(selectedBefore, greaterThan(0));
     final active = indicators[selectedBefore];
@@ -495,7 +524,7 @@ void main() {
             (tester.widget<AnimatedContainer>(indicator).decoration!
                     as BoxDecoration)
                 .color ==
-            const Color(0xffaeb894),
+            const Color(0xffc7d6a0),
       ),
       selectedBefore,
     );
