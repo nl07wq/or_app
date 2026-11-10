@@ -98,9 +98,10 @@ void main() {
     final dashboard = baseCampSoldierGridGeometryForViewport(
       const Size(140, 98),
     );
-    expect(sandbox.logicalSize, dashboard.logicalSize);
+    expect(sandbox.logicalSize.height, dashboard.logicalSize.height);
     expect(sandbox.scale, 1);
     expect(dashboard.scale, closeTo(98 / 360, .0001));
+    expect(dashboard.logicalSize.width * dashboard.scale, closeTo(140, .001));
     expect(
       baseCampSoldierWallGridSpacing * dashboard.scale,
       closeTo(32 * dashboard.scale, .0001),

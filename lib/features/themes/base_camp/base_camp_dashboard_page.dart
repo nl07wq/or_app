@@ -952,19 +952,16 @@ class BaseCampSoldierGridGeometry {
 /// alignment sandbox.  Each viewport applies one uniform scale then clips;
 /// grid squares can never receive separate horizontal/vertical stretching.
 BaseCampSoldierGridGeometry baseCampSoldierGridGeometryForViewport(Size size) {
-  const logicalSize = Size(360, 360);
-  final scale = math.min(
-    size.width / logicalSize.width,
-    size.height / logicalSize.height,
-  );
-  final fitted = Size(logicalSize.width * scale, logicalSize.height * scale);
+  // Keep 32dp cells square, but extend the shared logical plane horizontally
+  // before clipping.  `contain` on a fixed square left empty side columns in
+  // the Dashboard's wide soldier compartment.
+  const referenceHeight = 360.0;
+  final scale = size.height / referenceHeight;
+  final logicalSize = Size(size.width / scale, referenceHeight);
   return BaseCampSoldierGridGeometry(
     logicalSize: logicalSize,
     scale: scale,
-    offset: Offset(
-      (size.width - fitted.width) / 2,
-      (size.height - fitted.height) / 2,
-    ),
+    offset: Offset.zero,
   );
 }
 

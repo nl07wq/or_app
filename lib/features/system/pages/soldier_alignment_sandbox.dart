@@ -15,14 +15,14 @@ import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
 class SoldierAlignmentData {
   const SoldierAlignmentData({
     this.frameOffsets = const [
-      Offset.zero,
-      Offset.zero,
-      Offset.zero,
-      Offset.zero,
-      Offset.zero,
-      Offset.zero,
+      Offset(-13.5, 46.5),
+      Offset(-14, 47),
+      Offset(-30.5, 46),
+      Offset(-13.5, 25.5),
+      Offset(-13, 44.5),
+      Offset(-20, 46),
     ],
-    this.frameScales = const [1, 1, 1, 1, 1, 1],
+    this.frameScales = const [1.15, 1.15, 1.15, 1.15, 1.2, 1.2],
     this.offsetXdp = 0,
     this.offsetYdp = 0,
     this.scale = 1,
@@ -622,12 +622,15 @@ class _SoldierAlignmentSandboxSectionState
                   final phase = _transitionPreview
                       ? baseCampRifleRegripPhase(eventMs)
                       : BaseCampRifleRegripPhase.rifleRegrip;
+                  // Normal sandbox entry mirrors production: breathing is
+                  // visible until the user explicitly triggers regrip. A
+                  // rifle-only comparison remains available by hiding the
+                  // breathing layer.
                   final activeFrame =
-                      phase == BaseCampRifleRegripPhase.rifleRegrip
-                      ? (_transitionPreview
-                            ? baseCampRifleRegripFrameIndex(eventMs)
-                            : _selectedFrame)
-                      : null;
+                      phase == BaseCampRifleRegripPhase.rifleRegrip &&
+                          _transitionPreview
+                      ? baseCampRifleRegripFrameIndex(eventMs)
+                      : (!_showBreathing && _showRifle ? _selectedFrame : null);
                   return Stack(
                     clipBehavior: Clip.hardEdge,
                     children: [
@@ -964,7 +967,7 @@ class _SoldierAlignmentSandboxSectionState
           OutlinedButton.icon(
             onPressed: _toggleTransitionPreview,
             icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
-            label: Text(_playing ? 'PAUSE' : 'PLAY'),
+            label: Text(_playing ? 'PAUSE' : 'TRIGGER REGRIP'),
           ),
           OutlinedButton.icon(
             onPressed: _restartTransitionPreview,
