@@ -134,6 +134,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   _BaseCampWaterLayer _waterLayer = _BaseCampWaterLayer.shimmer;
   int _waterPointIndex = 0;
   bool _waterMaskSelected = false;
+  int _waterAreaIndex = 0;
   bool _awaitingWaterPoint = false;
   bool _awaitingExclusionPoint = false;
   String? _staticSoldierId;
@@ -306,6 +307,51 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     ),
   );
 
+  List<BaseCampWaterArea> _areas(BaseCampWaterFx effect) =>
+      List<BaseCampWaterArea>.of(effect.effectiveAreas);
+
+  BaseCampWaterFx _withAreas(
+    BaseCampWaterFx effect,
+    List<BaseCampWaterArea> areas,
+  ) => effect.copyWith(
+    areas: areas,
+    // Keep v6-compatible primary fields in sync with area zero for old JSON
+    // consumers; the V7 `areas` collection remains authoritative.
+    mask: areas.first.mask,
+    shoreline: areas.first.shoreline,
+    exclusionMasks: areas.first.exclusionMasks,
+  );
+
+  int _safeAreaIndex(BaseCampWaterFx effect) =>
+      _waterAreaIndex.clamp(0, _areas(effect).length - 1);
+
+  void _addWaterArea() {
+    final effect = _working.waterFx[_waterFxId]!;
+    final areas = _areas(effect);
+    areas.add(
+      const BaseCampWaterArea(
+        mask: <Offset>[
+          Offset(567, 567),
+          Offset(687, 567),
+          Offset(687, 687),
+          Offset(567, 687),
+        ],
+        shoreline: <Offset>[Offset(567, 627), Offset(687, 627)],
+      ),
+    );
+    _replaceWaterFx(_waterFxId, _withAreas(effect, areas));
+    setState(() => _waterAreaIndex = areas.length - 1);
+  }
+
+  void _deleteWaterArea() {
+    final effect = _working.waterFx[_waterFxId]!;
+    final areas = _areas(effect);
+    if (areas.length <= 1) return;
+    areas.removeAt(_safeAreaIndex(effect));
+    _replaceWaterFx(_waterFxId, _withAreas(effect, areas));
+    setState(() => _waterAreaIndex = 0);
+  }
+
   void _updateWaterPoint(
     String id,
     int index,
@@ -313,7 +359,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     required bool mask,
   }) {
     final effect = _working.waterFx[id]!;
-    final values = List<Offset>.of(mask ? effect.mask : effect.shoreline);
+    final areas = _areas(effect);
+    final areaIndex = _safeAreaIndex(effect);
+    final area = areas[areaIndex];
+    final values = List<Offset>.of(mask ? area.mask : area.shoreline);
     values[index] = Offset(
       point.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
       point.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
@@ -322,9 +371,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _working = _working.copyWith(
         waterFx: <String, BaseCampWaterFx>{
           ..._working.waterFx,
-          id: mask
-              ? effect.copyWith(mask: values)
-              : effect.copyWith(shoreline: values),
+          id: _withAreas(
+            effect,
+            areas
+              ..[areaIndex] = mask
+                  ? BaseCampWaterArea(
+                      mask: values,
+                      shoreline: area.shoreline,
+                      exclusionMasks: area.exclusionMasks,
+                    )
+                  : BaseCampWaterArea(
+                      mask: area.mask,
+                      shoreline: values,
+                      exclusionMasks: area.exclusionMasks,
+                    ),
+          ),
         },
       );
     });
@@ -1239,6 +1300,18 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               spacing: 8,
               children: [
                 OutlinedButton.icon(
+                  onPressed: _addWaterArea,
+                  icon: const Icon(Icons.add_box_outlined),
+                  label: const Text('NEW AREA'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _areas(_working.waterFx[_waterFxId]!).length > 1
+                      ? _deleteWaterArea
+                      : null,
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                  label: const Text('DELETE AREA'),
+                ),
+                OutlinedButton.icon(
                   onPressed: () =>
                       _canvasKey.currentState?.focusWaterFx(_waterFxId),
                   icon: const Icon(Icons.center_focus_strong),
@@ -1250,6 +1323,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   label: const Text('EXIT FOCUS'),
                 ),
               ],
+            ),
+            DropdownButton<int>(
+              value: _safeAreaIndex(_working.waterFx[_waterFxId]!),
+              items: [
+                for (
+                  var index = 0;
+                  index < _areas(_working.waterFx[_waterFxId]!).length;
+                  index++
+                )
+                  DropdownMenuItem(
+                    value: index,
+                    child: Text('SELECT AREA ${index + 1}'),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _waterAreaIndex = value!),
             ),
             OutlinedButton.icon(
               onPressed: () => _replaceWaterFx(
