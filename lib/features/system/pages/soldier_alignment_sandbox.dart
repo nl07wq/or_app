@@ -23,9 +23,9 @@ class SoldierAlignmentData {
       Offset(-20, 46),
     ],
     this.frameScales = const [1.15, 1.15, 1.15, 1.15, 1.2, 1.2],
-    this.offsetXdp = 0,
-    this.offsetYdp = 0,
-    this.scale = 1,
+    this.offsetXdp = baseCampApprovedRifleGlobalX,
+    this.offsetYdp = baseCampApprovedRifleGlobalY,
+    this.scale = baseCampApprovedRifleGlobalScale,
     this.breathingOpacity = .5,
     this.brightness = 0,
     this.contrast = 1,
@@ -616,7 +616,6 @@ class _SoldierAlignmentSandboxSectionState
               }),
               child: LayoutBuilder(
                 builder: (context, bounds) {
-                  final layout = baseCampRifleRegripLayout(bounds.biggest);
                   final eventMs = (_playback.value * baseCampRifleRegripEventMs)
                       .floor();
                   final phase = _transitionPreview
@@ -671,12 +670,15 @@ class _SoldierAlignmentSandboxSectionState
                         ),
                       if (_showRifle && activeFrame != null)
                         _rifleLayer(
-                          layout: layout,
+                          viewport: bounds.biggest,
                           frame: _comparisonFrame,
                           opacity: _comparisonFrame == activeFrame ? 0 : .35,
                         ),
                       if (_showRifle && activeFrame != null)
-                        _rifleLayer(layout: layout, frame: activeFrame),
+                        _rifleLayer(
+                          viewport: bounds.biggest,
+                          frame: activeFrame,
+                        ),
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(painter: _AlignmentGuidePainter()),
@@ -694,34 +696,29 @@ class _SoldierAlignmentSandboxSectionState
   );
 
   Widget _rifleLayer({
-    required BaseCampRifleRegripLayout layout,
+    required Size viewport,
     required int frame,
     double opacity = 1,
   }) {
-    final offset = _data.frameOffsets[frame];
-    final frameScale = _data.frameScales[frame];
-    final dimension = layout.specialDimension * _data.scale * frameScale;
-    final sourceScale = dimension / 512;
+    final transform = baseCampRifleRegripTransform(
+      viewport,
+      frame,
+      globalX: _data.offsetXdp,
+      globalY: _data.offsetYdp,
+      globalScale: _data.scale,
+      frameOffsets: _data.frameOffsets,
+      frameScales: _data.frameScales,
+    );
     final asset = (_showCorrected
         ? baseCampRifleRegripAssets
         : baseCampRifleRegripSourceAssets)[frame];
     return Positioned(
       // Scale about the shared visible foot anchor. Frame-local enlargement
       // never lifts or drops the standing baseline unless its Y offset does.
-      left:
-          layout.specialLeft +
-          layout.specialDimension / 2 -
-          dimension / 2 +
-          _data.offsetXdp +
-          offset.dx * sourceScale,
-      top:
-          layout.specialTop +
-          layout.specialDimension -
-          dimension +
-          _data.offsetYdp +
-          offset.dy * sourceScale,
-      width: dimension,
-      height: dimension,
+      left: transform.left,
+      top: transform.top,
+      width: transform.dimension,
+      height: transform.dimension,
       child: Opacity(
         opacity: opacity,
         child: ColorFiltered(

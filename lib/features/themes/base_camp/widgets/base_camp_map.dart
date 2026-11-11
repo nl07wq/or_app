@@ -1113,14 +1113,21 @@ class BaseCampWaterFxLayer extends StatelessWidget {
     required this.configuration,
     required this.geometry,
     required this.elapsed,
+    this.previewLayer,
   });
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
   final Duration elapsed;
+  final String? previewLayer;
   @override
   Widget build(BuildContext context) => CustomPaint(
     key: const ValueKey('base-camp-water-fx'),
-    painter: _BaseCampWaterFxPainter(configuration, geometry, elapsed),
+    painter: _BaseCampWaterFxPainter(
+      configuration,
+      geometry,
+      elapsed,
+      previewLayer,
+    ),
     child: const SizedBox.expand(),
   );
 }
@@ -1152,10 +1159,12 @@ class _BaseCampWaterFxPainter extends CustomPainter {
     this.configuration,
     this.geometry,
     this.elapsed,
+    this.previewLayer,
   );
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
   final Duration elapsed;
+  final String? previewLayer;
   @override
   void paint(Canvas canvas, Size size) {
     final time = elapsed.inMilliseconds / 1000;
@@ -1173,7 +1182,8 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       // RIPPLE: moving translucent flow cells create a changing water mass,
       // rather than a static collection of thin wave lines. The clipped cells
       // retain the underlying map texture while adding depth at thumbnail size.
-      if (fx.rippleEnabled) {
+      if (fx.rippleEnabled &&
+          (previewLayer == null || previewLayer == 'ripple')) {
         for (var cell = 0; cell < 11; cell++) {
           final seed = _waterUnit(entry.key.hashCode + cell * 43.19);
           final seed2 = _waterUnit(entry.key.hashCode + cell * 79.31 + 7);
@@ -1207,7 +1217,8 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       // particles. Each patch has its own phase so the water does not flash
       // as a single synchronized surface.
       final shimmerCount = (24 + fx.shimmerDensity * 34).round();
-      if (fx.shimmerEnabled) {
+      if (fx.shimmerEnabled &&
+          (previewLayer == null || previewLayer == 'shimmer')) {
         for (var index = 0; index < shimmerCount; index++) {
           final seed =
               math.sin(index * 91.713 + entry.key.hashCode) * 43758.5453;
@@ -1251,8 +1262,8 @@ class _BaseCampWaterFxPainter extends CustomPainter {
       }
       // FOAM: it is deliberately confined to the shoreline, with the
       // upper coast much quieter than the lower rocky shore.
-      final foamStrength = entry.key == 'rock-foam' ? 1.0 : .22;
-      if (fx.foamEnabled) {
+      const foamStrength = 1.0;
+      if (fx.foamEnabled && (previewLayer == null || previewLayer == 'foam')) {
         for (final area in fx.effectiveAreas) {
           final shore = area.shoreline.map(geometry.artworkToViewport).toList();
           if (shore.length < 2) continue;
@@ -1295,7 +1306,8 @@ class _BaseCampWaterFxPainter extends CustomPainter {
   bool shouldRepaint(_BaseCampWaterFxPainter old) =>
       old.configuration != configuration ||
       old.geometry != geometry ||
-      old.elapsed != elapsed;
+      old.elapsed != elapsed ||
+      old.previewLayer != previewLayer;
 }
 
 double _waterUnit(num seed) {

@@ -4,6 +4,15 @@ import 'package:or_app/features/system/pages/soldier_alignment_sandbox.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
 
 void main() {
+  test('sandbox starts from the approved production alignment', () {
+    const data = SoldierAlignmentData();
+    expect(data.offsetXdp, baseCampApprovedRifleGlobalX);
+    expect(data.offsetYdp, baseCampApprovedRifleGlobalY);
+    expect(data.scale, baseCampApprovedRifleGlobalScale);
+    expect(data.frameOffsets, baseCampApprovedRifleFrameOffsets);
+    expect(data.frameScales, baseCampApprovedRifleFrameScales);
+  });
+
   test('alignment data round-trips and rejects invalid frame contracts', () {
     const source = SoldierAlignmentData(
       frameOffsets: [

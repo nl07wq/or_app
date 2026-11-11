@@ -69,6 +69,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('soldier panel long press opens the independent live preview', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.longPress(
+      find.byKey(const ValueKey('base-camp-soldier-panel')),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('SOLDIER LIVE MOTION PREVIEW'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('soldier-live-trigger-regrip')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'dashboard uses the remaining viewport for a fully visible square map',
     (tester) async {

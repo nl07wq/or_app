@@ -20,10 +20,11 @@ class BaseCampMapConfiguration {
     this.smokeFx = const BaseCampSmokeFx(),
     required this.labels,
     required this.waterFx,
+    this.compatibilityWaterFxV7 = const <String, BaseCampWaterFx>{},
     this.staticSoldiers = const <BaseCampStaticSoldier>[],
   });
 
-  static const schemaVersion = 7;
+  static const schemaVersion = 8;
   static const mapId = 'base-camp-map-v2';
 
   final Map<String, List<Offset>> routes;
@@ -37,6 +38,7 @@ class BaseCampMapConfiguration {
   final BaseCampSmokeFx smokeFx;
   final Map<String, BaseCampFacilityLabel> labels;
   final Map<String, BaseCampWaterFx> waterFx;
+  final Map<String, BaseCampWaterFx> compatibilityWaterFxV7;
   final List<BaseCampStaticSoldier> staticSoldiers;
 
   static const soldierScaleFull = 1.0;
@@ -78,6 +80,7 @@ class BaseCampMapConfiguration {
     BaseCampSmokeFx? smokeFx,
     Map<String, BaseCampFacilityLabel>? labels,
     Map<String, BaseCampWaterFx>? waterFx,
+    Map<String, BaseCampWaterFx>? compatibilityWaterFxV7,
     List<BaseCampStaticSoldier>? staticSoldiers,
   }) => BaseCampMapConfiguration(
     routes: routes ?? this.routes,
@@ -88,6 +91,8 @@ class BaseCampMapConfiguration {
     smokeFx: smokeFx ?? this.smokeFx,
     labels: labels ?? this.labels,
     waterFx: waterFx ?? this.waterFx,
+    compatibilityWaterFxV7:
+        compatibilityWaterFxV7 ?? this.compatibilityWaterFxV7,
     staticSoldiers: staticSoldiers ?? this.staticSoldiers,
   );
 
@@ -107,6 +112,10 @@ class BaseCampMapConfiguration {
     'smokeFx': smokeFx.toJson(),
     'labels': labels.map((id, label) => MapEntry(id, label.toJson())),
     'waterFx': waterFx.map((id, effect) => MapEntry(id, effect.toJson())),
+    if (compatibilityWaterFxV7.isNotEmpty)
+      'compatibilityWaterFxV7': compatibilityWaterFxV7.map(
+        (id, effect) => MapEntry(id, effect.toJson()),
+      ),
     'staticSoldiers': staticSoldiers.map((item) => item.toJson()).toList(),
   };
 
@@ -131,6 +140,9 @@ class BaseCampMapConfiguration {
     }
     if (raw['schemaVersion'] == 6 && raw['mapId'] == mapId) {
       return _migrateV6(raw);
+    }
+    if (raw['schemaVersion'] == 7 && raw['mapId'] == mapId) {
+      return _migrateV7(raw);
     }
     if (raw['schemaVersion'] != schemaVersion || raw['mapId'] != mapId) {
       return null;
@@ -159,6 +171,9 @@ class BaseCampMapConfiguration {
     final smokeFx = BaseCampSmokeFx.tryParse(raw['smokeFx']);
     final labels = BaseCampFacilityLabel.decodeAll(raw['labels']);
     final waterFx = BaseCampWaterFx.decodeAll(raw['waterFx']);
+    final compatibilityWaterFxV7 = raw['compatibilityWaterFxV7'] == null
+        ? const <String, BaseCampWaterFx>{}
+        : BaseCampWaterFx.decodeLegacy(raw['compatibilityWaterFxV7']);
     final staticSoldiers = BaseCampStaticSoldier.decodeAll(
       raw['staticSoldiers'],
     );
@@ -170,6 +185,7 @@ class BaseCampMapConfiguration {
         smokeFx == null ||
         labels == null ||
         waterFx == null ||
+        compatibilityWaterFxV7 == null ||
         staticSoldiers == null ||
         scale <= 0) {
       return null;
@@ -185,6 +201,7 @@ class BaseCampMapConfiguration {
       smokeFx: smokeFx,
       labels: labels,
       waterFx: waterFx,
+      compatibilityWaterFxV7: compatibilityWaterFxV7,
       staticSoldiers: staticSoldiers,
     );
   }
@@ -349,7 +366,7 @@ class BaseCampMapConfiguration {
       converted[entry.key] = item;
     }
     final v6 = Map<String, Object?>.from(raw)
-      ..['schemaVersion'] = schemaVersion
+      ..['schemaVersion'] = 6
       ..['waterFx'] = converted;
     return tryParse(v6);
   }
@@ -358,9 +375,35 @@ class BaseCampMapConfiguration {
   /// first effective area, so this migration never reconstructs or discards
   /// a user-drawn polygon.
   static BaseCampMapConfiguration? _migrateV6(Map raw) {
-    final v7 = Map<String, Object?>.from(raw)
-      ..['schemaVersion'] = schemaVersion;
+    final v7 = Map<String, Object?>.from(raw)..['schemaVersion'] = 7;
     return tryParse(v7);
+  }
+
+  /// V8 replaces the two map-era effect slots with one common WATER MASK.
+  /// Every legacy polygon remains an independent area and the complete V7
+  /// payload is retained as compatibility data, so the migration is lossless
+  /// and a second parse is idempotent.
+  static BaseCampMapConfiguration? _migrateV7(Map raw) {
+    final legacy = BaseCampWaterFx.decodeLegacy(raw['waterFx']);
+    if (legacy == null) return null;
+    final areas = <BaseCampWaterArea>[
+      for (final effect in legacy.values) ...effect.effectiveAreas,
+    ];
+    if (areas.isEmpty) return null;
+    final parameters = legacy['rock-foam'] ?? legacy.values.first;
+    final unified = parameters.copyWith(
+      areas: areas,
+      mask: areas.first.mask,
+      shoreline: areas.first.shoreline,
+      exclusionMasks: areas.first.exclusionMasks,
+    );
+    final v8 = Map<String, Object?>.from(raw)
+      ..['schemaVersion'] = schemaVersion
+      ..['waterFx'] = <String, Object?>{'water': unified.toJson()}
+      ..['compatibilityWaterFxV7'] = legacy.map(
+        (id, effect) => MapEntry(id, effect.toJson()),
+      );
+    return tryParse(v8);
   }
 
   static Offset? _decodeNormalizedPoint(Object? raw) {
@@ -720,50 +763,266 @@ class BaseCampWaterFx {
   final double flowDistortion, foamIntensity, foamLifetime;
   final bool shimmerEnabled, rippleEnabled, foamEnabled, visible;
   static Map<String, BaseCampWaterFx> defaults() => <String, BaseCampWaterFx>{
-    'rock-foam': const BaseCampWaterFx(
-      shoreline: [
-        Offset(9.8, 932),
-        Offset(47, 982),
-        Offset(76, 1071),
-        Offset(65, 1187),
+    'water': const BaseCampWaterFx(
+      // The primary fields mirror area zero for compatibility with the V7
+      // shape contract. `areas` is authoritative in schema V8.
+      mask: <Offset>[
+        Offset(0, 0),
+        Offset(27, 6),
+        Offset(46, 15),
+        Offset(299, 15),
+        Offset(356, 39),
+        Offset(458, 41),
+        Offset(486, 95),
+        Offset(451, 104),
+        Offset(393, 104),
+        Offset(328, 121),
+        Offset(277, 144),
+        Offset(221, 175),
+        Offset(171, 215),
+        Offset(130, 263),
+        Offset(86, 310),
+        Offset(44, 362),
+        Offset(5, 427),
+        Offset(0, 492),
       ],
-      mask: [
-        Offset(0, 868),
-        Offset(43, 911),
-        Offset(84, 1033),
-        Offset(75, 1201),
-        Offset(0, 1254),
+      shoreline: <Offset>[
+        Offset(27, 6),
+        Offset(46, 15),
+        Offset(299, 15),
+        Offset(356, 39),
+        Offset(458, 41),
+        Offset(486, 95),
+        Offset(451, 104),
+        Offset(393, 104),
+        Offset(328, 121),
+        Offset(277, 144),
+        Offset(221, 175),
+        Offset(171, 215),
+        Offset(130, 263),
+        Offset(86, 310),
+        Offset(44, 362),
+        Offset(5, 427),
+        Offset(0, 492),
       ],
-      intensity: 1.25,
-      foam: 1.3,
-    ),
-    'coast-ripple': const BaseCampWaterFx(
-      shoreline: [
-        Offset(5, 143),
-        Offset(57, 185),
-        Offset(59, 293),
-        Offset(41, 414),
-      ],
-      exclusionMasks: [
-        [
-          Offset(30, 181),
-          Offset(56, 155),
-          Offset(71, 205),
-          Offset(67, 289),
-          Offset(48, 336),
-          Offset(28, 286),
+      exclusionMasks: <List<Offset>>[
+        <Offset>[
+          Offset(24, 8),
+          Offset(310, 8),
+          Offset(365, 34),
+          Offset(458, 38),
+          Offset(486, 96),
+          Offset(451, 108),
+          Offset(305, 108),
+          Offset(24, 92),
+        ],
+        <Offset>[
+          Offset(48, 246),
+          Offset(126, 244),
+          Offset(151, 332),
+          Offset(89, 388),
+          Offset(38, 344),
         ],
       ],
-      mask: [
-        Offset(0, 101),
-        Offset(61, 150),
-        Offset(67, 287),
-        Offset(45, 432),
-        Offset(0, 484),
+      areas: <BaseCampWaterArea>[
+        BaseCampWaterArea(
+          mask: <Offset>[
+            Offset(0, 0),
+            Offset(27, 6),
+            Offset(46, 15),
+            Offset(299, 15),
+            Offset(356, 39),
+            Offset(458, 41),
+            Offset(486, 95),
+            Offset(451, 104),
+            Offset(393, 104),
+            Offset(328, 121),
+            Offset(277, 144),
+            Offset(221, 175),
+            Offset(171, 215),
+            Offset(130, 263),
+            Offset(86, 310),
+            Offset(44, 362),
+            Offset(5, 427),
+            Offset(0, 492),
+          ],
+          shoreline: <Offset>[
+            Offset(27, 6),
+            Offset(46, 15),
+            Offset(299, 15),
+            Offset(356, 39),
+            Offset(458, 41),
+            Offset(486, 95),
+            Offset(451, 104),
+            Offset(393, 104),
+            Offset(328, 121),
+            Offset(277, 144),
+            Offset(221, 175),
+            Offset(171, 215),
+            Offset(130, 263),
+            Offset(86, 310),
+            Offset(44, 362),
+            Offset(5, 427),
+            Offset(0, 492),
+          ],
+          exclusionMasks: <List<Offset>>[
+            <Offset>[
+              Offset(24, 8),
+              Offset(310, 8),
+              Offset(365, 34),
+              Offset(458, 38),
+              Offset(486, 96),
+              Offset(451, 108),
+              Offset(305, 108),
+              Offset(24, 92),
+            ],
+            <Offset>[
+              Offset(48, 246),
+              Offset(126, 244),
+              Offset(151, 332),
+              Offset(89, 388),
+              Offset(38, 344),
+            ],
+          ],
+        ),
+        BaseCampWaterArea(
+          mask: <Offset>[
+            Offset(876, 0),
+            Offset(1254, 0),
+            Offset(1254, 170),
+            Offset(1205, 161),
+            Offset(1174, 143),
+            Offset(1129, 125),
+            Offset(1084, 106),
+            Offset(1036, 86),
+            Offset(992, 69),
+            Offset(949, 50),
+            Offset(906, 33),
+            Offset(876, 18),
+          ],
+          shoreline: <Offset>[
+            Offset(876, 18),
+            Offset(906, 33),
+            Offset(949, 50),
+            Offset(992, 69),
+            Offset(1036, 86),
+            Offset(1084, 106),
+            Offset(1129, 125),
+            Offset(1174, 143),
+            Offset(1205, 161),
+            Offset(1254, 170),
+          ],
+        ),
+        BaseCampWaterArea(
+          mask: <Offset>[
+            Offset(0, 748),
+            Offset(11, 748),
+            Offset(5, 770),
+            Offset(22, 791),
+            Offset(46, 814),
+            Offset(76, 842),
+            Offset(109, 871),
+            Offset(144, 903),
+            Offset(176, 930),
+            Offset(198, 960),
+            Offset(195, 987),
+            Offset(167, 1014),
+            Offset(136, 1040),
+            Offset(105, 1067),
+            Offset(71, 1094),
+            Offset(38, 1115),
+            Offset(9, 1134),
+            Offset(0, 1134),
+          ],
+          shoreline: <Offset>[
+            Offset(11, 748),
+            Offset(5, 770),
+            Offset(22, 791),
+            Offset(46, 814),
+            Offset(76, 842),
+            Offset(109, 871),
+            Offset(144, 903),
+            Offset(176, 930),
+            Offset(198, 960),
+            Offset(195, 987),
+            Offset(167, 1014),
+            Offset(136, 1040),
+            Offset(105, 1067),
+            Offset(71, 1094),
+            Offset(38, 1115),
+            Offset(9, 1134),
+          ],
+        ),
+        BaseCampWaterArea(
+          mask: <Offset>[
+            Offset(203, 1214),
+            Offset(219, 1160),
+            Offset(271, 1122),
+            Offset(316, 1119),
+            Offset(582, 1119),
+            Offset(626, 1130),
+            Offset(702, 1132),
+            Offset(758, 1140),
+            Offset(812, 1154),
+            Offset(870, 1159),
+            Offset(929, 1163),
+            Offset(996, 1167),
+            Offset(1051, 1154),
+            Offset(1094, 1107),
+            Offset(1132, 1065),
+            Offset(1170, 1031),
+            Offset(1199, 1012),
+            Offset(1222, 1014),
+            Offset(1254, 1044),
+            Offset(1254, 1254),
+            Offset(203, 1254),
+          ],
+          shoreline: <Offset>[
+            Offset(203, 1214),
+            Offset(219, 1160),
+            Offset(271, 1122),
+            Offset(316, 1119),
+            Offset(582, 1119),
+            Offset(626, 1130),
+            Offset(702, 1132),
+            Offset(758, 1140),
+            Offset(812, 1154),
+            Offset(870, 1159),
+            Offset(929, 1163),
+            Offset(996, 1167),
+            Offset(1051, 1154),
+            Offset(1094, 1107),
+            Offset(1132, 1065),
+            Offset(1170, 1031),
+            Offset(1199, 1012),
+            Offset(1222, 1014),
+            Offset(1254, 1044),
+          ],
+          exclusionMasks: <List<Offset>>[
+            <Offset>[
+              Offset(430, 1140),
+              Offset(525, 1128),
+              Offset(568, 1198),
+              Offset(530, 1254),
+              Offset(420, 1254),
+            ],
+            <Offset>[
+              Offset(665, 1094),
+              Offset(758, 1080),
+              Offset(812, 1145),
+              Offset(785, 1215),
+              Offset(690, 1218),
+            ],
+            <Offset>[
+              Offset(830, 1150),
+              Offset(928, 1138),
+              Offset(980, 1202),
+              Offset(946, 1254),
+              Offset(842, 1254),
+            ],
+          ],
+        ),
       ],
-      intensity: .55,
-      foam: .3,
-      opacity: .24,
     ),
   };
   BaseCampWaterFx copyWith({
@@ -831,10 +1090,23 @@ class BaseCampWaterFx {
     'foamEnabled': foamEnabled,
     'visible': visible,
   };
-  static Map<String, BaseCampWaterFx>? decodeAll(Object? raw) {
-    if (raw is! Map || raw.length != 2) return null;
+  static Map<String, BaseCampWaterFx>? decodeAll(Object? raw) =>
+      _decode(raw, const <String>['water'], defaults());
+
+  static Map<String, BaseCampWaterFx>? decodeLegacy(Object? raw) => _decode(
+    raw,
+    const <String>['rock-foam', 'coast-ripple'],
+    _legacyDefaults,
+  );
+
+  static Map<String, BaseCampWaterFx>? _decode(
+    Object? raw,
+    List<String> ids,
+    Map<String, BaseCampWaterFx> defaults,
+  ) {
+    if (raw is! Map || raw.length != ids.length) return null;
     final result = <String, BaseCampWaterFx>{};
-    for (final id in const ['rock-foam', 'coast-ripple']) {
+    for (final id in ids) {
       final i = raw[id];
       if (i is! Map || i['visible'] is! bool) return null;
       final shore = _points(i['shoreline'], 2), mask = _points(i['mask'], 3);
@@ -847,7 +1119,7 @@ class BaseCampWaterFx {
           d = n('opacity'),
           e = n('spread'),
           f = n('frequency');
-      final defaults = BaseCampWaterFx.defaults()[id]!;
+      final defaultEffect = defaults[id]!;
       final exclusions = _decodeExclusionMasks(i['exclusionMasks']);
       final rawAreas = i['areas'];
       final areas = rawAreas == null
@@ -858,13 +1130,15 @@ class BaseCampWaterFx {
                 .whereType<BaseCampWaterArea>()
                 .toList()
           : null;
-      final shimmerDensity = n('shimmerDensity') ?? defaults.shimmerDensity;
+      final shimmerDensity =
+          n('shimmerDensity') ?? defaultEffect.shimmerDensity;
       final shimmerBrightness =
-          n('shimmerBrightness') ?? defaults.shimmerBrightness;
-      final shimmerSpeed = n('shimmerSpeed') ?? defaults.shimmerSpeed;
-      final flowDistortion = n('flowDistortion') ?? defaults.flowDistortion;
-      final foamIntensity = n('foamIntensity') ?? defaults.foamIntensity;
-      final foamLifetime = n('foamLifetime') ?? defaults.foamLifetime;
+          n('shimmerBrightness') ?? defaultEffect.shimmerBrightness;
+      final shimmerSpeed = n('shimmerSpeed') ?? defaultEffect.shimmerSpeed;
+      final flowDistortion =
+          n('flowDistortion') ?? defaultEffect.flowDistortion;
+      final foamIntensity = n('foamIntensity') ?? defaultEffect.foamIntensity;
+      final foamLifetime = n('foamLifetime') ?? defaultEffect.foamLifetime;
       if (shore == null ||
           mask == null ||
           exclusions == null ||
@@ -905,18 +1179,56 @@ class BaseCampWaterFx {
         foamLifetime: foamLifetime,
         shimmerEnabled: i['shimmerEnabled'] is bool
             ? i['shimmerEnabled'] as bool
-            : defaults.shimmerEnabled,
+            : defaultEffect.shimmerEnabled,
         rippleEnabled: i['rippleEnabled'] is bool
             ? i['rippleEnabled'] as bool
-            : defaults.rippleEnabled,
+            : defaultEffect.rippleEnabled,
         foamEnabled: i['foamEnabled'] is bool
             ? i['foamEnabled'] as bool
-            : defaults.foamEnabled,
+            : defaultEffect.foamEnabled,
         visible: i['visible'] as bool,
       );
     }
     return result;
   }
+
+  static const Map<String, BaseCampWaterFx> _legacyDefaults = {
+    'rock-foam': BaseCampWaterFx(
+      shoreline: [
+        Offset(9.8, 932),
+        Offset(47, 982),
+        Offset(76, 1071),
+        Offset(65, 1187),
+      ],
+      mask: [
+        Offset(0, 868),
+        Offset(43, 911),
+        Offset(84, 1033),
+        Offset(75, 1201),
+        Offset(0, 1254),
+      ],
+      intensity: 1.25,
+      foam: 1.3,
+    ),
+    'coast-ripple': BaseCampWaterFx(
+      shoreline: [
+        Offset(5, 143),
+        Offset(57, 185),
+        Offset(59, 293),
+        Offset(41, 414),
+      ],
+      mask: [
+        Offset(0, 101),
+        Offset(61, 150),
+        Offset(67, 287),
+        Offset(45, 432),
+        Offset(0, 484),
+      ],
+      intensity: .55,
+      foam: .3,
+      opacity: .24,
+    ),
+  };
 }
 
 @immutable

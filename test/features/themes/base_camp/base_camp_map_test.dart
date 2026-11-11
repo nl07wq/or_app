@@ -322,118 +322,149 @@ void main() {
     );
   });
 
-  test('v6 FX, labels, water and static soldiers round-trip losslessly', () {
+  test('schema v8 water, labels and static soldiers round-trip', () {
     final defaults = BaseCampMapConfiguration.defaults().copyWith(
-      staticSoldiers: const [
+      staticSoldiers: const <BaseCampStaticSoldier>[
         BaseCampStaticSoldier(
           id: 'guard-1',
           position: Offset(421, 315),
           direction: 'left',
           scale: .8,
-          breathingIntensity: .5,
-          breathingPeriod: 4,
         ),
       ],
     );
+
     final restored = BaseCampMapConfiguration.tryParse(defaults.toJson());
-    expect(restored, isNotNull);
-    expect(restored!.smokeFx.toJson(), defaults.smokeFx.toJson());
-    expect(
-      restored.labels['food']!.toJson(),
-      defaults.labels['food']!.toJson(),
-    );
-    expect(
-      restored.waterFx['rock-foam']!.toJson(),
-      defaults.waterFx['rock-foam']!.toJson(),
-    );
-    expect(
-      restored.staticSoldiers.single.toJson(),
-      defaults.staticSoldiers.single.toJson(),
-    );
-  });
-
-  test('existing v5 label and water settings migrate new FX fields safely', () {
-    final defaults = BaseCampMapConfiguration.defaults();
-    final payload = Map<String, Object?>.from(defaults.toJson());
-    final labels = <String, Object?>{
-      for (final entry in (payload['labels'] as Map).entries)
-        entry.key as String: Map<String, Object?>.from(entry.value as Map)
-          ..remove('startX')
-          ..remove('startY'),
-    };
-    final waterFx = <String, Object?>{
-      for (final entry in (payload['waterFx'] as Map).entries)
-        entry.key as String: Map<String, Object?>.from(entry.value as Map)
-          ..remove('shimmerDensity')
-          ..remove('shimmerBrightness')
-          ..remove('shimmerSpeed')
-          ..remove('flowDistortion')
-          ..remove('foamIntensity')
-          ..remove('foamLifetime')
-          ..remove('shimmerEnabled')
-          ..remove('rippleEnabled')
-          ..remove('foamEnabled')
-          ..remove('exclusionMasks'),
-    };
-    payload['labels'] = labels;
-    payload['waterFx'] = waterFx;
-
-    final restored = BaseCampMapConfiguration.tryParse(payload);
 
     expect(restored, isNotNull);
-    expect(restored!.labels['food']!.connectorStart, const Offset(500, 155));
-    expect(restored.waterFx['rock-foam']!.shimmerDensity, 1);
-    expect(restored.waterFx['rock-foam']!.flowDistortion, 1);
-    expect(restored.waterFx['coast-ripple']!.foamIntensity, 1);
-    expect(restored.waterFx['coast-ripple']!.exclusionMasks, isEmpty);
+    expect(restored!.waterFx.keys, const <String>['water']);
+    expect(
+      restored.waterFx['water']!.toJson(),
+      defaults.waterFx['water']!.toJson(),
+    );
+    expect(restored.staticSoldiers.single.id, 'guard-1');
   });
 
-  test('water FX preserves individual layers and exclusion polygons', () {
+  test('redline reference defines four editable default water areas', () {
+    final water = BaseCampMapConfiguration.defaults().waterFx['water']!;
+
+    expect(water.effectiveAreas, hasLength(4));
+    expect(water.effectiveAreas[0].mask.first, Offset.zero);
+    expect(water.effectiveAreas[1].mask, contains(const Offset(1254, 0)));
+    expect(water.effectiveAreas[2].mask.first.dy, closeTo(748, .01));
+    expect(water.effectiveAreas[3].mask, contains(const Offset(1254, 1254)));
+  });
+
+  test('water FX preserves independent layers and per-area exclusions', () {
     final defaults = BaseCampMapConfiguration.defaults();
-    final coast = defaults.waterFx['coast-ripple']!.copyWith(
+    final water = defaults.waterFx['water']!;
+    final first = water.effectiveAreas.first;
+    final changed = water.copyWith(
       shimmerEnabled: false,
       rippleEnabled: true,
       foamEnabled: false,
-      exclusionMasks: const [
-        [Offset(20, 100), Offset(45, 94), Offset(49, 136), Offset(24, 149)],
+      areas: <BaseCampWaterArea>[
+        BaseCampWaterArea(
+          mask: first.mask,
+          shoreline: first.shoreline,
+          exclusionMasks: const <List<Offset>>[
+            <Offset>[
+              Offset(20, 100),
+              Offset(45, 94),
+              Offset(49, 136),
+              Offset(24, 149),
+            ],
+          ],
+        ),
+        ...water.effectiveAreas.skip(1),
       ],
     );
+
     final restored = BaseCampMapConfiguration.tryParse(
       defaults
-          .copyWith(
-            waterFx: <String, BaseCampWaterFx>{
-              ...defaults.waterFx,
-              'coast-ripple': coast,
-            },
-          )
+          .copyWith(waterFx: <String, BaseCampWaterFx>{'water': changed})
           .toJson(),
-    );
+    )!;
 
-    expect(restored, isNotNull);
-    expect(restored!.waterFx['coast-ripple']!.shimmerEnabled, isFalse);
-    expect(restored.waterFx['coast-ripple']!.rippleEnabled, isTrue);
-    expect(restored.waterFx['coast-ripple']!.foamEnabled, isFalse);
+    expect(restored.waterFx['water']!.shimmerEnabled, isFalse);
+    expect(restored.waterFx['water']!.rippleEnabled, isTrue);
+    expect(restored.waterFx['water']!.foamEnabled, isFalse);
     expect(
-      restored.waterFx['coast-ripple']!.exclusionMasks.single,
-      coast.exclusionMasks.single,
+      restored.waterFx['water']!.effectiveAreas.first.exclusionMasks,
+      hasLength(1),
     );
   });
 
-  test('v6 water payload migrates losslessly to v7 multi-area semantics', () {
+  test('v7 two-slot water migrates non-destructively and idempotently', () {
     final defaults = BaseCampMapConfiguration.defaults();
-    final v6 = <String, Object?>{...defaults.toJson(), 'schemaVersion': 6};
+    const rock = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 800), Offset(100, 850), Offset(0, 1000)],
+      shoreline: <Offset>[Offset(0, 800), Offset(100, 850)],
+      intensity: 1.25,
+      foam: 1.3,
+    );
+    const coast = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 100), Offset(90, 160), Offset(0, 300)],
+      shoreline: <Offset>[Offset(0, 100), Offset(90, 160)],
+      shimmerEnabled: false,
+      exclusionMasks: <List<Offset>>[
+        <Offset>[Offset(10, 110), Offset(20, 120), Offset(10, 130)],
+      ],
+    );
+    final v7 = <String, Object?>{
+      ...defaults.toJson(),
+      'schemaVersion': 7,
+      'waterFx': <String, Object?>{
+        'rock-foam': rock.toJson(),
+        'coast-ripple': coast.toJson(),
+      },
+    }..remove('compatibilityWaterFxV7');
 
-    final migrated = BaseCampMapConfiguration.tryParse(v6);
+    final migrated = BaseCampMapConfiguration.tryParse(v7)!;
 
-    expect(migrated, isNotNull);
-    expect(migrated!.waterFx['rock-foam']!.areas, isEmpty);
+    expect(migrated.waterFx.keys, const <String>['water']);
+    expect(migrated.waterFx['water']!.effectiveAreas, hasLength(2));
+    expect(migrated.compatibilityWaterFxV7['rock-foam']!.intensity, 1.25);
     expect(
-      migrated.waterFx['rock-foam']!.effectiveAreas.single.mask,
-      defaults.waterFx['rock-foam']!.mask,
+      migrated.compatibilityWaterFxV7['coast-ripple']!.shimmerEnabled,
+      isFalse,
+    );
+    expect(
+      migrated.compatibilityWaterFxV7['coast-ripple']!.exclusionMasks.single,
+      coast.exclusionMasks.single,
     );
     expect(
       BaseCampMapConfiguration.tryParse(migrated.toJson())!.toJson(),
       migrated.toJson(),
+    );
+  });
+
+  test('v6 water follows the same non-destructive migration', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    const rock = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 800), Offset(100, 850), Offset(0, 1000)],
+      shoreline: <Offset>[Offset(0, 800), Offset(100, 850)],
+    );
+    const coast = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 100), Offset(90, 160), Offset(0, 300)],
+      shoreline: <Offset>[Offset(0, 100), Offset(90, 160)],
+    );
+    final v6 = <String, Object?>{
+      ...defaults.toJson(),
+      'schemaVersion': 6,
+      'waterFx': <String, Object?>{
+        'rock-foam': rock.toJson(),
+        'coast-ripple': coast.toJson(),
+      },
+    }..remove('compatibilityWaterFxV7');
+
+    final migrated = BaseCampMapConfiguration.tryParse(v6);
+
+    expect(migrated, isNotNull);
+    expect(migrated!.waterFx['water']!.effectiveAreas, hasLength(2));
+    expect(
+      migrated.compatibilityWaterFxV7.keys,
+      containsAll(<String>['rock-foam', 'coast-ripple']),
     );
   });
 
@@ -460,22 +491,17 @@ void main() {
         <Offset>[Offset(990, 990), Offset(1010, 990), Offset(1010, 1010)],
       ],
     );
-    final fx = defaults.waterFx['rock-foam']!.copyWith(
+    final fx = defaults.waterFx['water']!.copyWith(
       areas: const <BaseCampWaterArea>[first, second],
       mask: first.mask,
       shoreline: first.shoreline,
     );
     final restored = BaseCampMapConfiguration.tryParse(
       defaults
-          .copyWith(
-            waterFx: <String, BaseCampWaterFx>{
-              ...defaults.waterFx,
-              'rock-foam': fx,
-            },
-          )
+          .copyWith(waterFx: <String, BaseCampWaterFx>{'water': fx})
           .toJson(),
     )!;
-    final parsed = restored.waterFx['rock-foam']!;
+    final parsed = restored.waterFx['water']!;
     final path = baseCampEffectiveWaterPath(
       parsed,
       BaseCampMapGeometry.contain(baseCampMapArtworkSize),
@@ -487,23 +513,37 @@ void main() {
     expect(path.contains(const Offset(1005, 995)), isFalse);
   });
 
-  test('effective water path removes the coastal structure exclusion', () {
-    final effect = BaseCampWaterFx.defaults()['coast-ripple']!;
-    final geometry = BaseCampMapGeometry.contain(baseCampMapArtworkSize);
-    final path = baseCampEffectiveWaterPath(effect, geometry);
+  test('effective water path removes a selected-area exclusion', () {
+    const area = BaseCampWaterArea(
+      mask: <Offset>[
+        Offset(0, 0),
+        Offset(200, 0),
+        Offset(200, 200),
+        Offset(0, 200),
+      ],
+      shoreline: <Offset>[Offset(0, 100), Offset(200, 100)],
+      exclusionMasks: <List<Offset>>[
+        <Offset>[
+          Offset(40, 40),
+          Offset(80, 40),
+          Offset(80, 80),
+          Offset(40, 80),
+        ],
+      ],
+    );
+    final effect = BaseCampWaterFx(
+      mask: area.mask,
+      shoreline: area.shoreline,
+      areas: <BaseCampWaterArea>[area],
+    );
+    final path = baseCampEffectiveWaterPath(
+      effect,
+      BaseCampMapGeometry.contain(baseCampMapArtworkSize),
+    );
 
-    expect(
-      path.contains(geometry.artworkToViewport(const Offset(10, 120))),
-      isTrue,
-    );
-    expect(
-      path.contains(geometry.artworkToViewport(const Offset(50, 220))),
-      isFalse,
-    );
-    expect(
-      path.contains(geometry.artworkToViewport(const Offset(300, 220))),
-      isFalse,
-    );
+    expect(path.contains(const Offset(20, 20)), isTrue);
+    expect(path.contains(const Offset(60, 60)), isFalse);
+    expect(path.contains(const Offset(300, 300)), isFalse);
   });
 
   test('square V2.7 artwork preserves legacy coordinates without crop', () {
@@ -541,35 +581,48 @@ void main() {
 
   test('v5 water coordinates migrate once into square artwork coordinates', () {
     final defaults = BaseCampMapConfiguration.defaults();
-    final legacy = <String, Object?>{...defaults.toJson(), 'schemaVersion': 5};
-    final legacyWater = <String, Object?>{};
-    for (final entry in (legacy['waterFx']! as Map).entries) {
-      final effect = Map<Object?, Object?>.from(entry.value as Map);
-      List<Object?> toLegacy(List<Object?> points) => points.map((raw) {
-        final point = raw as Map;
-        return <String, double>{
-          'x': (point['x']! as num).toDouble() * 1280 / 1254,
-          'y': (point['y']! as num).toDouble() * 720 / 1254,
-        };
-      }).toList();
-      effect['mask'] = toLegacy(List<Object?>.from(effect['mask']! as List));
-      effect['shoreline'] = toLegacy(
-        List<Object?>.from(effect['shoreline']! as List),
-      );
-      effect['exclusionMasks'] = (effect['exclusionMasks']! as List)
-          .map((polygon) => toLegacy(List<Object?>.from(polygon as List)))
-          .toList();
-      legacyWater[entry.key as String] = effect;
-    }
-    legacy['waterFx'] = legacyWater;
+    const rock = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 800), Offset(100, 850), Offset(0, 1000)],
+      shoreline: <Offset>[Offset(0, 800), Offset(100, 850)],
+    );
+    const coast = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 100), Offset(90, 160), Offset(0, 300)],
+      shoreline: <Offset>[Offset(0, 100), Offset(90, 160)],
+    );
+    final source = <String, BaseCampWaterFx>{
+      'rock-foam': rock,
+      'coast-ripple': coast,
+    };
+    List<Object?> toLegacy(List<Offset> points) => points
+        .map(
+          (point) => <String, double>{
+            'x': point.dx * 1280 / 1254,
+            'y': point.dy * 720 / 1254,
+          },
+        )
+        .toList();
+    final legacyWater = <String, Object?>{
+      for (final entry in source.entries)
+        entry.key: <String, Object?>{
+          ...entry.value.toJson(),
+          'mask': toLegacy(entry.value.mask),
+          'shoreline': toLegacy(entry.value.shoreline),
+          'exclusionMasks': const <Object?>[],
+        },
+    };
+    final legacy = <String, Object?>{
+      ...defaults.toJson(),
+      'schemaVersion': 5,
+      'waterFx': legacyWater,
+    }..remove('compatibilityWaterFxV7');
 
     final restored = BaseCampMapConfiguration.tryParse(legacy);
 
     expect(restored, isNotNull);
     expect(restored!.routes, defaults.routes);
-    for (final id in defaults.waterFx.keys) {
-      final expected = defaults.waterFx[id]!.mask;
-      final actual = restored.waterFx[id]!.mask;
+    for (final id in source.keys) {
+      final expected = source[id]!.mask;
+      final actual = restored.compatibilityWaterFxV7[id]!.mask;
       expect(actual, hasLength(expected.length));
       for (var index = 0; index < expected.length; index++) {
         expect(actual[index].dx, closeTo(expected[index].dx, .01));

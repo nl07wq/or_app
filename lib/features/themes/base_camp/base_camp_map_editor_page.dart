@@ -129,7 +129,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   String _routeId = 'route-a';
   String _facilityId = 'status';
   String _objectId = 'status';
-  String _waterFxId = 'rock-foam';
+  static const _waterFxId = 'water';
   int _exclusionMaskIndex = 0;
   _BaseCampWaterLayer _waterLayer = _BaseCampWaterLayer.shimmer;
   int _waterPointIndex = 0;
@@ -171,6 +171,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         smokeFx: source.smokeFx,
         labels: Map<String, BaseCampFacilityLabel>.of(source.labels),
         waterFx: Map<String, BaseCampWaterFx>.of(source.waterFx),
+        compatibilityWaterFxV7: Map<String, BaseCampWaterFx>.of(
+          source.compatibilityWaterFxV7,
+        ),
         staticSoldiers: List<BaseCampStaticSoldier>.of(source.staticSoldiers),
       );
 
@@ -957,14 +960,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                         onSelected: (_) => setState(() {
                           _section = item.$1;
                           _pointIndex = 0;
-                          if (item.$1 == _BaseCampEditorSection.waterFx ||
-                              item.$1 == _BaseCampEditorSection.waterMask ||
-                              item.$1 == _BaseCampEditorSection.shoreline ||
-                              item.$1 == _BaseCampEditorSection.exclusionMask) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _canvasKey.currentState?.focusWaterFx(_waterFxId);
-                            });
-                          }
+                          _awaitingNewWaterArea = false;
+                          _awaitingWaterPoint = false;
+                          _awaitingExclusionPoint = false;
                         }),
                       ),
                   ],
@@ -1001,6 +999,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onLabelDragged: (position, part) =>
                       _updateLabelPosition(_facilityId, position, part: part),
                   selectedWaterFxId: _waterFxId,
+                  waterPreviewLayer: _section == _BaseCampEditorSection.waterFx
+                      ? _waterLayer.name
+                      : null,
                   selectedWaterArea: _waterAreaIndex,
                   selectedWaterPoint: _waterPointIndex,
                   selectedWaterMask: _waterMaskSelected,
@@ -1302,24 +1303,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DropdownButtonFormField<String>(
-              initialValue: _waterFxId,
-              items: const [
-                DropdownMenuItem(value: 'rock-foam', child: Text('ROCK FOAM')),
-                DropdownMenuItem(
-                  value: 'coast-ripple',
-                  child: Text('COAST RIPPLE'),
-                ),
-              ],
-              onChanged: (value) => setState(() {
-                _waterFxId = value!;
-                _waterPointIndex = 0;
-                _waterMaskSelected = false;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _canvasKey.currentState?.focusWaterFx(_waterFxId);
-                });
-              }),
-            ),
             const Text('FX PARAMETERS: 水面の光・うねり・泡を個別に調整します。'),
             Wrap(
               spacing: 6,
@@ -1392,47 +1375,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   _replaceWaterFx(_waterFxId, effect.copyWith(visible: value)),
             ),
             const Text('上部のMAPは実際のBASE CAMP背景と同じLIVE PREVIEWです。'),
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => setState(() => _awaitingNewWaterArea = true),
-                  icon: const Icon(Icons.add_box_outlined),
-                  label: const Text('NEW AREA ON MAP'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _deleteWaterArea,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('DELETE SELECTED AREA'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () =>
-                      _canvasKey.currentState?.focusWaterFx(_waterFxId),
-                  icon: const Icon(Icons.center_focus_strong),
-                  label: const Text('FOCUS AREA'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _canvasKey.currentState?.exitWaterFocus(),
-                  icon: const Icon(Icons.fullscreen_exit),
-                  label: const Text('EXIT FOCUS'),
-                ),
-              ],
-            ),
-            DropdownButton<int>(
-              value: _safeAreaIndex(_working.waterFx[_waterFxId]!),
-              items: [
-                for (
-                  var index = 0;
-                  index < _areas(_working.waterFx[_waterFxId]!).length;
-                  index++
-                )
-                  DropdownMenuItem(
-                    value: index,
-                    child: Text('SELECT AREA ${index + 1}'),
-                  ),
-              ],
-              onChanged: (value) => setState(() => _waterAreaIndex = value!),
-            ),
             OutlinedButton.icon(
               onPressed: () => _replaceWaterFx(
                 _waterFxId,
@@ -1462,24 +1404,72 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             Wrap(
               spacing: 8,
               children: [
+                if (isMask)
+                  OutlinedButton.icon(
+                    key: const ValueKey('base-camp-editor-water-new-area'),
+                    onPressed: () => setState(() {
+                      _awaitingNewWaterArea = true;
+                      _awaitingWaterPoint = false;
+                    }),
+                    icon: const Icon(Icons.add_box_outlined),
+                    label: const Text('NEW AREA'),
+                  ),
                 OutlinedButton.icon(
                   onPressed: () => setState(() => _awaitingWaterPoint = true),
                   icon: const Icon(Icons.add),
-                  label: const Text('ADD POINT ON MAP'),
+                  label: const Text('ADD POINT'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _deleteWaterPoint(mask: isMask),
                   icon: const Icon(Icons.remove),
                   label: const Text('DELETE POINT'),
                 ),
+                if (isMask)
+                  OutlinedButton.icon(
+                    onPressed: _deleteWaterArea,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('DELETE AREA'),
+                  ),
                 OutlinedButton.icon(
                   onPressed: () =>
                       _canvasKey.currentState?.focusWaterFx(_waterFxId),
                   icon: const Icon(Icons.center_focus_strong),
                   label: const Text('FOCUS AREA'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () => _canvasKey.currentState?.exitWaterFocus(),
+                  icon: const Icon(Icons.fullscreen_exit),
+                  label: const Text('FULL MAP'),
+                ),
               ],
             ),
+            if (isMask)
+              DropdownButton<int>(
+                key: const ValueKey('base-camp-editor-water-select-area'),
+                value: _safeAreaIndex(_working.waterFx[_waterFxId]!),
+                items: [
+                  for (
+                    var index = 0;
+                    index < _areas(_working.waterFx[_waterFxId]!).length;
+                    index++
+                  )
+                    DropdownMenuItem(
+                      value: index,
+                      child: Text('SELECT AREA ${index + 1}'),
+                    ),
+                ],
+                onChanged: (value) => setState(() {
+                  _waterAreaIndex = value!;
+                  _waterPointIndex = 0;
+                  _waterMaskSelected = true;
+                }),
+              ),
+            const Text('MOVE POINT: drag a selected vertex on the map.'),
+            if (isMask && _awaitingNewWaterArea)
+              const Text(
+                'PLACEMENT READY — TAP MAP TO CREATE WATER AREA',
+                key: ValueKey('base-camp-editor-water-placement-ready'),
+              ),
           ],
         ),
       );
@@ -1935,6 +1925,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onLabelDragStarted,
     required this.onLabelDragged,
     required this.selectedWaterFxId,
+    required this.waterPreviewLayer,
     required this.selectedWaterArea,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
@@ -1968,6 +1959,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelDragged;
   final String selectedWaterFxId;
+  final String? waterPreviewLayer;
   final int selectedWaterArea;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
@@ -2147,6 +2139,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
                   }
                 },
                 selectedWaterFxId: widget.selectedWaterFxId,
+                waterPreviewLayer: widget.waterPreviewLayer,
                 selectedWaterArea: widget.selectedWaterArea,
                 elapsed: Duration(
                   milliseconds: (_previewTimeline.value * 30000).round(),
@@ -2239,6 +2232,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onLabelDragStarted,
     required this.onLabelGlobalDragged,
     required this.selectedWaterFxId,
+    required this.waterPreviewLayer,
     required this.selectedWaterArea,
     required this.elapsed,
     required this.selectedWaterPoint,
@@ -2272,6 +2266,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelGlobalDragged;
   final String selectedWaterFxId;
+  final String? waterPreviewLayer;
   final int selectedWaterArea;
   final Duration elapsed;
   final int selectedWaterPoint;
@@ -2331,6 +2326,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             configuration: configuration,
             geometry: geometry,
             elapsed: elapsed,
+            previewLayer: waterPreviewLayer,
           ),
         ),
         IgnorePointer(
@@ -2399,9 +2395,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
               child: const SizedBox.expand(),
             ),
           ),
-        if (awaitingNewWaterArea &&
-            (section == _BaseCampEditorSection.waterMask ||
-                section == _BaseCampEditorSection.shoreline))
+        if (awaitingNewWaterArea && section == _BaseCampEditorSection.waterMask)
           Positioned.fill(
             child: GestureDetector(
               key: const ValueKey('base-camp-editor-water-new-area-canvas'),
