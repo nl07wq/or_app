@@ -359,11 +359,15 @@ class _TacticalTerminal extends StatelessWidget {
       painter: const _TerminalChassisPainter(),
       child: MediaQuery.withNoTextScaling(
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          key: const ValueKey('base-camp-terminal-safe-content'),
+          // Top and bottom clearances are independent: the heading moves
+          // below the fixed fasteners while surplus space below the page
+          // indicator is removed.
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
           child: Column(
             children: [
               const _TerminalHeading(),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               SizedBox(
                 height: 98,
                 child: Row(
@@ -390,7 +394,7 @@ class _TacticalTerminal extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               SizedBox(
                 height: 160,
                 child: PageView(
@@ -443,7 +447,7 @@ class _TacticalTerminal extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               _PageIndicator(index: page, count: 4),
             ],
           ),
@@ -457,6 +461,7 @@ class _TerminalHeading extends StatelessWidget {
   const _TerminalHeading();
   @override
   Widget build(BuildContext context) => Row(
+    key: const ValueKey('base-camp-terminal-heading'),
     children: [
       const Icon(
         Icons.settings_input_component_outlined,

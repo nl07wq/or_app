@@ -395,7 +395,53 @@ void main() {
     );
   });
 
-  test('v7 two-slot water migrates non-destructively and idempotently', () {
+  test('SHIMMER RIPPLE and FOAM solo previews honour off and range', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    final effect = defaults.waterFx['water']!;
+    for (final layer in const <String>['shimmer', 'ripple', 'foam']) {
+      final minimum = switch (layer) {
+        'shimmer' => effect.copyWith(
+          shimmerEnabled: true,
+          shimmerDensity: 0,
+          shimmerBrightness: 4,
+        ),
+        'ripple' => effect.copyWith(rippleEnabled: true, intensity: 0),
+        _ => effect.copyWith(foamEnabled: true, foamIntensity: 0),
+      };
+      final maximum = switch (layer) {
+        'shimmer' => effect.copyWith(
+          shimmerEnabled: true,
+          shimmerDensity: 4,
+          shimmerBrightness: 4,
+        ),
+        'ripple' => effect.copyWith(
+          rippleEnabled: true,
+          intensity: 4,
+          flowDistortion: 4,
+        ),
+        _ => effect.copyWith(foamEnabled: true, foamIntensity: 4, spread: 4),
+      };
+      final disabled = switch (layer) {
+        'shimmer' => maximum.copyWith(shimmerEnabled: false),
+        'ripple' => maximum.copyWith(rippleEnabled: false),
+        _ => maximum.copyWith(foamEnabled: false),
+      };
+
+      final minStrength = baseCampWaterFxVisualStrength(minimum, layer);
+      final maxStrength = baseCampWaterFxVisualStrength(maximum, layer);
+      final offStrength = baseCampWaterFxVisualStrength(disabled, layer);
+
+      expect(minStrength, 0, reason: '$layer minimum must be visually empty');
+      expect(
+        maxStrength,
+        greaterThan(minStrength),
+        reason: '$layer maximum must be visibly stronger',
+      );
+      expect(offStrength, 0, reason: '$layer OFF must not paint');
+    }
+  });
+
+  test('v7 keeps legacy FX as compatibility and installs approved water', () {
     final defaults = BaseCampMapConfiguration.defaults();
     const rock = BaseCampWaterFx(
       mask: <Offset>[Offset(0, 800), Offset(100, 850), Offset(0, 1000)],
@@ -423,7 +469,13 @@ void main() {
     final migrated = BaseCampMapConfiguration.tryParse(v7)!;
 
     expect(migrated.waterFx.keys, const <String>['water']);
-    expect(migrated.waterFx['water']!.effectiveAreas, hasLength(2));
+    expect(migrated.waterFx['water']!.effectiveAreas, hasLength(4));
+    expect(
+      migrated.waterFx['water']!.effectiveAreas.map((area) => area.toJson()),
+      BaseCampWaterFx.defaults()['water']!.effectiveAreas.map(
+        (area) => area.toJson(),
+      ),
+    );
     expect(migrated.compatibilityWaterFxV7['rock-foam']!.intensity, 1.25);
     expect(
       migrated.compatibilityWaterFxV7['coast-ripple']!.shimmerEnabled,
@@ -461,10 +513,88 @@ void main() {
     final migrated = BaseCampMapConfiguration.tryParse(v6);
 
     expect(migrated, isNotNull);
-    expect(migrated!.waterFx['water']!.effectiveAreas, hasLength(2));
+    expect(migrated!.waterFx['water']!.effectiveAreas, hasLength(4));
     expect(
       migrated.compatibilityWaterFxV7.keys,
       containsAll(<String>['rock-foam', 'coast-ripple']),
+    );
+  });
+
+  test('untouched legacy-derived v8 areas repair once to approved four', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    const rock = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 800), Offset(100, 850), Offset(0, 1000)],
+      shoreline: <Offset>[Offset(0, 800), Offset(100, 850)],
+    );
+    const coast = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 100), Offset(90, 160), Offset(0, 300)],
+      shoreline: <Offset>[Offset(0, 100), Offset(90, 160)],
+    );
+    final legacyAreas = <BaseCampWaterArea>[
+      ...rock.effectiveAreas,
+      ...coast.effectiveAreas,
+    ];
+    final oldUnified = rock.copyWith(
+      areas: legacyAreas,
+      mask: legacyAreas.first.mask,
+      shoreline: legacyAreas.first.shoreline,
+    );
+    final raw = <String, Object?>{
+      ...defaults.toJson(),
+      'waterFx': <String, Object?>{'water': oldUnified.toJson()},
+      'compatibilityWaterFxV7': <String, Object?>{
+        'rock-foam': rock.toJson(),
+        'coast-ripple': coast.toJson(),
+      },
+    };
+
+    final repaired = BaseCampMapConfiguration.tryParse(raw)!;
+
+    expect(repaired.waterFx['water']!.effectiveAreas, hasLength(4));
+    expect(repaired.compatibilityWaterFxV7, hasLength(2));
+    expect(
+      BaseCampMapConfiguration.tryParse(repaired.toJson())!.toJson(),
+      repaired.toJson(),
+    );
+  });
+
+  test('edited v8 water never gets replaced by approved defaults', () {
+    final defaults = BaseCampMapConfiguration.defaults();
+    const rock = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 800), Offset(100, 850), Offset(0, 1000)],
+      shoreline: <Offset>[Offset(0, 800), Offset(100, 850)],
+    );
+    const coast = BaseCampWaterFx(
+      mask: <Offset>[Offset(0, 100), Offset(90, 160), Offset(0, 300)],
+      shoreline: <Offset>[Offset(0, 100), Offset(90, 160)],
+    );
+    final editedAreas = <BaseCampWaterArea>[
+      BaseCampWaterArea(
+        mask: <Offset>[...rock.mask]..[1] = const Offset(140, 860),
+        shoreline: rock.shoreline,
+      ),
+      ...coast.effectiveAreas,
+    ];
+    final edited = rock.copyWith(
+      areas: editedAreas,
+      mask: editedAreas.first.mask,
+      shoreline: editedAreas.first.shoreline,
+    );
+    final raw = <String, Object?>{
+      ...defaults.toJson(),
+      'waterFx': <String, Object?>{'water': edited.toJson()},
+      'compatibilityWaterFxV7': <String, Object?>{
+        'rock-foam': rock.toJson(),
+        'coast-ripple': coast.toJson(),
+      },
+    };
+
+    final restored = BaseCampMapConfiguration.tryParse(raw)!;
+
+    expect(restored.waterFx['water']!.effectiveAreas, hasLength(2));
+    expect(
+      restored.waterFx['water']!.effectiveAreas.first.mask[1],
+      const Offset(140, 860),
     );
   });
 
@@ -811,6 +941,93 @@ void main() {
       restored.value.routes['route-c'],
       controller.value.routes['route-c'],
     );
+  });
+
+  test('water draft round-trips separately from formal map data', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final defaults = BaseCampMapConfiguration.defaults();
+    final fifth = const BaseCampWaterArea(
+      mask: <Offset>[Offset(500, 500), Offset(600, 500), Offset(600, 600)],
+      shoreline: <Offset>[Offset(500, 550), Offset(600, 550)],
+    );
+    final effect = defaults.waterFx['water']!;
+    final edited = defaults.copyWith(
+      waterFx: <String, BaseCampWaterFx>{
+        'water': effect.copyWith(
+          areas: <BaseCampWaterArea>[...effect.effectiveAreas, fifth],
+        ),
+      },
+    );
+    final store = BaseCampWaterDraftStore();
+
+    await store.save(edited);
+    final result = await store.load();
+    final restored = result.draft!.applyTo(defaults);
+    final preferences = await SharedPreferences.getInstance();
+
+    expect(result.state, BaseCampWaterDraftState.ready);
+    expect(restored.waterFx['water']!.effectiveAreas, hasLength(5));
+    expect(
+      preferences.getString(BaseCampMapConfigurationController.storageKey),
+      isNull,
+    );
+    expect(
+      preferences.getString(BaseCampWaterDraftStore.storageKey),
+      isNotNull,
+    );
+  });
+
+  test('corrupt and incompatible water drafts remain recoverable', () async {
+    for (final payload in <String>[
+      '{broken',
+      '{"draftSchemaVersion":99,"mapSchemaVersion":8,"mapId":"base-camp-map-v2"}',
+    ]) {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        BaseCampWaterDraftStore.storageKey: payload,
+      });
+      final result = await BaseCampWaterDraftStore().load();
+      final preferences = await SharedPreferences.getInstance();
+
+      expect(result.state, BaseCampWaterDraftState.corrupt);
+      expect(
+        preferences.getString(BaseCampWaterDraftStore.storageKey),
+        payload,
+      );
+    }
+  });
+
+  test(
+    'water draft write failure is surfaced without formal mutation',
+    () async {
+      final store = BaseCampWaterDraftStore(
+        preferencesLoader: () async => throw StateError('storage denied'),
+      );
+
+      await expectLater(
+        store.save(BaseCampMapConfiguration.defaults()),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('formal save publishes only after durable storage succeeds', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    var loads = 0;
+    final controller = BaseCampMapConfigurationController(
+      preferencesLoader: () async {
+        loads++;
+        if (loads > 1) throw StateError('storage denied');
+        return preferences;
+      },
+    );
+    await controller.load();
+    final original = controller.value;
+    final edited = original.copyWith(soldierScale: .5);
+
+    await expectLater(controller.save(edited), throwsStateError);
+
+    expect(controller.value.encode(), original.encode());
   });
 
   test(

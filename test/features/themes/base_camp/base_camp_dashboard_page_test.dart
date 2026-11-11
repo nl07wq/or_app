@@ -118,6 +118,32 @@ void main() {
     },
   );
 
+  for (final width in <double>[320, 375, 390, 430]) {
+    testWidgets('terminal fasteners keep safe vertical clearance at $width', (
+      tester,
+    ) async {
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final terminal = tester.getRect(
+        find.byKey(const ValueKey('base-camp-tactical-terminal')),
+      );
+      final heading = tester.getRect(
+        find.byKey(const ValueKey('base-camp-terminal-heading')),
+      );
+      final indicator = tester.getRect(
+        find.byKey(const ValueKey('base-camp-page-indicator-0')),
+      );
+
+      expect(heading.top, greaterThanOrEqualTo(terminal.top + 15));
+      expect(indicator.bottom, lessThanOrEqualTo(terminal.bottom - 7));
+      expect(terminal.height, 356);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('terminal pages swipe and open an expanded detail sheet', (
     tester,
   ) async {

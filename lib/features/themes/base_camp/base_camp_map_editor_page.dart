@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -114,13 +116,22 @@ Matrix4 baseCampWaterFocusTransform({
 /// Developer-only calibration surface opened by a long press on the existing
 /// map framing reset button. It edits a working copy until SAVE is chosen.
 class BaseCampMapEditorPage extends StatefulWidget {
-  const BaseCampMapEditorPage({super.key});
+  const BaseCampMapEditorPage({
+    super.key,
+    this.configurationController,
+    this.waterDraftStore,
+  });
+
+  final BaseCampMapConfigurationController? configurationController;
+  final BaseCampWaterDraftStore? waterDraftStore;
 
   @override
   State<BaseCampMapEditorPage> createState() => _BaseCampMapEditorPageState();
 }
 
 class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
+  late final BaseCampMapConfigurationController _configurationController;
+  late final BaseCampWaterDraftStore _waterDraftStore;
   late BaseCampMapConfiguration _working;
   final List<BaseCampMapConfiguration> _undo = <BaseCampMapConfiguration>[];
   final GlobalKey<_BaseCampEditorCanvasState> _canvasKey =
@@ -135,26 +146,49 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   int _waterPointIndex = 0;
   bool _waterMaskSelected = false;
   int _waterAreaIndex = 0;
+  int _activeWaterDragAreaIndex = -1;
   bool _awaitingNewWaterArea = false;
   bool _awaitingWaterPoint = false;
   bool _awaitingExclusionPoint = false;
   String? _staticSoldierId;
   int _pointIndex = 0;
   bool _loading = true;
+  Timer? _waterDraftDebounce;
+  BaseCampMapConfiguration? _pendingWaterDraft;
+  Future<void>? _waterDraftDrain;
+  String? _waterDraftError;
 
   @override
   void initState() {
     super.initState();
+    _configurationController =
+        widget.configurationController ?? baseCampMapConfigurationController;
+    _waterDraftStore = widget.waterDraftStore ?? BaseCampWaterDraftStore();
     _load();
   }
 
+  @override
+  void dispose() {
+    _waterDraftDebounce?.cancel();
+    if (_pendingWaterDraft != null) {
+      unawaited(_drainWaterDraftWrites().catchError((_) {}));
+    }
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    await baseCampMapConfigurationController.load();
+    await _configurationController.load();
+    final draftResult = await _waterDraftStore.load();
     if (!mounted) return;
     setState(() {
-      _working = _clone(baseCampMapConfigurationController.value);
+      _working = _clone(_configurationController.value);
       _loading = false;
     });
+    if (draftResult.state != BaseCampWaterDraftState.missing && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_resolveWaterDraft(draftResult));
+      });
+    }
   }
 
   BaseCampMapConfiguration _clone(BaseCampMapConfiguration source) =>
@@ -178,7 +212,25 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       );
 
   bool get _dirty =>
-      _working.encode() != baseCampMapConfigurationController.value.encode();
+      _working.encode() != _configurationController.value.encode();
+
+  bool get _waterDirty =>
+      jsonEncode(_working.waterFx.map((id, fx) => MapEntry(id, fx.toJson()))) !=
+          jsonEncode(
+            _configurationController.value.waterFx.map(
+              (id, fx) => MapEntry(id, fx.toJson()),
+            ),
+          ) ||
+      jsonEncode(
+            _working.compatibilityWaterFxV7.map(
+              (id, fx) => MapEntry(id, fx.toJson()),
+            ),
+          ) !=
+          jsonEncode(
+            _configurationController.value.compatibilityWaterFxV7.map(
+              (id, fx) => MapEntry(id, fx.toJson()),
+            ),
+          );
 
   BaseCampStaticSoldier? get _selectedStaticSoldier {
     final id = _staticSoldierId;
@@ -194,6 +246,52 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _undo.add(_clone(_working));
       _working = next;
     });
+  }
+
+  void _scheduleWaterDraftSave() {
+    if (!_waterDirty) return;
+    _pendingWaterDraft = _clone(_working);
+    if (_waterDraftDebounce?.isActive == true) return;
+    _waterDraftDebounce = Timer(const Duration(milliseconds: 180), () {
+      _waterDraftDebounce = null;
+      unawaited(_drainWaterDraftWrites());
+    });
+  }
+
+  Future<void> _drainWaterDraftWrites() async {
+    final active = _waterDraftDrain;
+    if (active != null) return active;
+    final operation = _runWaterDraftDrain();
+    _waterDraftDrain = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_waterDraftDrain, operation)) _waterDraftDrain = null;
+    }
+  }
+
+  Future<void> _runWaterDraftDrain() async {
+    while (_pendingWaterDraft != null) {
+      final pending = _pendingWaterDraft!;
+      _pendingWaterDraft = null;
+      try {
+        await _waterDraftStore.save(pending);
+        if (mounted && _waterDraftError != null) {
+          setState(() => _waterDraftError = null);
+        } else {
+          _waterDraftError = null;
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() => _waterDraftError = 'WATER DRAFT AUTO-SAVE FAILED');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('WATER DRAFT AUTO-SAVE FAILED')),
+          );
+        } else {
+          _waterDraftError = 'WATER DRAFT AUTO-SAVE FAILED';
+        }
+      }
+    }
   }
 
   void _updatePoint(Offset point, {bool recordUndo = true}) {
@@ -305,11 +403,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     });
   }
 
-  void _replaceWaterFx(String id, BaseCampWaterFx effect) => _mutate(
-    _working.copyWith(
-      waterFx: <String, BaseCampWaterFx>{..._working.waterFx, id: effect},
-    ),
-  );
+  void _replaceWaterFx(String id, BaseCampWaterFx effect) {
+    _mutate(
+      _working.copyWith(
+        waterFx: <String, BaseCampWaterFx>{..._working.waterFx, id: effect},
+      ),
+    );
+    _scheduleWaterDraftSave();
+  }
 
   List<BaseCampWaterArea> _areas(BaseCampWaterFx effect) =>
       List<BaseCampWaterArea>.of(effect.effectiveAreas);
@@ -354,6 +455,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     _replaceWaterFx(_waterFxId, _withAreas(effect, areas));
     setState(() {
       _waterAreaIndex = areas.length - 1;
+      _activeWaterDragAreaIndex = -1;
       _awaitingNewWaterArea = false;
     });
   }
@@ -364,7 +466,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     if (areas.length <= 1) return;
     areas.removeAt(_safeAreaIndex(effect));
     _replaceWaterFx(_waterFxId, _withAreas(effect, areas));
-    setState(() => _waterAreaIndex = 0);
+    setState(() {
+      _waterAreaIndex = 0;
+      _activeWaterDragAreaIndex = -1;
+    });
   }
 
   void _updateWaterPoint(
@@ -373,11 +478,16 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     Offset point, {
     required bool mask,
   }) {
-    final effect = _working.waterFx[id]!;
+    final effect = _working.waterFx[id];
+    if (effect == null) return;
     final areas = _areas(effect);
+    if (areas.isEmpty) return;
     final areaIndex = _safeAreaIndex(effect);
     final area = areas[areaIndex];
     final values = List<Offset>.of(mask ? area.mask : area.shoreline);
+    // A final WebKit pointer event may arrive after AREA selection changed.
+    // Ignore that stale event instead of indexing the newly selected polygon.
+    if (index < 0 || index >= values.length) return;
     values[index] = Offset(
       point.dx.clamp(0, baseCampMapArtworkSize.width).toDouble(),
       point.dy.clamp(0, baseCampMapArtworkSize.height).toDouble(),
@@ -404,6 +514,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         },
       );
     });
+    _scheduleWaterDraftSave();
   }
 
   void _insertWaterPointAt(Offset point, {required bool mask}) {
@@ -451,6 +562,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _waterMaskSelected = mask;
       _awaitingWaterPoint = false;
     });
+    _scheduleWaterDraftSave();
   }
 
   void _deleteWaterPoint({required bool mask}) {
@@ -485,6 +597,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     setState(() => _waterPointIndex = 0);
+    _scheduleWaterDraftSave();
   }
 
   void _addExclusionMask() {
@@ -520,6 +633,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _exclusionMaskIndex = area.exclusionMasks.length;
       _waterPointIndex = 0;
     });
+    _scheduleWaterDraftSave();
   }
 
   void _deleteExclusionMask() {
@@ -547,6 +661,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     setState(() => _exclusionMaskIndex = 0);
+    _scheduleWaterDraftSave();
   }
 
   void _insertExclusionPointAt(Offset point) {
@@ -595,6 +710,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _waterPointIndex = segment + 1;
       _awaitingExclusionPoint = false;
     });
+    _scheduleWaterDraftSave();
   }
 
   void _deleteExclusionPoint() {
@@ -630,6 +746,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     setState(() => _waterPointIndex = 0);
+    _scheduleWaterDraftSave();
   }
 
   void _replaceStaticSoldier(BaseCampStaticSoldier soldier) => _mutate(
@@ -792,14 +909,49 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     if (result != null) _updatePoint(result);
   }
 
-  Future<void> _save() async {
-    await baseCampMapConfigurationController.save(_working);
-    if (mounted) setState(() => _undo.clear());
+  Future<bool> _save() async {
+    _waterDraftDebounce?.cancel();
+    _waterDraftDebounce = null;
+    if (_waterDirty) {
+      _pendingWaterDraft = _clone(_working);
+      await _drainWaterDraftWrites();
+    }
+    try {
+      await _configurationController.save(_working);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('SAVE FAILED — EDITS AND WATER DRAFT RETAINED'),
+          ),
+        );
+      }
+      return false;
+    }
+    try {
+      await _waterDraftStore.discard();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('MAP SAVED — OLD WATER DRAFT COULD NOT BE CLEARED'),
+          ),
+        );
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _undo.clear();
+        _waterDraftError = null;
+      });
+    }
+    return true;
   }
 
   void _undoLast() {
     if (_undo.isEmpty) return;
     setState(() => _working = _undo.removeLast());
+    _scheduleWaterDraftSave();
   }
 
   Future<void> _resetToDefaults() async {
@@ -823,10 +975,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     if (approved != true) return;
-    await baseCampMapConfigurationController.resetToDefaults();
+    await _configurationController.resetToDefaults();
+    try {
+      await _waterDraftStore.discard();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('MAP RESET — OLD WATER DRAFT COULD NOT BE CLEARED'),
+          ),
+        );
+      }
+    }
     if (mounted) {
       setState(() {
-        _working = _clone(baseCampMapConfigurationController.value);
+        _working = _clone(_configurationController.value);
         _undo.clear();
         _pointIndex = 0;
       });
@@ -857,9 +1020,144 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     if (choice == _ExitChoice.save) {
-      await _save();
+      return _save();
     }
-    return choice == _ExitChoice.save || choice == _ExitChoice.discard;
+    if (choice == _ExitChoice.discard) {
+      try {
+        await _waterDraftStore.discard();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
+          );
+        }
+        return false;
+      }
+    }
+    return choice == _ExitChoice.discard;
+  }
+
+  Future<void> _cancelUnsavedChanges() async {
+    if (!_dirty) return;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('DISCARD UNSAVED EDITS?'),
+        content: const Text(
+          'This also discards the recoverable BASE CAMP WATER draft.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('KEEP EDITING'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('DISCARD'),
+          ),
+        ],
+      ),
+    );
+    if (discard != true) return;
+    try {
+      await _waterDraftStore.discard();
+      if (mounted) {
+        setState(() {
+          _working = _clone(_configurationController.value);
+          _undo.clear();
+          _waterDraftError = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
+        );
+      }
+    }
+  }
+
+  Future<void> _resolveWaterDraft(BaseCampWaterDraftLoadResult result) async {
+    if (result.state == BaseCampWaterDraftState.unavailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WATER DRAFT STORAGE UNAVAILABLE')),
+      );
+      return;
+    }
+    if (result.state == BaseCampWaterDraftState.corrupt) {
+      final discard = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('WATER DRAFT NEEDS RECOVERY'),
+          content: const Text(
+            'The draft is damaged or belongs to another schema. Keep it for recovery or discard it.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('KEEP'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('DISCARD'),
+            ),
+          ],
+        ),
+      );
+      if (discard == true) {
+        try {
+          await _waterDraftStore.discard();
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
+            );
+          }
+        }
+      }
+      return;
+    }
+    final draft = result.draft;
+    if (draft == null) return;
+    final restore = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('RECOVER WATER EDITS?'),
+        content: const Text(
+          'An unsaved BASE CAMP WATER draft was found. RESTORE keeps it isolated from Dashboard until SAVE.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('DISCARD'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('RESTORE'),
+          ),
+        ],
+      ),
+    );
+    if (restore == true) {
+      if (mounted) {
+        setState(() {
+          _working = _clone(draft.applyTo(_configurationController.value));
+          _undo.clear();
+        });
+      }
+    } else {
+      try {
+        await _waterDraftStore.discard();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -890,10 +1188,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
           actions: [
             IconButton(
               tooltip: 'Cancel unsaved changes',
-              onPressed: () => setState(() {
-                _working = _clone(baseCampMapConfigurationController.value);
-                _undo.clear();
-              }),
+              onPressed: _cancelUnsavedChanges,
               icon: const Icon(Icons.cancel_outlined),
             ),
             IconButton(
@@ -921,7 +1216,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             ),
             IconButton(
               key: const ValueKey('base-camp-editor-save'),
-              onPressed: _save,
+              onPressed: () => unawaited(_save()),
               icon: const Icon(Icons.save),
             ),
             IconButton(
@@ -1022,16 +1317,16 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                     _waterPointIndex = point;
                     _waterMaskSelected = false;
                   }),
-                  onWaterDragStarted: () =>
-                      setState(() => _undo.add(_clone(_working))),
-                  onWaterPointDragged: (index, position, mask) =>
-                      _updateWaterPoint(
-                        _waterFxId,
-                        index,
-                        position,
-                        mask: mask,
-                      ),
+                  onWaterDragStarted: () => setState(() {
+                    _activeWaterDragAreaIndex = _waterAreaIndex;
+                    _undo.add(_clone(_working));
+                  }),
+                  onWaterPointDragged: (index, position, mask) {
+                    if (_activeWaterDragAreaIndex != _waterAreaIndex) return;
+                    _updateWaterPoint(_waterFxId, index, position, mask: mask);
+                  },
                   onExclusionPointDragged: (polygon, index, position) {
+                    if (_activeWaterDragAreaIndex != _waterAreaIndex) return;
                     final effect = _working.waterFx[_waterFxId]!;
                     final areas = _areas(effect);
                     final areaIndex = _safeAreaIndex(effect);
@@ -1042,6 +1337,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                     final masks = area.exclusionMasks
                         .map((item) => List<Offset>.of(item))
                         .toList(growable: false);
+                    if (index < 0 || index >= masks[polygon].length) return;
                     masks[polygon][index] = Offset(
                       position.dx
                           .clamp(0, baseCampMapArtworkSize.width)
@@ -1066,6 +1362,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                         },
                       ),
                     );
+                    _scheduleWaterDraftSave();
                   },
                   selectedStaticSoldierId: _staticSoldierId,
                   onStaticSoldierDragStarted: () =>
@@ -1109,6 +1406,12 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             ),
             Row(
               children: [
+                if (_waterDraftError != null)
+                  Text(
+                    _waterDraftError!,
+                    key: const ValueKey('base-camp-water-draft-error'),
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
                 const Text('SCALE'),
                 Expanded(
                   child: Slider(
@@ -1315,6 +1618,15 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   ),
               ],
             ),
+            Text(switch (_waterLayer) {
+              _BaseCampWaterLayer.shimmer =>
+                'SHIMMER: 水面だけに現れる光の反射。DENSITYは反射数、BRIGHTNESSは明るさ、CHANGE SPEEDは瞬き速度です。',
+              _BaseCampWaterLayer.ripple =>
+                'RIPPLE: 水域内を流れる波紋。STRENGTHは濃さ、FLOW SPEEDは移動速度、SPREADは波紋の大きさです。',
+              _BaseCampWaterLayer.foam =>
+                'FOAM: SHORELINEに沿って動く白い泡。AMOUNTは量、SPREADは広がり、LIFETIMEは残る時間です。',
+            }, key: ValueKey('base-camp-water-fx-help-${_waterLayer.name}')),
+            const Text('単独PREVIEW中です。0と4では効果が明確に変化します。'),
             SwitchListTile(
               title: Text('${_waterLayer.name.toUpperCase()} ON'),
               value: switch (_waterLayer) {
@@ -1460,6 +1772,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                 ],
                 onChanged: (value) => setState(() {
                   _waterAreaIndex = value!;
+                  _activeWaterDragAreaIndex = -1;
                   _waterPointIndex = 0;
                   _waterMaskSelected = true;
                 }),
@@ -1985,27 +2298,35 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   State<_BaseCampEditorCanvas> createState() => _BaseCampEditorCanvasState();
 }
 
-class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
-    with TickerProviderStateMixin {
+class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   final TransformationController _transform = TransformationController();
   final GlobalKey _sourceKey = GlobalKey();
   Size? _viewport;
   Matrix4? _transformBeforeWaterFocus;
   String? _focusedWaterFxId;
-  late final AnimationController _previewTimeline;
+  final ValueNotifier<Duration> _previewElapsed = ValueNotifier<Duration>(
+    Duration.zero,
+  );
+  final Stopwatch _previewWatch = Stopwatch();
+  Timer? _previewTimer;
 
   @override
   void initState() {
     super.initState();
-    _previewTimeline = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 30),
-    )..repeat();
+    _previewWatch.start();
+    // iPhone Safari cannot sustain rebuilding a 1254px editor stack at the
+    // display refresh rate. Ten preview frames per second keep motion clear
+    // while bounding canvas allocation and raster work.
+    _previewTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      _previewElapsed.value = _previewWatch.elapsed;
+    });
   }
 
   @override
   void dispose() {
-    _previewTimeline.dispose();
+    _previewTimer?.cancel();
+    _previewWatch.stop();
+    _previewElapsed.dispose();
     _transform.dispose();
     super.dispose();
   }
@@ -2078,139 +2399,123 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas>
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _previewTimeline,
-    builder: (context, _) => LayoutBuilder(
-      builder: (context, constraints) {
-        final viewport = constraints.biggest;
-        _setInitialFit(viewport);
-        return ClipRect(
-          child: InteractiveViewer(
-            key: const ValueKey('base-camp-editor-map'),
-            transformationController: _transform,
-            constrained: false,
-            minScale: .2,
-            maxScale: 3.2,
-            boundaryMargin: const EdgeInsets.all(160),
-            child: SizedBox(
-              width: baseCampMapArtworkSize.width,
-              height: baseCampMapArtworkSize.height,
-              child: _BaseCampEditorSourceMap(
-                key: _sourceKey,
-                configuration: widget.configuration,
-                section: widget.section,
-                selectedRouteId: widget.selectedRouteId,
-                selectedFacilityId: widget.selectedFacilityId,
-                selectedObjectId: widget.selectedObjectId,
-                selectedPoint: widget.selectedPoint,
-                onPointSelected: widget.onPointSelected,
-                onDragStarted: widget.onDragStarted,
-                onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
-                onPointGlobalDragged: _dragPointAtGlobalPosition,
-                onObjectDragStarted: widget.onObjectDragStarted,
-                onObjectGlobalDragged: (globalPosition) {
-                  final renderBox =
-                      _sourceKey.currentContext?.findRenderObject()
-                          as RenderBox?;
-                  if (renderBox != null) {
-                    widget.onObjectDragged(
-                      BaseCampMapGeometry.contain(
-                        baseCampMapArtworkSize,
-                      ).artworkToSource(
-                        renderBox.globalToLocal(globalPosition),
-                      ),
-                    );
-                  }
-                },
-                onLabelDragStarted: widget.onLabelDragStarted,
-                onLabelGlobalDragged: (globalPosition, part) {
-                  final renderBox =
-                      _sourceKey.currentContext?.findRenderObject()
-                          as RenderBox?;
-                  if (renderBox != null) {
-                    widget.onLabelDragged(
-                      BaseCampMapGeometry.contain(
-                        baseCampMapArtworkSize,
-                      ).artworkToSource(
-                        renderBox.globalToLocal(globalPosition),
-                      ),
-                      part,
-                    );
-                  }
-                },
-                selectedWaterFxId: widget.selectedWaterFxId,
-                waterPreviewLayer: widget.waterPreviewLayer,
-                selectedWaterArea: widget.selectedWaterArea,
-                elapsed: Duration(
-                  milliseconds: (_previewTimeline.value * 30000).round(),
-                ),
-                selectedWaterPoint: widget.selectedWaterPoint,
-                selectedWaterMask: widget.selectedWaterMask,
-                selectedExclusionMask: widget.selectedExclusionMask,
-                awaitingWaterPoint: widget.awaitingWaterPoint,
-                onWaterCanvasTap: widget.onWaterCanvasTap,
-                awaitingNewWaterArea: widget.awaitingNewWaterArea,
-                onNewWaterAreaCanvasTap: widget.onNewWaterAreaCanvasTap,
-                awaitingExclusionPoint: widget.awaitingExclusionPoint,
-                onExclusionCanvasTap: widget.onExclusionCanvasTap,
-                onWaterPointSelected: widget.onWaterPointSelected,
-                onExclusionSelected: widget.onExclusionSelected,
-                onWaterDragStarted: widget.onWaterDragStarted,
-                onWaterGlobalDragged: (index, globalPosition, mask) {
-                  final renderBox =
-                      _sourceKey.currentContext?.findRenderObject()
-                          as RenderBox?;
-                  if (renderBox != null) {
-                    widget.onWaterPointDragged(
-                      index,
-                      BaseCampMapGeometry.contain(
-                        baseCampMapArtworkSize,
-                      ).viewportToArtwork(
-                        renderBox.globalToLocal(globalPosition),
-                      ),
-                      mask,
-                    );
-                  }
-                },
-                onExclusionGlobalDragged: (polygon, index, globalPosition) {
-                  final renderBox =
-                      _sourceKey.currentContext?.findRenderObject()
-                          as RenderBox?;
-                  if (renderBox != null) {
-                    widget.onExclusionPointDragged(
-                      polygon,
-                      index,
-                      BaseCampMapGeometry.contain(
-                        baseCampMapArtworkSize,
-                      ).viewportToArtwork(
-                        renderBox.globalToLocal(globalPosition),
-                      ),
-                    );
-                  }
-                },
-                selectedStaticSoldierId: widget.selectedStaticSoldierId,
-                onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
-                onStaticSoldierGlobalDragged: (id, globalPosition) {
-                  final renderBox =
-                      _sourceKey.currentContext?.findRenderObject()
-                          as RenderBox?;
-                  if (renderBox != null) {
-                    widget.onStaticSoldierDragged(
-                      id,
-                      BaseCampMapGeometry.contain(
-                        baseCampMapArtworkSize,
-                      ).artworkToSource(
-                        renderBox.globalToLocal(globalPosition),
-                      ),
-                    );
-                  }
-                },
-              ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final viewport = constraints.biggest;
+      _setInitialFit(viewport);
+      return ClipRect(
+        child: InteractiveViewer(
+          key: const ValueKey('base-camp-editor-map'),
+          transformationController: _transform,
+          constrained: false,
+          minScale: .2,
+          maxScale: 3.2,
+          boundaryMargin: const EdgeInsets.all(160),
+          child: SizedBox(
+            width: baseCampMapArtworkSize.width,
+            height: baseCampMapArtworkSize.height,
+            child: _BaseCampEditorSourceMap(
+              key: _sourceKey,
+              configuration: widget.configuration,
+              section: widget.section,
+              selectedRouteId: widget.selectedRouteId,
+              selectedFacilityId: widget.selectedFacilityId,
+              selectedObjectId: widget.selectedObjectId,
+              selectedPoint: widget.selectedPoint,
+              onPointSelected: widget.onPointSelected,
+              onDragStarted: widget.onDragStarted,
+              onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
+              onPointGlobalDragged: _dragPointAtGlobalPosition,
+              onObjectDragStarted: widget.onObjectDragStarted,
+              onObjectGlobalDragged: (globalPosition) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onObjectDragged(
+                    BaseCampMapGeometry.contain(
+                      baseCampMapArtworkSize,
+                    ).artworkToSource(renderBox.globalToLocal(globalPosition)),
+                  );
+                }
+              },
+              onLabelDragStarted: widget.onLabelDragStarted,
+              onLabelGlobalDragged: (globalPosition, part) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onLabelDragged(
+                    BaseCampMapGeometry.contain(
+                      baseCampMapArtworkSize,
+                    ).artworkToSource(renderBox.globalToLocal(globalPosition)),
+                    part,
+                  );
+                }
+              },
+              selectedWaterFxId: widget.selectedWaterFxId,
+              waterPreviewLayer: widget.waterPreviewLayer,
+              selectedWaterArea: widget.selectedWaterArea,
+              previewElapsed: _previewElapsed,
+              selectedWaterPoint: widget.selectedWaterPoint,
+              selectedWaterMask: widget.selectedWaterMask,
+              selectedExclusionMask: widget.selectedExclusionMask,
+              awaitingWaterPoint: widget.awaitingWaterPoint,
+              onWaterCanvasTap: widget.onWaterCanvasTap,
+              awaitingNewWaterArea: widget.awaitingNewWaterArea,
+              onNewWaterAreaCanvasTap: widget.onNewWaterAreaCanvasTap,
+              awaitingExclusionPoint: widget.awaitingExclusionPoint,
+              onExclusionCanvasTap: widget.onExclusionCanvasTap,
+              onWaterPointSelected: widget.onWaterPointSelected,
+              onExclusionSelected: widget.onExclusionSelected,
+              onWaterDragStarted: widget.onWaterDragStarted,
+              onWaterGlobalDragged: (index, globalPosition, mask) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onWaterPointDragged(
+                    index,
+                    BaseCampMapGeometry.contain(
+                      baseCampMapArtworkSize,
+                    ).viewportToArtwork(
+                      renderBox.globalToLocal(globalPosition),
+                    ),
+                    mask,
+                  );
+                }
+              },
+              onExclusionGlobalDragged: (polygon, index, globalPosition) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onExclusionPointDragged(
+                    polygon,
+                    index,
+                    BaseCampMapGeometry.contain(
+                      baseCampMapArtworkSize,
+                    ).viewportToArtwork(
+                      renderBox.globalToLocal(globalPosition),
+                    ),
+                  );
+                }
+              },
+              selectedStaticSoldierId: widget.selectedStaticSoldierId,
+              onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
+              onStaticSoldierGlobalDragged: (id, globalPosition) {
+                final renderBox =
+                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  widget.onStaticSoldierDragged(
+                    id,
+                    BaseCampMapGeometry.contain(
+                      baseCampMapArtworkSize,
+                    ).artworkToSource(renderBox.globalToLocal(globalPosition)),
+                  );
+                }
+              },
             ),
           ),
-        );
-      },
-    ),
+        ),
+      );
+    },
   );
 }
 
@@ -2234,7 +2539,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.selectedWaterFxId,
     required this.waterPreviewLayer,
     required this.selectedWaterArea,
-    required this.elapsed,
+    required this.previewElapsed,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
     required this.selectedExclusionMask,
@@ -2268,7 +2573,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final String selectedWaterFxId;
   final String? waterPreviewLayer;
   final int selectedWaterArea;
-  final Duration elapsed;
+  final ValueListenable<Duration> previewElapsed;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
   final int selectedExclusionMask;
@@ -2321,12 +2626,18 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         const Image(image: AssetImage(baseCampMapAsset), fit: BoxFit.contain),
-        IgnorePointer(
-          child: BaseCampWaterFxLayer(
-            configuration: configuration,
-            geometry: geometry,
-            elapsed: elapsed,
-            previewLayer: waterPreviewLayer,
+        RepaintBoundary(
+          key: const ValueKey('base-camp-editor-water-preview-boundary'),
+          child: ValueListenableBuilder<Duration>(
+            valueListenable: previewElapsed,
+            builder: (context, elapsed, _) => IgnorePointer(
+              child: BaseCampWaterFxLayer(
+                configuration: configuration,
+                geometry: geometry,
+                elapsed: elapsed,
+                previewLayer: waterPreviewLayer,
+              ),
+            ),
           ),
         ),
         IgnorePointer(
@@ -2335,19 +2646,28 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             geometry: geometry,
           ),
         ),
-        IgnorePointer(
-          child: BaseCampFoodSmokeLayer(
-            configuration: configuration,
-            geometry: geometry,
-            elapsed: elapsed,
-          ),
-        ),
-        IgnorePointer(
-          child: BaseCampWalkerPreviewLayer(
-            elapsed: elapsed,
-            reducedMotion: false,
-            configuration: configuration,
-            geometry: geometry,
+        RepaintBoundary(
+          key: const ValueKey('base-camp-editor-ambient-preview-boundary'),
+          child: ValueListenableBuilder<Duration>(
+            valueListenable: previewElapsed,
+            builder: (context, elapsed, _) => IgnorePointer(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  BaseCampFoodSmokeLayer(
+                    configuration: configuration,
+                    geometry: geometry,
+                    elapsed: elapsed,
+                  ),
+                  BaseCampWalkerPreviewLayer(
+                    elapsed: elapsed,
+                    reducedMotion: false,
+                    configuration: configuration,
+                    geometry: geometry,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
         // Keep the editor preview's paint order identical to the normal map:
@@ -2493,6 +2813,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.shoreline && water != null) ...[
           for (var i = 0; i < water.shoreline.length; i++)
             _EditorDragHandle(
+              key: ValueKey('base-camp-water-shoreline-point-$i'),
               point: geometry.artworkToViewport(water.shoreline[i]),
               icon: Icons.waves,
               color: selectedWaterPoint == i && !selectedWaterMask
@@ -2511,6 +2832,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.waterMask && water != null) ...[
           for (var i = 0; i < water.mask.length; i++)
             _EditorDragHandle(
+              key: ValueKey('base-camp-water-mask-point-$i'),
               point: geometry.artworkToViewport(water.mask[i]),
               icon: Icons.crop_square,
               color: selectedWaterPoint == i && selectedWaterMask
@@ -2538,6 +2860,9 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
               point++
             )
               _EditorDragHandle(
+                key: ValueKey(
+                  'base-camp-water-exclusion-$polygon-point-$point',
+                ),
                 point: geometry.artworkToViewport(
                   water.exclusionMasks[polygon][point],
                 ),
@@ -2658,6 +2983,7 @@ class _BaseCampWaterEditOverlayPainter extends CustomPainter {
 
 class _EditorDragHandle extends StatelessWidget {
   const _EditorDragHandle({
+    super.key,
     required this.point,
     required this.icon,
     required this.color,
