@@ -76,6 +76,7 @@ void main() {
     await _pumpBaseCamp(tester, BaseCampScreen.morning, const MorningPage());
     expect(_facilityEntry('status'), findsOneWidget);
     expect(find.text('STATUS ENTRY'), findsOneWidget);
+    expect(find.textContaining('BASE CAMP //'), findsNothing);
     expect(find.text('SCHEDULE'), findsOneWidget);
     expect(find.text('RECORD'), findsOneWidget);
     expect(find.byType(StatusAmbientBackground), findsNothing);
@@ -133,7 +134,7 @@ void main() {
       find.byKey(const ValueKey('command-center-presentation-stack')),
       findsOneWidget,
     );
-    expect(find.byType(CommandCenterAmbientProcessing), findsOneWidget);
+    expect(find.byType(CommandCenterAmbientProcessing), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

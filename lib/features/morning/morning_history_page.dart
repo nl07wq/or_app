@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../themes/base_camp/base_camp_presentation.dart';
+
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/models/morning_data.dart';
@@ -84,9 +86,13 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
         scrolledUnderElevation: 0,
         forceMaterialTransparency: true,
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
-        title: const StatusCrtMonitorTitle(title: 'STATUS RECORD'),
+        title: BaseCampPresentation.isActive(context)
+            ? const Text('STATUS RECORD')
+            : const StatusCrtMonitorTitle(title: 'STATUS RECORD'),
       ),
-      ambient: const StatusAmbientBackground(),
+      ambient: BaseCampPresentation.isActive(context)
+          ? const SizedBox.shrink()
+          : const StatusAmbientBackground(),
       body: FutureBuilder<List<MorningData>>(
         future: _records,
         builder: (context, snapshot) {

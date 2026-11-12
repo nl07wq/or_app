@@ -132,6 +132,12 @@ flutter:
       fonts:
         - asset: assets/fonts/ShareTechMono-Regular.ttf
           weight: 400
+    # Press Start 2P by the Press Start 2P Project Authors, bundled under
+    # SIL Open Font License 1.1 (assets/fonts/licenses/OFL-PressStart2P.txt).
+    - family: PressStart2P
+      fonts:
+        - asset: assets/fonts/PressStart2P-Regular.ttf
+          weight: 400
 
   # To add assets to your application, add an assets section, like this:
   # assets:

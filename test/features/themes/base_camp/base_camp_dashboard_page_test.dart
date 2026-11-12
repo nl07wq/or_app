@@ -56,6 +56,21 @@ void main() {
       find.byKey(const ValueKey('base-camp-industrial-lcd')),
       findsOneWidget,
     );
+    final grain = find.byKey(const ValueKey('base-camp-lcd-grain'));
+    expect(grain, findsOneWidget);
+    expect(
+      find.ancestor(
+        of: grain,
+        matching: find.byKey(const ValueKey('base-camp-industrial-lcd')),
+      ),
+      findsOneWidget,
+    );
+    final grainPaint = tester.widget<CustomPaint>(grain);
+    expect(grainPaint.painter, isA<BaseCampLcdGrainPainter>());
+    expect(BaseCampLcdGrainPainter.pitch, 4);
+    expect(BaseCampLcdGrainPainter.opacity, .08);
+    expect(find.text('COMMAND TERMINAL'), findsOneWidget);
+    expect(find.textContaining('BASE CAMP //'), findsNothing);
     expect(find.byKey(const ValueKey('base-camp-map')), findsOneWidget);
     final mapSize = tester.getSize(find.byKey(const ValueKey('base-camp-map')));
     expect(

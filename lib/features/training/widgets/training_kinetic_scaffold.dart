@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/loading/or_loading_surface.dart';
 import '../../../core/widgets/loading/or_loading_tokens.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 
 import 'training_ambient_comparison.dart';
 
@@ -34,6 +35,7 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (BaseCampPresentation.isActive(context)) return;
     if (_backgroundReady || _backgroundFailed) return;
     _prepareBackground();
   }
@@ -61,8 +63,9 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final showAmbient = !BaseCampPresentation.isActive(context);
     KineticFirstFrameInstrumentation.firstScaffoldBuild();
-    if (!_backgroundReady && !_backgroundFailed) {
+    if (showAmbient && !_backgroundReady && !_backgroundFailed) {
       return const Scaffold(
         backgroundColor: Color(0xff030914),
         body: OrLoadingSurface(
@@ -96,9 +99,10 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            const TrainingAmbientComparison(
-              variant: TrainingAmbientVariant.kineticEngine,
-            ),
+            if (showAmbient)
+              const TrainingAmbientComparison(
+                variant: TrainingAmbientVariant.kineticEngine,
+              ),
             Padding(
               padding: EdgeInsets.only(top: topInset),
               child: MediaQuery.removePadding(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../themes/base_camp/base_camp_presentation.dart';
+
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/models/activity_data.dart';
@@ -701,11 +703,15 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         leading: Navigator.canPop(context)
             ? const ActivityMechanicalBackButton()
             : null,
-        title: const ActivityMechanicalCounterTitle(
-          mode: ActivityMechanicalCounterMode.entry,
-        ),
+        title: BaseCampPresentation.isActive(context)
+            ? const Text('ACTIVITY ENTRY')
+            : const ActivityMechanicalCounterTitle(
+                mode: ActivityMechanicalCounterMode.entry,
+              ),
       ),
-      ambient: const ActivityAmbientBackground(),
+      ambient: BaseCampPresentation.isActive(context)
+          ? const SizedBox.shrink()
+          : const ActivityAmbientBackground(),
       body: switch (_mode) {
         _EntryMode.loading => const Center(child: CircularProgressIndicator()),
         _EntryMode.error => _LoadError(

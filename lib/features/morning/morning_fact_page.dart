@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../themes/base_camp/base_camp_presentation.dart';
+
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/models/work_type.dart';
@@ -293,9 +295,13 @@ class _MorningFactPageState extends State<MorningFactPage> {
         scrolledUnderElevation: 0,
         forceMaterialTransparency: true,
         leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
-        title: const StatusCrtMonitorTitle(mode: StatusCrtMonitorMode.entry),
+        title: BaseCampPresentation.isActive(context)
+            ? const Text('STATUS ENTRY')
+            : const StatusCrtMonitorTitle(mode: StatusCrtMonitorMode.entry),
       ),
-      ambient: const StatusAmbientBackground(),
+      ambient: BaseCampPresentation.isActive(context)
+          ? const SizedBox.shrink()
+          : const StatusAmbientBackground(),
       body: _operationDateError != null
           ? const Center(child: Text('Operation Dateを取得できませんでした。'))
           : !_initialValuesLoaded

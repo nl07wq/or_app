@@ -256,7 +256,7 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                   foregroundColor: const Color(0xffe8e2c9),
                   surfaceTintColor: Colors.transparent,
                   titleSpacing: 16,
-                  title: const Text('BASE CAMP // COMMAND TERMINAL'),
+                  title: const Text('COMMAND TERMINAL'),
                   actions: const [SystemMenuButton()],
                 ),
                 body: SafeArea(
@@ -1432,9 +1432,54 @@ class _IndustrialLcdPanel extends StatelessWidget {
         border: Border.all(color: _LcdPalette.mid),
         borderRadius: BorderRadius.circular(7),
       ),
-      child: child,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            child,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  key: const ValueKey('base-camp-lcd-grain'),
+                  painter: BaseCampLcdGrainPainter(negative: negative),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
+
+@visibleForTesting
+class BaseCampLcdGrainPainter extends CustomPainter {
+  const BaseCampLcdGrainPainter({required this.negative});
+
+  static const double pitch = 4;
+  static const double opacity = .08;
+
+  final bool negative;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = (negative ? _LcdPalette.light : _LcdPalette.darkest).withValues(
+        alpha: opacity,
+      )
+      ..strokeWidth = .7;
+    for (double x = pitch; x < size.width; x += pitch) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = pitch; y < size.height; y += pitch) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant BaseCampLcdGrainPainter oldDelegate) =>
+      oldDelegate.negative != negative;
 }
 
 class _TerminalInformationPage extends StatelessWidget {

@@ -44,7 +44,7 @@ class BaseCampFacilityEntryPage extends StatelessWidget {
         foregroundColor: const Color(0xffe8e2c9),
         surfaceTintColor: Colors.transparent,
         titleSpacing: 16,
-        title: Text('BASE CAMP // $title'),
+        title: Text(title),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {

@@ -8,6 +8,7 @@ import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import '../services/history_visual_preference.dart';
 import '../widgets/history_data_vault_hyperspace.dart';
 
@@ -45,8 +46,19 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
       duration: const Duration(seconds: 36),
     );
     _dataVaultClock.start();
-    if (widget.animateAmbient) _ambientController.repeat();
     _restoreSelection();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animate =
+        widget.animateAmbient && !BaseCampPresentation.isActive(context);
+    if (animate && !_ambientController.isAnimating) {
+      _ambientController.repeat();
+    } else if (!animate && _ambientController.isAnimating) {
+      _ambientController.stop();
+    }
   }
 
   Future<void> _restoreSelection() async {
@@ -61,45 +73,52 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
   }
 
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: [
-      RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: _ambientController,
-          builder: (context, _) => CustomPaint(
-            key: const ValueKey('history-ambient-dataVault'),
-            painter: _HistoryAmbientPainter(
-              phase: _ambientController.value,
-              dataVaultSeconds:
-                  (widget.dataVaultSimulationTime?.inMicroseconds ??
-                      _dataVaultClock.elapsedMicroseconds) /
-                  Duration.microsecondsPerSecond,
-            ),
-          ),
-        ),
+  Widget build(BuildContext context) {
+    final isBaseCamp = BaseCampPresentation.isActive(context);
+    final scaffold = Scaffold(
+      backgroundColor: isBaseCamp ? null : Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: isBaseCamp ? null : Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        leading: const ActionableBackButton(),
+        title: isBaseCamp
+            ? const Text('HISTORY')
+            : AnimatedBuilder(
+                animation: _ambientController,
+                builder: (context, _) => HistoryMemoryModuleTitle(
+                  variant: _selection.title,
+                  seconds: _dataVaultSeconds,
+                ),
+              ),
       ),
-      Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          scrolledUnderElevation: 0,
-          elevation: 0,
-          leading: const ActionableBackButton(),
-          title: AnimatedBuilder(
+      body: _buildContent(context),
+    );
+    if (isBaseCamp) return scaffold;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(
+          child: AnimatedBuilder(
             animation: _ambientController,
-            builder: (context, _) => HistoryMemoryModuleTitle(
-              variant: _selection.title,
-              seconds: _dataVaultSeconds,
+            builder: (context, _) => CustomPaint(
+              key: const ValueKey('history-ambient-dataVault'),
+              painter: _HistoryAmbientPainter(
+                phase: _ambientController.value,
+                dataVaultSeconds:
+                    (widget.dataVaultSimulationTime?.inMicroseconds ??
+                        _dataVaultClock.elapsedMicroseconds) /
+                    Duration.microsecondsPerSecond,
+              ),
             ),
           ),
         ),
-        body: _buildContent(context),
-      ),
-    ],
-  );
+        scaffold,
+      ],
+    );
+  }
 
   Widget _buildContent(BuildContext context) => ListView(
     padding: AppSpacing.cardPadding,

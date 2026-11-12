@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../themes/base_camp/base_camp_presentation.dart';
+
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/models/activity_data.dart';
@@ -63,9 +65,13 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
         leading: Navigator.canPop(context)
             ? const ActivityMechanicalBackButton()
             : null,
-        title: const ActivityMechanicalCounterTitle(title: 'ACTIVITY RECORD'),
+        title: BaseCampPresentation.isActive(context)
+            ? const Text('ACTIVITY RECORD')
+            : const ActivityMechanicalCounterTitle(title: 'ACTIVITY RECORD'),
       ),
-      ambient: const ActivityAmbientBackground(),
+      ambient: BaseCampPresentation.isActive(context)
+          ? const SizedBox.shrink()
+          : const ActivityAmbientBackground(),
       body: FutureBuilder<List<ActivityData>>(
         future: _records,
         builder: (context, snapshot) {

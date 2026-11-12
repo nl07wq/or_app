@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'base_camp_retro_theme.dart';
+
 /// Stable identifiers for the BASE CAMP route-level presentation entrypoints.
 /// The feature pages beneath them intentionally continue to use the same
 /// repositories, records, and operation services as STANDARD.
@@ -58,6 +60,12 @@ class BaseCampPresentation extends InheritedWidget {
   static BaseCampPresentation? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<BaseCampPresentation>();
 
+  /// MaterialPageRoute descendants receive the application-level BASE CAMP
+  /// theme even though they do not inherit a marker from the previous route.
+  static bool isActive(BuildContext context) =>
+      maybeOf(context) != null ||
+      BaseCampRetroTheme.isApplied(Theme.of(context));
+
   @override
   bool updateShouldNotify(BaseCampPresentation oldWidget) =>
       oldWidget.screen != screen;
@@ -80,9 +88,12 @@ class BaseCampScreenEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) => BaseCampPresentation(
     screen: screen,
-    child: KeyedSubtree(
-      key: ValueKey('base-camp-screen-${screen.name}'),
-      child: child,
+    child: Theme(
+      data: BaseCampRetroTheme.apply(Theme.of(context)),
+      child: KeyedSubtree(
+        key: ValueKey('base-camp-screen-${screen.name}'),
+        child: child,
+      ),
     ),
   );
 }

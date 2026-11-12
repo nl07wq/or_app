@@ -175,28 +175,38 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
     }
     final route = ModalRoute.of(context);
     final canPop = route?.canPop ?? Navigator.of(context).canPop();
+    final isBaseCamp = BaseCampPresentation.isActive(context);
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         toolbarHeight: CommandCenterHudSign.height + 4,
         titleSpacing: 8,
-        title: CommandCenterHudSign(
-          canPop: canPop,
-          onBack: canPop ? () => Navigator.of(context).maybePop() : null,
-        ),
+        leading: isBaseCamp && canPop
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
+        title: isBaseCamp
+            ? const Text('COMMAND CENTER')
+            : CommandCenterHudSign(
+                canPop: canPop,
+                onBack: canPop ? () => Navigator.of(context).maybePop() : null,
+              ),
       ),
       body: Stack(
         key: const ValueKey('command-center-presentation-stack'),
         children: [
-          ValueListenableBuilder<DeviceSettings>(
-            valueListenable: DeviceSettingsController.instance,
-            builder: (context, settings, _) => Positioned.fill(
-              child: CommandCenterAmbientProcessing(
-                enabled: settings.ambientProcessingEnabled,
-                midRearDensity: settings.commandCenterMidRearDensity,
+          if (!isBaseCamp)
+            ValueListenableBuilder<DeviceSettings>(
+              valueListenable: DeviceSettingsController.instance,
+              builder: (context, settings, _) => Positioned.fill(
+                child: CommandCenterAmbientProcessing(
+                  enabled: settings.ambientProcessingEnabled,
+                  midRearDensity: settings.commandCenterMidRearDensity,
+                ),
               ),
             ),
-          ),
           Column(
             children: [
               _WorkspaceHeader(
@@ -281,10 +291,13 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
   ) {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => CommandCenterPage(
-          initialSection: section,
-          initialBriefDebriefTab: widget.initialBriefDebriefTab,
-          showBaseCampEntry: false,
+        builder: (_) => BaseCampScreenEntry(
+          screen: BaseCampScreen.commandCenter,
+          child: CommandCenterPage(
+            initialSection: section,
+            initialBriefDebriefTab: widget.initialBriefDebriefTab,
+            showBaseCampEntry: false,
+          ),
         ),
       ),
     );

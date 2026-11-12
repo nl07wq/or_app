@@ -48,6 +48,7 @@ import 'features/reminders/pages/reminders_page.dart';
 import 'features/notifications/services/notification_profile_controller.dart';
 import 'features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'features/themes/base_camp/base_camp_presentation.dart';
+import 'features/themes/base_camp/base_camp_retro_theme.dart';
 
 Widget _presentationEntry(BaseCampScreen screen, Widget child) =>
     _PresentationEntry(screen: screen, child: child);
@@ -199,29 +200,36 @@ class _OperationRebootAppState extends State<OperationRebootApp>
                   platformReducedMotion,
                 ),
               );
-          return OrLoadingTheme(
-            data: const OrLoadingThemeData(),
-            child: MediaQuery(
-              data: resolvedMediaQuery,
-              child: GlobalTouchRipple(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    StartupGate(
-                      service: _initializationService,
-                      showBootSequence: true,
-                      onBootEvent: widget.onBootEvent,
-                      child: child ?? const SizedBox.shrink(),
-                    ),
-                    if (settings.brightness < 1)
-                      IgnorePointer(
-                        child: ColoredBox(
-                          color: Colors.black.withValues(
-                            alpha: (1 - settings.brightness) * .55,
+          final presentationTheme =
+              settings.presentationTheme == AppPresentationTheme.baseCamp
+              ? BaseCampRetroTheme.apply(Theme.of(context))
+              : Theme.of(context);
+          return Theme(
+            data: presentationTheme,
+            child: OrLoadingTheme(
+              data: const OrLoadingThemeData(),
+              child: MediaQuery(
+                data: resolvedMediaQuery,
+                child: GlobalTouchRipple(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      StartupGate(
+                        service: _initializationService,
+                        showBootSequence: true,
+                        onBootEvent: widget.onBootEvent,
+                        child: child ?? const SizedBox.shrink(),
+                      ),
+                      if (settings.brightness < 1)
+                        IgnorePointer(
+                          child: ColoredBox(
+                            color: Colors.black.withValues(
+                              alpha: (1 - settings.brightness) * .55,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

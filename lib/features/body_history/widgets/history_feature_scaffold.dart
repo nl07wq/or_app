@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import 'history_data_vault_background.dart';
 import 'history_memory_module_title.dart';
 
@@ -35,10 +36,20 @@ class _HistoryFeatureScaffoldState extends State<HistoryFeatureScaffold>
       vsync: this,
       duration: const Duration(seconds: 36),
     );
-    if (!HistoryFeatureScaffold.debugDisableAmbientAnimation) {
-      _controller.repeat();
-    }
     _clock.start();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animate =
+        !HistoryFeatureScaffold.debugDisableAmbientAnimation &&
+        !BaseCampPresentation.isActive(context);
+    if (animate && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!animate && _controller.isAnimating) {
+      _controller.stop();
+    }
   }
 
   @override
@@ -48,47 +59,58 @@ class _HistoryFeatureScaffoldState extends State<HistoryFeatureScaffold>
   }
 
   @override
-  Widget build(BuildContext context) => Theme(
-    data: Theme.of(context).copyWith(
-      extensions: [
-        ...Theme.of(context).extensions.values,
-        const OperationSurfaceTheme(useDashboardGlass: true),
-      ],
-      chipTheme: Theme.of(context).chipTheme.copyWith(
-        backgroundColor: const Color(0xff14222f).withValues(alpha: .19),
-        selectedColor: const Color(0xff3a526c).withValues(alpha: .48),
-        side: BorderSide(color: const Color(0xff678ba7).withValues(alpha: .28)),
-      ),
-    ),
-    child: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => Stack(
-        fit: StackFit.expand,
-        children: [
-          HistoryDataVaultBackground(
-            seconds:
-                _clock.elapsedMicroseconds / Duration.microsecondsPerSecond,
-          ),
-          Scaffold(
-            backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              leading: widget.leading,
-              actions: widget.actions,
-              title: HistoryMemoryModuleTitle(
+  Widget build(BuildContext context) {
+    final isBaseCamp = BaseCampPresentation.isActive(context);
+    final scaffold = Scaffold(
+      backgroundColor: isBaseCamp ? null : Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: isBaseCamp ? null : Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: widget.leading,
+        actions: widget.actions,
+        title: isBaseCamp
+            ? Text(widget.title)
+            : HistoryMemoryModuleTitle(
                 variant: HistoryTitleVariant.memoryModule,
                 seconds:
                     _clock.elapsedMicroseconds / Duration.microsecondsPerSecond,
                 label: widget.title,
               ),
-            ),
-            body: widget.body,
-          ),
-        ],
       ),
-    ),
-  );
+      body: widget.body,
+    );
+    return Theme(
+      data: Theme.of(context).copyWith(
+        extensions: [
+          ...Theme.of(context).extensions.values,
+          const OperationSurfaceTheme(useDashboardGlass: true),
+        ],
+        chipTheme: Theme.of(context).chipTheme.copyWith(
+          backgroundColor: const Color(0xff14222f).withValues(alpha: .19),
+          selectedColor: const Color(0xff3a526c).withValues(alpha: .48),
+          side: BorderSide(
+            color: const Color(0xff678ba7).withValues(alpha: .28),
+          ),
+        ),
+      ),
+      child: isBaseCamp
+          ? scaffold
+          : AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  HistoryDataVaultBackground(
+                    seconds:
+                        _clock.elapsedMicroseconds /
+                        Duration.microsecondsPerSecond,
+                  ),
+                  scaffold,
+                ],
+              ),
+            ),
+    );
+  }
 }

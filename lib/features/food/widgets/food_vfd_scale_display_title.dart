@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../themes/base_camp/base_camp_presentation.dart';
+
 enum FoodVfdScaleDisplayMode { normal, entry }
 
 /// The shared FOOD AppBar instrument display. Its self-test is presentation
@@ -213,6 +215,9 @@ class _FoodVfdScaleDisplayTitleState extends State<FoodVfdScaleDisplayTitle>
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampPresentation.isActive(context)) {
+      return Text(widget.label, key: const ValueKey('base-camp-food-title'));
+    }
     return Semantics(
       label: widget.label,
       child: ExcludeSemantics(

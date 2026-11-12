@@ -27,6 +27,7 @@ import '../widgets/shared_date_time_recurrence_editor.dart';
 import '../../weather/weather_models.dart';
 import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
 import '../models/schedule_plan_revision.dart';
@@ -699,7 +700,9 @@ class _CalendarPageState extends State<CalendarPage> {
                 onPressed: () => Navigator.of(context).maybePop(),
               ).actionableFeedback(role: ActionableFeedbackRole.exit)
             : null,
-        title: const CalendarRingBinderTitle(),
+        title: BaseCampPresentation.isActive(context)
+            ? const Text('CALENDAR')
+            : const CalendarRingBinderTitle(),
         centerTitle: true,
         actions: [
           ActionableFeedbackButton(
@@ -718,7 +721,8 @@ class _CalendarPageState extends State<CalendarPage> {
           // Calendar and Schedule always retain their own CIRCUIT ambient.
           // The STATUS context only preserves the V1 transparent Glass route
           // surface; it must never replace this feature-owned background.
-          const Positioned.fill(child: HolographicAmbientBackground()),
+          if (!BaseCampPresentation.isActive(context))
+            const Positioned.fill(child: HolographicAmbientBackground()),
           Positioned.fill(
             child: _loading
                 ? const OrLoadingSurface(title: 'LOADING SCHEDULE')
@@ -6109,7 +6113,8 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
         children: [
           // Schedule editors share the calendar's CIRCUIT field even when
           // opened through STATUS. Their Glass route treatment remains below.
-          const HolographicAmbientBackground(),
+          if (!BaseCampPresentation.isActive(context))
+            const HolographicAmbientBackground(),
           SafeArea(
             top: !isStatusAmbient,
             child: SingleChildScrollView(

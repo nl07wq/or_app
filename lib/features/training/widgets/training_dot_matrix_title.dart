@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../themes/base_camp/base_camp_presentation.dart';
+
 /// Compact, static LED-matrix primitives shared by the Training AppBars.
 ///
 /// The entry screen supplies its own existing character-travel timing; these
@@ -342,6 +344,9 @@ class _TrainingDotMatrixTitleState extends State<TrainingDotMatrixTitle>
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampPresentation.isActive(context)) {
+      return Text(widget.title, key: widget.titleKey);
+    }
     final staticLeft = _isLong
         ? _startLeft
         : (TrainingDotMatrixGeometry.panelWidth -

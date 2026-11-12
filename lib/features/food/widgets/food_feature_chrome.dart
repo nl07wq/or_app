@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import 'food_ambient_comparison.dart';
 import 'food_vfd_scale_display_title.dart';
 
@@ -21,6 +22,7 @@ class FoodFeatureScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showAmbient = !BaseCampPresentation.isActive(context);
     final appBarHeight =
         appBar.preferredSize.height + MediaQuery.paddingOf(context).top;
     final base = Theme.of(context);
@@ -38,7 +40,8 @@ class FoodFeatureScaffold extends StatelessWidget {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            const RepaintBoundary(child: FoodAmbientComparison()),
+            if (showAmbient)
+              const RepaintBoundary(child: FoodAmbientComparison()),
             Padding(
               padding: EdgeInsets.only(top: appBarHeight),
               child: body,

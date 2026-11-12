@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../themes/base_camp/base_camp_presentation.dart';
+
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
@@ -390,7 +392,8 @@ class _RemindersPageState extends State<RemindersPage>
     floatingActionButton: _HudAddControl(onPressed: _create),
     body: Stack(
       children: [
-        const Positioned.fill(child: HolographicAmbientBackground()),
+        if (!BaseCampPresentation.isActive(context))
+          const Positioned.fill(child: HolographicAmbientBackground()),
         Positioned.fill(
           child: Column(
             children: [
