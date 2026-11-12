@@ -8,6 +8,8 @@ import '../../core/widgets/section_header.dart';
 import '../../core/widgets/loading/or_loading_surface.dart';
 import '../../core/widgets/loading/or_loading_tokens.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
+import '../themes/base_camp/base_camp_facility_entry_page.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
 
 import 'widgets/training_history_button.dart';
 import 'widgets/training_ambient_comparison.dart';
@@ -39,9 +41,13 @@ class _TrainingPageState extends State<TrainingPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_isBaseCampEntry) return;
     if (_backgroundReady || _backgroundFailed) return;
     _prepareBackground();
   }
+
+  bool get _isBaseCampEntry =>
+      BaseCampPresentation.maybeOf(context)?.screen == BaseCampScreen.training;
 
   Future<void> _prepareBackground() async {
     final generation = ++_preparationGeneration;
@@ -58,6 +64,7 @@ class _TrainingPageState extends State<TrainingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isBaseCampEntry) return _buildBaseCampEntry(context);
     final mediaQuery = MediaQuery.of(context);
     final horizontalPadding = mediaQuery.size.width < 360 ? 4.0 : AppSpacing.lg;
     final contentTopPadding =
@@ -210,4 +217,47 @@ class _TrainingPageState extends State<TrainingPage> {
       ),
     );
   }
+
+  Widget _buildBaseCampEntry(BuildContext context) => BaseCampFacilityEntryPage(
+    title: 'TRAINING',
+    imageAsset: baseCampTrainingEntryAsset,
+    actions: [
+      const BaseCampFacilityEntryAction(
+        description: '本日のトレーニング内容を記録します。',
+        child: TrainingManualCard(),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '記録をもとに次回のトレーニングプランを作成します。',
+        child: OperationButton(
+          icon: Icons.event_note_outlined,
+          text: 'PLAN',
+          frostedGradient: true,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TrainingPlanImportPage()),
+          ),
+        ),
+      ),
+      const BaseCampFacilityEntryAction(
+        description: '保存済みのトレーニング履歴を確認・編集します。',
+        child: TrainingHistoryButton(),
+      ),
+      BaseCampFacilityEntryAction(
+        description: 'トレーニング記録の分析レポートを作成・確認します。',
+        child: OperationButton(
+          icon: Icons.analytics_outlined,
+          text: 'ANALYSIS REPORT',
+          frostedGradient: true,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TrainingAnalysisPage()),
+          ),
+        ),
+      ),
+      const BaseCampFacilityEntryAction(
+        description: 'ChatGPTからトレーニング記録を取り込みます。',
+        child: TrainingSyncCard(),
+      ),
+    ],
+  );
 }

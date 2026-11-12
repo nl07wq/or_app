@@ -45,6 +45,8 @@ import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/daily_debrief_state.dart';
 import '../../periodic_report/models/periodic_report.dart';
 import '../../periodic_report/pages/periodic_report_page.dart';
+import '../../themes/base_camp/base_camp_facility_entry_page.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 
 @visibleForTesting
 List<PeriodicReportType> periodicReportTypesForFinalizedDate(DateTime date) => [
@@ -114,10 +116,12 @@ class CommandCenterPage extends StatefulWidget {
     super.key,
     this.initialSection = CommandCenterSection.dailyCommand,
     this.initialBriefDebriefTab = BriefDebriefTab.dailyBrief,
+    this.showBaseCampEntry = true,
   });
 
   final CommandCenterSection initialSection;
   final BriefDebriefTab initialBriefDebriefTab;
+  final bool showBaseCampEntry;
 
   @override
   State<CommandCenterPage> createState() => _CommandCenterPageState();
@@ -164,6 +168,11 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.showBaseCampEntry &&
+        BaseCampPresentation.maybeOf(context)?.screen ==
+            BaseCampScreen.commandCenter) {
+      return _buildBaseCampEntry(context);
+    }
     final route = ModalRoute.of(context);
     final canPop = route?.canPop ?? Navigator.of(context).canPop();
     return Scaffold(
@@ -213,6 +222,70 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBaseCampEntry(BuildContext context) => BaseCampFacilityEntryPage(
+    title: 'COMMAND CENTER',
+    imageAsset: baseCampCommandCenterEntryAsset,
+    actions: [
+      BaseCampFacilityEntryAction(
+        description: '週次・月次・年次の作戦レポートを作成・確認します。',
+        child: OperationButton(
+          icon: Icons.assessment_outlined,
+          text: 'PERIODIC REPORT',
+          frostedGradient: true,
+          onPressed: () => _openBaseCampSection(
+            context,
+            CommandCenterSection.periodicReport,
+          ),
+        ),
+      ),
+      BaseCampFacilityEntryAction(
+        description: 'DAILY BRIEFとDEBRIEFを作成・確認します。',
+        child: OperationButton(
+          icon: Icons.fact_check_outlined,
+          text: 'BRIEF / DEBRIEF',
+          frostedGradient: true,
+          onPressed: () =>
+              _openBaseCampSection(context, CommandCenterSection.briefDebrief),
+        ),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '当日の作戦状況を確認し、日次運用を進めます。',
+        child: OperationButton(
+          icon: Icons.radar_outlined,
+          text: 'DAILY COMMAND',
+          frostedGradient: true,
+          onPressed: () =>
+              _openBaseCampSection(context, CommandCenterSection.dailyCommand),
+        ),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '保存済みの各種履歴と集約データを参照します。',
+        child: OperationButton(
+          icon: Icons.storage_outlined,
+          text: 'DATA CENTER',
+          frostedGradient: true,
+          onPressed: () =>
+              _openBaseCampSection(context, CommandCenterSection.dataCenter),
+        ),
+      ),
+    ],
+  );
+
+  void _openBaseCampSection(
+    BuildContext context,
+    CommandCenterSection section,
+  ) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CommandCenterPage(
+          initialSection: section,
+          initialBriefDebriefTab: widget.initialBriefDebriefTab,
+          showBaseCampEntry: false,
+        ),
       ),
     );
   }

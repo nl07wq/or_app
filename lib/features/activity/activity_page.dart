@@ -11,6 +11,8 @@ import '../../core/widgets/section_header.dart';
 import '../repositories/app_repository_container.dart';
 import '../repositories/repository_exception.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../themes/base_camp/base_camp_facility_entry_page.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
 import 'activity_entry_page.dart';
 import 'activity_history_page.dart';
 import 'models/activity_draft.dart';
@@ -181,6 +183,10 @@ class _ActivityPageState extends State<ActivityPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampPresentation.maybeOf(context)?.screen ==
+        BaseCampScreen.activity) {
+      return _buildBaseCampEntry(context);
+    }
     final viewPadding = MediaQuery.paddingOf(context);
     return AmbientPageScaffold(
       appBar: AppBar(
@@ -300,6 +306,67 @@ class _ActivityPageState extends State<ActivityPage> {
       ),
     );
   }
+
+  Widget _buildBaseCampEntry(BuildContext context) => BaseCampFacilityEntryPage(
+    title: 'ACTIVITY',
+    imageAsset: baseCampActivityEntryAsset,
+    actions: [
+      BaseCampFacilityEntryAction(
+        description: '歩数・排便など、本日の活動を記録します。',
+        child: FutureBuilder<bool>(
+          future: _activityExists,
+          builder: (context, snapshot) {
+            final activityExists = snapshot.data ?? false;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OperationButton(
+                  key: const ValueKey('activity-entry-button'),
+                  icon: Icons.edit_outlined,
+                  text: 'ACTIVITY ENTRY',
+                  frostedGradient: true,
+                  reportUnavailableTap:
+                      !appInitializationController.value.isReadOnly &&
+                      snapshot.connectionState == ConnectionState.done &&
+                      !snapshot.hasError &&
+                      activityExists,
+                  onPressed:
+                      appInitializationController.value.isReadOnly ||
+                          snapshot.connectionState != ConnectionState.done ||
+                          snapshot.hasError ||
+                          activityExists
+                      ? null
+                      : _openEntry,
+                ),
+                if (activityExists) ...[
+                  AppSpacing.gapSM,
+                  const Text(
+                    '本日のACTIVITYは登録済みです。編集はRECORDから行えます。',
+                    style: TextStyle(color: Color(0xffaaa58d)),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '保存済みの活動履歴を確認・編集します。',
+        child: OperationButton(
+          icon: Icons.history_outlined,
+          text: 'RECORD',
+          frostedGradient: true,
+          onPressed: () async {
+            await Navigator.push<void>(
+              context,
+              MaterialPageRoute(builder: (_) => const ActivityHistoryPage()),
+            );
+            if (mounted) _refreshActivityEntry();
+          },
+        ),
+      ),
+    ],
+  );
 }
 
 /// Preserves Activity's action geometry while the child button applies the

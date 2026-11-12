@@ -13,6 +13,8 @@ import 'widgets/food_manual_card.dart';
 import 'widgets/food_sync_card.dart';
 import 'widgets/food_vfd_back_button.dart';
 import 'food_catalog_page.dart';
+import '../themes/base_camp/base_camp_facility_entry_page.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
 
 class FoodPage extends StatefulWidget {
   const FoodPage({super.key});
@@ -24,6 +26,9 @@ class FoodPage extends StatefulWidget {
 class _FoodPageState extends State<FoodPage> {
   @override
   Widget build(BuildContext context) {
+    if (BaseCampPresentation.maybeOf(context)?.screen == BaseCampScreen.food) {
+      return _buildBaseCampEntry(context);
+    }
     return FoodFeatureScaffold(
       appBar: foodFeatureAppBar(
         title: 'FOOD',
@@ -108,4 +113,35 @@ class _FoodPageState extends State<FoodPage> {
       ),
     );
   }
+
+  Widget _buildBaseCampEntry(BuildContext context) => BaseCampFacilityEntryPage(
+    title: 'FOOD',
+    imageAsset: baseCampFoodEntryAsset,
+    actions: [
+      const BaseCampFacilityEntryAction(
+        description: '食品を検索または手入力して、食事を記録します。',
+        child: FoodManualCard(),
+      ),
+      const BaseCampFacilityEntryAction(
+        description: '保存済みの食事履歴を確認・編集します。',
+        child: FoodHistoryButton(),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '食品・商品情報と栄養データを登録して再利用します。',
+        child: OperationButton(
+          icon: Icons.storage_outlined,
+          text: 'FOOD DATABASE',
+          frostedGradient: true,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FoodCatalogPage()),
+          ),
+        ),
+      ),
+      const BaseCampFacilityEntryAction(
+        description: 'ChatGPTから食事記録を取り込みます。',
+        child: FoodSyncCard(),
+      ),
+    ],
+  );
 }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'package:or_app/core/services/system_diagnostics.dart';
@@ -52,6 +53,16 @@ const baseCampWalkerRearUpperRightAsset =
 const baseCampWalkerFrontAsset =
     'assets/images/themes/base_camp/base_camp_walker_front.gif';
 
+/// The largest walker is about 55 logical pixels high at maximum map zoom on
+/// a phone. A 256px decode retains headroom for high-density displays while
+/// reducing the 25-frame decoded set from about 20 MB to under 4 MB.
+const baseCampWalkerDecodeHeight = 256;
+
+/// Signals that the map-critical walker warmup is complete. The soldier panel
+/// uses this to keep its non-visible REGRIP decode out of the map's first-load
+/// window without coupling either widget to dashboard business state.
+final ValueNotifier<int> baseCampDeferredAssetWarmupEpoch = ValueNotifier(0);
+
 const baseCampWalkerUpLeftFrames = <String>[
   'assets/images/themes/base_camp/base_camp_walker_up_left/frame_00.png',
   'assets/images/themes/base_camp/base_camp_walker_up_left/frame_01.png',
@@ -88,6 +99,27 @@ Duration baseCampWalkerFrameDuration(String asset) =>
         asset == baseCampWalkerFrontAsset
     ? const Duration(milliseconds: 160)
     : const Duration(milliseconds: 140);
+
+ImageProvider<Object> baseCampWalkerFrameProvider(String asset) =>
+    ResizeImage.resizeIfNeeded(
+      null,
+      baseCampWalkerDecodeHeight,
+      AssetImage(asset),
+    );
+
+List<String> get baseCampWalkerWarmupAssets {
+  final groups = <List<String>>[
+    baseCampWalkerDownRightFrames,
+    baseCampWalkerUpLeftFrames,
+    baseCampWalkerFrameAssets(baseCampWalkerRearUpperRightAsset),
+    baseCampWalkerFrameAssets(baseCampWalkerFrontAsset),
+  ];
+  return <String>[
+    for (final frames in groups) frames.first,
+    for (final frames in groups)
+      for (final frame in frames.skip(1)) frame,
+  ];
+}
 
 /// The source dimensions of both the approved map and the white-line route
 /// reference. Keeping route points in this coordinate system makes their
@@ -499,6 +531,9 @@ class _BaseCampMapState extends State<BaseCampMap>
   late final AnimationController _walkerTimeline;
   final Stopwatch _mapLoadWatch = Stopwatch();
   bool _mapReadyRecorded = false;
+  bool _walkerWarmupStarted = false;
+  bool _walkerFirstFramesReady = false;
+  bool _walkerFramesReady = false;
 
   @override
   void initState() {
@@ -552,6 +587,89 @@ class _BaseCampMapState extends State<BaseCampMap>
 
   void _reset() {
     setState(() => _transform.value = Matrix4.identity());
+  }
+
+  void _recordMapReady() {
+    if (_mapReadyRecorded) return;
+    _mapReadyRecorded = true;
+    _mapLoadWatch.stop();
+    recordBaseCampAssetReady(baseCampMapAsset);
+    SystemDiagnostics.instance.record(
+      'BASE_CAMP',
+      'MAP_BACKGROUND_LOAD_COMPLETE',
+      fields: <String, Object?>{
+        'durationMs': _mapLoadWatch.elapsedMilliseconds,
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      SystemDiagnostics.instance.record('BASE_CAMP', 'MAP_DISPLAY_COMPLETE');
+      unawaited(_warmWalkerFrames());
+    });
+  }
+
+  Future<void> _warmWalkerFrames() async {
+    if (_walkerWarmupStarted) return;
+    _walkerWarmupStarted = true;
+    final diagnostics = SystemDiagnostics.instance;
+    final watch = Stopwatch()..start();
+    diagnostics.record(
+      'ASSET',
+      'WALKER_STAGED_PRECACHE_START',
+      fields: <String, Object?>{
+        'frameCount': baseCampWalkerWarmupAssets.length,
+        'decodeHeight': baseCampWalkerDecodeHeight,
+      },
+    );
+    var loaded = 0;
+    final assets = baseCampWalkerWarmupAssets;
+    for (var index = 0; index < assets.length; index++) {
+      await SchedulerBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final asset = assets[index];
+      try {
+        await precacheImage(baseCampWalkerFrameProvider(asset), context);
+        loaded++;
+        recordBaseCampAssetReady(asset);
+      } catch (error, stackTrace) {
+        diagnostics.record(
+          'ASSET',
+          'ASSET_LOAD_FAILED',
+          fields: <String, Object?>{
+            'asset': asset,
+            'errorType': error.runtimeType.toString(),
+          },
+        );
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'base_camp',
+            context: ErrorDescription('while staging walker frame'),
+          ),
+        );
+      }
+      if (mounted && index == 3) {
+        setState(() => _walkerFirstFramesReady = true);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _walkerFirstFramesReady = true;
+      _walkerFramesReady = true;
+    });
+    diagnostics.record(
+      'ASSET',
+      loaded == assets.length
+          ? 'WALKER_STAGED_PRECACHE_COMPLETE'
+          : 'WALKER_STAGED_PRECACHE_INCOMPLETE',
+      fields: <String, Object?>{
+        'loadedFrames': loaded,
+        'frameCount': assets.length,
+        'durationMs': watch.elapsedMilliseconds,
+      },
+    );
+    baseCampDeferredAssetWarmupEpoch.value++;
   }
 
   Future<void> _openEditor() async {
@@ -631,26 +749,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
                           frameBuilder: (context, child, frame, synchronous) {
-                            if (!_mapReadyRecorded &&
-                                (frame != null || synchronous)) {
-                              _mapReadyRecorded = true;
-                              _mapLoadWatch.stop();
-                              recordBaseCampAssetReady(baseCampMapAsset);
-                              SystemDiagnostics.instance.record(
-                                'BASE_CAMP',
-                                'MAP_BACKGROUND_LOAD_COMPLETE',
-                                fields: <String, Object?>{
-                                  'durationMs':
-                                      _mapLoadWatch.elapsedMilliseconds,
-                                },
-                              );
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                SystemDiagnostics.instance.record(
-                                  'BASE_CAMP',
-                                  'MAP_DISPLAY_COMPLETE',
-                                );
-                              });
-                            }
+                            if (frame != null || synchronous) _recordMapReady();
                             return child;
                           },
                           errorBuilder: (context, error, stackTrace) {
@@ -712,29 +811,31 @@ class _BaseCampMapState extends State<BaseCampMap>
                             },
                           ),
                         ),
-                        IgnorePointer(
-                          child: RepaintBoundary(
-                            child: AnimatedBuilder(
-                              animation: _walkerTimeline,
-                              builder: (context, _) =>
-                                  BaseCampWalkerPreviewLayer(
-                                    key: const ValueKey('base-camp-walkers'),
-                                    elapsed: reducedMotion
-                                        ? Duration.zero
-                                        : Duration(
-                                            microseconds:
-                                                (_walkerTimeline.value *
-                                                        Duration
-                                                            .microsecondsPerDay)
-                                                    .round(),
-                                          ),
-                                    reducedMotion: reducedMotion,
-                                    configuration: configuration,
-                                    geometry: geometry,
-                                  ),
+                        if (reducedMotion || _walkerFirstFramesReady)
+                          IgnorePointer(
+                            child: RepaintBoundary(
+                              child: AnimatedBuilder(
+                                animation: _walkerTimeline,
+                                builder: (context, _) =>
+                                    BaseCampWalkerPreviewLayer(
+                                      key: const ValueKey('base-camp-walkers'),
+                                      elapsed: reducedMotion
+                                          ? Duration.zero
+                                          : Duration(
+                                              microseconds:
+                                                  (_walkerTimeline.value *
+                                                          Duration
+                                                              .microsecondsPerDay)
+                                                      .round(),
+                                            ),
+                                      reducedMotion:
+                                          reducedMotion || !_walkerFramesReady,
+                                      configuration: configuration,
+                                      geometry: geometry,
+                                    ),
+                              ),
                             ),
                           ),
-                        ),
                         // This must be the final visual MAP layer. Labels
                         // remain input-transparent; the bounded plate targets
                         // and alpha facility targets live in the separate
@@ -2170,6 +2271,7 @@ class _BaseCampGifWalkerState extends State<_BaseCampGifWalker>
           fit: BoxFit.contain,
           filterQuality: FilterQuality.none,
           gaplessPlayback: true,
+          cacheHeight: baseCampWalkerDecodeHeight,
           frameBuilder: (context, child, frame, synchronous) {
             if (frame != null || synchronous) {
               recordBaseCampAssetReady(frames[index]);

@@ -106,6 +106,7 @@ flutter:
     - assets/images/themes/base_camp/front/
     - assets/images/themes/base_camp/breathing_soldier/
     - assets/images/themes/base_camp/breathing_soldier/rifle_regrip/
+    - assets/images/themes/base_camp/entry/
     - assets/data/
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4

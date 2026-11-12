@@ -623,6 +623,7 @@ class _BreathingSoldierCompartmentState
   bool _active = true;
   bool _rifleFramesReady = false;
   bool _rifleFramePrecacheStarted = false;
+  late int _deferredWarmupEpoch;
 
   @override
   void initState() {
@@ -636,15 +637,19 @@ class _BreathingSoldierCompartmentState
       vsync: this,
       duration: const Duration(milliseconds: baseCampRifleRegripEventMs),
     )..addStatusListener(_onSpecialStatus);
+    _deferredWarmupEpoch = baseCampDeferredAssetWarmupEpoch.value;
+    baseCampDeferredAssetWarmupEpoch.addListener(_onDeferredAssetsReady);
     _scheduleSpecialEvent();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_rifleFramePrecacheStarted) return;
+  void _onDeferredAssetsReady() {
+    if (_rifleFramePrecacheStarted ||
+        baseCampDeferredAssetWarmupEpoch.value == _deferredWarmupEpoch) {
+      return;
+    }
+    _deferredWarmupEpoch = baseCampDeferredAssetWarmupEpoch.value;
     _rifleFramePrecacheStarted = true;
-    _precacheRifleFrames();
+    unawaited(_precacheRifleFrames());
   }
 
   Future<void> _precacheRifleFrames() async {
@@ -653,6 +658,8 @@ class _BreathingSoldierCompartmentState
     diagnostics.record('SOLDIER', 'RIFLE_REGRIP_PRECACHE_START');
     var allFramesLoaded = true;
     for (final asset in baseCampRifleRegripAssets) {
+      await SchedulerBinding.instance.endOfFrame;
+      if (!mounted) return;
       try {
         await precacheImage(AssetImage(asset), context);
         recordBaseCampAssetReady(asset);
@@ -737,6 +744,7 @@ class _BreathingSoldierCompartmentState
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    baseCampDeferredAssetWarmupEpoch.removeListener(_onDeferredAssetsReady);
     _specialTimer?.cancel();
     _breathingController.dispose();
     _specialController.dispose();

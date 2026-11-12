@@ -10,6 +10,8 @@ import '../../core/widgets/section_header.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../repositories/app_repository_container.dart';
 import '../schedule/pages/calendar_page.dart';
+import '../themes/base_camp/base_camp_facility_entry_page.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
 
 import 'widgets/morning_history_button.dart';
 import 'widgets/morning_manual_card.dart';
@@ -43,6 +45,10 @@ class _MorningPageState extends State<MorningPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampPresentation.maybeOf(context)?.screen ==
+        BaseCampScreen.morning) {
+      return _buildBaseCampEntry(context);
+    }
     return AmbientPageScaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -150,4 +156,62 @@ class _MorningPageState extends State<MorningPage> {
       ),
     );
   }
+
+  Widget _buildBaseCampEntry(BuildContext context) => BaseCampFacilityEntryPage(
+    title: 'STATUS',
+    imageAsset: baseCampStatusEntryAsset,
+    actions: [
+      BaseCampFacilityEntryAction(
+        description: '体重・睡眠・勤務情報など、本日の状態を記録します。',
+        child: FutureBuilder<bool>(
+          future: _statusExists,
+          builder: (context, snapshot) {
+            final statusExists = snapshot.data ?? false;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MorningManualCard(
+                  enabled:
+                      snapshot.connectionState == ConnectionState.done &&
+                      !snapshot.hasError &&
+                      !statusExists,
+                  reportUnavailableTap:
+                      snapshot.connectionState == ConnectionState.done &&
+                      !snapshot.hasError &&
+                      statusExists &&
+                      !appInitializationController.value.isReadOnly,
+                ),
+                if (statusExists) ...[
+                  AppSpacing.gapSM,
+                  const Text(
+                    '本日のSTATUSは登録済みです。編集はRECORDから行えます。',
+                    style: TextStyle(color: Color(0xffaaa58d)),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '作戦日程と予定をカレンダーで確認します。',
+        child: OperationButton(
+          icon: Icons.calendar_month,
+          text: 'SCHEDULE',
+          frostedGradient: true,
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const CalendarPage(
+                ambientContext: CalendarAmbientContext.status,
+              ),
+            ),
+          ),
+        ),
+      ),
+      BaseCampFacilityEntryAction(
+        description: '保存済みの状態履歴を確認・編集します。',
+        child: MorningHistoryButton(onReturn: _refreshStatusEntry),
+      ),
+    ],
+  );
 }
