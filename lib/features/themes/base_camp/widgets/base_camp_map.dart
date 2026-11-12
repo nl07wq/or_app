@@ -502,7 +502,7 @@ class _BaseCampMapState extends State<BaseCampMap>
     _selectionPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
-    )..repeat();
+    );
     _selectionVisibility =
         AnimationController(
           vsync: this,
@@ -510,6 +510,9 @@ class _BaseCampMapState extends State<BaseCampMap>
           reverseDuration: const Duration(milliseconds: 250),
         )..addStatusListener((status) {
           if (status == AnimationStatus.dismissed && mounted) {
+            _selectionPulse
+              ..stop()
+              ..value = 0;
             setState(() => _glowingFacility = null);
           }
         });
@@ -552,6 +555,7 @@ class _BaseCampMapState extends State<BaseCampMap>
       _selectedFacility = facility;
       _glowingFacility = facility;
     });
+    if (!_selectionPulse.isAnimating) _selectionPulse.repeat();
     _selectionVisibility.forward(from: 0);
   }
 
@@ -567,6 +571,9 @@ class _BaseCampMapState extends State<BaseCampMap>
     setState(() => _isNavigating = true);
     widget.onFacilityPressed(facility);
     if (mounted) {
+      _selectionPulse
+        ..stop()
+        ..value = 0;
       setState(() {
         _selectedFacility = null;
         _glowingFacility = null;
@@ -613,21 +620,6 @@ class _BaseCampMapState extends State<BaseCampMap>
                           image: AssetImage(baseCampMapAsset),
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
-                        ),
-                        IgnorePointer(
-                          child: AnimatedBuilder(
-                            animation: _walkerTimeline,
-                            builder: (_, _) => BaseCampWaterFxLayer(
-                              configuration: configuration,
-                              geometry: geometry,
-                              elapsed: Duration(
-                                microseconds:
-                                    (_walkerTimeline.value *
-                                            Duration.microsecondsPerDay)
-                                        .round(),
-                              ),
-                            ),
-                          ),
                         ),
                         IgnorePointer(
                           child: RepaintBoundary(
@@ -1105,274 +1097,6 @@ Offset baseCampSourceToObjectLocal(BaseCampMapObject object, Offset source) {
     unrotated.dy / (baseCampObjectNominalSize.height * object.scale) +
         object.anchor.dy,
   );
-}
-
-class BaseCampWaterFxLayer extends StatelessWidget {
-  const BaseCampWaterFxLayer({
-    super.key,
-    required this.configuration,
-    required this.geometry,
-    required this.elapsed,
-    this.previewLayer,
-  });
-  final BaseCampMapConfiguration configuration;
-  final BaseCampMapGeometry geometry;
-  final Duration elapsed;
-  final String? previewLayer;
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    key: const ValueKey('base-camp-water-fx'),
-    painter: _BaseCampWaterFxPainter(
-      configuration,
-      geometry,
-      elapsed,
-      previewLayer,
-    ),
-    child: const SizedBox.expand(),
-  );
-}
-
-/// The draw region is the editable water polygon minus all structure/land
-/// exclusions. Both the production map and editor preview use this function.
-Path baseCampEffectiveWaterPath(
-  BaseCampWaterFx effect,
-  BaseCampMapGeometry geometry,
-) {
-  Path? result;
-  for (final area in effect.effectiveAreas) {
-    var current = Path()
-      ..addPolygon(area.mask.map(geometry.artworkToViewport).toList(), true);
-    for (final exclusion in area.exclusionMasks) {
-      final exclusionPath = Path()
-        ..addPolygon(exclusion.map(geometry.artworkToViewport).toList(), true);
-      current = Path.combine(PathOperation.difference, current, exclusionPath);
-    }
-    result = result == null
-        ? current
-        : Path.combine(PathOperation.union, result, current);
-  }
-  return result ?? Path();
-}
-
-double baseCampWaterFxVisualStrength(BaseCampWaterFx effect, String layer) {
-  if (!effect.visible) return 0;
-  return switch (layer) {
-    'shimmer' when effect.shimmerEnabled =>
-      effect.shimmerDensity * effect.shimmerBrightness * effect.opacity,
-    'ripple' when effect.rippleEnabled =>
-      effect.intensity * effect.flowDistortion * effect.opacity,
-    'foam' when effect.foamEnabled =>
-      effect.foamIntensity * effect.spread * effect.foam * effect.opacity,
-    _ => 0,
-  };
-}
-
-class _BaseCampWaterFxPainter extends CustomPainter {
-  const _BaseCampWaterFxPainter(
-    this.configuration,
-    this.geometry,
-    this.elapsed,
-    this.previewLayer,
-  );
-  final BaseCampMapConfiguration configuration;
-  final BaseCampMapGeometry geometry;
-  final Duration elapsed;
-  final String? previewLayer;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final time = elapsed.inMilliseconds / 1000;
-    // Water coordinates live in the square artwork space. Using the artwork
-    // scale keeps the visible FX density independent from legacy 1280x720
-    // facility/route coordinates.
-    final waterScale = geometry.artworkScale;
-    double alpha(double value) => value.clamp(0.0, 1.0).toDouble();
-    for (final entry in configuration.waterFx.entries) {
-      final fx = entry.value;
-      if (!fx.visible) continue;
-      final areas = fx.effectiveAreas;
-      for (var areaIndex = 0; areaIndex < areas.length; areaIndex++) {
-        final area = areas[areaIndex];
-        var mask = Path()
-          ..addPolygon(
-            area.mask.map(geometry.artworkToViewport).toList(),
-            true,
-          );
-        for (final exclusion in area.exclusionMasks) {
-          mask = Path.combine(
-            PathOperation.difference,
-            mask,
-            Path()..addPolygon(
-              exclusion.map(geometry.artworkToViewport).toList(),
-              true,
-            ),
-          );
-        }
-        final bounds = mask.getBounds();
-        if (bounds.isEmpty) continue;
-        canvas.save();
-        canvas.clipPath(mask);
-
-        // Generate each effect inside each independent area. Using one union
-        // bounding box placed most particles over land and repeatedly invoked
-        // expensive Path.combine operations on Safari.
-        if (baseCampWaterFxVisualStrength(fx, 'ripple') > 0 &&
-            (previewLayer == null || previewLayer == 'ripple')) {
-          final rippleCount = (3 + fx.intensity * 3).round().clamp(3, 15);
-          for (var cell = 0; cell < rippleCount; cell++) {
-            final areaSeed = entry.key.hashCode + areaIndex * 997;
-            final seed = _waterUnit(areaSeed + cell * 43.19);
-            final seed2 = _waterUnit(areaSeed + cell * 79.31 + 7);
-            final phase = time * fx.speed * (.24 + seed * .22) + cell * 1.19;
-            final x =
-                bounds.left + (seed + math.sin(phase) * .18) * bounds.width;
-            final y =
-                bounds.top +
-                (seed2 + math.cos(phase * 1.21) * .13) * bounds.height;
-            final width =
-                (18 + seed * 34) * waterScale * fx.spread * fx.flowDistortion;
-            final height =
-                (7 + seed2 * 16) * waterScale * fx.spread * fx.flowDistortion;
-            if (width <= 0 || height <= 0) continue;
-            canvas.drawOval(
-              Rect.fromCenter(
-                center: Offset(x, y),
-                width: width,
-                height: height,
-              ),
-              Paint()
-                ..color =
-                    (cell.isEven
-                            ? const Color(0xFF7FC9DA)
-                            : const Color(0xFF164F69))
-                        .withValues(
-                          alpha: alpha(
-                            fx.opacity * (.16 + seed * .10) * fx.intensity,
-                          ),
-                        )
-                ..maskFilter = MaskFilter.blur(
-                  BlurStyle.normal,
-                  math.max(1.2, 4 * waterScale * fx.flowDistortion),
-                ),
-            );
-          }
-        }
-
-        final shimmerCount = (fx.shimmerDensity * 14).round();
-        if (baseCampWaterFxVisualStrength(fx, 'shimmer') > 0 &&
-            shimmerCount > 0 &&
-            (previewLayer == null || previewLayer == 'shimmer')) {
-          for (var index = 0; index < shimmerCount; index++) {
-            final seed =
-                math.sin(index * 91.713 + entry.key.hashCode + areaIndex * 31) *
-                43758.5453;
-            final unit = seed - seed.floor();
-            final seed2 =
-                math.sin((index + 31 + areaIndex) * 47.113) * 19341.721;
-            final unit2 = seed2 - seed2.floor();
-            final twinkle =
-                (math.sin(
-                      time * (1.2 + unit * 1.8) * fx.shimmerSpeed +
-                          index * 2.17,
-                    ) +
-                    1) /
-                2;
-            final x = bounds.left + unit * bounds.width;
-            final y = bounds.top + unit2 * bounds.height;
-            final width = (7 + unit * 15) * waterScale;
-            final height = (2 + unit2 * 4) * waterScale;
-            final shimmerAlpha = alpha(
-              fx.opacity * (.20 + .45 * twinkle) * fx.shimmerBrightness,
-            );
-            canvas.drawOval(
-              Rect.fromCenter(
-                center: Offset(x, y),
-                width: width,
-                height: height,
-              ),
-              Paint()
-                ..color = const Color(
-                  0xFFD9F4FF,
-                ).withValues(alpha: alpha(shimmerAlpha * .78))
-                ..maskFilter = MaskFilter.blur(
-                  BlurStyle.normal,
-                  math.max(1, 1.2 * waterScale),
-                ),
-            );
-            if (twinkle > .58) {
-              canvas.drawCircle(
-                Offset(x, y),
-                math.max(.8, (1.2 + unit * 1.6) * waterScale),
-                Paint()
-                  ..color = const Color(
-                    0xFFE6FAFF,
-                  ).withValues(alpha: alpha(shimmerAlpha * .7))
-                  ..maskFilter = MaskFilter.blur(
-                    BlurStyle.normal,
-                    math.max(1, 1.5 * waterScale),
-                  ),
-              );
-            }
-          }
-        }
-
-        if (baseCampWaterFxVisualStrength(fx, 'foam') > 0 &&
-            (previewLayer == null || previewLayer == 'foam')) {
-          final shore = area.shoreline.map(geometry.artworkToViewport).toList();
-          if (shore.length >= 2) {
-            for (var cluster = 0; cluster < shore.length * 2; cluster++) {
-              final segment = cluster % (shore.length - 1);
-              final phase =
-                  (time * fx.frequency * .35 / math.max(.1, fx.foamLifetime) +
-                      cluster * .271) %
-                  1;
-              final point = Offset.lerp(
-                shore[segment],
-                shore[segment + 1],
-                phase,
-              )!;
-              final radius =
-                  (2.2 + (cluster % 3) * 1.3) * waterScale * fx.spread;
-              if (radius <= 0) continue;
-              canvas.drawOval(
-                Rect.fromCenter(
-                  center: point,
-                  width: radius * 3.2,
-                  height: radius,
-                ),
-                Paint()
-                  ..color = const Color(0xFFF3F7EF).withValues(
-                    alpha: alpha(
-                      fx.opacity *
-                          .58 *
-                          fx.foam *
-                          fx.foamIntensity *
-                          (1 - phase),
-                    ),
-                  )
-                  ..maskFilter = MaskFilter.blur(
-                    BlurStyle.normal,
-                    radius * 1.2,
-                  ),
-              );
-            }
-          }
-        }
-        canvas.restore();
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BaseCampWaterFxPainter old) =>
-      old.configuration != configuration ||
-      old.geometry != geometry ||
-      old.elapsed != elapsed ||
-      old.previewLayer != previewLayer;
-}
-
-double _waterUnit(num seed) {
-  final value = math.sin(seed) * 43758.5453123;
-  return value - value.floor();
 }
 
 /// A bounded, deterministic smoke layer. Particles live in map-source space,
@@ -2022,7 +1746,14 @@ class _BaseCampAlphaMaskSequence {
   final List<Duration> durations;
 
   static Future<_BaseCampAlphaMaskSequence?> decode(Uint8List encoded) async {
-    final codec = await ui.instantiateImageCodec(encoded);
+    // Hit testing never needs the full 1600px facility source. Bounding the
+    // dedicated alpha decode avoids retaining a second full-resolution copy
+    // of every facility while preserving sub-pixel accuracy at map scale.
+    final codec = await ui.instantiateImageCodec(
+      encoded,
+      targetWidth: 512,
+      allowUpscaling: false,
+    );
     try {
       final frames = <_BaseCampAlphaMask>[];
       final durations = <Duration>[];

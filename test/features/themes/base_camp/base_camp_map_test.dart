@@ -62,6 +62,7 @@ void main() {
     expect(find.byType(SingleChildScrollView), findsNothing);
     final size = tester.getSize(find.byKey(const ValueKey('base-camp-map')));
     expect(size.width, closeTo(size.height, .01));
+    expect(find.byKey(const ValueKey('base-camp-water-fx')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -395,52 +396,6 @@ void main() {
     );
   });
 
-  test('SHIMMER RIPPLE and FOAM solo previews honour off and range', () {
-    final defaults = BaseCampMapConfiguration.defaults();
-    final effect = defaults.waterFx['water']!;
-    for (final layer in const <String>['shimmer', 'ripple', 'foam']) {
-      final minimum = switch (layer) {
-        'shimmer' => effect.copyWith(
-          shimmerEnabled: true,
-          shimmerDensity: 0,
-          shimmerBrightness: 4,
-        ),
-        'ripple' => effect.copyWith(rippleEnabled: true, intensity: 0),
-        _ => effect.copyWith(foamEnabled: true, foamIntensity: 0),
-      };
-      final maximum = switch (layer) {
-        'shimmer' => effect.copyWith(
-          shimmerEnabled: true,
-          shimmerDensity: 4,
-          shimmerBrightness: 4,
-        ),
-        'ripple' => effect.copyWith(
-          rippleEnabled: true,
-          intensity: 4,
-          flowDistortion: 4,
-        ),
-        _ => effect.copyWith(foamEnabled: true, foamIntensity: 4, spread: 4),
-      };
-      final disabled = switch (layer) {
-        'shimmer' => maximum.copyWith(shimmerEnabled: false),
-        'ripple' => maximum.copyWith(rippleEnabled: false),
-        _ => maximum.copyWith(foamEnabled: false),
-      };
-
-      final minStrength = baseCampWaterFxVisualStrength(minimum, layer);
-      final maxStrength = baseCampWaterFxVisualStrength(maximum, layer);
-      final offStrength = baseCampWaterFxVisualStrength(disabled, layer);
-
-      expect(minStrength, 0, reason: '$layer minimum must be visually empty');
-      expect(
-        maxStrength,
-        greaterThan(minStrength),
-        reason: '$layer maximum must be visibly stronger',
-      );
-      expect(offStrength, 0, reason: '$layer OFF must not paint');
-    }
-  });
-
   test('v7 keeps legacy FX as compatibility and installs approved water', () {
     final defaults = BaseCampMapConfiguration.defaults();
     const rock = BaseCampWaterFx(
@@ -632,18 +587,13 @@ void main() {
           .toJson(),
     )!;
     final parsed = restored.waterFx['water']!;
-    final path = baseCampEffectiveWaterPath(
-      parsed,
-      BaseCampMapGeometry.contain(baseCampMapArtworkSize),
-    );
-
     expect(parsed.effectiveAreas, hasLength(2));
-    expect(path.contains(const Offset(60, 60)), isTrue);
-    expect(path.contains(const Offset(1020, 1020)), isTrue);
-    expect(path.contains(const Offset(1005, 995)), isFalse);
+    expect(parsed.effectiveAreas.first.mask, first.mask);
+    expect(parsed.effectiveAreas.last.mask, second.mask);
+    expect(parsed.effectiveAreas.last.exclusionMasks, second.exclusionMasks);
   });
 
-  test('effective water path removes a selected-area exclusion', () {
+  test('water area preserves mask shoreline and exclusion coordinates', () {
     const area = BaseCampWaterArea(
       mask: <Offset>[
         Offset(0, 0),
@@ -666,14 +616,12 @@ void main() {
       shoreline: area.shoreline,
       areas: <BaseCampWaterArea>[area],
     );
-    final path = baseCampEffectiveWaterPath(
-      effect,
-      BaseCampMapGeometry.contain(baseCampMapArtworkSize),
-    );
-
-    expect(path.contains(const Offset(20, 20)), isTrue);
-    expect(path.contains(const Offset(60, 60)), isFalse);
-    expect(path.contains(const Offset(300, 300)), isFalse);
+    final restored = BaseCampWaterFx.decodeAll(<String, Object?>{
+      'water': effect.toJson(),
+    })!['water']!;
+    expect(restored.effectiveAreas.single.mask, area.mask);
+    expect(restored.effectiveAreas.single.shoreline, area.shoreline);
+    expect(restored.effectiveAreas.single.exclusionMasks, area.exclusionMasks);
   });
 
   test('square V2.7 artwork preserves legacy coordinates without crop', () {

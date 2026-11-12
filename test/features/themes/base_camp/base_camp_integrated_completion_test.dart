@@ -6,7 +6,6 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dar
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
 import 'package:or_app/features/themes/base_camp/soldier_live_motion_preview_page.dart';
-import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -443,14 +442,14 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
 
     expect(
-      find.byKey(const ValueKey('base-camp-editor-water-preview-boundary')),
+      find.byKey(const ValueKey('base-camp-editor-ambient-preview-boundary')),
       findsOneWidget,
     );
     expect(find.text('BASE CAMP MAP EDITOR'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('water FX editor explains and isolates all three layers', (
+  testWidgets('water editor omits retired FX controls and keeps mask tools', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -467,24 +466,13 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('FX PARAMETERS'));
-    await tester.pump();
-
-    for (final layer in const <String>['shimmer', 'ripple', 'foam']) {
-      final chip = find.text(layer.toUpperCase());
-      await tester.ensureVisible(chip);
-      await tester.pump();
-      await tester.tap(chip);
-      await tester.pump();
-      expect(
-        find.byKey(ValueKey('base-camp-water-fx-help-$layer')),
-        findsOneWidget,
-      );
-      final fxLayer = tester.widget<BaseCampWaterFxLayer>(
-        find.byType(BaseCampWaterFxLayer),
-      );
-      expect(fxLayer.previewLayer, layer);
-    }
+    expect(find.text('FX PARAMETERS'), findsNothing);
+    expect(find.text('SHIMMER'), findsNothing);
+    expect(find.text('RIPPLE'), findsNothing);
+    expect(find.text('FOAM'), findsNothing);
+    expect(find.text('WATER MASK'), findsOneWidget);
+    expect(find.text('SHORELINE'), findsOneWidget);
+    expect(find.text('EXCLUSION MASK'), findsOneWidget);
   });
 }
 

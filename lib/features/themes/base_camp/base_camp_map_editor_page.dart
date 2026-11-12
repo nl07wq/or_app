@@ -18,15 +18,12 @@ enum _BaseCampEditorSection {
   objects,
   smokeOrigin,
   labels,
-  waterFx,
   waterMask,
   shoreline,
   exclusionMask,
   staticSoldiers,
   soldierSize,
 }
-
-enum _BaseCampWaterLayer { shimmer, ripple, foam }
 
 int _nearestPolygonSegment(
   List<Offset> points,
@@ -142,7 +139,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   String _objectId = 'status';
   static const _waterFxId = 'water';
   int _exclusionMaskIndex = 0;
-  _BaseCampWaterLayer _waterLayer = _BaseCampWaterLayer.shimmer;
   int _waterPointIndex = 0;
   bool _waterMaskSelected = false;
   int _waterAreaIndex = 0;
@@ -1242,7 +1238,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       (_BaseCampEditorSection.objects, 'OBJECT EDITOR'),
                       (_BaseCampEditorSection.smokeOrigin, 'SMOKE ORIGIN'),
                       (_BaseCampEditorSection.labels, 'FACILITY LABEL'),
-                      (_BaseCampEditorSection.waterFx, 'FX PARAMETERS'),
                       (_BaseCampEditorSection.waterMask, 'WATER MASK'),
                       (_BaseCampEditorSection.shoreline, 'SHORELINE'),
                       (_BaseCampEditorSection.exclusionMask, 'EXCLUSION MASK'),
@@ -1294,9 +1289,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onLabelDragged: (position, part) =>
                       _updateLabelPosition(_facilityId, position, part: part),
                   selectedWaterFxId: _waterFxId,
-                  waterPreviewLayer: _section == _BaseCampEditorSection.waterFx
-                      ? _waterLayer.name
-                      : null,
                   selectedWaterArea: _waterAreaIndex,
                   selectedWaterPoint: _waterPointIndex,
                   selectedWaterMask: _waterMaskSelected,
@@ -1591,106 +1583,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               onPressed: () => _replaceLabel(
                 _facilityId,
                 BaseCampFacilityLabel.defaultsFor(_facilityId),
-              ),
-              icon: const Icon(Icons.restart_alt),
-              label: const Text('PRESET RESET'),
-            ),
-          ],
-        ),
-      );
-    }
-    if (_section == _BaseCampEditorSection.waterFx) {
-      final effect = _working.waterFx[_waterFxId]!;
-      return Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('FX PARAMETERS: 水面の光・うねり・泡を個別に調整します。'),
-            Wrap(
-              spacing: 6,
-              children: [
-                for (final layer in _BaseCampWaterLayer.values)
-                  ChoiceChip(
-                    label: Text(layer.name.toUpperCase()),
-                    selected: _waterLayer == layer,
-                    onSelected: (_) => setState(() => _waterLayer = layer),
-                  ),
-              ],
-            ),
-            Text(switch (_waterLayer) {
-              _BaseCampWaterLayer.shimmer =>
-                'SHIMMER: 水面だけに現れる光の反射。DENSITYは反射数、BRIGHTNESSは明るさ、CHANGE SPEEDは瞬き速度です。',
-              _BaseCampWaterLayer.ripple =>
-                'RIPPLE: 水域内を流れる波紋。STRENGTHは濃さ、FLOW SPEEDは移動速度、SPREADは波紋の大きさです。',
-              _BaseCampWaterLayer.foam =>
-                'FOAM: SHORELINEに沿って動く白い泡。AMOUNTは量、SPREADは広がり、LIFETIMEは残る時間です。',
-            }, key: ValueKey('base-camp-water-fx-help-${_waterLayer.name}')),
-            const Text('単独PREVIEW中です。0と4では効果が明確に変化します。'),
-            SwitchListTile(
-              title: Text('${_waterLayer.name.toUpperCase()} ON'),
-              value: switch (_waterLayer) {
-                _BaseCampWaterLayer.shimmer => effect.shimmerEnabled,
-                _BaseCampWaterLayer.ripple => effect.rippleEnabled,
-                _BaseCampWaterLayer.foam => effect.foamEnabled,
-              },
-              onChanged: (value) =>
-                  _replaceWaterFx(_waterFxId, switch (_waterLayer) {
-                    _BaseCampWaterLayer.shimmer => effect.copyWith(
-                      shimmerEnabled: value,
-                    ),
-                    _BaseCampWaterLayer.ripple => effect.copyWith(
-                      rippleEnabled: value,
-                    ),
-                    _BaseCampWaterLayer.foam => effect.copyWith(
-                      foamEnabled: value,
-                    ),
-                  }),
-            ),
-            for (final entry in switch (_waterLayer) {
-              _BaseCampWaterLayer.shimmer => <(String, double)>[
-                ('DENSITY', effect.shimmerDensity),
-                ('BRIGHTNESS', effect.shimmerBrightness),
-                ('CHANGE SPEED', effect.shimmerSpeed),
-              ],
-              _BaseCampWaterLayer.ripple => <(String, double)>[
-                ('STRENGTH', effect.intensity),
-                ('FLOW SPEED', effect.speed),
-                ('SPREAD', effect.flowDistortion),
-              ],
-              _BaseCampWaterLayer.foam => <(String, double)>[
-                ('AMOUNT', effect.foamIntensity),
-                ('SPREAD', effect.spread),
-                ('LIFETIME', effect.foamLifetime),
-              ],
-            })
-              _editorSlider(entry.$1, entry.$2, 0, 4, (value) {
-                final next = switch (entry.$1) {
-                  'DENSITY' => effect.copyWith(shimmerDensity: value),
-                  'BRIGHTNESS' => effect.copyWith(shimmerBrightness: value),
-                  'CHANGE SPEED' => effect.copyWith(shimmerSpeed: value),
-                  'STRENGTH' => effect.copyWith(intensity: value),
-                  'FLOW SPEED' => effect.copyWith(speed: value),
-                  'AMOUNT' => effect.copyWith(foamIntensity: value),
-                  'LIFETIME' => effect.copyWith(foamLifetime: value),
-                  _ =>
-                    _waterLayer == _BaseCampWaterLayer.ripple
-                        ? effect.copyWith(flowDistortion: value)
-                        : effect.copyWith(spread: value),
-                };
-                _replaceWaterFx(_waterFxId, next);
-              }),
-            SwitchListTile(
-              title: const Text('VISIBLE'),
-              value: effect.visible,
-              onChanged: (value) =>
-                  _replaceWaterFx(_waterFxId, effect.copyWith(visible: value)),
-            ),
-            const Text('上部のMAPは実際のBASE CAMP背景と同じLIVE PREVIEWです。'),
-            OutlinedButton.icon(
-              onPressed: () => _replaceWaterFx(
-                _waterFxId,
-                BaseCampWaterFx.defaults()[_waterFxId]!,
               ),
               icon: const Icon(Icons.restart_alt),
               label: const Text('PRESET RESET'),
@@ -2238,7 +2130,6 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onLabelDragStarted,
     required this.onLabelDragged,
     required this.selectedWaterFxId,
-    required this.waterPreviewLayer,
     required this.selectedWaterArea,
     required this.selectedWaterPoint,
     required this.selectedWaterMask,
@@ -2272,7 +2163,6 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelDragged;
   final String selectedWaterFxId;
-  final String? waterPreviewLayer;
   final int selectedWaterArea;
   final int selectedWaterPoint;
   final bool selectedWaterMask;
@@ -2452,7 +2342,6 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
                 }
               },
               selectedWaterFxId: widget.selectedWaterFxId,
-              waterPreviewLayer: widget.waterPreviewLayer,
               selectedWaterArea: widget.selectedWaterArea,
               previewElapsed: _previewElapsed,
               selectedWaterPoint: widget.selectedWaterPoint,
@@ -2537,7 +2426,6 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onLabelDragStarted,
     required this.onLabelGlobalDragged,
     required this.selectedWaterFxId,
-    required this.waterPreviewLayer,
     required this.selectedWaterArea,
     required this.previewElapsed,
     required this.selectedWaterPoint,
@@ -2571,7 +2459,6 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final VoidCallback onLabelDragStarted;
   final void Function(Offset position, int part) onLabelGlobalDragged;
   final String selectedWaterFxId;
-  final String? waterPreviewLayer;
   final int selectedWaterArea;
   final ValueListenable<Duration> previewElapsed;
   final int selectedWaterPoint;
@@ -2626,20 +2513,6 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         const Image(image: AssetImage(baseCampMapAsset), fit: BoxFit.contain),
-        RepaintBoundary(
-          key: const ValueKey('base-camp-editor-water-preview-boundary'),
-          child: ValueListenableBuilder<Duration>(
-            valueListenable: previewElapsed,
-            builder: (context, elapsed, _) => IgnorePointer(
-              child: BaseCampWaterFxLayer(
-                configuration: configuration,
-                geometry: geometry,
-                elapsed: elapsed,
-                previewLayer: waterPreviewLayer,
-              ),
-            ),
-          ),
-        ),
         IgnorePointer(
           child: BaseCampObjectLayer(
             configuration: configuration,
@@ -3045,7 +2918,6 @@ class _BaseCampEditorGuidePainter extends CustomPainter {
         section == _BaseCampEditorSection.objects ||
         section == _BaseCampEditorSection.smokeOrigin ||
         section == _BaseCampEditorSection.labels ||
-        section == _BaseCampEditorSection.waterFx ||
         section == _BaseCampEditorSection.waterMask ||
         section == _BaseCampEditorSection.shoreline ||
         section == _BaseCampEditorSection.exclusionMask ||
