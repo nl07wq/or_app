@@ -10,12 +10,15 @@ import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.da
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    baseCampRifleGlobalAlignment.resetForTesting();
     final database = FakeIndexedDbDatabase();
     seedOperationState(database, '2026-11-01');
     AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
@@ -85,6 +88,73 @@ void main() {
     expect(find.text('SOLDIER LIVE MOTION PREVIEW'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('soldier-live-trigger-regrip')),
+      findsOneWidget,
+    );
+
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 1100));
+    final dashboardPanel = find.byKey(
+      const ValueKey('base-camp-soldier-panel'),
+    );
+    expect(
+      find.descendant(
+        of: dashboardPanel,
+        matching: find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: dashboardPanel,
+        matching: find.byKey(const ValueKey('base-camp-soldier-lower')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('soldier panel tap plays one exclusive manual regrip', (
+    tester,
+  ) async {
+    await baseCampRifleGlobalAlignment.save(
+      const BaseCampRifleGlobalAlignment(
+        x: 7,
+        y: -4,
+        scale: 1.1,
+        verticalScaleX: 1.2,
+        horizontalScaleY: .8,
+      ),
+    );
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final panel = find.byKey(const ValueKey('base-camp-soldier-panel'));
+    await tester.tap(panel);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1001));
+    expect(
+      find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+      findsOneWidget,
+    );
+    final rendered = tester.widget<BaseCampRifleRegripFrame>(
+      find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+    );
+    expect(rendered.globalX, 7);
+    expect(rendered.globalY, -4);
+    expect(rendered.globalScale, 1.1);
+    expect(rendered.verticalScaleX, 1.2);
+    expect(rendered.horizontalScaleY, .8);
+
+    // A second tap during the event must not restart or queue another event.
+    await tester.tap(panel);
+    await tester.pump(const Duration(milliseconds: 2849));
+    expect(
+      find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-soldier-lower')),
       findsOneWidget,
     );
   });

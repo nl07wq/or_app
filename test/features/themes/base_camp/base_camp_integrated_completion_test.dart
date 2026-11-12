@@ -11,8 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   test('approved soldier transform is the production shared reference', () {
     expect(baseCampApprovedRifleGlobalX, -0.9999618530273438);
-    expect(baseCampApprovedRifleGlobalY, 5.3333892822265625);
-    expect(baseCampApprovedRifleGlobalScale, 0.9773123770508106);
+    expect(baseCampApprovedRifleGlobalY, -1.3513513513514113);
+    expect(baseCampApprovedRifleGlobalScale, 0.9617116773450697);
     expect(baseCampApprovedRifleFrameOffsets, const <Offset>[
       Offset(-13.5, 46.5),
       Offset(-14, 47),
@@ -45,9 +45,81 @@ void main() {
     expect(transform.dimension, explicit.dimension);
   });
 
+  test('axis scaling preserves the visible foot center anchor', () {
+    const viewport = Size(320, 240);
+    final normal = baseCampRifleRegripTransform(viewport, 4);
+    final stretched = baseCampRifleRegripTransform(
+      viewport,
+      4,
+      verticalScaleX: 1.3,
+      horizontalScaleY: .7,
+    );
+    expect(
+      stretched.left + stretched.width / 2,
+      closeTo(normal.left + normal.width / 2, .0001),
+    );
+    expect(
+      stretched.top + stretched.height,
+      closeTo(normal.top + normal.height, .0001),
+    );
+    expect(stretched.height, closeTo(normal.height * 1.3, .0001));
+    expect(stretched.width, closeTo(normal.width * .7, .0001));
+  });
+
+  test(
+    'v2 persistence keeps saved values and defaults missing axis scales',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final controller = BaseCampRifleAlignmentController();
+      final saved = BaseCampRifleGlobalAlignment(
+        x: 4,
+        y: -3,
+        scale: 1.1,
+        verticalScaleX: 1.2,
+        horizontalScaleY: .8,
+        frameOffsets: const <Offset>[
+          Offset(1, 2),
+          Offset(3, 4),
+          Offset(5, 6),
+          Offset(7, 8),
+          Offset(9, 10),
+          Offset(11, 12),
+        ],
+        frameScales: const <double>[1, 1.1, 1.2, 1.3, 1.4, 1.5],
+        brightness: .1,
+        contrast: .9,
+        saturation: .8,
+        warmth: -.1,
+        frameDurationsMs: const <int>[410, 360, 210, 340, 160, 420],
+      );
+      await controller.save(saved);
+
+      final restored = BaseCampRifleAlignmentController();
+      await restored.load();
+      expect(restored.value.x, 4);
+      expect(restored.value.verticalScaleX, 1.2);
+      expect(restored.value.horizontalScaleY, .8);
+      expect(restored.value.frameOffsets[5], const Offset(11, 12));
+      expect(restored.value.frameScales[4], 1.4);
+      expect(restored.value.frameDurationsMs, [410, 360, 210, 340, 160, 420]);
+
+      final legacy = Map<String, Object?>.of(saved.toJson());
+      final legacyAlignment =
+          Map<String, Object?>.of(legacy['alignment']! as Map<String, Object?>)
+            ..remove('scaleXVertical')
+            ..remove('scaleYHorizontal');
+      legacy['alignment'] = legacyAlignment;
+      final compatible = BaseCampRifleGlobalAlignment.fromJson(legacy);
+      expect(compatible.verticalScaleX, 1);
+      expect(compatible.horizontalScaleY, 1);
+    },
+  );
+
   testWidgets('live preview runs every regrip phase and returns to breathing', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    baseCampRifleGlobalAlignment.resetForTesting();
     await tester.binding.setSurfaceSize(const Size(430, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -85,7 +157,130 @@ void main() {
       find.byKey(const ValueKey('base-camp-soldier-lower')),
       findsOneWidget,
     );
+    expect(find.text('SCALE X — VERTICAL'), findsOneWidget);
+    expect(find.text('SCALE Y — HORIZONTAL'), findsOneWidget);
   });
+
+  testWidgets('failed APPLY retains editor values and does not publish', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final controller = BaseCampRifleAlignmentController(
+      storageWriter: (_, _, _) async => false,
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SoldierLiveMotionPreviewPage(alignmentController: controller),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final globalXRow = find.ancestor(
+      of: find.text('GLOBAL X'),
+      matching: find.byType(Row),
+    );
+    final sliderFinder = find.descendant(
+      of: globalXRow,
+      matching: find.byType(Slider),
+    );
+    tester.widget<Slider>(sliderFinder).onChanged!(12);
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('soldier-live-apply-dashboard')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('APPLY FAILED — EDITED VALUES RETAINED'), findsOneWidget);
+    expect(tester.widget<Slider>(sliderFinder).value, 12);
+    expect(controller.value.x, baseCampApprovedRifleGlobalX);
+  });
+
+  testWidgets(
+    'existing static soldiers select, cancel, edit, delete, undo and persist',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final configuration = BaseCampMapConfiguration.defaults().copyWith(
+        staticSoldiers: const <BaseCampStaticSoldier>[
+          BaseCampStaticSoldier(
+            id: 'guard-1',
+            position: Offset(640, 360),
+            scale: .6,
+          ),
+          BaseCampStaticSoldier(
+            id: 'guard-2',
+            position: Offset(760, 420),
+            scale: .7,
+          ),
+        ],
+      );
+      final controller = BaseCampMapConfigurationController()
+        ..resetForTesting(configuration);
+      await tester.binding.setSurfaceSize(const Size(430, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BaseCampMapEditorPage(
+            configurationController: controller,
+            waterDraftStore: BaseCampWaterDraftStore(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('STATIC SOLDIER'));
+      await tester.pump();
+
+      final guard1 = find.byKey(
+        const ValueKey('base-camp-static-soldier-handle-guard-1'),
+      );
+      final guard2 = find.byKey(
+        const ValueKey('base-camp-static-soldier-handle-guard-2'),
+      );
+      await tester.tap(guard1);
+      await tester.pump();
+      expect(find.text('DELETE'), findsOneWidget);
+      expect(find.text('SELECTED: guard-1'), findsOneWidget);
+
+      var scaleSlider = tester.widgetList<Slider>(find.byType(Slider)).first;
+      scaleSlider.onChanged!(.9);
+      await tester.pump();
+      await tester.tap(find.byTooltip('Cancel unsaved changes'));
+      await tester.pump();
+      await tester.tap(find.text('DISCARD'));
+      await tester.pump();
+
+      await tester.tap(guard1);
+      await tester.pump();
+      scaleSlider = tester.widgetList<Slider>(find.byType(Slider)).first;
+      expect(scaleSlider.value, closeTo(.6, .001));
+      scaleSlider.onChanged!(.8);
+      await tester.pump();
+
+      await tester.tap(guard2);
+      await tester.pump();
+      await tester.tap(find.text('DELETE'));
+      await tester.pump();
+      expect(guard2, findsNothing);
+      await tester.tap(find.byKey(const ValueKey('base-camp-editor-undo')));
+      await tester.pump();
+      expect(guard2, findsOneWidget);
+      await tester.tap(guard2);
+      await tester.pump();
+      await tester.tap(find.text('DELETE'));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('base-camp-editor-save')));
+      await tester.pump(const Duration(milliseconds: 150));
+
+      expect(controller.value.staticSoldiers, hasLength(1));
+      expect(controller.value.staticSoldiers.single.id, 'guard-1');
+      expect(controller.value.staticSoldiers.single.scale, closeTo(.8, .001));
+      final restored = BaseCampMapConfigurationController();
+      await restored.load();
+      expect(restored.value.staticSoldiers, hasLength(1));
+      expect(restored.value.staticSoldiers.single.id, 'guard-1');
+    },
+  );
 
   testWidgets('water editor creates, saves and restores a fifth area', (
     tester,

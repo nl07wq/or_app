@@ -50,6 +50,7 @@ class BaseCampDashboardPage extends StatefulWidget {
 
 class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
   final _pages = PageController();
+  final _soldierCompartmentKey = GlobalKey<_BreathingSoldierCompartmentState>();
   Future<_TerminalSnapshot>? _snapshot;
   int? _sourceSignature;
   int _page = 0;
@@ -301,6 +302,8 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                                               negative:
                                                   settings.baseCampLcdNegative,
                                               child: _TacticalTerminal(
+                                                soldierCompartmentKey:
+                                                    _soldierCompartmentKey,
                                                 snapshot: snapshot,
                                                 morning: morning,
                                                 food: food,
@@ -380,6 +383,7 @@ class _MapChassis extends StatelessWidget {
 
 class _TacticalTerminal extends StatelessWidget {
   const _TacticalTerminal({
+    required this.soldierCompartmentKey,
     required this.snapshot,
     required this.morning,
     required this.food,
@@ -390,6 +394,7 @@ class _TacticalTerminal extends StatelessWidget {
     required this.onPageChanged,
     required this.onOpenDetail,
   });
+  final GlobalKey<_BreathingSoldierCompartmentState> soldierCompartmentKey;
   final _TerminalSnapshot snapshot;
   final MorningFact? morning;
   final FoodSummary? food;
@@ -432,13 +437,17 @@ class _TacticalTerminal extends StatelessWidget {
                       child: GestureDetector(
                         key: const ValueKey('base-camp-soldier-panel'),
                         behavior: HitTestBehavior.opaque,
+                        onTap: () => soldierCompartmentKey.currentState
+                            ?.triggerManualRegrip(),
                         onLongPress: () => Navigator.of(context).push<void>(
                           MaterialPageRoute<void>(
                             builder: (_) =>
                                 const SoldierLiveMotionPreviewPage(),
                           ),
                         ),
-                        child: const _BreathingSoldierCompartment(),
+                        child: _BreathingSoldierCompartment(
+                          key: soldierCompartmentKey,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -606,7 +615,7 @@ class _LcdPolaritySwitch extends StatelessWidget {
 }
 
 class _BreathingSoldierCompartment extends StatefulWidget {
-  const _BreathingSoldierCompartment();
+  const _BreathingSoldierCompartment({super.key});
 
   @override
   State<_BreathingSoldierCompartment> createState() =>
@@ -623,6 +632,10 @@ class _BreathingSoldierCompartmentState
   bool _active = true;
   bool _rifleFramesReady = false;
   bool _rifleFramePrecacheStarted = false;
+  bool _manualEvent = false;
+  bool _automaticEventPending = false;
+  BaseCampRifleGlobalAlignment _eventAlignment =
+      const BaseCampRifleGlobalAlignment();
   late int _deferredWarmupEpoch;
 
   @override
@@ -637,6 +650,7 @@ class _BreathingSoldierCompartmentState
       vsync: this,
       duration: const Duration(milliseconds: baseCampRifleRegripEventMs),
     )..addStatusListener(_onSpecialStatus);
+    unawaited(baseCampRifleGlobalAlignment.load());
     _deferredWarmupEpoch = baseCampDeferredAssetWarmupEpoch.value;
     baseCampDeferredAssetWarmupEpoch.addListener(_onDeferredAssetsReady);
     _scheduleSpecialEvent();
@@ -698,9 +712,18 @@ class _BreathingSoldierCompartmentState
 
   void _onSpecialStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
+    _specialController.value = 0;
     _breathingController
       ..value = 0
       ..repeat();
+    if (_manualEvent) {
+      _manualEvent = false;
+      if (_automaticEventPending) {
+        _automaticEventPending = false;
+        _startSpecialEvent(manual: false);
+      }
+      return;
+    }
     _scheduleSpecialEvent();
   }
 
@@ -709,13 +732,34 @@ class _BreathingSoldierCompartmentState
     if (!_active || !mounted) return;
     _specialTimer = Timer(
       Duration(milliseconds: baseCampRifleRegripIntervalMs(_random.nextInt)),
-      _startSpecialEvent,
+      _onAutomaticTimer,
     );
   }
 
-  void _startSpecialEvent() {
+  void _onAutomaticTimer() {
+    _specialTimer = null;
+    if (_specialController.isAnimating) {
+      _automaticEventPending = true;
+      return;
+    }
+    _startSpecialEvent(manual: false);
+  }
+
+  void triggerManualRegrip() => unawaited(_triggerManualRegrip());
+
+  Future<void> _triggerManualRegrip() async {
+    await baseCampRifleGlobalAlignment.load();
     if (!mounted || !_active || _specialController.isAnimating) return;
-    _specialTimer?.cancel();
+    _startSpecialEvent(manual: true);
+  }
+
+  void _startSpecialEvent({required bool manual}) {
+    if (!mounted || !_active || _specialController.isAnimating) return;
+    _manualEvent = manual;
+    _eventAlignment = baseCampRifleGlobalAlignment.value;
+    _specialController.duration = Duration(
+      milliseconds: _eventAlignment.eventDurationMs,
+    );
     _breathingController
       ..stop()
       ..value = 0;
@@ -734,6 +778,9 @@ class _BreathingSoldierCompartmentState
       _scheduleSpecialEvent();
     } else {
       _specialTimer?.cancel();
+      _specialTimer = null;
+      _automaticEventPending = false;
+      _manualEvent = false;
       _breathingController.stop();
       _specialController
         ..stop()
@@ -795,34 +842,45 @@ class _BreathingSoldierCompartmentState
                         builder: (context, _) {
                           final elapsed =
                               (_specialController.value *
-                                      baseCampRifleRegripEventMs)
+                                      _eventAlignment.eventDurationMs)
                                   .floor();
                           final phase = _specialController.isAnimating
-                              ? baseCampRifleRegripPhase(elapsed)
+                              ? baseCampRifleRegripPhase(
+                                  elapsed,
+                                  frameDurations:
+                                      _eventAlignment.frameDurationsMs,
+                                )
                               : BaseCampRifleRegripPhase.breathing;
                           final showRifleFrame =
-                              _rifleFramesReady &&
+                              (_rifleFramesReady || _manualEvent) &&
                               (phase == BaseCampRifleRegripPhase.rifleRegrip ||
                                   phase == BaseCampRifleRegripPhase.postIdle);
                           if (showRifleFrame) {
                             final frame =
                                 phase == BaseCampRifleRegripPhase.postIdle
                                 ? baseCampRifleRegripAssets.length - 1
-                                : baseCampRifleRegripFrameIndex(elapsed);
-                            return ValueListenableBuilder<
-                              BaseCampRifleGlobalAlignment
-                            >(
-                              valueListenable: baseCampRifleGlobalAlignment,
-                              builder: (context, alignment, _) =>
-                                  BaseCampRifleRegripFrame(
-                                    frame: frame,
-                                    globalX: alignment.x,
-                                    globalY: alignment.y,
-                                    globalScale: alignment.scale,
-                                    key: ValueKey(
-                                      'base-camp-rifle-regrip-frame-$frame',
-                                    ),
-                                  ),
+                                : baseCampRifleRegripFrameIndex(
+                                    elapsed,
+                                    frameDurations:
+                                        _eventAlignment.frameDurationsMs,
+                                  );
+                            return BaseCampRifleRegripFrame(
+                              frame: frame,
+                              globalX: _eventAlignment.x,
+                              globalY: _eventAlignment.y,
+                              globalScale: _eventAlignment.scale,
+                              verticalScaleX: _eventAlignment.verticalScaleX,
+                              horizontalScaleY:
+                                  _eventAlignment.horizontalScaleY,
+                              frameOffsets: _eventAlignment.frameOffsets,
+                              frameScales: _eventAlignment.frameScales,
+                              brightness: _eventAlignment.brightness,
+                              contrast: _eventAlignment.contrast,
+                              saturation: _eventAlignment.saturation,
+                              warmth: _eventAlignment.warmth,
+                              key: ValueKey(
+                                'base-camp-rifle-regrip-frame-$frame',
+                              ),
                             );
                           }
                           final dy =

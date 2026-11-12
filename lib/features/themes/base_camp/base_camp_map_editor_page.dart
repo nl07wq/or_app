@@ -1357,10 +1357,13 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                     _scheduleWaterDraftSave();
                   },
                   selectedStaticSoldierId: _staticSoldierId,
-                  onStaticSoldierDragStarted: () =>
-                      setState(() => _undo.add(_clone(_working))),
-                  onStaticSoldierDragged: (id, position) {
+                  onStaticSoldierSelected: (id) =>
+                      setState(() => _staticSoldierId = id),
+                  onStaticSoldierDragStarted: (id) => setState(() {
                     _staticSoldierId = id;
+                    _undo.add(_clone(_working));
+                  }),
+                  onStaticSoldierDragged: (id, position) {
                     _updateStaticSoldierPosition(id, position);
                   },
                 ),
@@ -1751,6 +1754,13 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               ],
             ),
             if (soldier != null) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'SELECTED: ${soldier.id}',
+                  key: const ValueKey('base-camp-static-soldier-selection'),
+                ),
+              ),
               DropdownButtonFormField<String>(
                 initialValue: soldier.direction,
                 items: const ['front', 'back', 'right', 'left']
@@ -2146,6 +2156,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onWaterPointDragged,
     required this.onExclusionPointDragged,
     required this.selectedStaticSoldierId,
+    required this.onStaticSoldierSelected,
     required this.onStaticSoldierDragStarted,
     required this.onStaticSoldierDragged,
   });
@@ -2181,7 +2192,8 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final void Function(int polygon, int index, Offset position)
   onExclusionPointDragged;
   final String? selectedStaticSoldierId;
-  final VoidCallback onStaticSoldierDragStarted;
+  final ValueChanged<String> onStaticSoldierSelected;
+  final ValueChanged<String> onStaticSoldierDragStarted;
   final void Function(String id, Offset position) onStaticSoldierDragged;
 
   @override
@@ -2387,6 +2399,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
                 }
               },
               selectedStaticSoldierId: widget.selectedStaticSoldierId,
+              onStaticSoldierSelected: widget.onStaticSoldierSelected,
               onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
               onStaticSoldierGlobalDragged: (id, globalPosition) {
                 final renderBox =
@@ -2443,6 +2456,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onWaterGlobalDragged,
     required this.onExclusionGlobalDragged,
     required this.selectedStaticSoldierId,
+    required this.onStaticSoldierSelected,
     required this.onStaticSoldierDragStarted,
     required this.onStaticSoldierGlobalDragged,
   });
@@ -2478,7 +2492,8 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final void Function(int polygon, int index, Offset position)
   onExclusionGlobalDragged;
   final String? selectedStaticSoldierId;
-  final VoidCallback onStaticSoldierDragStarted;
+  final ValueChanged<String> onStaticSoldierSelected;
+  final ValueChanged<String> onStaticSoldierDragStarted;
   final void Function(String id, Offset position) onStaticSoldierGlobalDragged;
 
   @override
@@ -2760,12 +2775,15 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
         if (section == _BaseCampEditorSection.staticSoldiers)
           for (final soldier in configuration.staticSoldiers)
             _EditorDragHandle(
+              key: ValueKey('base-camp-static-soldier-handle-${soldier.id}'),
               point: geometry.sourceToViewport(soldier.position),
               icon: Icons.person_pin_circle,
               color: soldier.id == selectedStaticSoldierId
                   ? const Color(0xFF68E8F2)
                   : const Color(0xFFD7D9D6),
-              onStart: onStaticSoldierDragStarted,
+              selected: soldier.id == selectedStaticSoldierId,
+              onTap: () => onStaticSoldierSelected(soldier.id),
+              onStart: () => onStaticSoldierDragStarted(soldier.id),
               onUpdate: (details) => onStaticSoldierGlobalDragged(
                 soldier.id,
                 details.globalPosition,
