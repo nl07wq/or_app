@@ -212,73 +212,70 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                             0.0,
                             940.0,
                           );
-                          // SafeArea has already removed the actual bottom
-                          // inset; use this constrained body height once.
-                          // The square map is allocated only what remains,
-                          // never cropped or placed in an oversized chassis.
-                          const outerVertical = 24.0;
                           const terminalMapGap = 6.0;
-                          final remainingMapHeight =
-                              viewport.maxHeight -
-                              outerVertical -
-                              _TacticalTerminal.height -
-                              terminalMapGap;
-                          final mapSide = math.min(
-                            width,
-                            remainingMapHeight < 0 ? 0.0 : remainingMapHeight,
-                          );
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 940,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    ValueListenableBuilder<DeviceSettings>(
-                                      valueListenable:
-                                          DeviceSettingsController.instance,
-                                      builder: (context, settings, _) =>
-                                          _BaseCampLcdMode(
-                                            negative:
-                                                settings.baseCampLcdNegative,
-                                            child: _TacticalTerminal(
-                                              snapshot: snapshot,
-                                              morning: morning,
-                                              food: food,
-                                              training: training,
-                                              activity: activity,
-                                              pages: _pages,
-                                              page: _page,
-                                              onPageChanged: (value) =>
-                                                  setState(() => _page = value),
-                                              onOpenDetail: (page) =>
-                                                  _openDetail(
-                                                    page,
-                                                    snapshot,
-                                                    morning,
-                                                    food,
-                                                    training,
-                                                    activity,
-                                                  ),
+                          // Dashboard approval is width-led: the square map
+                          // uses every available horizontal pixel. A short
+                          // Safari viewport scrolls the complete composition
+                          // instead of silently shrinking the map.
+                          return SingleChildScrollView(
+                            key: const ValueKey('base-camp-dashboard-scroll'),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 940,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      ValueListenableBuilder<DeviceSettings>(
+                                        valueListenable:
+                                            DeviceSettingsController.instance,
+                                        builder: (context, settings, _) =>
+                                            _BaseCampLcdMode(
+                                              negative:
+                                                  settings.baseCampLcdNegative,
+                                              child: _TacticalTerminal(
+                                                snapshot: snapshot,
+                                                morning: morning,
+                                                food: food,
+                                                training: training,
+                                                activity: activity,
+                                                pages: _pages,
+                                                page: _page,
+                                                onPageChanged: (value) =>
+                                                    setState(
+                                                      () => _page = value,
+                                                    ),
+                                                onOpenDetail: (page) =>
+                                                    _openDetail(
+                                                      page,
+                                                      snapshot,
+                                                      morning,
+                                                      food,
+                                                      training,
+                                                      activity,
+                                                    ),
+                                              ),
                                             ),
+                                      ),
+                                      const SizedBox(height: terminalMapGap),
+                                      SizedBox.square(
+                                        dimension: width,
+                                        child: _MapChassis(
+                                          child: BaseCampMap(
+                                            onFacilityPressed: _openFacility,
                                           ),
-                                    ),
-                                    const SizedBox(height: terminalMapGap),
-                                    SizedBox.square(
-                                      dimension: mapSide,
-                                      child: _MapChassis(
-                                        child: BaseCampMap(
-                                          onFacilityPressed: _openFacility,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -323,7 +320,6 @@ class _MapChassis extends StatelessWidget {
 }
 
 class _TacticalTerminal extends StatelessWidget {
-  static const height = 356.0;
   const _TacticalTerminal({
     required this.snapshot,
     required this.morning,
@@ -348,7 +344,6 @@ class _TacticalTerminal extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-tactical-terminal'),
-    height: height,
     decoration: BoxDecoration(
       color: const Color(0xff2a3020),
       borderRadius: BorderRadius.circular(14),
@@ -365,6 +360,7 @@ class _TacticalTerminal extends StatelessWidget {
           // indicator is removed.
           padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const _TerminalHeading(),
               const SizedBox(height: 2),
@@ -470,12 +466,17 @@ class _TerminalHeading extends StatelessWidget {
       ),
       const SizedBox(width: 7),
       Expanded(
-        child: Text(
-          'TACTICAL COMMAND TERMINAL',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: const Color(0xfff0ead2),
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.05,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'TACTICAL COMMAND TERMINAL',
+            maxLines: 1,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: const Color(0xfff0ead2),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.05,
+            ),
           ),
         ),
       ),

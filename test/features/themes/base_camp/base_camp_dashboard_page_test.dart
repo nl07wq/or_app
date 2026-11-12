@@ -90,7 +90,7 @@ void main() {
   });
 
   testWidgets(
-    'dashboard uses the remaining viewport for a fully visible square map',
+    'dashboard map uses the approved available width at mobile heights',
     (tester) async {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       for (final size in const [
@@ -110,9 +110,19 @@ void main() {
         final mapRegion = tester.getRect(
           find.byKey(const ValueKey('base-camp-home-map-region')),
         );
-        expect(terminal.height, 356);
+        final mapViewport = tester.getRect(
+          find.byKey(const ValueKey('base-camp-home-map-viewport')),
+        );
+        expect(terminal.height, closeTo(317.8, .2));
+        expect(mapRegion.width, closeTo(size.width - 24, .1));
         expect(mapRegion.width, closeTo(mapRegion.height, .1));
-        expect(mapRegion.bottom, lessThanOrEqualTo(size.height));
+        expect(mapViewport.width, closeTo(mapViewport.height, .1));
+        // The chassis contributes 7px padding plus its 1.4px border per side.
+        expect(mapViewport.width, closeTo(mapRegion.width - 16.8, .2));
+        expect(
+          find.byKey(const ValueKey('base-camp-dashboard-scroll')),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
       }
     },
@@ -138,11 +148,55 @@ void main() {
       );
 
       expect(heading.top, greaterThanOrEqualTo(terminal.top + 15));
-      expect(indicator.bottom, lessThanOrEqualTo(terminal.bottom - 7));
-      expect(terminal.height, 356);
+      expect(terminal.bottom - indicator.bottom, closeTo(9.4, .2));
+      expect(terminal.height, closeTo(317.8, .2));
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('all terminal pages retain one compact chassis height', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(const Size(390, 750));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final terminalFinder = find.byKey(
+      const ValueKey('base-camp-tactical-terminal'),
+    );
+    final pagesFinder = find.byKey(const ValueKey('base-camp-terminal-pages'));
+    final initialHeight = tester.getSize(terminalFinder).height;
+    const pageKeys = <String>[
+      'base-camp-terminal-page-progress',
+      'base-camp-terminal-page-morning',
+      'base-camp-terminal-page-sustainment',
+      'base-camp-terminal-page-command',
+    ];
+
+    for (var page = 0; page < pageKeys.length; page++) {
+      expect(find.byKey(ValueKey(pageKeys[page])), findsOneWidget);
+      expect(tester.getSize(terminalFinder).height, initialHeight);
+      expect(
+        tester
+            .getSize(find.byKey(ValueKey('base-camp-page-indicator-$page')))
+            .width,
+        20,
+        reason: 'page $page must own the active indicator',
+      );
+      if (page < pageKeys.length - 1) {
+        await tester.fling(pagesFinder, const Offset(-320, 0), 1000);
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+    }
+
+    final terminal = tester.getRect(terminalFinder);
+    final indicator = tester.getRect(
+      find.byKey(const ValueKey('base-camp-page-indicator-3')),
+    );
+    expect(terminal.bottom - indicator.bottom, closeTo(9.4, .2));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('terminal pages swipe and open an expanded detail sheet', (
     tester,
