@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'base_camp_asset_metrics.dart';
+
 const baseCampBreathingSoldierLowerAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_lowerboady.png';
 const baseCampBreathingSoldierUpperAsset =
@@ -218,6 +220,12 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
                 assets[frame],
                 fit: BoxFit.fill,
                 filterQuality: FilterQuality.none,
+                frameBuilder: (context, child, frameIndex, synchronous) {
+                  if (frameIndex != null || synchronous) {
+                    recordBaseCampAssetReady(assets[frame]);
+                  }
+                  return child;
+                },
               ),
             ),
           ),
@@ -249,6 +257,12 @@ class BaseCampBreathingSoldier extends StatelessWidget {
           key: const ValueKey('base-camp-soldier-lower'),
           fit: BoxFit.contain,
           filterQuality: FilterQuality.none,
+          frameBuilder: (context, child, frame, synchronous) {
+            if (frame != null || synchronous) {
+              recordBaseCampAssetReady(baseCampBreathingSoldierLowerAsset);
+            }
+            return child;
+          },
         ),
         Transform.translate(
           offset: Offset(0, dy),
@@ -257,6 +271,12 @@ class BaseCampBreathingSoldier extends StatelessWidget {
             key: const ValueKey('base-camp-soldier-upper'),
             fit: BoxFit.contain,
             filterQuality: FilterQuality.none,
+            frameBuilder: (context, child, frame, synchronous) {
+              if (frame != null || synchronous) {
+                recordBaseCampAssetReady(baseCampBreathingSoldierUpperAsset);
+              }
+              return child;
+            },
           ),
         ),
       ],

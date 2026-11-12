@@ -226,21 +226,12 @@ class _SystemPageState extends State<SystemPage> {
         AppSpacing.gapXL,
         _DataHealthSection(snapshot: _dataHealth),
         AppSpacing.gapXL,
-        _InitializeSection(
-          busy: _initializing,
-          result: _initializationResult,
-          onPressed: appInitializationController.value.canWrite
-              ? _requestInitialization
-              : null,
-        ),
-        AppSpacing.gapXL,
         _SystemSection(
-          icon: Icons.bug_report_outlined,
-          title: 'STARTUP DIAGNOSTIC',
-          description: 'iOS/PWA起動表示の一時的な診断トレースを確認します。',
-          buttonText: 'OPEN STARTUP DIAGNOSTIC',
-          onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.startupDiagnostic),
+          icon: Icons.monitor_heart_outlined,
+          title: 'DIAGNOSTICS',
+          description: '起動およびBASE CAMP Dashboardの診断記録を確認します。',
+          buttonText: 'OPEN DIAGNOSTICS',
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.diagnostics),
         ),
         AppSpacing.gapXL,
         _SystemSection(
@@ -259,6 +250,14 @@ class _SystemPageState extends State<SystemPage> {
           buttonText: 'OPEN BODY MAP SVG PREVIEW',
           onPressed: () =>
               Navigator.pushNamed(context, AppRoutes.bodyMapSvgPreview),
+        ),
+        AppSpacing.gapXL,
+        _InitializeSection(
+          busy: _initializing,
+          result: _initializationResult,
+          onPressed: appInitializationController.value.canWrite
+              ? _requestInitialization
+              : null,
         ),
         AppSpacing.gapLG,
       ],

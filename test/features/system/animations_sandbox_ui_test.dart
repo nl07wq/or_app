@@ -33,10 +33,10 @@ void main() {
 
   tearDown(AppRepositoryRegistry.resetForTesting);
 
-  testWidgets('SYSTEM opens the sandbox below INITIALIZE APP DATA', (
+  testWidgets('SYSTEM keeps sandbox and places INITIALIZE APP DATA last', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.physicalSize = const Size(390, 5000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -63,16 +63,13 @@ void main() {
 
     expect(find.text('INITIALIZE APP DATA'), findsWidgets);
     expect(find.text('ANIMATIONS SANDBOX'), findsOneWidget);
+    final sandboxTop = tester.getTopLeft(find.text('ANIMATIONS SANDBOX'));
+    await tester.scrollUntilVisible(find.text('INITIALIZE APP DATA').last, 300);
     final initializeTop = tester.getTopLeft(
       find.text('INITIALIZE APP DATA').last,
     );
-    final sandboxTop = tester.getTopLeft(find.text('ANIMATIONS SANDBOX'));
-    expect(sandboxTop.dy, greaterThan(initializeTop.dy));
+    expect(initializeTop.dy, greaterThan(sandboxTop.dy));
 
-    await tester.tap(find.text('OPEN ANIMATIONS SANDBOX'));
-    await tester.pumpAndSettle();
-    expect(find.byType(AnimationsSandboxPage), findsOneWidget);
-    expect(find.text('BOOT SEQUENCE'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

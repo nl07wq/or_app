@@ -5,7 +5,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_store.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
@@ -495,10 +497,18 @@ class _BaseCampMapState extends State<BaseCampMap>
   late final AnimationController _selectionPulse;
   late final AnimationController _selectionVisibility;
   late final AnimationController _walkerTimeline;
+  final Stopwatch _mapLoadWatch = Stopwatch();
+  bool _mapReadyRecorded = false;
 
   @override
   void initState() {
     super.initState();
+    _mapLoadWatch.start();
+    SystemDiagnostics.instance.record(
+      'BASE_CAMP',
+      'MAP_BACKGROUND_LOAD_START',
+      fields: const <String, Object?>{'asset': baseCampMapAsset},
+    );
     _selectionPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -616,10 +626,44 @@ class _BaseCampMapState extends State<BaseCampMap>
                     return Stack(
                       fit: StackFit.expand,
                       children: [
-                        const Image(
-                          image: AssetImage(baseCampMapAsset),
+                        Image.asset(
+                          baseCampMapAsset,
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
+                          frameBuilder: (context, child, frame, synchronous) {
+                            if (!_mapReadyRecorded &&
+                                (frame != null || synchronous)) {
+                              _mapReadyRecorded = true;
+                              _mapLoadWatch.stop();
+                              recordBaseCampAssetReady(baseCampMapAsset);
+                              SystemDiagnostics.instance.record(
+                                'BASE_CAMP',
+                                'MAP_BACKGROUND_LOAD_COMPLETE',
+                                fields: <String, Object?>{
+                                  'durationMs':
+                                      _mapLoadWatch.elapsedMilliseconds,
+                                },
+                              );
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                SystemDiagnostics.instance.record(
+                                  'BASE_CAMP',
+                                  'MAP_DISPLAY_COMPLETE',
+                                );
+                              });
+                            }
+                            return child;
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            SystemDiagnostics.instance.record(
+                              'ASSET',
+                              'ASSET_LOAD_FAILED',
+                              fields: <String, Object?>{
+                                'asset': baseCampMapAsset,
+                                'errorType': error.runtimeType.toString(),
+                              },
+                            );
+                            return const SizedBox.expand();
+                          },
                         ),
                         IgnorePointer(
                           child: RepaintBoundary(
@@ -1620,10 +1664,18 @@ class BaseCampMapObjectImage extends StatefulWidget {
 
 class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
   late Future<BaseCampStoredAsset?> _asset;
+  bool _readyRecorded = false;
+  late final Stopwatch _loadWatch;
 
   @override
   void initState() {
     super.initState();
+    _loadWatch = Stopwatch()..start();
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'FACILITY_ASSET_LOAD_START',
+      fields: <String, Object?>{'asset': widget.bundledAsset ?? widget.assetId},
+    );
     _asset = _load();
   }
 
@@ -1632,6 +1684,10 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.assetId != widget.assetId ||
         oldWidget.bundledAsset != widget.bundledAsset) {
+      _readyRecorded = false;
+      _loadWatch
+        ..reset()
+        ..start();
       _asset = _load();
     }
   }
@@ -1657,6 +1713,12 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
               fit: BoxFit.contain,
               gaplessPlayback: true,
               filterQuality: FilterQuality.high,
+              frameBuilder: (context, child, frame, synchronous) {
+                if (frame != null || synchronous) {
+                  _recordReady(widget.assetId, bytes: asset.bytes.length);
+                }
+                return child;
+              },
             ),
           );
         }
@@ -1690,7 +1752,38 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
     fit: BoxFit.contain,
     gaplessPlayback: true,
     filterQuality: FilterQuality.high,
+    frameBuilder: (context, child, frame, synchronous) {
+      if (frame != null || synchronous) _recordReady(asset);
+      return child;
+    },
+    errorBuilder: (context, error, stackTrace) {
+      SystemDiagnostics.instance.record(
+        'ASSET',
+        'ASSET_LOAD_FAILED',
+        fields: <String, Object?>{
+          'asset': asset,
+          'errorType': error.runtimeType.toString(),
+        },
+      );
+      return const SizedBox.expand();
+    },
   );
+
+  void _recordReady(String asset, {int? bytes}) {
+    if (_readyRecorded) return;
+    _readyRecorded = true;
+    _loadWatch.stop();
+    recordBaseCampAssetReady(asset);
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'FACILITY_ASSET_LOAD_COMPLETE',
+      fields: <String, Object?>{
+        'asset': asset,
+        'fileBytes': ?bytes,
+        'durationMs': _loadWatch.elapsedMilliseconds,
+      },
+    );
+  }
 
   Widget _withSelectionGlow(Widget Function() createImage) {
     final opacity = widget.highlightOpacity;
@@ -2077,6 +2170,12 @@ class _BaseCampGifWalkerState extends State<_BaseCampGifWalker>
           fit: BoxFit.contain,
           filterQuality: FilterQuality.none,
           gaplessPlayback: true,
+          frameBuilder: (context, child, frame, synchronous) {
+            if (frame != null || synchronous) {
+              recordBaseCampAssetReady(frames[index]);
+            }
+            return child;
+          },
         );
       },
     );

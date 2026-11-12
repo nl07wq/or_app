@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:or_app/core/engine/activity_summary.dart';
 import 'package:or_app/core/engine/food_summary.dart';
@@ -10,6 +11,7 @@ import 'package:or_app/core/engine/operation_status.dart';
 import 'package:or_app/core/engine/training_summary.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/command_center/models/daily_command_read_model.dart';
 import 'package:or_app/features/command_center/services/daily_command_read_model_builder.dart';
@@ -26,6 +28,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/system/widgets/system_menu_button.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
 import 'package:or_app/features/themes/base_camp/soldier_live_motion_preview_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
@@ -50,9 +53,52 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
   Future<_TerminalSnapshot>? _snapshot;
   int? _sourceSignature;
   int _page = 0;
+  DateTime? _lastSlowFrameRecord;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemDiagnostics.instance.record(
+      'BASE_CAMP',
+      'DASHBOARD_GENERATION_START',
+    );
+    SchedulerBinding.instance.addTimingsCallback(_recordFrameTimings);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        SystemDiagnostics.instance.record('BASE_CAMP', 'DASHBOARD_FIRST_FRAME');
+      }
+    });
+  }
+
+  void _recordFrameTimings(List<FrameTiming> timings) {
+    final delayed = timings.where((timing) {
+      final total = timing.buildDuration + timing.rasterDuration;
+      return total > const Duration(milliseconds: 32);
+    }).toList();
+    if (delayed.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastSlowFrameRecord case final previous?
+        when now.difference(previous) < const Duration(seconds: 5)) {
+      return;
+    }
+    _lastSlowFrameRecord = now;
+    final worst = delayed
+        .map((timing) => timing.buildDuration + timing.rasterDuration)
+        .reduce((a, b) => a > b ? a : b);
+    SystemDiagnostics.instance.record(
+      'PERFORMANCE',
+      'SLOW_FRAME_BATCH',
+      fields: <String, Object?>{
+        'count': delayed.length,
+        'worstFrameMs': worst.inMicroseconds / 1000,
+      },
+    );
+  }
 
   @override
   void dispose() {
+    SchedulerBinding.instance.removeTimingsCallback(_recordFrameTimings);
+    SystemDiagnostics.instance.record('BASE_CAMP', 'DASHBOARD_DISPOSE');
     _pages.dispose();
     super.dispose();
   }
@@ -77,6 +123,8 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
     TrainingSummary? training,
     ActivitySummary activity,
   ) async {
+    final watch = Stopwatch()..start();
+    SystemDiagnostics.instance.record('BASE_CAMP', 'DASHBOARD_DATA_LOAD_START');
     try {
       final repositories = AppRepositoryRegistry.container;
       final state = await repositories.operationState.requireCurrent();
@@ -110,7 +158,7 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
           training: training,
         ),
       ]);
-      return _TerminalSnapshot(
+      final snapshot = _TerminalSnapshot(
         date: date,
         command: command,
         plan: values[0] as DashboardPlanInformation,
@@ -118,8 +166,19 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
         briefRecorded: brief != null,
         debriefRecorded: debrief != null,
       );
+      SystemDiagnostics.instance.record(
+        'BASE_CAMP',
+        'DASHBOARD_DATA_LOAD_COMPLETE',
+        fields: <String, Object?>{'durationMs': watch.elapsedMilliseconds},
+      );
+      return snapshot;
     } catch (_) {
       // A presentation read must never create, infer, or alter formal data.
+      SystemDiagnostics.instance.record(
+        'BASE_CAMP',
+        'DASHBOARD_DATA_LOAD_FAILED',
+        fields: <String, Object?>{'durationMs': watch.elapsedMilliseconds},
+      );
       return const _TerminalSnapshot.unavailable();
     }
   }
@@ -589,12 +648,24 @@ class _BreathingSoldierCompartmentState
   }
 
   Future<void> _precacheRifleFrames() async {
+    final diagnostics = SystemDiagnostics.instance;
+    final watch = Stopwatch()..start();
+    diagnostics.record('SOLDIER', 'RIFLE_REGRIP_PRECACHE_START');
     var allFramesLoaded = true;
     for (final asset in baseCampRifleRegripAssets) {
       try {
         await precacheImage(AssetImage(asset), context);
+        recordBaseCampAssetReady(asset);
       } catch (error, stackTrace) {
         allFramesLoaded = false;
+        diagnostics.record(
+          'ASSET',
+          'ASSET_LOAD_FAILED',
+          fields: <String, Object?>{
+            'asset': asset,
+            'errorType': error.runtimeType.toString(),
+          },
+        );
         FlutterError.reportError(
           FlutterErrorDetails(
             exception: error,
@@ -608,6 +679,13 @@ class _BreathingSoldierCompartmentState
         );
       }
     }
+    diagnostics.record(
+      'SOLDIER',
+      allFramesLoaded
+          ? 'RIFLE_REGRIP_PRECACHE_COMPLETE'
+          : 'RIFLE_REGRIP_PRECACHE_INCOMPLETE',
+      fields: <String, Object?>{'durationMs': watch.elapsedMilliseconds},
+    );
     if (mounted) setState(() => _rifleFramesReady = allFramesLoaded);
   }
 

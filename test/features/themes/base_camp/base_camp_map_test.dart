@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
@@ -64,6 +65,34 @@ void main() {
     expect(size.width, closeTo(size.height, .01));
     expect(find.byKey(const ValueKey('base-camp-water-fx')), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('map lifecycle records bounded dashboard diagnostics', (
+    tester,
+  ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(onFacilityPressed: _ignoreFacility),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('MAP_BACKGROUND_LOAD_START'));
+    expect(trace, contains('MAP_BACKGROUND_LOAD_COMPLETE'));
+    expect(trace, contains('MAP_DISPLAY_COMPLETE'));
   });
 
   test(

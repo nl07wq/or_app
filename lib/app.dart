@@ -39,6 +39,8 @@ import 'features/system/pages/system_page.dart';
 import 'features/system/pages/device_transfer_page.dart';
 import 'features/system/pages/device_settings_page.dart';
 import 'features/system/pages/system_monitoring_page.dart';
+import 'features/system/pages/diagnostics_page.dart';
+import 'features/system/pages/dashboard_diagnostic_page.dart';
 import 'features/system/pages/startup_diagnostic_page.dart';
 import 'features/system/pages/body_map_svg_preview_page.dart';
 import 'features/weather/weather_settings_page.dart';
@@ -350,9 +352,17 @@ class _OperationRebootAppState extends State<OperationRebootApp>
           BaseCampScreen.systemMonitoring,
           const SystemMonitoringPage(),
         ),
+        AppRoutes.diagnostics: (_) => _presentationEntry(
+          BaseCampScreen.diagnostics,
+          const DiagnosticsPage(),
+        ),
         AppRoutes.startupDiagnostic: (_) => _presentationEntry(
           BaseCampScreen.startupDiagnostic,
           const StartupDiagnosticPage(),
+        ),
+        AppRoutes.dashboardDiagnostic: (_) => _presentationEntry(
+          BaseCampScreen.dashboardDiagnostic,
+          const DashboardDiagnosticPage(),
         ),
         AppRoutes.operationSync: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
