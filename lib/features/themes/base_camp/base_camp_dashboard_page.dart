@@ -27,6 +27,7 @@ import 'package:or_app/features/morning/models/morning_fact_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/system/widgets/system_menu_button.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
 import 'package:or_app/features/themes/base_camp/soldier_live_motion_preview_page.dart';
@@ -2074,8 +2075,9 @@ class BaseCampProgressStatusLine extends StatelessWidget {
     required this.partial,
   });
 
-  static const commonFontSize = 6.5;
-  static const minimumIncompleteFontSize = 5.0;
+  static const maximumFontSize = 12.0;
+  static const minimumFontSize = 8.0;
+  static const fontSizeStep = .25;
 
   final String formalValue;
   final bool active;
@@ -2111,26 +2113,27 @@ class BaseCampProgressStatusLine extends StatelessWidget {
                 final value = baseCampProgressDisplayValue(formalValue);
                 final base = DefaultTextStyle.of(context).style.merge(
                   const TextStyle(
-                    fontSize: commonFontSize,
+                    fontFamily: baseCampJapaneseFontFallback,
+                    fontSize: maximumFontSize,
                     height: 1.25,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 );
-                var fontSize = commonFontSize;
-                if (value == 'INCOMPLETE') {
-                  while (fontSize > minimumIncompleteFontSize &&
-                      !_fitsStatusValue(value, base, fontSize, constraints)) {
-                    fontSize -= .25;
-                  }
-                }
+                final candidates = value == 'INCOMPLETE'
+                    ? const ['INCOMPLETE']
+                    : const ['COMPLETE', 'NO DATA'];
+                final fontSize = _largestFittingFontSize(
+                  candidates,
+                  base,
+                  constraints,
+                );
                 assert(
                   _fitsStatusValue(value, base, fontSize, constraints),
                   'Progress status does not fit the fixed card: $value '
                   'at $fontSize in ${constraints.maxWidth}px',
                 );
                 assert(
-                  value != 'INCOMPLETE' ||
-                      fontSize >= minimumIncompleteFontSize,
+                  value != 'INCOMPLETE' || fontSize >= minimumFontSize,
                   'INCOMPLETE requires an unreadable font size: $fontSize',
                 );
                 return Text(
@@ -2171,6 +2174,21 @@ class BaseCampProgressStatusLine extends StatelessWidget {
     return painter.width <= constraints.maxWidth &&
         painter.height <= constraints.maxHeight;
   }
+
+  static double _largestFittingFontSize(
+    Iterable<String> values,
+    TextStyle style,
+    BoxConstraints constraints,
+  ) {
+    var fontSize = maximumFontSize;
+    while (fontSize > minimumFontSize &&
+        values.any(
+          (value) => !_fitsStatusValue(value, style, fontSize, constraints),
+        )) {
+      fontSize -= fontSizeStep;
+    }
+    return fontSize;
+  }
 }
 
 class _InstrumentPilotLamp extends StatelessWidget {
@@ -2207,7 +2225,7 @@ class _InstrumentPilotLamp extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric(this.label, this.value, {this.singleLine = false});
+  const _Metric(this.label, this.value, {this.singleLine = true});
   final String label;
   final String value;
   final bool singleLine;
@@ -2259,8 +2277,9 @@ class BaseCampResponsiveReadout extends StatelessWidget {
     this.singleLine = false,
   });
 
-  static const double baseFontSize = 10;
+  static const double baseFontSize = 12;
   static const double minimumFontSize = 8;
+  static const double fontSizeStep = .25;
 
   final String value;
   final bool singleLine;
@@ -2283,37 +2302,27 @@ class BaseCampResponsiveReadout extends StatelessWidget {
       builder: (context, constraints) {
         final base = DefaultTextStyle.of(context).style.merge(
           const TextStyle(
+            fontFamily: baseCampJapaneseFontFallback,
             fontSize: baseFontSize,
             height: 1.25,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
         );
         final scaler = MediaQuery.textScalerOf(context);
         var fontSize = baseFontSize;
         var wraps = false;
-        while (fontSize > minimumFontSize) {
-          final measured = TextPainter(
-            text: TextSpan(
-              text: value,
-              style: base.copyWith(fontSize: fontSize),
-            ),
-            textDirection: TextDirection.ltr,
-            maxLines: 1,
-            textScaler: scaler,
-          )..layout(maxWidth: constraints.maxWidth);
-          if (!measured.didExceedMaxLines) break;
-          fontSize -= .25;
+        while (fontSize > minimumFontSize &&
+            !_fitsSingleLine(value, base, fontSize, constraints, scaler)) {
+          fontSize -= fontSizeStep;
         }
-        final singleLine = TextPainter(
-          text: TextSpan(
-            text: value,
-            style: base.copyWith(fontSize: fontSize),
-          ),
-          textDirection: TextDirection.ltr,
-          maxLines: 1,
-          textScaler: scaler,
-        )..layout(maxWidth: constraints.maxWidth);
-        if (singleLine.didExceedMaxLines && !this.singleLine) {
+        final fitsSingleLine = _fitsSingleLine(
+          value,
+          base,
+          fontSize,
+          constraints,
+          scaler,
+        );
+        if (!fitsSingleLine && !singleLine) {
           wraps = true;
           final wrapped = TextPainter(
             text: TextSpan(
@@ -2332,7 +2341,7 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           fontSize = minimumFontSize;
         }
         assert(
-          !this.singleLine || !singleLine.didExceedMaxLines,
+          !singleLine || fitsSingleLine,
           'Required single-line LCD value does not fit: $value '
           '(${constraints.maxWidth}x${constraints.maxHeight})',
         );
@@ -2351,6 +2360,26 @@ class BaseCampResponsiveReadout extends StatelessWidget {
       },
     ),
   );
+
+  static bool _fitsSingleLine(
+    String value,
+    TextStyle style,
+    double fontSize,
+    BoxConstraints constraints,
+    TextScaler scaler,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: value,
+        style: style.copyWith(fontSize: fontSize),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      textScaler: scaler,
+    )..layout();
+    return painter.width <= constraints.maxWidth &&
+        painter.height <= constraints.maxHeight;
+  }
 }
 
 abstract final class _InstrumentGeometry {

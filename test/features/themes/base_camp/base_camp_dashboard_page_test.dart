@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -18,6 +19,15 @@ import '../../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../../operation_date/operation_date_test_fixture.dart';
 
 void main() {
+  setUpAll(() async {
+    final bytes = File(
+      'assets/fonts/DotGothic16-Regular.ttf',
+    ).readAsBytesSync();
+    final loader = FontLoader(baseCampJapaneseFontFallback)
+      ..addFont(Future.value(ByteData.sublistView(bytes)));
+    await loader.load();
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     baseCampRifleGlobalAlignment.resetForTesting();
@@ -593,11 +603,8 @@ void main() {
     for (final value in values) {
       final text = tester.widget<Text>(find.text(value));
       expect(text.overflow, TextOverflow.visible);
-      expect(text.style?.fontFamily, baseCampPixelFontFamily);
-      expect(
-        text.style?.fontFamilyFallback,
-        contains(baseCampJapaneseFontFallback),
-      );
+      expect(text.style?.fontFamily, baseCampJapaneseFontFallback);
+      expect(text.style?.fontWeight, FontWeight.w700);
       expect(text.style?.fontSize, greaterThanOrEqualTo(8));
     }
     expect(tester.takeException(), isNull);
@@ -767,64 +774,86 @@ void main() {
           expect(textWidget.maxLines, 1);
           expect(textWidget.softWrap, isFalse);
           expect(textWidget.overflow, TextOverflow.visible);
+          expect(textWidget.style?.fontFamily, baseCampJapaneseFontFallback);
+          expect(textWidget.style?.fontWeight, FontWeight.w700);
           fontSizes[displayed] = textWidget.style!.fontSize!;
           expect(tester.takeException(), isNull, reason: displayed);
         }
 
-        expect(fontSizes['COMPLETE'], 6.5);
+        expect(fontSizes['COMPLETE'], 12);
         expect(fontSizes['NO DATA'], fontSizes['COMPLETE']);
-        expect(fontSizes['INCOMPLETE'], greaterThanOrEqualTo(5));
-        expect(fontSizes['INCOMPLETE'], lessThanOrEqualTo(6.5));
-        expect(fontSizes['INCOMPLETE'], width == 320 ? 5.5 : 6.5);
+        expect(fontSizes['INCOMPLETE'], width == 320 ? 11 : 12);
       },
     );
   }
 
-  testWidgets('two-track calories value and kcal stay on one line', (
+  testWidgets('terminal data readouts use DotGothic and stay on one line', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(320, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
-    await tester.pump(const Duration(milliseconds: 120));
-    final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
-    for (var page = 0; page < 2; page++) {
-      await tester.drag(pages, const Offset(-280, 0));
-      await tester.pump(const Duration(milliseconds: 300));
-    }
-    final sustainment = find.byKey(
-      const ValueKey('base-camp-terminal-page-sustainment'),
-    );
-    final caloriesPanel = find
-        .descendant(
-          of: sustainment,
-          matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
-        )
-        .first;
-    final readoutWidth = tester.getSize(caloriesPanel).width - 8;
+    for (final width in <double>[320, 375, 390]) {
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+      await tester.pump(const Duration(milliseconds: 120));
+      final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+      for (var page = 0; page < 2; page++) {
+        await tester.drag(pages, const Offset(-280, 0));
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+      final sustainment = find.byKey(
+        const ValueKey('base-camp-terminal-page-sustainment'),
+      );
+      final panels = find.descendant(
+        of: sustainment,
+        matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
+      );
+      final caloriesWidth = tester.getSize(panels.at(0)).width - 8;
+      final narrowWidth = tester.getSize(panels.at(2)).width - 8;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: BaseCampScreenEntry(
-          screen: BaseCampScreen.dashboard,
-          child: Scaffold(
-            body: SizedBox(
-              width: readoutWidth,
-              child: const BaseCampResponsiveReadout(
-                value: '2098 / 2500 kcal',
-                singleLine: true,
+      const cases = <(String, bool)>[
+        ('2098 / 2500 kcal', true),
+        ('9999.9 / 9999 kcal', true),
+        ('500 / 2900 ml', false),
+        ('9999 / 9999 ml', false),
+        ('999.9 kg', false),
+        ('23h 59m', false),
+        ('9999 kcal', false),
+        ('NOT CALCULATED', false),
+      ];
+      for (final (value, usesCaloriesWidth) in cases) {
+        final readoutWidth = usesCaloriesWidth ? caloriesWidth : narrowWidth;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BaseCampScreenEntry(
+              screen: BaseCampScreen.dashboard,
+              child: Scaffold(
+                body: SizedBox(
+                  width: readoutWidth,
+                  child: BaseCampResponsiveReadout(
+                    value: value,
+                    singleLine: true,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-    await tester.pump();
-    final value = tester.widget<Text>(find.text('2098 / 2500 kcal'));
-    expect(value.maxLines, 1);
-    expect(value.softWrap, isFalse);
-    expect(value.overflow, TextOverflow.visible);
-    expect(tester.takeException(), isNull);
+        );
+        await tester.pump();
+        final text = tester.widget<Text>(find.text(value));
+        final textRect = tester.getRect(find.text(value));
+        final readoutRect = tester.getRect(
+          find.byKey(const ValueKey('base-camp-lcd-readout')),
+        );
+        expect(text.maxLines, 1, reason: '$value at $width');
+        expect(text.softWrap, isFalse, reason: '$value at $width');
+        expect(text.overflow, TextOverflow.visible, reason: '$value at $width');
+        expect(text.style?.fontFamily, baseCampJapaneseFontFallback);
+        expect(text.style?.fontWeight, FontWeight.w700);
+        expect(text.style?.fontSize, greaterThanOrEqualTo(8));
+        expect(textRect.right, lessThanOrEqualTo(readoutRect.right));
+        expect(tester.takeException(), isNull, reason: '$value at $width');
+      }
+    }
   });
 
   testWidgets(
