@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/body_history/widgets/history_data_vault_background.dart';
 import 'package:or_app/features/body_history/widgets/history_feature_scaffold.dart';
@@ -63,8 +65,70 @@ void main() {
         observed!.textTheme.bodyMedium!.fontFamilyFallback,
         contains(baseCampJapaneseFontFallback),
       );
+      expect(observed!.textTheme.bodyMedium!.fontWeight, FontWeight.w700);
       expect(tester.takeException(), isNull, reason: screen.name);
     }
+  });
+
+  testWidgets('DotGothic16 w700 produces heavier Japanese raster output', (
+    tester,
+  ) async {
+    final fontBytes = File(
+      'assets/fonts/DotGothic16-Regular.ttf',
+    ).readAsBytesSync();
+    final loader = FontLoader(baseCampJapaneseFontFallback)
+      ..addFont(Future.value(ByteData.sublistView(fontBytes)));
+    await loader.load();
+
+    Future<Uint8List> raster(FontWeight weight) async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder)..drawColor(Colors.white, BlendMode.src);
+      final builder =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(
+                fontFamily: baseCampJapaneseFontFallback,
+                fontSize: 32,
+                fontWeight: weight,
+                height: 1.2,
+              ),
+            )
+            ..pushStyle(
+              ui.TextStyle(
+                color: Colors.black,
+                fontFamily: baseCampJapaneseFontFallback,
+                fontSize: 32,
+                fontWeight: weight,
+              ),
+            )
+            ..addText('作戦記録漢字');
+      final paragraph = builder.build()
+        ..layout(const ui.ParagraphConstraints(width: 240));
+      canvas.drawParagraph(paragraph, Offset.zero);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(240, 48);
+      picture.dispose();
+      final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      image.dispose();
+      return data!.buffer.asUint8List();
+    }
+
+    int inkCoverage(Uint8List bytes) {
+      var coverage = 0;
+      for (var index = 0; index < bytes.length; index += 4) {
+        coverage += 255 - bytes[index];
+      }
+      return coverage;
+    }
+
+    final rasters = await tester.runAsync(
+      () async => (
+        regular: await raster(FontWeight.w400),
+        bold: await raster(FontWeight.w700),
+      ),
+    );
+    final regularCoverage = inkCoverage(rasters!.regular);
+    final boldCoverage = inkCoverage(rasters.bold);
+    expect(boldCoverage, greaterThan(regularCoverage));
   });
 
   testWidgets('STANDARD typography is not replaced', (tester) async {

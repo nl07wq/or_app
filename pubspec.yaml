@@ -138,6 +138,10 @@ flutter:
       fonts:
         - asset: assets/fonts/PressStart2P-Regular.ttf
           weight: 400
+        # Map the same bitmap face at 700 so BASE CAMP's w700 request keeps
+        # Latin pixels unchanged while DotGothic16 receives synthetic weight.
+        - asset: assets/fonts/PressStart2P-Regular.ttf
+          weight: 700
     # DotGothic16 by Fontworks Inc., bundled under SIL Open Font License 1.1
     # (assets/fonts/licenses/OFL-DotGothic16.txt).
     - family: DotGothic16

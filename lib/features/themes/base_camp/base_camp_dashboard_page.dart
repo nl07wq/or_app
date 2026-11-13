@@ -459,60 +459,56 @@ class _TacticalTerminal extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              LayoutBuilder(
-                builder: (context, constraints) => SizedBox(
-                  height: BaseCampTerminalResponsiveGeometry.pageHeightFor(
-                    constraints.maxWidth,
-                  ),
-                  child: PageView(
-                    key: const ValueKey('base-camp-terminal-pages'),
-                    controller: pages,
-                    onPageChanged: onPageChanged,
-                    children: [
-                      _TerminalInformationPage(
-                        page: _TerminalPage.progress,
-                        title: 'OPERATION PROGRESS',
-                        subtitle: 'FORMAL RECORD STATE',
-                        onTap: () => onOpenDetail(_TerminalPage.progress),
-                        child: _ProgressPreview(
-                          snapshot: snapshot,
-                          food: food,
-                          training: training,
-                          activity: activity,
-                        ),
+              SizedBox(
+                height: 160,
+                child: PageView(
+                  key: const ValueKey('base-camp-terminal-pages'),
+                  controller: pages,
+                  onPageChanged: onPageChanged,
+                  children: [
+                    _TerminalInformationPage(
+                      page: _TerminalPage.progress,
+                      title: 'OPERATION PROGRESS',
+                      subtitle: 'FORMAL RECORD STATE',
+                      onTap: () => onOpenDetail(_TerminalPage.progress),
+                      child: _ProgressPreview(
+                        snapshot: snapshot,
+                        food: food,
+                        training: training,
+                        activity: activity,
                       ),
-                      _TerminalInformationPage(
-                        page: _TerminalPage.morning,
-                        title: 'STATUS DATA',
-                        subtitle: 'CURRENT OPERATION INPUT',
-                        onTap: () => onOpenDetail(_TerminalPage.morning),
-                        child: _MorningPreview(
-                          morning: morning,
-                          targets: snapshot.targets,
-                          training: training,
-                        ),
+                    ),
+                    _TerminalInformationPage(
+                      page: _TerminalPage.morning,
+                      title: 'STATUS DATA',
+                      subtitle: 'CURRENT OPERATION INPUT',
+                      onTap: () => onOpenDetail(_TerminalPage.morning),
+                      child: _MorningPreview(
+                        morning: morning,
+                        targets: snapshot.targets,
+                        training: training,
                       ),
-                      _TerminalInformationPage(
-                        page: _TerminalPage.sustainment,
-                        title: 'SUSTAINMENT',
-                        subtitle: 'NUTRITION · WATER · TRAINING · ACTIVITY',
-                        onTap: () => onOpenDetail(_TerminalPage.sustainment),
-                        child: _SustainmentPreview(
-                          food: food,
-                          training: training,
-                          activity: activity,
-                          targets: snapshot.targets,
-                        ),
+                    ),
+                    _TerminalInformationPage(
+                      page: _TerminalPage.sustainment,
+                      title: 'SUSTAINMENT',
+                      subtitle: 'NUTRITION · WATER · TRAINING · ACTIVITY',
+                      onTap: () => onOpenDetail(_TerminalPage.sustainment),
+                      child: _SustainmentPreview(
+                        food: food,
+                        training: training,
+                        activity: activity,
+                        targets: snapshot.targets,
                       ),
-                      _TerminalInformationPage(
-                        page: _TerminalPage.command,
-                        title: 'COMMAND / SCHEDULE',
-                        subtitle: 'INTENT AND TODAY\'S PLAN',
-                        onTap: () => onOpenDetail(_TerminalPage.command),
-                        child: _CommandPreview(snapshot: snapshot),
-                      ),
-                    ],
-                  ),
+                    ),
+                    _TerminalInformationPage(
+                      page: _TerminalPage.command,
+                      title: 'COMMAND / SCHEDULE',
+                      subtitle: 'INTENT AND TODAY\'S PLAN',
+                      onTap: () => onOpenDetail(_TerminalPage.command),
+                      child: _CommandPreview(snapshot: snapshot),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 2),
@@ -575,8 +571,8 @@ class _CornerStatus extends StatelessWidget {
       'LINK',
       style: TextStyle(
         color: Color(0xffa7d84c),
-        fontSize: 8,
-        letterSpacing: .4,
+        fontSize: 10,
+        letterSpacing: .8,
         fontWeight: FontWeight.bold,
       ),
     ),
@@ -822,6 +818,7 @@ class _BreathingSoldierCompartmentState
         child: LayoutBuilder(
           builder: (context, constraints) => Center(
             child: SizedBox(
+              key: const ValueKey('base-camp-soldier-display-window'),
               width: constraints.maxWidth - 8,
               height: constraints.maxHeight - 8,
               child: Stack(
@@ -900,6 +897,17 @@ class _BreathingSoldierCompartmentState
                                 );
                           return BaseCampBreathingSoldier(dy: dy);
                         },
+                      ),
+                    ),
+                  ),
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        key: ValueKey('base-camp-soldier-lcd-grain'),
+                        painter: BaseCampLcdGrainPainter(
+                          negative: true,
+                          alpha: .05,
+                        ),
                       ),
                     ),
                   ),
@@ -1106,6 +1114,7 @@ class _StatusCompartment extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             SizedBox(
+              key: const ValueKey('base-camp-ecg-display-window'),
               height: 27,
               width: double.infinity,
               child: DecoratedBox(
@@ -1124,6 +1133,14 @@ class _StatusCompartment extends StatelessWidget {
                             status: status,
                             showStatusLabel: false,
                           ),
+                        ),
+                      ),
+                    ),
+                    const Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          key: ValueKey('base-camp-ecg-lcd-grain'),
+                          painter: BaseCampLcdGrainPainter(negative: true),
                         ),
                       ),
                     ),
@@ -1333,11 +1350,22 @@ class _DotMatrixClockState extends State<_DotMatrixClock>
     key: const ValueKey('base-camp-dot-matrix-clock'),
     height: 14,
     width: double.infinity,
-    child: CustomPaint(
-      painter: _DotMatrixClockPainter(
-        text: baseCampClockText(_now),
-        changedDigits: _changedDigits,
-      ),
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        CustomPaint(
+          painter: _DotMatrixClockPainter(
+            text: baseCampClockText(_now),
+            changedDigits: _changedDigits,
+          ),
+        ),
+        const IgnorePointer(
+          child: CustomPaint(
+            key: ValueKey('base-camp-clock-lcd-grain'),
+            painter: BaseCampLcdGrainPainter(negative: true),
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -1471,18 +1499,19 @@ class _IndustrialLcdPanel extends StatelessWidget {
 
 @visibleForTesting
 class BaseCampLcdGrainPainter extends CustomPainter {
-  const BaseCampLcdGrainPainter({required this.negative});
+  const BaseCampLcdGrainPainter({required this.negative, this.alpha = opacity});
 
   static const double pitch = 4;
   static const double opacity = .08;
 
   final bool negative;
+  final double alpha;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = (negative ? _LcdPalette.light : _LcdPalette.darkest).withValues(
-        alpha: opacity,
+        alpha: alpha,
       )
       ..strokeWidth = .7;
     for (double x = pitch; x < size.width; x += pitch) {
@@ -1495,7 +1524,7 @@ class BaseCampLcdGrainPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BaseCampLcdGrainPainter oldDelegate) =>
-      oldDelegate.negative != negative;
+      oldDelegate.negative != negative || oldDelegate.alpha != alpha;
 }
 
 class _TerminalInformationPage extends StatelessWidget {
@@ -1708,6 +1737,7 @@ class _SustainmentGrid extends StatelessWidget {
     children: [
       _Metric('CALORIES', calories),
       _Metric('PROTEIN', protein),
+      const SizedBox.shrink(key: ValueKey('base-camp-sustainment-empty-cell')),
       _Metric('WATER', water),
       _Metric('TRAINING', training),
       _Metric('ACTIVITY', activity),
@@ -1923,26 +1953,20 @@ class _LcdGrid extends StatelessWidget {
   final double aspectRatio;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final resolvedColumns = BaseCampTerminalResponsiveGeometry.columnsFor(
-        constraints.maxWidth,
-        preferred: columns,
-      );
-      final rows = (children.length / resolvedColumns).ceil();
-      final availableHeight =
-          constraints.maxHeight - _InstrumentGeometry.gap * (rows - 1);
-      final itemHeight = availableHeight / rows;
-      return GridView.count(
-        crossAxisCount: resolvedColumns,
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: SizedBox(
+      height: _InstrumentGeometry.gridHeight,
+      child: GridView.count(
+        crossAxisCount: columns,
         mainAxisSpacing: _InstrumentGeometry.gap,
         crossAxisSpacing: _InstrumentGeometry.gap,
         childAspectRatio: aspectRatio,
-        mainAxisExtent: itemHeight,
+        mainAxisExtent: _InstrumentGeometry.panelHeight,
         physics: const NeverScrollableScrollPhysics(),
         children: children,
-      );
-    },
+      ),
+    ),
   );
 }
 
@@ -1968,6 +1992,7 @@ class _LcdProgressCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         key: const ValueKey('base-camp-instrument-panel'),
+        height: _InstrumentGeometry.panelHeight,
         padding: const EdgeInsets.symmetric(
           horizontal: _InstrumentGeometry.outerHorizontalPadding,
           vertical: _InstrumentGeometry.outerVerticalPadding,
@@ -2011,7 +2036,7 @@ class _LcdProgressCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: _InstrumentGeometry.labelGap),
-            Expanded(child: BaseCampResponsiveReadout(value: value)),
+            BaseCampResponsiveReadout(value: value),
           ],
         ),
       ),
@@ -2055,6 +2080,7 @@ class _Metric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-instrument-panel'),
+    height: _InstrumentGeometry.panelHeight,
     padding: const EdgeInsets.symmetric(
       horizontal: _InstrumentGeometry.outerHorizontalPadding,
       vertical: _InstrumentGeometry.outerVerticalPadding,
@@ -2085,7 +2111,7 @@ class _Metric extends StatelessWidget {
           ),
         ),
         const SizedBox(height: _InstrumentGeometry.labelGap),
-        Expanded(child: BaseCampResponsiveReadout(value: value)),
+        BaseCampResponsiveReadout(value: value),
       ],
     ),
   );
@@ -2103,6 +2129,7 @@ class BaseCampResponsiveReadout extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-lcd-readout'),
+    height: _InstrumentGeometry.lcdHeight,
     alignment: Alignment.centerLeft,
     padding: const EdgeInsets.symmetric(
       horizontal: _InstrumentGeometry.lcdHorizontalPadding,
@@ -2123,21 +2150,48 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           ),
         );
         final scaler = MediaQuery.textScalerOf(context);
-        final painter = TextPainter(
-          text: TextSpan(text: value, style: base),
+        var fontSize = baseFontSize;
+        var wraps = false;
+        while (fontSize > minimumFontSize) {
+          final measured = TextPainter(
+            text: TextSpan(
+              text: value,
+              style: base.copyWith(fontSize: fontSize),
+            ),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+            textScaler: scaler,
+          )..layout(maxWidth: constraints.maxWidth);
+          if (!measured.didExceedMaxLines) break;
+          fontSize -= .25;
+        }
+        final singleLine = TextPainter(
+          text: TextSpan(
+            text: value,
+            style: base.copyWith(fontSize: fontSize),
+          ),
           textDirection: TextDirection.ltr,
           maxLines: 1,
           textScaler: scaler,
-        )..layout(maxWidth: double.infinity);
-        final ratio =
-            painter.width <= constraints.maxWidth || painter.width == 0
-            ? 1.0
-            : constraints.maxWidth / painter.width;
-        final fontSize = (baseFontSize * ratio).clamp(
-          minimumFontSize,
-          baseFontSize,
-        );
-        final wraps = ratio < minimumFontSize / baseFontSize;
+        )..layout(maxWidth: constraints.maxWidth);
+        if (singleLine.didExceedMaxLines) {
+          wraps = true;
+          final wrapped = TextPainter(
+            text: TextSpan(
+              text: value,
+              style: base.copyWith(fontSize: minimumFontSize, height: 1.05),
+            ),
+            textDirection: TextDirection.ltr,
+            maxLines: 2,
+            textScaler: scaler,
+          )..layout(maxWidth: constraints.maxWidth);
+          assert(
+            !wrapped.didExceedMaxLines,
+            'Required LCD value does not fit the fixed terminal card: $value '
+            '(${constraints.maxWidth}x${constraints.maxHeight})',
+          );
+          fontSize = minimumFontSize;
+        }
         return Text(
           key: const ValueKey('base-camp-lcd-readout-text'),
           value,
@@ -2156,28 +2210,18 @@ class BaseCampResponsiveReadout extends StatelessWidget {
 }
 
 abstract final class _InstrumentGeometry {
+  static const panelHeight = 53.0;
+  static const lcdHeight = 25.0;
   static const gap = 6.0;
-  static const outerHorizontalPadding = 6.0;
+  static const gridHeight = panelHeight * 2 + gap;
+  static const outerHorizontalPadding = 4.0;
   static const outerVerticalPadding = 4.0;
   static const labelHeight = 14.0;
   static const labelFontSize = 9.0;
   static const labelGap = 3.0;
-  static const lcdHorizontalPadding = 6.0;
+  static const lcdHorizontalPadding = 1.0;
   static const lcdVerticalPadding = 2.0;
   static const lampOuterDiameter = 12.0;
-}
-
-@visibleForTesting
-abstract final class BaseCampTerminalResponsiveGeometry {
-  static const double narrowContentWidth = 360;
-  static const double compactPageHeight = 220;
-  static const double regularPageHeight = 160;
-
-  static double pageHeightFor(double contentWidth) =>
-      contentWidth < narrowContentWidth ? compactPageHeight : regularPageHeight;
-
-  static int columnsFor(double contentWidth, {required int preferred}) =>
-      contentWidth < narrowContentWidth ? math.min(2, preferred) : preferred;
 }
 
 class _PageIndicator extends StatelessWidget {

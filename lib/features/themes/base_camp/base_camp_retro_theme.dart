@@ -47,7 +47,7 @@ abstract final class BaseCampRetroTheme {
     fontFamily: baseCampPixelFontFamily,
     fontFamilyFallback: const <String>[baseCampJapaneseFontFallback],
     fontSize: size,
-    fontWeight: FontWeight.w400,
+    fontWeight: FontWeight.w700,
     height: height,
     letterSpacing: 0,
   );
@@ -60,7 +60,7 @@ abstract final class BaseCampRetroTheme {
     fontFamily: baseCampPixelFontFamily,
     fontFamilyFallback: const <String>[baseCampJapaneseFontFallback],
     fontSize: size,
-    fontWeight: FontWeight.w400,
+    fontWeight: FontWeight.w700,
     height: height,
   );
 }

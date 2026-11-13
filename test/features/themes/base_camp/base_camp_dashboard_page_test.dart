@@ -71,6 +71,53 @@ void main() {
     expect(grainPaint.painter, isA<BaseCampLcdGrainPainter>());
     expect(BaseCampLcdGrainPainter.pitch, 4);
     expect(BaseCampLcdGrainPainter.opacity, .08);
+    for (final surface in const ['clock', 'ecg', 'soldier']) {
+      final overlay = find.byKey(ValueKey('base-camp-$surface-lcd-grain'));
+      expect(overlay, findsOneWidget);
+      final paint = tester.widget<CustomPaint>(overlay);
+      final painter = paint.painter! as BaseCampLcdGrainPainter;
+      expect(painter.alpha, surface == 'soldier' ? .05 : .08);
+      final pointerGuard = find
+          .ancestor(of: overlay, matching: find.byType(IgnorePointer))
+          .first;
+      expect(tester.widget<IgnorePointer>(pointerGuard).ignoring, isTrue);
+      expect(
+        painter.shouldRepaint(
+          BaseCampLcdGrainPainter(
+            negative: painter.negative,
+            alpha: painter.alpha,
+          ),
+        ),
+        isFalse,
+      );
+    }
+    expect(
+      tester.getSize(find.byKey(const ValueKey('base-camp-clock-lcd-grain'))),
+      tester.getSize(find.byKey(const ValueKey('base-camp-dot-matrix-clock'))),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('base-camp-ecg-lcd-grain'))),
+      tester.getSize(
+        find.byKey(const ValueKey('base-camp-ecg-display-window')),
+      ),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('base-camp-soldier-lcd-grain'))),
+      tester.getSize(
+        find.byKey(const ValueKey('base-camp-soldier-display-window')),
+      ),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('base-camp-map')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint &&
+              widget.painter is BaseCampLcdGrainPainter,
+        ),
+      ),
+      findsNothing,
+    );
     expect(find.text('COMMAND TERMINAL'), findsOneWidget);
     expect(find.textContaining('BASE CAMP //'), findsNothing);
     expect(find.byKey(const ValueKey('base-camp-map')), findsOneWidget);
@@ -200,7 +247,8 @@ void main() {
         final mapViewport = tester.getRect(
           find.byKey(const ValueKey('base-camp-home-map-viewport')),
         );
-        expect(terminal.height, closeTo(374.8, .2));
+        expect(terminal.height, closeTo(317.8, .2));
+        expect(mapRegion.top - terminal.bottom, closeTo(6, .1));
         expect(mapRegion.width, closeTo(size.width - 24, .1));
         expect(mapRegion.width, closeTo(mapRegion.height, .1));
         expect(mapViewport.width, closeTo(mapViewport.height, .1));
@@ -236,7 +284,119 @@ void main() {
 
       expect(heading.top, greaterThanOrEqualTo(terminal.top + 15));
       expect(terminal.bottom - indicator.bottom, closeTo(9.4, .2));
-      expect(terminal.height, closeTo(width < 430 ? 374.8 : 314.8, .2));
+      expect(terminal.height, closeTo(317.8, .2));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in <double>[320, 375, 390]) {
+    testWidgets('terminal restores the original three-column order at $width', (
+      tester,
+    ) async {
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+      await tester.pump(const Duration(milliseconds: 300));
+      final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+
+      List<Rect> panelRects(String pageName) {
+        final page = find.byKey(ValueKey('base-camp-terminal-page-$pageName'));
+        return find
+            .descendant(
+              of: page,
+              matching: find.byKey(
+                const ValueKey('base-camp-instrument-panel'),
+              ),
+            )
+            .evaluate()
+            .map(
+              (element) => tester.getRect(
+                find.byElementPredicate((candidate) => candidate == element),
+              ),
+            )
+            .toList(growable: false);
+      }
+
+      List<String> panelLabels(String pageName) {
+        final page = find.byKey(ValueKey('base-camp-terminal-page-$pageName'));
+        return find
+            .descendant(
+              of: page,
+              matching: find.byKey(
+                const ValueKey('base-camp-instrument-panel'),
+              ),
+            )
+            .evaluate()
+            .map((element) {
+              final panel = find.byElementPredicate(
+                (candidate) => candidate == element,
+              );
+              return tester
+                  .widgetList<Text>(
+                    find.descendant(of: panel, matching: find.byType(Text)),
+                  )
+                  .first
+                  .data!;
+            })
+            .toList(growable: false);
+      }
+
+      void expectTwoRows(List<Rect> rects) {
+        expect(rects.length, greaterThanOrEqualTo(5));
+        expect(rects[0].top, closeTo(rects[1].top, .01));
+        expect(rects[1].top, closeTo(rects[2].top, .01));
+        expect(rects[3].top, greaterThan(rects[0].bottom));
+        expect(rects[3].left, closeTo(rects[0].left, .01));
+        expect(rects[4].left, closeTo(rects[1].left, .01));
+        for (final rect in rects) {
+          expect(rect.height, closeTo(53, .01));
+        }
+      }
+
+      expect(panelLabels('progress'), [
+        'STATUS',
+        'FOOD',
+        'TRAINING',
+        'ACTIVITY',
+        'BRIEF',
+        'DEBRIEF',
+      ]);
+      expectTwoRows(panelRects('progress'));
+
+      await tester.drag(pages, const Offset(-280, 0));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(panelLabels('morning'), [
+        'WEIGHT',
+        'SLEEP',
+        'BASE BURN',
+        'EXERCISE',
+        'TOTAL BURN',
+      ]);
+      expectTwoRows(panelRects('morning'));
+
+      await tester.drag(pages, const Offset(-280, 0));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(panelLabels('sustainment'), [
+        'CALORIES',
+        'PROTEIN',
+        'WATER',
+        'TRAINING',
+        'ACTIVITY',
+      ]);
+      final sustainment = panelRects('sustainment');
+      expect(sustainment.length, 5);
+      expect(sustainment[0].top, closeTo(sustainment[1].top, .01));
+      expect(sustainment[2].top, greaterThan(sustainment[0].bottom));
+      expect(sustainment[2].left, closeTo(sustainment[0].left, .01));
+      expect(sustainment[3].left, closeTo(sustainment[1].left, .01));
+      for (final rect in sustainment) {
+        expect(rect.height, closeTo(53, .01));
+      }
+      final empty = tester.getRect(
+        find.byKey(const ValueKey('base-camp-sustainment-empty-cell')),
+      );
+      expect(empty.top, closeTo(sustainment[0].top, .01));
+      expect(empty.left, greaterThan(sustainment[1].right));
       expect(tester.takeException(), isNull);
     });
   }
@@ -309,7 +469,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('progress reflows to an equal two-column grid on iPhone', (
+  testWidgets('progress preserves the original three-column grid on iPhone', (
     tester,
   ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -325,7 +485,7 @@ void main() {
     );
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 2);
+    expect(delegate.crossAxisCount, 3);
     expect(delegate.crossAxisSpacing, 6);
     expect(delegate.mainAxisSpacing, 6);
   });
@@ -516,10 +676,10 @@ void main() {
   });
 
   testWidgets(
-    'instrument panels retain bounded responsive geometry on mobile widths',
+    'instrument panels retain fixed original geometry on mobile widths',
     (tester) async {
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      for (final width in [320.0, 375.0, 430.0]) {
+      for (final width in [320.0, 375.0, 390.0, 430.0]) {
         await tester.binding.setSurfaceSize(Size(width, 844));
         await tester.pumpWidget(
           const MaterialApp(home: BaseCampDashboardPage()),
@@ -551,7 +711,7 @@ void main() {
           heights.reduce(math.max) - heights.reduce(math.min),
           lessThan(.01),
         );
-        expect(panelRects.first.height, greaterThanOrEqualTo(50));
+        expect(panelRects.first.height, closeTo(53, .01));
         for (final readout in readouts.evaluate()) {
           final readoutRect = tester.getRect(
             find.byElementPredicate((element) => element == readout),
@@ -571,7 +731,7 @@ void main() {
                 ),
             isTrue,
           );
-          expect(readoutRect.height, greaterThanOrEqualTo(24));
+          expect(readoutRect.height, closeTo(25, .01));
         }
         expect(tester.takeException(), isNull);
       }
