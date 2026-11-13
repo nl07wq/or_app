@@ -1683,7 +1683,10 @@ class _MorningPreview extends StatelessWidget {
       _Metric('WEIGHT', _weightText(morning)),
       _Metric('SLEEP', _sleepText(morning)),
       _Metric('BASE BURN', _kcalText(targets?.estimatedBaseBurnKcal)),
-      _Metric('EXERCISE', _kcalText(training?.trainingEstimatedCaloriesKcal)),
+      _Metric(
+        'EXERCISE',
+        baseCampExerciseDisplayText(training?.trainingEstimatedCaloriesKcal),
+      ),
       _Metric('TOTAL BURN', _kcalText(targets?.estimatedTotalBurnKcal)),
     ],
   );
@@ -2333,13 +2336,16 @@ class BaseCampResponsiveReadout extends StatelessWidget {
 
   static const double statusDataFontSize = 10;
   static const double sustainmentFontSize = 10;
-  static const double waterFontSize = 7;
-  static const double waterUnitFontSize = 5;
+  static const double waterStateFontSize = 7;
+  static const double waterNumericFontSize = 9;
+  static const double waterUnitFontSize = 7;
   static const double waterSeparatorSpaceFontSize = 3;
   static const double minimumFontSize = 5;
   static const double fontSizeStep = .25;
   static const double letterSpacing = -1;
   static final RegExp _unitPattern = RegExp(r'(kcal|steps|kg|ml|g|h|m)');
+  static final RegExp _waterReadoutPattern = RegExp(r'^(.+?)\s+(ml)$');
+  static final RegExp _waterRangePattern = RegExp(r'^(\S+)\s+/\s+(\S+)$');
 
   final String value;
   final bool singleLine;
@@ -2374,8 +2380,20 @@ class BaseCampResponsiveReadout extends StatelessWidget {
         final maximumFontSize = switch (profile) {
           BaseCampReadoutProfile.statusData => statusDataFontSize,
           BaseCampReadoutProfile.sustainment => sustainmentFontSize,
-          BaseCampReadoutProfile.water => waterFontSize,
+          BaseCampReadoutProfile.water => waterStateFontSize,
         };
+        final water = profile == BaseCampReadoutProfile.water
+            ? _waterReadoutPattern.firstMatch(value)
+            : null;
+        if (water != null) {
+          return _buildWaterReadout(
+            context,
+            numericValue: water.group(1)!,
+            unit: water.group(2)!,
+            base: base,
+            constraints: constraints,
+          );
+        }
         var fontSize = maximumFontSize;
         var wraps = false;
         while (fontSize > minimumFontSize &&
@@ -2396,13 +2414,6 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           constraints,
           scaler,
           profile,
-        );
-        assert(
-          profile != BaseCampReadoutProfile.water ||
-              !value.contains('ml') ||
-              fontSize == waterFontSize,
-          'WATER must fit at the approved 7px / 5px sizes: $value '
-          '(${constraints.maxWidth}x${constraints.maxHeight})',
         );
         if (!fitsSingleLine && !singleLine) {
           wraps = true;
@@ -2468,35 +2479,106 @@ class BaseCampResponsiveReadout extends StatelessWidget {
         painter.height <= constraints.maxHeight;
   }
 
+  static Widget _buildWaterReadout(
+    BuildContext context, {
+    required String numericValue,
+    required String unit,
+    required TextStyle base,
+    required BoxConstraints constraints,
+  }) {
+    var fontSize = waterNumericFontSize;
+    var span = _buildWaterNumericSpan(numericValue, base, fontSize);
+    while (fontSize > minimumFontSize &&
+        !_fitsWaterNumericLine(span, constraints.maxWidth)) {
+      fontSize -= fontSizeStep;
+      span = _buildWaterNumericSpan(numericValue, base, fontSize);
+    }
+    assert(
+      _fitsWaterNumericLine(span, constraints.maxWidth),
+      'WATER numeric line does not fit: $numericValue at $fontSize '
+      'in ${constraints.maxWidth}px',
+    );
+    final ink = _LcdColors.ink(context);
+    span = _buildWaterNumericSpan(
+      numericValue,
+      base.copyWith(color: ink),
+      fontSize,
+    );
+    return Column(
+      key: const ValueKey('base-camp-water-two-line-readout'),
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text.rich(
+          span,
+          key: const ValueKey('base-camp-water-numeric-line'),
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          textScaler: TextScaler.noScaling,
+          style: span.style,
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            unit,
+            key: const ValueKey('base-camp-water-unit-line'),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            textScaler: TextScaler.noScaling,
+            style: base.copyWith(
+              color: ink,
+              fontSize: waterUnitFontSize,
+              height: 1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static bool _fitsWaterNumericLine(TextSpan span, double availableWidth) {
+    final painter = TextPainter(
+      text: span,
+      textDirection: TextDirection.ltr,
+      textScaler: TextScaler.noScaling,
+      maxLines: 1,
+    )..layout();
+    return painter.width <= availableWidth;
+  }
+
+  static TextSpan _buildWaterNumericSpan(
+    String value,
+    TextStyle style,
+    double fontSize,
+  ) {
+    final numericStyle = style.copyWith(fontSize: fontSize, height: 1);
+    final range = _waterRangePattern.firstMatch(value);
+    if (range == null) {
+      return TextSpan(text: value, style: numericStyle);
+    }
+    final separatorSpaceStyle = numericStyle.copyWith(
+      fontSize: waterSeparatorSpaceFontSize,
+    );
+    return TextSpan(
+      style: numericStyle,
+      children: [
+        TextSpan(text: range.group(1)),
+        TextSpan(text: ' ', style: separatorSpaceStyle),
+        const TextSpan(text: '/'),
+        TextSpan(text: ' ', style: separatorSpaceStyle),
+        TextSpan(text: range.group(2)),
+      ],
+    );
+  }
+
   static TextSpan _buildReadoutSpan(
     String value,
     TextStyle style,
     double fontSize,
     BaseCampReadoutProfile profile,
   ) {
-    if (profile == BaseCampReadoutProfile.water) {
-      final water = RegExp(r'^(\S+)\s+/\s+(\S+)(\s+)(ml)$').firstMatch(value);
-      if (water != null) {
-        final separatorSpaceStyle = style.copyWith(
-          fontSize: waterSeparatorSpaceFontSize,
-        );
-        return TextSpan(
-          style: style.copyWith(fontSize: fontSize),
-          children: [
-            TextSpan(text: water.group(1)),
-            TextSpan(text: ' ', style: separatorSpaceStyle),
-            const TextSpan(text: '/'),
-            TextSpan(text: ' ', style: separatorSpaceStyle),
-            TextSpan(text: water.group(2)),
-            TextSpan(text: water.group(3)),
-            TextSpan(
-              text: water.group(4),
-              style: style.copyWith(fontSize: waterUnitFontSize),
-            ),
-          ],
-        );
-      }
-    }
     final unitFontSize = profile == BaseCampReadoutProfile.water
         ? waterUnitFontSize
         : fontSize - 2;
@@ -2957,6 +3039,11 @@ String _sleepText(MorningFact? fact) {
 
 String _kcalText(double? value) =>
     value == null ? 'NOT CALCULATED' : '${value.toStringAsFixed(0)} kcal';
+
+@visibleForTesting
+String baseCampExerciseDisplayText(double? value) =>
+    value == null ? 'NO DATA' : _kcalText(value);
+
 String _rangeText(
   double? current,
   DynamicRangeTarget? target, {

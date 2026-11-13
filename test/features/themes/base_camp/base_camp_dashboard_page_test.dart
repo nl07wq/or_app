@@ -703,6 +703,45 @@ void main() {
     expect(baseCampProgressDisplayValue('1 / 3'), '1 / 3');
   });
 
+  test('EXERCISE presentation renames only the uncalculated display', () {
+    expect(baseCampExerciseDisplayText(null), 'NO DATA');
+    expect(baseCampExerciseDisplayText(275.4), '275 kcal');
+  });
+
+  testWidgets('STATUS DATA shows NO DATA only in the EXERCISE card', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 120));
+    final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+    await tester.drag(pages, const Offset(-280, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    final statusPage = find.byKey(
+      const ValueKey('base-camp-terminal-page-morning'),
+    );
+    final panels = find.descendant(
+      of: statusPage,
+      matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
+    );
+    final exercise = panels.at(3);
+
+    expect(
+      find.descendant(of: exercise, matching: find.text('NO DATA')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: exercise, matching: find.text('NOT CALCULATED')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: statusPage, matching: find.text('NOT CALCULATED')),
+      findsWidgets,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in <double>[320, 375, 390]) {
     testWidgets(
       'progress lamp precedes every fitted status at ${width.toInt()}px',
@@ -857,11 +896,65 @@ void main() {
           ),
         );
         await tester.pump();
-        final text = tester.widget<Text>(find.text(value));
-        final textRect = tester.getRect(find.text(value));
         final readoutRect = tester.getRect(
           find.byKey(const ValueKey('base-camp-lcd-readout')),
         );
+        if (profile == BaseCampReadoutProfile.water) {
+          final numericFinder = find.byKey(
+            const ValueKey('base-camp-water-numeric-line'),
+          );
+          final unitFinder = find.byKey(
+            const ValueKey('base-camp-water-unit-line'),
+          );
+          final numeric = tester.widget<Text>(numericFinder);
+          final unit = tester.widget<Text>(unitFinder);
+          final numericRect = tester.getRect(numericFinder);
+          final unitRect = tester.getRect(unitFinder);
+          final span = numeric.textSpan! as TextSpan;
+          final painter = TextPainter(
+            text: span,
+            textDirection: TextDirection.ltr,
+            textScaler: TextScaler.noScaling,
+            maxLines: 1,
+          )..layout();
+          final availableWidth = readoutWidth - 4;
+          expect(
+            availableWidth,
+            closeTo(switch (width) {
+              320 => 72.4,
+              375 => 90.73333333333333,
+              _ => 95.73333333333333,
+            }, .001),
+          );
+          expect(numeric.maxLines, 1, reason: '$value at $width');
+          expect(numeric.softWrap, isFalse, reason: '$value at $width');
+          expect(numeric.overflow, TextOverflow.visible);
+          expect(numeric.style?.fontFamily, baseCampPixelFontFamily);
+          expect(numeric.style?.fontWeight, FontWeight.w700);
+          expect(numeric.style?.letterSpacing, -1);
+          final isShortValue = value.startsWith('500 ');
+          final expectedFontSize = width == 320 && !isShortValue ? 8.5 : 9.0;
+          final expectedWidth = isShortValue
+              ? 68.0
+              : width == 320
+              ? 71.5
+              : 76.0;
+          expect(numeric.style?.fontSize, expectedFontSize);
+          expect(painter.width, expectedWidth);
+          expect(painter.width, lessThanOrEqualTo(availableWidth));
+          expect(unit.data, 'ml');
+          expect(unit.style?.fontFamily, baseCampPixelFontFamily);
+          expect(unit.style?.fontSize, 7);
+          expect(unit.style?.letterSpacing, -1);
+          expect(unitRect.right, closeTo(readoutRect.right - 2, .01));
+          expect(numericRect.top, greaterThanOrEqualTo(readoutRect.top + 2));
+          expect(unitRect.bottom, lessThanOrEqualTo(readoutRect.bottom - 2));
+          expect(numericRect.bottom, lessThanOrEqualTo(unitRect.top));
+          expect(tester.takeException(), isNull, reason: '$value at $width');
+          continue;
+        }
+        final text = tester.widget<Text>(find.text(value));
+        final textRect = tester.getRect(find.text(value));
         expect(text.maxLines, 1, reason: '$value at $width');
         expect(text.softWrap, isFalse, reason: '$value at $width');
         expect(text.overflow, TextOverflow.visible, reason: '$value at $width');
@@ -870,56 +963,7 @@ void main() {
         expect(text.style?.letterSpacing, -1);
         expect(text.style?.fontSize, greaterThanOrEqualTo(5));
         final span = text.textSpan! as TextSpan;
-        if (profile == BaseCampReadoutProfile.water) {
-          expect(text.style?.fontSize, 7);
-          final unit = span.children!.whereType<TextSpan>().last;
-          expect(unit.text, 'ml');
-          expect(unit.style?.fontSize, 5);
-          expect(unit.style?.letterSpacing, -1);
-          final painter = TextPainter(
-            text: span,
-            textDirection: TextDirection.ltr,
-            textScaler: TextScaler.noScaling,
-            maxLines: 1,
-          )..layout();
-          // One logical pixel of explicit padding plus the one-pixel border
-          // on each side leaves four fewer pixels for the text painter.
-          final availableWidth = readoutWidth - 4;
-          expect(
-            availableWidth,
-            closeTo(switch (width) {
-              320 => 72.4,
-                375 => 90.73333333333333,
-                _ => 95.73333333333333,
-            }, .001),
-          );
-          final slash = value.indexOf('/');
-          final currentBox = painter
-              .getBoxesForSelection(
-                TextSelection(baseOffset: 0, extentOffset: slash - 1),
-              )
-              .single;
-          final slashBox = painter
-              .getBoxesForSelection(
-                TextSelection(baseOffset: slash, extentOffset: slash + 1),
-              )
-              .single;
-          final targetBox = painter
-              .getBoxesForSelection(
-                TextSelection(
-                  baseOffset: slash + 2,
-                  extentOffset: value.indexOf(' ml'),
-                ),
-              )
-              .single;
-          final originalWidth = value.startsWith('500 ') ? 74.0 : 80.0;
-          final expectedWidth = value.startsWith('500 ') ? 66.0 : 72.0;
-          expect(painter.width, expectedWidth);
-          expect(originalWidth - painter.width, 8.0);
-          expect(painter.width, lessThanOrEqualTo(availableWidth));
-          expect(slashBox.left - currentBox.right, 2.0);
-          expect(targetBox.left - slashBox.right, 2.0);
-        } else if (RegExp(r'(kcal|steps|kg|g|h|m)$').hasMatch(value)) {
+        if (RegExp(r'(kcal|steps|kg|g|h|m)$').hasMatch(value)) {
           final unit = span.children!.whereType<TextSpan>().last;
           expect(
             unit.style?.fontSize,
