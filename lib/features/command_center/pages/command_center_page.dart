@@ -241,15 +241,13 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
     imageAsset: baseCampCommandCenterEntryAsset,
     actions: [
       BaseCampFacilityEntryAction(
-        description: '週次・月次・年次の作戦レポートを作成・確認します。',
+        description: '当日の作戦状況を確認し、日次運用を進めます。',
         child: OperationButton(
-          icon: Icons.assessment_outlined,
-          text: 'PERIODIC REPORT',
+          icon: Icons.radar_outlined,
+          text: 'DAILY COMMAND',
           frostedGradient: true,
-          onPressed: () => _openBaseCampSection(
-            context,
-            CommandCenterSection.periodicReport,
-          ),
+          onPressed: () =>
+              _openBaseCampSection(context, CommandCenterSection.dailyCommand),
         ),
       ),
       BaseCampFacilityEntryAction(
@@ -263,13 +261,15 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
         ),
       ),
       BaseCampFacilityEntryAction(
-        description: '当日の作戦状況を確認し、日次運用を進めます。',
+        description: '週次・月次・年次の作戦レポートを作成・確認します。',
         child: OperationButton(
-          icon: Icons.radar_outlined,
-          text: 'DAILY COMMAND',
+          icon: Icons.assessment_outlined,
+          text: 'PERIODIC REPORT',
           frostedGradient: true,
-          onPressed: () =>
-              _openBaseCampSection(context, CommandCenterSection.dailyCommand),
+          onPressed: () => _openBaseCampSection(
+            context,
+            CommandCenterSection.periodicReport,
+          ),
         ),
       ),
       BaseCampFacilityEntryAction(

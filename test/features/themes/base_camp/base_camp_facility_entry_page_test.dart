@@ -123,6 +123,17 @@ void main() {
     expect(find.text('DATA CENTER'), findsOneWidget);
     expect(find.byType(CommandCenterAmbientProcessing), findsNothing);
 
+    final orderedButtons = tester
+        .widgetList<OperationButton>(find.byType(OperationButton))
+        .map((button) => button.text)
+        .toList(growable: false);
+    expect(orderedButtons, [
+      'DAILY COMMAND',
+      'BRIEF / DEBRIEF',
+      'PERIODIC REPORT',
+      'DATA CENTER',
+    ]);
+
     final dataCenterButton = tester.widget<OperationButton>(
       find.widgetWithText(OperationButton, 'DATA CENTER'),
     );
@@ -136,6 +147,159 @@ void main() {
     );
     expect(find.byType(CommandCenterAmbientProcessing), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'facility image stays fixed while only the safe-area menu scrolls',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final actions = List<BaseCampFacilityEntryAction>.generate(
+        5,
+        (index) => BaseCampFacilityEntryAction(
+          description: 'MENU DESCRIPTION $index',
+          child: OperationButton(text: 'MENU $index', onPressed: () {}),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 480),
+              padding: EdgeInsets.only(bottom: 34),
+            ),
+            child: BaseCampFacilityEntryPage(
+              title: 'TEST',
+              imageAsset: baseCampStatusEntryAsset,
+              actions: actions,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final image = find.byKey(const ValueKey('base-camp-facility-image-TEST'));
+      final menu = find.byKey(
+        const ValueKey('base-camp-test-facility-menu-scroll'),
+      );
+      final scrollable = find.descendant(
+        of: menu,
+        matching: find.byType(Scrollable),
+      );
+      final initialImageRect = tester.getRect(image);
+      final position = tester.state<ScrollableState>(scrollable).position;
+      expect(position.pixels, 0);
+      expect(position.maxScrollExtent, greaterThan(0));
+
+      await tester.drag(image, const Offset(0, -120));
+      await tester.pump();
+      expect(position.pixels, 0);
+      expect(tester.getRect(image), initialImageRect);
+
+      await tester.drag(menu, const Offset(0, -120));
+      await tester.pump();
+      expect(position.pixels, greaterThan(0));
+      expect(tester.getRect(image), initialImageRect);
+
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pump();
+      final lastButton = find.widgetWithText(OperationButton, 'MENU 4');
+      expect(lastButton, findsOneWidget);
+      expect(tester.getRect(lastButton).bottom, lessThanOrEqualTo(480 - 34));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('all five entries use the isolated facility menu scroll', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 480));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final cases = <(BaseCampScreen, Widget, String)>[
+      (BaseCampScreen.morning, const MorningPage(), 'status'),
+      (BaseCampScreen.activity, const ActivityPage(), 'activity'),
+      (BaseCampScreen.food, const FoodPage(), 'food'),
+      (BaseCampScreen.training, const TrainingPage(), 'training'),
+      (
+        BaseCampScreen.commandCenter,
+        const CommandCenterPage(),
+        'command center',
+      ),
+    ];
+
+    for (final (screen, page, title) in cases) {
+      await _pumpBaseCamp(tester, screen, page);
+      final image = find.byKey(
+        ValueKey('base-camp-facility-image-${title.toUpperCase()}'),
+      );
+      final menu = find.byKey(
+        ValueKey('base-camp-$title-facility-menu-scroll'),
+      );
+      expect(image, findsOneWidget, reason: title);
+      expect(menu, findsOneWidget, reason: title);
+      final imageRect = tester.getRect(image);
+      final scrollable = find.descendant(
+        of: menu,
+        matching: find.byType(Scrollable),
+      );
+      final position = tester.state<ScrollableState>(scrollable).position;
+      expect(position.pixels, 0, reason: title);
+      expect(imageRect.width, closeTo(288, .1), reason: title);
+      expect(imageRect.height, closeTo(132, .1), reason: title);
+      if (position.maxScrollExtent > 0) {
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pump();
+      }
+      expect(tester.getRect(image), imageRect, reason: title);
+      final buttons = find.descendant(
+        of: menu,
+        matching: find.byType(OperationButton),
+      );
+      expect(buttons, findsAtLeastNWidgets(2), reason: title);
+      expect(
+        tester.getRect(buttons.last).bottom,
+        lessThanOrEqualTo(480),
+        reason: title,
+      );
+      expect(tester.takeException(), isNull, reason: title);
+    }
+  });
+
+  testWidgets('COMMAND CENTER reordered actions retain their destinations', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 480));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const destinations = <(String, CommandCenterSection)>[
+      ('DAILY COMMAND', CommandCenterSection.dailyCommand),
+      ('BRIEF / DEBRIEF', CommandCenterSection.briefDebrief),
+      ('PERIODIC REPORT', CommandCenterSection.periodicReport),
+      ('DATA CENTER', CommandCenterSection.dataCenter),
+    ];
+
+    for (final (label, section) in destinations) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await _pumpBaseCamp(
+        tester,
+        BaseCampScreen.commandCenter,
+        const CommandCenterPage(),
+      );
+      final button = tester.widget<OperationButton>(
+        find.widgetWithText(OperationButton, label),
+      );
+      expect(button.onPressed, isNotNull, reason: label);
+      button.onPressed!();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      final destination = tester.widget<CommandCenterPage>(
+        find.byType(CommandCenterPage).last,
+      );
+      expect(destination.showBaseCampEntry, isFalse, reason: label);
+      expect(destination.initialSection, section, reason: label);
+      expect(tester.takeException(), isNull, reason: label);
+    }
   });
 
   testWidgets('STANDARD module presentation remains unchanged', (tester) async {

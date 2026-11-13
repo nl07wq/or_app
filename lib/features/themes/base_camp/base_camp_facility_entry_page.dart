@@ -52,17 +52,17 @@ class BaseCampFacilityEntryPage extends StatelessWidget {
             constraints.maxWidth * 9 / 16,
             constraints.maxHeight * .27,
           );
-          return SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.lg,
-              mediaQuery.padding.bottom + AppSpacing.lg,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ClipRRect(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     height: imageHeight,
@@ -94,13 +94,33 @@ class BaseCampFacilityEntryPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                AppSpacing.gapLG,
-                for (var index = 0; index < actions.length; index++) ...[
-                  actions[index],
-                  if (index != actions.length - 1) AppSpacing.gapLG,
-                ],
-              ],
-            ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  key: ValueKey(
+                    'base-camp-${title.toLowerCase()}-facility-menu-scroll',
+                  ),
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    mediaQuery.padding.bottom + AppSpacing.lg,
+                  ),
+                  child: Column(
+                    key: ValueKey(
+                      'base-camp-${title.toLowerCase()}-facility-menu',
+                    ),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var index = 0; index < actions.length; index++) ...[
+                        actions[index],
+                        if (index != actions.length - 1) AppSpacing.gapLG,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
