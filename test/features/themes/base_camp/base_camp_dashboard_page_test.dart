@@ -20,12 +20,17 @@ import '../../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUpAll(() async {
-    final bytes = File(
+    final japaneseBytes = File(
       'assets/fonts/DotGothic16-Regular.ttf',
     ).readAsBytesSync();
-    final loader = FontLoader(baseCampJapaneseFontFallback)
-      ..addFont(Future.value(ByteData.sublistView(bytes)));
-    await loader.load();
+    final latinBytes = File(
+      'assets/fonts/PressStart2P-Regular.ttf',
+    ).readAsBytesSync();
+    final japaneseLoader = FontLoader(baseCampJapaneseFontFallback)
+      ..addFont(Future.value(ByteData.sublistView(japaneseBytes)));
+    final latinLoader = FontLoader(baseCampPixelFontFamily)
+      ..addFont(Future.value(ByteData.sublistView(latinBytes)));
+    await Future.wait([japaneseLoader.load(), latinLoader.load()]);
   });
 
   setUp(() {
@@ -603,9 +608,10 @@ void main() {
     for (final value in values) {
       final text = tester.widget<Text>(find.text(value));
       expect(text.overflow, TextOverflow.visible);
-      expect(text.style?.fontFamily, baseCampJapaneseFontFallback);
+      expect(text.style?.fontFamily, baseCampPixelFontFamily);
       expect(text.style?.fontWeight, FontWeight.w700);
-      expect(text.style?.fontSize, greaterThanOrEqualTo(8));
+      expect(text.style?.letterSpacing, -1);
+      expect(text.style?.fontSize, greaterThanOrEqualTo(5));
     }
     expect(tester.takeException(), isNull);
   });
@@ -774,20 +780,25 @@ void main() {
           expect(textWidget.maxLines, 1);
           expect(textWidget.softWrap, isFalse);
           expect(textWidget.overflow, TextOverflow.visible);
-          expect(textWidget.style?.fontFamily, baseCampJapaneseFontFallback);
+          expect(textWidget.style?.fontFamily, baseCampPixelFontFamily);
           expect(textWidget.style?.fontWeight, FontWeight.w700);
+          expect(textWidget.style?.letterSpacing, -1);
           fontSizes[displayed] = textWidget.style!.fontSize!;
           expect(tester.takeException(), isNull, reason: displayed);
         }
 
-        expect(fontSizes['COMPLETE'], 12);
+        expect(fontSizes['COMPLETE'], width == 320 ? 7.75 : 10);
         expect(fontSizes['NO DATA'], fontSizes['COMPLETE']);
-        expect(fontSizes['INCOMPLETE'], width == 320 ? 11 : 12);
+        expect(fontSizes['INCOMPLETE'], switch (width) {
+          320 => 6.5,
+          375 => 8.25,
+          _ => 8.75,
+        });
       },
     );
   }
 
-  testWidgets('terminal data readouts use DotGothic and stay on one line', (
+  testWidgets('terminal readouts use fitted Press Start spans on one line', (
     tester,
   ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -810,17 +821,23 @@ void main() {
       final caloriesWidth = tester.getSize(panels.at(0)).width - 8;
       final narrowWidth = tester.getSize(panels.at(2)).width - 8;
 
-      const cases = <(String, bool)>[
-        ('2098 / 2500 kcal', true),
-        ('9999.9 / 9999 kcal', true),
-        ('500 / 2900 ml', false),
-        ('9999 / 9999 ml', false),
-        ('999.9 kg', false),
-        ('23h 59m', false),
-        ('9999 kcal', false),
-        ('NOT CALCULATED', false),
+      const cases = <(String, bool, BaseCampReadoutProfile)>[
+        ('2098 / 2500 kcal', true, BaseCampReadoutProfile.sustainment),
+        ('9999.9 / 9999 kcal', true, BaseCampReadoutProfile.sustainment),
+        ('500 / 2900 ml', false, BaseCampReadoutProfile.water),
+        ('1500 / 2900 ml', false, BaseCampReadoutProfile.water),
+        ('9999 / 9999 ml', false, BaseCampReadoutProfile.water),
+        ('999.9 / 999 g', false, BaseCampReadoutProfile.sustainment),
+        ('12345 steps', false, BaseCampReadoutProfile.sustainment),
+        ('COMPLETE', false, BaseCampReadoutProfile.sustainment),
+        ('NOT RECORDED', false, BaseCampReadoutProfile.sustainment),
+        ('999.9 kg', false, BaseCampReadoutProfile.statusData),
+        ('23h 59m', false, BaseCampReadoutProfile.statusData),
+        ('9999 kcal', false, BaseCampReadoutProfile.statusData),
+        ('NOT RECORDED', false, BaseCampReadoutProfile.statusData),
+        ('NOT CALCULATED', false, BaseCampReadoutProfile.statusData),
       ];
-      for (final (value, usesCaloriesWidth) in cases) {
+      for (final (value, usesCaloriesWidth, profile) in cases) {
         final readoutWidth = usesCaloriesWidth ? caloriesWidth : narrowWidth;
         await tester.pumpWidget(
           MaterialApp(
@@ -832,6 +849,7 @@ void main() {
                   child: BaseCampResponsiveReadout(
                     value: value,
                     singleLine: true,
+                    profile: profile,
                   ),
                 ),
               ),
@@ -847,13 +865,103 @@ void main() {
         expect(text.maxLines, 1, reason: '$value at $width');
         expect(text.softWrap, isFalse, reason: '$value at $width');
         expect(text.overflow, TextOverflow.visible, reason: '$value at $width');
-        expect(text.style?.fontFamily, baseCampJapaneseFontFallback);
+        expect(text.style?.fontFamily, baseCampPixelFontFamily);
         expect(text.style?.fontWeight, FontWeight.w700);
-        expect(text.style?.fontSize, greaterThanOrEqualTo(8));
+        expect(text.style?.letterSpacing, -1);
+        expect(text.style?.fontSize, greaterThanOrEqualTo(5));
+        final span = text.textSpan! as TextSpan;
+        if (profile == BaseCampReadoutProfile.water) {
+          expect(text.style?.fontSize, 7);
+          final unit = span.children!.whereType<TextSpan>().last;
+          expect(unit.text, 'ml');
+          expect(unit.style?.fontSize, 5);
+          expect(unit.style?.letterSpacing, -1);
+          final painter = TextPainter(
+            text: span,
+            textDirection: TextDirection.ltr,
+            textScaler: TextScaler.noScaling,
+            maxLines: 1,
+          )..layout();
+          // One logical pixel of explicit padding plus the one-pixel border
+          // on each side leaves four fewer pixels for the text painter.
+          final availableWidth = readoutWidth - 4;
+          expect(
+            availableWidth,
+            closeTo(switch (width) {
+              320 => 72.4,
+                375 => 90.73333333333333,
+                _ => 95.73333333333333,
+            }, .001),
+          );
+          final slash = value.indexOf('/');
+          final currentBox = painter
+              .getBoxesForSelection(
+                TextSelection(baseOffset: 0, extentOffset: slash - 1),
+              )
+              .single;
+          final slashBox = painter
+              .getBoxesForSelection(
+                TextSelection(baseOffset: slash, extentOffset: slash + 1),
+              )
+              .single;
+          final targetBox = painter
+              .getBoxesForSelection(
+                TextSelection(
+                  baseOffset: slash + 2,
+                  extentOffset: value.indexOf(' ml'),
+                ),
+              )
+              .single;
+          final originalWidth = value.startsWith('500 ') ? 74.0 : 80.0;
+          final expectedWidth = value.startsWith('500 ') ? 66.0 : 72.0;
+          expect(painter.width, expectedWidth);
+          expect(originalWidth - painter.width, 8.0);
+          expect(painter.width, lessThanOrEqualTo(availableWidth));
+          expect(slashBox.left - currentBox.right, 2.0);
+          expect(targetBox.left - slashBox.right, 2.0);
+        } else if (RegExp(r'(kcal|steps|kg|g|h|m)$').hasMatch(value)) {
+          final unit = span.children!.whereType<TextSpan>().last;
+          expect(
+            unit.style?.fontSize,
+            text.style!.fontSize! - 2,
+            reason: '$value at $width',
+          );
+        }
         expect(textRect.right, lessThanOrEqualTo(readoutRect.right));
         expect(tester.takeException(), isNull, reason: '$value at $width');
       }
     }
+  });
+
+  testWidgets('schedule time LCD keeps approved normal and inverse colors', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.dashboard,
+          child: Scaffold(
+            body: BaseCampTacticalScheduleRow(
+              number: 1,
+              time: '09:30',
+              title: 'SCHEDULE',
+              active: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final timeDisplay = tester.widget<Container>(
+      find.byKey(const ValueKey('base-camp-schedule-time-display')),
+    );
+    final time = tester.widget<Text>(find.text('09:30'));
+    expect(timeDisplay.color, const Color(0xff788a66));
+    expect(time.style?.color, const Color(0xff273326));
+    expect(baseCampScheduleTimeBackground(true), const Color(0xff273326));
+    expect(baseCampScheduleTimeTextColor(false), const Color(0xff273326));
+    expect(baseCampScheduleTimeTextColor(true), const Color(0xffaeb894));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

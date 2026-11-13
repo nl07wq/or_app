@@ -1746,10 +1746,21 @@ class _SustainmentGrid extends StatelessWidget {
               children: [
                 Expanded(
                   flex: 2,
-                  child: _Metric('CALORIES', calories, singleLine: true),
+                  child: _Metric(
+                    'CALORIES',
+                    calories,
+                    singleLine: true,
+                    profile: BaseCampReadoutProfile.sustainment,
+                  ),
                 ),
                 const SizedBox(width: _InstrumentGeometry.gap),
-                Expanded(child: _Metric('PROTEIN', protein)),
+                Expanded(
+                  child: _Metric(
+                    'PROTEIN',
+                    protein,
+                    profile: BaseCampReadoutProfile.sustainment,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1758,11 +1769,29 @@ class _SustainmentGrid extends StatelessWidget {
             height: _InstrumentGeometry.panelHeight,
             child: Row(
               children: [
-                Expanded(child: _Metric('WATER', water)),
+                Expanded(
+                  child: _Metric(
+                    'WATER',
+                    water,
+                    profile: BaseCampReadoutProfile.water,
+                  ),
+                ),
                 const SizedBox(width: _InstrumentGeometry.gap),
-                Expanded(child: _Metric('TRAINING', training)),
+                Expanded(
+                  child: _Metric(
+                    'TRAINING',
+                    training,
+                    profile: BaseCampReadoutProfile.sustainment,
+                  ),
+                ),
                 const SizedBox(width: _InstrumentGeometry.gap),
-                Expanded(child: _Metric('ACTIVITY', activity)),
+                Expanded(
+                  child: _Metric(
+                    'ACTIVITY',
+                    activity,
+                    profile: BaseCampReadoutProfile.sustainment,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1918,14 +1947,15 @@ class BaseCampTacticalScheduleRow extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Container(
+            key: const ValueKey('base-camp-schedule-time-display'),
             padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-            color: _BaseCampLcdMode.of(context)
-                ? _LcdPalette.darkest
-                : _LcdPalette.mid,
+            color: baseCampScheduleTimeBackground(_BaseCampLcdMode.of(context)),
             child: Text(
               time,
               style: TextStyle(
-                color: ink,
+                color: baseCampScheduleTimeTextColor(
+                  _BaseCampLcdMode.of(context),
+                ),
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
               ),
@@ -1950,6 +1980,14 @@ class BaseCampTacticalScheduleRow extends StatelessWidget {
     );
   }
 }
+
+@visibleForTesting
+Color baseCampScheduleTimeBackground(bool negative) =>
+    negative ? _LcdPalette.darkest : const Color(0xff788a66);
+
+@visibleForTesting
+Color baseCampScheduleTimeTextColor(bool negative) =>
+    negative ? _LcdPalette.light : _LcdPalette.darkest;
 
 String _scheduleTimeLabel(DashboardPlanInformationEntry entry) {
   if (!entry.isTimed || entry.record.startTime == null) return 'ALL';
@@ -2075,9 +2113,10 @@ class BaseCampProgressStatusLine extends StatelessWidget {
     required this.partial,
   });
 
-  static const maximumFontSize = 12.0;
-  static const minimumFontSize = 8.0;
+  static const maximumFontSize = 10.0;
+  static const minimumFontSize = 5.0;
   static const fontSizeStep = .25;
+  static const letterSpacing = -1.0;
 
   final String formalValue;
   final bool active;
@@ -2113,10 +2152,11 @@ class BaseCampProgressStatusLine extends StatelessWidget {
                 final value = baseCampProgressDisplayValue(formalValue);
                 final base = DefaultTextStyle.of(context).style.merge(
                   const TextStyle(
-                    fontFamily: baseCampJapaneseFontFallback,
+                    fontFamily: baseCampPixelFontFamily,
                     fontSize: maximumFontSize,
                     height: 1.25,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: letterSpacing,
                   ),
                 );
                 final candidates = value == 'INCOMPLETE'
@@ -2225,10 +2265,16 @@ class _InstrumentPilotLamp extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric(this.label, this.value, {this.singleLine = true});
+  const _Metric(
+    this.label,
+    this.value, {
+    this.singleLine = true,
+    this.profile = BaseCampReadoutProfile.statusData,
+  });
   final String label;
   final String value;
   final bool singleLine;
+  final BaseCampReadoutProfile profile;
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-instrument-panel'),
@@ -2263,11 +2309,18 @@ class _Metric extends StatelessWidget {
           ),
         ),
         const SizedBox(height: _InstrumentGeometry.labelGap),
-        BaseCampResponsiveReadout(value: value, singleLine: singleLine),
+        BaseCampResponsiveReadout(
+          value: value,
+          singleLine: singleLine,
+          profile: profile,
+        ),
       ],
     ),
   );
 }
+
+@visibleForTesting
+enum BaseCampReadoutProfile { statusData, sustainment, water }
 
 @visibleForTesting
 class BaseCampResponsiveReadout extends StatelessWidget {
@@ -2275,14 +2328,22 @@ class BaseCampResponsiveReadout extends StatelessWidget {
     super.key,
     required this.value,
     this.singleLine = false,
+    this.profile = BaseCampReadoutProfile.statusData,
   });
 
-  static const double baseFontSize = 12;
-  static const double minimumFontSize = 8;
+  static const double statusDataFontSize = 10;
+  static const double sustainmentFontSize = 10;
+  static const double waterFontSize = 7;
+  static const double waterUnitFontSize = 5;
+  static const double waterSeparatorSpaceFontSize = 3;
+  static const double minimumFontSize = 5;
   static const double fontSizeStep = .25;
+  static const double letterSpacing = -1;
+  static final RegExp _unitPattern = RegExp(r'(kcal|steps|kg|ml|g|h|m)');
 
   final String value;
   final bool singleLine;
+  final BaseCampReadoutProfile profile;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -2302,17 +2363,30 @@ class BaseCampResponsiveReadout extends StatelessWidget {
       builder: (context, constraints) {
         final base = DefaultTextStyle.of(context).style.merge(
           const TextStyle(
-            fontFamily: baseCampJapaneseFontFallback,
-            fontSize: baseFontSize,
+            fontFamily: baseCampPixelFontFamily,
+            fontSize: statusDataFontSize,
             height: 1.25,
             fontWeight: FontWeight.w700,
+            letterSpacing: letterSpacing,
           ),
         );
         final scaler = MediaQuery.textScalerOf(context);
-        var fontSize = baseFontSize;
+        final maximumFontSize = switch (profile) {
+          BaseCampReadoutProfile.statusData => statusDataFontSize,
+          BaseCampReadoutProfile.sustainment => sustainmentFontSize,
+          BaseCampReadoutProfile.water => waterFontSize,
+        };
+        var fontSize = maximumFontSize;
         var wraps = false;
         while (fontSize > minimumFontSize &&
-            !_fitsSingleLine(value, base, fontSize, constraints, scaler)) {
+            !_fitsSingleLine(
+              value,
+              base,
+              fontSize,
+              constraints,
+              scaler,
+              profile,
+            )) {
           fontSize -= fontSizeStep;
         }
         final fitsSingleLine = _fitsSingleLine(
@@ -2321,6 +2395,14 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           fontSize,
           constraints,
           scaler,
+          profile,
+        );
+        assert(
+          profile != BaseCampReadoutProfile.water ||
+              !value.contains('ml') ||
+              fontSize == waterFontSize,
+          'WATER must fit at the approved 7px / 5px sizes: $value '
+          '(${constraints.maxWidth}x${constraints.maxHeight})',
         );
         if (!fitsSingleLine && !singleLine) {
           wraps = true;
@@ -2345,17 +2427,23 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           'Required single-line LCD value does not fit: $value '
           '(${constraints.maxWidth}x${constraints.maxHeight})',
         );
-        return Text(
-          key: const ValueKey('base-camp-lcd-readout-text'),
+        final span = _buildReadoutSpan(
           value,
-          maxLines: wraps ? 2 : 1,
-          softWrap: wraps,
-          overflow: TextOverflow.visible,
-          style: base.copyWith(
+          base.copyWith(
             color: _LcdColors.ink(context),
             fontSize: fontSize,
             height: wraps ? 1.05 : 1.25,
           ),
+          fontSize,
+          profile,
+        );
+        return Text.rich(
+          span,
+          key: const ValueKey('base-camp-lcd-readout-text'),
+          maxLines: wraps ? 2 : 1,
+          softWrap: wraps,
+          overflow: TextOverflow.visible,
+          style: span.style,
         );
       },
     ),
@@ -2367,18 +2455,72 @@ class BaseCampResponsiveReadout extends StatelessWidget {
     double fontSize,
     BoxConstraints constraints,
     TextScaler scaler,
+    BaseCampReadoutProfile profile,
   ) {
+    final span = _buildReadoutSpan(value, style, fontSize, profile);
     final painter = TextPainter(
-      text: TextSpan(
-        text: value,
-        style: style.copyWith(fontSize: fontSize),
-      ),
+      text: span,
       textDirection: TextDirection.ltr,
       maxLines: 1,
       textScaler: scaler,
     )..layout();
     return painter.width <= constraints.maxWidth &&
         painter.height <= constraints.maxHeight;
+  }
+
+  static TextSpan _buildReadoutSpan(
+    String value,
+    TextStyle style,
+    double fontSize,
+    BaseCampReadoutProfile profile,
+  ) {
+    if (profile == BaseCampReadoutProfile.water) {
+      final water = RegExp(r'^(\S+)\s+/\s+(\S+)(\s+)(ml)$').firstMatch(value);
+      if (water != null) {
+        final separatorSpaceStyle = style.copyWith(
+          fontSize: waterSeparatorSpaceFontSize,
+        );
+        return TextSpan(
+          style: style.copyWith(fontSize: fontSize),
+          children: [
+            TextSpan(text: water.group(1)),
+            TextSpan(text: ' ', style: separatorSpaceStyle),
+            const TextSpan(text: '/'),
+            TextSpan(text: ' ', style: separatorSpaceStyle),
+            TextSpan(text: water.group(2)),
+            TextSpan(text: water.group(3)),
+            TextSpan(
+              text: water.group(4),
+              style: style.copyWith(fontSize: waterUnitFontSize),
+            ),
+          ],
+        );
+      }
+    }
+    final unitFontSize = profile == BaseCampReadoutProfile.water
+        ? waterUnitFontSize
+        : fontSize - 2;
+    final children = <InlineSpan>[];
+    var start = 0;
+    for (final match in _unitPattern.allMatches(value)) {
+      if (match.start > start) {
+        children.add(TextSpan(text: value.substring(start, match.start)));
+      }
+      children.add(
+        TextSpan(
+          text: match.group(0),
+          style: style.copyWith(fontSize: unitFontSize),
+        ),
+      );
+      start = match.end;
+    }
+    if (start < value.length) {
+      children.add(TextSpan(text: value.substring(start)));
+    }
+    return TextSpan(
+      style: style.copyWith(fontSize: fontSize),
+      children: children,
+    );
   }
 }
 
