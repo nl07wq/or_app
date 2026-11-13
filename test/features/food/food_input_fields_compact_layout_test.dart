@@ -5,6 +5,8 @@ import 'package:or_app/core/theme/app_theme.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
 import 'package:or_app/features/food/models/food_quantity_models.dart';
 import 'package:or_app/features/food/widgets/food_input_fields.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 
 void main() {
   testWidgets(
@@ -295,7 +297,9 @@ void main() {
         for (final (field, valueText) in fields) {
           final bounds = tester.getRect(field);
           expect(valueText, findsOneWidget);
-          expect(tester.widget<Text>(valueText).data, label);
+          final selectedText = tester.widget<Text>(valueText);
+          expect(selectedText.data, label);
+          expect(selectedText.style?.fontSize, 14);
           final chevron = find.descendant(
             of: field,
             matching: find.byIcon(Icons.arrow_drop_down),
@@ -340,6 +344,70 @@ void main() {
       }
     }
   });
+
+  testWidgets(
+    'BASE CAMP fits every actual selected unit in both fixed selectors',
+    (tester) async {
+      final fittedSizes = <double>{};
+      for (final unit in <FoodQuantityUnit?>[
+        null,
+        ...FoodQuantityUnit.values,
+      ]) {
+        final controllers = _Controllers();
+        addTearDown(controllers.dispose);
+        await tester.binding.setSurfaceSize(const Size(320, 844));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _subject(
+            controllers,
+            width: 288,
+            packageUnit: unit,
+            baseUnit: unit ?? FoodQuantityUnit.gram,
+            baseCamp: true,
+          ),
+        );
+        await tester.pump();
+
+        final fields = <(Finder, Finder, Finder)>[
+          (
+            _packageUnit(),
+            find.byKey(const ValueKey('food-entry-package-unit-value')),
+            find.byKey(const ValueKey('food-entry-package-horizontal-divider')),
+          ),
+          (
+            _baseUnit(),
+            find.byKey(const ValueKey('food-entry-base-unit-value')),
+            find.byKey(const ValueKey('food-entry-base-horizontal-divider')),
+          ),
+        ];
+        for (final (field, valueText, divider) in fields) {
+          final fieldRect = tester.getRect(field);
+          final valueRect = tester.getRect(valueText);
+          final chevron = find.descendant(
+            of: field,
+            matching: find.byIcon(Icons.arrow_drop_down),
+          );
+          final text = tester.widget<Text>(valueText);
+          fittedSizes.add(text.style!.fontSize!);
+          expect(text.style?.fontFamily, baseCampPixelFontFamily);
+          expect(text.maxLines, 1);
+          expect(text.softWrap, isFalse);
+          expect(text.overflow, TextOverflow.visible);
+          expect(
+            valueRect.top,
+            greaterThanOrEqualTo(tester.getRect(divider).bottom),
+          );
+          expect(valueRect.bottom, lessThanOrEqualTo(fieldRect.bottom));
+          expect(
+            valueRect.right,
+            lessThanOrEqualTo(tester.getRect(chevron).left - 4),
+          );
+          expect(tester.takeException(), isNull);
+        }
+      }
+      expect(fittedSizes, {11.2});
+    },
+  );
 
   testWidgets('dynamic conversion label preserves its target basis', (
     tester,
@@ -567,9 +635,9 @@ Widget _subject(
   FocusNode? proteinFocusNode,
   FocusNode? fatFocusNode,
   FocusNode? carbohydrateFocusNode,
-}) => MaterialApp(
-  theme: StandardTheme.theme,
-  home: Scaffold(
+  bool baseCamp = false,
+}) {
+  final scaffold = Scaffold(
     body: SingleChildScrollView(
       child: SizedBox(
         width: width,
@@ -607,8 +675,14 @@ Widget _subject(
         ),
       ),
     ),
-  ),
-);
+  );
+  return MaterialApp(
+    theme: StandardTheme.theme,
+    home: baseCamp
+        ? BaseCampScreenEntry(screen: BaseCampScreen.food, child: scaffold)
+        : scaffold,
+  );
+}
 
 Finder _field(String label) => switch (label) {
   '表示量' => find.byKey(const ValueKey('food-entry-package-quantity')),

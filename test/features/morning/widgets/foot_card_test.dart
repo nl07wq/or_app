@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:or_app/features/morning/widgets/foot_card.dart';
 
 void main() {
@@ -22,6 +23,29 @@ void main() {
       expect(controller.text, isEmpty);
     },
   );
+
+  testWidgets('FOOT HEALTH uses the outlined cyan barefoot symbol', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '3');
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+
+    final barefoot = find.byIcon(Symbols.barefoot);
+    expect(barefoot, findsOneWidget);
+    expect(find.byIcon(Icons.accessibility_new), findsNothing);
+    expect(find.text('FOOT HEALTH'), findsOneWidget);
+    expect(find.text('Barefoot'), findsNothing);
+    final icon = tester.widget<Icon>(barefoot);
+    expect(icon.color, Colors.cyanAccent);
+    expect(icon.size, 22);
+    expect(tester.getSize(barefoot), const Size(22, 22));
+    final titleRect = tester.getRect(find.text('FOOT HEALTH'));
+    final iconRect = tester.getRect(barefoot);
+    expect(iconRect.right, lessThan(titleRect.left));
+    expect(iconRect.center.dy, closeTo(titleRect.center.dy, 1));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'selection completes into cyan readout and reopens with same value',

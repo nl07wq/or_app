@@ -388,15 +388,20 @@ void main() {
       expect(sustainment[0].top, closeTo(sustainment[1].top, .01));
       expect(sustainment[2].top, greaterThan(sustainment[0].bottom));
       expect(sustainment[2].left, closeTo(sustainment[0].left, .01));
-      expect(sustainment[3].left, closeTo(sustainment[1].left, .01));
+      expect(sustainment[3].left, closeTo(sustainment[2].right + 6, .01));
+      expect(sustainment[4].left, closeTo(sustainment[3].right + 6, .01));
+      expect(sustainment[0].right + 6, closeTo(sustainment[1].left, .01));
+      expect(sustainment[0].width, closeTo(sustainment[1].width * 2, .02));
+      expect(sustainment[2].width, closeTo(sustainment[3].width, .02));
+      expect(sustainment[3].width, closeTo(sustainment[4].width, .02));
+      expect(sustainment[1].right, closeTo(sustainment[4].right, .01));
       for (final rect in sustainment) {
         expect(rect.height, closeTo(53, .01));
       }
-      final empty = tester.getRect(
+      expect(
         find.byKey(const ValueKey('base-camp-sustainment-empty-cell')),
+        findsNothing,
       );
-      expect(empty.top, closeTo(sustainment[0].top, .01));
-      expect(empty.left, greaterThan(sustainment[1].right));
       expect(tester.takeException(), isNull);
     });
   }
@@ -614,11 +619,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
 
-    expect(find.text('NOT RECORDED'), findsWidgets);
+    expect(find.text('NO DATA'), findsWidgets);
+    expect(find.text('NOT RECORDED'), findsNothing);
     for (final text in tester.widgetList<Text>(
-      find.byKey(const ValueKey('base-camp-lcd-readout-text')),
+      find.byKey(const ValueKey('base-camp-progress-status-text')),
     )) {
       expect(text.overflow, TextOverflow.visible);
+      expect(text.maxLines, 1);
+      expect(text.softWrap, isFalse);
     }
 
     await tester.drag(pages, const Offset(-280, 0));
@@ -675,6 +683,150 @@ void main() {
     expect(baseCampFoodProgressText(3), 'COMPLETE');
   });
 
+  test('progress presentation renames only the missing formal state', () {
+    expect(baseCampProgressDisplayValue('COMPLETE'), 'COMPLETE');
+    expect(baseCampProgressDisplayValue('NOT RECORDED'), 'NO DATA');
+    expect(baseCampProgressDisplayValue('INCOMPLETE'), 'INCOMPLETE');
+    expect(baseCampProgressDisplayValue('1 / 3'), '1 / 3');
+  });
+
+  for (final width in <double>[320, 375, 390]) {
+    testWidgets(
+      'progress lamp precedes every fitted status at ${width.toInt()}px',
+      (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 844));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          const MaterialApp(home: BaseCampDashboardPage()),
+        );
+        await tester.pump(const Duration(milliseconds: 120));
+        final progressPage = find.byKey(
+          const ValueKey('base-camp-terminal-page-progress'),
+        );
+        final panel = find
+            .descendant(
+              of: progressPage,
+              matching: find.byKey(
+                const ValueKey('base-camp-instrument-panel'),
+              ),
+            )
+            .first;
+        final lineWidth = tester.getSize(panel).width - 8;
+        Rect? stableLampRect;
+        final fontSizes = <String, double>{};
+
+        for (final formalValue in const [
+          'COMPLETE',
+          'NOT RECORDED',
+          'INCOMPLETE',
+        ]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: BaseCampScreenEntry(
+                screen: BaseCampScreen.dashboard,
+                child: Scaffold(
+                  body: Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: lineWidth,
+                      child: BaseCampProgressStatusLine(
+                        formalValue: formalValue,
+                        active: formalValue == 'COMPLETE',
+                        partial: formalValue == 'INCOMPLETE',
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+
+          final lamp = find.byKey(
+            const ValueKey('base-camp-progress-status-lamp'),
+          );
+          final readout = find.byKey(
+            const ValueKey('base-camp-progress-status-readout'),
+          );
+          final text = find.byKey(
+            const ValueKey('base-camp-progress-status-text'),
+          );
+          final lampRect = tester.getRect(lamp);
+          final readoutRect = tester.getRect(readout);
+          final textRect = tester.getRect(text);
+          final textWidget = tester.widget<Text>(text);
+          final displayed = baseCampProgressDisplayValue(formalValue);
+
+          stableLampRect ??= lampRect;
+          expect(lampRect, stableLampRect, reason: displayed);
+          expect(lampRect.size, const Size(12, 12), reason: displayed);
+          expect(readoutRect.left - lampRect.right, closeTo(5, .01));
+          expect(lampRect.right, lessThan(textRect.left));
+          expect(textRect.right, lessThanOrEqualTo(readoutRect.right));
+          expect(textWidget.data, displayed);
+          expect(textWidget.maxLines, 1);
+          expect(textWidget.softWrap, isFalse);
+          expect(textWidget.overflow, TextOverflow.visible);
+          fontSizes[displayed] = textWidget.style!.fontSize!;
+          expect(tester.takeException(), isNull, reason: displayed);
+        }
+
+        expect(fontSizes['COMPLETE'], 6.5);
+        expect(fontSizes['NO DATA'], fontSizes['COMPLETE']);
+        expect(fontSizes['INCOMPLETE'], greaterThanOrEqualTo(5));
+        expect(fontSizes['INCOMPLETE'], lessThanOrEqualTo(6.5));
+        expect(fontSizes['INCOMPLETE'], width == 320 ? 5.5 : 6.5);
+      },
+    );
+  }
+
+  testWidgets('two-track calories value and kcal stay on one line', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 120));
+    final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+    for (var page = 0; page < 2; page++) {
+      await tester.drag(pages, const Offset(-280, 0));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    final sustainment = find.byKey(
+      const ValueKey('base-camp-terminal-page-sustainment'),
+    );
+    final caloriesPanel = find
+        .descendant(
+          of: sustainment,
+          matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
+        )
+        .first;
+    final readoutWidth = tester.getSize(caloriesPanel).width - 8;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.dashboard,
+          child: Scaffold(
+            body: SizedBox(
+              width: readoutWidth,
+              child: const BaseCampResponsiveReadout(
+                value: '2098 / 2500 kcal',
+                singleLine: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final value = tester.widget<Text>(find.text('2098 / 2500 kcal'));
+    expect(value.maxLines, 1);
+    expect(value.softWrap, isFalse);
+    expect(value.overflow, TextOverflow.visible);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'instrument panels retain fixed original geometry on mobile widths',
     (tester) async {
@@ -694,7 +846,9 @@ void main() {
         );
         final readouts = find.descendant(
           of: progress,
-          matching: find.byKey(const ValueKey('base-camp-lcd-readout')),
+          matching: find.byKey(
+            const ValueKey('base-camp-progress-status-readout'),
+          ),
         );
         expect(panels, findsNWidgets(6));
         expect(readouts, findsNWidgets(6));

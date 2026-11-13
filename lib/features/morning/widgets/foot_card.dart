@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -68,10 +69,7 @@ class _FootCardState extends State<FootCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(
-            icon: Icons.accessibility_new,
-            title: "FOOT HEALTH",
-          ),
+          const SectionHeader(icon: Symbols.barefoot, title: "FOOT HEALTH"),
 
           const SizedBox(height: 20),
 

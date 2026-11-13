@@ -13,6 +13,7 @@ import '../food_catalog_page.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
 import '../services/food_nutrition_recalculation.dart';
+import '../../themes/base_camp/base_camp_retro_theme.dart';
 
 class FoodInputFields extends StatelessWidget {
   static const _compactGap = FoodFormMetrics.gap;
@@ -996,12 +997,35 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                     label: '$label 単位',
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final textStyle = Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.copyWith(fontSize: 14);
                         const chevronWidth = 24.0;
                         const chevronRightPadding = 4.0;
                         const chevronClearance = 4.0;
+                        const preferredDividerPadding = 10.0;
+                        final inheritedStyle = Theme.of(
+                          context,
+                        ).textTheme.bodyLarge;
+                        final baseCamp = BaseCampRetroTheme.isApplied(
+                          Theme.of(context),
+                        );
+                        final availableTextWidth =
+                            constraints.maxWidth -
+                            chevronWidth -
+                            chevronRightPadding -
+                            chevronClearance -
+                            preferredDividerPadding;
+                        final selectedFontSize = baseCamp
+                            ? _fitUnitSelectedFontSize(
+                                style: inheritedStyle,
+                                maxWidth: availableTextWidth,
+                                maxHeight: constraints.maxHeight,
+                                textDirection: Directionality.of(context),
+                                textScaler: MediaQuery.textScalerOf(context),
+                              )
+                            : 14.0;
+                        final textStyle = inheritedStyle?.copyWith(
+                          fontSize: selectedFontSize,
+                          height: baseCamp ? 1.2 : inheritedStyle.height,
+                        );
                         final textPainter = TextPainter(
                           text: TextSpan(text: valueLabel, style: textStyle),
                           textDirection: Directionality.of(context),
@@ -1011,7 +1035,6 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                             constraints.maxWidth -
                             chevronWidth -
                             chevronRightPadding;
-                        const preferredDividerPadding = 10.0;
                         final unitTextLeft =
                             (chevronExclusionLeft -
                                     chevronClearance -
@@ -1053,6 +1076,9 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                                       key: ValueKey(
                                         'food-entry-$group-unit-value',
                                       ),
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.visible,
                                       style: textStyle,
                                     ),
                                   ),
@@ -1072,6 +1098,49 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
       ),
     );
   }
+}
+
+const _unitSelectedLabels = <String>[
+  'NOT SET',
+  'g',
+  'mL',
+  'piece',
+  'pack',
+  'serving',
+];
+
+double _fitUnitSelectedFontSize({
+  required TextStyle? style,
+  required double maxWidth,
+  required double maxHeight,
+  required TextDirection textDirection,
+  required TextScaler textScaler,
+}) {
+  const maximum = 11.2;
+  const minimum = 8.0;
+  var fontSize = maximum;
+  bool fits(double candidate) => _unitSelectedLabels.every((label) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: style?.copyWith(fontSize: candidate, height: 1.2),
+      ),
+      textDirection: textDirection,
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout();
+    return painter.width <= maxWidth && painter.height <= maxHeight;
+  });
+
+  while (fontSize > minimum && !fits(fontSize)) {
+    fontSize -= .2;
+  }
+  assert(
+    fits(fontSize),
+    'The longest FOOD unit label does not fit the fixed selector at '
+    '$fontSize px (${maxWidth}x$maxHeight).',
+  );
+  return fontSize;
 }
 
 class FoodNumericStepButton extends StatelessWidget {

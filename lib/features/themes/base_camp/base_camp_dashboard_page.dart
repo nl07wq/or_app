@@ -1733,15 +1733,41 @@ class _SustainmentGrid extends StatelessWidget {
   final String activity;
 
   @override
-  Widget build(BuildContext context) => _LcdGrid(
-    children: [
-      _Metric('CALORIES', calories),
-      _Metric('PROTEIN', protein),
-      const SizedBox.shrink(key: ValueKey('base-camp-sustainment-empty-cell')),
-      _Metric('WATER', water),
-      _Metric('TRAINING', training),
-      _Metric('ACTIVITY', activity),
-    ],
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: SizedBox(
+      height: _InstrumentGeometry.gridHeight,
+      child: Column(
+        children: [
+          SizedBox(
+            height: _InstrumentGeometry.panelHeight,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _Metric('CALORIES', calories, singleLine: true),
+                ),
+                const SizedBox(width: _InstrumentGeometry.gap),
+                Expanded(child: _Metric('PROTEIN', protein)),
+              ],
+            ),
+          ),
+          const SizedBox(height: _InstrumentGeometry.gap),
+          SizedBox(
+            height: _InstrumentGeometry.panelHeight,
+            child: Row(
+              children: [
+                Expanded(child: _Metric('WATER', water)),
+                const SizedBox(width: _InstrumentGeometry.gap),
+                Expanded(child: _Metric('TRAINING', training)),
+                const SizedBox(width: _InstrumentGeometry.gap),
+                Expanded(child: _Metric('ACTIVITY', activity)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -2007,36 +2033,27 @@ class _LcdProgressCard extends StatelessWidget {
           children: [
             SizedBox(
               height: _InstrumentGeometry.labelHeight,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: _lcdLabelStyle.copyWith(
-                          color: _LcdColors.auxiliary(context),
-                          fontSize: compact
-                              ? 8
-                              : _InstrumentGeometry.labelFontSize,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: _lcdLabelStyle.copyWith(
+                    color: _LcdColors.auxiliary(context),
+                    fontSize: compact ? 8 : _InstrumentGeometry.labelFontSize,
+                    height: 1.2,
                   ),
-                  const SizedBox(width: 4),
-                  _InstrumentPilotLamp(
-                    active: progress >= 1,
-                    partial: progress > 0 && progress < 1,
-                  ),
-                ],
+                ),
               ),
             ),
             const SizedBox(height: _InstrumentGeometry.labelGap),
-            BaseCampResponsiveReadout(value: value),
+            BaseCampProgressStatusLine(
+              formalValue: value,
+              active: progress >= 1,
+              partial: progress > 0 && progress < 1,
+            ),
           ],
         ),
       ),
@@ -2044,8 +2061,124 @@ class _LcdProgressCard extends StatelessWidget {
   );
 }
 
+@visibleForTesting
+String baseCampProgressDisplayValue(String formalValue) =>
+    formalValue == 'NOT RECORDED' ? 'NO DATA' : formalValue;
+
+@visibleForTesting
+class BaseCampProgressStatusLine extends StatelessWidget {
+  const BaseCampProgressStatusLine({
+    super.key,
+    required this.formalValue,
+    required this.active,
+    required this.partial,
+  });
+
+  static const commonFontSize = 6.5;
+  static const minimumIncompleteFontSize = 5.0;
+
+  final String formalValue;
+  final bool active;
+  final bool partial;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: _InstrumentGeometry.lcdHeight,
+    child: Row(
+      children: [
+        _InstrumentPilotLamp(
+          key: const ValueKey('base-camp-progress-status-lamp'),
+          active: active,
+          partial: partial,
+        ),
+        const SizedBox(width: _InstrumentGeometry.lampGap),
+        Expanded(
+          child: Container(
+            key: const ValueKey('base-camp-progress-status-readout'),
+            height: _InstrumentGeometry.lcdHeight,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(
+              horizontal: _InstrumentGeometry.lcdHorizontalPadding,
+              vertical: _InstrumentGeometry.lcdVerticalPadding,
+            ),
+            decoration: BoxDecoration(
+              color: _LcdColors.field(context),
+              border: Border.all(color: _LcdPalette.mid),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final value = baseCampProgressDisplayValue(formalValue);
+                final base = DefaultTextStyle.of(context).style.merge(
+                  const TextStyle(
+                    fontSize: commonFontSize,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                  ),
+                );
+                var fontSize = commonFontSize;
+                if (value == 'INCOMPLETE') {
+                  while (fontSize > minimumIncompleteFontSize &&
+                      !_fitsStatusValue(value, base, fontSize, constraints)) {
+                    fontSize -= .25;
+                  }
+                }
+                assert(
+                  _fitsStatusValue(value, base, fontSize, constraints),
+                  'Progress status does not fit the fixed card: $value '
+                  'at $fontSize in ${constraints.maxWidth}px',
+                );
+                assert(
+                  value != 'INCOMPLETE' ||
+                      fontSize >= minimumIncompleteFontSize,
+                  'INCOMPLETE requires an unreadable font size: $fontSize',
+                );
+                return Text(
+                  value,
+                  key: const ValueKey('base-camp-progress-status-text'),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                  textScaler: TextScaler.noScaling,
+                  style: base.copyWith(
+                    color: _LcdColors.ink(context),
+                    fontSize: fontSize,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  static bool _fitsStatusValue(
+    String value,
+    TextStyle style,
+    double fontSize,
+    BoxConstraints constraints,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: value,
+        style: style.copyWith(fontSize: fontSize),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: TextScaler.noScaling,
+      maxLines: 1,
+    )..layout();
+    return painter.width <= constraints.maxWidth &&
+        painter.height <= constraints.maxHeight;
+  }
+}
+
 class _InstrumentPilotLamp extends StatelessWidget {
-  const _InstrumentPilotLamp({required this.active, required this.partial});
+  const _InstrumentPilotLamp({
+    super.key,
+    required this.active,
+    required this.partial,
+  });
   final bool active;
   final bool partial;
 
@@ -2074,9 +2207,10 @@ class _InstrumentPilotLamp extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric(this.label, this.value);
+  const _Metric(this.label, this.value, {this.singleLine = false});
   final String label;
   final String value;
+  final bool singleLine;
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-instrument-panel'),
@@ -2111,7 +2245,7 @@ class _Metric extends StatelessWidget {
           ),
         ),
         const SizedBox(height: _InstrumentGeometry.labelGap),
-        BaseCampResponsiveReadout(value: value),
+        BaseCampResponsiveReadout(value: value, singleLine: singleLine),
       ],
     ),
   );
@@ -2119,12 +2253,17 @@ class _Metric extends StatelessWidget {
 
 @visibleForTesting
 class BaseCampResponsiveReadout extends StatelessWidget {
-  const BaseCampResponsiveReadout({super.key, required this.value});
+  const BaseCampResponsiveReadout({
+    super.key,
+    required this.value,
+    this.singleLine = false,
+  });
 
   static const double baseFontSize = 10;
   static const double minimumFontSize = 8;
 
   final String value;
+  final bool singleLine;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -2174,7 +2313,7 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           maxLines: 1,
           textScaler: scaler,
         )..layout(maxWidth: constraints.maxWidth);
-        if (singleLine.didExceedMaxLines) {
+        if (singleLine.didExceedMaxLines && !this.singleLine) {
           wraps = true;
           final wrapped = TextPainter(
             text: TextSpan(
@@ -2192,6 +2331,11 @@ class BaseCampResponsiveReadout extends StatelessWidget {
           );
           fontSize = minimumFontSize;
         }
+        assert(
+          !this.singleLine || !singleLine.didExceedMaxLines,
+          'Required single-line LCD value does not fit: $value '
+          '(${constraints.maxWidth}x${constraints.maxHeight})',
+        );
         return Text(
           key: const ValueKey('base-camp-lcd-readout-text'),
           value,
@@ -2222,6 +2366,7 @@ abstract final class _InstrumentGeometry {
   static const lcdHorizontalPadding = 1.0;
   static const lcdVerticalPadding = 2.0;
   static const lampOuterDiameter = 12.0;
+  static const lampGap = 5.0;
 }
 
 class _PageIndicator extends StatelessWidget {
