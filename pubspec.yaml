@@ -138,6 +138,12 @@ flutter:
       fonts:
         - asset: assets/fonts/PressStart2P-Regular.ttf
           weight: 400
+    # DotGothic16 by Fontworks Inc., bundled under SIL Open Font License 1.1
+    # (assets/fonts/licenses/OFL-DotGothic16.txt).
+    - family: DotGothic16
+      fonts:
+        - asset: assets/fonts/DotGothic16-Regular.ttf
+          weight: 400
 
   # To add assets to your application, add an assets section, like this:
   # assets:

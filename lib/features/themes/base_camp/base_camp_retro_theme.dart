@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 const baseCampPixelFontFamily = 'PressStart2P';
-const baseCampJapaneseFontFallback = 'MPlus1Code';
+const baseCampJapaneseFontFallback = 'DotGothic16';
 
 /// BASE CAMP-only typography. Colors and component geometry remain inherited
 /// from the current application theme; only the type system changes.
@@ -31,8 +31,8 @@ abstract final class BaseCampRetroTheme {
     titleSmall: _pixel(source.titleSmall, size: 10, height: 1.45),
     bodyLarge: _pixel(source.bodyLarge, size: 12, height: 1.55),
     bodyMedium: _pixel(source.bodyMedium, size: 10, height: 1.55),
-    // Dense explanatory copy remains on the bundled Japanese monospace face.
-    // At this size a forced 8-bit Latin face would reduce legibility.
+    // Small copy keeps the same Latin/Japanese pixel pairing. DotGothic16 is
+    // the explicit Japanese fallback rather than a smooth system font.
     bodySmall: _small(source.bodySmall, size: 10, height: 1.5),
     labelLarge: _pixel(source.labelLarge, size: 10, height: 1.45),
     labelMedium: _pixel(source.labelMedium, size: 8, height: 1.5),
@@ -57,9 +57,10 @@ abstract final class BaseCampRetroTheme {
     required double size,
     required double height,
   }) => source?.copyWith(
-    fontFamily: baseCampJapaneseFontFallback,
-    fontFamilyFallback: const <String>[baseCampPixelFontFamily],
+    fontFamily: baseCampPixelFontFamily,
+    fontFamilyFallback: const <String>[baseCampJapaneseFontFallback],
     fontSize: size,
+    fontWeight: FontWeight.w400,
     height: height,
   );
 }

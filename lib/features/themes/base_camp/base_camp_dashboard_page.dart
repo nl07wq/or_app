@@ -459,56 +459,60 @@ class _TacticalTerminal extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              SizedBox(
-                height: 160,
-                child: PageView(
-                  key: const ValueKey('base-camp-terminal-pages'),
-                  controller: pages,
-                  onPageChanged: onPageChanged,
-                  children: [
-                    _TerminalInformationPage(
-                      page: _TerminalPage.progress,
-                      title: 'OPERATION PROGRESS',
-                      subtitle: 'FORMAL RECORD STATE',
-                      onTap: () => onOpenDetail(_TerminalPage.progress),
-                      child: _ProgressPreview(
-                        snapshot: snapshot,
-                        food: food,
-                        training: training,
-                        activity: activity,
+              LayoutBuilder(
+                builder: (context, constraints) => SizedBox(
+                  height: BaseCampTerminalResponsiveGeometry.pageHeightFor(
+                    constraints.maxWidth,
+                  ),
+                  child: PageView(
+                    key: const ValueKey('base-camp-terminal-pages'),
+                    controller: pages,
+                    onPageChanged: onPageChanged,
+                    children: [
+                      _TerminalInformationPage(
+                        page: _TerminalPage.progress,
+                        title: 'OPERATION PROGRESS',
+                        subtitle: 'FORMAL RECORD STATE',
+                        onTap: () => onOpenDetail(_TerminalPage.progress),
+                        child: _ProgressPreview(
+                          snapshot: snapshot,
+                          food: food,
+                          training: training,
+                          activity: activity,
+                        ),
                       ),
-                    ),
-                    _TerminalInformationPage(
-                      page: _TerminalPage.morning,
-                      title: 'STATUS DATA',
-                      subtitle: 'CURRENT OPERATION INPUT',
-                      onTap: () => onOpenDetail(_TerminalPage.morning),
-                      child: _MorningPreview(
-                        morning: morning,
-                        targets: snapshot.targets,
-                        training: training,
+                      _TerminalInformationPage(
+                        page: _TerminalPage.morning,
+                        title: 'STATUS DATA',
+                        subtitle: 'CURRENT OPERATION INPUT',
+                        onTap: () => onOpenDetail(_TerminalPage.morning),
+                        child: _MorningPreview(
+                          morning: morning,
+                          targets: snapshot.targets,
+                          training: training,
+                        ),
                       ),
-                    ),
-                    _TerminalInformationPage(
-                      page: _TerminalPage.sustainment,
-                      title: 'SUSTAINMENT',
-                      subtitle: 'NUTRITION · WATER · TRAINING · ACTIVITY',
-                      onTap: () => onOpenDetail(_TerminalPage.sustainment),
-                      child: _SustainmentPreview(
-                        food: food,
-                        training: training,
-                        activity: activity,
-                        targets: snapshot.targets,
+                      _TerminalInformationPage(
+                        page: _TerminalPage.sustainment,
+                        title: 'SUSTAINMENT',
+                        subtitle: 'NUTRITION · WATER · TRAINING · ACTIVITY',
+                        onTap: () => onOpenDetail(_TerminalPage.sustainment),
+                        child: _SustainmentPreview(
+                          food: food,
+                          training: training,
+                          activity: activity,
+                          targets: snapshot.targets,
+                        ),
                       ),
-                    ),
-                    _TerminalInformationPage(
-                      page: _TerminalPage.command,
-                      title: 'COMMAND / SCHEDULE',
-                      subtitle: 'INTENT AND TODAY\'S PLAN',
-                      onTap: () => onOpenDetail(_TerminalPage.command),
-                      child: _CommandPreview(snapshot: snapshot),
-                    ),
-                  ],
+                      _TerminalInformationPage(
+                        page: _TerminalPage.command,
+                        title: 'COMMAND / SCHEDULE',
+                        subtitle: 'INTENT AND TODAY\'S PLAN',
+                        onTap: () => onOpenDetail(_TerminalPage.command),
+                        child: _CommandPreview(snapshot: snapshot),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 2),
@@ -524,34 +528,37 @@ class _TacticalTerminal extends StatelessWidget {
 class _TerminalHeading extends StatelessWidget {
   const _TerminalHeading();
   @override
-  Widget build(BuildContext context) => Row(
-    key: const ValueKey('base-camp-terminal-heading'),
-    children: [
-      const Icon(
-        Icons.settings_input_component_outlined,
-        color: Color(0xffd8d0b2),
-        size: 18,
-      ),
-      const SizedBox(width: 7),
-      Expanded(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'TACTICAL COMMAND TERMINAL',
-            maxLines: 1,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: const Color(0xfff0ead2),
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.05,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Row(
+      key: const ValueKey('base-camp-terminal-heading'),
+      children: [
+        const Icon(
+          Icons.settings_input_component_outlined,
+          color: Color(0xffd8d0b2),
+          size: 18,
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'TACTICAL COMMAND TERMINAL',
+              maxLines: 1,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: const Color(0xfff0ead2),
+                fontSize: constraints.maxWidth < 350 ? 8 : 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .45,
+              ),
             ),
           ),
         ),
-      ),
-      const _CornerStatus(),
-      const SizedBox(width: 5),
-      _LcdPolaritySwitch(negative: _BaseCampLcdMode.of(context)),
-    ],
+        const _CornerStatus(),
+        const SizedBox(width: 5),
+        _LcdPolaritySwitch(negative: _BaseCampLcdMode.of(context)),
+      ],
+    ),
   );
 }
 
@@ -568,8 +575,8 @@ class _CornerStatus extends StatelessWidget {
       'LINK',
       style: TextStyle(
         color: Color(0xffa7d84c),
-        fontSize: 10,
-        letterSpacing: .8,
+        fontSize: 8,
+        letterSpacing: .4,
         fontWeight: FontWeight.bold,
       ),
     ),
@@ -1055,11 +1062,20 @@ class _StatusCompartment extends StatelessWidget {
             Row(
               children: [
                 const Expanded(
-                  child: Text(
-                    'OPERATION STATUS',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _labelStyle,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'OPERATION STATUS',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: Color(0xffa9a083),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .35,
+                      ),
+                    ),
                   ),
                 ),
                 Container(
@@ -1688,38 +1704,14 @@ class _SustainmentGrid extends StatelessWidget {
   final String activity;
 
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.topCenter,
-    child: SizedBox(
-      height: _InstrumentGeometry.gridHeight,
-      child: Column(
-        children: [
-          SizedBox(
-            height: _InstrumentGeometry.panelHeight,
-            child: Row(
-              children: [
-                Expanded(flex: 2, child: _Metric('CALORIES', calories)),
-                const SizedBox(width: 6),
-                Expanded(child: _Metric('PROTEIN', protein)),
-              ],
-            ),
-          ),
-          const SizedBox(height: _InstrumentGeometry.gap),
-          SizedBox(
-            height: _InstrumentGeometry.panelHeight,
-            child: Row(
-              children: [
-                Expanded(child: _Metric('WATER', water)),
-                const SizedBox(width: 6),
-                Expanded(child: _Metric('TRAINING', training)),
-                const SizedBox(width: 6),
-                Expanded(child: _Metric('ACTIVITY', activity)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
+  Widget build(BuildContext context) => _LcdGrid(
+    children: [
+      _Metric('CALORIES', calories),
+      _Metric('PROTEIN', protein),
+      _Metric('WATER', water),
+      _Metric('TRAINING', training),
+      _Metric('ACTIVITY', activity),
+    ],
   );
 }
 
@@ -1766,16 +1758,13 @@ class _CommandPreviewState extends State<_CommandPreview> {
               Text(
                 intent,
                 key: const ValueKey('base-camp-command-intent'),
-                maxLines: _expanded ? null : 2,
-                overflow: _expanded
-                    ? TextOverflow.visible
-                    : TextOverflow.ellipsis,
+                maxLines: null,
+                overflow: TextOverflow.visible,
                 // COMMAND content participates in LCD polarity exactly like
                 // the other readouts.  No inherited alpha or fixed light
                 // colour is allowed to wash out Japanese or English text.
                 style: TextStyle(color: _LcdColors.ink(context), fontSize: 11),
               ),
-              if (intent.length > 100) _expandButton(),
               const SizedBox(height: 8),
               const Divider(color: _LcdPalette.mid, height: 1),
               const SizedBox(height: 6),
@@ -1793,7 +1782,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
                 for (final entry in visible)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
-                    child: _TacticalScheduleRow(
+                    child: BaseCampTacticalScheduleRow(
                       number: ordered.indexOf(entry) + 1,
                       time: _scheduleTimeLabel(entry),
                       title: entry.record.title,
@@ -1822,8 +1811,10 @@ class _CommandPreviewState extends State<_CommandPreview> {
   );
 }
 
-class _TacticalScheduleRow extends StatelessWidget {
-  const _TacticalScheduleRow({
+@visibleForTesting
+class BaseCampTacticalScheduleRow extends StatelessWidget {
+  const BaseCampTacticalScheduleRow({
+    super.key,
     required this.number,
     required this.time,
     required this.title,
@@ -1838,7 +1829,7 @@ class _TacticalScheduleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = _LcdColors.ink(context);
     return Container(
-      height: 21,
+      constraints: const BoxConstraints(minHeight: 24),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: _LcdColors.field(context),
@@ -1887,12 +1878,13 @@ class _TacticalScheduleRow extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              overflow: TextOverflow.visible,
               style: TextStyle(
                 color: ink,
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w700,
+                height: 1.2,
               ),
             ),
           ),
@@ -1931,20 +1923,26 @@ class _LcdGrid extends StatelessWidget {
   final double aspectRatio;
 
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.topCenter,
-    child: SizedBox(
-      height: _InstrumentGeometry.gridHeight,
-      child: GridView.count(
-        crossAxisCount: columns,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final resolvedColumns = BaseCampTerminalResponsiveGeometry.columnsFor(
+        constraints.maxWidth,
+        preferred: columns,
+      );
+      final rows = (children.length / resolvedColumns).ceil();
+      final availableHeight =
+          constraints.maxHeight - _InstrumentGeometry.gap * (rows - 1);
+      final itemHeight = availableHeight / rows;
+      return GridView.count(
+        crossAxisCount: resolvedColumns,
         mainAxisSpacing: _InstrumentGeometry.gap,
         crossAxisSpacing: _InstrumentGeometry.gap,
         childAspectRatio: aspectRatio,
-        mainAxisExtent: _InstrumentGeometry.panelHeight,
+        mainAxisExtent: itemHeight,
         physics: const NeverScrollableScrollPhysics(),
         children: children,
-      ),
-    ),
+      );
+    },
   );
 }
 
@@ -1970,7 +1968,6 @@ class _LcdProgressCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         key: const ValueKey('base-camp-instrument-panel'),
-        height: _InstrumentGeometry.panelHeight,
         padding: const EdgeInsets.symmetric(
           horizontal: _InstrumentGeometry.outerHorizontalPadding,
           vertical: _InstrumentGeometry.outerVerticalPadding,
@@ -1984,29 +1981,37 @@ class _LcdProgressCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: 12,
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _lcdLabelStyle.copyWith(
-                  color: _LcdColors.auxiliary(context),
-                  fontSize: compact ? 9 : _InstrumentGeometry.labelFontSize,
-                  height: 1.2,
-                ),
+              height: _InstrumentGeometry.labelHeight,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _lcdLabelStyle.copyWith(
+                          color: _LcdColors.auxiliary(context),
+                          fontSize: compact
+                              ? 8
+                              : _InstrumentGeometry.labelFontSize,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  _InstrumentPilotLamp(
+                    active: progress >= 1,
+                    partial: progress > 0 && progress < 1,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: _InstrumentGeometry.labelGap),
-            Row(
-              children: [
-                _InstrumentPilotLamp(
-                  active: progress >= 1,
-                  partial: progress > 0 && progress < 1,
-                ),
-                const SizedBox(width: _InstrumentGeometry.lampGap),
-                Expanded(child: _LcdReadout(value: value)),
-              ],
-            ),
+            Expanded(child: BaseCampResponsiveReadout(value: value)),
           ],
         ),
       ),
@@ -2023,7 +2028,7 @@ class _InstrumentPilotLamp extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: _InstrumentGeometry.lampOuterDiameter,
     height: _InstrumentGeometry.lampOuterDiameter,
-    padding: EdgeInsets.all(2.5),
+    padding: const EdgeInsets.all(2),
     decoration: BoxDecoration(
       color: const Color(0xff485c3f),
       shape: BoxShape.circle,
@@ -2050,7 +2055,6 @@ class _Metric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-instrument-panel'),
-    height: _InstrumentGeometry.panelHeight,
     padding: const EdgeInsets.symmetric(
       horizontal: _InstrumentGeometry.outerHorizontalPadding,
       vertical: _InstrumentGeometry.outerVerticalPadding,
@@ -2064,31 +2068,41 @@ class _Metric extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 12,
-          child: Text(
-            label,
-            style: _lcdLabelStyle.copyWith(
-              color: _LcdColors.auxiliary(context),
-              fontSize: _InstrumentGeometry.labelFontSize,
-              height: 1.2,
+          height: _InstrumentGeometry.labelHeight,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              style: _lcdLabelStyle.copyWith(
+                color: _LcdColors.auxiliary(context),
+                fontSize: _InstrumentGeometry.labelFontSize,
+                height: 1.2,
+              ),
             ),
           ),
         ),
         const SizedBox(height: _InstrumentGeometry.labelGap),
-        _LcdReadout(value: value),
+        Expanded(child: BaseCampResponsiveReadout(value: value)),
       ],
     ),
   );
 }
 
-class _LcdReadout extends StatelessWidget {
-  const _LcdReadout({required this.value});
+@visibleForTesting
+class BaseCampResponsiveReadout extends StatelessWidget {
+  const BaseCampResponsiveReadout({super.key, required this.value});
+
+  static const double baseFontSize = 10;
+  static const double minimumFontSize = 8;
+
   final String value;
 
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('base-camp-lcd-readout'),
-    height: _InstrumentGeometry.lcdHeight,
     alignment: Alignment.centerLeft,
     padding: const EdgeInsets.symmetric(
       horizontal: _InstrumentGeometry.lcdHorizontalPadding,
@@ -2101,31 +2115,40 @@ class _LcdReadout extends StatelessWidget {
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
-        const base = TextStyle(
-          fontSize: 12,
-          height: 1.25,
-          fontWeight: FontWeight.w800,
+        final base = DefaultTextStyle.of(context).style.merge(
+          const TextStyle(
+            fontSize: baseFontSize,
+            height: 1.25,
+            fontWeight: FontWeight.w800,
+          ),
         );
+        final scaler = MediaQuery.textScalerOf(context);
         final painter = TextPainter(
           text: TextSpan(text: value, style: base),
           textDirection: TextDirection.ltr,
           maxLines: 1,
-          textScaler: MediaQuery.textScalerOf(context),
+          textScaler: scaler,
         )..layout(maxWidth: double.infinity);
-        // The three-column progress panel is intentionally narrow on a
-        // 320dp device. A measured per-readout scale keeps formal strings
-        // such as NOT RECORDED intact without changing another cell's type.
-        final scale =
+        final ratio =
             painter.width <= constraints.maxWidth || painter.width == 0
             ? 1.0
-            : (constraints.maxWidth / painter.width).clamp(.35, 1.0);
+            : constraints.maxWidth / painter.width;
+        final fontSize = (baseFontSize * ratio).clamp(
+          minimumFontSize,
+          baseFontSize,
+        );
+        final wraps = ratio < minimumFontSize / baseFontSize;
         return Text(
+          key: const ValueKey('base-camp-lcd-readout-text'),
           value,
-          maxLines: 1,
-          softWrap: false,
+          maxLines: wraps ? 2 : 1,
+          softWrap: wraps,
           overflow: TextOverflow.visible,
-          textScaler: TextScaler.linear(scale),
-          style: base.copyWith(color: _LcdColors.ink(context)),
+          style: base.copyWith(
+            color: _LcdColors.ink(context),
+            fontSize: fontSize,
+            height: wraps ? 1.05 : 1.25,
+          ),
         );
       },
     ),
@@ -2133,18 +2156,28 @@ class _LcdReadout extends StatelessWidget {
 }
 
 abstract final class _InstrumentGeometry {
-  static const panelHeight = 53.0;
-  static const lcdHeight = 25.0;
   static const gap = 6.0;
-  static const gridHeight = panelHeight * 2 + gap;
   static const outerHorizontalPadding = 6.0;
-  static const outerVerticalPadding = 5.0;
-  static const labelFontSize = 10.0;
-  static const labelGap = 4.0;
+  static const outerVerticalPadding = 4.0;
+  static const labelHeight = 14.0;
+  static const labelFontSize = 9.0;
+  static const labelGap = 3.0;
   static const lcdHorizontalPadding = 6.0;
-  static const lcdVerticalPadding = 4.0;
-  static const lampOuterDiameter = 14.0;
-  static const lampGap = 5.0;
+  static const lcdVerticalPadding = 2.0;
+  static const lampOuterDiameter = 12.0;
+}
+
+@visibleForTesting
+abstract final class BaseCampTerminalResponsiveGeometry {
+  static const double narrowContentWidth = 360;
+  static const double compactPageHeight = 220;
+  static const double regularPageHeight = 160;
+
+  static double pageHeightFor(double contentWidth) =>
+      contentWidth < narrowContentWidth ? compactPageHeight : regularPageHeight;
+
+  static int columnsFor(double contentWidth, {required int preferred}) =>
+      contentWidth < narrowContentWidth ? math.min(2, preferred) : preferred;
 }
 
 class _PageIndicator extends StatelessWidget {

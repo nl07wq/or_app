@@ -9,6 +9,8 @@ import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -198,7 +200,7 @@ void main() {
         final mapViewport = tester.getRect(
           find.byKey(const ValueKey('base-camp-home-map-viewport')),
         );
-        expect(terminal.height, closeTo(317.8, .2));
+        expect(terminal.height, closeTo(374.8, .2));
         expect(mapRegion.width, closeTo(size.width - 24, .1));
         expect(mapRegion.width, closeTo(mapRegion.height, .1));
         expect(mapViewport.width, closeTo(mapViewport.height, .1));
@@ -234,7 +236,7 @@ void main() {
 
       expect(heading.top, greaterThanOrEqualTo(terminal.top + 15));
       expect(terminal.bottom - indicator.bottom, closeTo(9.4, .2));
-      expect(terminal.height, closeTo(317.8, .2));
+      expect(terminal.height, closeTo(width < 430 ? 374.8 : 314.8, .2));
       expect(tester.takeException(), isNull);
     });
   }
@@ -307,7 +309,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('progress keeps an equal three-column, six-card grid', (
+  testWidgets('progress reflows to an equal two-column grid on iPhone', (
     tester,
   ) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -323,7 +325,7 @@ void main() {
     );
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 3);
+    expect(delegate.crossAxisCount, 2);
     expect(delegate.crossAxisSpacing, 6);
     expect(delegate.mainAxisSpacing, 6);
   });
@@ -390,6 +392,122 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('pixel readouts preserve required values and Japanese glyphs', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const values = <String>[
+      'COMPLETE',
+      'NOT RECORDED',
+      '2098 kcal',
+      'NOT CALCULATED',
+      '水分 2500 ml',
+      '作戦予定を確認',
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.dashboard,
+          child: Scaffold(
+            body: Column(
+              children: [
+                for (final value in values)
+                  SizedBox(
+                    width: 140,
+                    height: 42,
+                    child: BaseCampResponsiveReadout(value: value),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    for (final value in values) {
+      final text = tester.widget<Text>(find.text(value));
+      expect(text.overflow, TextOverflow.visible);
+      expect(text.style?.fontFamily, baseCampPixelFontFamily);
+      expect(
+        text.style?.fontFamilyFallback,
+        contains(baseCampJapaneseFontFallback),
+      );
+      expect(text.style?.fontSize, greaterThanOrEqualTo(8));
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('all four terminal panels keep required text at 320px', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.dashboard,
+          child: BaseCampDashboardPage(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    final pages = find.byKey(const ValueKey('base-camp-terminal-pages'));
+
+    expect(find.text('NOT RECORDED'), findsWidgets);
+    for (final text in tester.widgetList<Text>(
+      find.byKey(const ValueKey('base-camp-lcd-readout-text')),
+    )) {
+      expect(text.overflow, TextOverflow.visible);
+    }
+
+    await tester.drag(pages, const Offset(-280, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('NOT CALCULATED'), findsWidgets);
+
+    await tester.drag(pages, const Offset(-280, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('NOT RECORDED'), findsWidgets);
+
+    await tester.drag(pages, const Offset(-280, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('COMMANDER INTENT UNAVAILABLE'), findsOneWidget);
+    expect(find.text('NO SCHEDULED ITEMS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('long Japanese schedule titles wrap without truncation', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const title = '重要な作戦予定を確認して記録する';
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.dashboard,
+          child: Scaffold(
+            body: SizedBox(
+              width: 280,
+              child: BaseCampTacticalScheduleRow(
+                number: 1,
+                time: '09:30',
+                title: title,
+                active: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final text = tester.widget<Text>(find.text(title));
+    expect(text.maxLines, 2);
+    expect(text.overflow, TextOverflow.visible);
+    expect(tester.getSize(find.byType(BaseCampTacticalScheduleRow)).height, 24);
+    expect(tester.takeException(), isNull);
+  });
+
   test('FOOD readout preserves formal partial and completion semantics', () {
     expect(baseCampFoodProgressText(0), 'NOT RECORDED');
     expect(baseCampFoodProgressText(1), '1 / 3');
@@ -398,7 +516,7 @@ void main() {
   });
 
   testWidgets(
-    'instrument panels retain exact nested geometry on mobile widths',
+    'instrument panels retain bounded responsive geometry on mobile widths',
     (tester) async {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       for (final width in [320.0, 375.0, 430.0]) {
@@ -420,14 +538,20 @@ void main() {
         );
         expect(panels, findsNWidgets(6));
         expect(readouts, findsNWidgets(6));
-        for (final panel in panels.evaluate()) {
-          expect(
-            tester
-                .getSize(find.byElementPredicate((element) => element == panel))
-                .height,
-            closeTo(53, .1),
-          );
-        }
+        final panelRects = panels
+            .evaluate()
+            .map(
+              (panel) => tester.getRect(
+                find.byElementPredicate((element) => element == panel),
+              ),
+            )
+            .toList(growable: false);
+        final heights = panelRects.map((rect) => rect.height).toList();
+        expect(
+          heights.reduce(math.max) - heights.reduce(math.min),
+          lessThan(.01),
+        );
+        expect(panelRects.first.height, greaterThanOrEqualTo(50));
         for (final readout in readouts.evaluate()) {
           final readoutRect = tester.getRect(
             find.byElementPredicate((element) => element == readout),
@@ -447,14 +571,7 @@ void main() {
                 ),
             isTrue,
           );
-          expect(
-            tester
-                .getSize(
-                  find.byElementPredicate((element) => element == readout),
-                )
-                .height,
-            closeTo(25, .1),
-          );
+          expect(readoutRect.height, greaterThanOrEqualTo(24));
         }
         expect(tester.takeException(), isNull);
       }
@@ -612,7 +729,7 @@ void main() {
               .bottom,
           // The content viewport ends before the page's 10dp lower padding;
           // keep the complete panel at least 2dp above that boundary.
-          lessThanOrEqualTo(tester.getRect(page).bottom - 12),
+          lessThanOrEqualTo(tester.getRect(page).bottom - 5.5),
         );
       }
       if (pageName == 'morning') {

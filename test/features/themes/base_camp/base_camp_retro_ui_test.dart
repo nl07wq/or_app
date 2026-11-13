@@ -13,37 +13,58 @@ void main() {
   test('bundled pixel font retains its SIL OFL license', () {
     final font = File('assets/fonts/PressStart2P-Regular.ttf');
     final license = File('assets/fonts/licenses/OFL-PressStart2P.txt');
+    final japaneseFont = File('assets/fonts/DotGothic16-Regular.ttf');
+    final japaneseLicense = File('assets/fonts/licenses/OFL-DotGothic16.txt');
 
     expect(font.existsSync(), isTrue);
     expect(font.lengthSync(), 118204);
     expect(license.readAsStringSync(), contains('SIL OPEN FONT LICENSE'));
     expect(license.readAsStringSync(), contains('Version 1.1'));
+    expect(japaneseFont.existsSync(), isTrue);
+    expect(japaneseFont.lengthSync(), 2069236);
+    expect(
+      japaneseLicense.readAsStringSync(),
+      contains('SIL OPEN FONT LICENSE'),
+    );
+    expect(japaneseLicense.readAsStringSync(), contains('Version 1.1'));
   });
 
   testWidgets('BASE CAMP applies pixel typography with Japanese fallback', (
     tester,
   ) async {
-    ThemeData? observed;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: BaseCampScreenEntry(
-          screen: BaseCampScreen.food,
-          child: Builder(
-            builder: (context) {
-              observed = Theme.of(context);
-              return const Scaffold(body: Text('FOOD 記録 123'));
-            },
+    for (final screen in const <BaseCampScreen>[
+      BaseCampScreen.morning,
+      BaseCampScreen.activity,
+      BaseCampScreen.food,
+      BaseCampScreen.training,
+      BaseCampScreen.commandCenter,
+      BaseCampScreen.dataCenterHistory,
+    ]) {
+      ThemeData? observed;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BaseCampScreenEntry(
+            screen: screen,
+            child: Builder(
+              builder: (context) {
+                observed = Theme.of(context);
+                return const Scaffold(body: Text('COMMAND 作戦記録 123'));
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(observed!.textTheme.bodyMedium!.fontFamily, baseCampPixelFontFamily);
-    expect(
-      observed!.textTheme.bodyMedium!.fontFamilyFallback,
-      contains(baseCampJapaneseFontFallback),
-    );
-    expect(tester.takeException(), isNull);
+      expect(
+        observed!.textTheme.bodyMedium!.fontFamily,
+        baseCampPixelFontFamily,
+      );
+      expect(
+        observed!.textTheme.bodyMedium!.fontFamilyFallback,
+        contains(baseCampJapaneseFontFallback),
+      );
+      expect(tester.takeException(), isNull, reason: screen.name);
+    }
   });
 
   testWidgets('STANDARD typography is not replaced', (tester) async {
