@@ -657,36 +657,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('long Japanese schedule titles wrap without truncation', (
+  testWidgets('Japanese schedule titles use 11px and fit one or two lines', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(320, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    const title = '重要な作戦予定を確認して記録する';
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: BaseCampScreenEntry(
-          screen: BaseCampScreen.dashboard,
-          child: Scaffold(
-            body: SizedBox(
-              width: 280,
-              child: BaseCampTacticalScheduleRow(
-                number: 1,
-                time: '09:30',
-                title: title,
-                active: true,
+    for (final width in const [320.0, 375.0, 390.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      for (final title in const ['朝会', '重要な作戦予定を確認して記録内容を最終報告する']) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BaseCampScreenEntry(
+              screen: BaseCampScreen.dashboard,
+              child: Scaffold(
+                body: SizedBox(
+                  width: 280,
+                  child: BaseCampTacticalScheduleRow(
+                    number: 1,
+                    time: '09:30',
+                    title: title,
+                    active: true,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
 
-    final text = tester.widget<Text>(find.text(title));
-    expect(text.maxLines, 2);
-    expect(text.overflow, TextOverflow.visible);
-    expect(tester.getSize(find.byType(BaseCampTacticalScheduleRow)).height, 24);
-    expect(tester.takeException(), isNull);
+        final titleFinder = find.text(title);
+        final text = tester.widget<Text>(titleFinder);
+        final rowRect = tester.getRect(
+          find.byType(BaseCampTacticalScheduleRow),
+        );
+        final titleRect = tester.getRect(titleFinder);
+        expect(text.style?.fontFamily, baseCampJapaneseFontFallback);
+        expect(text.style?.fontSize, 11);
+        expect(text.style?.fontWeight, FontWeight.w700);
+        expect(text.style?.height, 1);
+        expect(text.maxLines, 2);
+        expect(text.overflow, TextOverflow.visible);
+        expect(rowRect.height, 24);
+        expect(titleRect.top, greaterThanOrEqualTo(rowRect.top));
+        expect(titleRect.bottom, lessThanOrEqualTo(rowRect.bottom));
+        if (title.length > 2) expect(titleRect.height, greaterThan(11));
+        expect(tester.takeException(), isNull, reason: '$title at $width');
+      }
+    }
   });
 
   test('FOOD readout preserves formal partial and completion semantics', () {
@@ -906,10 +921,18 @@ void main() {
           final unitFinder = find.byKey(
             const ValueKey('base-camp-water-unit-line'),
           );
+          final upperRegionFinder = find.byKey(
+            const ValueKey('base-camp-water-upper-region'),
+          );
+          final lowerRegionFinder = find.byKey(
+            const ValueKey('base-camp-water-lower-region'),
+          );
           final numeric = tester.widget<Text>(numericFinder);
           final unit = tester.widget<Text>(unitFinder);
           final numericRect = tester.getRect(numericFinder);
           final unitRect = tester.getRect(unitFinder);
+          final upperRegionRect = tester.getRect(upperRegionFinder);
+          final lowerRegionRect = tester.getRect(lowerRegionFinder);
           final span = numeric.textSpan! as TextSpan;
           final painter = TextPainter(
             text: span,
@@ -933,12 +956,23 @@ void main() {
           expect(numeric.style?.fontWeight, FontWeight.w700);
           expect(numeric.style?.letterSpacing, -1);
           final isShortValue = value.startsWith('500 ');
-          final expectedFontSize = width == 320 && !isShortValue ? 8.5 : 9.0;
-          final expectedWidth = isShortValue
-              ? 68.0
-              : width == 320
-              ? 71.5
-              : 76.0;
+          final expectedFontSize = width == 320
+              ? isShortValue
+                    ? 9.5
+                    : 8.5
+              : 10.0;
+          final expectedWidth = width == 320
+              ? isShortValue
+                    ? 72.0
+                    : 71.5
+              : isShortValue
+              ? 76.0
+              : 85.0;
+          final expectedNumericInkHeight = width == 320
+              ? isShortValue
+                    ? 9.0
+                    : 8.0
+              : 10.0;
           expect(numeric.style?.fontSize, expectedFontSize);
           expect(painter.width, expectedWidth);
           expect(painter.width, lessThanOrEqualTo(availableWidth));
@@ -947,9 +981,38 @@ void main() {
           expect(unit.style?.fontSize, 7);
           expect(unit.style?.letterSpacing, -1);
           expect(unitRect.right, closeTo(readoutRect.right - 2, .01));
-          expect(numericRect.top, greaterThanOrEqualTo(readoutRect.top + 2));
-          expect(unitRect.bottom, lessThanOrEqualTo(readoutRect.bottom - 2));
-          expect(numericRect.bottom, lessThanOrEqualTo(unitRect.top));
+          expect(upperRegionRect.height, closeTo(11.4, .01));
+          expect(lowerRegionRect.height, closeTo(7.6, .01));
+          expect(
+            upperRegionRect.height / lowerRegionRect.height,
+            closeTo(3 / 2, .01),
+          );
+          expect(upperRegionRect.bottom, closeTo(lowerRegionRect.top, .01));
+          final inkBounds = await tester.runAsync(
+            () async => (
+              numeric: await _rasterTextInkBounds(span),
+              unit: await _rasterTextInkBounds(
+                TextSpan(text: unit.data, style: unit.style),
+              ),
+            ),
+          );
+          final numericInk = inkBounds!.numeric;
+          final unitInk = inkBounds.unit;
+          final numericInkTop = numericRect.top + numericInk.top;
+          final numericInkBottom = numericRect.top + numericInk.bottom;
+          final unitInkTop = unitRect.top + unitInk.top;
+          final unitInkBottom = unitRect.top + unitInk.bottom;
+          expect(numericInkTop, greaterThanOrEqualTo(upperRegionRect.top));
+          expect(numericInkBottom, lessThanOrEqualTo(upperRegionRect.bottom));
+          final boundaryExtension = lowerRegionRect.top - unitInkTop;
+          expect(boundaryExtension, greaterThanOrEqualTo(0));
+          expect(boundaryExtension, lessThanOrEqualTo(.7 + .01));
+          expect(unitInkBottom, lessThanOrEqualTo(lowerRegionRect.bottom));
+          expect(numericInk.height, expectedNumericInkHeight);
+          expect(unitInk.height, 8);
+          expect(numericInkTop, greaterThanOrEqualTo(readoutRect.top));
+          expect(unitInkBottom, lessThanOrEqualTo(readoutRect.bottom));
+          expect(unitInkTop - numericInkBottom, greaterThan(0));
           expect(tester.takeException(), isNull, reason: '$value at $width');
           continue;
         }
@@ -1345,6 +1408,49 @@ void main() {
       findsOneWidget,
     );
   });
+}
+
+Future<Rect> _rasterTextInkBounds(TextSpan span) async {
+  final painter = TextPainter(
+    text: span,
+    textDirection: TextDirection.ltr,
+    textScaler: TextScaler.noScaling,
+    maxLines: 1,
+  )..layout();
+  const inset = 4.0;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  painter.paint(canvas, const Offset(inset, inset));
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(
+    math.max(1, (painter.width + inset * 2).ceil()),
+    math.max(1, (painter.height + inset * 2).ceil()),
+  );
+  picture.dispose();
+  final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  var minX = image.width;
+  var minY = image.height;
+  var maxX = -1;
+  var maxY = -1;
+  for (var y = 0; y < image.height; y++) {
+    for (var x = 0; x < image.width; x++) {
+      final alpha = rgba!.getUint8((y * image.width + x) * 4 + 3);
+      if (alpha < 16) continue;
+      minX = math.min(minX, x);
+      minY = math.min(minY, y);
+      maxX = math.max(maxX, x);
+      maxY = math.max(maxY, y);
+    }
+  }
+  image.dispose();
+  expect(maxX, greaterThanOrEqualTo(minX));
+  expect(maxY, greaterThanOrEqualTo(minY));
+  return Rect.fromLTRB(
+    minX - inset,
+    minY - inset,
+    maxX + 1 - inset,
+    maxY + 1 - inset,
+  );
 }
 
 Future<({double red, double green, double blue})> _opaqueRgbaMean(

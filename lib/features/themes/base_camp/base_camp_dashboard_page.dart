@@ -1972,9 +1972,10 @@ class BaseCampTacticalScheduleRow extends StatelessWidget {
               overflow: TextOverflow.visible,
               style: TextStyle(
                 color: ink,
-                fontSize: 9,
+                fontFamily: baseCampJapaneseFontFallback,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
-                height: 1.2,
+                height: 1,
               ),
             ),
           ),
@@ -2337,7 +2338,7 @@ class BaseCampResponsiveReadout extends StatelessWidget {
   static const double statusDataFontSize = 10;
   static const double sustainmentFontSize = 10;
   static const double waterStateFontSize = 7;
-  static const double waterNumericFontSize = 9;
+  static const double waterNumericFontSize = 10;
   static const double waterUnitFontSize = 7;
   static const double waterSeparatorSpaceFontSize = 3;
   static const double minimumFontSize = 5;
@@ -2504,33 +2505,53 @@ class BaseCampResponsiveReadout extends StatelessWidget {
       base.copyWith(color: ink),
       fontSize,
     );
-    return Column(
+    final upperHeight = constraints.maxHeight * 3 / 5;
+    final lowerHeight = constraints.maxHeight - upperHeight;
+    return Stack(
       key: const ValueKey('base-camp-water-two-line-readout'),
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text.rich(
-          span,
-          key: const ValueKey('base-camp-water-numeric-line'),
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.visible,
-          textScaler: TextScaler.noScaling,
-          style: span.style,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: upperHeight,
+          child: Align(
+            key: const ValueKey('base-camp-water-upper-region'),
+            alignment: Alignment.topLeft,
+            child: Transform.translate(
+              offset: const Offset(0, 1),
+              child: Text.rich(
+                span,
+                key: const ValueKey('base-camp-water-numeric-line'),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.visible,
+                textScaler: TextScaler.noScaling,
+                style: span.style,
+              ),
+            ),
+          ),
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Text(
-            unit,
-            key: const ValueKey('base-camp-water-unit-line'),
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.visible,
-            textScaler: TextScaler.noScaling,
-            style: base.copyWith(
-              color: ink,
-              fontSize: waterUnitFontSize,
-              height: 1,
+        Positioned(
+          top: upperHeight,
+          left: 0,
+          right: 0,
+          height: lowerHeight,
+          child: Align(
+            key: const ValueKey('base-camp-water-lower-region'),
+            alignment: Alignment.centerRight,
+            child: Text(
+              unit,
+              key: const ValueKey('base-camp-water-unit-line'),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              textScaler: TextScaler.noScaling,
+              style: base.copyWith(
+                color: ink,
+                fontSize: waterUnitFontSize,
+                height: 1,
+              ),
             ),
           ),
         ),
