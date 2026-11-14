@@ -1498,7 +1498,6 @@ class _IndustrialLcdPanel extends StatelessWidget {
   }
 }
 
-@visibleForTesting
 class BaseCampLcdGrainPainter extends CustomPainter {
   const BaseCampLcdGrainPainter({required this.negative, this.alpha = opacity});
 
@@ -1622,7 +1621,7 @@ class _ProgressPreview extends StatelessWidget {
       children: [
         _LcdProgressCard(
           'STATUS',
-          model?.statusCompletion.displayState ?? 'NOT RECORDED',
+          model?.statusCompletion.displayState ?? 'NO DATA',
           progress: model?.statusCompletion.isComplete == true ? 1 : 0,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.morning),
         ),
@@ -1634,14 +1633,14 @@ class _ProgressPreview extends StatelessWidget {
         ),
         _LcdProgressCard(
           'TRAINING',
-          training?.completed == true ? 'COMPLETE' : 'NOT RECORDED',
+          training?.completed == true ? 'COMPLETE' : 'NO DATA',
           progress: training?.completed == true ? 1 : 0,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.training),
         ),
         _LcdProgressCard(
           'ACTIVITY',
           model?.activityCompletion.displayState ??
-              (activity.isRecorded ? 'COMPLETE' : 'NOT RECORDED'),
+              (activity.isRecorded ? 'COMPLETE' : 'NO DATA'),
           progress:
               model?.activityCompletion.isComplete == true ||
                   activity.isRecorded
@@ -1651,14 +1650,14 @@ class _ProgressPreview extends StatelessWidget {
         ),
         _LcdProgressCard(
           'BRIEF',
-          snapshot.briefRecorded ? 'COMPLETE' : 'NOT RECORDED',
+          snapshot.briefRecorded ? 'COMPLETE' : 'NO DATA',
           progress: snapshot.briefRecorded ? 1 : 0,
           compact: true,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.commandCenter),
         ),
         _LcdProgressCard(
           'DEBRIEF',
-          snapshot.debriefRecorded ? 'COMPLETE' : 'NOT RECORDED',
+          snapshot.debriefRecorded ? 'COMPLETE' : 'NO DATA',
           progress: snapshot.debriefRecorded ? 1 : 0,
           compact: true,
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.commandCenter),
@@ -1696,7 +1695,7 @@ class _MorningPreview extends StatelessWidget {
 /// the display contract in one place for the compact instrument readout.
 String baseCampFoodProgressText(int mealCount) {
   final count = mealCount.clamp(0, 3).toInt();
-  if (count == 0) return 'NOT RECORDED';
+  if (count == 0) return 'NO DATA';
   if (count == 3) return 'COMPLETE';
   return '$count / 3';
 }
@@ -1717,8 +1716,8 @@ class _SustainmentPreview extends StatelessWidget {
     calories: _rangeText(food?.calories, targets?.calories),
     protein: _rangeText(food?.protein, targets?.protein, suffix: ' g'),
     water: _waterText(food, targets),
-    training: training?.completed == true ? 'COMPLETE' : 'NOT RECORDED',
-    activity: activity.isRecorded ? '${activity.steps} steps' : 'NOT RECORDED',
+    training: training?.completed == true ? 'COMPLETE' : 'NO DATA',
+    activity: activity.isRecorded ? '${activity.steps} steps' : 'NO DATA',
   );
 }
 
@@ -2751,19 +2750,19 @@ class _TerminalDetailSheet extends StatelessWidget {
         rows: [
           _row(
             'STATUS',
-            snapshot.command?.statusCompletion.displayState ?? 'NOT RECORDED',
+            snapshot.command?.statusCompletion.displayState ?? 'NO DATA',
           ),
           _row(
             'FOOD',
-            snapshot.command?.foodCompletion.displayState ?? 'NOT RECORDED',
+            snapshot.command?.foodCompletion.displayState ?? 'NO DATA',
           ),
           _row(
             'TRAINING',
-            snapshot.command?.trainingCompletion.displayState ?? 'NOT RECORDED',
+            snapshot.command?.trainingCompletion.displayState ?? 'NO DATA',
           ),
           _row(
             'ACTIVITY',
-            snapshot.command?.activityCompletion.displayState ?? 'NOT RECORDED',
+            snapshot.command?.activityCompletion.displayState ?? 'NO DATA',
           ),
           _row(
             'BRIEF / DEBRIEF',
@@ -2824,11 +2823,11 @@ class _TerminalDetailSheet extends StatelessWidget {
           _row('WATER', _waterText(food, snapshot.targets)),
           _row(
             'TRAINING',
-            training?.completed == true ? 'COMPLETE' : 'NOT RECORDED',
+            training?.completed == true ? 'COMPLETE' : 'NO DATA',
           ),
           _row(
             'ACTIVITY',
-            activity.isRecorded ? '${activity.steps} steps' : 'NOT RECORDED',
+            activity.isRecorded ? '${activity.steps} steps' : 'NO DATA',
           ),
         ],
       ),
@@ -3048,13 +3047,12 @@ Color _statusColor(OperationStatus? status) => switch (status) {
   OperationStatus.black => const Color(0xff8d9091),
   null => const Color(0xffa9a083),
 };
-String _weightText(MorningFact? fact) => fact?.weight == null
-    ? 'NOT RECORDED'
-    : '${fact!.weight!.toStringAsFixed(1)} kg';
+String _weightText(MorningFact? fact) =>
+    fact?.weight == null ? 'NO DATA' : '${fact!.weight!.toStringAsFixed(1)} kg';
 String _sleepText(MorningFact? fact) {
   final value = fact?.sleepDuration;
   return value == null
-      ? 'NOT RECORDED'
+      ? 'NO DATA'
       : '${value.inHours}h ${(value.inMinutes % 60).toString().padLeft(2, '0')}m';
 }
 
@@ -3070,7 +3068,7 @@ String _rangeText(
   DynamicRangeTarget? target, {
   String suffix = ' kcal',
 }) {
-  if (current == null) return 'NOT RECORDED';
+  if (current == null) return 'NO DATA';
   final targetValue = DynamicDailyTargetPresentation.caloriesTargetKcal(target);
   final shown = current.toStringAsFixed(
     current == current.roundToDouble() ? 0 : 1,
@@ -3079,7 +3077,7 @@ String _rangeText(
 }
 
 String _waterText(FoodSummary? food, DynamicDailyTargetResult? targets) {
-  if (food?.waterRecorded != true) return 'NOT RECORDED';
+  if (food?.waterRecorded != true) return 'NO DATA';
   final target = DynamicDailyTargetPresentation.waterTargetMl(targets?.water);
   return target == null
       ? '${food!.hydrationMl.toStringAsFixed(0)} ml'

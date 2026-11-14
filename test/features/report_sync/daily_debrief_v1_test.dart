@@ -242,8 +242,8 @@ void main() {
       expect(
         current.blockingReasons,
         containsAll([
-          'STATUS: NOT RECORDED (STATUS)',
-          'FOOD: NOT RECORDED (FOOD, WATER)',
+          'STATUS: NO DATA (STATUS)',
+          'FOOD: NO DATA (FOOD, WATER)',
           'ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)',
         ]),
       );

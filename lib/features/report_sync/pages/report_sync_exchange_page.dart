@@ -1605,7 +1605,7 @@ class _StatusSourcePreview extends StatelessWidget {
             title: 'RECOVERY',
             lines: [
               'SLEEP  ${_duration(source.recovery.sleepDurationMinutes)}',
-              'SLEEP SCORE  ${source.recovery.sleepScore ?? 'NOT RECORDED'}',
+              'SLEEP SCORE  ${source.recovery.sleepScore ?? 'NO DATA'}',
             ],
           ),
           _ReportPreviewPanel(
@@ -1644,7 +1644,7 @@ class _StatusSourcePreview extends StatelessWidget {
             title: 'CARRYOVER',
             lines: [
               source.previousCarryoverConfirmed == null
-                  ? 'NOT RECORDED'
+                  ? 'NO DATA'
                   : source.previousCarryoverConfirmed!
                   ? 'CONFIRMED'
                   : 'NONE',
@@ -1665,10 +1665,10 @@ class _StatusSourcePreview extends StatelessWidget {
   );
 
   static String _value(num? value, String unit) =>
-      value == null ? 'NOT RECORDED' : '${value.toString()} $unit';
+      value == null ? 'NO DATA' : '${value.toString()} $unit';
 
   static String _duration(int? minutes) {
-    if (minutes == null) return 'NOT RECORDED';
+    if (minutes == null) return 'NO DATA';
     return '${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}';
   }
 }
@@ -1718,7 +1718,7 @@ List<Widget> _trainingPreviewLines(ReportSyncResponsePreview preview) {
           final sessionName =
               rawSessionName is String && rawSessionName.trim().isNotEmpty
               ? rawSessionName
-              : 'NOT RECORDED';
+              : 'NO DATA';
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

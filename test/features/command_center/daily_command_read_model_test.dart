@@ -39,9 +39,9 @@ void main() {
         DailyLogModule.activity,
       ]);
       expect(model.statusCompletion.displayState, 'COMPLETE');
-      expect(model.foodCompletion.displayState, 'NOT RECORDED');
+      expect(model.foodCompletion.displayState, 'NO DATA');
       expect(model.foodCompletion.missingRequirements, ['FOOD', 'WATER']);
-      expect(model.activityCompletion.displayState, 'NOT RECORDED');
+      expect(model.activityCompletion.displayState, 'NO DATA');
       expect(model.activityCompletion.missingRequirements, [
         'STEPS',
         'DIGESTIVE',

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/features/activity/activity_page.dart';
@@ -15,6 +16,8 @@ import 'package:or_app/features/morning/morning_page.dart';
 import 'package:or_app/features/morning/widgets/status_radial_spectrum_ambient.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_facility_entry_page.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
+    show BaseCampLcdGrainPainter;
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:or_app/features/training/training_page.dart';
@@ -25,6 +28,7 @@ import '../../operation_date/operation_date_test_fixture.dart';
 
 void main() {
   setUp(() {
+    DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
     final database = FakeIndexedDbDatabase();
     seedOperationState(database, '2026-11-13');
     final controller = AppInitializationController()..markReady();
@@ -265,6 +269,221 @@ void main() {
     }
   });
 
+  for (final width in const [320.0, 375.0, 390.0]) {
+    testWidgets(
+      'all five entries share compact MODULE TERMINAL at ${width.toInt()}px',
+      (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final cases = <(BaseCampScreen, Widget, String, int)>[
+          (BaseCampScreen.morning, const MorningPage(), 'STATUS', 3),
+          (BaseCampScreen.activity, const ActivityPage(), 'ACTIVITY', 2),
+          (BaseCampScreen.food, const FoodPage(), 'FOOD', 4),
+          (BaseCampScreen.training, const TrainingPage(), 'TRAINING', 5),
+          (
+            BaseCampScreen.commandCenter,
+            const CommandCenterPage(),
+            'COMMAND CENTER',
+            4,
+          ),
+        ];
+
+        for (final (screen, page, title, actionCount) in cases) {
+          await _pumpBaseCampWithMediaQuery(tester, screen, page, width: width);
+          final scroll = find.byKey(
+            ValueKey('base-camp-${title.toLowerCase()}-facility-menu-scroll'),
+          );
+          final position = tester
+              .state<ScrollableState>(
+                find.descendant(of: scroll, matching: find.byType(Scrollable)),
+              )
+              .position;
+          expect(
+            find.byKey(const ValueKey('base-camp-module-terminal-housing')),
+            findsOneWidget,
+            reason: title,
+          );
+          expect(find.text('MODULE TERMINAL'), findsOneWidget, reason: title);
+          expect(find.text('LINK'), findsOneWidget, reason: title);
+          final surfaces = find.byKey(
+            const ValueKey('base-camp-module-terminal-action-surface'),
+          );
+          final items = find.byKey(
+            const ValueKey('base-camp-module-terminal-action'),
+          );
+          expect(surfaces, findsNWidgets(actionCount), reason: title);
+          expect(items, findsNWidgets(actionCount), reason: title);
+          for (final surface in surfaces.evaluate()) {
+            expect(tester.getSize(find.byWidget(surface.widget)).height, 56);
+          }
+          if (actionCount > 1) {
+            expect(
+              tester.getRect(items.at(1)).top -
+                  tester.getRect(items.first).bottom,
+              closeTo(10, .01),
+              reason: title,
+            );
+          }
+          final descriptions = find.byKey(
+            const ValueKey('base-camp-module-terminal-description'),
+          );
+          expect(
+            tester.getRect(surfaces.first).top -
+                tester.getRect(descriptions.first).bottom,
+            closeTo(8, .01),
+            reason: title,
+          );
+          final image = find.byKey(ValueKey('base-camp-facility-image-$title'));
+          final imageRect = tester.getRect(image);
+          expect(tester.widget<Image>(image).color, isNull, reason: title);
+          position.jumpTo(position.maxScrollExtent);
+          await tester.pump();
+          expect(tester.getRect(image), imageRect, reason: title);
+          expect(
+            tester.getRect(surfaces.last).bottom,
+            lessThanOrEqualTo(480 - 34),
+            reason: title,
+          );
+          expect(tester.takeException(), isNull, reason: title);
+        }
+      },
+    );
+  }
+
+  testWidgets('ENTRY terminal reactively inherits Dashboard INV polarity', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpBaseCamp(tester, BaseCampScreen.food, const FoodPage());
+
+    ColoredBox interior() => tester.widget<ColoredBox>(
+      find.byKey(const ValueKey('base-camp-module-terminal-lcd-interior')),
+    );
+    Container surface() => tester.widget<Container>(
+      find
+          .byKey(const ValueKey('base-camp-module-terminal-action-surface'))
+          .first,
+    );
+    BaseCampLcdGrainPainter grain() =>
+        tester
+                .widget<CustomPaint>(
+                  find.byKey(
+                    const ValueKey('base-camp-module-terminal-lcd-grain'),
+                  ),
+                )
+                .painter!
+            as BaseCampLcdGrainPainter;
+    Text description() => tester.widget<Text>(
+      find.byKey(const ValueKey('base-camp-module-terminal-description')).first,
+    );
+    Text buttonLabel() => tester.widget<Text>(find.text('FOOD ENTRY'));
+    Icon buttonIcon() => tester.widget<Icon>(
+      find
+          .descendant(
+            of: find
+                .byKey(
+                  const ValueKey('base-camp-module-terminal-action-surface'),
+                )
+                .first,
+            matching: find.byType(Icon),
+          )
+          .first,
+    );
+
+    expect(interior().color, const Color(0xffaeb894));
+    expect(
+      (surface().decoration! as BoxDecoration).color,
+      const Color(0xff8d9d79),
+    );
+    expect(description().style?.color, const Color(0xff485c3f));
+    expect(buttonLabel().style?.color, const Color(0xff273326));
+    expect(buttonIcon().color, const Color(0xff273326));
+    expect(grain().negative, isFalse);
+    expect(BaseCampLcdGrainPainter.pitch, 4);
+    expect(BaseCampLcdGrainPainter.opacity, .08);
+    final pointerGuard = find.ancestor(
+      of: find.byKey(const ValueKey('base-camp-module-terminal-lcd-grain')),
+      matching: find.byType(IgnorePointer),
+    );
+    expect(tester.widget<IgnorePointer>(pointerGuard.first).ignoring, isTrue);
+
+    DeviceSettingsController.instance.update(
+      DeviceSettingsController.instance.value.copyWith(
+        baseCampLcdNegative: true,
+      ),
+    );
+    await tester.pump();
+
+    expect(interior().color, const Color(0xff273326));
+    expect(
+      (surface().decoration! as BoxDecoration).color,
+      const Color(0xff485c3f),
+    );
+    expect(description().style?.color, const Color(0xff8d9d79));
+    expect(buttonLabel().style?.color, const Color(0xffaeb894));
+    expect(buttonIcon().color, const Color(0xffaeb894));
+    expect(grain().negative, isTrue);
+    expect(DeviceSettingsController.instance.value.baseCampLcdNegative, isTrue);
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('base-camp-facility-image-FOOD')),
+    );
+    expect(image.color, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ENTRY action indicator illuminates only during pointer press', (
+    tester,
+  ) async {
+    var presses = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 480),
+            padding: EdgeInsets.only(bottom: 34),
+          ),
+          child: BaseCampFacilityEntryPage(
+            title: 'TEST',
+            imageAsset: baseCampStatusEntryAsset,
+            actions: [
+              BaseCampFacilityEntryAction(
+                description: 'TEST ACTION',
+                child: OperationButton(
+                  text: 'OPEN',
+                  onPressed: () => presses++,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final surface = find.byKey(
+      const ValueKey('base-camp-module-terminal-action-surface'),
+    );
+    final indicator = find.byKey(
+      const ValueKey('base-camp-module-terminal-action-indicator'),
+    );
+    Color indicatorColor() =>
+        (tester.widget<AnimatedContainer>(indicator).decoration!
+                as BoxDecoration)
+            .color!;
+
+    expect(tester.getSize(surface).height, 56);
+    expect(indicatorColor(), const Color(0xff253020));
+    final gesture = await tester.startGesture(tester.getCenter(surface));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(indicatorColor(), const Color(0xffb7e34d));
+    expect(presses, 0);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(indicatorColor(), const Color(0xff253020));
+    expect(presses, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('COMMAND CENTER reordered actions retain their destinations', (
     tester,
   ) async {
@@ -322,6 +541,30 @@ Future<void> _pumpBaseCamp(
   await tester.pumpWidget(
     MaterialApp(
       home: BaseCampScreenEntry(screen: screen, child: child),
+    ),
+  );
+  await tester.pump();
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 20)),
+  );
+  await tester.pump();
+}
+
+Future<void> _pumpBaseCampWithMediaQuery(
+  WidgetTester tester,
+  BaseCampScreen screen,
+  Widget child, {
+  required double width,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(
+          size: Size(width, 480),
+          padding: const EdgeInsets.only(bottom: 34),
+        ),
+        child: BaseCampScreenEntry(screen: screen, child: child),
+      ),
     ),
   );
   await tester.pump();

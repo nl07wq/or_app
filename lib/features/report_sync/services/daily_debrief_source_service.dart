@@ -285,7 +285,7 @@ class DailyDebriefSourceService {
 
   static String _completenessLabel(DailyLogModuleCompleteness value) {
     final state = switch (value.state) {
-      DailyLogCompletenessState.notRecorded => 'NOT RECORDED',
+      DailyLogCompletenessState.notRecorded => 'NO DATA',
       DailyLogCompletenessState.incomplete => 'INCOMPLETE',
       DailyLogCompletenessState.complete => 'COMPLETE',
     };

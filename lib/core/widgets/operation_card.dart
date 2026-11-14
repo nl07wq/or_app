@@ -9,21 +9,58 @@ import 'global_touch_ripple.dart';
 /// route adds this extension to its local [Theme].
 @immutable
 class OperationSurfaceTheme extends ThemeExtension<OperationSurfaceTheme> {
-  const OperationSurfaceTheme({this.useDashboardGlass = false});
+  const OperationSurfaceTheme({
+    this.useDashboardGlass = false,
+    this.flattenSurface = false,
+    this.buttonForegroundColor,
+    this.buttonDisabledForegroundColor,
+    this.buttonHeight,
+  });
 
   final bool useDashboardGlass;
+  final bool flattenSurface;
+  final Color? buttonForegroundColor;
+  final Color? buttonDisabledForegroundColor;
+  final double? buttonHeight;
 
   @override
-  OperationSurfaceTheme copyWith({bool? useDashboardGlass}) =>
-      OperationSurfaceTheme(
-        useDashboardGlass: useDashboardGlass ?? this.useDashboardGlass,
-      );
+  OperationSurfaceTheme copyWith({
+    bool? useDashboardGlass,
+    bool? flattenSurface,
+    Color? buttonForegroundColor,
+    Color? buttonDisabledForegroundColor,
+    double? buttonHeight,
+  }) => OperationSurfaceTheme(
+    useDashboardGlass: useDashboardGlass ?? this.useDashboardGlass,
+    flattenSurface: flattenSurface ?? this.flattenSurface,
+    buttonForegroundColor: buttonForegroundColor ?? this.buttonForegroundColor,
+    buttonDisabledForegroundColor:
+        buttonDisabledForegroundColor ?? this.buttonDisabledForegroundColor,
+    buttonHeight: buttonHeight ?? this.buttonHeight,
+  );
 
   @override
   OperationSurfaceTheme lerp(
     covariant ThemeExtension<OperationSurfaceTheme>? other,
     double t,
-  ) => t < .5 ? this : (other as OperationSurfaceTheme? ?? this);
+  ) {
+    if (other is! OperationSurfaceTheme) return this;
+    return OperationSurfaceTheme(
+      useDashboardGlass: t < .5 ? useDashboardGlass : other.useDashboardGlass,
+      flattenSurface: t < .5 ? flattenSurface : other.flattenSurface,
+      buttonForegroundColor: Color.lerp(
+        buttonForegroundColor,
+        other.buttonForegroundColor,
+        t,
+      ),
+      buttonDisabledForegroundColor: Color.lerp(
+        buttonDisabledForegroundColor,
+        other.buttonDisabledForegroundColor,
+        t,
+      ),
+      buttonHeight: t < .5 ? buttonHeight : other.buttonHeight,
+    );
+  }
 }
 
 class OperationCard extends StatefulWidget {
@@ -64,11 +101,13 @@ class _OperationCardState extends State<OperationCard> {
   @override
   Widget build(BuildContext context) {
     final borderRadius = widget.borderRadius ?? AppRadius.large;
-    final dashboardGlass =
-        Theme.of(
-          context,
-        ).extension<OperationSurfaceTheme>()?.useDashboardGlass ??
-        false;
+    final surfaceTheme = Theme.of(context).extension<OperationSurfaceTheme>();
+    if (surfaceTheme?.flattenSurface == true) {
+      return widget.onTap == null
+          ? widget.child
+          : ActionableFeedbackButton(enabled: true, child: widget.child);
+    }
+    final dashboardGlass = surfaceTheme?.useDashboardGlass ?? false;
     final cardBody = _cardBody();
     return MouseRegion(
       cursor: widget.selectable ? SystemMouseCursors.click : MouseCursor.defer,

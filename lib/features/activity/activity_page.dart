@@ -313,39 +313,33 @@ class _ActivityPageState extends State<ActivityPage> {
     actions: [
       BaseCampFacilityEntryAction(
         description: '歩数・排便など、本日の活動を記録します。',
+        supplementary: FutureBuilder<bool>(
+          future: _activityExists,
+          builder: (context, snapshot) => snapshot.data == true
+              ? const Text('本日のACTIVITYは登録済みです。編集はRECORDから行えます。')
+              : const SizedBox.shrink(),
+        ),
         child: FutureBuilder<bool>(
           future: _activityExists,
           builder: (context, snapshot) {
             final activityExists = snapshot.data ?? false;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                OperationButton(
-                  key: const ValueKey('activity-entry-button'),
-                  icon: Icons.edit_outlined,
-                  text: 'ACTIVITY ENTRY',
-                  frostedGradient: true,
-                  reportUnavailableTap:
-                      !appInitializationController.value.isReadOnly &&
-                      snapshot.connectionState == ConnectionState.done &&
-                      !snapshot.hasError &&
-                      activityExists,
-                  onPressed:
-                      appInitializationController.value.isReadOnly ||
-                          snapshot.connectionState != ConnectionState.done ||
-                          snapshot.hasError ||
-                          activityExists
-                      ? null
-                      : _openEntry,
-                ),
-                if (activityExists) ...[
-                  AppSpacing.gapSM,
-                  const Text(
-                    '本日のACTIVITYは登録済みです。編集はRECORDから行えます。',
-                    style: TextStyle(color: Color(0xffaaa58d)),
-                  ),
-                ],
-              ],
+            return OperationButton(
+              key: const ValueKey('activity-entry-button'),
+              icon: Icons.edit_outlined,
+              text: 'ACTIVITY ENTRY',
+              frostedGradient: true,
+              reportUnavailableTap:
+                  !appInitializationController.value.isReadOnly &&
+                  snapshot.connectionState == ConnectionState.done &&
+                  !snapshot.hasError &&
+                  activityExists,
+              onPressed:
+                  appInitializationController.value.isReadOnly ||
+                      snapshot.connectionState != ConnectionState.done ||
+                      snapshot.hasError ||
+                      activityExists
+                  ? null
+                  : _openEntry,
             );
           },
         ),

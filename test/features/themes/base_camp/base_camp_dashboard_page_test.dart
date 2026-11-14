@@ -579,7 +579,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     const values = <String>[
       'COMPLETE',
-      'NOT RECORDED',
+      'NO DATA',
       '2098 kcal',
       'NOT CALCULATED',
       '水分 2500 ml',
@@ -648,7 +648,7 @@ void main() {
 
     await tester.drag(pages, const Offset(-280, 0));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('NOT RECORDED'), findsWidgets);
+    expect(find.text('NO DATA'), findsWidgets);
 
     await tester.drag(pages, const Offset(-280, 0));
     await tester.pump(const Duration(milliseconds: 300));
@@ -705,7 +705,7 @@ void main() {
   });
 
   test('FOOD readout preserves formal partial and completion semantics', () {
-    expect(baseCampFoodProgressText(0), 'NOT RECORDED');
+    expect(baseCampFoodProgressText(0), 'NO DATA');
     expect(baseCampFoodProgressText(1), '1 / 3');
     expect(baseCampFoodProgressText(2), '2 / 3');
     expect(baseCampFoodProgressText(3), 'COMPLETE');
@@ -884,11 +884,11 @@ void main() {
         ('999.9 / 999 g', false, BaseCampReadoutProfile.sustainment),
         ('12345 steps', false, BaseCampReadoutProfile.sustainment),
         ('COMPLETE', false, BaseCampReadoutProfile.sustainment),
-        ('NOT RECORDED', false, BaseCampReadoutProfile.sustainment),
+        ('NO DATA', false, BaseCampReadoutProfile.sustainment),
         ('999.9 kg', false, BaseCampReadoutProfile.statusData),
         ('23h 59m', false, BaseCampReadoutProfile.statusData),
         ('9999 kcal', false, BaseCampReadoutProfile.statusData),
-        ('NOT RECORDED', false, BaseCampReadoutProfile.statusData),
+        ('NO DATA', false, BaseCampReadoutProfile.statusData),
         ('NOT CALCULATED', false, BaseCampReadoutProfile.statusData),
       ];
       for (final (value, usesCaloriesWidth, profile) in cases) {

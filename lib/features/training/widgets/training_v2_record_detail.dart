@@ -41,8 +41,8 @@ class TrainingV2RecordDetail extends StatelessWidget {
                   ),
                   AppSpacing.gapSM,
                   const Text('READ ONLY — Training Record v2'),
-                  Text('START TIME ${session.startTime ?? 'NOT RECORDED'}'),
-                  Text('END TIME ${session.endTime ?? 'NOT RECORDED'}'),
+                  Text('START TIME ${session.startTime ?? 'NO DATA'}'),
+                  Text('END TIME ${session.endTime ?? 'NO DATA'}'),
                   Text(
                     'Session Duration ${_duration(session.sessionDuration)}',
                   ),

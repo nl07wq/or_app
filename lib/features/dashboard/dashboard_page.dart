@@ -3127,7 +3127,7 @@ class _ProgressCardState extends State<_ProgressCard> {
         ];
         final activityStatus =
             completionModel?.activityCompletion.displayState ??
-            (widget.activitySummary.isRecorded ? 'COMPLETE' : 'NOT RECORDED');
+            (widget.activitySummary.isRecorded ? 'COMPLETE' : 'NO DATA');
 
         final waterTile = tile(
           label: 'WATER',
@@ -3144,7 +3144,7 @@ class _ProgressCardState extends State<_ProgressCard> {
           label: 'TRAINING',
           status: widget.trainingSummary?.completed == true
               ? 'COMPLETE'
-              : 'NOT RECORDED',
+              : 'NO DATA',
           progress: widget.trainingSummary?.completed == true ? 1.0 : 0.0,
           summaryStatus: true,
           pairCell: true,
@@ -3364,7 +3364,7 @@ class _OperationProgressRecordRatio {
 
   String get displayState {
     if (isComplete) return 'COMPLETE';
-    if (recordedCount <= 0) return 'NOT RECORDED';
+    if (recordedCount <= 0) return 'NO DATA';
     return '$recordedCount / $requiredCount';
   }
 }

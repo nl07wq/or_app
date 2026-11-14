@@ -113,7 +113,7 @@ void main() {
               eligibleDates: ['2026-09-13'],
               statusLabel: 'SOURCE NOT READY',
               blockingReasons: [
-                'STATUS: NOT RECORDED (STATUS)',
+                'STATUS: NO DATA (STATUS)',
                 'ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)',
               ],
             ),
@@ -130,7 +130,7 @@ void main() {
     );
     expect(targetDate.controller?.text, '2026-09-14');
     expect(find.text('SOURCE NOT READY'), findsOneWidget);
-    expect(find.text('STATUS: NOT RECORDED (STATUS)'), findsOneWidget);
+    expect(find.text('STATUS: NO DATA (STATUS)'), findsOneWidget);
     expect(
       find.text('ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)'),
       findsOneWidget,
@@ -156,7 +156,7 @@ void main() {
               operationDate: '2026-10-26',
               statusLabel: 'SOURCE NOT READY',
               blockingReasons: [
-                'STATUS: NOT RECORDED (STATUS)',
+                'STATUS: NO DATA (STATUS)',
                 'ACTIVITY: INCOMPLETE (STEPS, DIGESTIVE)',
               ],
             ),
@@ -193,7 +193,7 @@ void main() {
             preparation: const ReportSyncRequestPreparation(
               operationDate: '2026-10-26',
               statusLabel: 'NOT READY',
-              blockingReason: 'STATUS: NOT RECORDED',
+              blockingReason: 'STATUS: NO DATA',
             ),
           ),
           fileGateway: _FakeFileGateway(),
@@ -1564,7 +1564,7 @@ void main() {
     await tester.tap(find.text('VALIDATE'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Session  NOT RECORDED'), findsOneWidget);
+    expect(find.textContaining('Session  NO DATA'), findsOneWidget);
     expect(find.textContaining('Session  null'), findsNothing);
     expect(find.text('Exercises  1  Cardio  0'), findsOneWidget);
     expect(find.text('IMPORT TRAINING'), findsOneWidget);

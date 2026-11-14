@@ -73,7 +73,7 @@ class TrainingExerciseHistoryAdapter {
           identity: point.identity,
           label:
               _equipmentLabel(point.identity.equipmentKey) ??
-              'EQUIPMENT NOT RECORDED',
+              'EQUIPMENT NO DATA',
         ),
     ];
   }

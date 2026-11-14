@@ -269,15 +269,12 @@ class _SetEditor extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyLarge,
                   decoration: const InputDecoration(labelText: 'RPE'),
                   items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text('NOT RECORDED'),
-                    ),
+                    const DropdownMenuItem(value: null, child: Text('NO DATA')),
                     for (var value = 1; value <= 10; value++)
                       DropdownMenuItem(value: value, child: Text('$value')),
                   ],
                   selectedItemBuilder: (context) => [
-                    const Text('NOT RECORDED', overflow: TextOverflow.ellipsis),
+                    const Text('NO DATA', overflow: TextOverflow.ellipsis),
                     for (var value = 1; value <= 10; value++) Text('$value'),
                   ],
                   onChanged: (value) {

@@ -163,32 +163,26 @@ class _MorningPageState extends State<MorningPage> {
     actions: [
       BaseCampFacilityEntryAction(
         description: '体重・睡眠・勤務情報など、本日の状態を記録します。',
+        supplementary: FutureBuilder<bool>(
+          future: _statusExists,
+          builder: (context, snapshot) => snapshot.data == true
+              ? const Text('本日のSTATUSは登録済みです。編集はRECORDから行えます。')
+              : const SizedBox.shrink(),
+        ),
         child: FutureBuilder<bool>(
           future: _statusExists,
           builder: (context, snapshot) {
             final statusExists = snapshot.data ?? false;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                MorningManualCard(
-                  enabled:
-                      snapshot.connectionState == ConnectionState.done &&
-                      !snapshot.hasError &&
-                      !statusExists,
-                  reportUnavailableTap:
-                      snapshot.connectionState == ConnectionState.done &&
-                      !snapshot.hasError &&
-                      statusExists &&
-                      !appInitializationController.value.isReadOnly,
-                ),
-                if (statusExists) ...[
-                  AppSpacing.gapSM,
-                  const Text(
-                    '本日のSTATUSは登録済みです。編集はRECORDから行えます。',
-                    style: TextStyle(color: Color(0xffaaa58d)),
-                  ),
-                ],
-              ],
+            return MorningManualCard(
+              enabled:
+                  snapshot.connectionState == ConnectionState.done &&
+                  !snapshot.hasError &&
+                  !statusExists,
+              reportUnavailableTap:
+                  snapshot.connectionState == ConnectionState.done &&
+                  !snapshot.hasError &&
+                  statusExists &&
+                  !appInitializationController.value.isReadOnly,
             );
           },
         ),

@@ -547,7 +547,7 @@ void main() {
       await _settleDashboard(tester);
 
       expect(_tile('STATUS'), findsOneWidget);
-      _expectTileText('STATUS', 'NOT RECORDED');
+      _expectTileText('STATUS', 'NO DATA');
       expect(
         find.byKey(const ValueKey('operation-progress-info-STATUS')),
         findsOneWidget,
@@ -689,7 +689,7 @@ void main() {
             ValueKey('operation-progress-status-$label'),
           );
           final text = tester.widget<Text>(status);
-          expect(text.data, 'NOT RECORDED', reason: '$label at $width');
+          expect(text.data, 'NO DATA', reason: '$label at $width');
           expect(text.maxLines, 1, reason: '$label at $width');
           expect(text.softWrap, isFalse, reason: '$label at $width');
           expect(text.style, isNotNull, reason: '$label at $width');
@@ -843,7 +843,7 @@ void main() {
       await _settleDashboard(tester);
 
       final training = _tile('TRAINING');
-      _expectTileText('TRAINING', 'NOT RECORDED');
+      _expectTileText('TRAINING', 'NO DATA');
       expect(
         find.byKey(const ValueKey('operation-progress-training-optional')),
         findsOneWidget,
@@ -871,7 +871,7 @@ void main() {
       );
       expect(popover, findsOneWidget);
       expect(
-        _popoverDescriptionColor(tester, popover, 'NOT RECORDED'),
+        _popoverDescriptionColor(tester, popover, 'NO DATA'),
         Theme.of(tester.element(training)).colorScheme.onSurfaceVariant,
       );
       expect(openedRoutes, isEmpty);
@@ -1806,7 +1806,7 @@ void main() {
     expect(find.textContaining('121.5–148.5'), findsNothing);
     for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
       expect(
-        find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
+        find.descendant(of: _tile(label), matching: find.text('NO DATA')),
         findsNothing,
       );
     }
@@ -1855,7 +1855,7 @@ void main() {
       }
 
       await applySummary(foodRecords: 0, waterRecorded: false, hydrationMl: 0);
-      _expectTileText('FOOD', 'NOT RECORDED');
+      _expectTileText('FOOD', 'NO DATA');
       expect(_progress(tester, 'FOOD'), 0);
       expect(
         tester
@@ -1872,7 +1872,7 @@ void main() {
 
       // A WATER record fulfills WATER without creating a FOOD record.
       await applySummary(foodRecords: 0, waterRecorded: true, hydrationMl: 0);
-      _expectTileText('FOOD', 'NOT RECORDED');
+      _expectTileText('FOOD', 'NO DATA');
       expect(_progress(tester, 'FOOD'), 0);
       expect(
         find.byKey(const ValueKey('operation-progress-completion-WATER')),
@@ -1996,7 +1996,7 @@ void main() {
     expect(foodSummaryNotifier.value, isNull);
     for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
       expect(
-        find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
+        find.descendant(of: _tile(label), matching: find.text('NO DATA')),
         findsNothing,
       );
     }
@@ -2056,7 +2056,7 @@ void main() {
       await _pumpDashboard(tester, width: width);
       await _settleDashboard(tester);
 
-      _expectTileText('STATUS', 'NOT RECORDED');
+      _expectTileText('STATUS', 'NO DATA');
       _expectTileText('CALORIES', '1,100 / 2,200 kcal');
       _expectTileText('PROTEIN', '50 / 135 g');
       expect(tester.takeException(), isNull);
@@ -2631,7 +2631,7 @@ void main() {
           ValueKey('semantic-help-popover-completion-${label.toLowerCase()}'),
         );
         expect(
-          _popoverDescriptionColor(tester, popover, 'NOT RECORDED'),
+          _popoverDescriptionColor(tester, popover, 'NO DATA'),
           Theme.of(tester.element(_tile(label))).colorScheme.error,
         );
         final edge = contextPopoverEdgeFor(
@@ -2886,9 +2886,9 @@ void main() {
     await _settleDashboard(tester);
 
     _expectTileText('STATUS', '未完了');
-    _expectTileText('FOOD', 'NOT RECORDED');
-    _expectTileText('TRAINING', 'NOT RECORDED');
-    _expectTileText('ACTIVITY', 'NOT RECORDED');
+    _expectTileText('FOOD', 'NO DATA');
+    _expectTileText('TRAINING', 'NO DATA');
+    _expectTileText('ACTIVITY', 'NO DATA');
     expect(
       find.descendant(
         of: _tile('ACTIVITY'),
@@ -2909,7 +2909,7 @@ void main() {
     _expectTileText('WATER', '0 / -- ml');
     for (final label in ['CALORIES', 'PROTEIN', 'WATER']) {
       expect(
-        find.descendant(of: _tile(label), matching: find.text('NOT RECORDED')),
+        find.descendant(of: _tile(label), matching: find.text('NO DATA')),
         findsNothing,
       );
       expect(
@@ -2979,7 +2979,7 @@ void main() {
 
     await _pumpDashboard(tester, width: 800);
 
-    _expectTileText('ACTIVITY', 'NOT RECORDED');
+    _expectTileText('ACTIVITY', 'NO DATA');
     expect(
       find.descendant(
         of: _tile('ACTIVITY'),

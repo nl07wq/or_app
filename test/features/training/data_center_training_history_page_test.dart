@@ -1162,7 +1162,7 @@ void main() {
 
     expect(find.text('ALL EQUIPMENT'), findsOneWidget);
     expect(find.text('HAMMER STRENGTH パワーラック'), findsOneWidget);
-    expect(find.text('EQUIPMENT NOT RECORDED'), findsOneWidget);
+    expect(find.text('EQUIPMENT NO DATA'), findsOneWidget);
     await tester.tap(find.text('HAMMER STRENGTH パワーラック'));
     await tester.pumpAndSettle();
     expect(find.text('WEIGHT HISTORY'), findsOneWidget);

@@ -77,7 +77,7 @@ void main() {
     );
     expect(find.bySemanticsLabel('ACTIVITY incomplete'), findsOneWidget);
     expect(find.text('FINALIZE BLOCKED'), findsOneWidget);
-    expect(find.text('NOT RECORDED'), findsNWidgets(3));
+    expect(find.text('NO DATA'), findsNWidgets(3));
     expect(find.text('Missing: FOOD, WATER'), findsOneWidget);
     expect(find.text('Missing: STEPS, DIGESTIVE'), findsOneWidget);
     expect(find.text('REQUIRED'), findsOneWidget);

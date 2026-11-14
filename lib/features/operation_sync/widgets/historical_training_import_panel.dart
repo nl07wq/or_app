@@ -479,12 +479,12 @@ class _PreviewRow extends StatelessWidget {
     final session = item.persistedRecord?.dataV2;
     final sessionName = session?.sessionName;
     final visibleSessionName = sessionName == null || sessionName.trim().isEmpty
-        ? 'NOT RECORDED'
+        ? 'NO DATA'
         : sessionName;
     final recordDetails = session == null
         ? ''
         : '\nSession $visibleSessionName'
-              '\nGrade ${session.sessionGrade?.stableId ?? 'NOT RECORDED'}'
+              '\nGrade ${session.sessionGrade?.stableId ?? 'NO DATA'}'
               '\nExercises ${session.exercises.length}'
               '\nCardio ${session.cardioEntries.length}';
     return CheckboxListTile(

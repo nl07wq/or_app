@@ -299,15 +299,13 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       final diagnostics = error is DailyFinalizeException
           ? error.diagnostics
           : null;
-      final diagnosticsNotice = diagnostics != null &&
-              !diagnostics.detailedFieldComparisonAvailable
+      final diagnosticsNotice =
+          diagnostics != null && !diagnostics.detailedFieldComparisonAvailable
           ? '\nDIAGNOSTICS UNAVAILABLE: ${diagnostics.validationStage}'
           : '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'FINALIZE DAYに失敗しました: $error$diagnosticsNotice',
-          ),
+          content: Text('FINALIZE DAYに失敗しました: $error$diagnosticsNotice'),
           action: diagnostics == null
               ? null
               : SnackBarAction(
@@ -749,7 +747,7 @@ class _DailyCloseBlocker {
   final DailyLogModuleCompleteness? completeness;
 
   String get stateLabel => switch (completeness?.state) {
-    DailyLogCompletenessState.notRecorded => 'NOT RECORDED',
+    DailyLogCompletenessState.notRecorded => 'NO DATA',
     DailyLogCompletenessState.incomplete => 'INCOMPLETE',
     DailyLogCompletenessState.complete => 'COMPLETE',
     null => 'REQUIRED',

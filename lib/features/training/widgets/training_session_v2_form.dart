@@ -511,7 +511,7 @@ TimeOfDay _timeOfDay(String source) => TimeOfDay(
 );
 
 String _displayTime(String? value, {String? startTime}) {
-  if (value == null) return 'NOT RECORDED';
+  if (value == null) return 'NO DATA';
   final time = value.substring(11, 16);
   if (startTime == null ||
       value.substring(0, 10) == startTime.substring(0, 10)) {
@@ -563,7 +563,7 @@ class _TriStateField extends StatelessWidget {
       items: const [
         DropdownMenuItem(
           value: 'notRecorded',
-          child: Text('NOT RECORDED', overflow: TextOverflow.ellipsis),
+          child: Text('NO DATA', overflow: TextOverflow.ellipsis),
         ),
         DropdownMenuItem(
           value: 'completed',

@@ -23,7 +23,7 @@ void main() {
     expect(categories.map((item) => item.label), ['ラットプルダウン', 'ベンチプレス']);
     final variants = adapter.equipmentVariants(points, categories.last.key);
     expect(variants.map((item) => item.label), [
-      'EQUIPMENT NOT RECORDED',
+      'EQUIPMENT NO DATA',
       'HAMMER STRENGTH パワーラック',
     ]);
   });

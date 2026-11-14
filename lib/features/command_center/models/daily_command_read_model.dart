@@ -33,10 +33,10 @@ class DailyCommandCompletionItem {
   bool get isComplete => state == DailyCommandModuleState.recorded;
 
   String get displayState => switch (state) {
-    DailyCommandModuleState.missing => 'NOT RECORDED',
+    DailyCommandModuleState.missing => 'NO DATA',
     DailyCommandModuleState.invalid => 'INCOMPLETE',
     DailyCommandModuleState.recorded => 'COMPLETE',
-    DailyCommandModuleState.optionalMissing => 'NOT RECORDED',
+    DailyCommandModuleState.optionalMissing => 'NO DATA',
   };
 }
 

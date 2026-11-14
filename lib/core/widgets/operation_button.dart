@@ -73,19 +73,20 @@ class OperationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dashboardReferenceGlass =
-        Theme.of(
-          context,
-        ).extension<OperationSurfaceTheme>()?.useDashboardGlass ??
-        false;
+    final surfaceTheme = Theme.of(context).extension<OperationSurfaceTheme>();
+    final dashboardReferenceGlass = surfaceTheme?.useDashboardGlass ?? false;
+    final flattenSurface = surfaceTheme?.flattenSurface ?? false;
     final foregroundColor = onPressed == null
-        ? Theme.of(context).disabledColor
-        : switch (role) {
-            OperationActionRole.primary => colorScheme.primary,
-            OperationActionRole.secondary => AppTextStyles.label.color!,
-            OperationActionRole.danger => colorScheme.error,
-          };
+        ? surfaceTheme?.buttonDisabledForegroundColor ??
+              Theme.of(context).disabledColor
+        : surfaceTheme?.buttonForegroundColor ??
+              switch (role) {
+                OperationActionRole.primary => colorScheme.primary,
+                OperationActionRole.secondary => AppTextStyles.label.color!,
+                OperationActionRole.danger => colorScheme.error,
+              };
     final usesTransparentButtonMaterial =
+        flattenSurface ||
         transparentSurface ||
         dashboardGlass ||
         frostedGlass ||
@@ -93,7 +94,7 @@ class OperationButton extends StatelessWidget {
         dashboardReferenceGlass;
     final button = SizedBox(
       width: double.infinity,
-      height: 52,
+      height: surfaceTheme?.buttonHeight ?? 52,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
@@ -131,7 +132,9 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
-    final surfaced = frostedGradient || frostedGlass || dashboardReferenceGlass
+    final surfaced = flattenSurface
+        ? button
+        : frostedGradient || frostedGlass || dashboardReferenceGlass
         ? _OperationSafeGlassSurface(
             colorScheme: colorScheme,
             transparencyFactor: dashboardReferenceGlass

@@ -1846,8 +1846,7 @@ class _RecoveryEvidenceCard extends StatelessWidget {
                   : _formatRecoveryDateTime(exactTime),
               isDateOnly: exactTime == null,
               exercise: evidence.source.exerciseLabel,
-              equipment:
-                  evidence.source.equipmentLabel ?? 'EQUIPMENT NOT RECORDED',
+              equipment: evidence.source.equipmentLabel ?? 'EQUIPMENT NO DATA',
             ),
           ] else ...[
             _RecoveryEvidenceGrid(
@@ -1856,8 +1855,7 @@ class _RecoveryEvidenceCard extends StatelessWidget {
                   : _formatRecoveryDateTime(exactTime),
               isDateOnly: exactTime == null,
               exercise: evidence.source.exerciseLabel,
-              equipment:
-                  evidence.source.equipmentLabel ?? 'EQUIPMENT NOT RECORDED',
+              equipment: evidence.source.equipmentLabel ?? 'EQUIPMENT NO DATA',
             ),
             AppSpacing.gapSM,
             _RecoveryEvidenceField(

@@ -117,10 +117,7 @@ void main() {
       );
       expect(target.controller?.text, '2026-09-14');
       expect(find.text('SOURCE NOT READY'), findsOneWidget);
-      expect(
-        find.text('ACTIVITY: NOT RECORDED (STEPS, DIGESTIVE)'),
-        findsOneWidget,
-      );
+      expect(find.text('ACTIVITY: NO DATA (STEPS, DIGESTIVE)'), findsOneWidget);
     },
   );
 
