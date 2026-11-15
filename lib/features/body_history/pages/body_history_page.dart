@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
+import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
@@ -124,7 +125,9 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError || !snapshot.hasData) {
-          return const Center(child: Text('BODY HISTORYを読み込めませんでした。'));
+          return const Center(
+            child: MixedScriptText('BODY HISTORYを読み込めませんでした。'),
+          );
         }
         final model = snapshot.requireData;
         return ListView(
@@ -137,13 +140,13 @@ class _BodyHistoryPageState extends State<BodyHistoryPage> {
             AppSpacing.gapSM,
             _PeriodSelector(selected: _period, onSelected: _selectPeriod),
             AppSpacing.gapSM,
-            Text(
+            MixedScriptText(
               '検索期間: ${_format(model.range.start)} – ${_format(model.range.end)}',
             ),
             if (_bodyObservationRange(model.points, model.range)
                 case final observation?) ...[
               AppSpacing.gapXS,
-              Text('観測期間: $observation'),
+              MixedScriptText('観測期間: $observation'),
             ],
             AppSpacing.gapXL,
             _MetricSection(
@@ -229,7 +232,7 @@ class _MetricSection extends StatelessWidget {
         children: [
           SectionHeader(icon: _icon, title: model.metric.label),
           AppSpacing.gapSM,
-          Text('表示単位: ${model.granularity.label}'),
+          MixedScriptText('表示単位: ${model.granularity.label}'),
           AppSpacing.gapSM,
           if (model.summary case final summary?)
             _SummaryCard(model: model, summary: summary),

@@ -4,6 +4,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/persistence_access.dart';
 import '../../core/state/app_initialization_state.dart';
+import '../../core/widgets/mixed_script_text.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/ambient_page_scaffold.dart';
 import '../../core/widgets/operation_description.dart';
@@ -316,7 +317,7 @@ class _ActivityPageState extends State<ActivityPage> {
         supplementary: FutureBuilder<bool>(
           future: _activityExists,
           builder: (context, snapshot) => snapshot.data == true
-              ? const Text('本日のACTIVITYは登録済みです。編集はRECORDから行えます。')
+              ? const MixedScriptText('本日のACTIVITYは登録済みです。編集はRECORDから行えます。')
               : const SizedBox.shrink(),
         ),
         child: FutureBuilder<bool>(

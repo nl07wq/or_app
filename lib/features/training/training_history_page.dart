@@ -9,6 +9,7 @@ import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 
 import '../../core/widgets/history/history_delete_dialog.dart';
+import '../../core/widgets/mixed_script_text.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/state/app_initialization_state.dart';
 import 'training_detail_page.dart';
@@ -296,7 +297,7 @@ class _TrainingRecordPlate extends StatelessWidget {
           ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: 3),
-        Text(memo, style: Theme.of(context).textTheme.bodyMedium),
+        MixedScriptText(memo, style: Theme.of(context).textTheme.bodyMedium),
       ],
       if (readOnly)
         Padding(
@@ -325,7 +326,10 @@ class _TrainingMetric extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.labelSmall),
-        Text(value, style: Theme.of(context).textTheme.headlineSmall),
+        MixedScriptText(
+          value,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
       ],
     ),
   );
@@ -347,7 +351,7 @@ class _TrainingLine extends StatelessWidget {
           ).textTheme.labelSmall?.copyWith(letterSpacing: .7),
         ),
         const SizedBox(height: 2),
-        Text(value, style: Theme.of(context).textTheme.bodyMedium),
+        MixedScriptText(value, style: Theme.of(context).textTheme.bodyMedium),
       ],
     ),
   );

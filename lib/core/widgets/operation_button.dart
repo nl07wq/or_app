@@ -5,6 +5,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
 import 'dashboard_glass_card.dart';
 import 'global_touch_ripple.dart';
+import 'mixed_script_text.dart';
 import 'operation_card.dart';
 
 enum OperationActionRole { primary, secondary, danger }
@@ -122,7 +123,7 @@ class OperationButton extends StatelessWidget {
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text(
+                child: MixedScriptText(
                   text,
                   style: AppTextStyles.label.copyWith(color: foregroundColor),
                 ),

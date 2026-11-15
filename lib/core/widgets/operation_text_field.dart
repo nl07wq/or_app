@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'global_touch_ripple.dart';
+import 'mixed_script_text.dart';
 
 class OperationTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -34,6 +35,17 @@ class OperationTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeStyle =
+        Theme.of(context).textTheme.bodyMedium ??
+        DefaultTextStyle.of(context).style;
+    final correctedLabel =
+        label != null &&
+        label!.isNotEmpty &&
+        MixedScriptTypography.shouldCorrect(label!, themeStyle);
+    final correctedHint =
+        hint != null &&
+        hint!.isNotEmpty &&
+        MixedScriptTypography.shouldCorrect(hint!, themeStyle);
     return InputFeedbackRegion(
       child: TextField(
         controller: controller,
@@ -43,8 +55,12 @@ class OperationTextField extends StatelessWidget {
         minLines: minLines,
         maxLines: maxLines,
         decoration: InputDecoration(
-          labelText: (label == null || label!.isEmpty) ? null : label,
-          hintText: hint,
+          labelText: correctedLabel || label == null || label!.isEmpty
+              ? null
+              : label,
+          label: correctedLabel ? MixedScriptText(label!) : null,
+          hintText: correctedHint ? null : hint,
+          hint: correctedHint ? MixedScriptText(hint!) : null,
           filled: glass,
           fillColor: glass
               ? Theme.of(context).colorScheme.surface.withValues(alpha: .22)

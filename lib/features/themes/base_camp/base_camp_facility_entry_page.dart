@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
+import 'package:or_app/core/widgets/mixed_script_text.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
     show BaseCampLcdGrainPainter;
@@ -350,7 +351,7 @@ class _BaseCampFacilityEntryActionState
       key: const ValueKey('base-camp-module-terminal-action'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        MixedScriptText(
           widget.description,
           key: const ValueKey('base-camp-module-terminal-description'),
           style: baseTheme.textTheme.bodyMedium?.copyWith(

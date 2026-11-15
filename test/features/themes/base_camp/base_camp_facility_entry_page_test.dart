@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
+import 'package:or_app/core/widgets/mixed_script_text.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/widgets/activity_ambient_kinetic_field.dart';
@@ -374,7 +375,7 @@ void main() {
                 )
                 .painter!
             as BaseCampLcdGrainPainter;
-    Text description() => tester.widget<Text>(
+    MixedScriptText description() => tester.widget<MixedScriptText>(
       find.byKey(const ValueKey('base-camp-module-terminal-description')).first,
     );
     Text buttonLabel() => tester.widget<Text>(find.text('FOOD ENTRY'));

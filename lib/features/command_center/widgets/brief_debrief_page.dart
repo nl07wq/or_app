@@ -10,6 +10,7 @@ import '../../../core/services/daily_log_confirmation_validation.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/operation_button.dart';
+import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/status_lamp.dart';
@@ -1496,7 +1497,7 @@ class _ReadableText extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var index = 0; index < paragraphs.length; index++) ...[
-          Text(
+          MixedScriptText(
             paragraphs[index],
             style:
                 (supporting

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'mixed_script_text.dart';
+
 class SectionHeader extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -8,7 +10,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleWidget = Text(
+    final titleWidget = MixedScriptText(
       title,
       style: const TextStyle(
         color: Colors.white,

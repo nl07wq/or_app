@@ -19,6 +19,7 @@ import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 
 import '../../core/widgets/history/history_delete_dialog.dart';
+import '../../core/widgets/mixed_script_text.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/operation_card.dart';
 import '../../core/widgets/section_header.dart';
@@ -311,7 +312,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       leading: const FoodThumbnail(visualKey: null),
-                      title: Text(
+                      title: MixedScriptText(
                         item.hasMeasuredAmount
                             ? item.amountMode == FoodAmountMode.baseMultiplier
                                   ? '${item.name}  AMOUNT '
@@ -325,7 +326,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                             ? '${item.name} ×${item.quantity}'
                             : item.name,
                       ),
-                      subtitle: Text(
+                      subtitle: MixedScriptText(
                         "${FoodNutritionFormatter.calories(item.totalCalories)} kcal"
                         "  P ${FoodNutritionFormatter.macro(item.totalProtein)}"
                         "  F ${FoodNutritionFormatter.macro(item.totalFat)}"
@@ -357,7 +358,7 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.note_outlined),
-                title: Text(meal.memo),
+                title: MixedScriptText(meal.memo),
               ),
             ],
           ],
@@ -487,18 +488,18 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
                       ? null
                       : _catalogEntries[item.foodReferenceId!]?.visualKey,
                 ),
-                title: Text(item.nameSnapshot),
+                title: MixedScriptText(item.nameSnapshot),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    MixedScriptText(
                       [
                         if (item.category != null)
                           foodCatalogCategoryLabel(item.category!),
                         FoodNutritionFormatter.compactQuantity(item.quantity),
                       ].join('  '),
                     ),
-                    Text(
+                    MixedScriptText(
                       FoodNutritionFormatter.compactNutrition(
                         item.nutritionConsumed,
                       ),

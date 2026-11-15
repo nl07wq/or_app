@@ -6,6 +6,7 @@ import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
+import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
@@ -205,9 +206,9 @@ class _HistoryLinkCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        MixedScriptText(title, style: Theme.of(context).textTheme.titleMedium),
         AppSpacing.gapSM,
-        Text(description),
+        MixedScriptText(description),
         AppSpacing.gapMD,
         OperationButton(
           role: OperationActionRole.primary,

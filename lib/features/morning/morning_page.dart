@@ -4,6 +4,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/state/app_initialization_state.dart';
 
 import '../../core/widgets/ambient_page_scaffold.dart';
+import '../../core/widgets/mixed_script_text.dart';
 import '../../core/widgets/operation_description.dart';
 import '../../core/widgets/operation_button.dart';
 import '../../core/widgets/section_header.dart';
@@ -166,7 +167,7 @@ class _MorningPageState extends State<MorningPage> {
         supplementary: FutureBuilder<bool>(
           future: _statusExists,
           builder: (context, snapshot) => snapshot.data == true
-              ? const Text('本日のSTATUSは登録済みです。編集はRECORDから行えます。')
+              ? const MixedScriptText('本日のSTATUSは登録済みです。編集はRECORDから行えます。')
               : const SizedBox.shrink(),
         ),
         child: FutureBuilder<bool>(

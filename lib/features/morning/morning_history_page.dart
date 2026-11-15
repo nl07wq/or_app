@@ -10,6 +10,7 @@ import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/history/history_delete_dialog.dart';
+import '../../core/widgets/mixed_script_text.dart';
 import '../../core/state/app_initialization_state.dart';
 import '../../core/widgets/ambient_page_scaffold.dart';
 import '../../core/widgets/dashboard_glass_card.dart';
@@ -333,7 +334,7 @@ class _PlateValue extends StatelessWidget {
           ).textTheme.labelSmall?.copyWith(letterSpacing: .55),
         ),
         const SizedBox(height: 2),
-        Text(value, style: Theme.of(context).textTheme.titleSmall),
+        MixedScriptText(value, style: Theme.of(context).textTheme.titleSmall),
       ],
     ),
   );
@@ -346,6 +347,9 @@ class _PlateSecondary extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 5),
-    child: Text('$label  $value', style: Theme.of(context).textTheme.bodySmall),
+    child: MixedScriptText(
+      '$label  $value',
+      style: Theme.of(context).textTheme.bodySmall,
+    ),
   );
 }

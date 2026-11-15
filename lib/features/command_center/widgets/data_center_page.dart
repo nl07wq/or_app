@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/navigation/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
+import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/section_header.dart';
 
@@ -16,7 +17,7 @@ class DataCenterPage extends StatelessWidget {
     children: [
       const SectionHeader(icon: Icons.storage_outlined, title: 'DATA CENTER'),
       AppSpacing.gapSM,
-      const Text('正式データの履歴と推移を確認します。'),
+      const MixedScriptText('正式データの履歴と推移を確認します。'),
       AppSpacing.gapXL,
       const SectionHeader(icon: Icons.history, title: 'HISTORY'),
       AppSpacing.gapSM,
@@ -26,7 +27,7 @@ class DataCenterPage extends StatelessWidget {
           children: [
             Text('HISTORY', style: Theme.of(context).textTheme.titleMedium),
             AppSpacing.gapSM,
-            const Text('保存済みの正式データから、各種履歴と推移を確認します。'),
+            const MixedScriptText('保存済みの正式データから、各種履歴と推移を確認します。'),
             AppSpacing.gapMD,
             OperationButton(
               role: OperationActionRole.primary,
@@ -53,7 +54,7 @@ class DataCenterPage extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             AppSpacing.gapSM,
-            const Text('保存済みの日次圧縮RecordとSourceを確認・保守します。'),
+            const MixedScriptText('保存済みの日次圧縮RecordとSourceを確認・保守します。'),
             AppSpacing.gapMD,
             OperationButton(
               role: OperationActionRole.primary,

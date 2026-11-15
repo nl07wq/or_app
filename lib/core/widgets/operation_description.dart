@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'mixed_script_text.dart';
+
 class OperationDescription extends StatelessWidget {
   final String text;
 
@@ -7,7 +9,7 @@ class OperationDescription extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return MixedScriptText(
       text,
       style: Theme.of(
         context,

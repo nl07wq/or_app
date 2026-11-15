@@ -6,6 +6,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/models/body_history_models.dart';
@@ -360,7 +361,7 @@ class _ActivityMetric extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(
+        MixedScriptText(
           value,
           style: Theme.of(context).textTheme.titleMedium,
           maxLines: 1,
@@ -370,7 +371,7 @@ class _ActivityMetric extends StatelessWidget {
         ),
         if (detail.isNotEmpty) ...[
           AppSpacing.gapXS,
-          Text(
+          MixedScriptText(
             detail,
             maxLines: 1,
             overflow: TextOverflow.fade,
@@ -683,7 +684,10 @@ class _ActivityBucketCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(bucket.title, style: Theme.of(context).textTheme.titleMedium),
+          MixedScriptText(
+            bucket.title,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           AppSpacing.gapSM,
           if (unavailable)
             Text(summary.observationDays == 0 ? '観測対象外' : 'データなし')
@@ -731,7 +735,7 @@ class _BucketMetric extends StatelessWidget {
             ),
           ),
         ),
-        Text(value, maxLines: 1, overflow: TextOverflow.fade),
+        MixedScriptText(value, maxLines: 1, overflow: TextOverflow.fade),
       ],
     ),
   );

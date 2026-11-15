@@ -9,6 +9,7 @@ import '../../../core/models/operation_calendar_period.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../body_history/theme/history_metric_color_registry.dart';
 import '../../daily_aggregate/models/daily_aggregate_v1.dart';
@@ -1270,7 +1271,7 @@ class _ReadableText extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Text(
+  Widget build(BuildContext context) => MixedScriptText(
     value,
     style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.55),
   );
@@ -1296,7 +1297,7 @@ class _FactLine extends StatelessWidget {
           ),
         ),
         AppSpacing.gapXS,
-        Text(value),
+        MixedScriptText(value),
       ],
     ),
   );
