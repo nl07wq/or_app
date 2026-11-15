@@ -58,6 +58,7 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
   int? _sourceSignature;
   int _page = 0;
   DateTime? _lastSlowFrameRecord;
+  bool _initialSnapshotTraced = false;
 
   @override
   void initState() {
@@ -131,7 +132,15 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
     final signature = Object.hash(morning, food, training, activity);
     if (_snapshot == null || _sourceSignature != signature) {
       _sourceSignature = signature;
-      _snapshot = _loadSnapshot(morning, food, training, activity);
+      final stage = _initialSnapshotTraced
+          ? 'dashboard_data_refresh'
+          : 'initial_dashboard_data_loading';
+      _initialSnapshotTraced = true;
+      _snapshot = SystemDiagnostics.instance.traceStage(
+        stage,
+        () => _loadSnapshot(morning, food, training, activity),
+        fields: const <String, Object?>{'presentation': 'baseCamp'},
+      );
     }
     return _snapshot!;
   }

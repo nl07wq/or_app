@@ -18,6 +18,7 @@ Future<void> main() async {
   systemDiagnostics
     ..beginSession()
     ..installGlobalErrorHandlers()
+    ..installNavigationBoundaryHandlers()
     ..recordBrowserStartupTiming()
     ..record('APPLICATION', 'DART_MAIN_ENTER');
   _installFlutterErrorDiagnostics(systemDiagnostics);
@@ -27,7 +28,10 @@ Future<void> main() async {
   final initializationService = StartupInitializationService();
   final initialization = initializationService.initialize();
   final fontReadiness = FontReadinessService.instance.ensureReady();
-  await DeviceSettingsController.instance.initialize();
+  await systemDiagnostics.traceStage<void>(
+    'device_settings_initialization',
+    DeviceSettingsController.instance.initialize,
+  );
   final diagnostic = StartupDiagnostic.instance;
   diagnostic.beginRun();
   diagnostic.record(

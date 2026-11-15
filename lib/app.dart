@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import 'core/navigation/app_routes.dart';
 import 'core/services/device_settings_controller.dart';
+import 'core/services/diagnostic_navigator_observer.dart';
 import 'core/services/font_readiness_service.dart';
 import 'core/services/startup_diagnostic.dart';
+import 'core/services/system_diagnostics.dart';
 import 'core/widgets/global_touch_ripple.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/theme/app_theme.dart';
@@ -122,6 +124,9 @@ class _OperationRebootAppState extends State<OperationRebootApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    SystemDiagnostics.instance.recordLifecycleState(
+      WidgetsBinding.instance.lifecycleState?.name ?? 'unknown',
+    );
     _initializationService =
         widget.initializationService ?? StartupInitializationService();
     _initializationService.controller.addListener(_recordInitializationState);
@@ -159,6 +164,15 @@ class _OperationRebootAppState extends State<OperationRebootApp>
       state: state.mode.name,
       fields: {'stage': state.currentStage.name},
     );
+    SystemDiagnostics.instance.record(
+      'STARTUP_STAGE',
+      'STARTUP_GATE_STATE_TRANSITION',
+      fields: <String, Object?>{
+        'mode': state.mode.name,
+        'stage': state.currentStage.name,
+        'lifecycle': SystemDiagnostics.instance.lifecycleState,
+      },
+    );
   }
 
   @override
@@ -173,6 +187,7 @@ class _OperationRebootAppState extends State<OperationRebootApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    SystemDiagnostics.instance.recordLifecycleState(state.name);
     if (state == AppLifecycleState.resumed) {
       unawaited(NotificationProfileController.instance.recoverOnForeground());
     }
@@ -189,6 +204,7 @@ class _OperationRebootAppState extends State<OperationRebootApp>
       debugShowCheckedModeBanner: false,
       theme: StandardTheme.theme,
       initialRoute: AppRoutes.dashboard,
+      navigatorObservers: <NavigatorObserver>[DiagnosticNavigatorObserver()],
       builder: (context, child) => ValueListenableBuilder<DeviceSettings>(
         valueListenable: DeviceSettingsController.instance,
         builder: (context, settings, _) {

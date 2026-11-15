@@ -8,6 +8,8 @@ import 'dart:js_interop_unsafe';
 
 import 'package:flutter/foundation.dart';
 
+import 'diagnostic_sanitizer.dart';
+
 class SystemDiagnostics {
   SystemDiagnostics({this.eventLimit = 200, this.sessionLimit = 5});
 
@@ -20,13 +22,18 @@ class SystemDiagnostics {
   final int sessionLimit;
   final List<Map<String, Object?>> _sessions = [];
   final Set<String> _recordedAssets = <String>{};
+  final List<Map<String, Object?>> _recentNavigation = [];
   Map<String, Object?>? _current;
   Timer? _flushTimer;
   Timer? _heartbeatTimer;
   StreamSubscription<html.Event>? _errorSubscription;
+  StreamSubscription<html.PopStateEvent>? _popStateSubscription;
+  StreamSubscription<html.Event>? _hashChangeSubscription;
   bool _lifecycleInstalled = false;
   String? _lastStartupPhase;
   String? _lastMapPhase;
+  String _lifecycleState = 'unknown';
+  int _lifecycleRevision = 0;
 
   String? get sessionId => _current?['sessionId'] as String?;
   List<Map<String, Object?>> get sessions {
@@ -84,14 +91,104 @@ class SystemDiagnostics {
         'event': event,
         if (effectiveFields.isNotEmpty) 'fields': effectiveFields,
       });
-      if (events.length > eventLimit) {
-        events.removeRange(0, events.length - eventLimit);
-      }
+      _trimEvents(events);
       _current!['lastAliveAt'] = DateTime.now().toIso8601String();
       _scheduleWrite();
     } catch (_) {
       // Diagnostics must always fail open.
     }
+  }
+
+  String get lifecycleState => _lifecycleState;
+
+  void recordLifecycleState(String state) {
+    _lifecycleState = sanitizeDiagnosticText(state, limit: 40);
+    _lifecycleRevision++;
+    record(
+      'LIFECYCLE',
+      'APP_LIFECYCLE_STATE',
+      fields: <String, Object?>{'state': _lifecycleState},
+    );
+  }
+
+  Future<T> traceStage<T>(
+    String stage,
+    Future<T> Function() action, {
+    Map<String, Object?> fields = const {},
+  }) async {
+    final watch = Stopwatch()..start();
+    final startLifecycle = _lifecycleState;
+    final startRevision = _lifecycleRevision;
+    record(
+      'STARTUP_STAGE',
+      'STAGE_START',
+      fields: <String, Object?>{
+        'stage': stage,
+        'lifecycle': startLifecycle,
+        ...fields,
+      },
+    );
+    try {
+      final result = await action();
+      record(
+        'STARTUP_STAGE',
+        'STAGE_COMPLETE',
+        fields: <String, Object?>{
+          'stage': stage,
+          'elapsedMs': watch.elapsedMicroseconds / 1000,
+          'durationClock': 'monotonic',
+          'startLifecycle': startLifecycle,
+          'endLifecycle': _lifecycleState,
+          'lifecycleChanged': startRevision != _lifecycleRevision,
+          ...fields,
+        },
+      );
+      return result;
+    } catch (error) {
+      record(
+        'STARTUP_STAGE',
+        'STAGE_FAILED',
+        fields: <String, Object?>{
+          'stage': stage,
+          'elapsedMs': watch.elapsedMicroseconds / 1000,
+          'durationClock': 'monotonic',
+          'startLifecycle': startLifecycle,
+          'endLifecycle': _lifecycleState,
+          'lifecycleChanged': startRevision != _lifecycleRevision,
+          'errorType': error.runtimeType.toString(),
+          ...fields,
+        },
+      );
+      rethrow;
+    }
+  }
+
+  void recordNavigation({
+    required String action,
+    String? previousRoute,
+    String? requestedRoute,
+    String? routeType,
+  }) {
+    final before = _browserNavigationMetadata();
+    final entry = <String, Object?>{
+      'action': sanitizeDiagnosticText(action, limit: 32),
+      'previousRoute': sanitizeDiagnosticUri(previousRoute),
+      'requestedRoute': sanitizeDiagnosticUri(requestedRoute),
+      if (routeType != null)
+        'routeType': sanitizeDiagnosticText(routeType, limit: 80),
+      'browserBefore': before,
+    };
+    _rememberNavigation(entry);
+    scheduleMicrotask(() {
+      record(
+        'NAVIGATION',
+        'ROUTE_REQUEST',
+        fields: <String, Object?>{
+          ...entry,
+          'browserAfter': _browserNavigationMetadata(),
+        },
+      );
+    });
   }
 
   void recordAssetOnce(
@@ -151,9 +248,22 @@ class SystemDiagnostics {
           'reasonName': ?_jsPropertyText(reason, 'name'),
           'reasonMessage': ?_jsPropertyText(reason, 'message'),
           'stack': ?boundedReasonStack,
+          'browser': _browserNavigationMetadata(),
+          'recentNavigation': _recentNavigation
+              .map((entry) => Map<String, Object?>.from(entry))
+              .toList(growable: false),
           ..._phaseFields,
         },
       );
+    });
+  }
+
+  void installNavigationBoundaryHandlers() {
+    _popStateSubscription ??= html.window.onPopState.listen((_) {
+      _recordBrowserNavigationEvent('popstate');
+    });
+    _hashChangeSubscription ??= html.window.onHashChange.listen((_) {
+      _recordBrowserNavigationEvent('hashchange');
     });
   }
 
@@ -214,7 +324,12 @@ class SystemDiagnostics {
     record(
       'JAVASCRIPT',
       'WINDOW_ERROR',
-      fields: <String, Object?>{...fields, ..._phaseFields},
+      fields: <String, Object?>{
+        ...fields,
+        'browser': _browserNavigationMetadata(),
+        'recentNavigation': List<Map<String, Object?>>.from(_recentNavigation),
+        ..._phaseFields,
+      },
     );
   }
 
@@ -230,6 +345,83 @@ class SystemDiagnostics {
     if (event.startsWith('MAP_') || event.startsWith('FACILITY_')) {
       _lastMapPhase = '$layer/$event';
     }
+  }
+
+  void _recordBrowserNavigationEvent(String action) {
+    final entry = <String, Object?>{
+      'action': action,
+      'browser': _browserNavigationMetadata(),
+    };
+    _rememberNavigation(entry);
+    record('NAVIGATION', 'BROWSER_ROUTE_NOTIFICATION', fields: entry);
+  }
+
+  Map<String, Object?> _browserNavigationMetadata() {
+    final state = html.window.history.state;
+    return <String, Object?>{
+      'url': sanitizeDiagnosticUri(html.window.location.href),
+      'visibility': html.document.visibilityState,
+      'historyLength': html.window.history.length,
+      'historyState': _historyStateMetadata(state),
+    };
+  }
+
+  Map<String, Object?> _historyStateMetadata(Object? state) {
+    if (state == null) return const <String, Object?>{'present': false};
+    try {
+      final value = state;
+      if (value is Map) {
+        return <String, Object?>{
+          'present': true,
+          'type': 'map',
+          'keys': value.keys
+              .map((key) => sanitizeDiagnosticText('$key', limit: 48))
+              .where((key) => !_sensitiveKey(key))
+              .take(12)
+              .toList(growable: false),
+        };
+      }
+      return <String, Object?>{
+        'present': true,
+        'type': value.runtimeType.toString(),
+      };
+    } catch (_) {
+      return const <String, Object?>{'present': true, 'type': 'unavailable'};
+    }
+  }
+
+  bool _sensitiveKey(String key) {
+    final lower = key.toLowerCase();
+    return lower.contains('token') ||
+        lower.contains('secret') ||
+        lower.contains('password') ||
+        lower.contains('auth');
+  }
+
+  void _rememberNavigation(Map<String, Object?> entry) {
+    _recentNavigation.add(<String, Object?>{
+      'timestamp': DateTime.now().toIso8601String(),
+      ...entry,
+    });
+    if (_recentNavigation.length > 12) {
+      _recentNavigation.removeRange(0, _recentNavigation.length - 12);
+    }
+  }
+
+  void _trimEvents(List<Map<String, Object?>> events) {
+    while (events.length > eventLimit) {
+      final removable = events.indexWhere((event) => !_isCritical(event));
+      events.removeAt(removable < 0 ? 0 : removable);
+    }
+  }
+
+  bool _isCritical(Map<String, Object?> event) {
+    final layer = event['layer'];
+    final name = event['event'];
+    return layer == 'STARTUP_STAGE' ||
+        layer == 'NAVIGATION' ||
+        name == 'WINDOW_ERROR' ||
+        name == 'UNHANDLED_PROMISE_REJECTION';
   }
 
   String? _jsPropertyText(Object? object, String property) {
@@ -277,8 +469,11 @@ class SystemDiagnostics {
     _sessions.clear();
     _current = null;
     _recordedAssets.clear();
+    _recentNavigation.clear();
     _lastStartupPhase = null;
     _lastMapPhase = null;
+    _lifecycleState = 'unknown';
+    _lifecycleRevision = 0;
     try {
       html.window.localStorage.remove(storageKey);
     } catch (_) {}

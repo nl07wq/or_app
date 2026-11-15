@@ -32,7 +32,7 @@ void main() {
         ),
         lessThan(
           source.indexOf(
-            'await DeviceSettingsController.instance.initialize();',
+            'DeviceSettingsController.instance.initialize,',
           ),
         ),
         reason: 'database and device settings startup must overlap',
