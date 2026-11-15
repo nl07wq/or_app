@@ -88,7 +88,7 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pump();
-    await tester.pump();
+    await _pumpUntilFacilityLayer(tester);
 
     final trace = SystemDiagnostics.instance.copyText();
     expect(trace, contains('MAP_BACKGROUND_LOAD_START'));
@@ -98,6 +98,121 @@ void main() {
     expect(
       trace.indexOf('MAP_DISPLAY_COMPLETE'),
       lessThan(trace.indexOf('FACILITY_ASSET_LOAD_START')),
+    );
+  });
+
+  testWidgets('visible facilities publish atomically after preparation', (
+    tester,
+  ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(onFacilityPressed: _ignoreFacility),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('base-camp-facility-object-layer')),
+      findsNothing,
+    );
+    await _pumpUntilFacilityLayer(tester);
+    expect(
+      find.byKey(const ValueKey('base-camp-facility-object-layer')),
+      findsOneWidget,
+    );
+
+    final trace = SystemDiagnostics.instance.copyText();
+    final mapDisplayed = trace.indexOf('MAP_DISPLAY_COMPLETE');
+    final prepareStart = trace.indexOf('FACILITY_OBJECTS_ATOMIC_PREPARE_START');
+    final prepareComplete = trace.indexOf(
+      'FACILITY_OBJECTS_ATOMIC_PREPARE_COMPLETE',
+    );
+    final displayComplete = trace.indexOf('FACILITY_OBJECTS_DISPLAY_COMPLETE');
+    expect(mapDisplayed, greaterThanOrEqualTo(0));
+    expect(prepareStart, greaterThan(mapDisplayed));
+    expect(prepareComplete, greaterThan(prepareStart));
+    expect(displayComplete, greaterThan(prepareComplete));
+    expect(trace, contains('"atomicReveal": true'));
+  });
+
+  testWidgets('one failed facility does not block the atomic reveal', (
+    tester,
+  ) async {
+    final original = baseCampMapConfigurationController.value;
+    addTearDown(() => baseCampMapConfigurationController.value = original);
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    baseCampMapConfigurationController.value = original.copyWith(
+      objects: <String, BaseCampMapObject>{
+        ...original.objects,
+        'flag': original.objects['flag']!.copyWith(
+          assetId: 'missing-test-asset',
+        ),
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(onFacilityPressed: _ignoreFacility),
+          ),
+        ),
+      ),
+    );
+    await _pumpUntilFacilityLayer(tester);
+
+    expect(
+      find.byKey(const ValueKey('base-camp-facility-object-layer')),
+      findsOneWidget,
+    );
+    expect(find.text('MISSING\nASSET'), findsOneWidget);
+    final trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('FACILITY_OBJECT_PREPARE_FAILED'));
+    expect(trace, contains('missing-test-asset'));
+    expect(trace, contains('FACILITY_OBJECTS_DISPLAY_COMPLETE'));
+  });
+
+  testWidgets('post-reveal configuration updates never hide normal objects', (
+    tester,
+  ) async {
+    final original = baseCampMapConfigurationController.value;
+    addTearDown(() => baseCampMapConfigurationController.value = original);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(onFacilityPressed: _ignoreFacility),
+          ),
+        ),
+      ),
+    );
+    await _pumpUntilFacilityLayer(tester);
+
+    baseCampMapConfigurationController.value = original.copyWith(
+      objects: <String, BaseCampMapObject>{
+        ...original.objects,
+        'flag': original.objects['flag']!.copyWith(visible: false),
+      },
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('base-camp-facility-object-layer')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('base-camp-object-flag')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('base-camp-object-status')),
+      findsOneWidget,
     );
   });
 
@@ -159,11 +274,7 @@ void main() {
       );
 
       expect(baseCampFacilities, hasLength(5));
-      await tester.pump(const Duration(seconds: 1));
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 100)),
-      );
-      await tester.pump();
+      await _pumpUntilFacilityLayer(tester);
       expect(find.bySemanticsLabel('STATUS facility'), findsOneWidget);
       for (var index = 0; index < baseCampFacilities.length; index++) {
         final facility = baseCampFacilities[index];
@@ -197,11 +308,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(seconds: 1));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pump();
+    await _pumpUntilFacilityLayer(tester);
 
     await tester.drag(
       find.byKey(const ValueKey('base-camp-map')),
@@ -234,11 +341,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(seconds: 1));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pump();
+    await _pumpUntilFacilityLayer(tester);
 
     await _tapOpaqueFacility(tester, 'status');
     expect(find.text('STATUS'), findsOneWidget);
@@ -326,11 +429,7 @@ void main() {
         home: Scaffold(body: BaseCampMap(onFacilityPressed: _ignoreFacility)),
       ),
     );
-    await tester.pump(const Duration(seconds: 1));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pump();
+    await _pumpUntilFacilityLayer(tester);
     final status = find.byKey(const ValueKey('base-camp-facility-status'));
     final rect = tester.getRect(status);
     await tester.tapAt(rect.topLeft + const Offset(2, 2));
@@ -1294,4 +1393,19 @@ Future<void> _tapOpaqueFacility(WidgetTester tester, String facilityId) async {
     }
   }
   fail('No opaque pixel was selectable for $facilityId in $rect');
+}
+
+Future<void> _pumpUntilFacilityLayer(WidgetTester tester) async {
+  final finder = find.byKey(const ValueKey('base-camp-facility-object-layer'));
+  for (var attempt = 0; attempt < 100; attempt++) {
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 2)),
+    );
+    if (finder.evaluate().isNotEmpty) {
+      await tester.pump();
+      return;
+    }
+  }
+  fail('Facility object layer was not revealed.');
 }

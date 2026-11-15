@@ -3,6 +3,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+
+import 'package:flutter/foundation.dart';
 
 class SystemDiagnostics {
   SystemDiagnostics({this.eventLimit = 200, this.sessionLimit = 5});
@@ -21,6 +25,8 @@ class SystemDiagnostics {
   Timer? _heartbeatTimer;
   StreamSubscription<html.Event>? _errorSubscription;
   bool _lifecycleInstalled = false;
+  String? _lastStartupPhase;
+  String? _lastMapPhase;
 
   String? get sessionId => _current?['sessionId'] as String?;
   List<Map<String, Object?>> get sessions {
@@ -66,12 +72,17 @@ class SystemDiagnostics {
   }) {
     try {
       beginSession();
+      _trackPhase(layer, event);
+      final effectiveFields = <String, Object?>{
+        ...fields,
+        if (event == 'SLOW_FRAME_BATCH') ..._phaseFields,
+      };
       final events = _current!['events']! as List<Map<String, Object?>>;
       events.add(<String, Object?>{
         'timestamp': DateTime.now().toIso8601String(),
         'layer': layer,
         'event': event,
-        if (fields.isNotEmpty) 'fields': fields,
+        if (effectiveFields.isNotEmpty) 'fields': effectiveFields,
       });
       if (events.length > eventLimit) {
         events.removeRange(0, events.length - eventLimit);
@@ -119,27 +130,101 @@ class SystemDiagnostics {
   }
 
   void installGlobalErrorHandlers() {
-    _errorSubscription ??= html.window.onError.listen((event) {
-      final error = event is html.ErrorEvent ? event : null;
-      record(
-        'JAVASCRIPT',
-        'WINDOW_ERROR',
-        fields: <String, Object?>{
-          'message': error?.message ?? event.toString(),
-          'filename': ?error?.filename,
-          'line': ?error?.lineno,
-          'column': ?error?.colno,
-        },
-      );
-    });
+    _errorSubscription ??= html.window.onError.listen(_recordWindowError);
     html.window.addEventListener('unhandledrejection', (event) {
+      final rejection = event is html.PromiseRejectionEvent ? event : null;
+      final reason = rejection?.reason;
+      final reasonStack = _jsPropertyText(reason, 'stack');
+      final reasonText = reason == null
+          ? null
+          : _bounded(reason.toString(), 2000);
+      final boundedReasonStack = reasonStack == null
+          ? null
+          : _bounded(reasonStack, 6000);
       record(
         'JAVASCRIPT',
         'UNHANDLED_PROMISE_REJECTION',
-        fields: <String, Object?>{'eventType': event.type},
+        fields: <String, Object?>{
+          'eventType': event.type,
+          'reasonType': ?reason?.runtimeType.toString(),
+          'reason': ?reasonText,
+          'reasonName': ?_jsPropertyText(reason, 'name'),
+          'reasonMessage': ?_jsPropertyText(reason, 'message'),
+          'stack': ?boundedReasonStack,
+          ..._phaseFields,
+        },
       );
     });
   }
+
+  void _recordWindowError(html.Event event) {
+    final error = event is html.ErrorEvent ? event : null;
+    final errorObject = error?.error;
+    final eventMessage = _nonEmpty(error?.message);
+    final objectMessage = _jsPropertyText(errorObject, 'message');
+    final errorStack = _jsPropertyText(errorObject, 'stack');
+    final boundedErrorStack = errorStack == null
+        ? null
+        : _bounded(errorStack, 6000);
+    _recordWindowErrorDetails(<String, Object?>{
+      'eventType': event.type,
+      'message':
+          eventMessage ?? objectMessage ?? _bounded(event.toString(), 2000),
+      'errorType': ?errorObject?.runtimeType.toString(),
+      'errorName': ?_jsPropertyText(errorObject, 'name'),
+      'errorMessage': ?objectMessage,
+      'stack': ?boundedErrorStack,
+      'filename': ?error?.filename,
+      'line': ?error?.lineno,
+      'column': ?error?.colno,
+    });
+  }
+
+  @visibleForTesting
+  void recordWindowErrorDetailsForTesting(Map<String, Object?> fields) =>
+      _recordWindowErrorDetails(fields);
+
+  void _recordWindowErrorDetails(Map<String, Object?> fields) {
+    record(
+      'JAVASCRIPT',
+      'WINDOW_ERROR',
+      fields: <String, Object?>{...fields, ..._phaseFields},
+    );
+  }
+
+  Map<String, Object?> get _phaseFields => <String, Object?>{
+    'lastStartupPhase': ?_lastStartupPhase,
+    'lastMapPhase': ?_lastMapPhase,
+  };
+
+  void _trackPhase(String layer, String event) {
+    if (event == 'DART_MAIN_ENTER' || event.startsWith('DASHBOARD_')) {
+      _lastStartupPhase = '$layer/$event';
+    }
+    if (event.startsWith('MAP_') || event.startsWith('FACILITY_')) {
+      _lastMapPhase = '$layer/$event';
+    }
+  }
+
+  String? _jsPropertyText(Object? object, String property) {
+    if (object == null) return null;
+    try {
+      final jsObject = object as JSObject;
+      if (!jsObject.has(property)) return null;
+      return _nonEmpty(jsObject[property]?.dartify()?.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _nonEmpty(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  String _bounded(String value, int limit) => value.length <= limit
+      ? value
+      : '${value.substring(0, limit)}\n...[TRUNCATED]';
 
   Future<bool> export() async {
     try {
@@ -160,6 +245,8 @@ class SystemDiagnostics {
     _sessions.clear();
     _current = null;
     _recordedAssets.clear();
+    _lastStartupPhase = null;
+    _lastMapPhase = null;
     try {
       html.window.localStorage.remove(storageKey);
     } catch (_) {}

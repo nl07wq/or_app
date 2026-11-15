@@ -537,6 +537,9 @@ class _BaseCampMapState extends State<BaseCampMap>
   final BaseCampMapAssetResolver _assetResolver = BaseCampMapAssetResolver();
   final Set<String> _resolvedFacilityObjects = <String>{};
   final Set<String> _displayedFacilityObjects = <String>{};
+  bool _configurationReady = false;
+  bool _facilityBatchStarted = false;
+  bool _facilityLayerRevealed = false;
   bool _mapPrecacheStarted = false;
   bool _mapDecodeReady = false;
   bool _mapDisplayQueued = false;
@@ -573,8 +576,15 @@ class _BaseCampMapState extends State<BaseCampMap>
       // while keeping its ticker scoped to the dashboard's TickerMode.
       duration: const Duration(hours: 24),
     )..repeat();
-    baseCampMapConfigurationController.load();
+    unawaited(_loadConfiguration());
     baseCampMapConfigurationController.addListener(_configurationChanged);
+  }
+
+  Future<void> _loadConfiguration() async {
+    await baseCampMapConfigurationController.load();
+    if (!mounted) return;
+    setState(() => _configurationReady = true);
+    _startInitialFacilityBatchIfReady();
   }
 
   @override
@@ -646,7 +656,8 @@ class _BaseCampMapState extends State<BaseCampMap>
   }
 
   void _configurationChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -681,6 +692,7 @@ class _BaseCampMapState extends State<BaseCampMap>
         },
       );
       setState(() {});
+      _startInitialFacilityBatchIfReady();
       if (!baseCampMapConfigurationController.value.objects.values.any(
         (object) => object.visible,
       )) {
@@ -689,22 +701,141 @@ class _BaseCampMapState extends State<BaseCampMap>
     });
   }
 
-  void _recordFacilityObjectResolved(String objectId, bool displayed) {
-    if (!_resolvedFacilityObjects.add(objectId)) return;
-    if (displayed) _displayedFacilityObjects.add(objectId);
+  void _startInitialFacilityBatchIfReady() {
+    if (!mounted ||
+        !_mapDisplayed ||
+        !_configurationReady ||
+        _facilityBatchStarted) {
+      return;
+    }
+    _facilityBatchStarted = true;
+    unawaited(_prepareInitialFacilityBatch());
+  }
+
+  List<BaseCampMapObject> _visibleFacilityObjects() =>
+      baseCampMapConfigurationController.value.objects.values
+          .where((object) => object.visible)
+          .toList(growable: false)
+        ..sort((a, b) => a.zIndex.compareTo(b.zIndex));
+
+  String _facilityObjectIdentity(BaseCampMapObject object) =>
+      '${object.id}|${object.assetId}';
+
+  Future<void> _prepareInitialFacilityBatch() async {
+    final diagnostics = SystemDiagnostics.instance;
+    final prepared = <String>{};
+    var readyCount = 0;
+    var failedCount = 0;
+    final watch = Stopwatch()..start();
+    diagnostics.record(
+      'ASSET',
+      'FACILITY_OBJECTS_ATOMIC_PREPARE_START',
+      fields: <String, Object?>{
+        'objectCount': _visibleFacilityObjects().length,
+      },
+    );
+
+    while (mounted) {
+      final objects = _visibleFacilityObjects();
+      for (final object in objects) {
+        final identity = _facilityObjectIdentity(object);
+        if (!prepared.add(identity)) continue;
+        if (readyCount + failedCount > 0) {
+          await SchedulerBinding.instance.endOfFrame;
+          if (!mounted) return;
+        }
+        final bundledAsset = baseCampObjectAssets[object.assetId];
+        try {
+          final storedAsset = bundledAsset == null
+              ? await _assetResolver.read(object.assetId)
+              : null;
+          if (bundledAsset == null && storedAsset == null) {
+            throw StateError('missing stored asset');
+          }
+          final provider = bundledAsset != null
+              ? AssetImage(bundledAsset) as ImageProvider<Object>
+              : MemoryImage(storedAsset!.bytes);
+          if (!mounted) return;
+          final cache = await baseCampImageCacheFields(provider, context);
+          if (!mounted) return;
+          await baseCampPrecacheImage(provider, context);
+          if (!mounted) return;
+          await _assetResolver._alphaMask(object);
+          if (!mounted) return;
+          readyCount++;
+          final asset = bundledAsset ?? object.assetId;
+          recordBaseCampAssetReady(asset);
+          diagnostics.record(
+            'ASSET',
+            'FACILITY_OBJECT_PREPARE_READY',
+            fields: <String, Object?>{
+              'objectId': object.id,
+              'assetId': object.assetId,
+              'asset': asset,
+              ...cache,
+            },
+          );
+        } catch (error) {
+          failedCount++;
+          diagnostics.record(
+            'ASSET',
+            'FACILITY_OBJECT_PREPARE_FAILED',
+            fields: <String, Object?>{
+              'objectId': object.id,
+              'assetId': object.assetId,
+              'asset': bundledAsset ?? object.assetId,
+              'errorType': error.runtimeType.toString(),
+            },
+          );
+        }
+      }
+      if (!mounted) return;
+      final current = _visibleFacilityObjects()
+          .map(_facilityObjectIdentity)
+          .toSet();
+      if (current.every(prepared.contains)) break;
+    }
+    if (!mounted) return;
+    diagnostics.record(
+      'ASSET',
+      'FACILITY_OBJECTS_ATOMIC_PREPARE_COMPLETE',
+      fields: <String, Object?>{
+        'objectCount': readyCount + failedCount,
+        'readyCount': readyCount,
+        'failedCount': failedCount,
+        'durationMs': watch.elapsedMilliseconds,
+      },
+    );
+    setState(() => _facilityLayerRevealed = true);
+    if (readyCount + failedCount == 0) unawaited(_warmWalkerFrames());
+  }
+
+  void _recordFacilityObjectResolved(BaseCampMapObject object, bool displayed) {
+    final identity = _facilityObjectIdentity(object);
+    if (!_resolvedFacilityObjects.add(identity)) return;
+    if (displayed) _displayedFacilityObjects.add(identity);
+    final asset = baseCampObjectAssets[object.assetId] ?? object.assetId;
     SystemDiagnostics.instance.record(
       'ASSET',
       displayed
           ? 'FACILITY_OBJECT_DISPLAY_COMPLETE'
           : 'FACILITY_OBJECT_DISPLAY_FAILED',
-      fields: <String, Object?>{'objectId': objectId},
+      fields: <String, Object?>{
+        'objectId': object.id,
+        'assetId': object.assetId,
+        'asset': asset,
+      },
     );
-    final visibleIds = baseCampMapConfigurationController.value.objects.values
+    final visibleIdentities = baseCampMapConfigurationController
+        .value
+        .objects
+        .values
         .where((object) => object.visible)
-        .map((object) => object.id)
+        .map(_facilityObjectIdentity)
         .toSet();
     if (_facilityBatchRecorded ||
-        !visibleIds.every(_resolvedFacilityObjects.contains)) {
+        !_facilityLayerRevealed ||
+        !visibleIdentities.every(_resolvedFacilityObjects.contains)) {
       return;
     }
     _facilityBatchRecorded = true;
@@ -712,10 +843,11 @@ class _BaseCampMapState extends State<BaseCampMap>
       'ASSET',
       'FACILITY_OBJECTS_DISPLAY_COMPLETE',
       fields: <String, Object?>{
-        'objectCount': visibleIds.length,
-        'displayedCount': visibleIds
+        'objectCount': visibleIdentities.length,
+        'displayedCount': visibleIdentities
             .where(_displayedFacilityObjects.contains)
             .length,
+        'atomicReveal': true,
       },
     );
     unawaited(_warmWalkerFrames());
@@ -968,36 +1100,42 @@ class _BaseCampMapState extends State<BaseCampMap>
                             ),
                           ),
                         ),
-                        if (_mapDisplayed)
+                        if (_facilityLayerRevealed)
                           IgnorePointer(
-                            child: AnimatedBuilder(
-                              animation: Listenable.merge(<Listenable>[
-                                _selectionPulse,
-                                _selectionVisibility,
-                              ]),
-                              builder: (context, _) {
-                                final pulse = reducedMotion
-                                    ? 1.0
-                                    : .84 +
-                                          .16 *
-                                              ((1 +
-                                                      math.sin(
-                                                        _selectionPulse.value *
-                                                            math.pi *
-                                                            2,
-                                                      )) /
-                                                  2);
-                                return BaseCampObjectLayer(
-                                  configuration: configuration,
-                                  geometry: geometry,
-                                  assetResolver: _assetResolver,
-                                  onObjectResolved:
-                                      _recordFacilityObjectResolved,
-                                  highlightedObjectId: glowingFacility?.id,
-                                  highlightOpacity:
-                                      _selectionVisibility.value * pulse,
-                                );
-                              },
+                            child: RepaintBoundary(
+                              key: const ValueKey(
+                                'base-camp-facility-object-layer',
+                              ),
+                              child: AnimatedBuilder(
+                                animation: Listenable.merge(<Listenable>[
+                                  _selectionPulse,
+                                  _selectionVisibility,
+                                ]),
+                                builder: (context, _) {
+                                  final pulse = reducedMotion
+                                      ? 1.0
+                                      : .84 +
+                                            .16 *
+                                                ((1 +
+                                                        math.sin(
+                                                          _selectionPulse
+                                                                  .value *
+                                                              math.pi *
+                                                              2,
+                                                        )) /
+                                                    2);
+                                  return BaseCampObjectLayer(
+                                    configuration: configuration,
+                                    geometry: geometry,
+                                    assetResolver: _assetResolver,
+                                    onObjectResolved:
+                                        _recordFacilityObjectResolved,
+                                    highlightedObjectId: glowingFacility?.id,
+                                    highlightOpacity:
+                                        _selectionVisibility.value * pulse,
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         if (reducedMotion || _walkerFirstFramesReady)
@@ -1083,7 +1221,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                                 object: object,
                                 geometry: geometry,
                                 assetResolver: _assetResolver,
-                                enabled: _mapDisplayed,
+                                enabled: _facilityLayerRevealed,
                                 onPressed: () => _openFacility(facility),
                               ),
                         ],
@@ -1570,7 +1708,8 @@ class BaseCampObjectLayer extends StatelessWidget {
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
   final BaseCampMapAssetResolver? assetResolver;
-  final void Function(String objectId, bool displayed)? onObjectResolved;
+  final void Function(BaseCampMapObject object, bool displayed)?
+  onObjectResolved;
   final String? highlightedObjectId;
   final double highlightOpacity;
 
@@ -1589,7 +1728,7 @@ class BaseCampObjectLayer extends StatelessWidget {
             assetResolver: assetResolver,
             onResolved: onObjectResolved == null
                 ? null
-                : (displayed) => onObjectResolved!(object.id, displayed),
+                : (displayed) => onObjectResolved!(object, displayed),
             highlightOpacity: object.id == highlightedObjectId
                 ? highlightOpacity
                 : 0,
@@ -1803,11 +1942,45 @@ class BaseCampMapAssetResolver {
   final Future<BaseCampStoredAsset?> Function(String assetId) _reader;
   final Map<String, Future<BaseCampStoredAsset?>> _reads =
       <String, Future<BaseCampStoredAsset?>>{};
+  final Map<String, Future<_BaseCampAlphaMaskSequence?>> _alphaMasks =
+      <String, Future<_BaseCampAlphaMaskSequence?>>{};
+  Future<void> _alphaDecodeTail = Future<void>.value();
 
   Future<BaseCampStoredAsset?> read(String assetId) =>
       _reads.putIfAbsent(assetId, () => _reader(assetId));
 
-  void invalidate(String assetId) => _reads.remove(assetId);
+  Future<_BaseCampAlphaMaskSequence?> _alphaMask(BaseCampMapObject object) =>
+      _alphaMasks.putIfAbsent(object.assetId, () {
+        return _scheduleAlphaDecode(() async {
+          final bundled = baseCampObjectAssets[object.assetId];
+          if (bundled != null) {
+            final data = await rootBundle.load(bundled);
+            return _BaseCampAlphaMaskSequence.decode(data.buffer.asUint8List());
+          }
+          final stored = await read(object.assetId);
+          return stored == null
+              ? null
+              : _BaseCampAlphaMaskSequence.decode(stored.bytes);
+        });
+      });
+
+  Future<T> _scheduleAlphaDecode<T>(Future<T> Function() decode) {
+    final result = Completer<T>();
+    _alphaDecodeTail = _alphaDecodeTail.then((_) async {
+      await SchedulerBinding.instance.endOfFrame;
+      try {
+        result.complete(await decode());
+      } catch (error, stackTrace) {
+        result.completeError(error, stackTrace);
+      }
+    });
+    return result.future;
+  }
+
+  void invalidate(String assetId) {
+    _reads.remove(assetId);
+    _alphaMasks.remove(assetId);
+  }
 }
 
 class _BaseCampMapObjectPositioned extends StatelessWidget {
@@ -1908,19 +2081,32 @@ class _BaseCampAlphaFacilityTargetState
 
   Future<_BaseCampAlphaMaskSequence?> _loadMask() async {
     if (!widget.enabled) return null;
+    final diagnostics = SystemDiagnostics.instance;
+    final watch = Stopwatch()..start();
     try {
-      final bundled = baseCampObjectAssets[widget.object.assetId];
-      if (bundled != null) {
-        final data = await rootBundle.load(bundled);
-        return await _BaseCampAlphaMaskSequence.decode(
-          data.buffer.asUint8List(),
-        );
-      }
-      final stored = await widget.assetResolver.read(widget.object.assetId);
-      return stored == null
-          ? null
-          : await _BaseCampAlphaMaskSequence.decode(stored.bytes);
-    } on Object {
+      final mask = await widget.assetResolver._alphaMask(widget.object);
+      diagnostics.record(
+        'ASSET',
+        'FACILITY_ALPHA_MASK_READY',
+        fields: <String, Object?>{
+          'objectId': widget.object.id,
+          'assetId': widget.object.assetId,
+          'durationMs': watch.elapsedMilliseconds,
+          'available': mask != null,
+        },
+      );
+      return mask;
+    } on Object catch (error) {
+      diagnostics.record(
+        'ASSET',
+        'FACILITY_ALPHA_MASK_FAILED',
+        fields: <String, Object?>{
+          'objectId': widget.object.id,
+          'assetId': widget.object.assetId,
+          'durationMs': watch.elapsedMilliseconds,
+          'errorType': error.runtimeType.toString(),
+        },
+      );
       return null;
     }
   }

@@ -41,4 +41,52 @@ void main() {
 
     expect(restored.previousSessionAbnormalSuspected, isFalse);
   });
+
+  test('slow frames retain the latest startup and map phases', () {
+    final diagnostics = SystemDiagnostics.testing()
+      ..record('APPLICATION', 'DART_MAIN_ENTER')
+      ..record('BASE_CAMP', 'DASHBOARD_FIRST_FRAME')
+      ..record('BASE_CAMP', 'MAP_BACKGROUND_READY')
+      ..record(
+        'PERFORMANCE',
+        'SLOW_FRAME_BATCH',
+        fields: const <String, Object?>{'worstFrameMs': 1344},
+      );
+
+    final events = diagnostics.sessions.single['events']! as List;
+    final slow = (events.last as Map)['fields'] as Map;
+    expect(slow['worstFrameMs'], 1344);
+    expect(slow['lastStartupPhase'], 'BASE_CAMP/DASHBOARD_FIRST_FRAME');
+    expect(slow['lastMapPhase'], 'BASE_CAMP/MAP_BACKGROUND_READY');
+  });
+
+  test(
+    'window errors retain available browser details without health data',
+    () {
+      final diagnostics = SystemDiagnostics.testing()
+        ..record('BASE_CAMP', 'DASHBOARD_FIRST_FRAME')
+        ..record('ASSET', 'FACILITY_OBJECTS_ATOMIC_PREPARE_START')
+        ..recordWindowErrorDetailsForTesting(<String, Object?>{
+          'eventType': 'error',
+          'errorType': 'NativeError',
+          'errorName': 'TypeError',
+          'errorMessage': 'synthetic browser failure',
+          'stack': 'synthetic stack',
+          'filename': 'main.dart.js',
+          'line': 7167,
+          'column': 8,
+        });
+
+      final trace = diagnostics.copyText();
+      expect(trace, contains('WINDOW_ERROR'));
+      expect(trace, contains('TypeError'));
+      expect(trace, contains('synthetic browser failure'));
+      expect(trace, contains('synthetic stack'));
+      expect(trace, contains('main.dart.js'));
+      expect(trace, contains('7167'));
+      expect(trace, contains('BASE_CAMP/DASHBOARD_FIRST_FRAME'));
+      expect(trace, contains('ASSET/FACILITY_OBJECTS_ATOMIC_PREPARE_START'));
+      expect(trace, isNot(contains('health')));
+    },
+  );
 }

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 class SystemDiagnostics {
   SystemDiagnostics({
     this.eventLimit = 200,
@@ -26,6 +28,8 @@ class SystemDiagnostics {
   final List<Map<String, Object?>> _sessions = [];
   Map<String, Object?>? _current;
   final Set<String> _recordedAssets = <String>{};
+  String? _lastStartupPhase;
+  String? _lastMapPhase;
 
   String? get sessionId => _current?['sessionId'] as String?;
   List<Map<String, Object?>> get sessions => List.unmodifiable(_sessions);
@@ -59,12 +63,17 @@ class SystemDiagnostics {
     Map<String, Object?> fields = const {},
   }) {
     beginSession();
+    _trackPhase(layer, event);
+    final effectiveFields = <String, Object?>{
+      ...fields,
+      if (event == 'SLOW_FRAME_BATCH') ..._phaseFields,
+    };
     final events = _current!['events']! as List<Map<String, Object?>>;
     events.add(<String, Object?>{
       'timestamp': DateTime.now().toIso8601String(),
       'layer': layer,
       'event': event,
-      if (fields.isNotEmpty) 'fields': fields,
+      if (effectiveFields.isNotEmpty) 'fields': effectiveFields,
     });
     if (events.length > eventLimit) {
       events.removeRange(0, events.length - eventLimit);
@@ -105,12 +114,38 @@ class SystemDiagnostics {
   }
 
   void installGlobalErrorHandlers() {}
+
+  @visibleForTesting
+  void recordWindowErrorDetailsForTesting(Map<String, Object?> fields) {
+    record(
+      'JAVASCRIPT',
+      'WINDOW_ERROR',
+      fields: <String, Object?>{...fields, ..._phaseFields},
+    );
+  }
+
   Future<bool> export() async => false;
 
   void clear() {
     _sessions.clear();
     _current = null;
     _recordedAssets.clear();
+    _lastStartupPhase = null;
+    _lastMapPhase = null;
+  }
+
+  Map<String, Object?> get _phaseFields => <String, Object?>{
+    'lastStartupPhase': ?_lastStartupPhase,
+    'lastMapPhase': ?_lastMapPhase,
+  };
+
+  void _trackPhase(String layer, String event) {
+    if (event == 'DART_MAIN_ENTER' || event.startsWith('DASHBOARD_')) {
+      _lastStartupPhase = '$layer/$event';
+    }
+    if (event.startsWith('MAP_') || event.startsWith('FACILITY_')) {
+      _lastMapPhase = '$layer/$event';
+    }
   }
 
   String copyText() =>
