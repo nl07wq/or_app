@@ -89,6 +89,11 @@ class NutritionStatusBadge extends StatelessWidget {
   final String status;
   @override
   Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
     final color = switch (status) {
       'ON TRACK' => NutritionVisualColors.onTrack,
       'LOW' => NutritionVisualColors.low,
@@ -98,8 +103,10 @@ class NutritionStatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .18),
-        borderRadius: BorderRadius.circular(12),
+        color: classicTerminal
+            ? Theme.of(context).colorScheme.surfaceContainer
+            : color.withValues(alpha: .18),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
         border: Border.all(color: color),
       ),
       child: Text(
@@ -133,91 +140,106 @@ class NutritionContributorCard extends StatelessWidget {
   final int? sharePercent;
   final String? mealType;
   @override
-  Widget build(BuildContext context) => OperationCard(
-    child: Container(
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: NutritionVisualColors.forMetric(metric),
-            width: 4,
+  Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    return OperationCard(
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: NutritionVisualColors.forMetric(metric),
+              width: 4,
+            ),
           ),
         ),
-      ),
-      padding: const EdgeInsets.only(left: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'TOP ${metric.name.toUpperCase()}',
-            style: TextStyle(
-              color: NutritionVisualColors.forMetric(metric),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          AppSpacing.gapSM,
-          Container(
-            key: ValueKey('nutrition-contributor-name-${metric.name}'),
-            height: 58,
-            width: double.infinity,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: NutritionVisualColors.forMetric(
-                  metric,
-                ).withValues(alpha: .35),
+        padding: const EdgeInsets.only(left: AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'TOP ${metric.name.toUpperCase()}',
+              style: TextStyle(
+                color: NutritionVisualColors.forMetric(metric),
+                fontWeight: FontWeight.bold,
               ),
             ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                foodName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                softWrap: true,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontSize: 14,
-                  height: 1.25,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          Text(
-            value == null
-                ? '—'
-                : '${FoodNutritionFormatter.macro(value!)}$unit',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          if (sharePercent != null)
-            Text('$sharePercent% of ${_contributorMetricLabel(metric)}'),
-          if (mealType != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
+            AppSpacing.gapSM,
+            Container(
+              key: ValueKey('nutrition-contributor-name-${metric.name}'),
+              height: 58,
+              width: double.infinity,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: classicTerminal
+                    ? Theme.of(context).colorScheme.surfaceContainerHighest
+                    : Theme.of(context).colorScheme.surfaceContainerHighest
+                          .withValues(alpha: .45),
+                borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
+                border: Border.all(
                   color: NutritionVisualColors.forMetric(
                     metric,
-                  ).withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(8),
+                  ).withValues(alpha: .35),
                 ),
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  analysisMealTypeLabel(mealType!),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                  foodName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    height: 1.25,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
-        ],
+            Text(
+              value == null
+                  ? '—'
+                  : '${FoodNutritionFormatter.macro(value!)}$unit',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (sharePercent != null)
+              Text('$sharePercent% of ${_contributorMetricLabel(metric)}'),
+            if (mealType != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: classicTerminal
+                        ? Theme.of(context).colorScheme.surfaceContainerHighest
+                        : NutritionVisualColors.forMetric(
+                            metric,
+                          ).withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(
+                      classicTerminal ? 4 : 8,
+                    ),
+                  ),
+                  child: Text(
+                    analysisMealTypeLabel(mealType!),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 String _contributorMetricLabel(NutritionVisualMetric metric) =>

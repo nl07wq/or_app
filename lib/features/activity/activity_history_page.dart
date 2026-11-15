@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../themes/base_camp/base_camp_presentation.dart';
+import '../themes/base_camp/base_camp_retro_terminal.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -53,81 +54,85 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.paddingOf(context);
-    return AmbientPageScaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        forceMaterialTransparency: true,
-        leading: Navigator.canPop(context)
-            ? const ActivityMechanicalBackButton()
-            : null,
-        title: BaseCampPresentation.isActive(context)
-            ? const Text('ACTIVITY RECORD')
-            : const ActivityMechanicalCounterTitle(title: 'ACTIVITY RECORD'),
-      ),
-      ambient: BaseCampPresentation.isActive(context)
-          ? const SizedBox.shrink()
-          : const ActivityAmbientBackground(),
-      body: FutureBuilder<List<ActivityData>>(
-        future: _records,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final baseCamp = BaseCampPresentation.isActive(context);
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'activity-record',
+      child: AmbientPageScaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          backgroundColor: baseCamp ? null : Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          forceMaterialTransparency: !baseCamp,
+          leading: Navigator.canPop(context)
+              ? const ActivityMechanicalBackButton()
+              : null,
+          title: baseCamp
+              ? const Text('ACTIVITY RECORD')
+              : const ActivityMechanicalCounterTitle(title: 'ACTIVITY RECORD'),
+        ),
+        ambient: baseCamp
+            ? const SizedBox.shrink()
+            : const ActivityAmbientBackground(),
+        body: FutureBuilder<List<ActivityData>>(
+          future: _records,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          final records = snapshot.data!;
-          if (records.isEmpty) {
-            return const Center(child: Text('No Activity Records'));
-          }
+            final records = snapshot.data!;
+            if (records.isEmpty) {
+              return const Center(child: Text('No Activity Records'));
+            }
 
-          return ListView.separated(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              viewPadding.top + kToolbarHeight + 16,
-              16,
-              viewPadding.bottom + 16,
-            ),
-            itemCount: records.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final data = records[index];
-              final previousCarryOver = _findPreviousCarryOver(
-                records,
-                data.date,
-              );
-              final officialSteps = data.officialStepsFor(previousCarryOver);
+            return ListView.separated(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                viewPadding.top + kToolbarHeight + 16,
+                16,
+                viewPadding.bottom + 16,
+              ),
+              itemCount: records.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final data = records[index];
+                final previousCarryOver = _findPreviousCarryOver(
+                  records,
+                  data.date,
+                );
+                final officialSteps = data.officialStepsFor(previousCarryOver);
 
-              return DashboardGlassCard(
-                child: _ActivityRecordPlate(
-                  data: data,
-                  officialSteps: officialSteps,
-                  previousCarryOver: previousCarryOver,
-                  formatSteps: _formatSteps,
-                  onEdit: appInitializationController.value.isReadOnly
-                      ? null
-                      : () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ActivityEntryPage(initialData: data),
-                            ),
-                          );
-                          _reload();
-                          setState(() {});
-                        },
-                  onDelete: appInitializationController.value.isReadOnly
-                      ? null
-                      : () => _delete(data),
-                ),
-              );
-            },
-          );
-        },
+                return DashboardGlassCard(
+                  child: _ActivityRecordPlate(
+                    data: data,
+                    officialSteps: officialSteps,
+                    previousCarryOver: previousCarryOver,
+                    formatSteps: _formatSteps,
+                    onEdit: appInitializationController.value.isReadOnly
+                        ? null
+                        : () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ActivityEntryPage(initialData: data),
+                              ),
+                            );
+                            _reload();
+                            setState(() {});
+                          },
+                    onDelete: appInitializationController.value.isReadOnly
+                        ? null
+                        : () => _delete(data),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -295,33 +300,40 @@ class _DigestiveValue extends StatelessWidget {
   const _DigestiveValue(this.label, this.value);
   final String label, value;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .26),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(
-        color: Theme.of(
-          context,
-        ).colorScheme.outlineVariant.withValues(alpha: .5),
+  Widget build(BuildContext context) {
+    final classicTerminal = BaseCampPresentation.isActive(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      decoration: BoxDecoration(
+        color: classicTerminal
+            ? Theme.of(context).colorScheme.surfaceContainer
+            : Theme.of(context).colorScheme.surface.withValues(alpha: .26),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
+        border: Border.all(
+          color: classicTerminal
+              ? Theme.of(context).colorScheme.outline
+              : Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: .5),
+        ),
       ),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    ),
-  );
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
 }

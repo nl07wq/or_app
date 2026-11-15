@@ -78,6 +78,11 @@ class FoodPfcBalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
     final grams = [nutrition.protein!, nutrition.fat!, nutrition.carbohydrate!];
     final values = [grams[0] * 4, grams[1] * 9, grams[2] * 4];
     final total = values.reduce((a, b) => a + b);
@@ -98,14 +103,21 @@ class FoodPfcBalanceCard extends StatelessWidget {
         if (detail) ...[
           Text(
             title,
-            style: const TextStyle(
-              color: Color(0xFFF1F7FF),
+            style: TextStyle(
+              color: classicTerminal
+                  ? Theme.of(context).colorScheme.onSurface
+                  : const Color(0xFFF1F7FF),
               fontWeight: FontWeight.w700,
               letterSpacing: .5,
             ),
           ),
           AppSpacing.gapSM,
-          Divider(color: detailStyle.dividerColor, height: 1),
+          Divider(
+            color: classicTerminal
+                ? Theme.of(context).colorScheme.outline
+                : detailStyle.dividerColor,
+            height: 1,
+          ),
           AppSpacing.gapMD,
         ] else ...[
           SectionHeader(icon: Icons.donut_large, title: title),
@@ -115,12 +127,14 @@ class FoodPfcBalanceCard extends StatelessWidget {
           builder: (context, constraints) {
             final compactDetail = detail && constraints.maxWidth < 280;
             final donut = _donut(
+              context,
               values,
               colors,
               detailStyle,
               detail,
               ringWidth,
               donutSize,
+              classicTerminal,
             );
             final metrics = _metrics(
               context,
@@ -131,6 +145,7 @@ class FoodPfcBalanceCard extends StatelessWidget {
               colors,
               detailStyle,
               detail,
+              classicTerminal,
             );
             if (compactDetail) {
               return Column(
@@ -161,19 +176,27 @@ class FoodPfcBalanceCard extends StatelessWidget {
     }
     return Container(
       key: ValueKey('$keyPrefix-card'),
-      decoration: detailStyle.cardDecoration,
+      decoration: classicTerminal
+          ? BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
+            )
+          : detailStyle.cardDecoration,
       padding: AppSpacing.cardPadding,
       child: content,
     );
   }
 
   Widget _donut(
+    BuildContext context,
     List<double> values,
     List<Color> colors,
     FoodPfcBalanceStyle? detailStyle,
     bool detail,
     double ringWidth,
     double donutSize,
+    bool classicTerminal,
   ) => SizedBox(
     key: ValueKey('$keyPrefix-donut'),
     width: donutSize,
@@ -185,7 +208,9 @@ class FoodPfcBalanceCard extends StatelessWidget {
           painter: _PfcPainter(
             values,
             colors,
-            trackColor: detailStyle?.trackColor ?? Colors.transparent,
+            trackColor: classicTerminal
+                ? Theme.of(context).colorScheme.outline
+                : detailStyle?.trackColor ?? Colors.transparent,
             ringWidth: ringWidth,
             inset: detail ? ringWidth / 2 : 10,
             drawTrack: detail,
@@ -206,7 +231,11 @@ class FoodPfcBalanceCard extends StatelessWidget {
                     key: ValueKey('$keyPrefix-center-calories'),
                     maxLines: 1,
                     style: TextStyle(
-                      color: detail ? const Color(0xFFF1F7FF) : null,
+                      color: classicTerminal
+                          ? Theme.of(context).colorScheme.onSurface
+                          : detail
+                          ? const Color(0xFFF1F7FF)
+                          : null,
                       fontSize: detail ? 24 : 18,
                       fontWeight: FontWeight.bold,
                       height: 1,
@@ -217,7 +246,11 @@ class FoodPfcBalanceCard extends StatelessWidget {
                   Text(
                     'kcal',
                     style: TextStyle(
-                      color: detail ? const Color(0xFFF1F7FF) : null,
+                      color: classicTerminal
+                          ? Theme.of(context).colorScheme.onSurface
+                          : detail
+                          ? const Color(0xFFF1F7FF)
+                          : null,
                       fontSize: detail ? 11 : 10,
                       height: 1.1,
                     ),
@@ -239,6 +272,7 @@ class FoodPfcBalanceCard extends StatelessWidget {
     List<Color> colors,
     FoodPfcBalanceStyle? detailStyle,
     bool detail,
+    bool classicTerminal,
   ) => Column(
     children: [
       for (var index = 0; index < values.length; index++) ...[
@@ -248,7 +282,9 @@ class FoodPfcBalanceCard extends StatelessWidget {
           grams: grams[index],
           percent: (values[index] / total * 100).round(),
           color: colors[index],
-          textColor: detail
+          textColor: classicTerminal
+              ? Theme.of(context).colorScheme.onSurface
+              : detail
               ? const Color(0xFFF1F7FF)
               : Theme.of(context).colorScheme.onSurface,
           emphasized: detail,
@@ -258,7 +294,12 @@ class FoodPfcBalanceCard extends StatelessWidget {
           detail
               ? Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Divider(color: detailStyle!.dividerColor, height: 1),
+                  child: Divider(
+                    color: classicTerminal
+                        ? Theme.of(context).colorScheme.outline
+                        : detailStyle!.dividerColor,
+                    height: 1,
+                  ),
                 )
               : AppSpacing.gapSM,
       ],

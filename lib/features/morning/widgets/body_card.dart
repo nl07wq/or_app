@@ -2,9 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
+import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/operation_text_field.dart';
-import '../../themes/base_camp/base_camp_presentation.dart';
 
 class BodyCard extends StatelessWidget {
   const BodyCard({
@@ -42,13 +41,6 @@ class BodyCard extends StatelessWidget {
         const SizedBox(height: 20),
         if (weightUnmeasured)
           const _Unmeasured('Weight')
-        else if (BaseCampPresentation.isActive(c))
-          OperationTextField(
-            controller: weightController,
-            label: 'WEIGHT kg',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            glass: true,
-          )
         else
           _WeightHud(
             key: const ValueKey('status-weight-hud'),
@@ -58,13 +50,6 @@ class BodyCard extends StatelessWidget {
         const SizedBox(height: 28),
         if (weightUnmeasured)
           const _Unmeasured('Body Fat')
-        else if (BaseCampPresentation.isActive(c))
-          OperationTextField(
-            controller: bodyFatController,
-            label: 'BODY FAT %',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            glass: true,
-          )
         else
           _BodyFatRing(
             key: const ValueKey('status-body-fat-ring'),
@@ -1290,22 +1275,34 @@ class _Unmeasured extends StatelessWidget {
   const _Unmeasured(this.title);
   final String title;
   @override
-  Widget build(BuildContext c) => Row(
-    children: [
-      Expanded(
-        child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          '未計測',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.lightBlueAccent,
+  Widget build(BuildContext c) {
+    final classicTerminal =
+        Theme.of(c).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-      ),
-    ],
-  );
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            '未計測',
+            style: classicTerminal
+                ? Theme.of(c).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(c).colorScheme.primary,
+                  )
+                : const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.lightBlueAccent,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
 }

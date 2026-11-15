@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
@@ -376,83 +377,88 @@ class _RemindersPageState extends State<RemindersPage>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: Navigator.of(context).canPop()
-          ? ActionableFeedbackButton(
-              enabled: true,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ).actionableFeedback(role: ActionableFeedbackRole.exit),
-            )
-          : null,
-      title: const Text('REMINDERS'),
-    ),
-    floatingActionButton: _HudAddControl(onPressed: _create),
-    body: Stack(
-      children: [
-        if (!BaseCampPresentation.isActive(context))
-          const Positioned.fill(child: HolographicAmbientBackground()),
-        Positioned.fill(
-          child: Column(
-            children: [
-              Expanded(
-                child: _ReminderFloatingSurface(
-                  child: Column(
-                    children: [
-                      _ReminderHudTabs(
-                        controller: _tabs,
-                        onTabSelected: _playCursorForTabChange,
-                      ),
-                      Expanded(
-                        child: _loading
-                            ? const OrLoadingSurface(title: 'LOADING REMINDERS')
-                            : TabBarView(
-                                controller: _tabs,
-                                children: [
-                                  _OccurrenceList(
-                                    values: _today,
-                                    now: _displayNow,
-                                    empty: '今日のREMINDERはありません',
-                                    onToggle: (value) =>
-                                        _toggle(value, retentionTab: 0),
-                                    onEdit: _edit,
-                                    onDelete: _deleteOccurrence,
-                                  ),
-                                  _OccurrenceList(
-                                    values: _all,
-                                    now: _displayNow,
-                                    empty: '今後のREMINDERはありません',
-                                    onToggle: (value) =>
-                                        _toggle(value, retentionTab: 1),
-                                    onEdit: _edit,
-                                    onDelete: _deleteOccurrence,
-                                  ),
-                                  _DefinitionList(
-                                    values: _recurring,
-                                    onEdit: _edit,
-                                    onDelete: _deleteDefinitionFuture,
-                                  ),
-                                  _OccurrenceList(
-                                    values: _completed,
-                                    now: _displayNow,
-                                    empty: '完了済みREMINDERはありません',
-                                    onToggle: _toggle,
-                                    onEdit: _edit,
-                                    onDelete: _deleteOccurrence,
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ],
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'reminders',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: Navigator.of(context).canPop()
+            ? ActionableFeedbackButton(
+                enabled: true,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ).actionableFeedback(role: ActionableFeedbackRole.exit),
+              )
+            : null,
+        title: const Text('REMINDERS'),
+      ),
+      floatingActionButton: _HudAddControl(onPressed: _create),
+      body: Stack(
+        children: [
+          if (!BaseCampPresentation.isActive(context))
+            const Positioned.fill(child: HolographicAmbientBackground()),
+          Positioned.fill(
+            child: Column(
+              children: [
+                Expanded(
+                  child: _ReminderFloatingSurface(
+                    child: Column(
+                      children: [
+                        _ReminderHudTabs(
+                          controller: _tabs,
+                          onTabSelected: _playCursorForTabChange,
+                        ),
+                        Expanded(
+                          child: _loading
+                              ? const OrLoadingSurface(
+                                  title: 'LOADING REMINDERS',
+                                )
+                              : TabBarView(
+                                  controller: _tabs,
+                                  children: [
+                                    _OccurrenceList(
+                                      values: _today,
+                                      now: _displayNow,
+                                      empty: '今日のREMINDERはありません',
+                                      onToggle: (value) =>
+                                          _toggle(value, retentionTab: 0),
+                                      onEdit: _edit,
+                                      onDelete: _deleteOccurrence,
+                                    ),
+                                    _OccurrenceList(
+                                      values: _all,
+                                      now: _displayNow,
+                                      empty: '今後のREMINDERはありません',
+                                      onToggle: (value) =>
+                                          _toggle(value, retentionTab: 1),
+                                      onEdit: _edit,
+                                      onDelete: _deleteOccurrence,
+                                    ),
+                                    _DefinitionList(
+                                      values: _recurring,
+                                      onEdit: _edit,
+                                      onDelete: _deleteDefinitionFuture,
+                                    ),
+                                    _OccurrenceList(
+                                      values: _completed,
+                                      now: _displayNow,
+                                      empty: '完了済みREMINDERはありません',
+                                      onToggle: _toggle,
+                                      onEdit: _edit,
+                                      onDelete: _deleteOccurrence,
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -465,63 +471,68 @@ class _ReminderFloatingSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Container(
       key: const ValueKey('reminder-floating-list-surface'),
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primary.withValues(alpha: .10),
-            scheme.surfaceContainerHigh.withValues(alpha: .17),
-            scheme.surface.withValues(alpha: .055),
-            scheme.surfaceContainerLow.withValues(alpha: .14),
-          ],
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(5),
-          bottomLeft: Radius.circular(5),
-          bottomRight: Radius.circular(16),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.primary.withValues(alpha: .10),
-            blurRadius: 34,
-            offset: const Offset(-5, -4),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .46),
-            blurRadius: 36,
-            offset: const Offset(5, 16),
-          ),
-        ],
+        color: classicTerminal ? scheme.surfaceContainer : null,
+        gradient: classicTerminal
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.primary.withValues(alpha: .10),
+                  scheme.surfaceContainerHigh.withValues(alpha: .17),
+                  scheme.surface.withValues(alpha: .055),
+                  scheme.surfaceContainerLow.withValues(alpha: .14),
+                ],
+              ),
+        border: classicTerminal ? Border.all(color: scheme.outline) : null,
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 16),
+        boxShadow: classicTerminal
+            ? const <BoxShadow>[]
+            : [
+                BoxShadow(
+                  color: scheme.primary.withValues(alpha: .10),
+                  blurRadius: 34,
+                  offset: const Offset(-5, -4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .46),
+                  blurRadius: 36,
+                  offset: const Offset(5, 16),
+                ),
+              ],
       ),
-      foregroundDecoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0, .18, .76, 1],
-          colors: [
-            scheme.primary.withValues(alpha: .055),
-            Colors.transparent,
-            Colors.transparent,
-            Colors.black.withValues(alpha: .045),
-          ],
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(5),
-          bottomLeft: Radius.circular(5),
-          bottomRight: Radius.circular(16),
-        ),
-      ),
+      foregroundDecoration: classicTerminal
+          ? null
+          : BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: const [0, .18, .76, 1],
+                colors: [
+                  scheme.primary.withValues(alpha: .055),
+                  Colors.transparent,
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: .045),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(5),
+                bottomLeft: Radius.circular(5),
+                bottomRight: Radius.circular(16),
+              ),
+            ),
       child: Stack(
         fit: StackFit.passthrough,
         children: [
-          const Positioned.fill(child: HolographicScanlineOverlay()),
+          if (!classicTerminal)
+            const Positioned.fill(child: HolographicScanlineOverlay()),
           child,
         ],
       ),
@@ -1305,170 +1316,180 @@ class _ReminderEditorState extends State<_ReminderEditor> {
   };
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: _allowPop,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) _requestExit();
-    },
-    child: Scaffold(
-      appBar: AppBar(
-        leading: ActionableFeedbackButton(
-          enabled: true,
-          role: ActionableFeedbackRole.exit,
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _requestExit,
-          ).actionableFeedback(),
-        ),
-        title: Text(widget.initial == null ? 'REMINDERを追加' : 'REMINDERを編集'),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: _save,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(76, 44),
-                shape: const StadiumBorder(),
-                side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: .08),
-              ),
-              child: const Text('保存'),
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'reminder-editor',
+    child: PopScope(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestExit();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: ActionableFeedbackButton(
+            enabled: true,
+            role: ActionableFeedbackRole.exit,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: _requestExit,
             ).actionableFeedback(),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
-            16,
-            MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
-            MediaQuery.viewInsetsOf(context).bottom + 24,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              EditorFormCard(
-                key: const ValueKey('reminder-editor-title-card'),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('タイトル', style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _title,
-                      maxLines: 1,
-                      onChanged: (_) => setState(() => _error = null),
-                      decoration: InputDecoration(
-                        hintText: 'リマインダーのタイトル',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        suffixIcon: _title.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'タイトルをクリア',
-                                onPressed: () => setState(_title.clear),
-                                icon: const Icon(Icons.close, size: 20),
-                              ),
-                      ),
-                    ).inputFeedback(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              SharedDateTimeEditor(
-                date: _date,
-                allDay: !_timed,
-                startTime: _timed ? _time : null,
-                endTime: _timed ? _endTime : null,
-                onDateChanged: (value) => setState(() => _date = value),
-                onAllDayChanged: (value) => setState(() => _timed = !value),
-                onStartTimeChanged: (value) => setState(
-                  () => _time = value ?? const TimeOfDay(hour: 9, minute: 0),
-                ),
-                onEndTimeChanged: (value) => setState(() => _endTime = value),
-              ),
-              const SizedBox(height: 12),
-              EditorFormCard(
-                child: SharedNotificationEditor(
-                  value: _notification,
-                  onChanged: (value) => setState(() => _notification = value),
-                ),
-              ),
-              const SizedBox(height: 12),
-              EditorFormCard(
-                child: SharedRecurrenceEditor(
-                  startDate: _date,
-                  value: SharedRecurrenceValue(
-                    recurrence: _recurrence,
-                    end: _end,
-                    weekdays: _weekdays,
-                    monthDays: _monthDays,
-                    monthEnd: _monthEnd,
-                    monthWeek: _monthWeek,
-                    monthWeeks: _monthWeeks,
+          title: Text(widget.initial == null ? 'REMINDERを追加' : 'REMINDERを編集'),
+          centerTitle: true,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ElevatedButton(
+                onPressed: _save,
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(76, 44),
+                  shape: const StadiumBorder(),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  onChanged: (value) => setState(() {
-                    _recurrence = value.recurrence;
-                    _end = value.end;
-                    _weekdays
-                      ..clear()
-                      ..addAll(value.weekdays);
-                    _monthDays
-                      ..clear()
-                      ..addAll(value.monthDays);
-                    _monthEnd = value.monthEnd;
-                    _monthWeek = value.monthWeek;
-                    _monthWeeks
-                      ..clear()
-                      ..addAll(value.monthWeeks);
-                    _error = null;
-                  }),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .08),
                 ),
-              ),
-              const SizedBox(height: 12),
-              EditorFormCard(
-                key: const ValueKey('reminder-editor-note-card'),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.note_alt_outlined),
-                        SizedBox(width: 8),
-                        Text('メモ'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _note,
-                      minLines: 3,
-                      maxLines: null,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                child: const Text('保存'),
+              ).actionableFeedback(),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+              16,
+              MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+              MediaQuery.viewInsetsOf(context).bottom + 24,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                EditorFormCard(
+                  key: const ValueKey('reminder-editor-title-card'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'タイトル',
+                        style: Theme.of(context).textTheme.labelLarge,
                       ),
-                    ).inputFeedback(),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '${_note.text.length} / 500',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _title,
+                        maxLines: 1,
+                        onChanged: (_) => setState(() => _error = null),
+                        decoration: InputDecoration(
+                          hintText: 'リマインダーのタイトル',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          suffixIcon: _title.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'タイトルをクリア',
+                                  onPressed: () => setState(_title.clear),
+                                  icon: const Icon(Icons.close, size: 20),
+                                ),
+                        ),
+                      ).inputFeedback(),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SharedDateTimeEditor(
+                  date: _date,
+                  allDay: !_timed,
+                  startTime: _timed ? _time : null,
+                  endTime: _timed ? _endTime : null,
+                  onDateChanged: (value) => setState(() => _date = value),
+                  onAllDayChanged: (value) => setState(() => _timed = !value),
+                  onStartTimeChanged: (value) => setState(
+                    () => _time = value ?? const TimeOfDay(hour: 9, minute: 0),
+                  ),
+                  onEndTimeChanged: (value) => setState(() => _endTime = value),
+                ),
+                const SizedBox(height: 12),
+                EditorFormCard(
+                  child: SharedNotificationEditor(
+                    value: _notification,
+                    onChanged: (value) => setState(() => _notification = value),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                EditorFormCard(
+                  child: SharedRecurrenceEditor(
+                    startDate: _date,
+                    value: SharedRecurrenceValue(
+                      recurrence: _recurrence,
+                      end: _end,
+                      weekdays: _weekdays,
+                      monthDays: _monthDays,
+                      monthEnd: _monthEnd,
+                      monthWeek: _monthWeek,
+                      monthWeeks: _monthWeeks,
                     ),
-                  ],
+                    onChanged: (value) => setState(() {
+                      _recurrence = value.recurrence;
+                      _end = value.end;
+                      _weekdays
+                        ..clear()
+                        ..addAll(value.weekdays);
+                      _monthDays
+                        ..clear()
+                        ..addAll(value.monthDays);
+                      _monthEnd = value.monthEnd;
+                      _monthWeek = value.monthWeek;
+                      _monthWeeks
+                        ..clear()
+                        ..addAll(value.monthWeeks);
+                      _error = null;
+                    }),
+                  ),
                 ),
-              ),
-              if (_error != null)
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                const SizedBox(height: 12),
+                EditorFormCard(
+                  key: const ValueKey('reminder-editor-note-card'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.note_alt_outlined),
+                          SizedBox(width: 8),
+                          Text('メモ'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _note,
+                        minLines: 3,
+                        maxLines: null,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                        ),
+                      ).inputFeedback(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${_note.text.length} / 500',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

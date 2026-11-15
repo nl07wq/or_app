@@ -47,6 +47,7 @@ import '../../periodic_report/models/periodic_report.dart';
 import '../../periodic_report/pages/periodic_report_page.dart';
 import '../../themes/base_camp/base_camp_facility_entry_page.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 
 @visibleForTesting
 List<PeriodicReportType> periodicReportTypesForFinalizedDate(DateTime date) => [
@@ -176,62 +177,70 @@ class _CommandCenterPageState extends State<CommandCenterPage> {
     final route = ModalRoute.of(context);
     final canPop = route?.canPop ?? Navigator.of(context).canPop();
     final isBaseCamp = BaseCampPresentation.isActive(context);
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        toolbarHeight: CommandCenterHudSign.height + 4,
-        titleSpacing: 8,
-        leading: isBaseCamp && canPop
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).maybePop(),
-              )
-            : null,
-        title: isBaseCamp
-            ? const Text('COMMAND CENTER')
-            : CommandCenterHudSign(
-                canPop: canPop,
-                onBack: canPop ? () => Navigator.of(context).maybePop() : null,
-              ),
-      ),
-      body: Stack(
-        key: const ValueKey('command-center-presentation-stack'),
-        children: [
-          if (!isBaseCamp)
-            ValueListenableBuilder<DeviceSettings>(
-              valueListenable: DeviceSettingsController.instance,
-              builder: (context, settings, _) => Positioned.fill(
-                child: CommandCenterAmbientProcessing(
-                  enabled: settings.ambientProcessingEnabled,
-                  midRearDensity: settings.commandCenterMidRearDensity,
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'command-center',
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          toolbarHeight: CommandCenterHudSign.height + 4,
+          titleSpacing: 8,
+          leading: isBaseCamp && canPop
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                )
+              : null,
+          title: isBaseCamp
+              ? const Text('COMMAND CENTER')
+              : CommandCenterHudSign(
+                  canPop: canPop,
+                  onBack: canPop
+                      ? () => Navigator.of(context).maybePop()
+                      : null,
+                ),
+        ),
+        body: Stack(
+          key: const ValueKey('command-center-presentation-stack'),
+          children: [
+            if (!isBaseCamp)
+              ValueListenableBuilder<DeviceSettings>(
+                valueListenable: DeviceSettingsController.instance,
+                builder: (context, settings, _) => Positioned.fill(
+                  child: CommandCenterAmbientProcessing(
+                    enabled: settings.ambientProcessingEnabled,
+                    midRearDensity: settings.commandCenterMidRearDensity,
+                  ),
                 ),
               ),
+            Column(
+              children: [
+                _WorkspaceHeader(
+                  currentPage: _currentPage,
+                  onSelectPage: _selectPage,
+                  scrollController: _tabScrollController,
+                ),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (page) =>
+                        setState(() => _currentPage = page),
+                    children: [
+                      const PeriodicReportWorkspace(),
+                      BriefDebriefPage(
+                        initialTab: widget.initialBriefDebriefTab,
+                      ),
+                      _DailyCommandPage(
+                        refreshToken: _refreshToken,
+                        onRefresh: _refresh,
+                      ),
+                      const DataCenterPage(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          Column(
-            children: [
-              _WorkspaceHeader(
-                currentPage: _currentPage,
-                onSelectPage: _selectPage,
-                scrollController: _tabScrollController,
-              ),
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  onPageChanged: (page) => setState(() => _currentPage = page),
-                  children: [
-                    const PeriodicReportWorkspace(),
-                    BriefDebriefPage(initialTab: widget.initialBriefDebriefTab),
-                    _DailyCommandPage(
-                      refreshToken: _refreshToken,
-                      onRefresh: _refresh,
-                    ),
-                    const DataCenterPage(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

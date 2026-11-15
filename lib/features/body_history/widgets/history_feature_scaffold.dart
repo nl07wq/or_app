@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/operation_card.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import 'history_data_vault_background.dart';
 import 'history_memory_module_title.dart';
 
@@ -81,6 +82,12 @@ class _HistoryFeatureScaffoldState extends State<HistoryFeatureScaffold>
       ),
       body: widget.body,
     );
+    if (isBaseCamp) {
+      return BaseCampRetroTerminalScreen(
+        screenKey: 'history-feature',
+        child: scaffold,
+      );
+    }
     return Theme(
       data: Theme.of(context).copyWith(
         extensions: [
@@ -95,22 +102,19 @@ class _HistoryFeatureScaffoldState extends State<HistoryFeatureScaffold>
           ),
         ),
       ),
-      child: isBaseCamp
-          ? scaffold
-          : AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  HistoryDataVaultBackground(
-                    seconds:
-                        _clock.elapsedMicroseconds /
-                        Duration.microsecondsPerSecond,
-                  ),
-                  scaffold,
-                ],
-              ),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => Stack(
+          fit: StackFit.expand,
+          children: [
+            HistoryDataVaultBackground(
+              seconds:
+                  _clock.elapsedMicroseconds / Duration.microsecondsPerSecond,
             ),
+            scaffold,
+          ],
+        ),
+      ),
     );
   }
 }

@@ -12,6 +12,8 @@ import 'package:or_app/features/food/widgets/food_saved_floating_hud.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
+import 'package:or_app/features/training/widgets/training_ambient_comparison.dart';
+import 'package:or_app/features/training/widgets/training_kinetic_scaffold.dart';
 
 void main() {
   test('bundled pixel font retains its SIL OFL license', () {
@@ -225,5 +227,31 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: page));
     expect(find.byType(HistoryDataVaultBackground), findsOneWidget);
+  });
+
+  testWidgets('TRAINING descendants use opaque terminal chrome in BASE CAMP', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.training,
+          child: TrainingKineticScaffold(
+            body: Center(child: Text('TRAINING DETAIL')),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(TrainingAmbientComparison), findsNothing);
+    expect(find.text('TRAINING DETAIL'), findsOneWidget);
+    final context = tester.element(find.text('TRAINING DETAIL'));
+    expect(
+      Theme.of(context).extension<OperationSurfaceTheme>()?.useClassicTerminal,
+      isTrue,
+    );
+    expect(Theme.of(context).colorScheme.surface.a, 1);
+    expect(tester.takeException(), isNull);
   });
 }

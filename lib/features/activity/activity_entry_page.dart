@@ -692,27 +692,28 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   @override
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.paddingOf(context);
+    final baseCamp = BaseCampPresentation.isActive(context);
     return BaseCampRetroTerminalScreen(
       screenKey: 'activity-entry',
       child: AmbientPageScaffold(
         appBar: AppBar(
           centerTitle: true,
-          backgroundColor: Colors.transparent,
+          backgroundColor: baseCamp ? null : Colors.transparent,
           surfaceTintColor: Colors.transparent,
           shadowColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          forceMaterialTransparency: true,
+          forceMaterialTransparency: !baseCamp,
           leading: Navigator.canPop(context)
               ? const ActivityMechanicalBackButton()
               : null,
-          title: BaseCampPresentation.isActive(context)
+          title: baseCamp
               ? const Text('ACTIVITY ENTRY')
               : const ActivityMechanicalCounterTitle(
                   mode: ActivityMechanicalCounterMode.entry,
                 ),
         ),
-        ambient: BaseCampPresentation.isActive(context)
+        ambient: baseCamp
             ? const SizedBox.shrink()
             : const ActivityAmbientBackground(),
         body: switch (_mode) {

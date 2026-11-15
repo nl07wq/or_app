@@ -48,7 +48,8 @@ class BaseCampTerminalPaletteScope extends InheritedWidget {
       oldWidget.palette.negative != palette.negative;
 }
 
-/// Presentation-only wrapper used by the six approved BASE CAMP routes.
+/// Presentation-only wrapper used by approved BASE CAMP routes and their
+/// descendants.
 /// STANDARD receives the original child without a Theme or layout mutation.
 class BaseCampRetroTerminalScreen extends StatelessWidget {
   const BaseCampRetroTerminalScreen({
@@ -63,6 +64,7 @@ class BaseCampRetroTerminalScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!BaseCampPresentation.isActive(context)) return child;
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) return child;
     return ValueListenableBuilder<DeviceSettings>(
       valueListenable: DeviceSettingsController.instance,
       builder: (context, settings, _) {
@@ -380,6 +382,35 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
         side: BorderSide(color: palette.auxiliaryText),
       ),
     ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      textStyle: TextStyle(color: palette.primaryText),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: palette.field,
+        enabledBorder: _fieldBorder(palette.auxiliaryText),
+        focusedBorder: _fieldBorder(palette.primaryText, width: 1.4),
+      ),
+      menuStyle: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll<Color>(palette.background),
+        surfaceTintColor: const WidgetStatePropertyAll<Color>(
+          Colors.transparent,
+        ),
+        side: WidgetStatePropertyAll<BorderSide>(
+          BorderSide(color: palette.auxiliaryText),
+        ),
+      ),
+    ),
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll<Color>(palette.background),
+        surfaceTintColor: const WidgetStatePropertyAll<Color>(
+          Colors.transparent,
+        ),
+        side: WidgetStatePropertyAll<BorderSide>(
+          BorderSide(color: palette.auxiliaryText),
+        ),
+      ),
+    ),
     listTileTheme: base.listTileTheme.copyWith(
       textColor: palette.primaryText,
       iconColor: palette.primaryText,
@@ -407,6 +438,81 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
       inactiveTrackColor: palette.auxiliaryText,
       thumbColor: palette.primaryText,
       overlayColor: palette.primaryText.withValues(alpha: .12),
+    ),
+    switchTheme: base.switchTheme.copyWith(
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) return palette.background;
+        return palette.auxiliaryText;
+      }),
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) return palette.primaryText;
+        return palette.field;
+      }),
+      trackOutlineColor: WidgetStatePropertyAll<Color>(palette.auxiliaryText),
+    ),
+    checkboxTheme: base.checkboxTheme.copyWith(
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) return palette.primaryText;
+        return palette.field;
+      }),
+      checkColor: WidgetStatePropertyAll<Color>(palette.background),
+      side: BorderSide(color: palette.auxiliaryText),
+    ),
+    radioTheme: base.radioTheme.copyWith(
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) return palette.primaryText;
+        return palette.auxiliaryText;
+      }),
+    ),
+    floatingActionButtonTheme: base.floatingActionButtonTheme.copyWith(
+      backgroundColor: palette.field,
+      foregroundColor: palette.primaryText,
+      focusColor: palette.primaryText.withValues(alpha: .12),
+      hoverColor: palette.primaryText.withValues(alpha: .08),
+      splashColor: palette.primaryText.withValues(alpha: .12),
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      highlightElevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: BorderSide(color: palette.auxiliaryText),
+      ),
+    ),
+    datePickerTheme: base.datePickerTheme.copyWith(
+      backgroundColor: palette.background,
+      surfaceTintColor: Colors.transparent,
+      headerBackgroundColor: palette.field,
+      headerForegroundColor: palette.primaryText,
+      dayForegroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) return palette.background;
+        return palette.primaryText;
+      }),
+      dayBackgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+        if (states.contains(WidgetState.selected)) return palette.primaryText;
+        return null;
+      }),
+      todayForegroundColor: WidgetStatePropertyAll<Color>(palette.primaryText),
+      todayBorder: BorderSide(color: palette.primaryText),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: BorderSide(color: palette.auxiliaryText),
+      ),
+    ),
+    timePickerTheme: base.timePickerTheme.copyWith(
+      backgroundColor: palette.background,
+      dialBackgroundColor: palette.field,
+      dialHandColor: palette.primaryText,
+      dialTextColor: palette.primaryText,
+      hourMinuteColor: palette.field,
+      hourMinuteTextColor: palette.primaryText,
+      entryModeIconColor: palette.primaryText,
+      dayPeriodColor: palette.field,
+      dayPeriodTextColor: palette.primaryText,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: BorderSide(color: palette.auxiliaryText),
+      ),
     ),
     extensions: extensions,
   );

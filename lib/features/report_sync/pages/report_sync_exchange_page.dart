@@ -27,6 +27,7 @@ import '../services/report_sync_exchange_gateway.dart';
 import '../services/report_human_presentation.dart';
 import '../services/report_sync_persistence_service.dart';
 import '../widgets/report_sync_action_bar.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 
 typedef ReportSyncClipboardWriter = Future<void> Function(String text);
 typedef ReportSyncPageScaffoldBuilder =
@@ -132,8 +133,13 @@ class ReportSyncExchangePage extends StatelessWidget {
       initialTargetDate: initialTargetDate,
       currentOperationDateValidation: currentOperationDateValidation,
     );
-    return scaffoldBuilder?.call(appBar: appBar, body: panel) ??
+    final page =
+        scaffoldBuilder?.call(appBar: appBar, body: panel) ??
         Scaffold(appBar: appBar, body: panel);
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'report-sync-${exchangeType.name}',
+      child: page,
+    );
   }
 }
 
@@ -2069,29 +2075,32 @@ class _ReportSyncRecordArchivePage extends StatelessWidget {
   final List<ReportSyncHistory> history;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('REPORT SYNC RECORD'),
-    ),
-    body: ListView.separated(
-      padding: AppSpacing.cardPadding,
-      itemCount: history.length,
-      separatorBuilder: (_, _) => const Divider(),
-      itemBuilder: (context, index) => ListTile(
-        key: ValueKey('all-report-sync-record-${history[index].exchangeId}'),
-        leading: Icon(_reportSyncResultIcon(history[index].result)),
-        title: Text(
-          '${_reportSyncExchangeLabel(history[index].exchangeType)} · '
-          '${history[index].result.stableId.toUpperCase()}',
-        ),
-        subtitle: Text(
-          '${history[index].operationDate} · '
-          '${history[index].result.stableId.toUpperCase()}',
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => _openReportSyncRecord(context, history[index]),
-      ).actionableFeedback(enabled: true),
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'report-sync-record-archive',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('REPORT SYNC RECORD'),
+      ),
+      body: ListView.separated(
+        padding: AppSpacing.cardPadding,
+        itemCount: history.length,
+        separatorBuilder: (_, _) => const Divider(),
+        itemBuilder: (context, index) => ListTile(
+          key: ValueKey('all-report-sync-record-${history[index].exchangeId}'),
+          leading: Icon(_reportSyncResultIcon(history[index].result)),
+          title: Text(
+            '${_reportSyncExchangeLabel(history[index].exchangeType)} · '
+            '${history[index].result.stableId.toUpperCase()}',
+          ),
+          subtitle: Text(
+            '${history[index].operationDate} · '
+            '${history[index].result.stableId.toUpperCase()}',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openReportSyncRecord(context, history[index]),
+        ).actionableFeedback(enabled: true),
+      ),
     ),
   );
 }
@@ -2102,87 +2111,90 @@ class _ReportSyncRecordPage extends StatelessWidget {
   final ReportSyncHistory record;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('REPORT SYNC RECORD'),
-    ),
-    body: ListView(
-      padding: AppSpacing.cardPadding,
-      children: [
-        OperationCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(_reportSyncResultIcon(record.result)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      record.result.stableId.toUpperCase(),
-                      style: Theme.of(context).textTheme.titleMedium,
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'report-sync-record-detail',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('REPORT SYNC RECORD'),
+      ),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(_reportSyncResultIcon(record.result)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        record.result.stableId.toUpperCase(),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
+                  ],
+                ),
+                AppSpacing.gapMD,
+                _RecordField(
+                  label: 'OPERATION DATE',
+                  value: record.operationDate,
+                ),
+                if (record.exchangeType != ReportSyncExchangeType.food) ...[
+                  _RecordField(
+                    label: 'EXCHANGE TYPE',
+                    value: _reportSyncExchangeLabel(record.exchangeType),
+                  ),
+                  _RecordField(
+                    label: 'DIRECTION',
+                    value: record.direction.stableId,
+                  ),
+                  _RecordField(label: 'EXCHANGE ID', value: record.exchangeId),
+                  _RecordField(label: 'REQUEST ID', value: record.requestId),
+                  _RecordField(
+                    label: 'COMPLETED AT',
+                    value: record.completedAt.toLocal().toString(),
                   ),
                 ],
-              ),
-              AppSpacing.gapMD,
-              _RecordField(
-                label: 'OPERATION DATE',
-                value: record.operationDate,
-              ),
-              if (record.exchangeType != ReportSyncExchangeType.food) ...[
-                _RecordField(
-                  label: 'EXCHANGE TYPE',
-                  value: _reportSyncExchangeLabel(record.exchangeType),
-                ),
-                _RecordField(
-                  label: 'DIRECTION',
-                  value: record.direction.stableId,
-                ),
-                _RecordField(label: 'EXCHANGE ID', value: record.exchangeId),
-                _RecordField(label: 'REQUEST ID', value: record.requestId),
-                _RecordField(
-                  label: 'COMPLETED AT',
-                  value: record.completedAt.toLocal().toString(),
-                ),
+                if (record.failureCode != null)
+                  _RecordField(
+                    label: 'FAILURE CODE',
+                    value: record.failureCode!.stableId,
+                  ),
+                if (record.exchangeType == ReportSyncExchangeType.food)
+                  _RecordField(
+                    label: 'MEAL COUNTS',
+                    value: _historyMealCounts(record),
+                  ),
               ],
-              if (record.failureCode != null)
-                _RecordField(
-                  label: 'FAILURE CODE',
-                  value: record.failureCode!.stableId,
-                ),
-              if (record.exchangeType == ReportSyncExchangeType.food)
-                _RecordField(
-                  label: 'MEAL COUNTS',
-                  value: _historyMealCounts(record),
-                ),
-            ],
-          ),
-        ),
-        if (record.exchangeType == ReportSyncExchangeType.food &&
-            record.importedMealSnapshots.isNotEmpty) ...[
-          AppSpacing.gapSM,
-          for (
-            var index = 0;
-            index < record.importedMealSnapshots.length;
-            index++
-          ) ...[
-            _FoodMealCard(
-              key: ValueKey('history-food-meal-$index'),
-              meal: record.importedMealSnapshots[index],
-              status: 'IMPORTED',
-              statusColor: Theme.of(context).colorScheme.primary,
             ),
-            if (index != record.importedMealSnapshots.length - 1)
-              AppSpacing.gapSM,
+          ),
+          if (record.exchangeType == ReportSyncExchangeType.food &&
+              record.importedMealSnapshots.isNotEmpty) ...[
+            AppSpacing.gapSM,
+            for (
+              var index = 0;
+              index < record.importedMealSnapshots.length;
+              index++
+            ) ...[
+              _FoodMealCard(
+                key: ValueKey('history-food-meal-$index'),
+                meal: record.importedMealSnapshots[index],
+                status: 'IMPORTED',
+                statusColor: Theme.of(context).colorScheme.primary,
+              ),
+              if (index != record.importedMealSnapshots.length - 1)
+                AppSpacing.gapSM,
+            ],
+          ] else if (record.exchangeType == ReportSyncExchangeType.food &&
+              record.detailsArchived) ...[
+            AppSpacing.gapSM,
+            const Text('DETAIL ARCHIVED / NOT AVAILABLE'),
           ],
-        ] else if (record.exchangeType == ReportSyncExchangeType.food &&
-            record.detailsArchived) ...[
-          AppSpacing.gapSM,
-          const Text('DETAIL ARCHIVED / NOT AVAILABLE'),
         ],
-      ],
+      ),
     ),
   );
 }

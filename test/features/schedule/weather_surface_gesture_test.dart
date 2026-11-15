@@ -752,7 +752,9 @@ void main() {
     expect(weatherForecastLowHighPairAlignment, MainAxisAlignment.center);
     expect(weatherForecastDateBlockAlignment, CrossAxisAlignment.center);
     expect(weatherForecastDateTextAlignment, TextAlign.center);
-    expect(weatherForecastDateVerticalOffset, -14);
+    expect(weatherForecastDateVerticalOffset, 0);
+    expect(weatherForecastIdentityBlockWidth, 124);
+    expect(weatherForecastDateBlockWidth, 44);
     expect(weatherForecastDateInternalGap, 2);
     expect(weatherForecastDateFontSize, 14);
     expect(weatherForecastWeatherBlockAlignment, CrossAxisAlignment.center);

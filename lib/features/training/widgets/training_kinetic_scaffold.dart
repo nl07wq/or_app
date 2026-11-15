@@ -4,6 +4,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/loading/or_loading_surface.dart';
 import '../../../core/widgets/loading/or_loading_tokens.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 
 import 'training_ambient_comparison.dart';
 
@@ -78,6 +79,34 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
     }
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final inheritedTheme = Theme.of(context);
+    final scaffold = Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: widget.appBar,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (showAmbient)
+            const TrainingAmbientComparison(
+              variant: TrainingAmbientVariant.kineticEngine,
+            ),
+          Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: widget.body,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (baseCamp) {
+      return BaseCampRetroTerminalScreen(
+        screenKey: 'training-feature',
+        child: scaffold,
+      );
+    }
     return Theme(
       data: inheritedTheme.copyWith(
         extensions: [
@@ -101,28 +130,7 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
           scrolledUnderElevation: 0,
         ),
       ),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBodyBehindAppBar: true,
-        appBar: widget.appBar,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (showAmbient)
-              const TrainingAmbientComparison(
-                variant: TrainingAmbientVariant.kineticEngine,
-              ),
-            Padding(
-              padding: EdgeInsets.only(top: topInset),
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: true,
-                child: widget.body,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: scaffold,
     );
   }
 }

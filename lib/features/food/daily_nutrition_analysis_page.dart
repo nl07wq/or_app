@@ -373,43 +373,57 @@ class _ProgressRow extends StatelessWidget {
         context,
       ).colorScheme.outline,
     };
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 116,
+    final readout = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          target == null
+              ? '目標なし'
+              : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit',
+          textAlign: TextAlign.end,
+        ),
+        Text(
+          deltaText,
+          textAlign: TextAlign.end,
+          style: TextStyle(color: deltaColor),
+        ),
+      ],
+    );
+    final badge = target == null
+        ? const SizedBox.shrink()
+        : NutritionStatusBadge(status: assessment.badgeLabel);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 300) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  target == null
-                      ? '目標なし'
-                      : '${FoodNutritionFormatter.macro(current)} / ${FoodNutritionFormatter.macro(target!)} $unit',
-                  textAlign: TextAlign.end,
+                Row(
+                  children: [
+                    Expanded(child: Text(label)),
+                    badge,
+                  ],
                 ),
-                Text(
-                  deltaText,
-                  textAlign: TextAlign.end,
-                  style: TextStyle(color: deltaColor),
-                ),
+                const SizedBox(height: 4),
+                Align(alignment: Alignment.centerRight, child: readout),
               ],
             ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          child: Row(
+            children: [
+              Expanded(child: Text(label)),
+              SizedBox(width: 116, child: readout),
+              SizedBox(width: 68, child: Center(child: badge)),
+            ],
           ),
-          SizedBox(
-            width: 68,
-            child: Center(
-              child: target == null
-                  ? null
-                  : NutritionStatusBadge(status: assessment.badgeLabel),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -669,16 +683,26 @@ class _HighestMeal extends StatelessWidget {
         final label = metric.label == 'CARB' && constraints.maxWidth >= 330
             ? 'CARBOHYDRATE'
             : metric.label;
+        final classicTerminal =
+            Theme.of(
+              context,
+            ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+            false;
         return Container(
           key: ValueKey('highest-meal-${metric.label.toLowerCase()}'),
           margin: const EdgeInsets.only(bottom: AppSpacing.xs),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           constraints: const BoxConstraints(minHeight: 36),
           decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: .35),
-            borderRadius: BorderRadius.circular(8),
+            color: classicTerminal
+                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                : Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: .35),
+            borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
+            border: classicTerminal
+                ? Border.all(color: Theme.of(context).colorScheme.outline)
+                : null,
           ),
           child: Row(
             children: [

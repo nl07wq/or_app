@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/models/morning_data.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
+import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/operation_text_field.dart';
-import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 
 class RecoveryCard extends StatelessWidget {
@@ -77,13 +76,6 @@ class RecoveryCard extends StatelessWidget {
 
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Time')
-          else if (BaseCampPresentation.isActive(context))
-            OperationTextField(
-              controller: sleepController,
-              label: 'SLEEP TIME H:MM',
-              keyboardType: TextInputType.datetime,
-              glass: true,
-            )
           else ...[
             _SleepDurationOrbitalInput(
               title: "Sleep Time",
@@ -96,14 +88,6 @@ class RecoveryCard extends StatelessWidget {
 
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Score')
-          else if (BaseCampPresentation.isActive(context) &&
-              sleepType == SleepType.sleep)
-            OperationTextField(
-              controller: sleepScoreController,
-              label: 'SLEEP SCORE',
-              keyboardType: TextInputType.number,
-              glass: true,
-            )
           else if (sleepType == SleepType.sleep)
             _SleepScoreGauge(
               key: ValueKey('status-sleep-score-hud-${sleepType.name}'),
@@ -112,7 +96,7 @@ class RecoveryCard extends StatelessWidget {
               initiallyExpanded: initiallyExpanded,
             )
           else ...[
-            const Row(
+            Row(
               children: [
                 Expanded(
                   child: Text(
@@ -120,16 +104,27 @@ class RecoveryCard extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                TextButton(
-                  onPressed: null,
-                  child: Text(
-                    '仮眠',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.lightBlueAccent,
-                    ),
-                  ),
+                Builder(
+                  builder: (context) {
+                    final classicTerminal =
+                        Theme.of(context)
+                            .extension<OperationSurfaceTheme>()
+                            ?.useClassicTerminal ??
+                        false;
+                    return TextButton(
+                      onPressed: null,
+                      child: Text(
+                        '仮眠',
+                        style: classicTerminal
+                            ? null
+                            : const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.lightBlueAccent,
+                              ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -469,22 +464,36 @@ class _UnmeasuredValue extends StatelessWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          '未計測',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.lightBlueAccent,
+  Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-      ),
-    ],
-  );
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            '未計測',
+            style: classicTerminal
+                ? Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                : const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.lightBlueAccent,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
 }

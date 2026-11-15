@@ -710,23 +710,25 @@ class _CalendarPageState extends State<CalendarPage> {
     _measureDailyTimeline(_selectedSchedules);
     final isStatusAmbient =
         widget.ambientContext == CalendarAmbientContext.status;
+    final baseCamp = BaseCampPresentation.isActive(context);
+    final transparentStatusAppBar = isStatusAmbient && !baseCamp;
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     return BaseCampRetroTerminalScreen(
       screenKey: 'calendar',
       child: Scaffold(
         extendBodyBehindAppBar: isStatusAmbient,
         appBar: AppBar(
-          backgroundColor: isStatusAmbient ? Colors.transparent : null,
-          surfaceTintColor: isStatusAmbient ? Colors.transparent : null,
-          shadowColor: isStatusAmbient ? Colors.transparent : null,
-          scrolledUnderElevation: isStatusAmbient ? 0 : null,
-          forceMaterialTransparency: isStatusAmbient,
+          backgroundColor: transparentStatusAppBar ? Colors.transparent : null,
+          surfaceTintColor: transparentStatusAppBar ? Colors.transparent : null,
+          shadowColor: transparentStatusAppBar ? Colors.transparent : null,
+          scrolledUnderElevation: transparentStatusAppBar ? 0 : null,
+          forceMaterialTransparency: transparentStatusAppBar,
           leading: Navigator.of(context).canPop()
               ? BackButton(
                   onPressed: () => Navigator.of(context).maybePop(),
                 ).actionableFeedback(role: ActionableFeedbackRole.exit)
               : null,
-          title: BaseCampPresentation.isActive(context)
+          title: baseCamp
               ? const Text('CALENDAR')
               : const CalendarRingBinderTitle(),
           centerTitle: true,
@@ -1712,7 +1714,7 @@ class _WeatherForecastRow extends StatelessWidget {
                 children: [
                   SizedBox(
                     key: ValueKey('weather-forecast-left-${value.date}'),
-                    width: 118,
+                    width: weatherForecastIdentityBlockWidth,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -1725,7 +1727,7 @@ class _WeatherForecastRow extends StatelessWidget {
                             key: ValueKey(
                               'weather-forecast-date-${value.date}',
                             ),
-                            width: 34,
+                            width: weatherForecastDateBlockWidth,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment:
@@ -2016,10 +2018,12 @@ double weatherTemperatureRailWidth(double rowWidth) =>
 const weatherForecastLowHighPairAlignment = MainAxisAlignment.center;
 const weatherForecastDateBlockAlignment = CrossAxisAlignment.center;
 const weatherForecastDateTextAlignment = TextAlign.center;
+const weatherForecastIdentityBlockWidth = 124.0;
+const weatherForecastDateBlockWidth = 44.0;
 // LEFT-A is an identity block, not a vertically centered peer of the weather
-// block. Its upward offset preserves the compact row while anchoring weekday
-// and date at the row's top edge.
-const weatherForecastDateVerticalOffset = -14.0;
+// block. The wider fixed slot keeps five-character dates such as 11/16 inside
+// the compact row without the former negative-offset overlap.
+const weatherForecastDateVerticalOffset = 0.0;
 const weatherForecastDateInternalGap = 2.0;
 const weatherForecastDateFontSize = 14.0;
 const weatherForecastWeatherBlockAlignment = CrossAxisAlignment.center;
@@ -2930,194 +2934,209 @@ Future<void> _showWeatherExplanation(
   isScrollControlled: true,
   builder: (context) {
     final scheme = Theme.of(context).colorScheme;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 560),
-              decoration: BoxDecoration(
-                color: scheme.surface.withValues(alpha: .92),
-                border: Border.all(
-                  color: scheme.primary.withValues(alpha: .62),
+    final classicTerminal = BaseCampPresentation.isActive(context);
+    final sheet = Container(
+      constraints: const BoxConstraints(maxWidth: 560),
+      decoration: BoxDecoration(
+        color: classicTerminal
+            ? scheme.surface
+            : scheme.surface.withValues(alpha: .92),
+        border: Border.all(
+          color: classicTerminal
+              ? scheme.outline
+              : scheme.primary.withValues(alpha: .62),
+        ),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
+        boxShadow: classicTerminal
+            ? const <BoxShadow>[]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .42),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
                 ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .42),
-                    blurRadius: 22,
-                    offset: const Offset(0, 8),
-                  ),
+              ],
+        gradient: classicTerminal
+            ? null
+            : LinearGradient(
+                colors: [
+                  scheme.primary.withValues(alpha: .14),
+                  Colors.black.withValues(alpha: .18),
                 ],
-                gradient: LinearGradient(
-                  colors: [
-                    scheme.primary.withValues(alpha: .14),
-                    Colors.black.withValues(alpha: .18),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .78,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: 34,
+                  height: 2,
+                  color: scheme.primary.withValues(alpha: .45),
                 ),
               ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * .78,
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 12, 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 34,
-                          height: 2,
-                          color: scheme.primary.withValues(alpha: .45),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Container(
-                            width: explanation.prominentHeaderIcon ? 48 : 24,
-                            height: explanation.prominentHeaderIcon ? 48 : 24,
-                            alignment: Alignment.center,
-                            decoration: explanation.prominentHeaderIcon
-                                ? BoxDecoration(
-                                    color: scheme.primary.withValues(
-                                      alpha: .12,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  )
-                                : null,
-                            child: Icon(
-                              explanation.headerIcon,
-                              color: scheme.primary,
-                              size: explanation.prominentHeaderIcon ? 32 : 18,
+              Row(
+                children: [
+                  Container(
+                    width: explanation.prominentHeaderIcon ? 48 : 24,
+                    height: explanation.prominentHeaderIcon ? 48 : 24,
+                    alignment: Alignment.center,
+                    decoration: explanation.prominentHeaderIcon
+                        ? BoxDecoration(
+                            color: classicTerminal
+                                ? scheme.surfaceContainer
+                                : scheme.primary.withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(
+                              classicTerminal ? 4 : 8,
                             ),
-                          ),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  explanation.title,
-                                  style: explanation.headerSubtitle != null
-                                      ? Theme.of(context).textTheme.titleMedium
-                                      : explanation.prominentHeaderIcon
-                                      ? Theme.of(context).textTheme.titleLarge
-                                      : Theme.of(context).textTheme.titleMedium,
-                                ),
-                                if (explanation.headerSubtitle
-                                    case final subtitle?)
-                                  Text(
-                                    subtitle,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: scheme.onSurface.withValues(
-                                            alpha: .76,
-                                          ),
-                                        ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '閉じる',
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ).actionableFeedback(
-                            role: ActionableFeedbackRole.exit,
-                          ),
-                        ],
-                      ),
-                      if (explanation.value != '--')
+                          )
+                        : null,
+                    child: Icon(
+                      explanation.headerIcon,
+                      color: scheme.primary,
+                      size: explanation.prominentHeaderIcon ? 32 : 18,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          explanation.value,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: scheme.primary),
+                          explanation.title,
+                          style: explanation.headerSubtitle != null
+                              ? Theme.of(context).textTheme.titleMedium
+                              : explanation.prominentHeaderIcon
+                              ? Theme.of(context).textTheme.titleLarge
+                              : Theme.of(context).textTheme.titleMedium,
                         ),
-                      if (explanation.forecastSummary != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
-                          decoration: BoxDecoration(
-                            color: scheme.primary.withValues(alpha: .10),
-                            border: Border(
-                              left: BorderSide(
-                                color: scheme.primary.withValues(alpha: .72),
-                                width: 2,
-                              ),
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                explanation.forecastSummaryLabel,
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(color: scheme.primary),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                explanation.forecastSummary!,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      fontSize: 16,
-                                      height: 1.42,
-                                      color: scheme.onSurface,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        for (final item in explanation.supportingData)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              item,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: scheme.onSurface.withValues(
-                                      alpha: .9,
-                                    ),
+                        if (explanation.headerSubtitle case final subtitle?)
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: scheme.onSurface.withValues(
+                                    alpha: .76,
                                   ),
-                            ),
+                                ),
                           ),
                       ],
-                      for (final section in explanation.detailSections)
-                        _WeatherDetailTelemetrySection(section: section),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Divider(),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '閉じる',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ).actionableFeedback(role: ActionableFeedbackRole.exit),
+                ],
+              ),
+              if (explanation.value != '--')
+                Text(
+                  explanation.value,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: scheme.primary),
+                ),
+              if (explanation.forecastSummary != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+                  decoration: BoxDecoration(
+                    color: classicTerminal
+                        ? scheme.surfaceContainer
+                        : scheme.primary.withValues(alpha: .10),
+                    border: Border(
+                      left: BorderSide(
+                        color: classicTerminal
+                            ? scheme.outline
+                            : scheme.primary.withValues(alpha: .72),
+                        width: 2,
                       ),
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      classicTerminal ? 4 : 6,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        '指標について',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurface.withValues(alpha: .62),
-                        ),
+                        explanation.forecastSummaryLabel,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelSmall?.copyWith(color: scheme.primary),
                       ),
-                      const SizedBox(height: weatherForecastDateInternalGap),
+                      const SizedBox(height: 4),
                       Text(
-                        explanation.body,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurface.withValues(alpha: .72),
+                        explanation.forecastSummary!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 16,
+                          height: 1.42,
+                          color: scheme.onSurface,
                         ),
                       ),
                     ],
                   ),
                 ),
+                for (final item in explanation.supportingData)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      item,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurface.withValues(alpha: .9),
+                      ),
+                    ),
+                  ),
+              ],
+              for (final section in explanation.detailSections)
+                _WeatherDetailTelemetrySection(section: section),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Divider(),
               ),
-            ),
+              Text(
+                '指標について',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: .62),
+                ),
+              ),
+              const SizedBox(height: weatherForecastDateInternalGap),
+              Text(
+                explanation.body,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: .72),
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
+          child: classicTerminal
+              ? sheet
+              : BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: sheet,
+                ),
         ),
       ),
     );
@@ -6191,255 +6210,273 @@ class _ScheduleEditorState extends State<_ScheduleEditor> {
   Widget build(BuildContext context) {
     final isStatusAmbient =
         widget.ambientContext == CalendarAmbientContext.status;
+    final baseCamp = BaseCampPresentation.isActive(context);
+    final transparentStatusAppBar = isStatusAmbient && !baseCamp;
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
-    return Scaffold(
-      extendBodyBehindAppBar: isStatusAmbient,
-      appBar: AppBar(
-        backgroundColor: isStatusAmbient ? Colors.transparent : null,
-        surfaceTintColor: isStatusAmbient ? Colors.transparent : null,
-        shadowColor: isStatusAmbient ? Colors.transparent : null,
-        scrolledUnderElevation: isStatusAmbient ? 0 : null,
-        forceMaterialTransparency: isStatusAmbient,
-        leading: const ActionableBackButton(),
-        title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: _save,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(76, 44),
-                shape: const StadiumBorder(),
-                side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: .08),
-              ),
-              child: const Text('保存'),
-            ).actionableFeedback(),
-          ),
-        ],
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Schedule editors share the calendar's CIRCUIT field even when
-          // opened through STATUS. Their Glass route treatment remains below.
-          if (!BaseCampPresentation.isActive(context))
-            const HolographicAmbientBackground(),
-          SafeArea(
-            top: !isStatusAmbient,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
-                16 + (isStatusAmbient ? topInset : 0),
-                MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
-                MediaQuery.paddingOf(context).bottom + 24,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  EditorFormCard(
-                    key: const ValueKey('schedule-editor-title-card'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'タイトル',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _title,
-                          maxLines: 1,
-                          onChanged: (_) => setState(() => _error = null),
-                          decoration: InputDecoration(
-                            hintText: '予定のタイトル',
-                            suffixIcon: _title.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: 'タイトルをクリア',
-                                    icon: const Icon(Icons.close, size: 20),
-                                    onPressed: () => setState(_title.clear),
-                                  ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ).inputFeedback(),
-                      ],
-                    ),
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'calendar-schedule-editor',
+      child: Scaffold(
+        extendBodyBehindAppBar: isStatusAmbient,
+        appBar: AppBar(
+          backgroundColor: transparentStatusAppBar ? Colors.transparent : null,
+          surfaceTintColor: transparentStatusAppBar ? Colors.transparent : null,
+          shadowColor: transparentStatusAppBar ? Colors.transparent : null,
+          scrolledUnderElevation: transparentStatusAppBar ? 0 : null,
+          forceMaterialTransparency: transparentStatusAppBar,
+          leading: const ActionableBackButton(),
+          title: Text(widget.record == null ? '予定を追加' : '予定を編集'),
+          centerTitle: true,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ElevatedButton(
+                onPressed: _save,
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(76, 44),
+                  shape: baseCamp
+                      ? RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        )
+                      : const StadiumBorder(),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(height: 12),
-                  EditorFormCard(
-                    key: const ValueKey('schedule-editor-category-card'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'カテゴリ',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _pickType,
-                          child: SizedBox(
-                            height: 52,
-                            child: Row(
+                  backgroundColor: baseCamp
+                      ? Theme.of(context).colorScheme.surfaceContainer
+                      : Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: .08),
+                ),
+                child: const Text('保存'),
+              ).actionableFeedback(),
+            ),
+          ],
+        ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Schedule editors share the calendar's CIRCUIT field even when
+            // opened through STATUS. Their Glass route treatment remains below.
+            if (!BaseCampPresentation.isActive(context))
+              const HolographicAmbientBackground(),
+            SafeArea(
+              top: !isStatusAmbient,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+                  16 + (isStatusAmbient ? topInset : 0),
+                  MediaQuery.sizeOf(context).width <= 320 ? 12 : 16,
+                  MediaQuery.paddingOf(context).bottom + 24,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    EditorFormCard(
+                      key: const ValueKey('schedule-editor-title-card'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'タイトル',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _title,
+                            maxLines: 1,
+                            onChanged: (_) => setState(() => _error = null),
+                            decoration: InputDecoration(
+                              hintText: '予定のタイトル',
+                              suffixIcon: _title.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'タイトルをクリア',
+                                      icon: const Icon(Icons.close, size: 20),
+                                      onPressed: () => setState(_title.clear),
+                                    ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ).inputFeedback(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    EditorFormCard(
+                      key: const ValueKey('schedule-editor-category-card'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'カテゴリ',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: _pickType,
+                            child: SizedBox(
+                              height: 52,
+                              child: Row(
+                                children: [
+                                  Icon(_typeIcon(_type)),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(_scheduleTypeLabel(_type)),
+                                  ),
+                                  const Icon(Icons.chevron_right),
+                                ],
+                              ),
+                            ),
+                          ).inputFeedback(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    EditorFormCard(
+                      key: const ValueKey('schedule-editor-all-day-card'),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.wb_sunny_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(_typeIcon(_type)),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(_scheduleTypeLabel(_type)),
-                                ),
-                                const Icon(Icons.chevron_right),
+                                Text('終日'),
+                                SizedBox(height: 2),
+                                Text('開始・終了時刻を指定せず、終日予定として登録します'),
                               ],
                             ),
                           ),
-                        ).inputFeedback(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  EditorFormCard(
-                    key: const ValueKey('schedule-editor-all-day-card'),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.wb_sunny_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('終日'),
-                              SizedBox(height: 2),
-                              Text('開始・終了時刻を指定せず、終日予定として登録します'),
-                            ],
+                          Switch(
+                            value: _allDay,
+                            onChanged: (value) =>
+                                setState(() => _allDay = value),
                           ),
-                        ),
-                        Switch(
-                          value: _allDay,
-                          onChanged: (value) => setState(() => _allDay = value),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SharedDateTimeEditor(
-                    date: _date,
-                    allDay: _allDay,
-                    startTime: _start.text.isEmpty
-                        ? null
-                        : timeOfDayFromClock(_start.text),
-                    endTime: _end.text.isEmpty
-                        ? null
-                        : timeOfDayFromClock(_end.text),
-                    onDateChanged: (value) => setState(() => _date = value),
-                    onAllDayChanged: (value) => setState(() => _allDay = value),
-                    onStartTimeChanged: (value) => setState(
-                      () => _start.text = value == null
-                          ? ''
-                          : clockFromTimeOfDay(value),
-                    ),
-                    onEndTimeChanged: (value) => setState(
-                      () => _end.text = value == null
-                          ? ''
-                          : clockFromTimeOfDay(value),
-                    ),
-                    endDate: _effectiveEndDate,
-                    onEndDateChanged: (value) =>
-                        setState(() => _endDate = value),
-                    showAllDayToggle: false,
-                    showOverdueNote: true,
-                  ),
-                  const SizedBox(height: 12),
-                  if (_type == ScheduleType.work && !_allDay) ...[
-                    EditorFormCard(
-                      child: _DurationControl(label: '休憩', controller: _break),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  EditorFormCard(
-                    child: SharedNotificationEditor(
-                      value: _notification,
-                      calendarStyle: true,
-                      onChanged: (value) =>
-                          setState(() => _notification = value),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  EditorFormCard(
-                    child: SharedRecurrenceEditor(
-                      startDate: _date,
-                      value: _recurrenceValue,
-                      onChanged: _applyRecurrence,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                        ],
                       ),
                     ),
-                  EditorFormCard(
-                    key: const ValueKey('schedule-editor-memo-card'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.note_alt_outlined),
-                            SizedBox(width: 8),
-                            Text('メモ'),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _memo,
-                          minLines: 3,
-                          maxLines: null,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                          ),
-                        ).inputFeedback(),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            '${_memo.text.length} / 500',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (widget.record != null && widget.onDelete != null) ...[
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      key: const ValueKey('schedule-editor-delete-button'),
-                      onPressed: _delete,
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('この予定を削除'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        foregroundColor: Theme.of(context).colorScheme.error,
-                        side: BorderSide(
+                    SharedDateTimeEditor(
+                      date: _date,
+                      allDay: _allDay,
+                      startTime: _start.text.isEmpty
+                          ? null
+                          : timeOfDayFromClock(_start.text),
+                      endTime: _end.text.isEmpty
+                          ? null
+                          : timeOfDayFromClock(_end.text),
+                      onDateChanged: (value) => setState(() => _date = value),
+                      onAllDayChanged: (value) =>
+                          setState(() => _allDay = value),
+                      onStartTimeChanged: (value) => setState(
+                        () => _start.text = value == null
+                            ? ''
+                            : clockFromTimeOfDay(value),
+                      ),
+                      onEndTimeChanged: (value) => setState(
+                        () => _end.text = value == null
+                            ? ''
+                            : clockFromTimeOfDay(value),
+                      ),
+                      endDate: _effectiveEndDate,
+                      onEndDateChanged: (value) =>
+                          setState(() => _endDate = value),
+                      showAllDayToggle: false,
+                      showOverdueNote: true,
+                    ),
+                    const SizedBox(height: 12),
+                    if (_type == ScheduleType.work && !_allDay) ...[
+                      EditorFormCard(
+                        child: _DurationControl(
+                          label: '休憩',
+                          controller: _break,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    EditorFormCard(
+                      child: SharedNotificationEditor(
+                        value: _notification,
+                        calendarStyle: true,
+                        onChanged: (value) =>
+                            setState(() => _notification = value),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    EditorFormCard(
+                      child: SharedRecurrenceEditor(
+                        startDate: _date,
+                        value: _recurrenceValue,
+                        onChanged: _applyRecurrence,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: TextStyle(
                           color: Theme.of(context).colorScheme.error,
                         ),
                       ),
-                    ).actionableFeedback(),
+                    EditorFormCard(
+                      key: const ValueKey('schedule-editor-memo-card'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.note_alt_outlined),
+                              SizedBox(width: 8),
+                              Text('メモ'),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _memo,
+                            minLines: 3,
+                            maxLines: null,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                            ),
+                          ).inputFeedback(),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              '${_memo.text.length} / 500',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (widget.record != null && widget.onDelete != null) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        key: const ValueKey('schedule-editor-delete-button'),
+                        onPressed: _delete,
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('この予定を削除'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ).actionableFeedback(),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

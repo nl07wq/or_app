@@ -286,25 +286,26 @@ class _MorningFactPageState extends State<MorningFactPage> {
   @override
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.paddingOf(context);
+    final baseCamp = BaseCampPresentation.isActive(context);
     return BaseCampRetroTerminalScreen(
       screenKey: 'status-entry',
       child: AmbientPageScaffold(
         appBar: AppBar(
           centerTitle: true,
-          backgroundColor: Colors.transparent,
+          backgroundColor: baseCamp ? null : Colors.transparent,
           surfaceTintColor: Colors.transparent,
           shadowColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          forceMaterialTransparency: true,
+          forceMaterialTransparency: !baseCamp,
           leading: Navigator.canPop(context)
               ? const StatusCrtBackButton()
               : null,
-          title: BaseCampPresentation.isActive(context)
+          title: baseCamp
               ? const Text('STATUS ENTRY')
               : const StatusCrtMonitorTitle(mode: StatusCrtMonitorMode.entry),
         ),
-        ambient: BaseCampPresentation.isActive(context)
+        ambient: baseCamp
             ? const SizedBox.shrink()
             : const StatusAmbientBackground(),
         body: _operationDateError != null

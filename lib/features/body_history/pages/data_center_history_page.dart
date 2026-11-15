@@ -10,6 +10,7 @@ import '../../../core/widgets/mixed_script_text.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import '../services/history_visual_preference.dart';
 import '../widgets/history_data_vault_hyperspace.dart';
 
@@ -97,7 +98,12 @@ class _DataCenterHistoryPageState extends State<DataCenterHistoryPage>
       ),
       body: _buildContent(context),
     );
-    if (isBaseCamp) return scaffold;
+    if (isBaseCamp) {
+      return BaseCampRetroTerminalScreen(
+        screenKey: 'data-center-history',
+        child: scaffold,
+      );
+    }
     return Stack(
       fit: StackFit.expand,
       children: [

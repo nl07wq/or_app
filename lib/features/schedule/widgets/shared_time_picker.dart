@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/operation_card.dart';
+
 /// The single time-selection surface shared by Schedule and Reminder editors.
 Future<TimeOfDay?> showSharedTimePicker(
   BuildContext context, {
@@ -304,9 +306,19 @@ class _OperationOrbitalTimePickerDialogState
     Navigator.of(context).pop(result);
   }
 
+  bool get _classicTerminal =>
+      Theme.of(
+        context,
+      ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+      false;
+
+  ColorScheme get _scheme => Theme.of(context).colorScheme;
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final scheme = _scheme;
+    final classicTerminal = _classicTerminal;
     final width = math.min(media.size.width - 32, 360.0);
     final maxHeight = math.min(
       media.size.height - media.padding.vertical - 24,
@@ -315,7 +327,7 @@ class _OperationOrbitalTimePickerDialogState
     return SafeArea(
       child: Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        backgroundColor: Colors.transparent,
+        backgroundColor: classicTerminal ? scheme.surface : Colors.transparent,
         elevation: 0,
         child: ConstrainedBox(
           constraints: BoxConstraints.tightFor(
@@ -323,20 +335,26 @@ class _OperationOrbitalTimePickerDialogState
           ).copyWith(maxHeight: maxHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xff071521).withValues(alpha: .96),
-              borderRadius: BorderRadius.circular(24),
+              color: classicTerminal
+                  ? scheme.surface
+                  : const Color(0xff071521).withValues(alpha: .96),
+              borderRadius: BorderRadius.circular(classicTerminal ? 4 : 24),
               border: Border.all(
-                color: const Color(0xff36c5e5).withValues(alpha: .65),
+                color: classicTerminal
+                    ? scheme.outline
+                    : const Color(0xff36c5e5).withValues(alpha: .65),
               ),
-              boxShadow: const [
-                BoxShadow(color: Color(0x33000000), blurRadius: 18),
-              ],
+              boxShadow: classicTerminal
+                  ? null
+                  : const [BoxShadow(color: Color(0x33000000), blurRadius: 18)],
             ),
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(23),
+                borderRadius: BorderRadius.circular(classicTerminal ? 3 : 23),
                 border: Border.all(
-                  color: const Color(0xff2c7295).withValues(alpha: .22),
+                  color: classicTerminal
+                      ? scheme.outlineVariant
+                      : const Color(0xff2c7295).withValues(alpha: .22),
                   width: .65,
                 ),
               ),
@@ -368,29 +386,40 @@ class _OperationOrbitalTimePickerDialogState
     );
   }
 
-  Widget _header() => SizedBox(
-    height: 44,
-    child: Row(
-      children: [
-        const Text(
-          'SELECT TIME',
-          style: TextStyle(
-            color: Color(0xff7dddf3),
-            fontSize: 15,
-            letterSpacing: 1.4,
-            fontFamily: 'ShareTechMono',
+  Widget _header() {
+    final scheme = _scheme;
+    final classicTerminal = _classicTerminal;
+    return SizedBox(
+      height: 44,
+      child: Row(
+        children: [
+          Text(
+            'SELECT TIME',
+            style: TextStyle(
+              color: classicTerminal
+                  ? scheme.onSurface
+                  : const Color(0xff7dddf3),
+              fontSize: 15,
+              letterSpacing: 1.4,
+              fontFamily: 'ShareTechMono',
+            ),
           ),
-        ),
-        const Spacer(),
-        IconButton(
-          tooltip: 'Close',
-          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.close_rounded, color: Color(0xffb8eafa)),
-        ),
-      ],
-    ),
-  );
+          const Spacer(),
+          IconButton(
+            tooltip: 'Close',
+            constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+            onPressed: () => Navigator.of(context).pop(),
+            icon: Icon(
+              Icons.close_rounded,
+              color: classicTerminal
+                  ? scheme.onSurface
+                  : const Color(0xffb8eafa),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _readout() => SizedBox(
     height: 82,
@@ -404,12 +433,14 @@ class _OperationOrbitalTimePickerDialogState
             onTap: () => setState(() => _mode = _OrbitalMode.hour),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Text(
             ':',
             style: TextStyle(
-              color: Color(0xffc6f5ff),
+              color: _classicTerminal
+                  ? _scheme.onSurface
+                  : const Color(0xffc6f5ff),
               fontSize: 38,
               fontWeight: FontWeight.w300,
             ),
@@ -459,7 +490,9 @@ class _OperationOrbitalTimePickerDialogState
       Expanded(
         child: Container(
           height: 1,
-          color: const Color(0xff55cfe9).withValues(alpha: .28),
+          color: _classicTerminal
+              ? _scheme.outlineVariant
+              : const Color(0xff55cfe9).withValues(alpha: .28),
         ),
       ),
       Padding(
@@ -468,8 +501,10 @@ class _OperationOrbitalTimePickerDialogState
           _mode == _OrbitalMode.hour
               ? (widget.durationMode ? 'DURATION HOUR' : 'HOUR SELECT')
               : 'MINUTE SELECT',
-          style: const TextStyle(
-            color: Color(0xff74def4),
+          style: TextStyle(
+            color: _classicTerminal
+                ? _scheme.onSurface
+                : const Color(0xff74def4),
             fontSize: 12,
             letterSpacing: 1.2,
             fontFamily: 'ShareTechMono',
@@ -479,7 +514,9 @@ class _OperationOrbitalTimePickerDialogState
       Expanded(
         child: Container(
           height: 1,
-          color: const Color(0xff55cfe9).withValues(alpha: .28),
+          color: _classicTerminal
+              ? _scheme.outlineVariant
+              : const Color(0xff55cfe9).withValues(alpha: .28),
         ),
       ),
     ],
@@ -506,6 +543,8 @@ class _OperationOrbitalTimePickerDialogState
             hour: _dialHour,
             minute: _minute,
             durationMode: widget.durationMode,
+            classicTerminal: _classicTerminal,
+            terminalScheme: _scheme,
           ),
         ),
       ),
@@ -552,7 +591,9 @@ class _OperationOrbitalTimePickerDialogState
           onPressed: _toggleKeyboard,
           icon: Icon(
             _keyboard ? Icons.schedule_rounded : Icons.keyboard_rounded,
-            color: const Color(0xff9cdff2),
+            color: _classicTerminal
+                ? _scheme.onSurface
+                : const Color(0xff9cdff2),
           ),
         ),
         const Spacer(),
@@ -566,8 +607,12 @@ class _OperationOrbitalTimePickerDialogState
           onPressed: _keyboard && !_validKeyboard ? null : _confirm,
           style: FilledButton.styleFrom(
             minimumSize: const Size(54, 44),
-            backgroundColor: const Color(0xff17617b),
-            foregroundColor: const Color(0xffe2f8ff),
+            backgroundColor: _classicTerminal
+                ? _scheme.primary
+                : const Color(0xff17617b),
+            foregroundColor: _classicTerminal
+                ? _scheme.onPrimary
+                : const Color(0xffe2f8ff),
           ),
           child: const Text('OK'),
         ),
@@ -587,34 +632,48 @@ class _ReadoutModule extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(12),
-    child: Container(
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0xff0e283b).withValues(alpha: .70),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xff48ccec).withValues(alpha: active ? .95 : .28),
-          width: active ? 1.2 : 1,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(classicTerminal ? 3 : 12),
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: classicTerminal
+              ? scheme.surfaceContainerHighest
+              : const Color(0xff0e283b).withValues(alpha: .70),
+          borderRadius: BorderRadius.circular(classicTerminal ? 3 : 12),
+          border: Border.all(
+            color: classicTerminal
+                ? (active ? scheme.primary : scheme.outlineVariant)
+                : const Color(0xff48ccec).withValues(alpha: active ? .95 : .28),
+            width: active ? 1.2 : 1,
+          ),
         ),
-      ),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        child: Text(
-          value,
-          key: ValueKey(value),
-          style: const TextStyle(
-            color: Color(0xffe2f8ff),
-            fontSize: 40,
-            height: 1,
-            fontFamily: 'ShareTechMono',
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: Text(
+            value,
+            key: ValueKey(value),
+            style: TextStyle(
+              color: classicTerminal
+                  ? scheme.onSurface
+                  : const Color(0xffe2f8ff),
+              fontSize: 40,
+              height: 1,
+              fontFamily: 'ShareTechMono',
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _PeriodCell extends StatelessWidget {
@@ -631,17 +690,35 @@ class _PeriodCell extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final tint = pm ? const Color(0xffbe82f1) : const Color(0xff4de7ee);
-    final fill = pm ? const Color(0xff3e2453) : const Color(0xff103e4b);
+    final scheme = Theme.of(context).colorScheme;
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    final tint = classicTerminal
+        ? scheme.onSurface
+        : pm
+        ? const Color(0xffbe82f1)
+        : const Color(0xff4de7ee);
+    final fill = classicTerminal
+        ? scheme.primary
+        : pm
+        ? const Color(0xff3e2453)
+        : const Color(0xff103e4b);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(classicTerminal ? 3 : 10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: active ? fill : const Color(0xff10202d),
-          borderRadius: BorderRadius.circular(10),
+          color: active
+              ? fill
+              : classicTerminal
+              ? scheme.surfaceContainerHighest
+              : const Color(0xff10202d),
+          borderRadius: BorderRadius.circular(classicTerminal ? 3 : 10),
           border: Border.all(
             color: tint.withValues(alpha: active ? .92 : .25),
             width: active ? 1.2 : 1,
@@ -653,7 +730,11 @@ class _PeriodCell extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: active ? tint : const Color(0xff88a9b7),
+                color: active
+                    ? (classicTerminal ? scheme.onPrimary : tint)
+                    : (classicTerminal
+                          ? scheme.onSurfaceVariant
+                          : const Color(0xff88a9b7)),
                 fontSize: 11,
                 letterSpacing: .5,
                 fontFamily: 'ShareTechMono',
@@ -663,7 +744,8 @@ class _PeriodCell extends StatelessWidget {
             Container(
               height: 1.5,
               width: active ? 32 : 16,
-              color: tint.withValues(alpha: active ? .9 : .15),
+              color: (classicTerminal && active ? scheme.onPrimary : tint)
+                  .withValues(alpha: active ? .9 : .15),
             ),
           ],
         ),
@@ -684,20 +766,33 @@ class _NumericInput extends StatelessWidget {
   final bool valid;
   final ValueChanged<String> onChanged;
   @override
-  Widget build(BuildContext context) => TextField(
-    controller: controller,
-    onChanged: onChanged,
-    keyboardType: TextInputType.number,
-    style: const TextStyle(
-      color: Color(0xffe2f8ff),
-      fontFamily: 'ShareTechMono',
-    ),
-    decoration: InputDecoration(
-      labelText: label,
-      errorText: valid ? null : 'Invalid',
-      errorStyle: const TextStyle(color: Color(0xffff9cb3)),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      keyboardType: TextInputType.number,
+      style: TextStyle(
+        color: classicTerminal
+            ? Theme.of(context).colorScheme.onSurface
+            : const Color(0xffe2f8ff),
+        fontFamily: 'ShareTechMono',
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        errorText: valid ? null : 'Invalid',
+        errorStyle: TextStyle(
+          color: classicTerminal
+              ? Theme.of(context).colorScheme.error
+              : const Color(0xffff9cb3),
+        ),
+      ),
+    );
+  }
 }
 
 class _OrbitalClockPainter extends CustomPainter {
@@ -707,17 +802,27 @@ class _OrbitalClockPainter extends CustomPainter {
     required this.hour,
     required this.minute,
     required this.durationMode,
+    required this.classicTerminal,
+    required this.terminalScheme,
   });
   final bool pm;
   final _OrbitalMode mode;
   final int hour;
   final int minute;
   final bool durationMode;
+  final bool classicTerminal;
+  final ColorScheme terminalScheme;
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final r = size.width / 2;
     final scale = r / 127;
+    final primary = terminalScheme.onSurface;
+    final strong = terminalScheme.primary;
+    final faint = terminalScheme.outline;
+    final field = classicTerminal
+        ? terminalScheme.surfaceContainerHighest
+        : const Color(0xff0b2538);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -725,14 +830,16 @@ class _OrbitalClockPainter extends CustomPainter {
       c,
       r * .98,
       paint
-        ..color = const Color(0xff2ac8f0).withValues(alpha: .18)
+        ..color = (classicTerminal ? faint : const Color(0xff2ac8f0))
+            .withValues(alpha: classicTerminal ? .35 : .18)
         ..strokeWidth = .8 * scale,
     );
     canvas.drawCircle(
       c,
       r * .88,
       paint
-        ..color = const Color(0xff66d9f2).withValues(alpha: .47)
+        ..color = (classicTerminal ? primary : const Color(0xff66d9f2))
+            .withValues(alpha: .47)
         ..strokeWidth = scale,
     );
     for (final degrees in [20.0, 155.0, 265.0]) {
@@ -742,7 +849,8 @@ class _OrbitalClockPainter extends CustomPainter {
         35 * math.pi / 180,
         false,
         paint
-          ..color = const Color(0xffa1f5ff).withValues(alpha: .82)
+          ..color = (classicTerminal ? strong : const Color(0xffa1f5ff))
+              .withValues(alpha: .82)
           ..strokeWidth = 1.65 * scale,
       );
     }
@@ -750,13 +858,14 @@ class _OrbitalClockPainter extends CustomPainter {
       c,
       r * .70,
       paint
-        ..color = const Color(0xff60b3d1).withValues(alpha: .22)
+        ..color = (classicTerminal ? faint : const Color(0xff60b3d1))
+            .withValues(alpha: classicTerminal ? .35 : .22)
         ..strokeWidth = .7 * scale,
     );
     canvas.drawCircle(
       c,
       r * .55,
-      Paint()..color = const Color(0xff0b2538).withValues(alpha: .22),
+      Paint()..color = field.withValues(alpha: classicTerminal ? 1 : .22),
     );
     for (var i = 0; i < 60; i++) {
       final angle = i * math.pi * 2 / 60 - math.pi / 2;
@@ -770,7 +879,8 @@ class _OrbitalClockPainter extends CustomPainter {
         outer,
         inner,
         paint
-          ..color = const Color(0xff89dff4).withValues(alpha: major ? .56 : .28)
+          ..color = (classicTerminal ? primary : const Color(0xff89dff4))
+              .withValues(alpha: major ? .56 : .28)
           ..strokeWidth = major ? 1 : .65,
       );
     }
@@ -801,26 +911,33 @@ class _OrbitalClockPainter extends CustomPainter {
         c,
         guideEnd,
         paint
-          ..color = const Color(0xff5cd9fa).withValues(alpha: .10)
+          ..color = (classicTerminal ? strong : const Color(0xff5cd9fa))
+              .withValues(alpha: .10)
           ..strokeWidth = 3.2 * scale,
       );
       canvas.drawLine(
         c,
         guideEnd,
         paint
-          ..color = const Color(0xff80dffb).withValues(alpha: .80)
+          ..color = (classicTerminal ? strong : const Color(0xff80dffb))
+              .withValues(alpha: .80)
           ..strokeWidth = 1.5 * scale,
       );
       canvas.drawCircle(
         node,
         nodeR,
-        Paint()..color = const Color(0xff185f83).withValues(alpha: .82),
+        Paint()
+          ..color =
+              (classicTerminal
+                      ? terminalScheme.primary
+                      : const Color(0xff185f83))
+                  .withValues(alpha: .82),
       );
       canvas.drawCircle(
         node,
         nodeR,
         paint
-          ..color = const Color(0xff8defff)
+          ..color = classicTerminal ? strong : const Color(0xff8defff)
           ..strokeWidth = 1.5 * scale,
       );
     }
@@ -828,17 +945,23 @@ class _OrbitalClockPainter extends CustomPainter {
       c,
       18 * scale,
       paint
-        ..color = const Color(0xff72dff8).withValues(alpha: .32)
+        ..color = (classicTerminal ? primary : const Color(0xff72dff8))
+            .withValues(alpha: .32)
         ..strokeWidth = .8 * scale,
     );
     canvas.drawCircle(
       c,
       10 * scale,
       paint
-        ..color = const Color(0xff8ceafa).withValues(alpha: .48)
+        ..color = (classicTerminal ? strong : const Color(0xff8ceafa))
+            .withValues(alpha: .48)
         ..strokeWidth = .8 * scale,
     );
-    canvas.drawCircle(c, 3.5 * scale, Paint()..color = const Color(0xffbefcff));
+    canvas.drawCircle(
+      c,
+      3.5 * scale,
+      Paint()..color = classicTerminal ? strong : const Color(0xffbefcff),
+    );
     for (var i = 0; i < 6; i++) {
       final angle = (i * 59 + 10) * math.pi / 180;
       final start = c + Offset(math.cos(angle), math.sin(angle)) * r * .91;
@@ -848,13 +971,16 @@ class _OrbitalClockPainter extends CustomPainter {
         start,
         end,
         paint
-          ..color = const Color(0xff66d9f2).withValues(alpha: .35)
+          ..color = (classicTerminal ? primary : const Color(0xff66d9f2))
+              .withValues(alpha: .35)
           ..strokeWidth = .75 * scale,
       );
       canvas.drawCircle(
         end,
         1.1 * scale,
-        Paint()..color = const Color(0xff9cf4ff).withValues(alpha: .55),
+        Paint()
+          ..color = (classicTerminal ? strong : const Color(0xff9cf4ff))
+              .withValues(alpha: .55),
       );
     }
     final labels = mode == _OrbitalMode.hour
@@ -882,8 +1008,8 @@ class _OrbitalClockPainter extends CustomPainter {
           text: text,
           style: TextStyle(
             color: pos == selectedPosition
-                ? const Color(0xffe8fdff)
-                : const Color(0xff9cdced),
+                ? (classicTerminal ? strong : const Color(0xffe8fdff))
+                : (classicTerminal ? primary : const Color(0xff9cdced)),
             fontSize: (mode == _OrbitalMode.hour ? 13 : 10.5) * scale,
             fontFamily: 'ShareTechMono',
           ),
@@ -900,7 +1026,9 @@ class _OrbitalClockPainter extends CustomPainter {
       old.mode != mode ||
       old.hour != hour ||
       old.minute != minute ||
-      old.durationMode != durationMode;
+      old.durationMode != durationMode ||
+      old.classicTerminal != classicTerminal ||
+      old.terminalScheme != terminalScheme;
 }
 
 TimeOfDay timeOfDayFromClock(

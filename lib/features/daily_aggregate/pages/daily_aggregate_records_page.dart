@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import '../models/daily_aggregate_v1.dart';
 import '../repository/daily_aggregate_repository.dart';
 
@@ -53,44 +54,47 @@ class _DailyAggregateRecordsPageState extends State<DailyAggregateRecordsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DAILY AGGREGATE RECORDS'),
-    ),
-    body: FutureBuilder<List<DailyAggregateV1>>(
-      future: _records,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError || !snapshot.hasData) {
-          return const Center(child: Text('Daily Aggregateを読み込めませんでした。'));
-        }
-        final records = snapshot.requireData;
-        return ListView(
-          padding: AppSpacing.cardPadding,
-          children: [
-            const SectionHeader(
-              icon: Icons.inventory_2_outlined,
-              title: 'DAILY AGGREGATE RECORDS',
-            ),
-            AppSpacing.gapSM,
-            const Text('保存済みDaily Aggregateの正式内容とSourceを確認します。'),
-            AppSpacing.gapLG,
-            if (records.isEmpty)
-              const OperationCard(child: Text('保存済みRecordはありません。'))
-            else
-              for (var index = 0; index < records.length; index++) ...[
-                _AggregateRow(
-                  aggregate: records[index],
-                  onTap: () => _open(records[index]),
-                ),
-                if (index != records.length - 1) AppSpacing.gapSM,
-              ],
-          ],
-        );
-      },
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'daily-aggregate-records',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY AGGREGATE RECORDS'),
+      ),
+      body: FutureBuilder<List<DailyAggregateV1>>(
+        future: _records,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return const Center(child: Text('Daily Aggregateを読み込めませんでした。'));
+          }
+          final records = snapshot.requireData;
+          return ListView(
+            padding: AppSpacing.cardPadding,
+            children: [
+              const SectionHeader(
+                icon: Icons.inventory_2_outlined,
+                title: 'DAILY AGGREGATE RECORDS',
+              ),
+              AppSpacing.gapSM,
+              const Text('保存済みDaily Aggregateの正式内容とSourceを確認します。'),
+              AppSpacing.gapLG,
+              if (records.isEmpty)
+                const OperationCard(child: Text('保存済みRecordはありません。'))
+              else
+                for (var index = 0; index < records.length; index++) ...[
+                  _AggregateRow(
+                    aggregate: records[index],
+                    onTap: () => _open(records[index]),
+                  ),
+                  if (index != records.length - 1) AppSpacing.gapSM,
+                ],
+            ],
+          );
+        },
+      ),
     ),
   );
 }
@@ -192,136 +196,139 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DAILY AGGREGATE DETAIL'),
-    ),
-    body: FutureBuilder<DailyAggregateV1?>(
-      future: _record,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return const Center(child: Text('Daily Aggregateを読み込めませんでした。'));
-        }
-        final aggregate = snapshot.data;
-        if (aggregate == null) {
-          return const Center(child: Text('Daily Aggregateが存在しません。'));
-        }
-        return ListView(
-          padding: AppSpacing.cardPadding,
-          children: [
-            const SectionHeader(
-              icon: Icons.article_outlined,
-              title: 'DAILY AGGREGATE DETAIL',
-            ),
-            AppSpacing.gapSM,
-            Text(aggregate.operationDate),
-            AppSpacing.gapLG,
-            _DetailSection(
-              title: 'BODY',
-              fields: {
-                'Weight Kg': aggregate.weightKg,
-                'Body Fat Percent': aggregate.bodyFatPercent,
-              },
-            ),
-            _DetailSection(
-              title: 'RECOVERY',
-              fields: {
-                'Sleep Duration Minutes': aggregate.sleepDurationMinutes,
-                'Sleep Score': aggregate.sleepScore,
-                'Sleep Type': aggregate.sleepType?.name,
-              },
-            ),
-            _DetailSection(
-              title: 'CONDITION',
-              fields: {
-                'Plantar Fasciitis Level': aggregate.plantarFasciitisLevel,
-              },
-              children: [
-                _StringListField(
-                  label: 'Condition Fact Summary',
-                  values: aggregate.conditionFactSummary,
-                ),
-              ],
-            ),
-            _DetailSection(
-              title: 'WORK',
-              fields: {
-                'Work Start Time': aggregate.workStartTime,
-                'Work End Time': aggregate.workEndTime,
-                'Work Break Minutes': aggregate.workBreakMinutes,
-                'Actual Work Minutes': aggregate.actualWorkMinutes,
-              },
-            ),
-            _DetailSection(
-              title: 'NUTRITION',
-              fields: {
-                'Intake Calories Kcal': aggregate.intakeCaloriesKcal,
-                'Estimated Expenditure Kcal':
-                    aggregate.estimatedExpenditureKcal,
-                'Estimated Calorie Balance Kcal':
-                    aggregate.estimatedCalorieBalanceKcal,
-                'Protein G': aggregate.proteinG,
-                'Fat G': aggregate.fatG,
-                'Carbs G': aggregate.carbsG,
-              },
-            ),
-            _DetailSection(
-              title: 'HYDRATION',
-              fields: {'Hydration Ml': aggregate.hydrationMl},
-            ),
-            _DetailSection(
-              title: 'ACTIVITY',
-              fields: {
-                'Official Steps': aggregate.officialSteps,
-                'Measured Steps': aggregate.measuredSteps,
-                'Training Performed': aggregate.trainingPerformed,
-              },
-            ),
-            _DetailSection(
-              title: 'DIGESTIVE',
-              fields: {'Digestive Count': aggregate.digestiveCount},
-              children: [
-                _DigestiveEventsField(events: aggregate.digestiveEvents),
-              ],
-            ),
-            _DetailSection(
-              title: 'OPERATION',
-              fields: {'Operation Status': aggregate.operationStatus},
-            ),
-            _DetailSection(
-              title: 'SOURCE',
-              fields: {
-                'Operation Date': aggregate.operationDate,
-                'Source Type': aggregate.sourceType.name,
-              },
-            ),
-            AppSpacing.gapMD,
-            if (_deleteError != null)
-              Text(
-                _deleteError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'daily-aggregate-detail',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY AGGREGATE DETAIL'),
+      ),
+      body: FutureBuilder<DailyAggregateV1?>(
+        future: _record,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Center(child: Text('Daily Aggregateを読み込めませんでした。'));
+          }
+          final aggregate = snapshot.data;
+          if (aggregate == null) {
+            return const Center(child: Text('Daily Aggregateが存在しません。'));
+          }
+          return ListView(
+            padding: AppSpacing.cardPadding,
+            children: [
+              const SectionHeader(
+                icon: Icons.article_outlined,
+                title: 'DAILY AGGREGATE DETAIL',
               ),
-            if (_deleteError != null) AppSpacing.gapSM,
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.delete_outline),
-                label: const FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text('DELETE DAILY AGGREGATE'),
+              AppSpacing.gapSM,
+              Text(aggregate.operationDate),
+              AppSpacing.gapLG,
+              _DetailSection(
+                title: 'BODY',
+                fields: {
+                  'Weight Kg': aggregate.weightKg,
+                  'Body Fat Percent': aggregate.bodyFatPercent,
+                },
+              ),
+              _DetailSection(
+                title: 'RECOVERY',
+                fields: {
+                  'Sleep Duration Minutes': aggregate.sleepDurationMinutes,
+                  'Sleep Score': aggregate.sleepScore,
+                  'Sleep Type': aggregate.sleepType?.name,
+                },
+              ),
+              _DetailSection(
+                title: 'CONDITION',
+                fields: {
+                  'Plantar Fasciitis Level': aggregate.plantarFasciitisLevel,
+                },
+                children: [
+                  _StringListField(
+                    label: 'Condition Fact Summary',
+                    values: aggregate.conditionFactSummary,
+                  ),
+                ],
+              ),
+              _DetailSection(
+                title: 'WORK',
+                fields: {
+                  'Work Start Time': aggregate.workStartTime,
+                  'Work End Time': aggregate.workEndTime,
+                  'Work Break Minutes': aggregate.workBreakMinutes,
+                  'Actual Work Minutes': aggregate.actualWorkMinutes,
+                },
+              ),
+              _DetailSection(
+                title: 'NUTRITION',
+                fields: {
+                  'Intake Calories Kcal': aggregate.intakeCaloriesKcal,
+                  'Estimated Expenditure Kcal':
+                      aggregate.estimatedExpenditureKcal,
+                  'Estimated Calorie Balance Kcal':
+                      aggregate.estimatedCalorieBalanceKcal,
+                  'Protein G': aggregate.proteinG,
+                  'Fat G': aggregate.fatG,
+                  'Carbs G': aggregate.carbsG,
+                },
+              ),
+              _DetailSection(
+                title: 'HYDRATION',
+                fields: {'Hydration Ml': aggregate.hydrationMl},
+              ),
+              _DetailSection(
+                title: 'ACTIVITY',
+                fields: {
+                  'Official Steps': aggregate.officialSteps,
+                  'Measured Steps': aggregate.measuredSteps,
+                  'Training Performed': aggregate.trainingPerformed,
+                },
+              ),
+              _DetailSection(
+                title: 'DIGESTIVE',
+                fields: {'Digestive Count': aggregate.digestiveCount},
+                children: [
+                  _DigestiveEventsField(events: aggregate.digestiveEvents),
+                ],
+              ),
+              _DetailSection(
+                title: 'OPERATION',
+                fields: {'Operation Status': aggregate.operationStatus},
+              ),
+              _DetailSection(
+                title: 'SOURCE',
+                fields: {
+                  'Operation Date': aggregate.operationDate,
+                  'Source Type': aggregate.sourceType.name,
+                },
+              ),
+              AppSpacing.gapMD,
+              if (_deleteError != null)
+                Text(
+                  _deleteError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-                onPressed: _deleting ? null : () => _delete(aggregate),
-              ).actionableFeedback(),
-            ),
-            AppSpacing.gapLG,
-          ],
-        );
-      },
+              if (_deleteError != null) AppSpacing.gapSM,
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.delete_outline),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('DELETE DAILY AGGREGATE'),
+                  ),
+                  onPressed: _deleting ? null : () => _delete(aggregate),
+                ).actionableFeedback(),
+              ),
+              AppSpacing.gapLG,
+            ],
+          );
+        },
+      ),
     ),
   );
 }

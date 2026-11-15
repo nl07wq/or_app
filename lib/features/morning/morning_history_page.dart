@@ -78,25 +78,26 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final baseCamp = BaseCampPresentation.isActive(context);
     return BaseCampRetroTerminalScreen(
       screenKey: 'status-record',
       child: AmbientPageScaffold(
         appBar: AppBar(
           centerTitle: true,
-          backgroundColor: Colors.transparent,
+          backgroundColor: baseCamp ? null : Colors.transparent,
           surfaceTintColor: Colors.transparent,
           shadowColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          forceMaterialTransparency: true,
+          forceMaterialTransparency: !baseCamp,
           leading: Navigator.canPop(context)
               ? const StatusCrtBackButton()
               : null,
-          title: BaseCampPresentation.isActive(context)
+          title: baseCamp
               ? const Text('STATUS RECORD')
               : const StatusCrtMonitorTitle(title: 'STATUS RECORD'),
         ),
-        ambient: BaseCampPresentation.isActive(context)
+        ambient: baseCamp
             ? const SizedBox.shrink()
             : const StatusAmbientBackground(),
         body: FutureBuilder<List<MorningData>>(

@@ -24,6 +24,7 @@ import '../../operation_date/models/operation_state.dart';
 import '../../operation_date/models/daily_finalize_result.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import '../services/daily_estimated_total_burn_service.dart';
 
 typedef PrepareDailyDebrief =
@@ -615,14 +616,17 @@ class _DailyDebriefDetailPage extends StatelessWidget {
   final DailyDebriefRecord record;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DAILY DEBRIEF'),
-    ),
-    body: ListView(
-      padding: AppSpacing.cardPadding,
-      children: [_DailyDebriefDetail(record: record)],
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'daily-debrief-detail',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY DEBRIEF'),
+      ),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [_DailyDebriefDetail(record: record)],
+      ),
     ),
   );
 }
@@ -1249,22 +1253,25 @@ class _MorningBriefRevisionHistory extends StatelessWidget {
           onTap: () => Navigator.push<void>(
             context,
             MaterialPageRoute(
-              builder: (_) => Scaffold(
-                appBar: AppBar(
-                  leading: const ActionableBackButton(),
-                  title: Text(
-                    'DAILY BRIEF ${ReportHumanPresentation.revisionLabel(revision.revision)}',
-                  ),
-                ),
-                body: ListView(
-                  padding: AppSpacing.cardPadding,
-                  children: [
-                    _MorningBriefCard(
-                      record: revision.record,
-                      revisionOverride: revision.revision,
-                      showRevisionHistory: false,
+              builder: (_) => BaseCampRetroTerminalScreen(
+                screenKey: 'daily-brief-revision',
+                child: Scaffold(
+                  appBar: AppBar(
+                    leading: const ActionableBackButton(),
+                    title: Text(
+                      'DAILY BRIEF ${ReportHumanPresentation.revisionLabel(revision.revision)}',
                     ),
-                  ],
+                  ),
+                  body: ListView(
+                    padding: AppSpacing.cardPadding,
+                    children: [
+                      _MorningBriefCard(
+                        record: revision.record,
+                        revisionOverride: revision.revision,
+                        showRevisionHistory: false,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -2035,14 +2042,17 @@ class _MorningBriefDetailPage extends StatelessWidget {
   final MorningBriefRecord record;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DAILY BRIEF'),
-    ),
-    body: ListView(
-      padding: AppSpacing.cardPadding,
-      children: [_MorningBriefCard(record: record)],
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'daily-brief-detail',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY BRIEF'),
+      ),
+      body: ListView(
+        padding: AppSpacing.cardPadding,
+        children: [_MorningBriefCard(record: record)],
+      ),
     ),
   );
 }
@@ -2053,34 +2063,37 @@ class _MorningBriefArchivePage extends StatelessWidget {
   final List<MorningBriefRecord> records;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DAILY BRIEF BACK NUMBER'),
-    ),
-    body: ListView.separated(
-      padding: AppSpacing.cardPadding,
-      itemCount: records.length,
-      separatorBuilder: (_, _) => const Divider(),
-      itemBuilder: (context, index) => ActionableFeedbackRegion(
-        role: ActionableFeedbackRole.silent,
-        child: ListTile(
-          key: ValueKey(
-            'all-morning-brief-back-number-${records[index].localDate}',
-          ),
-          leading: _BackNumberLeading(
-            indicatorColor: _morningBriefBackNumberColor(
-              records[index].operationStatus,
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'daily-brief-archive',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY BRIEF BACK NUMBER'),
+      ),
+      body: ListView.separated(
+        padding: AppSpacing.cardPadding,
+        itemCount: records.length,
+        separatorBuilder: (_, _) => const Divider(),
+        itemBuilder: (context, index) => ActionableFeedbackRegion(
+          role: ActionableFeedbackRole.silent,
+          child: ListTile(
+            key: ValueKey(
+              'all-morning-brief-back-number-${records[index].localDate}',
             ),
+            leading: _BackNumberLeading(
+              indicatorColor: _morningBriefBackNumberColor(
+                records[index].operationStatus,
+              ),
+            ),
+            title: Text(records[index].localDate),
+            subtitle: Text(
+              records[index].commanderIntent,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openMorningBriefDetail(context, records[index]),
           ),
-          title: Text(records[index].localDate),
-          subtitle: Text(
-            records[index].commanderIntent,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _openMorningBriefDetail(context, records[index]),
         ),
       ),
     ),
@@ -2094,20 +2107,23 @@ class _DailyDebriefArchivePage extends StatelessWidget {
   records;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const ActionableBackButton(),
-      title: const Text('DAILY DEBRIEF BACK NUMBER'),
-    ),
-    body: ListView.separated(
-      padding: AppSpacing.cardPadding,
-      itemCount: records.length,
-      separatorBuilder: (_, _) => const Divider(),
-      itemBuilder: (context, index) => _DailyDebriefBackNumberRow(
-        key: ValueKey(
-          'all-daily-debrief-back-number-${records[index].record.localDate}',
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'daily-debrief-archive',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: const ActionableBackButton(),
+        title: const Text('DAILY DEBRIEF BACK NUMBER'),
+      ),
+      body: ListView.separated(
+        padding: AppSpacing.cardPadding,
+        itemCount: records.length,
+        separatorBuilder: (_, _) => const Divider(),
+        itemBuilder: (context, index) => _DailyDebriefBackNumberRow(
+          key: ValueKey(
+            'all-daily-debrief-back-number-${records[index].record.localDate}',
+          ),
+          historical: records[index],
         ),
-        historical: records[index],
       ),
     ),
   );

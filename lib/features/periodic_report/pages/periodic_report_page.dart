@@ -18,6 +18,7 @@ import '../../report_sync/models/report_sync_history.dart';
 import '../../report_sync/services/report_human_presentation.dart';
 import '../../training/services/exercise_name_localization.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import '../../themes/base_camp/widgets/base_camp_communication_motion.dart';
 import '../models/periodic_report.dart';
 import '../services/periodic_report_presentation_formatter.dart';
@@ -38,15 +39,18 @@ class PeriodicReportPage extends StatelessWidget {
   final VoidCallback? onImported;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('${_label(initialType)} REPORT')),
-    // A pushed report must use the same workspace and panel implementation as
-    // COMMAND CENTER.  The entry point may supply a completed-period anchor,
-    // but it must never select a second prompt/import contract.
-    body: PeriodicReportWorkspace(
-      initialType: initialType,
-      initialAnchor: initialAnchor,
-      onImported: onImported,
+  Widget build(BuildContext context) => BaseCampRetroTerminalScreen(
+    screenKey: 'periodic-report',
+    child: Scaffold(
+      appBar: AppBar(title: Text('${_label(initialType)} REPORT')),
+      // A pushed report must use the same workspace and panel implementation
+      // as COMMAND CENTER. The entry point may supply a completed-period
+      // anchor, but it must never select a second prompt/import contract.
+      body: PeriodicReportWorkspace(
+        initialType: initialType,
+        initialAnchor: initialAnchor,
+        onImported: onImported,
+      ),
     ),
   );
 }

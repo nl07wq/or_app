@@ -7,6 +7,9 @@ import 'package:or_app/core/widgets/dashboard_glass_card.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_text_field.dart';
+import 'package:or_app/core/models/morning_data.dart';
+import 'package:or_app/features/morning/widgets/body_card.dart';
+import 'package:or_app/features/morning/widgets/recovery_card.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
     show BaseCampLcdGrainPainter;
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
@@ -18,7 +21,7 @@ void main() {
     DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
   });
 
-  for (final width in <double>[320, 375, 390]) {
+  for (final width in <double>[320, 375, 390, 430]) {
     testWidgets('terminal presentation fits $width logical pixels', (
       tester,
     ) async {
@@ -180,7 +183,67 @@ void main() {
     );
   });
 
-  test('all six approved pages use the shared presentation layer', () {
+  testWidgets('STATUS keeps its picker controls in classic terminal mode', (
+    tester,
+  ) async {
+    final weight = TextEditingController(text: '72.5');
+    final bodyFat = TextEditingController(text: '18.0');
+    final sleep = TextEditingController(text: '7:30');
+    final sleepScore = TextEditingController(text: '82');
+    addTearDown(() {
+      weight.dispose();
+      bodyFat.dispose();
+      sleep.dispose();
+      sleepScore.dispose();
+    });
+    await tester.pumpWidget(
+      _baseCampHarness(
+        child: Scaffold(
+          body: TickerMode(
+            enabled: false,
+            child: ListView(
+              children: [
+                BodyCard(
+                  weightController: weight,
+                  bodyFatController: bodyFat,
+                  weightUnmeasured: false,
+                  onWeightUnmeasured: () {},
+                  onWeightMeasured: () {},
+                  initiallyExpanded: true,
+                ),
+                RecoveryCard(
+                  sleepController: sleep,
+                  sleepScoreController: sleepScore,
+                  sleepType: SleepType.sleep,
+                  onSleepTypeChanged: (_) {},
+                  sleepTimeUnmeasured: false,
+                  onSleepTimeUnmeasured: () {},
+                  onSleepTimeMeasured: () {},
+                  initiallyExpanded: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-body-fat-ring')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('status-sleep-duration-picker')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('status-sleep-score-hud-sleep')),
+      findsOneWidget,
+    );
+    expect(find.byType(OperationTextField), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('all direct BASE CAMP routes use the shared presentation layer', () {
     const files = <String, String>{
       'lib/features/schedule/pages/calendar_page.dart': 'calendar',
       'lib/features/morning/morning_history_page.dart': 'status-record',
@@ -188,6 +251,21 @@ void main() {
       'lib/features/food/food_entry_page.dart': 'food-entry',
       'lib/features/training/training_entry_page.dart': 'training',
       'lib/features/activity/activity_entry_page.dart': 'activity-entry',
+      'lib/features/activity/activity_history_page.dart': 'activity-record',
+      'lib/features/command_center/pages/command_center_page.dart':
+          'command-center',
+      'lib/features/command_center/widgets/brief_debrief_page.dart':
+          'daily-brief-detail',
+      'lib/features/body_history/pages/data_center_history_page.dart':
+          'data-center-history',
+      'lib/features/daily_aggregate/pages/daily_aggregate_records_page.dart':
+          'daily-aggregate-records',
+      'lib/features/periodic_report/pages/periodic_report_page.dart':
+          'periodic-report',
+      'lib/features/report_sync/pages/report_sync_exchange_page.dart':
+          'report-sync-\${exchangeType.name}',
+      'lib/features/reminders/pages/reminders_page.dart': 'reminders',
+      'lib/features/weather/weather_settings_page.dart': 'weather-settings',
     };
     for (final entry in files.entries) {
       final source = File(entry.key).readAsStringSync();
@@ -203,6 +281,105 @@ void main() {
       );
     }
   });
+
+  test(
+    'FOOD, TRAINING and HISTORY descendants use shared terminal scaffolds',
+    () {
+      const coverage = <String, String>{
+        'lib/features/food/daily_nutrition_analysis_page.dart':
+            'FoodFeatureScaffold(',
+        'lib/features/food/food_catalog_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/food_edit_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/food_history_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/food_meal_master_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/food_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/food_recipe_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/meal_analysis_page.dart': 'FoodFeatureScaffold(',
+        'lib/features/food/widgets/food_manual_nutrition_crop.dart':
+            'FoodFeatureScaffold(',
+        'lib/features/training/training_detail_page.dart':
+            'TrainingKineticScaffold(',
+        'lib/features/training/training_history_page.dart':
+            'TrainingKineticScaffold(',
+        'lib/features/training/training_plan_import_page.dart':
+            'TrainingKineticScaffold(',
+        'lib/features/training/training_plan_page.dart':
+            'TrainingKineticScaffold(',
+        'lib/features/training_analysis/pages/training_analysis_page.dart':
+            'TrainingKineticScaffold(',
+        'lib/features/body_history/pages/body_history_page.dart':
+            'HistoryFeatureScaffold(',
+        'lib/features/nutrition_history/pages/nutrition_history_page.dart':
+            'HistoryFeatureScaffold(',
+        'lib/features/digestive_history/pages/digestive_history_page.dart':
+            'HistoryFeatureScaffold(',
+        'lib/features/activity_history/pages/activity_history_page.dart':
+            'HistoryFeatureScaffold(',
+        'lib/features/sleep_history/pages/sleep_history_page.dart':
+            'HistoryFeatureScaffold(',
+        'lib/features/training/data_center_training_history_page.dart':
+            'HistoryFeatureScaffold(',
+      };
+      for (final entry in coverage.entries) {
+        expect(
+          File(entry.key).readAsStringSync(),
+          contains(entry.value),
+          reason: entry.key,
+        );
+      }
+    },
+  );
+
+  test('nested modal routes retain terminal coverage', () {
+    const coverage = <String, List<String>>{
+      'lib/features/schedule/pages/calendar_page.dart': [
+        "screenKey: 'calendar'",
+        "screenKey: 'calendar-schedule-editor'",
+      ],
+      'lib/features/reminders/pages/reminders_page.dart': [
+        "screenKey: 'reminders'",
+        "screenKey: 'reminder-editor'",
+      ],
+      'lib/features/daily_aggregate/pages/daily_aggregate_records_page.dart': [
+        "screenKey: 'daily-aggregate-records'",
+        "screenKey: 'daily-aggregate-detail'",
+      ],
+      'lib/features/report_sync/pages/report_sync_exchange_page.dart': [
+        "screenKey: 'report-sync-record-archive'",
+        "screenKey: 'report-sync-record-detail'",
+      ],
+      'lib/features/command_center/widgets/brief_debrief_page.dart': [
+        "screenKey: 'daily-brief-detail'",
+        "screenKey: 'daily-debrief-detail'",
+        "screenKey: 'daily-brief-archive'",
+        "screenKey: 'daily-debrief-archive'",
+        "screenKey: 'daily-brief-revision'",
+      ],
+    };
+    for (final entry in coverage.entries) {
+      final source = File(entry.key).readAsStringSync();
+      for (final marker in entry.value) {
+        expect(source, contains(marker), reason: '${entry.key}: $marker');
+      }
+    }
+  });
+
+  test(
+    'protected PROFILE ABOUT SYSTEM sources do not gain terminal wrappers',
+    () {
+      for (final path in const <String>[
+        'lib/features/system/pages/profile_page.dart',
+        'lib/features/system/pages/about_page.dart',
+        'lib/features/system/pages/system_page.dart',
+      ]) {
+        expect(
+          File(path).readAsStringSync(),
+          isNot(contains('BaseCampRetroTerminalScreen(')),
+          reason: path,
+        );
+      }
+    },
+  );
 }
 
 Widget _baseCampHarness({Widget? child}) => MaterialApp(

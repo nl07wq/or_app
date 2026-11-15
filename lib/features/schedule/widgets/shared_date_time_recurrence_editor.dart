@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/global_touch_ripple.dart';
+import '../../../core/widgets/operation_card.dart';
 import '../../reminders/models/reminder_definition.dart';
 import 'shared_time_picker.dart';
 
@@ -183,14 +184,23 @@ class EditorFormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
     return Container(
       padding: padding ?? const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer.withValues(alpha: .30),
-        borderRadius: BorderRadius.circular(14),
+        color: classicTerminal
+            ? scheme.surfaceContainer
+            : scheme.surfaceContainer.withValues(alpha: .30),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 14),
         border: Border.all(
-          color: scheme.primary.withValues(alpha: .30),
-          width: .8,
+          color: classicTerminal
+              ? scheme.outline
+              : scheme.primary.withValues(alpha: .30),
+          width: classicTerminal ? 1 : .8,
         ),
       ),
       child: Material(type: MaterialType.transparency, child: child),
@@ -222,13 +232,22 @@ class _DateTimeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
     final dateLabel =
         '${date.year}年${date.month}月${date.day}日 (${_weekday(date.weekday)})';
     return Container(
       constraints: const BoxConstraints(minHeight: 72),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: scheme.primary.withValues(alpha: .35)),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 10),
+        border: Border.all(
+          color: classicTerminal
+              ? scheme.outline
+              : scheme.primary.withValues(alpha: .35),
+        ),
       ),
       child: Row(
         children: [
