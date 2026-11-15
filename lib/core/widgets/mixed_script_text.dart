@@ -16,6 +16,12 @@ abstract final class MixedScriptTypography {
   /// without changing pure-Latin headings or instrument readouts.
   static const baseCampLatinLetterSpacingEm = -.02;
 
+  /// Press Start 2P's visible ink sits one logical pixel above DotGothic16
+  /// after the V1 size correction. A zero-blur proxy glyph moves only the
+  /// Latin ink; paragraph metrics, the shared baseline, and the Japanese run
+  /// remain unchanged.
+  static const baseCampLatinBaselineOffset = 1.0;
+
   static bool isMixed(String value) {
     var hasJapanese = false;
     var hasLatinOrDigit = false;
@@ -42,13 +48,15 @@ abstract final class MixedScriptTypography {
       fontFamilyFallback: const <String>[latinFamily],
       height: 1,
     );
-    final latinStyle = style.copyWith(
-      fontFamily: latinFamily,
-      fontFamilyFallback: const <String>[japaneseFamily],
-      fontSize: size! * baseCampLatinScale,
-      height: 1,
-      letterSpacing:
-          (style.letterSpacing ?? 0) + size * baseCampLatinLetterSpacingEm,
+    final latinStyle = _shiftLatinInk(
+      style.copyWith(
+        fontFamily: latinFamily,
+        fontFamilyFallback: const <String>[japaneseFamily],
+        fontSize: size! * baseCampLatinScale,
+        height: 1,
+        letterSpacing:
+            (style.letterSpacing ?? 0) + size * baseCampLatinLetterSpacingEm,
+      ),
     );
     final result = <TextSpan>[];
     final buffer = StringBuffer();
@@ -85,6 +93,31 @@ abstract final class MixedScriptTypography {
     leadingDistribution: TextLeadingDistribution.even,
     forceStrutHeight: true,
   );
+
+  static TextStyle _shiftLatinInk(TextStyle style) {
+    final inkColor = style.foreground?.color ?? style.color;
+    if (inkColor == null) return style;
+    final shiftedShadows = <Shadow>[
+      for (final shadow in style.shadows ?? const <Shadow>[])
+        Shadow(
+          color: shadow.color,
+          offset: shadow.offset + const Offset(0, baseCampLatinBaselineOffset),
+          blurRadius: shadow.blurRadius,
+        ),
+      Shadow(
+        color: inkColor,
+        offset: const Offset(0, baseCampLatinBaselineOffset),
+      ),
+    ];
+    return style.copyWith(
+      color: style.foreground == null ? Colors.transparent : null,
+      foreground: style.foreground == null
+          ? null
+          : (Paint()..color = Colors.transparent),
+      decorationColor: style.decorationColor ?? inkColor,
+      shadows: shiftedShadows,
+    );
+  }
 
   static bool _isJapanese(int rune) =>
       (rune >= 0x3000 && rune <= 0x30ff) ||

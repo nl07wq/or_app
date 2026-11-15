@@ -25,6 +25,7 @@ void main() {
     const base = TextStyle(
       fontFamily: 'PressStart2P',
       fontFamilyFallback: ['DotGothic16'],
+      color: Colors.black,
       fontSize: 20,
       fontWeight: FontWeight.w700,
       height: 1.5,
@@ -36,6 +37,12 @@ void main() {
     expect(latin.fontSize, 18);
     expect(latin.letterSpacing, closeTo(-.4, .001));
     expect(latin.height, 1);
+    expect(latin.color, Colors.transparent);
+    expect(latin.shadows, hasLength(1));
+    expect(
+      latin.shadows!.single.offset,
+      const Offset(0, MixedScriptTypography.baseCampLatinBaselineOffset),
+    );
     expect(japanese.fontFamily, 'DotGothic16');
     expect(japanese.fontSize, 20);
     expect(japanese.height, 1);
@@ -66,10 +73,41 @@ void main() {
     expect(after.baseline, closeTo(before.baseline, .01));
   });
 
+  testWidgets('V1.1 moves only Latin ink down exactly one logical pixel', (
+    tester,
+  ) async {
+    for (final sample in const <String>[
+      '睡眠時間：4:19',
+      '睡眠スコア：66',
+      '足底筋膜炎：LV.3',
+      '勤務：7:00〜18:00',
+      '睡眠4:19と睡眠スコア66',
+    ]) {
+      final v1 = await tester.runAsync(
+        () => _rasterMixedValue(sample, shifted: false),
+      );
+      final v11 = await tester.runAsync(
+        () => _rasterMixedValue(sample, shifted: true),
+      );
+
+      expect(v11!.latin.top - v1!.latin.top, 1, reason: sample);
+      expect(v11.latin.bottom - v1.latin.bottom, 1, reason: sample);
+      expect(v11.latin.height, v1.latin.height, reason: sample);
+      expect(v11.japanese.top, v1.japanese.top, reason: sample);
+      expect(v11.japanese.bottom, v1.japanese.bottom, reason: sample);
+      expect(v11.baseline, closeTo(v1.baseline, .01), reason: sample);
+    }
+  });
+
   testWidgets(
     'representative mixed text wraps without overflow at mobile widths',
     (tester) async {
       const samples = <String>[
+        '睡眠時間：4:19',
+        '睡眠スコア：66',
+        '足底筋膜炎：LV.3',
+        '勤務：7:00〜18:00',
+        '睡眠4:19と睡眠スコア66',
         'SLEEP TIME 3時間42分',
         'START / END 12:00 / 18:00',
         '7:00〜9:00',
@@ -115,6 +153,60 @@ void main() {
       }
     },
   );
+
+  test('V1.1 preserves V1 paragraph metrics at mobile widths', () {
+    const style = TextStyle(
+      color: Colors.black,
+      fontFamily: 'PressStart2P',
+      fontFamilyFallback: ['DotGothic16'],
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      height: 1.55,
+    );
+    const samples = <String>[
+      '睡眠時間：4:19',
+      '睡眠スコア：66',
+      '足底筋膜炎：LV.3',
+      '勤務：7:00〜18:00',
+      '睡眠4:19と睡眠スコア66',
+    ];
+    for (final width in const [288.0, 343.0, 358.0]) {
+      for (final sample in samples) {
+        final v11Spans = MixedScriptTypography.spans(sample, style);
+        final v1Spans = <TextSpan>[
+          for (final span in v11Spans)
+            TextSpan(
+              text: span.text,
+              style: span.style!.fontFamily == MixedScriptTypography.latinFamily
+                  ? span.style!.copyWith(
+                      color: style.color,
+                      shadows: const <Shadow>[],
+                    )
+                  : span.style,
+            ),
+        ];
+        final v1 = _layoutSpans(v1Spans, style, width);
+        final v11 = _layoutSpans(v11Spans, style, width);
+        expect(v11.size, v1.size, reason: '$width: $sample');
+        expect(v11.didExceedMaxLines, isFalse, reason: '$width: $sample');
+        final v1Lines = v1.computeLineMetrics();
+        final v11Lines = v11.computeLineMetrics();
+        expect(v11Lines.length, v1Lines.length, reason: '$width: $sample');
+        for (var index = 0; index < v1Lines.length; index++) {
+          expect(
+            v11Lines[index].baseline,
+            closeTo(v1Lines[index].baseline, .001),
+            reason: '$width: $sample line $index',
+          );
+          expect(
+            v11Lines[index].height,
+            closeTo(v1Lines[index].height, .001),
+            reason: '$width: $sample line $index',
+          );
+        }
+      }
+    }
+  });
 
   testWidgets('STANDARD M PLUS mixed text keeps its original Text path', (
     tester,
@@ -213,9 +305,63 @@ Future<void> _loadFont(String family, String asset) async {
   await loader.load();
 }
 
+TextPainter _layoutSpans(List<TextSpan> spans, TextStyle style, double width) =>
+    TextPainter(
+      text: TextSpan(children: spans),
+      strutStyle: MixedScriptTypography.strut(style),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: width);
+
+Future<_RasterBounds> _rasterMixedValue(
+  String value, {
+  required bool shifted,
+}) async {
+  const width = 360.0;
+  const height = 100;
+  const style = TextStyle(
+    color: Color(0xffff0000),
+    fontFamily: 'PressStart2P',
+    fontFamilyFallback: ['DotGothic16'],
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    height: 1.5,
+  );
+  final spans = <TextSpan>[
+    for (final span in MixedScriptTypography.spans(value, style))
+      TextSpan(
+        text: span.text,
+        style: span.style!.fontFamily == MixedScriptTypography.japaneseFamily
+            ? span.style!.copyWith(color: const Color(0xff0000ff))
+            : shifted
+            ? span.style
+            : span.style!.copyWith(
+                color: const Color(0xffff0000),
+                shadows: const <Shadow>[],
+              ),
+      ),
+  ];
+  final painter = _layoutSpans(spans, style, width);
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder)
+    ..drawColor(const ui.Color(0xffffffff), ui.BlendMode.src);
+  painter.paint(canvas, ui.Offset.zero);
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(width.toInt(), height);
+  final bounds = await _readRasterBounds(
+    image,
+    width: width.toInt(),
+    height: height,
+    baseline: painter.computeLineMetrics().first.baseline,
+  );
+  image.dispose();
+  picture.dispose();
+  return bounds;
+}
+
 Future<_RasterBounds> _rasterBounds({
   required double latinScale,
   required double latinLetterSpacing,
+  double latinBaselineOffset = 0,
 }) async {
   const width = 360.0;
   const height = 80;
@@ -224,12 +370,22 @@ Future<_RasterBounds> _rasterBounds({
       ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: fontSize, height: 1.5))
         ..pushStyle(
           ui.TextStyle(
-            color: const ui.Color(0xffff0000),
+            color: latinBaselineOffset == 0
+                ? const ui.Color(0xffff0000)
+                : const ui.Color(0x00000000),
             fontFamily: 'PressStart2P',
             fontSize: fontSize * latinScale,
             fontWeight: ui.FontWeight.w700,
             height: 1,
             letterSpacing: latinLetterSpacing,
+            shadows: latinBaselineOffset == 0
+                ? null
+                : <ui.Shadow>[
+                    ui.Shadow(
+                      color: const ui.Color(0xffff0000),
+                      offset: ui.Offset(0, latinBaselineOffset),
+                    ),
+                  ],
           ),
         )
         ..addText('SLEEP3')
@@ -251,16 +407,32 @@ Future<_RasterBounds> _rasterBounds({
     ..drawParagraph(paragraph, ui.Offset.zero);
   final picture = recorder.endRecording();
   final image = await picture.toImage(width.toInt(), height);
-  final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-  final bytes = data!.buffer.asUint8List();
+  final bounds = await _readRasterBounds(
+    image,
+    width: width.toInt(),
+    height: height,
+    baseline: paragraph.computeLineMetrics().single.baseline,
+  );
   image.dispose();
   picture.dispose();
+
+  return bounds;
+}
+
+Future<_RasterBounds> _readRasterBounds(
+  ui.Image image, {
+  required int width,
+  required int height,
+  required double baseline,
+}) async {
+  final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  final bytes = data!.buffer.asUint8List();
 
   final latin = _InkBounds();
   final japanese = _InkBounds();
   for (var y = 0; y < height; y++) {
     for (var x = 0; x < width; x++) {
-      final offset = (y * width.toInt() + x) * 4;
+      final offset = (y * width + x) * 4;
       final red = bytes[offset];
       final green = bytes[offset + 1];
       final blue = bytes[offset + 2];
@@ -268,11 +440,7 @@ Future<_RasterBounds> _rasterBounds({
       if (blue > red + 20 && blue > green + 20) japanese.include(x, y);
     }
   }
-  return _RasterBounds(
-    latin: latin,
-    japanese: japanese,
-    baseline: paragraph.computeLineMetrics().single.baseline,
-  );
+  return _RasterBounds(latin: latin, japanese: japanese, baseline: baseline);
 }
 
 class _RasterBounds {
