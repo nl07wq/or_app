@@ -251,6 +251,9 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       operationMode: OperationSequenceMode.backup,
       task: () => BackupImportService().execute(plan),
       isSuccess: (value) => value.success,
+      // Import/restore is not a BACKUP creation operation. Keep its accepted
+      // presentation unchanged in both themes.
+      useBaseCampCommunication: false,
     );
     if (!mounted) return;
     setState(() {

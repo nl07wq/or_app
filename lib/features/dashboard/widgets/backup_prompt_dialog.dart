@@ -4,6 +4,8 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../import_export/services/backup_file_export_service.dart';
 import '../../import_export/services/backup_file_gateway.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_communication_motion.dart';
 
 class BackupPromptDialog extends StatefulWidget {
   const BackupPromptDialog({super.key, required this.exportService});
@@ -23,7 +25,15 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
     if (_busy) return;
     setState(() => _state = _BackupPromptState.exporting);
     try {
-      final result = await widget.exportService.export();
+      final result = BaseCampPresentation.isActive(context)
+          ? await BaseCampCommunicationOverlay.run(
+              context,
+              kind: BaseCampCommunicationKind.backup,
+              task: widget.exportService.export,
+              isSuccess: (value) =>
+                  value.delivery != BackupFileDelivery.cancelled,
+            )
+          : await widget.exportService.export();
       if (!mounted) return;
       setState(() {
         _state = result.delivery == BackupFileDelivery.cancelled

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_communication_motion.dart';
 import '../pages/boot_send_sequence_sandbox.dart';
 
 export '../pages/boot_send_sequence_sandbox.dart'
@@ -40,7 +42,20 @@ class OperationSequenceOverlay extends StatefulWidget {
     required OperationSequenceMode operationMode,
     required Future<T> Function() task,
     bool Function(T result)? isSuccess,
+    bool useBaseCampCommunication = true,
   }) async {
+    if (useBaseCampCommunication && BaseCampPresentation.isActive(context)) {
+      return BaseCampCommunicationOverlay.run<T>(
+        context,
+        kind: switch (operationMode) {
+          OperationSequenceMode.brief => BaseCampCommunicationKind.brief,
+          OperationSequenceMode.debrief => BaseCampCommunicationKind.debrief,
+          OperationSequenceMode.backup => BaseCampCommunicationKind.backup,
+        },
+        task: task,
+        isSuccess: isSuccess,
+      );
+    }
     final overlay = Overlay.of(context, rootOverlay: true);
     // Production always uses the accepted Voxel WALK-IN. MESSAGE ASSEMBLY is
     // intentionally retained for the Animation Sandbox only.

@@ -19,6 +19,7 @@ import 'package:or_app/features/activity/models/activity_summary_state.dart';
 import 'package:or_app/features/dashboard/dashboard_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_detail_page.dart';
 import 'package:or_app/features/dashboard/log_confirmation_review_page.dart';
+import 'package:or_app/features/dashboard/widgets/backup_prompt_dialog.dart';
 import 'package:or_app/features/dashboard/widgets/daily_log_card.dart';
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/import_export/services/backup_export_service.dart';
@@ -29,6 +30,7 @@ import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -1293,6 +1295,49 @@ void main() {
       expect(find.text('BACKUP'), findsNothing);
     },
   );
+
+  testWidgets('BASE CAMP Backup prompt uses ARK communication motion once', (
+    tester,
+  ) async {
+    final gateway = _RecordingBackupGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => BaseCampScreenEntry(
+          screen: BaseCampScreen.dashboard,
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) =>
+                  BackupPromptDialog(exportService: _backupService(gateway)),
+            ),
+            child: const Text('OPEN BACKUP'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('OPEN BACKUP'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EXPORT BACKUP'));
+    await tester.pump();
+    expect(find.text('ARK BACKUP'), findsOneWidget);
+    expect(find.text('ARCHIVING...'), findsOneWidget);
+    expect(find.text('COMPLETE'), findsNothing);
+    expect(gateway.exportCount, 1);
+
+    await tester.pump(const Duration(milliseconds: 999));
+    expect(find.text('ARCHIVING...'), findsOneWidget);
+    expect(find.text('COMPLETE'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.text('COMPLETE'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('ARK BACKUP'), findsNothing);
+    expect(find.text('Backup exported'), findsOneWidget);
+    expect(gateway.exportCount, 1);
+  });
 
   testWidgets(
     'NOT NOW waits for Backup route removal before origin completion',

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/system/widgets/operation_sequence_overlay.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 
 void main() {
   testWidgets('fast operation exposes skip and never shows Sandbox controls', (
@@ -96,11 +97,99 @@ void main() {
     await tester.pump();
     expect(caught, isA<StateError>());
   });
+
+  testWidgets('BASE CAMP brief uses communication motion instead of Voxel', (
+    tester,
+  ) async {
+    final task = Completer<void>();
+    var returned = false;
+    await tester.pumpWidget(
+      _host((context) async {
+        await OperationSequenceOverlay.run<void>(
+          context,
+          operationMode: OperationSequenceMode.brief,
+          task: () => task.future,
+        );
+        returned = true;
+      }, baseCamp: true),
+    );
+
+    await tester.tap(find.text('START'));
+    await tester.pump();
+    expect(find.text('MISSION BRIEF'), findsOneWidget);
+    expect(find.text('RECEIVING...'), findsOneWidget);
+    expect(find.text('PROCESSING'), findsNothing);
+
+    task.complete();
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(find.text('RECEIVED'), findsOneWidget);
+    expect(returned, isFalse);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(returned, isTrue);
+  });
+
+  testWidgets('BASE CAMP debrief selects MISSION DEBRIEF communication copy', (
+    tester,
+  ) async {
+    final task = Completer<void>();
+    await tester.pumpWidget(
+      _host(
+        (context) => OperationSequenceOverlay.run<void>(
+          context,
+          operationMode: OperationSequenceMode.debrief,
+          task: () => task.future,
+        ),
+        baseCamp: true,
+      ),
+    );
+
+    await tester.tap(find.text('START'));
+    await tester.pump();
+    expect(find.text('MISSION DEBRIEF'), findsOneWidget);
+    expect(find.text('RECEIVING...'), findsOneWidget);
+    expect(find.text('PROCESSING'), findsNothing);
+
+    task.complete();
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(find.text('RECEIVED'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+  });
+
+  testWidgets('BASE CAMP restore opt-out retains the existing Voxel shell', (
+    tester,
+  ) async {
+    final task = Completer<void>();
+    await tester.pumpWidget(
+      _host(
+        (context) => OperationSequenceOverlay.run<void>(
+          context,
+          operationMode: OperationSequenceMode.backup,
+          task: () => task.future,
+          useBaseCampCommunication: false,
+        ),
+        baseCamp: true,
+      ),
+    );
+
+    await tester.tap(find.text('START'));
+    await tester.pump();
+    expect(find.text('PROCESSING'), findsOneWidget);
+    expect(find.text('ARK BACKUP'), findsNothing);
+
+    task.complete();
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'TAP TO SKIP'));
+    await tester.pump();
+  });
 }
 
-Widget _host(FutureOr<void> Function(BuildContext context) onStart) =>
-    MaterialApp(
-      home: Builder(
+Widget _host(
+  FutureOr<void> Function(BuildContext context) onStart, {
+  bool baseCamp = false,
+}) => MaterialApp(
+  home: Builder(
+    builder: (context) {
+      final child = Builder(
         builder: (context) => FilledButton(
           onPressed: () {
             final value = onStart(context);
@@ -108,5 +197,13 @@ Widget _host(FutureOr<void> Function(BuildContext context) onStart) =>
           },
           child: const Text('START'),
         ),
-      ),
-    );
+      );
+      return baseCamp
+          ? BaseCampScreenEntry(
+              screen: BaseCampScreen.commandCenter,
+              child: child,
+            )
+          : child;
+    },
+  ),
+);
