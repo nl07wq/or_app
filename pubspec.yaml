@@ -112,6 +112,7 @@ flutter:
     - assets/images/themes/base_camp/water_v3b/manifest.json
     - assets/images/themes/base_camp/water_v3b/frames_rgba/
     - assets/data/
+    - assets/data/WATER_IMPORT_CORRECTED.json
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4
     - assets/animations/activity/reference_motion/activity_reference_motion_v1_frame.png

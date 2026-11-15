@@ -10,6 +10,7 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dar
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_water_surface_v3b.dart';
+import 'package:or_app/features/operation_sync/services/operation_transfer_canonical_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _fixturePath = 'test/fixtures/base_camp/OR_APP_WATER_MASK_IMPORT.json';
@@ -28,6 +29,10 @@ void main() {
   });
 
   test('approved WATER JSON preserves every supplied coordinate', () {
+    expect(
+      OperationTransferCanonicalService.sha256Hex(approvedBytes),
+      BaseCampMapConfigurationController.approvedWaterGeometrySha256,
+    );
     final imported = BaseCampWaterGeometryImport.parse(approvedJson);
     final source = jsonDecode(approvedJson) as Map<String, dynamic>;
     final sourceAreas =
@@ -76,6 +81,239 @@ void main() {
         (polygon) => listEquals(polygon, removedWatchtowerPentagon),
       ),
       isFalse,
+    );
+  });
+
+  test(
+    'approved WATER correction asset is bundled with the exact hash',
+    () async {
+      final bundled = await rootBundle.load(
+        BaseCampMapConfigurationController.approvedWaterGeometryAsset,
+      );
+      final bytes = bundled.buffer.asUint8List(
+        bundled.offsetInBytes,
+        bundled.lengthInBytes,
+      );
+      expect(
+        OperationTransferCanonicalService.sha256Hex(bytes),
+        BaseCampMapConfigurationController.approvedWaterGeometrySha256,
+      );
+    },
+  );
+
+  test(
+    'one-time correction backs up and replaces WATER geometry only',
+    () async {
+      final original = BaseCampMapConfiguration.defaults().copyWith(
+        soldierScale: .5,
+        foodSmokeOrigin: const Offset(.41, .37),
+      );
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        BaseCampMapConfigurationController.storageKey,
+        original.encode(),
+      );
+      final controller = BaseCampMapConfigurationController(
+        approvedWaterGeometryLoader: () async => approvedJson,
+      );
+
+      await controller.load();
+
+      final corrected = controller.value;
+      expect(corrected.soldierScale, original.soldierScale);
+      expect(corrected.foodSmokeOrigin, original.foodSmokeOrigin);
+      expect(corrected.routes, original.routes);
+      expect(corrected.objects.keys, original.objects.keys);
+      expect(
+        corrected.waterFx['water']!.effectiveAreas
+            .map((area) => area.mask.length)
+            .toList(),
+        <int>[18, 12, 18, 35],
+      );
+      expect(
+        corrected.waterFx['water']!.effectiveAreas
+            .map((area) => area.exclusionMasks.length)
+            .toList(),
+        <int>[3, 0, 2, 2],
+      );
+      expect(
+        preferences.getString(
+          BaseCampMapConfigurationController.approvedWaterGeometryBackupKey,
+        ),
+        original.encode(),
+      );
+      expect(
+        preferences.getInt(
+          BaseCampMapConfigurationController
+              .approvedWaterGeometryCorrectionMarkerKey,
+        ),
+        BaseCampMapConfigurationController
+            .approvedWaterGeometryCorrectionVersion,
+      );
+      expect(
+        BaseCampMapConfiguration.tryParse(
+          jsonDecode(
+            preferences.getString(
+              BaseCampMapConfigurationController.storageKey,
+            )!,
+          ),
+        )?.encode(),
+        corrected.encode(),
+      );
+    },
+  );
+
+  test('correction is idempotent and preserves later WATER edits', () async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      BaseCampMapConfigurationController.storageKey,
+      BaseCampMapConfiguration.defaults().encode(),
+    );
+    final first = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: () async => approvedJson,
+    );
+    await first.load();
+    final corrected = first.value;
+    final water = corrected.waterFx['water']!;
+    final originalArea = water.effectiveAreas.first;
+    final manuallyEditedArea = BaseCampWaterArea(
+      mask: <Offset>[
+        ...water.effectiveAreas.first.mask.take(17),
+        const Offset(1, 491),
+      ],
+      shoreline: originalArea.shoreline,
+      exclusionMasks: originalArea.exclusionMasks,
+    );
+    final editedWater = water.copyWith(
+      areas: <BaseCampWaterArea>[
+        manuallyEditedArea,
+        ...water.effectiveAreas.skip(1),
+      ],
+      mask: manuallyEditedArea.mask,
+    );
+    final edited = corrected.copyWith(
+      waterFx: <String, BaseCampWaterFx>{'water': editedWater},
+    );
+    await first.save(edited);
+
+    final second = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: () async => throw StateError(
+        'marker should prevent a second correction asset load',
+      ),
+    );
+    await second.load();
+
+    expect(second.value.encode(), edited.encode());
+    expect(
+      second.value.waterFx['water']!.effectiveAreas.first.mask.last,
+      const Offset(1, 491),
+    );
+  });
+
+  test('explicit RESET retains the approved WATER geometry', () async {
+    final controller = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: () async => approvedJson,
+    );
+    await controller.load();
+    final water = controller.value.waterFx['water']!;
+    final firstArea = water.effectiveAreas.first;
+    final editedArea = BaseCampWaterArea(
+      mask: <Offset>[...firstArea.mask.take(17), const Offset(1, 491)],
+      shoreline: firstArea.shoreline,
+      exclusionMasks: firstArea.exclusionMasks,
+    );
+    await controller.save(
+      controller.value.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          'water': water.copyWith(
+            areas: <BaseCampWaterArea>[
+              editedArea,
+              ...water.effectiveAreas.skip(1),
+            ],
+            mask: editedArea.mask,
+          ),
+        },
+      ),
+    );
+
+    await controller.resetToDefaults();
+
+    final resetAreas = controller.value.waterFx['water']!.effectiveAreas;
+    expect(resetAreas.map((area) => area.mask.length), <int>[18, 12, 18, 35]);
+    expect(resetAreas.map((area) => area.exclusionMasks.length), <int>[
+      3,
+      0,
+      2,
+      2,
+    ]);
+    expect(resetAreas.first.mask.last, isNot(const Offset(1, 491)));
+  });
+
+  test('failed correction keeps primary data and marker untouched', () async {
+    final original = BaseCampMapConfiguration.defaults().copyWith(
+      soldierScale: .5,
+    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      BaseCampMapConfigurationController.storageKey,
+      original.encode(),
+    );
+    final controller = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: () async => approvedJson,
+      storageWriter: (preferences, key, value) async {
+        if (key == BaseCampMapConfigurationController.storageKey) return false;
+        return preferences.setString(key, value);
+      },
+    );
+
+    await controller.load();
+
+    expect(
+      preferences.getString(BaseCampMapConfigurationController.storageKey),
+      original.encode(),
+    );
+    expect(
+      preferences.containsKey(
+        BaseCampMapConfigurationController
+            .approvedWaterGeometryCorrectionMarkerKey,
+      ),
+      isFalse,
+    );
+    expect(
+      preferences.getString(
+        BaseCampMapConfigurationController.approvedWaterGeometryBackupKey,
+      ),
+      original.encode(),
+    );
+  });
+
+  test('newer correction marker preserves existing configuration', () async {
+    final original = BaseCampMapConfiguration.defaults().copyWith(
+      soldierScale: .5,
+    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      BaseCampMapConfigurationController.storageKey,
+      original.encode(),
+    );
+    await preferences.setInt(
+      BaseCampMapConfigurationController
+          .approvedWaterGeometryCorrectionMarkerKey,
+      BaseCampMapConfigurationController
+              .approvedWaterGeometryCorrectionVersion +
+          1,
+    );
+    final controller = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: () async =>
+          throw StateError('newer marker must prevent correction'),
+    );
+
+    await controller.load();
+
+    expect(controller.value.encode(), original.encode());
+    expect(
+      preferences.getString(BaseCampMapConfigurationController.storageKey),
+      original.encode(),
     );
   });
 
@@ -358,7 +596,9 @@ void main() {
     expect(saved.labels.keys, formal.labels.keys);
     expect(saved.staticSoldiers, formal.staticSoldiers);
 
-    final reloaded = BaseCampMapConfigurationController();
+    final reloaded = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: () async => approvedJson,
+    );
     await reloaded.load();
     expect(
       reloaded.value.waterFx['water']!.effectiveAreas

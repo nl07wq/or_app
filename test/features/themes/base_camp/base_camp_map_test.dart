@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -285,7 +286,11 @@ void main() {
 
     expect(
       find.descendant(of: water, matching: find.byType(Image)),
-      findsOneWidget,
+      findsNWidgets(
+        baseCampWaterV3BVisiblePlacements(
+          water: baseCampMapConfigurationController.value.waterFx['water']!,
+        ).length,
+      ),
     );
     await tester.pump(baseCampWaterV3BFrameDuration);
     expect(tester.takeException(), isNull);
@@ -335,12 +340,32 @@ void main() {
         ),
       ),
     );
+    final placements = baseCampWaterV3BVisiblePlacements(
+      water: BaseCampMapConfiguration.defaults().waterFx['water']!,
+    );
     expect(
-      find.byKey(const ValueKey('base-camp-water-v3b-frame-0')),
+      find.descendant(
+        of: find.byKey(const ValueKey('base-camp-water-v3b-overlay')),
+        matching: find.byType(Image),
+      ),
+      findsNWidgets(placements.length),
+    );
+    final firstTile = find.byKey(const ValueKey('base-camp-water-v3b-tile-0'));
+    expect(
+      find.descendant(of: firstTile, matching: find.byType(ShaderMask)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(
+        of: firstTile,
+        matching: find.byKey(
+          ValueKey('base-camp-water-v3b-frame-${placements.first.phaseOffset}'),
+        ),
+      ),
       findsOneWidget,
     );
     final image = tester.widget<Image>(
-      find.byKey(const ValueKey('base-camp-water-v3b-frame-0')),
+      find.descendant(of: firstTile, matching: find.byType(Image)),
     );
     expect(image.color, isNull);
     expect(image.colorBlendMode, isNull);
@@ -349,13 +374,25 @@ void main() {
     tick.value = 1;
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('base-camp-water-v3b-frame-1')),
+      find.descendant(
+        of: firstTile,
+        matching: find.byKey(
+          ValueKey(
+            'base-camp-water-v3b-frame-${baseCampWaterV3BFrameIndex(placements.first.phaseOffset + 1)}',
+          ),
+        ),
+      ),
       findsOneWidget,
     );
     tick.value = 24;
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('base-camp-water-v3b-frame-0')),
+      find.descendant(
+        of: firstTile,
+        matching: find.byKey(
+          ValueKey('base-camp-water-v3b-frame-${placements.first.phaseOffset}'),
+        ),
+      ),
       findsOneWidget,
     );
   });
@@ -389,22 +426,78 @@ void main() {
           of: find.byKey(const ValueKey('base-camp-water-v3b-overlay')),
           matching: find.byType(Image),
         ),
-        findsOneWidget,
+        findsNWidgets(
+          baseCampWaterV3BVisiblePlacements(
+            water: BaseCampMapConfiguration.defaults().waterFx['water']!,
+          ).length,
+        ),
       );
     });
   }
 
-  test('WATER V3B placement uniformly covers MAP without tiling', () {
-    const imageRect = Rect.fromLTWH(0, 0, 1254, 1254);
-    final destination = baseCampWaterV3BDestinationRect(imageRect);
-    expect(destination.center, imageRect.center);
-    expect(destination.width, greaterThanOrEqualTo(imageRect.width));
-    expect(destination.height, greaterThanOrEqualTo(imageRect.height));
+  test('WATER V3B uses deterministic source-space staggered placements', () {
+    final placements = baseCampWaterV3BPlacements();
+    expect(baseCampWaterV3BPatternScale, 1);
+    expect(placements, hasLength(40));
     expect(
-      destination.width / destination.height,
-      closeTo(440 / 248, 0.000001),
+      placements.map((placement) => placement.phaseOffset).toSet().length,
+      greaterThan(8),
     );
+    for (final placement in placements) {
+      expect(placement.sourceRect.size, baseCampWaterV3BSourceSize);
+    }
+    final union = placements
+        .map((placement) => placement.sourceRect)
+        .reduce((left, right) => left.expandToInclude(right));
+    expect(union.left, lessThanOrEqualTo(0));
+    expect(union.top, lessThanOrEqualTo(0));
+    expect(union.right, greaterThanOrEqualTo(baseCampMapArtworkSize.width));
+    expect(union.bottom, greaterThanOrEqualTo(baseCampMapArtworkSize.height));
   });
+
+  test(
+    'approved WATER geometry renders only intersecting source tiles',
+    () async {
+      final configuration = BaseCampMapConfiguration.tryParse(
+        jsonDecode(
+          await File('assets/data/WATER_IMPORT_CORRECTED.json').readAsString(),
+        ),
+      );
+      final water = configuration!.waterFx['water']!;
+      final visible = baseCampWaterV3BVisiblePlacements(water: water);
+
+      expect(visible, hasLength(27));
+      expect(visible.length, lessThan(baseCampWaterV3BPlacements().length));
+      for (final area in water.effectiveAreas) {
+        final areaBounds = (Path()..addPolygon(area.mask, true)).getBounds();
+        expect(
+          visible.any((placement) => placement.sourceRect.overlaps(areaBounds)),
+          isTrue,
+        );
+      }
+    },
+  );
+
+  for (final width in [320.0, 375.0, 390.0, 430.0]) {
+    test('WATER V3B follows the MAP transform at width $width', () {
+      final placement = baseCampWaterV3BPlacements().first;
+      final viewport = baseCampWaterV3BViewportRect(
+        sourceRect: placement.sourceRect,
+        imageRect: Rect.fromLTWH(0, 0, width, width),
+        artworkSize: baseCampMapArtworkSize,
+      );
+      final mapScale = width / baseCampMapArtworkSize.width;
+      expect(
+        viewport.width,
+        closeTo(baseCampWaterV3BSourceSize.width * mapScale, .000001),
+      );
+      expect(
+        viewport.height,
+        closeTo(baseCampWaterV3BSourceSize.height * mapScale, .000001),
+      );
+      expect(viewport.width / viewport.height, closeTo(440 / 248, .000001));
+    });
+  }
 
   test('approved WATER V3B manifest and RGBA frames are bundled', () async {
     final manifestData = await rootBundle.loadString(
@@ -1346,7 +1439,9 @@ void main() {
 
   test('map editor persists the common soldier multiplier', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    final controller = BaseCampMapConfigurationController();
+    final controller = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: _loadApprovedWaterGeometry,
+    );
     await controller.load();
     await controller.save(
       controller.value.copyWith(
@@ -1355,7 +1450,9 @@ void main() {
       ),
     );
 
-    final restored = BaseCampMapConfigurationController();
+    final restored = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: _loadApprovedWaterGeometry,
+    );
     await restored.load();
     expect(restored.value.soldierScale, closeTo(2 / 3, .0001));
     expect(restored.value.foodSmokeOrigin, const Offset(.31, .22));
@@ -1441,6 +1538,7 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     var loads = 0;
     final controller = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: _loadApprovedWaterGeometry,
       preferencesLoader: () async {
         loads++;
         if (loads > 1) throw StateError('storage denied');
@@ -1469,7 +1567,9 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{
         BaseCampMapConfigurationController.storageKey: edited.encode(),
       });
-      final controller = BaseCampMapConfigurationController();
+      final controller = BaseCampMapConfigurationController(
+        approvedWaterGeometryLoader: _loadApprovedWaterGeometry,
+      );
       await controller.load();
       expect(controller.value.soldierScale, 1);
       expect(controller.value.routes['route-b'], edited.routes['route-b']);
@@ -1734,3 +1834,6 @@ Future<void> _pumpUntilWaterFx(WidgetTester tester) async {
   }
   fail('Water FX did not initialize after the facility layer.');
 }
+
+Future<String> _loadApprovedWaterGeometry() async =>
+    File('assets/data/WATER_IMPORT_CORRECTED.json').readAsStringSync();

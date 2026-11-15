@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -275,7 +276,9 @@ void main() {
       expect(controller.value.staticSoldiers, hasLength(1));
       expect(controller.value.staticSoldiers.single.id, 'guard-1');
       expect(controller.value.staticSoldiers.single.scale, closeTo(.8, .001));
-      final restored = BaseCampMapConfigurationController();
+      final restored = BaseCampMapConfigurationController(
+        approvedWaterGeometryLoader: _loadApprovedWaterGeometry,
+      );
       await restored.load();
       expect(restored.value.staticSoldiers, hasLength(1));
       expect(restored.value.staticSoldiers.single.id, 'guard-1');
@@ -321,7 +324,15 @@ void main() {
       hasLength(5),
     );
 
-    final restored = BaseCampMapConfigurationController();
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setInt(
+      BaseCampMapConfigurationController
+          .approvedWaterGeometryCorrectionMarkerKey,
+      BaseCampMapConfigurationController.approvedWaterGeometryCorrectionVersion,
+    );
+    final restored = BaseCampMapConfigurationController(
+      approvedWaterGeometryLoader: _loadApprovedWaterGeometry,
+    );
     await restored.load();
     expect(restored.value.waterFx['water']!.effectiveAreas, hasLength(5));
   });
@@ -670,6 +681,9 @@ void main() {
     expect(find.text('EXCLUSION MASK'), findsOneWidget);
   });
 }
+
+Future<String> _loadApprovedWaterGeometry() async =>
+    File('assets/data/WATER_IMPORT_CORRECTED.json').readAsStringSync();
 
 class _BlockingWaterDraftStore extends BaseCampWaterDraftStore {
   final Completer<void> writeStarted = Completer<void>();

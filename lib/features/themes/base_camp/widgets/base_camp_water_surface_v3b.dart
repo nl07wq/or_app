@@ -6,9 +6,15 @@ import 'package:flutter/material.dart';
 import '../base_camp_map_configuration.dart';
 
 const baseCampWaterV3BSourceSize = Size(440, 248);
+const baseCampWaterV3BMapSourceSize = Size(1254, 1254);
 const baseCampWaterV3BFrameDuration = Duration(milliseconds: 140);
 const baseCampWaterV3BFrameCount = 24;
 const baseCampWaterV3BLoopDuration = Duration(milliseconds: 3360);
+const baseCampWaterV3BPatternScale = 1.0;
+const baseCampWaterV3BHorizontalPitchFactor = .75;
+const baseCampWaterV3BVerticalPitchFactor = .75;
+const baseCampWaterV3BAdjacentRowOffsetFactor = .25;
+const baseCampWaterV3BFeatherFactor = .25;
 const baseCampWaterV3BAssetDirectory =
     'assets/images/themes/base_camp/water_v3b/frames_rgba';
 
@@ -41,20 +47,96 @@ const baseCampWaterV3BFrameAssets = <String>[
 
 int baseCampWaterV3BFrameIndex(int tick) => tick % baseCampWaterV3BFrameCount;
 
-/// Returns one uniformly scaled placement that covers the MAP artwork.
-///
-/// The approved 440:248 source is never stretched independently. A single
-/// centered instance is cropped by the MAP viewport and WATER mask, avoiding
-/// tiles, seams, and motion that is independent from MAP pan/zoom.
-Rect baseCampWaterV3BDestinationRect(Rect imageRect) {
-  final scale = math.max(
-    imageRect.width / baseCampWaterV3BSourceSize.width,
-    imageRect.height / baseCampWaterV3BSourceSize.height,
+@immutable
+class BaseCampWaterV3BPlacement {
+  const BaseCampWaterV3BPlacement({
+    required this.sourceRect,
+    required this.phaseOffset,
+    required this.row,
+    required this.column,
+  });
+
+  final Rect sourceRect;
+  final int phaseOffset;
+  final int row;
+  final int column;
+}
+
+/// Stable, deterministic WATER V3B placements in the 1254×1254 MAP source
+/// coordinate system. Their positions never depend on the physical viewport.
+List<BaseCampWaterV3BPlacement> baseCampWaterV3BPlacements({
+  Size artworkSize = baseCampWaterV3BMapSourceSize,
+  double patternScale = baseCampWaterV3BPatternScale,
+}) {
+  final tileWidth = baseCampWaterV3BSourceSize.width * patternScale;
+  final tileHeight = baseCampWaterV3BSourceSize.height * patternScale;
+  final pitchX = tileWidth * baseCampWaterV3BHorizontalPitchFactor;
+  final pitchY = tileHeight * baseCampWaterV3BVerticalPitchFactor;
+  final rowOffset = tileWidth * baseCampWaterV3BAdjacentRowOffsetFactor;
+  final placements = <BaseCampWaterV3BPlacement>[];
+  var row = 0;
+  for (var y = -pitchY; y < artworkSize.height; y += pitchY, row++) {
+    final firstX = -pitchX + (row.isOdd ? rowOffset : 0);
+    var column = 0;
+    for (var x = firstX; x < artworkSize.width; x += pitchX, column++) {
+      final phase = (row * 7 + column * 5) % baseCampWaterV3BFrameCount;
+      placements.add(
+        BaseCampWaterV3BPlacement(
+          sourceRect: Rect.fromLTWH(x, y, tileWidth, tileHeight),
+          phaseOffset: phase,
+          row: row,
+          column: column,
+        ),
+      );
+    }
+  }
+  return List<BaseCampWaterV3BPlacement>.unmodifiable(placements);
+}
+
+List<BaseCampWaterV3BPlacement> baseCampWaterV3BVisiblePlacements({
+  required BaseCampWaterFx water,
+  Size artworkSize = baseCampWaterV3BMapSourceSize,
+  double patternScale = baseCampWaterV3BPatternScale,
+}) {
+  final waterPaths = <Path>[
+    for (final area in water.effectiveAreas)
+      if (area.mask.length >= 3) Path()..addPolygon(area.mask, true),
+  ];
+  return List<BaseCampWaterV3BPlacement>.unmodifiable(
+    baseCampWaterV3BPlacements(
+      artworkSize: artworkSize,
+      patternScale: patternScale,
+    ).where((placement) {
+      final tilePath = Path()..addRect(placement.sourceRect);
+      return waterPaths.any((waterPath) {
+        if (!waterPath.getBounds().overlaps(placement.sourceRect)) {
+          return false;
+        }
+        final intersection = Path.combine(
+          PathOperation.intersect,
+          waterPath,
+          tilePath,
+        );
+        return intersection.computeMetrics().isNotEmpty;
+      });
+    }),
   );
-  return Rect.fromCenter(
-    center: imageRect.center,
-    width: baseCampWaterV3BSourceSize.width * scale,
-    height: baseCampWaterV3BSourceSize.height * scale,
+}
+
+Rect baseCampWaterV3BViewportRect({
+  required Rect sourceRect,
+  required Rect imageRect,
+  required Size artworkSize,
+}) {
+  final scale = math.min(
+    imageRect.width / artworkSize.width,
+    imageRect.height / artworkSize.height,
+  );
+  return Rect.fromLTWH(
+    imageRect.left + sourceRect.left * scale,
+    imageRect.top + sourceRect.top * scale,
+    sourceRect.width * scale,
+    sourceRect.height * scale,
   );
 }
 
@@ -78,39 +160,108 @@ class BaseCampWaterSurfaceV3BLayer extends StatelessWidget {
   final ValueListenable<int> frameTick;
 
   @override
-  Widget build(BuildContext context) => ClipPath(
-    key: const ValueKey('base-camp-water-mask-clip'),
-    clipper: BaseCampWaterMaskClipper(
+  Widget build(BuildContext context) {
+    // Placement geometry is stable for the lifetime of this presentation.
+    // Compute it outside the 140 ms frame builder so playback allocates no
+    // source-space placement lists or destination rects per tick.
+    final placements = baseCampWaterV3BVisiblePlacements(
       water: water,
-      imageRect: imageRect,
       artworkSize: artworkSize,
-    ),
-    clipBehavior: Clip.hardEdge,
-    child: RepaintBoundary(
-      key: const ValueKey('base-camp-water-v3b-overlay'),
-      child: ValueListenableBuilder<int>(
-        valueListenable: frameTick,
-        builder: (context, tick, _) {
-          final destination = baseCampWaterV3BDestinationRect(imageRect);
-          final frameIndex = baseCampWaterV3BFrameIndex(tick);
-          return Stack(
+    );
+    final viewportRects = placements
+        .map(
+          (placement) => baseCampWaterV3BViewportRect(
+            sourceRect: placement.sourceRect,
+            imageRect: imageRect,
+            artworkSize: artworkSize,
+          ),
+        )
+        .toList(growable: false);
+    return ClipPath(
+      key: const ValueKey('base-camp-water-mask-clip'),
+      clipper: BaseCampWaterMaskClipper(
+        water: water,
+        imageRect: imageRect,
+        artworkSize: artworkSize,
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: RepaintBoundary(
+        key: const ValueKey('base-camp-water-v3b-overlay'),
+        child: ValueListenableBuilder<int>(
+          valueListenable: frameTick,
+          builder: (context, tick, _) => Stack(
             fit: StackFit.expand,
             clipBehavior: Clip.hardEdge,
             children: <Widget>[
-              Positioned.fromRect(
-                rect: destination,
-                child: Image(
-                  key: ValueKey('base-camp-water-v3b-frame-$frameIndex'),
-                  image: AssetImage(baseCampWaterV3BFrameAssets[frameIndex]),
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.medium,
-                  gaplessPlayback: true,
-                  excludeFromSemantics: true,
+              for (var index = 0; index < placements.length; index++)
+                Positioned.fromRect(
+                  rect: viewportRects[index],
+                  child: _BaseCampWaterV3BTile(
+                    key: ValueKey('base-camp-water-v3b-tile-$index'),
+                    frameIndex: baseCampWaterV3BFrameIndex(
+                      tick + placements[index].phaseOffset,
+                    ),
+                  ),
                 ),
-              ),
             ],
-          );
-        },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BaseCampWaterV3BTile extends StatelessWidget {
+  const _BaseCampWaterV3BTile({super.key, required this.frameIndex});
+
+  final int frameIndex;
+
+  static const _horizontalFeather = LinearGradient(
+    colors: <Color>[
+      Colors.transparent,
+      Colors.white,
+      Colors.white,
+      Colors.transparent,
+    ],
+    stops: <double>[
+      0,
+      baseCampWaterV3BFeatherFactor,
+      1 - baseCampWaterV3BFeatherFactor,
+      1,
+    ],
+  );
+
+  static const _verticalFeather = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: <Color>[
+      Colors.transparent,
+      Colors.white,
+      Colors.white,
+      Colors.transparent,
+    ],
+    stops: <double>[
+      0,
+      baseCampWaterV3BFeatherFactor,
+      1 - baseCampWaterV3BFeatherFactor,
+      1,
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    shaderCallback: _horizontalFeather.createShader,
+    blendMode: BlendMode.dstIn,
+    child: ShaderMask(
+      shaderCallback: _verticalFeather.createShader,
+      blendMode: BlendMode.dstIn,
+      child: Image(
+        key: ValueKey('base-camp-water-v3b-frame-$frameIndex'),
+        image: AssetImage(baseCampWaterV3BFrameAssets[frameIndex]),
+        fit: BoxFit.fill,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+        excludeFromSemantics: true,
       ),
     ),
   );

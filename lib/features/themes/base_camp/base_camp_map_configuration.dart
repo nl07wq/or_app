@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/startup_diagnostic.dart';
@@ -1717,11 +1718,30 @@ class BaseCampMapConfigurationController
     extends ValueNotifier<BaseCampMapConfiguration> {
   BaseCampMapConfigurationController({
     Future<SharedPreferences> Function()? preferencesLoader,
+    Future<String> Function()? approvedWaterGeometryLoader,
+    Future<bool> Function(SharedPreferences, String, String)? storageWriter,
   }) : _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance,
+       _approvedWaterGeometryLoader =
+           approvedWaterGeometryLoader ??
+           (() => rootBundle.loadString(approvedWaterGeometryAsset)),
+       _storageWriter =
+           storageWriter ??
+           ((preferences, key, value) => preferences.setString(key, value)),
        super(BaseCampMapConfiguration.defaults());
 
   static const storageKey = 'base_camp_map_editor_v1';
+  static const approvedWaterGeometryAsset =
+      'assets/data/WATER_IMPORT_CORRECTED.json';
+  static const approvedWaterGeometrySha256 =
+      '9e78e8f2a5e7ac78b2d70e8e913dffe5919d8ad9656fd77b7aa939c8178e002c';
+  static const approvedWaterGeometryCorrectionVersion = 1;
+  static const approvedWaterGeometryCorrectionMarkerKey =
+      'base_camp_water_geometry_correction_version';
+  static const approvedWaterGeometryBackupKey =
+      'base_camp_water_geometry_before_correction_v1';
   final Future<SharedPreferences> Function() _preferencesLoader;
+  final Future<String> Function() _approvedWaterGeometryLoader;
+  final Future<bool> Function(SharedPreferences, String, String) _storageWriter;
   bool _loaded = false;
   String? _lastLoadFailureStage;
 
@@ -1736,13 +1756,19 @@ class BaseCampMapConfigurationController
     try {
       final preferences = await _preferencesLoader();
       final raw = preferences.getString(storageKey);
-      if (raw == null) return;
-      final restored = BaseCampMapConfiguration.tryParse(jsonDecode(raw));
+      final restored = raw == null
+          ? BaseCampMapConfiguration.defaults()
+          : BaseCampMapConfiguration.tryParse(jsonDecode(raw));
       if (restored != null) {
-        value = restored;
+        final corrected = await _applyApprovedWaterGeometryCorrection(
+          preferences: preferences,
+          originalRaw: raw,
+          current: restored,
+        );
+        value = corrected ?? restored;
         // Persist compatible schema and obsolete 2/1 multiplier migrations
         // immediately, without changing any route or facility-outline payload.
-        if (restored.encode() != raw) {
+        if (corrected == null && raw != null && restored.encode() != raw) {
           await preferences.setString(storageKey, restored.encode());
         }
       }
@@ -1755,6 +1781,176 @@ class BaseCampMapConfigurationController
       // untouched for later recovery and record only its error category.
       _recordLoadFailure('storage_or_restore_${error.runtimeType}');
     }
+  }
+
+  Future<BaseCampMapConfiguration?> _applyApprovedWaterGeometryCorrection({
+    required SharedPreferences preferences,
+    required String? originalRaw,
+    required BaseCampMapConfiguration current,
+  }) async {
+    final marker = preferences.getInt(approvedWaterGeometryCorrectionMarkerKey);
+    if (marker != null) {
+      if (marker == approvedWaterGeometryCorrectionVersion) return null;
+      if (marker > approvedWaterGeometryCorrectionVersion || marker < 0) {
+        StartupDiagnostic.instance.record(
+          'BASE_CAMP',
+          'WATER_GEOMETRY_CORRECTION_CONFLICT',
+          fields: <String, Object?>{
+            'storedVersion': marker,
+            'supportedVersion': approvedWaterGeometryCorrectionVersion,
+          },
+        );
+        return null;
+      }
+    }
+
+    final approvedSource = await _approvedWaterGeometryLoader();
+    final approvedRoot = jsonDecode(approvedSource);
+    final approvedConfiguration = BaseCampMapConfiguration.tryParse(
+      approvedRoot,
+    );
+    final approvedWater = approvedConfiguration?.waterFx['water'];
+    final currentWater = current.waterFx['water'];
+    if (approvedWater == null ||
+        currentWater == null ||
+        !_isApprovedWaterGeometry(approvedWater)) {
+      throw const FormatException('Approved WATER correction is invalid');
+    }
+
+    final approvedAreas = approvedWater.effectiveAreas;
+    final correctedWater = currentWater.copyWith(
+      areas: List<BaseCampWaterArea>.of(approvedAreas),
+      mask: List<Offset>.of(approvedAreas.first.mask),
+      shoreline: List<Offset>.of(approvedAreas.first.shoreline),
+      exclusionMasks: approvedAreas.first.exclusionMasks
+          .map((polygon) => List<Offset>.of(polygon))
+          .toList(growable: false),
+    );
+    final corrected = current.copyWith(
+      waterFx: <String, BaseCampWaterFx>{
+        ...current.waterFx,
+        'water': correctedWater,
+      },
+    );
+    final alreadyApproved = _sameCorrectionAreas(
+      currentWater.effectiveAreas,
+      approvedAreas,
+    );
+
+    if (!alreadyApproved) {
+      if (originalRaw != null &&
+          !preferences.containsKey(approvedWaterGeometryBackupKey)) {
+        final backupSaved = await _storageWriter(
+          preferences,
+          approvedWaterGeometryBackupKey,
+          originalRaw,
+        );
+        if (!backupSaved) {
+          throw StateError('WATER geometry backup was rejected');
+        }
+      }
+      final saved = await _storageWriter(
+        preferences,
+        storageKey,
+        corrected.encode(),
+      );
+      if (!saved) {
+        throw StateError('WATER geometry correction was rejected');
+      }
+    } else if (originalRaw == null) {
+      final saved = await _storageWriter(
+        preferences,
+        storageKey,
+        corrected.encode(),
+      );
+      if (!saved) {
+        throw StateError('WATER geometry initialization was rejected');
+      }
+    }
+
+    final marked = await preferences.setInt(
+      approvedWaterGeometryCorrectionMarkerKey,
+      approvedWaterGeometryCorrectionVersion,
+    );
+    if (!marked) {
+      StartupDiagnostic.instance.record(
+        'BASE_CAMP',
+        'WATER_GEOMETRY_CORRECTION_MARKER_FAILED',
+        fields: const <String, Object?>{
+          'version': approvedWaterGeometryCorrectionVersion,
+        },
+      );
+    }
+    StartupDiagnostic.instance.record(
+      'BASE_CAMP',
+      'WATER_GEOMETRY_CORRECTION_COMPLETE',
+      fields: <String, Object?>{
+        'version': approvedWaterGeometryCorrectionVersion,
+        'alreadyApproved': alreadyApproved,
+        'areaCount': approvedAreas.length,
+        'exclusionCount': approvedAreas.fold<int>(
+          0,
+          (count, area) => count + area.exclusionMasks.length,
+        ),
+      },
+    );
+    return corrected;
+  }
+
+  static bool _isApprovedWaterGeometry(BaseCampWaterFx effect) {
+    const expectedVertices = <int>[18, 12, 18, 35];
+    const expectedExclusions = <int>[3, 0, 2, 2];
+    final areas = effect.effectiveAreas;
+    if (areas.length != expectedVertices.length) return false;
+    for (var index = 0; index < areas.length; index++) {
+      if (areas[index].mask.length != expectedVertices[index] ||
+          areas[index].shoreline.length < 2 ||
+          areas[index].exclusionMasks.length != expectedExclusions[index]) {
+        return false;
+      }
+    }
+    return _sameCorrectionPoints(effect.mask, areas.first.mask) &&
+        _sameCorrectionPoints(effect.shoreline, areas.first.shoreline) &&
+        effect.exclusionMasks.length == areas.first.exclusionMasks.length;
+  }
+
+  static bool _sameCorrectionAreas(
+    List<BaseCampWaterArea> left,
+    List<BaseCampWaterArea> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (!_sameCorrectionPoints(left[index].mask, right[index].mask) ||
+          !_sameCorrectionPoints(
+            left[index].shoreline,
+            right[index].shoreline,
+          ) ||
+          left[index].exclusionMasks.length !=
+              right[index].exclusionMasks.length) {
+        return false;
+      }
+      for (
+        var exclusion = 0;
+        exclusion < left[index].exclusionMasks.length;
+        exclusion++
+      ) {
+        if (!_sameCorrectionPoints(
+          left[index].exclusionMasks[exclusion],
+          right[index].exclusionMasks[exclusion],
+        )) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  static bool _sameCorrectionPoints(List<Offset> left, List<Offset> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
   }
 
   void _recordLoadFailure(String stage) {
@@ -1787,7 +1983,41 @@ class BaseCampMapConfigurationController
     value = normalised;
   }
 
-  Future<void> resetToDefaults() => save(BaseCampMapConfiguration.defaults());
+  Future<void> resetToDefaults() async {
+    // RESET remains an explicit user action, but it must not resurrect the
+    // pre-correction WATER geometry after the one-time marker has been set.
+    // The approved asset is the single source of truth for the reset shape;
+    // all non-WATER defaults retain their existing implementation.
+    final approvedRoot = jsonDecode(await _approvedWaterGeometryLoader());
+    final approvedConfiguration = BaseCampMapConfiguration.tryParse(
+      approvedRoot,
+    );
+    final approvedWater = approvedConfiguration?.waterFx['water'];
+    if (approvedWater == null || !_isApprovedWaterGeometry(approvedWater)) {
+      throw const FormatException('Approved WATER correction is invalid');
+    }
+    final defaults = BaseCampMapConfiguration.defaults();
+    final defaultWater = defaults.waterFx['water'];
+    if (defaultWater == null) {
+      throw const FormatException('Default WATER configuration is missing');
+    }
+    final approvedAreas = approvedWater.effectiveAreas;
+    await save(
+      defaults.copyWith(
+        waterFx: <String, BaseCampWaterFx>{
+          ...defaults.waterFx,
+          'water': defaultWater.copyWith(
+            areas: List<BaseCampWaterArea>.of(approvedAreas),
+            mask: List<Offset>.of(approvedAreas.first.mask),
+            shoreline: List<Offset>.of(approvedAreas.first.shoreline),
+            exclusionMasks: approvedAreas.first.exclusionMasks
+                .map((polygon) => List<Offset>.of(polygon))
+                .toList(growable: false),
+          ),
+        },
+      ),
+    );
+  }
 
   @visibleForTesting
   void resetForTesting(BaseCampMapConfiguration configuration) {
