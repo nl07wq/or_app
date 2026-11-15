@@ -137,7 +137,9 @@ const baseCampMapArtworkSize = Size(1254, 1254);
 
 /// A single translucent compositing layer keeps the night treatment cheap on
 /// WebKit while preserving the original full-colour map underneath it.
-const baseCampMapNightOverlayColor = Color(0x4A0A2230);
+const baseCampMapNightOverlayColor = Color(0x560A2230);
+const baseCampWaterPrimaryMotionColor = Color(0x164E9A9A);
+const baseCampWaterSecondaryMotionColor = Color(0x1276A9A1);
 const baseCampWaterMotionStep = Duration(milliseconds: 900);
 
 bool baseCampMapUsesNightFilter(DateTime localTime) =>
@@ -1519,7 +1521,7 @@ class _BaseCampWaterMotionLayer extends StatelessWidget {
                 spacing: 42,
                 bandHeight: 6,
                 angle: .018,
-                color: Color(0x0B4E9A9A),
+                color: baseCampWaterPrimaryMotionColor,
               ),
             ),
           ),
@@ -1531,7 +1533,7 @@ class _BaseCampWaterMotionLayer extends StatelessWidget {
                 spacing: 61,
                 bandHeight: 4,
                 angle: -.026,
-                color: Color(0x0876A9A1),
+                color: baseCampWaterSecondaryMotionColor,
               ),
             ),
           ),

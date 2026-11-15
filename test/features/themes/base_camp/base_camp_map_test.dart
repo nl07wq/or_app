@@ -44,6 +44,7 @@ void main() {
   });
 
   test('day and night boundaries use local wall-clock time', () {
+    expect(baseCampMapNightOverlayColor.toARGB32(), 0x560A2230);
     expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 5, 59)), isTrue);
     expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 6)), isFalse);
     expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 17, 59)), isFalse);
@@ -284,6 +285,8 @@ void main() {
     expect(after.y, greaterThan(before.y));
     expect(secondaryAfter.y, lessThan(secondaryBefore.y));
     expect(after.y - before.y, isNot(secondaryBefore.y - secondaryAfter.y));
+    expect(baseCampWaterPrimaryMotionColor.toARGB32(), 0x164E9A9A);
+    expect(baseCampWaterSecondaryMotionColor.toARGB32(), 0x1276A9A1);
     expect(tester.takeException(), isNull);
 
     final trace = SystemDiagnostics.instance.copyText();
