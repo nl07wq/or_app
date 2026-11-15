@@ -27,6 +27,7 @@ import 'services/training_v2_form_mapper.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 import '../food/widgets/food_saved_floating_hud.dart';
+import '../themes/base_camp/base_camp_retro_terminal.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_dot_matrix_title.dart';
@@ -504,19 +505,25 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingDate) {
-      return const TrainingKineticScaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return const BaseCampRetroTerminalScreen(
+        screenKey: 'training',
+        child: TrainingKineticScaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
     if (_dateLoadError != null) {
-      return TrainingKineticScaffold(
-        appBar: AppBar(
-          leading: Navigator.canPop(context)
-              ? const TrainingLedBackButton()
-              : null,
-          title: const TrainingDotMatrixTitle(),
+      return BaseCampRetroTerminalScreen(
+        screenKey: 'training',
+        child: TrainingKineticScaffold(
+          appBar: AppBar(
+            leading: Navigator.canPop(context)
+                ? const TrainingLedBackButton()
+                : null,
+            title: const TrainingDotMatrixTitle(),
+          ),
+          body: const Center(child: Text('Operation Dateを取得できませんでした。')),
         ),
-        body: const Center(child: Text('Operation Dateを取得できませんでした。')),
       );
     }
     final active = !_isEditing && _form.startTime != null;
@@ -526,217 +533,220 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       isPaused: _form.isPaused,
       isEditing: _isEditing,
     );
-    return TrainingKineticScaffold(
-      appBar: AppBar(
-        leading: Navigator.canPop(context)
-            ? TrainingLedBackButton(
-                activeColor: switch (presentationState) {
-                  TrainingPresentationState.active => AppColors.success,
-                  TrainingPresentationState.paused => AppColors.warning,
-                  _ => AppColors.primary,
-                },
-              )
-            : null,
-        // The title is deliberately in the full-width flexible space instead
-        // of AppBar.title.  AppBar lays its title out between leading and
-        // trailing controls, which shifts it when the recording badge is
-        // present.  This overlay keeps the title locked to the viewport
-        // center while leaving the controls independently tappable.
-        flexibleSpace: SafeArea(
-          bottom: false,
-          child: IgnorePointer(
-            child: Center(
-              child: _TrainingAppBarTitle(
-                state: presentationState,
-                animateArrival:
-                    presentationState == TrainingPresentationState.active &&
-                    !_confirmationOpen,
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'training',
+      child: TrainingKineticScaffold(
+        appBar: AppBar(
+          leading: Navigator.canPop(context)
+              ? TrainingLedBackButton(
+                  activeColor: switch (presentationState) {
+                    TrainingPresentationState.active => AppColors.success,
+                    TrainingPresentationState.paused => AppColors.warning,
+                    _ => AppColors.primary,
+                  },
+                )
+              : null,
+          // The title is deliberately in the full-width flexible space instead
+          // of AppBar.title.  AppBar lays its title out between leading and
+          // trailing controls, which shifts it when the recording badge is
+          // present.  This overlay keeps the title locked to the viewport
+          // center while leaving the controls independently tappable.
+          flexibleSpace: SafeArea(
+            bottom: false,
+            child: IgnorePointer(
+              child: Center(
+                child: _TrainingAppBarTitle(
+                  state: presentationState,
+                  animateArrival:
+                      presentationState == TrainingPresentationState.active &&
+                      !_confirmationOpen,
+                ),
               ),
             ),
           ),
-        ),
-        actions: [
-          if (presentationState == TrainingPresentationState.active ||
-              presentationState == TrainingPresentationState.paused)
-            _TrainingAppBarStateBadge(state: presentationState),
-          OperationMenuButton(
-            items: [
-              OperationMenuItem(
-                icon: Icons.delete_sweep_outlined,
-                title: 'DISCARD SESSION',
-                onTap: () => unawaited(_discardOrClearSession()),
-              ),
-              OperationMenuItem(
-                icon: Icons.library_books_outlined,
-                title: 'TRAINING PLAN',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          TrainingPlanPage(onSelect: _replaceExercises),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: AppSpacing.cardPadding,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900),
-            child: Theme(
-              key: ValueKey(switch (presentationState) {
-                TrainingPresentationState.active => 'training-green-base',
-                TrainingPresentationState.paused => 'training-amber-base',
-                _ => 'training-blue-base',
-              }),
-              data: _trainingEntryTheme(context, state: presentationState),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_form.hasPlan) ...[
-                    Theme(
-                      data: Theme.of(context),
-                      child: OperationCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SectionHeader(
-                              icon: Icons.event_note_outlined,
-                              title: 'PLAN READY',
-                            ),
-                            if (_form.planSourceOperationDate != null) ...[
-                              AppSpacing.gapSM,
-                              Text(
-                                'REFERENCE  ${_form.planSourceOperationDate}',
-                                key: const ValueKey(
-                                  'active-training-plan-reference',
-                                ),
-                                style: Theme.of(context).textTheme.labelLarge,
-                              ),
-                            ],
-                            if (_form.planNote != null) ...[
-                              AppSpacing.gapSM,
-                              Text(_form.planNote!),
-                            ],
-                          ],
-                        ),
+          actions: [
+            if (presentationState == TrainingPresentationState.active ||
+                presentationState == TrainingPresentationState.paused)
+              _TrainingAppBarStateBadge(state: presentationState),
+            OperationMenuButton(
+              items: [
+                OperationMenuItem(
+                  icon: Icons.delete_sweep_outlined,
+                  title: 'DISCARD SESSION',
+                  onTap: () => unawaited(_discardOrClearSession()),
+                ),
+                OperationMenuItem(
+                  icon: Icons.library_books_outlined,
+                  title: 'TRAINING PLAN',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            TrainingPlanPage(onSelect: _replaceExercises),
                       ),
-                    ),
-                    AppSpacing.gapMD,
-                  ],
-                  TrainingSessionV2Form(
-                    controller: _form,
-                    active: active,
-                    onChanged: _handleEntryChanged,
-                    onStartTraining: _startTraining,
-                    onEndTraining: _endTraining,
-                    onUndoEnd: _undoEnd,
-                    onEditStartTime: _editStartTime,
-                    onEditEndTime: _editEndTime,
-                  ),
-                  AppSpacing.gapMD,
-                  const SectionHeader(
-                    icon: Icons.fitness_center,
-                    title: 'EXERCISE',
-                  ),
-                  AppSpacing.gapMD,
-                  ReorderableListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    buildDefaultDragHandles: false,
-                    itemCount: _form.exercises.length,
-                    onReorderItem: (oldIndex, newIndex) {
-                      final exercise = _form.exercises.removeAt(oldIndex);
-                      _form.exercises.insert(newIndex, exercise);
-                      _handleEntryChanged();
-                    },
-                    itemBuilder: (context, index) {
-                      final exercise = _form.exercises[index];
-                      return Padding(
-                        key: ValueKey(
-                          'training-exercise-${exercise.instanceId}',
-                        ),
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: TrainingExerciseV2Editor(
-                          index: index,
-                          controller: exercise,
-                          preferredRecords: _preferredRecords,
-                          targetRecord: widget.existingRecord,
-                          sessionDate: _form.date,
-                          expanded: identical(_expandedItem, exercise),
-                          onToggle: () => _toggle(exercise),
-                          onDelete: () => _confirmDeleteExercise(exercise),
-                          onChanged: _handleEntryChanged,
-                          onAttachmentRequested: () {
-                            if (_form.attachDetachedPlanForNewExercise(
-                              exercise,
-                            )) {
-                              _handleEntryChanged();
-                            }
-                          },
-                          reorderHandle: ReorderableDelayedDragStartListener(
-                            index: index,
-                            child: const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Icon(Icons.drag_handle),
-                            ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: AppSpacing.cardPadding,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: Theme(
+                key: ValueKey(switch (presentationState) {
+                  TrainingPresentationState.active => 'training-green-base',
+                  TrainingPresentationState.paused => 'training-amber-base',
+                  _ => 'training-blue-base',
+                }),
+                data: _trainingEntryTheme(context, state: presentationState),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_form.hasPlan) ...[
+                      Theme(
+                        data: Theme.of(context),
+                        child: OperationCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SectionHeader(
+                                icon: Icons.event_note_outlined,
+                                title: 'PLAN READY',
+                              ),
+                              if (_form.planSourceOperationDate != null) ...[
+                                AppSpacing.gapSM,
+                                Text(
+                                  'REFERENCE  ${_form.planSourceOperationDate}',
+                                  key: const ValueKey(
+                                    'active-training-plan-reference',
+                                  ),
+                                  style: Theme.of(context).textTheme.labelLarge,
+                                ),
+                              ],
+                              if (_form.planNote != null) ...[
+                                AppSpacing.gapSM,
+                                Text(_form.planNote!),
+                              ],
+                            ],
                           ),
                         ),
-                      );
-                    },
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      _expandedItem = _form.addExercise();
-                      _handleEntryChanged();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('ADD EXERCISE'),
-                  ).actionableFeedback(),
-                  AppSpacing.gapMD,
-                  const SectionHeader(
-                    icon: Icons.directions_run,
-                    title: 'CARDIO',
-                  ),
-                  AppSpacing.gapMD,
-                  for (final (index, cardio) in _form.cardioEntries.indexed)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TrainingCardioV2Editor(
-                        index: index,
-                        controller: cardio,
-                        expanded: identical(_expandedItem, cardio),
-                        calorieResult: _cardioPreview(cardio),
-                        onToggle: () => _toggle(cardio),
-                        onDelete: () => _confirmDeleteCardio(cardio),
-                        onChanged: _handleEntryChanged,
+                      ),
+                      AppSpacing.gapMD,
+                    ],
+                    TrainingSessionV2Form(
+                      controller: _form,
+                      active: active,
+                      onChanged: _handleEntryChanged,
+                      onStartTraining: _startTraining,
+                      onEndTraining: _endTraining,
+                      onUndoEnd: _undoEnd,
+                      onEditStartTime: _editStartTime,
+                      onEditEndTime: _editEndTime,
+                    ),
+                    AppSpacing.gapMD,
+                    const SectionHeader(
+                      icon: Icons.fitness_center,
+                      title: 'EXERCISE',
+                    ),
+                    AppSpacing.gapMD,
+                    ReorderableListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      buildDefaultDragHandles: false,
+                      itemCount: _form.exercises.length,
+                      onReorderItem: (oldIndex, newIndex) {
+                        final exercise = _form.exercises.removeAt(oldIndex);
+                        _form.exercises.insert(newIndex, exercise);
+                        _handleEntryChanged();
+                      },
+                      itemBuilder: (context, index) {
+                        final exercise = _form.exercises[index];
+                        return Padding(
+                          key: ValueKey(
+                            'training-exercise-${exercise.instanceId}',
+                          ),
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: TrainingExerciseV2Editor(
+                            index: index,
+                            controller: exercise,
+                            preferredRecords: _preferredRecords,
+                            targetRecord: widget.existingRecord,
+                            sessionDate: _form.date,
+                            expanded: identical(_expandedItem, exercise),
+                            onToggle: () => _toggle(exercise),
+                            onDelete: () => _confirmDeleteExercise(exercise),
+                            onChanged: _handleEntryChanged,
+                            onAttachmentRequested: () {
+                              if (_form.attachDetachedPlanForNewExercise(
+                                exercise,
+                              )) {
+                                _handleEntryChanged();
+                              }
+                            },
+                            reorderHandle: ReorderableDelayedDragStartListener(
+                              index: index,
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(Icons.drag_handle),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _expandedItem = _form.addExercise();
+                        _handleEntryChanged();
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('ADD EXERCISE'),
+                    ).actionableFeedback(),
+                    AppSpacing.gapMD,
+                    const SectionHeader(
+                      icon: Icons.directions_run,
+                      title: 'CARDIO',
+                    ),
+                    AppSpacing.gapMD,
+                    for (final (index, cardio) in _form.cardioEntries.indexed)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: TrainingCardioV2Editor(
+                          index: index,
+                          controller: cardio,
+                          expanded: identical(_expandedItem, cardio),
+                          calorieResult: _cardioPreview(cardio),
+                          onToggle: () => _toggle(cardio),
+                          onDelete: () => _confirmDeleteCardio(cardio),
+                          onChanged: _handleEntryChanged,
+                        ),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _form.addCardio();
+                        _expandedItem = _form.cardioEntries.last;
+                        _handleEntryChanged();
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('ADD CARDIO'),
+                    ).actionableFeedback(),
+                    AppSpacing.gapMD,
+                    SizedBox(
+                      height: 48,
+                      child: OperationButton(
+                        icon: Icons.save,
+                        text: _isEditing ? 'UPDATE TRAINING' : 'SAVE TRAINING',
+                        deferFeedback: true,
+                        onPressed: _isSaving ? null : _save,
                       ),
                     ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      _form.addCardio();
-                      _expandedItem = _form.cardioEntries.last;
-                      _handleEntryChanged();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('ADD CARDIO'),
-                  ).actionableFeedback(),
-                  AppSpacing.gapMD,
-                  SizedBox(
-                    height: 48,
-                    child: OperationButton(
-                      icon: Icons.save,
-                      text: _isEditing ? 'UPDATE TRAINING' : 'SAVE TRAINING',
-                      deferFeedback: true,
-                      onPressed: _isSaving ? null : _save,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

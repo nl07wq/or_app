@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../themes/base_camp/base_camp_presentation.dart';
+import '../themes/base_camp/base_camp_retro_terminal.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -691,37 +692,42 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   @override
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.paddingOf(context);
-    return AmbientPageScaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        forceMaterialTransparency: true,
-        leading: Navigator.canPop(context)
-            ? const ActivityMechanicalBackButton()
-            : null,
-        title: BaseCampPresentation.isActive(context)
-            ? const Text('ACTIVITY ENTRY')
-            : const ActivityMechanicalCounterTitle(
-                mode: ActivityMechanicalCounterMode.entry,
-              ),
-      ),
-      ambient: BaseCampPresentation.isActive(context)
-          ? const SizedBox.shrink()
-          : const ActivityAmbientBackground(),
-      body: switch (_mode) {
-        _EntryMode.loading => const Center(child: CircularProgressIndicator()),
-        _EntryMode.error => _LoadError(
-          error: _loadError,
-          onRetry: () =>
-              _initializeForDate(_date, suppliedRecord: widget.initialData),
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'activity-entry',
+      child: AmbientPageScaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          forceMaterialTransparency: true,
+          leading: Navigator.canPop(context)
+              ? const ActivityMechanicalBackButton()
+              : null,
+          title: BaseCampPresentation.isActive(context)
+              ? const Text('ACTIVITY ENTRY')
+              : const ActivityMechanicalCounterTitle(
+                  mode: ActivityMechanicalCounterMode.entry,
+                ),
         ),
-        _EntryMode.locked => _ConfirmedActivityLock(date: _date),
-        _EntryMode.draft || _EntryMode.formal => _buildEntryBody(viewPadding),
-      },
+        ambient: BaseCampPresentation.isActive(context)
+            ? const SizedBox.shrink()
+            : const ActivityAmbientBackground(),
+        body: switch (_mode) {
+          _EntryMode.loading => const Center(
+            child: CircularProgressIndicator(),
+          ),
+          _EntryMode.error => _LoadError(
+            error: _loadError,
+            onRetry: () =>
+                _initializeForDate(_date, suppliedRecord: widget.initialData),
+          ),
+          _EntryMode.locked => _ConfirmedActivityLock(date: _date),
+          _EntryMode.draft || _EntryMode.formal => _buildEntryBody(viewPadding),
+        },
+      ),
     );
   }
 

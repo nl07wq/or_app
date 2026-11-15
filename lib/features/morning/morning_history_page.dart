@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../themes/base_camp/base_camp_presentation.dart';
+import '../themes/base_camp/base_camp_retro_terminal.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -77,63 +78,68 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
-    return AmbientPageScaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        forceMaterialTransparency: true,
-        leading: Navigator.canPop(context) ? const StatusCrtBackButton() : null,
-        title: BaseCampPresentation.isActive(context)
-            ? const Text('STATUS RECORD')
-            : const StatusCrtMonitorTitle(title: 'STATUS RECORD'),
-      ),
-      ambient: BaseCampPresentation.isActive(context)
-          ? const SizedBox.shrink()
-          : const StatusAmbientBackground(),
-      body: FutureBuilder<List<MorningData>>(
-        future: _records,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'status-record',
+      child: AmbientPageScaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          forceMaterialTransparency: true,
+          leading: Navigator.canPop(context)
+              ? const StatusCrtBackButton()
+              : null,
+          title: BaseCampPresentation.isActive(context)
+              ? const Text('STATUS RECORD')
+              : const StatusCrtMonitorTitle(title: 'STATUS RECORD'),
+        ),
+        ambient: BaseCampPresentation.isActive(context)
+            ? const SizedBox.shrink()
+            : const StatusAmbientBackground(),
+        body: FutureBuilder<List<MorningData>>(
+          future: _records,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          final records = snapshot.data!;
+            final records = snapshot.data!;
 
-          if (records.isEmpty) {
-            return const Center(child: Text('No Morning Records'));
-          }
+            if (records.isEmpty) {
+              return const Center(child: Text('No Morning Records'));
+            }
 
-          return ListView.separated(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.cardPadding.left,
-              topInset + AppSpacing.cardPadding.top,
-              AppSpacing.cardPadding.right,
-              AppSpacing.cardPadding.bottom,
-            ),
-            itemCount: records.length,
-            separatorBuilder: (_, _) => AppSpacing.gapMD,
-            itemBuilder: (context, index) {
-              final data = records[index];
+            return ListView.separated(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.cardPadding.left,
+                topInset + AppSpacing.cardPadding.top,
+                AppSpacing.cardPadding.right,
+                AppSpacing.cardPadding.bottom,
+              ),
+              itemCount: records.length,
+              separatorBuilder: (_, _) => AppSpacing.gapMD,
+              itemBuilder: (context, index) {
+                final data = records[index];
 
-              return DashboardGlassCard(
-                child: _StatusRecordPlate(
-                  data: data,
-                  formatTime: formatTime,
-                  onEdit: appInitializationController.value.isReadOnly
-                      ? null
-                      : () => _editRecord(data),
-                  onDelete: appInitializationController.value.isReadOnly
-                      ? null
-                      : () => _deleteRecord(data),
-                ),
-              );
-            },
-          );
-        },
+                return DashboardGlassCard(
+                  child: _StatusRecordPlate(
+                    data: data,
+                    formatTime: formatTime,
+                    onEdit: appInitializationController.value.isReadOnly
+                        ? null
+                        : () => _editRecord(data),
+                    onDelete: appInitializationController.value.isReadOnly
+                        ? null
+                        : () => _deleteRecord(data),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

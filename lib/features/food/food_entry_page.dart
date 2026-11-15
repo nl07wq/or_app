@@ -5,6 +5,8 @@ import '../../core/navigation/app_routes.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../operation_date/services/operation_date_service.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
+import '../themes/base_camp/base_camp_retro_terminal.dart';
 
 import 'services/food_submit_service.dart';
 import '../repositories/app_repository_container.dart';
@@ -187,43 +189,60 @@ class _FoodEntryPageState extends State<FoodEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) FocusScope.of(context).unfocus();
-      },
-      child: FoodFeatureScaffold(
-        appBar: foodFeatureAppBar(
-          title: 'FOOD ENTRY',
-          leading: Navigator.canPop(context) ? const FoodVfdBackButton() : null,
-          mode: FoodVfdScaleDisplayMode.entry,
-        ),
-        body: _localDate == null && _dateLoadError == null
-            ? const Center(child: CircularProgressIndicator())
-            : _dateLoadError != null
-            ? const Center(child: Text('Operation Dateを取得できませんでした。'))
-            : Padding(
-                padding: const EdgeInsets.all(16),
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  child: Column(
-                    children: [
-                      FoodInputForm(
-                        onSave: save,
-                        onSaveWithCatalog: saveWithCatalog,
-                        onSaveWithSources: saveWithSources,
-                        scrollController: _scrollController,
-                      ),
-                      const SizedBox(height: 20),
-                      ValueListenableBuilder(
-                        valueListenable: foodSummaryNotifier,
-                        builder: (context, summary, _) => summary == null
-                            ? const SizedBox.shrink()
-                            : FoodSummaryCard(summary: summary),
-                      ),
-                    ],
+    return BaseCampRetroTerminalScreen(
+      screenKey: 'food-entry',
+      child: PopScope(
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) FocusScope.of(context).unfocus();
+        },
+        child: FoodFeatureScaffold(
+          appBar: BaseCampPresentation.isActive(context)
+              ? AppBar(
+                  centerTitle: true,
+                  backgroundColor: BaseCampTerminalPalette.housing,
+                  foregroundColor: const Color(0xffaeb894),
+                  surfaceTintColor: Colors.transparent,
+                  scrolledUnderElevation: 0,
+                  leading: Navigator.canPop(context)
+                      ? const FoodVfdBackButton()
+                      : null,
+                  title: const Text('FOOD ENTRY'),
+                )
+              : foodFeatureAppBar(
+                  title: 'FOOD ENTRY',
+                  leading: Navigator.canPop(context)
+                      ? const FoodVfdBackButton()
+                      : null,
+                  mode: FoodVfdScaleDisplayMode.entry,
+                ),
+          body: _localDate == null && _dateLoadError == null
+              ? const Center(child: CircularProgressIndicator())
+              : _dateLoadError != null
+              ? const Center(child: Text('Operation Dateを取得できませんでした。'))
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: Column(
+                      children: [
+                        FoodInputForm(
+                          onSave: save,
+                          onSaveWithCatalog: saveWithCatalog,
+                          onSaveWithSources: saveWithSources,
+                          scrollController: _scrollController,
+                        ),
+                        const SizedBox(height: 20),
+                        ValueListenableBuilder(
+                          valueListenable: foodSummaryNotifier,
+                          builder: (context, summary, _) => summary == null
+                              ? const SizedBox.shrink()
+                              : FoodSummaryCard(summary: summary),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+        ),
       ),
     );
   }
