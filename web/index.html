@@ -132,23 +132,52 @@
     // Flutter web builds from before the current non-PWA deployment could
     // leave a scoped Flutter service worker alive.  That worker may return an
     // old application shell together with a newer bundle after a deployment.
-    // Retire only workers scoped to this application; do not touch IndexedDB,
-    // localStorage, Cache Storage, or any application data.
+    // Retire only identifiable legacy Flutter workers. The notification
+    // worker intentionally shares the application scope, so scope alone is
+    // never sufficient evidence for unregistering a worker.
     window.__orAppStartupRecovery = (async function () {
       if (!('serviceWorker' in navigator)) return;
       const basePath = new URL(document.baseURI).pathname;
       const reloadKey = 'or_app.legacy_service_worker_retired.v1';
+      const workerScripts = function (registration) {
+        return [registration.active, registration.waiting, registration.installing]
+          .filter(Boolean)
+          .map(function (worker) {
+            try {
+              return new URL(worker.scriptURL, document.baseURI).pathname;
+            } catch (_) {
+              return null;
+            }
+          });
+      };
+      const scriptNameIs = function (pathname, name) {
+        return typeof pathname === 'string' && pathname.endsWith('/' + name);
+      };
+      const isLegacyFlutterRegistration = function (registration) {
+        let inApplicationScope = false;
+        try {
+          inApplicationScope = new URL(registration.scope).pathname.indexOf(basePath) === 0;
+        } catch (_) {
+          return false;
+        }
+        if (!inApplicationScope) return false;
+        const scripts = workerScripts(registration);
+        if (scripts.length === 0 || scripts.some(function (script) { return script === null; })) {
+          return false;
+        }
+        if (scripts.some(function (script) {
+          return scriptNameIs(script, 'or_app_push_sw.js');
+        })) {
+          return false;
+        }
+        return scripts.every(function (script) {
+          return scriptNameIs(script, 'flutter_service_worker.js');
+        });
+      };
       try {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        const appRegistrations = registrations.filter(function (registration) {
-          try {
-            return new URL(registration.scope).pathname.indexOf(basePath) === 0;
-          } catch (_) {
-            return false;
-          }
-        });
-        const hadController = !!navigator.serviceWorker.controller;
-        const results = await Promise.all(appRegistrations.map(function (registration) {
+        const legacyFlutterRegistrations = registrations.filter(isLegacyFlutterRegistration);
+        const results = await Promise.all(legacyFlutterRegistrations.map(function (registration) {
           return registration.unregister();
         }));
         const retired = results.some(Boolean);
@@ -156,7 +185,7 @@
         // A reload detaches this document from the now-unregistered legacy
         // worker.  Bound it to two attempts so a browser implementation that
         // retains a controller cannot create a reload loop.
-        if ((retired || hadController) && attempts < 2) {
+        if (retired && attempts < 2) {
           sessionStorage.setItem(reloadKey, String(attempts + 1));
           window.location.replace(window.location.href);
           return new Promise(function () {});

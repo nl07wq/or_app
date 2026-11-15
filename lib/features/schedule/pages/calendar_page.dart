@@ -260,6 +260,14 @@ class _CalendarRingBinderPainter extends CustomPainter {
   bool shouldRepaint(covariant _CalendarRingBinderPainter oldDelegate) => false;
 }
 
+class WeatherLoadGeneration {
+  int _value = 0;
+
+  int begin() => ++_value;
+
+  bool owns(int generation) => generation == _value;
+}
+
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key, this.initialDate, this.ambientContext});
   final DateTime? initialDate;
@@ -330,6 +338,7 @@ class _CalendarPageState extends State<CalendarPage> {
       const WeatherLocationPreferences(locations: [], activeLocationId: null);
   WeatherSnapshot? _weatherSnapshot;
   bool _weatherLoading = false;
+  final WeatherLoadGeneration _weatherLoadGeneration = WeatherLoadGeneration();
   bool _weatherRefreshing = false;
   bool _weatherStale = false;
   String? _weatherError;
@@ -375,41 +384,55 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Future<void> _loadWeather({
-    bool forceRefresh = false,
-    WeatherLocation? location,
-  }) async {
-    if (_weatherLoading) return;
+  Future<void> _loadWeather({bool forceRefresh = false}) async {
+    final generation = _weatherLoadGeneration.begin();
+    var locationStateResolved = false;
     setState(() {
       _weatherLoading = true;
       _weatherRefreshing = forceRefresh;
       _weatherError = null;
     });
-    final preferences = await _weatherService.loadLocations();
-    final selectedLocation = location ?? preferences.activeLocation;
-    if (selectedLocation == null) {
-      if (!mounted) return;
+    try {
+      final preferences = await _weatherService.loadLocations();
+      if (!mounted || !_weatherLoadGeneration.owns(generation)) return;
+      locationStateResolved = true;
+      final selectedLocation = preferences.activeLocation;
       setState(() {
         _weatherPreferences = preferences;
-        _weatherSnapshot = null;
-        _weatherLoading = false;
-        _weatherRefreshing = false;
+        if (selectedLocation == null ||
+            _weatherSnapshot?.location.stableId != selectedLocation.stableId) {
+          _weatherSnapshot = null;
+          _weatherStale = false;
+        }
       });
-      return;
+      if (selectedLocation == null) return;
+      final result = await _weatherService.load(
+        selectedLocation,
+        forceRefresh: forceRefresh,
+      );
+      if (!mounted || !_weatherLoadGeneration.owns(generation)) return;
+      setState(() {
+        _weatherSnapshot = result.snapshot;
+        _weatherStale = result.isStale;
+        _weatherError = result.snapshot == null
+            ? 'FORECAST SYNC UNAVAILABLE'
+            : null;
+      });
+    } catch (_) {
+      if (!mounted || !_weatherLoadGeneration.owns(generation)) return;
+      setState(() {
+        _weatherError = locationStateResolved
+            ? 'FORECAST SYNC UNAVAILABLE'
+            : 'WEATHER LOCATION UNAVAILABLE';
+      });
+    } finally {
+      if (mounted && _weatherLoadGeneration.owns(generation)) {
+        setState(() {
+          _weatherLoading = false;
+          _weatherRefreshing = false;
+        });
+      }
     }
-    final result = await _weatherService.load(
-      selectedLocation,
-      forceRefresh: forceRefresh,
-    );
-    if (!mounted) return;
-    setState(() {
-      _weatherPreferences = preferences;
-      _weatherSnapshot = result.snapshot;
-      _weatherStale = result.isStale;
-      _weatherError = result.snapshot == null ? 'WEATHER UNAVAILABLE' : null;
-      _weatherLoading = false;
-      _weatherRefreshing = false;
-    });
   }
 
   Future<void> _openWeatherSettings() async {
@@ -440,7 +463,7 @@ class _CalendarPageState extends State<CalendarPage> {
       _weatherSnapshot = null;
       _weatherStale = false;
     });
-    await _loadWeather(location: next);
+    await _loadWeather();
   }
 
   void _selectWeatherDate(String value) {

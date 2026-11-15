@@ -14,6 +14,19 @@
     return navigator.serviceWorker.register(swPath, { scope: './' });
   }
 
+  function registrationUsesPushWorker(value) {
+    if (!value) return false;
+    return [value.active, value.waiting, value.installing]
+      .filter(Boolean)
+      .some((worker) => {
+        try {
+          return new URL(worker.scriptURL, document.baseURI).pathname.endsWith('/' + swPath);
+        } catch (_) {
+          return false;
+        }
+      });
+  }
+
   function randomToken(bytes) {
     const data = crypto.getRandomValues(new Uint8Array(bytes || 32));
     let binary = '';
@@ -79,7 +92,19 @@
     serviceWorkerState: async () => {
       if (!('serviceWorker' in navigator)) return 'unsupported';
       const current = await navigator.serviceWorker.getRegistration(swPath);
-      return current ? 'registered' : 'not_registered';
+      if (!registrationUsesPushWorker(current)) return 'not_registered';
+      if (!('Notification' in window) || !('PushManager' in window) || !current.pushManager) {
+        return 'unsupported';
+      }
+      if (Notification.permission !== 'granted') {
+        return 'permission_' + Notification.permission;
+      }
+      try {
+        const subscription = await current.pushManager.getSubscription();
+        return subscription ? 'registered' : 'not_subscribed';
+      } catch (_) {
+        return 'subscription_unknown';
+      }
     },
   };
 })();
